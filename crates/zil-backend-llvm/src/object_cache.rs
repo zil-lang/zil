@@ -629,7 +629,29 @@ impl InstalledToolIdentities {
         Ok(identity)
     }
 }
+/// Economic hint only. Missing/large/unreadable notes decline optional link
+/// caching; an admitted driver still receives the complete original identity.
+pub(crate) fn has_fast_installed_identity(path: &Path) -> bool {
+    let Ok(mut file) = File::open(path) else {
+        return false;
+    };
+    let Ok(meta) = file.metadata() else {
+        return false;
+    };
+    meta.is_file()
+        && matches!(
+            elf_build_id_with_note_budget(&mut file, meta.len(), 1024 * 1024),
+            Ok(Some(_))
+        )
+}
 fn elf_build_id(file: &mut File, size: u64) -> io::Result<Option<Vec<u8>>> {
+    elf_build_id_with_note_budget(file, size, usize::MAX)
+}
+fn elf_build_id_with_note_budget(
+    file: &mut File,
+    size: u64,
+    mut remaining_notes: usize,
+) -> io::Result<Option<Vec<u8>>> {
     if size < 64 {
         return Ok(None);
     }
@@ -660,6 +682,10 @@ fn elf_build_id(file: &mut File, size: u64) -> io::Result<Option<Vec<u8>>> {
         if note_size > 1024 * 1024 || note_offset.checked_add(note_size).is_none_or(|n| n > size) {
             continue;
         }
+        let Some(remaining) = remaining_notes.checked_sub(note_size as usize) else {
+            return Ok(None);
+        };
+        remaining_notes = remaining;
         let mut notes = vec![0; note_size as usize];
         file.seek(SeekFrom::Start(note_offset))?;
         file.read_exact(&mut notes)?;

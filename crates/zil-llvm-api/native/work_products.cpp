@@ -930,10 +930,27 @@ void freezeEconomics(Request &R) {
 // CloneFunctionInto preserves values/CFG but does not promise use-list order.
 // LLVM analyses and scheduling can observe that order. Transport only the
 // function-owned values; constants and symbol users remain current owners.
-bool preserveLocalUseOrder(const Function &Source, ValueToValueMapTy &Map) {
+bool preserveLocalUseOrder(const Function &Source, ValueToValueMapTy &Map,
+                           size_t *RankTables = nullptr) {
   auto Restore = [&](const Value *V) {
     Value *New = Map.lookup(V);
     if (!New) return false;
+    // Prove the complete current mapped sequence before allocating a rank
+    // table. Most cloned values have zero/one use, or already have the exact
+    // source order. Neither case needs sorting. Owner/operand checks remain
+    // current, and an extra destination use cannot pass this equality.
+    auto Next = New->use_begin();
+    bool Same = true;
+    for (const Use &U : V->uses()) {
+      auto *NewUser = dyn_cast_or_null<User>(Map.lookup(U.getUser()));
+      if (!NewUser || U.getOperandNo() >= NewUser->getNumOperands()) return false;
+      const Use *NewUse = &NewUser->getOperandUse(U.getOperandNo());
+      if (NewUse->get() != New) return false;
+      if (Next == New->use_end() || &*Next != NewUse) { Same = false; break; }
+      ++Next;
+    }
+    if (Same && Next == New->use_end()) return true;
+    if (RankTables) ++*RankTables;
     std::map<const Use *, size_t> Ranks;
     for (const Use &U : V->uses()) {
       Value *MappedUser = Map.lookup(U.getUser());
@@ -1033,7 +1050,11 @@ bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats,
   for (const BasicBlock &B : F) for (const Instruction &I : B)
     if (const auto *Call = dyn_cast<CallBase>(&I)) {
       const Function *D = Call->getCalledFunction();
-      P.OriginalDeclarations.emplace(D->getName().str(), declarationText(*D));
+      // This capture walk cannot mutate callees. emplace still evaluates an
+      // expensive declarationText argument when the key already exists.
+      auto Name = D->getName().str();
+      if (!P.OriginalDeclarations.count(Name))
+        P.OriginalDeclarations.emplace(std::move(Name), declarationText(*D));
     }
   P.OutputNames = nameState(F);
   if (P.OutputNames.present < 0) return false;
@@ -1425,6 +1446,27 @@ extern "C" int ZilNativeProductsOwnedUseOrderCounterexample() {
   Value *B = Builder.CreateAdd(F->getArg(0), Builder.getInt32(2), "b");
   Builder.CreateRet(Builder.CreateAdd(A, B, "result"));
   if (verifyFunction(*F, nullptr)) return 0;
+  ValueToValueMapTy Map;
+  std::unique_ptr<Function> Copy(CloneFunction(F, Map));
+  if (!zil::preserveLocalUseOrder(*F, Map)) return 0;
+  size_t RankTables = 0;
+  if (!zil::preserveLocalUseOrder(*F, Map, &RankTables) || RankTables ||
+      verifyFunction(*Copy, nullptr)) return 0;
+  Copy->getArg(0)->reverseUseList();
+  if (!zil::preserveLocalUseOrder(*F, Map, &RankTables) || !RankTables) return 0;
+  auto *MappedA = cast<Instruction>(Map.lookup(A));
+  Map.erase(A);
+  if (zil::preserveLocalUseOrder(*F, Map)) return 0;
+  Map[A] = MappedA;
+  auto *Operand = MappedA->getOperand(0);
+  MappedA->setOperand(0, Builder.getInt32(3));
+  if (zil::preserveLocalUseOrder(*F, Map)) return 0;
+  MappedA->setOperand(0, Operand);
+  auto *Extra = BinaryOperator::CreateAdd(Copy->getArg(0), Builder.getInt32(4),
+                                         "extra", Copy->getEntryBlock().getTerminator());
+  if (zil::preserveLocalUseOrder(*F, Map)) return 0;
+  Extra->eraseFromParent();
+  if (!zil::preserveLocalUseOrder(*F, Map) || verifyFunction(*Copy, nullptr)) return 0;
   auto Print = [&] { std::string S; raw_string_ostream OS(S); F->print(OS, nullptr, true); return S; };
   std::string Text = Print(), Key = zil::functionText(*F);
   F->getArg(0)->reverseUseList();

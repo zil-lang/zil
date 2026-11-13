@@ -135,7 +135,24 @@ bool decode(const std::string &Data, StageStrings &Out) {
 bool PackedStageStrings::compressionAvailable() { return compression().usable(); }
 std::optional<PackedStageStrings> PackedStageStrings::pack(
     const StageStrings &Text, size_t MaxBytes, bool TryCompression) {
+  // Compute the exact complete frame size with the original cap before any
+  // allocation. Reserving once avoids copying the growing frame at each
+  // string append; Writer still checks every individual write below.
+  size_t FrameBytes = 8;
+  auto Add = [&](size_t N) {
+    if (N > MaxBytes - FrameBytes) return false;
+    FrameBytes += N; return true;
+  };
+  auto TextBytes = [&](const std::string &S) { return Add(8) && Add(S.size()); };
+  if (FrameBytes > MaxBytes) return std::nullopt;
+  for (const auto *S : {&Text.Input, &Text.World, &Text.Pipeline, &Text.Output,
+                        &Text.OutputText, &Text.EntryFacts, &Text.ExitFacts})
+    if (!TextBytes(*S)) return std::nullopt;
+  if (!Add(8)) return std::nullopt;
+  for (const auto &D : Text.OriginalDeclarations)
+    if (!TextBytes(D.first) || !TextBytes(D.second)) return std::nullopt;
   Writer W{{}, MaxBytes};
+  W.Data.reserve(FrameBytes);
   if (!W.append(Magic, 8)) return std::nullopt;
   for (const auto *S : {&Text.Input, &Text.World, &Text.Pipeline, &Text.Output,
                         &Text.OutputText, &Text.EntryFacts, &Text.ExitFacts})

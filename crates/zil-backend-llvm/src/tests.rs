@@ -2061,6 +2061,7 @@ fn incremental_machine_values_observe_equal_and_changed_scalar_results() {
 #[cfg(all(feature = "llvm-api", target_os = "linux"))]
 #[test]
 fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link() {
+    let _economics = crate::link_cache::allow_slow_driver_for_tests();
     use std::os::unix::fs::PermissionsExt;
     let directory = TestDirectory::new();
     let mut source = returning(Constant::I64(42));
@@ -2384,6 +2385,7 @@ fn partition_recipe_environment_binds_current_source_files_order_target_and_full
 #[cfg(all(feature = "llvm-api", target_os = "linux"))]
 #[test]
 fn equal_optimized_object_bytes_stop_before_link_even_when_the_object_action_misses() {
+    let _economics = crate::link_cache::allow_slow_driver_for_tests();
     fn program(add_zero: bool) -> VerifiedModule {
         let entry = function(
             0,
@@ -2484,6 +2486,81 @@ fn equal_optimized_object_bytes_stop_before_link_even_when_the_object_action_mis
     assert!(output.status.success());
     assert_eq!(output.stdout, b"42\n");
     equal.commit_object_cache();
+}
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[test]
+fn uneconomical_link_product_runs_the_original_driver_on_object_hits() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = TestDirectory::new();
+    let marker = directory.0.join("driver-executions");
+    let driver = directory.0.join("link-driver");
+    let mut options = BuildOptions::new(directory.0.join("program"));
+    let quote =
+        |path: &std::path::Path| format!("'{}'", path.to_str().unwrap().replace('\'', "'\\''"));
+    fs::write(
+        &driver,
+        format!(
+            "#!/bin/sh\nprintf 'link\\n' >>{}\nexec {} \"$@\"\n",
+            quote(&marker),
+            quote(&options.clang),
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&driver, fs::Permissions::from_mode(0o700)).unwrap();
+    options.clang = driver.clone();
+    options.backend = NativeBackend::LlvmApi;
+    options.optimization = Optimization::O2;
+    options.object_cache = Some(directory.0.join("cache"));
+    options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
+    let mut function = returning(Constant::I64(42));
+    function.name = "main".into();
+    let verified = checked_simple(function);
+    let raw = lir(&verified);
+    let mut session = BackendSession::default();
+    let mut original = None;
+    for request in 0..2 {
+        let mut result = build_view_with_cancellation_and_session(
+            &verified,
+            &raw.as_view(),
+            &options,
+            &|| false,
+            None,
+            Some(&mut session),
+        )
+        .unwrap();
+        assert!(!session.summary().reused_link);
+        assert_eq!(
+            result.codegen.link_tool_identities.full_identity_executions,
+            0
+        );
+        assert_eq!(result.codegen.link_tool_identities.metadata_reuses, 0);
+        assert_eq!(result.codegen.link_tool_identities.hashed_fallback_bytes, 0);
+        assert_eq!(
+            result.commands.len(),
+            1,
+            "no optional driver/ldd/script probes"
+        );
+        assert_eq!(result.commands[0][0], driver.to_string_lossy());
+        assert!(!result.commands[0].iter().any(|arg| arg == "-###"));
+        assert_eq!(
+            fs::read_to_string(&marker).unwrap(),
+            "link\n".repeat(request + 1)
+        );
+        if request == 1 {
+            assert_eq!(
+                result.codegen.object_cache.hits,
+                result.codegen.actual_units
+            );
+            assert_eq!(Some(fs::read(&result.executable).unwrap()), original);
+        } else {
+            original = Some(fs::read(&result.executable).unwrap());
+        }
+        let output = Command::new(&result.executable).output().unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"42\n");
+        result.commit_object_cache();
+    }
 }
 
 #[test]

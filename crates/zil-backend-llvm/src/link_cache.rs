@@ -355,6 +355,24 @@ pub(crate) struct DiscoveryContext<'a> {
     pub(crate) commands: &'a mut Vec<Vec<String>>,
     pub(crate) tools: &'a mut crate::object_cache::InstalledToolIdentities,
 }
+#[cfg(test)]
+thread_local! {
+    static ALLOW_SLOW_DRIVER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+#[cfg(test)]
+pub(crate) struct SlowDriverFixture(bool);
+#[cfg(test)]
+impl Drop for SlowDriverFixture {
+    fn drop(&mut self) {
+        ALLOW_SLOW_DRIVER.with(|value| value.set(self.0));
+    }
+}
+/// Exercise the original full link-product proof even with a no-build-ID test
+/// driver. This changes only economic admission, never an input/key check.
+#[cfg(test)]
+pub(crate) fn allow_slow_driver_for_tests() -> SlowDriverFixture {
+    SlowDriverFixture(ALLOW_SLOW_DRIVER.with(|value| value.replace(true)))
+}
 /// Discover each time: the current driver command and search-directory inventory
 /// prevent a newly installed earlier library from silently preserving the key.
 pub(crate) fn key(
@@ -377,6 +395,24 @@ pub(crate) fn key(
     }
     let command_clang = clang;
     let clang = tool(clang)?;
+    // Optional product discovery must not require a full driver-file hash just
+    // to avoid an ordinary current link. In particular a large no-build-ID
+    // clang can cost much more to identify than to execute. Refuse before any
+    // probe/hash, and let build.rs run the original configured driver. This is
+    // not a reuse authority: all admitted inputs retain every check below.
+    let allow_slow_driver = {
+        #[cfg(test)]
+        {
+            ALLOW_SLOW_DRIVER.with(|value| value.get())
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
+    };
+    if !allow_slow_driver && !crate::object_cache::has_fast_installed_identity(&clang) {
+        return None;
+    }
     let mut command = Command::new(command_clang);
     command
         .arg("-###")
