@@ -487,3 +487,18 @@ impl DynRecipeVisitor for Work<'_, '_> {
         self.fee(value.len())
     }
 }
+
+pub(super) fn semantic_snapshot(
+    value: &SemanticModule,
+    limits: &Limits,
+    left: &mut usize,
+    copies: usize,
+) -> R<()> {
+    let mut work = Work {
+        limits,
+        left,
+        copies,
+        nodes: 0,
+    };
+    value.visit_dyn_metadata(&mut work, 0)
+}

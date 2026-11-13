@@ -277,6 +277,9 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     if core.semantic.is_some() {
+        let mut semantic_work = limits.max_analysis_steps;
+        crate::semantics::well_formed::originals(&[core], limits, &mut semantic_work)
+            .map_err(|error| vec![error])?;
         return Err(vec![Diagnostic::unsupported(
             Phase::Types,
             "lexical semantic program requires its complete Types emission bridge",
@@ -363,6 +366,26 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         .iter()
         .any(|module| module.core.semantic.is_some())
     {
+        let mut semantic_work = limits.max_analysis_steps;
+        semantic_work = semantic_work
+            .checked_sub(program.modules.len().saturating_add(1))
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "semantic module inventory budget exceeded",
+                    None,
+                )]
+            })?;
+        crate::semantics::well_formed::originals(
+            &program
+                .modules
+                .iter()
+                .map(|module| &module.core)
+                .collect::<Vec<_>>(),
+            limits,
+            &mut semantic_work,
+        )
+        .map_err(|error| vec![error])?;
         return Err(vec![Diagnostic::unsupported(
             Phase::Types,
             "lexical semantic program requires its complete Types emission bridge",
