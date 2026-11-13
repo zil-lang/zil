@@ -2704,6 +2704,11 @@ fn identity(t:Type)->Type {return t}
         )
         .unwrap();
         environment.bind_source_origins(origins.as_deref()).unwrap();
+        // Immutable S survives invocation failures. Include its real retained
+        // bytes in the baseline; only invocation/scope scratch must disappear.
+        environment.freeze_stage_before_execution().unwrap();
+        let frozen = environment.stage_inventory.as_ref().unwrap().clone();
+        let snapshot = environment.snapshot.clone();
         environment.budget.reserve_temporary_bytes(37).unwrap();
         let before = environment.budget.live_temporary_bytes();
         let symbol = CtSymbolId {
@@ -2752,6 +2757,11 @@ fn identity(t:Type)->Type {return t}
         );
         assert!(result.is_err());
         assert_eq!(environment.budget.live_temporary_bytes(), before);
+        assert!(Arc::ptr_eq(
+            &frozen,
+            environment.stage_inventory.as_ref().unwrap()
+        ));
+        assert_eq!(environment.snapshot, snapshot);
     }
     #[test]
     fn ct5_actual_definition_scope_raw_wire_and_independent_budget_controls() {
