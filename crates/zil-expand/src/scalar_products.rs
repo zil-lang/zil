@@ -24,6 +24,9 @@ impl Declaration {
     }
 }
 
+// Keep the cold Item inline so Normalize can move it into Restore without
+// allocating another per-declaration owner. This request-local table is bounded.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum NormalizedProduct<'a> {
     Owned(Item),
     Shared(Arc<Item>),
