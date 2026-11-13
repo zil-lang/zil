@@ -138,12 +138,24 @@ pub(super) fn owner<'a>(
         }
     };
     if let Some(identity) = original_identity {
-        b.spend(
-            identity
-                .package
-                .len()
-                .saturating_add(definition.identity.package.len()),
-        )?;
+        for identity in [identity, &definition.identity] {
+            b.spend(
+                identity
+                    .package
+                    .len()
+                    .saturating_add(identity.module_path.iter().map(String::len).sum::<usize>())
+                    .saturating_add(
+                        identity
+                            .declaration_path
+                            .iter()
+                            .map(String::len)
+                            .sum::<usize>(),
+                    )
+                    .saturating_add(identity.module_path.len())
+                    .saturating_add(identity.declaration_path.len())
+                    .saturating_add(identity.generation_path.len()),
+            )?;
+        }
         if identity != &definition.identity {
             return Err(bad(
                 "semantic bridge changes the full original declaration identity",
