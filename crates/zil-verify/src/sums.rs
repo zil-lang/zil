@@ -2,6 +2,7 @@
 //! Nothing in this module reads producer responsibility/tag annotations.
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
+mod dirty_tags;
 mod initialization;
 #[cfg(test)]
 mod outer_cow_tests;
@@ -1330,9 +1331,16 @@ struct State {
     facts: BTreeSet<Fact>,
     observations: BTreeSet<ValueId>,
     partial: Option<partial_places::State>,
+    dirty_tags: Option<dirty_tags::Pending>,
 }
 
 impl State {
+    fn dirty(&mut self, local: LocalId, budget: &mut Budget) -> Check<()> {
+        if let Some(pending) = &mut self.dirty_tags {
+            pending.mark(local.0 as usize, budget)?;
+        }
+        Ok(())
+    }
     fn cost(&self, budget: &mut Budget) -> Check<()> {
         budget.spend(
             self.initialized
@@ -1345,6 +1353,9 @@ impl State {
         )?;
         if let Some(p) = &self.partial {
             p.cost(budget)?;
+        }
+        if let Some(pending) = &self.dirty_tags {
+            budget.spend(pending.copy_work())?;
         }
         for (_, path, _) in &self.facts {
             budget.spend(path.len())?;
@@ -1362,13 +1373,20 @@ impl State {
             changed |= a.join(b, budget)?;
         }
         changed |= self.initialized.merge(&other.initialized, budget)?;
-        for (a, b) in self.locals.iter_mut().zip(&other.locals) {
+        for (local, (a, b)) in self.locals.iter_mut().zip(&other.locals).enumerate() {
             if !Arc::ptr_eq(a, b) {
                 if Arc::strong_count(a) > 1 {
                     a.cost(budget)?;
                 }
-                changed |= Arc::make_mut(a).merge(b, budget)?;
+                let local_changed = Arc::make_mut(a).merge(b, budget)?;
+                changed |= local_changed;
+                if local_changed && let Some(pending) = &mut self.dirty_tags {
+                    pending.mark(local, budget)?;
+                }
             }
+        }
+        if let (Some(a), Some(b)) = (&mut self.dirty_tags, &other.dirty_tags) {
+            a.merge(b, budget)?;
         }
         changed |= self.values.merge(&other.values, budget)?;
         for (a, b) in self.captures.iter_mut().zip(&other.captures) {
@@ -1448,6 +1466,7 @@ struct Flow<'a> {
 
 impl Flow<'_> {
     fn kill(&self, state: &mut State, local: LocalId, budget: &mut Budget) -> Check<()> {
+        state.dirty(local, budget)?;
         budget.spend(state.facts.len().saturating_add(state.observations.len()))?;
         state.facts.retain(|(root, _, _)| *root != local);
         state.observations.retain(|v| {
@@ -1774,7 +1793,34 @@ impl Flow<'_> {
             if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial) {
                 meta.step(p, instruction, budget)?;
                 if partial_places::invalidates(&instruction.kind) {
-                    if let Some(locals) = &self.tagged_locals {
+                    let pending = state
+                        .dirty_tags
+                        .as_ref()
+                        .map(|p| p.scheduled(self.tagged_locals.as_deref().unwrap_or(&[]), budget))
+                        .transpose()?;
+                    if let Some(pending) = pending {
+                        for (local, tracked) in pending {
+                            forget_shared_copy_tags(
+                                &mut state.locals[local],
+                                &self.f.locals[local].ty,
+                                budget,
+                                self.tag_cache.as_ref().map(|cache| (cache, local)),
+                            )?;
+                            // Clear only after the original complete transfer and an
+                            // exact current fixed-point proof, including all Missing
+                            // wrappers, complete variants, children and absent routes.
+                            if tracked
+                                && state.locals[local]
+                                    .tags_unknown(&self.f.locals[local].ty, budget)?
+                            {
+                                state
+                                    .dirty_tags
+                                    .as_mut()
+                                    .expect("pending actual Copy tags")
+                                    .clear(local, budget)?;
+                            }
+                        }
+                    } else if let Some(locals) = &self.tagged_locals {
                         budget.spend(locals.len())?;
                         for &local in locals {
                             let content = &mut state.locals[local];
@@ -1994,6 +2040,7 @@ impl Flow<'_> {
                         instruction.kind,
                         InstructionKind::BorrowPlaceLocal { mutable: true, .. }
                     ) {
+                        state.dirty(*local, budget)?;
                         state.locals[local.0 as usize].cost(budget)?;
                         Arc::make_mut(&mut state.locals[local.0 as usize]).forget_place_copy_tags(
                             path,
@@ -2127,6 +2174,7 @@ impl Flow<'_> {
                                 }
                                 Ok(())
                             }
+                            state.dirty(*local, budget)?;
                             state.locals[local.0 as usize].cost(budget)?;
                             forget(
                                 Arc::make_mut(&mut state.locals[local.0 as usize]),
@@ -2447,6 +2495,7 @@ fn run_retaining<'m>(
         facts: BTreeSet::new(),
         observations: BTreeSet::new(),
         partial: None,
+        dirty_tags: None,
     };
     for (index, local) in f.parameters.iter().enumerate() {
         state.initialized.set(local.0 as usize, 2, budget)?;
@@ -2493,7 +2542,7 @@ fn run_retaining<'m>(
     if partial {
         state.partial = Some(partial_places::State::default());
     }
-    let tagged_locals = if indexed_invalidation(budget) && partial {
+    let mut tagged_locals = if indexed_invalidation(budget) && partial {
         // Scan and index slots are prepaid before allocation. Each queued
         // child is paid before growth, including nested owning Products.
         budget.spend(f.locals.len().saturating_mul(2).saturating_add(1))?;
@@ -2534,6 +2583,29 @@ fn run_retaining<'m>(
     } else {
         None
     };
+    if budget.large_tag_layout
+        && replacements.is_none()
+        && !address_replacement_tags
+        && let Some(tagged) = &mut tagged_locals
+    {
+        budget.spend(
+            f.locals
+                .len()
+                .saturating_add(tagged.len())
+                .saturating_add(1),
+        )?;
+        let mut eligible = vec![false; f.locals.len()];
+        let mut always = Vec::with_capacity(tagged.len());
+        for &local in tagged.iter() {
+            if budget.addressed_copy_sum(&f.locals[local].ty)? {
+                eligible[local] = true;
+            } else {
+                always.push(local);
+            }
+        }
+        state.dirty_tags = Some(dirty_tags::Pending::new(eligible, budget)?);
+        *tagged = always;
+    }
     let flow = Flow {
         f,
         module,

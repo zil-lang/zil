@@ -797,6 +797,7 @@ fn seed(module: &TypedModule, profile: usize) -> State {
         facts: BTreeSet::new(),
         observations: BTreeSet::new(),
         partial: Some(partial_places::State::default()),
+        dirty_tags: None,
     }
 }
 #[derive(Debug, PartialEq, Eq)]
@@ -1050,6 +1051,16 @@ fn large_ordinary_inventory_matches_eager_invalidation_with_full_state_and_error
                 };
                 f.locals.push(local);
             }
+            let function = &mut module.functions[0];
+            function.blocks[0]
+                .instructions
+                .push(crate::place_replacements::fixture::instruction(
+                    None,
+                    InstructionKind::Call {
+                        function: function.id,
+                        arguments: vec![],
+                    },
+                ));
             let eager = flow(&module, &[Content::Copy], false, 0);
             let mut indexed = flow(&module, &[Content::Copy], true, 0);
             indexed.tag_cache = Some(std::cell::RefCell::new(tag_cache::Cache::new(indexed.f)));
@@ -1070,6 +1081,21 @@ fn large_ordinary_inventory_matches_eager_invalidation_with_full_state_and_error
             let snapshot = logical(&alias);
             let mut a = template.clone();
             let mut b = template.clone();
+            let mut tracked = vec![false; indexed.f.locals.len()];
+            indexed.tagged_locals.as_mut().unwrap().retain(|&local| {
+                let eligible = indexed.f.locals[local].ty.is_copy_value();
+                tracked[local] = eligible;
+                !eligible
+            });
+            b.dirty_tags =
+                Some(dirty_tags::Pending::new(tracked, &mut budget(0, 1_000_000)).unwrap());
+            // The loaded singleton is stored after the first invalidation. Its
+            // destination must be requeued before the following real Call.
+            a.locals[0] = Arc::new(Content::Sum(
+                BTreeMap::from([(0, vec![Content::Copy])]),
+                None,
+            ));
+            b.locals[0] = a.locals[0].clone();
             for _ in 0..2 {
                 let x = bridges(old.block(0, &mut a, validate, true, &mut budget(0, 1_000_000)));
                 let y =
