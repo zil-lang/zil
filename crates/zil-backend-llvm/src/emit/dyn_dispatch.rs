@@ -275,12 +275,24 @@ pub(super) fn reserve(
                     copy_aggregates::reserve(ty, work, 0, limits)?;
                 }
             }
+            if let Type::Address { inner, .. } = &slot.result {
+                // A Slice result is a real {ptr, length} aggregate. Reserve its
+                // entire element layout before retaining the indirect ABI.
+                if matches!(inner.as_ref(), Type::Slice { .. }) {
+                    copy_aggregates::reserve(inner, work, 0, limits)?;
+                }
+            }
             cost = cost.saturating_add(slot.parameters.len().saturating_mul(64));
             if !(plain_value(&slot.result)
-                || matches!(&slot.result, Type::Address { mutable: false, inner } if inner.is_b0_scalar()))
+                || matches!(&slot.result, Type::Address { mutable: false, inner }
+                    if inner.is_b0_scalar()
+                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                 || !slot.parameters.iter().all(plain_value)
             {
-                return unsupported("borrowed dyn ABI requires fixed scalar or Unit slots", None);
+                return unsupported(
+                    "borrowed dyn ABI requires finite values or a shared scalar/slice result",
+                    None,
+                );
             }
         }
     }
