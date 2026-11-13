@@ -854,29 +854,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     &definition.result,
                     budget,
                 )?;
-                if let Some(actual) = &definition.storage_life {
-                    crate::signature_life::charge(actual, budget)?;
-                    if actual != life {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "Fixed helper role needs the complete actual capture relation",
-                            None,
-                        )]);
-                    }
-                    super::borrowed_fp::qualified_array_relation_work(
-                        &definition.captures,
-                        &Type::Unit,
-                        budget,
-                    )?;
-                    super::signature_life::closure_relation(
-                        &module.closures,
-                        &module.dyn_interfaces,
-                        definition.kind,
-                        &definition.parameters,
-                        &definition.captures,
-                        super::stored_callables::life_result(definition),
-                        life,
-                    )?;
+                super::stored_callables::check_role_relation(module, definition, life, budget)?;
+                if definition.storage_life.is_some() {
                     budget.spend(
                         function.parameters.len(),
                         "captured Fixed helper shared arguments",
@@ -893,14 +872,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             && !claim.roles.iter().any(|other|other.parameter as usize==position && other.kind==CallableKind::FnMut
                                 && matches!(&function.locals[p.0 as usize].ty,Type::Address {mutable:true,inner} if inner.as_ref()==&Type::Closure(other.closure)))
                     }) {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "captured Fixed helper exclusive arguments need capture target summary substitution",
-                            None,
-                        )]);
+                        // Canonical definition and role relations do not prove
+                        // an exclusive argument disjoint from
+                        // that role's captures. Keep a mandatory CFG obligation.
+                        budget.lookup(
+                            budget.pending_exclusive_helpers.len(),
+                            "exclusive helper actual CFG obligation",
+                        )?;
+                        budget.pending_exclusive_helpers.insert(function.id);
                     }
-                } else {
-                    super::borrowed_fp::relation(&definition.parameters, &definition.result, life)?;
                 }
             }
             if !(returned

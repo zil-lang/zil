@@ -987,28 +987,7 @@ pub(super) fn check_role(
         )
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
-    if let Some(actual) = &d.storage_life {
-        super::signature_life::charge(actual, b)?;
-        if actual != life {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "Fixed helper role needs the complete actual capture relation",
-                None,
-            )]);
-        }
-        super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-        super::signature_life::closure_relation(
-            &module.closures,
-            &module.dyn_interfaces,
-            d.kind,
-            &d.parameters,
-            &d.captures,
-            super::stored_callables::life_result(d),
-            life,
-        )?;
-    } else {
-        super::borrowed_fp::relation(&d.parameters, &d.result, life)?;
-    }
+    super::stored_callables::check_role_relation(module, d, life, b)?;
     check_with(module, f, reachable, b, Some(life))
 }
 fn check_with(
@@ -2242,17 +2221,10 @@ fn check_with(
                         super::stored_callables::called(module, f, &i.kind)
                             .ok_or_else(|| bad("class call has no actual qualified closure"))?;
                     if let Some(actual) = &definition.storage_life {
-                        let life = role.unwrap_or(actual);
                         if let Some(role) = role {
-                            crate::signature_life::charge(actual, b)?;
-                            crate::signature_life::charge(role, b)?;
-                            if role != actual {
-                                return Err(vec![Diagnostic::unsupported(
-                                    Phase::Analyze,
-                                    "Fixed role differs from complete actual capture relation",
-                                    None,
-                                )]);
-                            }
+                            super::stored_callables::check_role_relation(
+                                module, definition, role, b,
+                            )?;
                         }
                         let receiver = match &i.kind {
                             InstructionKind::CallClosureShared { callee, .. }
@@ -2267,13 +2239,26 @@ fn check_with(
                             _ => unreachable!(),
                         };
                         b.spend(1, "deferred actual environment invocation")?;
+                        // Both contracts constrain the same actual arguments,
+                        // result and persistent environment. Each invocation
+                        // relation gets fresh variables, not a new owner/loan.
                         deferred_closures.push((
-                            life,
+                            actual,
                             arguments,
                             i.result,
                             (receiver.classes.as_slice(), receiver.outer),
                             (block_index, instruction_index),
                         ));
+                        if let Some(role) = role {
+                            b.spend(1, "deferred actual parameter role invocation")?;
+                            deferred_closures.push((
+                                role,
+                                arguments,
+                                i.result,
+                                (receiver.classes.as_slice(), receiver.outer),
+                                (block_index, instruction_index),
+                            ));
+                        }
                     } else if let Some(life) = role {
                         call_with_outer(
                             life,

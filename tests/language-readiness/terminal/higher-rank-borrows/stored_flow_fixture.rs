@@ -1017,7 +1017,27 @@ pub(super) fn unbound_fixed_pointer() -> TypedModule {
 pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedModule {
     let mut m = rich_marker_pointer(false, false);
     let target = &mut m.functions[0];
-    target.storage_life = None;
+    // The actual declaration has three independent invocation occurrences:
+    // tag head, tag's phantom class, and number head. Each helper role below
+    // proves its own stronger relation against this real constant-return body.
+    let actual_life = StorageLifeContract {
+        static_bindings: Vec::new(),
+        fixed_binder_count: 0,
+        invocation_binder_count: 3,
+        bindings: vec![
+            row(StorageBase::Parameter(0), vec![], StorageBinder::Invocation(0)),
+            row(StorageBase::Parameter(1), vec![], StorageBinder::Invocation(2)),
+        ],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Invocation(1),
+        }],
+    };
+    target.storage_life = Some(actual_life.clone());
     target.environment = Some(ClosureId(0));
     let parameters = target
         .parameters
@@ -1025,7 +1045,7 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
         .map(|p| target.locals[p.0 as usize].ty.clone())
         .collect::<Vec<_>>();
     let definition = ClosureDefinition {
-        storage_life: None,
+        storage_life: Some(actual_life),
         id: ClosureId(0),
         function: FunctionId(0),
         captures: vec![],
@@ -1253,6 +1273,14 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
         span: s(),
     });
     entry.parameters.push(LocalId(2));
+    // The additional actual input is independent of both existing heads and
+    // the retained class. It has no captured Fixed environment obligation.
+    for actual in [d.storage_life.as_mut().unwrap(), entry.storage_life.as_mut().unwrap()] {
+        actual.invocation_binder_count = 4;
+        actual.bindings.push(row(
+            StorageBase::Parameter(2), vec![], StorageBinder::Invocation(3),
+        ));
+    }
     let helper = &mut m.functions[1];
     helper.locals[2].ty = mutable.clone();
     helper.values[2] = mutable.clone();

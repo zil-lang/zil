@@ -7911,6 +7911,14 @@ pub(super) fn infer(
         result.push(rows);
     }
     b.store_option_targets = option_targets;
+    // Publish coverage only after complete actual instruction, header,
+    // source/loan, summary substitution and required responsibility checks.
+    fee(b, module.functions.len())?;
+    b.stored_completed_functions = Some(
+        (0..module.functions.len())
+            .map(|index| b.composition_stored.is_empty() || b.composition_stored[index])
+            .collect(),
+    );
     Ok(result)
 }
 
@@ -9031,7 +9039,9 @@ mod tests {
             // Six scalar Managed TakeCapture sites keep the existing owning
             // ledger (48 fewer steps), and addressed captures select current
             // memory once instead of also joining stale SSA slots (180 fewer).
-            12_246 + 4 * m.functions.len(),
+            // Complete stored-CFG publication additionally scans every
+            // actual function. Keep the new public presence preflight fees.
+            12_246 + 5 * m.functions.len(),
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(
@@ -9720,6 +9730,56 @@ mod tests {
                 .iter()
                 .any(|d| d.message.contains("actual retained classes")),
             "{error:?}"
+        );
+    }
+    #[test]
+    fn parameter_roles_preserve_actual_fixed_phantom_and_static_occurrences() {
+        let module = fixture::captured_fixed(CallableKind::Fn, false);
+        let definition = &module.closures[0];
+        let actual = definition.storage_life.as_ref().unwrap();
+        let mut budget = Budget::new(&Limits::default());
+        super::super::stored_callables::check_role_relation(
+            &module,
+            definition,
+            actual,
+            &mut budget,
+        )
+        .unwrap();
+        for neighbor in 0..4 {
+            let mut role = actual.clone();
+            match neighbor {
+                0 => role.fixed_binder_count -= 1,
+                1 => role.classes[0].binder = StorageBinder::Invocation(0),
+                2 => role.classes[0].binder = StorageBinder::Fixed(1),
+                _ => role.static_bindings.push(StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                }),
+            }
+            let mut budget = Budget::new(&Limits::default());
+            let errors = super::super::stored_callables::check_role_relation(
+                &module,
+                definition,
+                &role,
+                &mut budget,
+            )
+            .unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.message.contains("persistent or static domain")),
+                "neighbor {neighbor}: {errors:?}"
+            );
+        }
+        let mut unknown = fixture::qualified_fn_role(false, false);
+        unknown.closures[0].storage_life = None;
+        unknown.functions[0].storage_life = None;
+        let errors = super::super::analyze(&unknown, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("directory is unknown")),
+            "{errors:?}"
         );
     }
     #[test]
