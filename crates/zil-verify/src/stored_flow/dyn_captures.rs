@@ -6,6 +6,43 @@ fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-SOURCE", None, message)
 }
 
+pub(super) fn operation(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::BorrowCapture { index, mutable } = i.kind else {
+        return Ok(false);
+    };
+    let Some(id) = f.environment else {
+        return Ok(false);
+    };
+    let d = crate::closures::definition(module, id, Some(i.span))?;
+    let ty = d
+        .captures
+        .get(index as usize)
+        .ok_or_else(|| bad("actual Context capture borrow position is absent"))?;
+    if !context_capture_type(module, ty, b)? {
+        return Ok(false);
+    }
+    if d.function != f.id || d.storage_life.is_none() || mutable && d.kind == CallableKind::Fn {
+        return Err(bad(
+            "actual Context captured borrow lacks its complete invocation scope or mode",
+        ));
+    }
+    let value = i
+        .result
+        .ok_or_else(|| bad("actual Context captured borrow lacks a result"))?;
+    if !matches!(vt(f, value)?, Type::Address { mutable: mode, inner } if *mode == mutable && inner.as_ref() == ty)
+    {
+        return Err(bad(
+            "actual Context capture borrow changes its complete leaf or mode",
+        ));
+    }
+    Ok(true)
+}
+
 pub(super) fn register_leaf(
     module: &TypedModule,
     closure: ClosureId,
@@ -63,6 +100,101 @@ pub(super) fn register_leaf(
     }
     b.pending_dyn_captures.insert(closure);
     Ok(true)
+}
+
+/// Actual Context occurrences include phantom-only carriers with no ports.
+/// Their metadata paths are never turned into physical pointer operations.
+pub(super) fn carriers(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<Vec<(Vec<ContractProjection>, DynInterfaceId)>> {
+    // Reuse this kernel's explicit unsupported-container boundary first.
+    dyn_ports::shape(module, ty, b)?;
+    let mut pending = vec![(ty, Vec::new())];
+    let mut result = Vec::new();
+    while let Some((ty, path)) = pending.pop() {
+        b.spend(path.len().saturating_add(1))?;
+        if path.len() > b.limits.max_call_depth
+            || pending.len().saturating_add(result.len()) >= b.limits.max_nodes
+        {
+            return Err(limit(
+                "Context capture occurrence directory exceeds selected bounds",
+            ));
+        }
+        match ty {
+            Type::OwnedDyn { interface } | Type::Dyn { interface } => {
+                if crate::dynamic_ports::interface(module, *interface, b)?
+                    .context
+                    .is_some()
+                {
+                    b.spend(path.len().saturating_add(1))?;
+                    result.push((path, *interface));
+                }
+            }
+            Type::Address { inner, .. } | Type::BorrowedStorage { storage: inner, .. } => {
+                pending.push((inner, path))
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                for (index, child) in fields.iter().enumerate() {
+                    let mut next = path.clone();
+                    next.push(ContractProjection::Place(PlaceProjection::Field(
+                        index as u32,
+                    )));
+                    pending.push((child, next));
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                for (index, (_, child)) in fields.iter().enumerate() {
+                    let mut next = path.clone();
+                    next.push(ContractProjection::Place(PlaceProjection::Field(
+                        index as u32,
+                    )));
+                    pending.push((child, next));
+                }
+            }
+            Type::Closure(id) => {
+                let d = crate::closures::definition(module, *id, None)?;
+                b.spend(
+                    d.captures
+                        .len()
+                        .saturating_mul(path.len().saturating_add(2)),
+                )?;
+                for (index, child) in d.captures.iter().enumerate() {
+                    let mut next = path.clone();
+                    next.push(ContractProjection::Capture(index as u32));
+                    pending.push((child, next));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(path.len().saturating_add(2).saturating_mul(2))?;
+                for (arm, child) in [(true, error), (false, result)] {
+                    let mut next = path.clone();
+                    next.push(ContractProjection::Place(PlaceProjection::ErrorArm(arm)));
+                    pending.push((child, next));
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (variant, (_, fields)) in variants.iter().enumerate() {
+                    b.spend(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                    for (index, child) in fields.iter().enumerate() {
+                        let mut next = path.clone();
+                        next.push(ContractProjection::Place(PlaceProjection::Variant(
+                            VariantProjection {
+                                variant: variant as u32,
+                                index: index as u32,
+                            },
+                        )));
+                        pending.push((child, next));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(result)
 }
 
 /// A physical-lane handoff is discharged only after this kernel has completed

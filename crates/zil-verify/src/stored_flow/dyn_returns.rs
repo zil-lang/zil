@@ -525,7 +525,7 @@ fn class_binding(
 fn parameter_type(f: &TypedFunction, index: u32) -> Check<&Type> {
     parameter(f, index)
 }
-fn class_key(
+pub(super) fn class_key(
     module: &TypedModule,
     root: &Type,
     carrier: &[ContractProjection],

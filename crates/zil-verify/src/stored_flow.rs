@@ -23,6 +23,14 @@ pub(crate) fn logical_dyn_capture_leaf(
 ) -> Check<bool> {
     dyn_captures::register_leaf(module, closure, position, ty, b)
 }
+
+pub(crate) fn context_capture_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let ty = if let Type::Address { inner, .. } = ty { inner.as_ref() } else { ty };
+    let Type::OwnedDyn { interface } = ty else { return Ok(false); };
+    if crate::dynamic_ports::interface(module, *interface, b)?.context.is_none() { return Ok(false); }
+    crate::dynamic_dispatch::type_owned(module, *interface, b)?;
+    Ok(true)
+}
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
@@ -1592,6 +1600,7 @@ pub(super) fn qualifications(
                     && !anonymous_tuple::operation(f, i, b)?
                     && !dyn_closed::operation(module, f, i, b)?
                     && !dyn_ports::operation(module, f, i, b)?
+                    && !dyn_captures::operation(module, f, i, b)?
                     && !dyn_ports::wrapper(module, f, i, b)?
                     && !dyn_closed::wrapper(module, f, i, b)?
                     && !owned_operation
