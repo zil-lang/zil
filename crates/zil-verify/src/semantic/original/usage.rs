@@ -47,9 +47,7 @@ impl CheckedOriginal {
                     }true
                 },
                 Ty::Variable(..)|Ty::SelfType(_)=>{
-                    for(index,frame)in env.lexical.iter().enumerate(){let definition=context.definition(module,frame.definition,b)?;let mut selected=env.clone();selected.lexical=selected.lexical[index..].to_vec();let mut rows=definition.requirements.iter().collect::<Vec<_>>();for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{rows.extend(requirements);}}
-                        for row in rows {let receiver=match row{SemanticRequirementRecipe::Structural{ty,bound:DynStructuralBound::Copy}|SemanticRequirementRecipe::Builtin{ty,trait_kind:SemanticBuiltinTrait::Copy}=>Some(ty),_=>None};if let Some(receiver)=receiver{let receiver=self.ty(module,context,receiver,&selected,active,b)?;if self.same(&ty,&receiver,b)?{return Ok(true);}}}
-                    }
+                    if self.structural_premise(module,context,&ty,DynStructuralBound::Copy,env,active,b)?{return Ok(true);}
                     let equations=self.current.and_then(|id|self.equalities.get(&id)).cloned().unwrap_or_default();
                     for(left,right)in equations{for candidate in [left,right]{if !matches!(candidate,Ty::Variable(..)|Ty::SelfType(_)|Ty::Infer(_))&&self.same(&ty,&candidate,b)?&&self.is_copy(module,context,&candidate,env,active,b)?{return Ok(true);}}}
                     false
@@ -75,7 +73,7 @@ impl CheckedOriginal {
     pub(super) fn set_uses(&mut self,env:&Env,uses:Uses)->Check<()>{self.uses.insert(env.current()?,uses);Ok(())}
     pub(super) fn join_uses(&mut self,env:&Env,left:&Uses,right:&Uses,b:&mut Budget)->Check<()> {let mut joined=left.clone();b.spend(left.moved.len())?;joined.join(right,b)?;self.set_uses(env,joined)}
 }
-fn has_inference(ty:&Ty,substitutions:&BTreeMap<u64,Ty>,b:&mut Budget)->Check<bool>{
+pub(super) fn has_inference(ty:&Ty,substitutions:&BTreeMap<u64,Ty>,b:&mut Budget)->Check<bool>{
     let mut pending=vec![ty];let mut seen=BTreeSet::new();
     while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
         Ty::Infer(id)=>{if !seen.insert(*id){continue;}match substitutions.get(id){Some(ty)=>pending.push(ty),None=>return Ok(true)}},

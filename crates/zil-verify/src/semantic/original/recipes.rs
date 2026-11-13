@@ -33,7 +33,11 @@ impl CheckedOriginal {
             SemanticTypeRecipe::Address{mutable,lifetime,inner}=>Ty::Address{mutable:*mutable,life:self.outer(module,context,lifetime,env,active,b)?,inner:Box::new(self.ty(module,context,inner,env,active,b)?)},
             SemanticTypeRecipe::Desc{lifetime,inner}=>Ty::Desc{life:self.outer(module,context,lifetime,env,active,b)?,inner:Box::new(self.ty(module,context,inner,env,active,b)?)},
             SemanticTypeRecipe::Slice(inner)=>Ty::Slice(Box::new(self.ty(module,context,inner,env,active,b)?)),
-            SemanticTypeRecipe::Managed(inner)=>Ty::Managed(Box::new(self.ty(module,context,inner,env,active,b)?)),
+            SemanticTypeRecipe::Managed(inner)=>{
+                let child=self.ty(module,context,inner,env,active,b)?;
+                let valid=match self.resolved(&child,b)?{Ty::Atom(Type::ByteBuffer)|Ty::Store(_)=>true,Ty::Nominal(id,_)=>matches!(context.definition(module,id,b)?.body,SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Resource,..}),_=>false};
+                if !valid{return Err(unsupported("original Managed payload is not an independently identified canonical resource",None));}Ty::Managed(Box::new(child))
+            },
             SemanticTypeRecipe::OwnedStore(inner)=>Ty::Store(Box::new(self.ty(module,context,inner,env,active,b)?)),
             SemanticTypeRecipe::Array{element,length}=>Ty::Array(Box::new(self.ty(module,context,element,env,active,b)?),Box::new(self.constant(module,context,length,&Ty::Atom(Type::Usize),env,active,b)?)),
             SemanticTypeRecipe::ErrorUnion{error,result}=>Ty::ErrorUnion(Box::new(self.ty(module,context,error,env,active,b)?),Box::new(self.ty(module,context,result,env,active,b)?)),

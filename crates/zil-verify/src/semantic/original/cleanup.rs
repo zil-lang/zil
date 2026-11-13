@@ -2,13 +2,13 @@
 //! concrete specialization nor Value/Copy-like spelling invents an effect bound.
 use super::*;
 #[derive(Clone)]
-pub(super) struct Cleanup {definition:SemanticDefinitionId,binding:Binding,uses:Uses,environment:Env}
+pub(super) struct Cleanup {definition:SemanticDefinitionId,binding:Binding,path:Vec<String>,capture_exit:bool,uses:Uses,environment:Env}
 impl CheckedOriginal {
     pub(super) fn declare(&mut self,env:&Env,binding:&Binding,b:&mut Budget)->Check<()> {b.spend(1)?;self.live.entry(env.current()?).or_default().insert(binding.identity.clone(),binding.clone());Ok(())}
     pub(super) fn live_keys(&self,env:&Env,b:&mut Budget)->Check<BTreeSet<Binder>>{let rows=self.live.get(&env.current()?);b.spend(rows.map_or(0,BTreeMap::len))?;Ok(rows.into_iter().flat_map(BTreeMap::keys).cloned().collect())}
     pub(super) fn queue_cleanup(&mut self,env:&Env,only:Option<&BTreeSet<Binder>>,b:&mut Budget)->Check<()> {
         let id=env.current()?;let uses=self.use_snapshot(env,b)?;
-        if let Some(live)=self.live.get(&id){b.spend(live.len().saturating_mul(uses.moved.len().saturating_add(1)))?;for(key,binding)in live{if only.is_none_or(|only|only.contains(key)){self.cleanups.push(Cleanup{definition:id,binding:binding.clone(),uses:uses.clone(),environment:env.clone()});}}}Ok(())
+        if let Some(live)=self.live.get(&id){b.spend(live.len().saturating_mul(uses.moved.len().saturating_add(1)))?;for(key,binding)in live{if only.is_none_or(|only|only.contains(key)){self.cleanups.push(Cleanup{definition:id,binding:binding.clone(),path:vec![],capture_exit:true,uses:uses.clone(),environment:env.clone()});}}}Ok(())
     }
     pub(super) fn forget_scope(&mut self,env:&Env,before:&BTreeSet<Binder>,b:&mut Budget)->Check<()> {let id=env.current()?;if let Some(live)=self.live.get_mut(&id){b.spend(live.len())?;live.retain(|key,_|before.contains(key));}Ok(())}
     pub(super) fn exit_scope(&mut self,env:&Env,before:&BTreeSet<Binder>,b:&mut Budget)->Check<()> {
@@ -17,8 +17,8 @@ impl CheckedOriginal {
     pub(super) fn check_cleanups(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let cleanups=std::mem::take(&mut self.cleanups);
         for cleanup in cleanups{self.current=Some(cleanup.definition);
-            if matches!(cleanup.binding.identity,Binder::Capture{..})&&!self.prototypes.get(&cleanup.definition).is_some_and(|prototype|prototype.callable_kind==Some(CallableKind::FnOnce)){continue;}
-            let place=Place{binder:cleanup.binding.identity.clone(),fields:vec![]};
+            if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..})&&!self.prototypes.get(&cleanup.definition).is_some_and(|prototype|prototype.callable_kind==Some(CallableKind::FnOnce)){continue;}
+            let place=Place{binder:cleanup.binding.identity.clone(),fields:cleanup.path.clone()};
             self.remaining_drop(module,context,&cleanup.binding.ty,&place,&cleanup.uses,&cleanup.environment,active,b)?;
         }self.current=None;Ok(())
     }
@@ -38,7 +38,7 @@ impl CheckedOriginal {
         }
         if self.sync_drop(module,context,ty,env,active,b)?{Ok(())}else{Err(bad("original cleanup edge has no original SyncDrop proof"))}
     }
-    fn sync_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+    pub(super) fn sync_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             if self.is_copy(module,context,ty,env,active,b)?||self.has_sync_drop_premise(module,context,ty,env,active,b)?{return Ok(true);}
             let ty=self.resolved(ty,b)?;
@@ -61,6 +61,14 @@ impl CheckedOriginal {
         })
     }
     fn has_sync_drop_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
-        for(index,frame)in env.lexical.iter().enumerate(){let definition=context.definition(module,frame.definition,b)?;let mut selected=env.clone();selected.lexical=selected.lexical[index..].to_vec();let mut rows=definition.requirements.iter().collect::<Vec<_>>();for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{rows.extend(requirements);}}for row in rows{let recipe=match row{SemanticRequirementRecipe::Structural{ty,bound:DynStructuralBound::SyncDrop}|SemanticRequirementRecipe::Builtin{ty,trait_kind:SemanticBuiltinTrait::SyncDrop}=>Some(ty),_=>None};if let Some(recipe)=recipe{let actual=self.ty(module,context,recipe,&selected,active,b)?;if self.same(ty,&actual,b)?{return Ok(true);}}}}Ok(false)
+        self.structural_premise(module,context,ty,DynStructuralBound::SyncDrop,env,active,b)
+    }
+}
+
+impl CheckedOriginal {
+    pub(super) fn overwrite_cleanup(&mut self,env:&Env,node:NodeId,ty:&Ty,place:Option<&Place>,b:&mut Budget)->Check<()> {
+        let definition=env.current()?;let uses=self.use_snapshot(env,b)?;
+        let (identity,path)=match place{Some(place)=>{b.spend(place.fields.len())?;(place.binder.clone(),place.fields.clone())},None=>(Binder::Local{definition,node,name:"$original_overwrite".into()},vec![])};
+        self.cleanups.push(Cleanup{definition,binding:Binding{ty:ty.clone(),mutable:true,identity},path,capture_exit:false,uses,environment:env.clone()});Ok(())
     }
 }

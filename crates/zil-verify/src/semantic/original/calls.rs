@@ -79,7 +79,7 @@ impl CheckedOriginal {
             for requirement in requirements{if let SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=requirement{let receiver=self.ty(module,context,receiver,&lexical,active,b)?;if self.same(&receiver,ty,b)?{let mut prototype=self.signature(module,context,signature,&lexical,active,b)?;prototype.callable_kind=Some(*kind);if let Some(previous)=&result{let previous:&Prototype=previous;if previous.parameters.len()!=prototype.parameters.len()||previous.modes!=prototype.modes||previous.result_mode!=prototype.result_mode||previous.call_kind!=prototype.call_kind||previous.bound_lifetimes!=prototype.bound_lifetimes||previous.invocation_lifetimes!=prototype.invocation_lifetimes{return Err(unsupported("original Callable overloads need exact role selection",None));}for(a,c)in previous.parameters.iter().zip(&prototype.parameters){if !self.same(a,c,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}if !self.same(&previous.result,&prototype.result,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}result=Some(prototype);}}}
         }Ok(result)
     }
-    fn obligation(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(super) fn obligation(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         b.spend(1)?;
         match requirement {
             SemanticRequirementRecipe::TypeEqual{left,right}=>{let left=self.ty(module,context,left,target,active,b)?;let right=self.ty(module,context,right,target,active,b)?;if !self.same(&left,&right,b)?{return Err(bad("original caller does not prove target TypeEqual requirement"));}Ok(())},
@@ -89,10 +89,40 @@ impl CheckedOriginal {
                 if !callable_accepts(actual.callable_kind,*kind){return Err(unsupported("original Callable source capability is not independently established",None));}
                 if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}for(actual,wanted)in actual.parameters.iter().zip(&wanted.parameters){if !self.same(actual,wanted,b)?{return Err(bad("original Callable requirement parameters lack their original relation"));}}if !self.same(&actual.result,&wanted.result,b)?{return Err(bad("original Callable requirement result lacks its original relation"));}Ok(())
             },
-            SemanticRequirementRecipe::Structural{ty,bound}=>{let ty=self.ty(module,context,ty,target,active,b)?;if let Ty::Atom(ty)=self.resolved(&ty,b)?{if ty.is_b0_scalar()&&matches!(bound,DynStructuralBound::Copy|DynStructuralBound::Value|DynStructuralBound::SyncDrop|DynStructuralBound::StoreElement){return Ok(());}}Err(unsupported("original structural obligation needs its full symbolic provider proof",None))},
+            SemanticRequirementRecipe::Structural{ty,bound}=>{let ty=self.ty(module,context,ty,target,active,b)?;self.structural_obligation(module,context,&ty,*bound,caller,active,b)},
+            SemanticRequirementRecipe::Builtin{ty,trait_kind}=>{let ty=self.ty(module,context,ty,target,active,b)?;let bound=match trait_kind{SemanticBuiltinTrait::Copy=>DynStructuralBound::Copy,SemanticBuiltinTrait::Value=>DynStructuralBound::Value,SemanticBuiltinTrait::SyncDrop=>DynStructuralBound::SyncDrop,SemanticBuiltinTrait::StoreElement=>DynStructuralBound::StoreElement,_=>return Err(unsupported("original operational builtin requires its exact provider/body proof",None))};self.structural_obligation(module,context,&ty,bound,caller,active,b)},
             _=>Err(unsupported("original requirement has no complete symbolic caller proof",None)),
         }
     }
 }
 
 fn callable_accepts(actual:Option<CallableKind>,wanted:CallableKind)->bool{match actual{Some(CallableKind::FunctionPointer)=>true,Some(CallableKind::Fn)=>wanted!=CallableKind::FunctionPointer,Some(CallableKind::FnMut)=>matches!(wanted,CallableKind::FnMut|CallableKind::FnOnce),Some(CallableKind::FnOnce)=>wanted==CallableKind::FnOnce,None=>false}}
+
+impl CheckedOriginal {
+    pub(super) fn structural_obligation(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,bound:DynStructuralBound,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        if self.structural_premise(module,context,ty,bound,caller,active,b)?{return Ok(());}
+        let proved=match bound{
+            DynStructuralBound::Copy=>self.is_copy(module,context,ty,caller,active,b)?,
+            DynStructuralBound::SyncDrop=>self.sync_drop(module,context,ty,caller,active,b)?,
+            DynStructuralBound::Value=>self.value_type(module,context,ty,caller,active,b)?,
+            DynStructuralBound::StoreElement=>matches!(self.resolved(ty,b)?,Ty::Atom(ref ty)if ty.is_b0_scalar()),
+        };
+        if proved{Ok(())}else{Err(unsupported("original caller lacks a complete structural/cleanup obligation proof",None))}
+    }
+    fn value_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+        let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
+            if self.structural_premise(module,context,ty,DynStructuralBound::Value,env,active,b)?||self.is_copy(module,context,ty,env,active,b)?{return Ok(true);}
+            Ok(match self.resolved(ty,b)?{
+                Ty::Address{..}|Ty::Desc{..}|Ty::Managed(_)=>true,
+                Ty::Closure(definition,..)=>self.checked.contains(&definition)&&self.creator_moves.contains_key(&definition),
+                Ty::Tuple(fields)=>{for field in fields{if !self.value_type(module,context,&field,env,active,b)?{return Ok(false);}}true},
+                Ty::Array(element,_)=>self.value_type(module,context,&element,env,active,b)?,
+                Ty::ErrorUnion(error,result)=>self.value_type(module,context,&error,env,active,b)?&&self.value_type(module,context,&result,env,active,b)?,
+                Ty::Nominal(id,arguments)=>{let definition=context.definition(module,id,b)?;let SemanticDefinitionBody::Nominal{kind,body,..}=&definition.body else{return Err(bad("original Value has no exact nominal body"));};if !matches!(kind,LifeNominalKind::Record|LifeNominalKind::Package|LifeNominalKind::Enum){return Ok(false);}let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=arguments;
+                    match body{SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.value_type(module,context,&ty,env,active,b)?{return Ok(false);}},SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.value_type(module,context,&ty,env,active,b)?{return Ok(false);}}}}true
+                },
+                _=>false,
+            })
+        })
+    }
+}

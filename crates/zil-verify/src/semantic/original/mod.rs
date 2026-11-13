@@ -14,6 +14,7 @@ mod usage;
 mod places;
 mod cleanup;
 mod names;
+mod structural;
 use usage::{Binder,Place,Uses};
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};
@@ -119,7 +120,12 @@ impl CheckedOriginal {
             SemanticFormal::Lifetime=>Arg::Life(Life::Formal(id,ordinal as u32)),
             SemanticFormal::Const{carrier}=>{let mut scope=environment.clone();scope.lexical.insert(0,Frame{definition:id,actuals:actuals.clone(),environment:vec![]});let carrier=self.ty(module,context,carrier,&scope,active,b)?;Arg::Const(Const{carrier:Box::new(carrier),value:ConstValue::Variable(id,ordinal as u32)})},
         });}
-        let mut sealed=Vec::new();for formal in &definition.environment{sealed.push(self.actual(module,context,&formal.source,&environment,active,b)?);}
+        let mut sealed=Vec::new();for formal in &definition.environment{
+            let value=self.actual(module,context,&formal.source,&environment,active,b)?;
+            if !matches!((&formal.kind,&value),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Const{..},Arg::Const(_))|(SemanticFormal::Lifetime,Arg::Life(_))){return Err(bad("original sealed environment changes its declared mixed kind"));}
+            if let (SemanticFormal::Const{carrier},Arg::Const(value))=(&formal.kind,&value){let expected=self.ty(module,context,carrier,&environment,active,b)?;self.unify(&value.carrier,&expected,b)?;}
+            sealed.push(value);
+        }
         environment.lexical.insert(0,Frame{definition:id,actuals,environment:sealed});
         self.environments.insert(id,environment.clone());Ok(environment)
     }
