@@ -26,6 +26,34 @@ inner type retains its complete qualified form; its outer borrow occurrence is
 represented in the type value's external life domain. Do not substitute a
 BorrowedStorage<Address> or compare only physical layouts against actual headers.
 
+The external lifetime domain of a root Address has no distinguished numeric
+ordering beyond its complete occurrence directory. Comparing two such type
+values therefore permits an alpha bijection of that outer domain. Derive the
+bijection from every actual occurrence: physical slot path and borrow mode,
+retained path and child intrinsic class, and nominal path, full declaration
+identity and original full argument ordinal. Require complete coverage in both
+directions, a bijection of the entire outer domain, and equal class images after
+that bijection. Matching a subset of slots or comparing only the number of
+classes is insufficient.
+
+This renames only the outer domain's row binders and corresponding class-map
+indices. It does not rename the inner Type, a BorrowedStorage or opaque type's
+intrinsic classes, retained child classes, original declaration ordinals or
+actual function-header binders. Two distinct intrinsic origins stay distinct
+even when both map to the same header, lexical or Context class. A two-class
+domain cannot become a one-class domain because its images coincide. Query-key
+comparison uses the same complete occurrence relation. Raw Wire bytes and
+fingerprints retain their exact representation; this semantic comparison does
+not rewrite their identity.
+
+A header occurrence first retains its actual intrinsic origin, including the
+particular nested nominal or retained occurrence that selected it. Header and
+lexical embeddings constrain that origin's image, rather than replacing it.
+Only an occurrence with no finer intrinsic anchor may use the actual instance
+header as its origin. An otherwise unused original lifetime formal falls back
+to its complete original actual in the witness's lexical scope; an equal
+Context image never supplies that actual or equates two origins.
+
 For a root BorrowedStorage type, the external `life` must equal the complete
 embedded shape, and the domain is counted once. Nested BorrowedStorage types
 retain their local domains and compose through explicit retained occurrences.
