@@ -80,6 +80,9 @@ fn declared_long_slice_getter_preserves_the_actual_fixed_context_class() {
     )
     .unwrap();
     fs::write(root.join("typed-unverified-empty-plan.wire"), bytes).unwrap();
+    // This is the real fat Slice result ABI, through an erased method and a
+    // normal borrowing helper, in both code generators and optimization modes.
+    check(text, "long-slice-getter-native");
 }
 
 fn check(text: &str, label: &str) {
