@@ -64,6 +64,10 @@ fn original_source_semantics_reach_typed_materialization_and_the_complete_proof_
             include_str!("../../../../tests/fixtures/semantic-scopes/ordinary-generic.zil"),
         ),
         (
+            "unused-generic-identity",
+            include_str!("../../../../tests/fixtures/semantic-scopes/unused-generic-identity.zil"),
+        ),
+        (
             "local-closure",
             include_str!("../../../../tests/fixtures/semantic-scopes/local-closure.zil"),
         ),
@@ -127,4 +131,105 @@ fn original_source_semantics_reach_typed_materialization_and_the_complete_proof_
         "formal Types Success still requires every original proof:\n{}",
         failures.join("\n")
     );
+}
+
+/// Concrete i32/i32 instantiations and dead branches cannot discharge an
+/// invalid symbolic definition. Unsupported is not a successful rejection.
+#[test]
+fn original_generic_definitions_reject_independent_binders_and_missing_copy() {
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../out/runs/semantic-types-original-counterexamples");
+    let mut failures = Vec::new();
+    for (label, text) in [
+        (
+            "unused-generic-copy",
+            include_str!("../../../../tests/fixtures/semantic-scopes/unused-generic-copy.zil"),
+        ),
+        (
+            "equal-actuals-generic-return",
+            include_str!(
+                "../../../../tests/fixtures/semantic-scopes/equal-actuals-generic-return.zil"
+            ),
+        ),
+        (
+            "equal-actuals-generic-call",
+            include_str!(
+                "../../../../tests/fixtures/semantic-scopes/equal-actuals-generic-call.zil"
+            ),
+        ),
+        (
+            "unselected-generic-branch",
+            include_str!(
+                "../../../../tests/fixtures/semantic-scopes/unselected-generic-branch.zil"
+            ),
+        ),
+    ] {
+        let directory = root.join(label);
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("source.zil"), text).unwrap();
+        let source = SourceUnit::new(FileId(0), ModuleId(0), label, text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let aliases = BTreeMap::new();
+        let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &aliases,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        };
+        let core = match zil_expand::expand_program_with_semantics(
+            &[source],
+            &[&syntax],
+            &[Vec::new()],
+            &limits,
+            &target,
+            context,
+        ) {
+            Ok(mut modules) => modules.remove(0).0.core,
+            Err(errors) => {
+                std::fs::write(
+                    directory.join("diagnostics.txt"),
+                    format!("Source failed: {errors:#?}"),
+                )
+                .unwrap();
+                failures.push(format!(
+                    "{label}: Source failed before original proof: {errors:?}"
+                ));
+                continue;
+            }
+        };
+        std::fs::write(directory.join("core.txt"), format!("{core:#?}")).unwrap();
+        let complete_original = core.semantic.as_ref().is_some_and(|semantic| {
+            semantic.definitions.iter().any(|definition| {
+                matches!(
+                    definition.body,
+                    SemanticDefinitionBody::FunctionWithBody { .. }
+                )
+            }) && !semantic.definitions.iter().any(|definition| {
+                matches!(definition.body, SemanticDefinitionBody::Function { .. })
+            })
+        });
+        if !complete_original {
+            failures.push(format!(
+                "{label}: Source omitted the complete original body"
+            ));
+            continue;
+        }
+        let checked = crate::check(&core, &target, &limits);
+        std::fs::write(directory.join("diagnostics.txt"), format!("{checked:#?}")).unwrap();
+        let rejected = checked.as_ref().err().is_some_and(|errors| {
+            !errors.is_empty()
+                && errors.iter().all(|error| {
+                    error.phase == Phase::Types
+                        && error.category == zil_base::ResultCategory::SafeReject
+                        && error.code == "E-SEMANTIC-ORIGINAL"
+                })
+        });
+        if !rejected {
+            failures.push(format!(
+                "{label}: expected original symbolic rejection: {checked:?}"
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
