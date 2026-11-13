@@ -30,6 +30,8 @@ Typed 的实际 SSA、local、签名、捕获、字段和容器元素必须一�
 
 qualification 不增加物理内存，不生成 BorrowRoot、地址、loan 或资源权限。根 Address/Desc 保留原表示，由外部 life 描述其外层发生；内部 BS 完整保留，不额外制造 BS<Address> 或直接双 wrapper，已有 nominal BS 即使 N0 也不能随意剥除。
 
+例如根共享地址 `&κ i32` 的 `Resolved.ty` 仍是原 Address；外部 `life` 有一个 binder 和位于空路径的 `SharedAddress` slot，`classes` 保存 κ。标量 referent 的内在零域不能抹掉该外层发生，也不能将外层发生与 referent 内在类合并。
+
 该延后表示统一适用于 Type 实参、Const 的载荷类型、实际 Self、构造结果、类型使用和局部声明，并覆盖函数与闭包环境中这些记录的每次出现。实际存在但尚未求值的 Self 不能写成 None，未知完整域不能写成空类表。Self recipe 不能以自身作为解析基准，必须由真实 method/receiver、impl 作用域和父实例实参确定。
 
 Types 消费真实 Core 发射账本，以原表达式身份和发生点解析推导类型，核对 recipe，产生完整 `Resolved { ty, life, classes }`，并重建完整实际 header embedding。Core 阶段尚未发射的空 embedding 不代表 Known0。Types 输出 Typed 前必须解析所有延后记录，连同未使用定义、词法作用域、环境和非活动分支；Analyze、Verify 及可执行 CT 消费者拒绝任何残留 Core 类型、CoreRecipe、Core 目标或未解析语法。
