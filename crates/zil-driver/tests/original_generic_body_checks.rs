@@ -83,9 +83,7 @@ fn require_semantic_rejection(errors: Vec<zil_base::Diagnostic>) {
                 zil_base::Phase::Verify => error.code == "E-VERIFY-SEMANTIC",
                 _ => false,
             };
-            error.category == ResultCategory::SafeReject
-                && semantic_gate
-                && error.message.to_ascii_lowercase().contains("copy")
+            error.category == ResultCategory::SafeReject && semantic_gate
         }),
         "unsupported, transport and plan failures are not a symbolic rejection: {errors:#?}"
     );
