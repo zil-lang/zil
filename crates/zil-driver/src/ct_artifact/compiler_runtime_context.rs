@@ -679,6 +679,7 @@ impl Compiler<'_> {
                 s::TypeKind::Array {
                     element: Box::new(self.runtime_computed_type(element, span, depth + 1)?),
                     length: Some(Box::new(s::Expr {
+                        semantic: Default::default(),
                         span,
                         kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())),
                     })),

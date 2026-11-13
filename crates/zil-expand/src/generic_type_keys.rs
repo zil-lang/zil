@@ -414,6 +414,7 @@ mod tests {
         // Internal normalized const carriers use the same full typed key.
         let span = Span::new(FileId(0), 0, 1);
         let expression = Expr {
+            semantic: Default::default(),
             span,
             kind: ExprKind::Literal(Literal::Integer("0xffu64".into())),
         };

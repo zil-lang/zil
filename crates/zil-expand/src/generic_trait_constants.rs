@@ -83,9 +83,11 @@ pub(crate) fn expression(
     budget.text(MARKER, span)?;
     path[0] = MARKER.into();
     Ok(Expr {
+        semantic: Default::default(),
         span,
         kind: ExprKind::TypeApply {
             callee: Box::new(Expr {
+                semantic: Default::default(),
                 span,
                 kind: ExprKind::Name(MARKER.into()),
             }),

@@ -813,6 +813,7 @@ impl Visitor<'_, '_, '_> {
         };
         // The complete expanded target was bounded before this namespace copy.
         let callee = Expr {
+            semantic: Default::default(),
             span: e.span,
             kind: ExprKind::Name(path.join(".")),
         };

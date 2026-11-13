@@ -108,16 +108,20 @@ fn wrap(
     let payload = std::mem::replace(
         value,
         Expr {
+            semantic: Default::default(),
             kind: ExprKind::Tuple(vec![]),
             span,
         },
     );
     let name = if is_error { "error_err" } else { "error_ok" };
     *value = Expr {
+        semantic: Default::default(),
         kind: ExprKind::Call {
             callee: Box::new(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::TypeApply {
                     callee: Box::new(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Name(name.into()),
                         span,
                     }),
@@ -722,6 +726,7 @@ mod tests {
                 // Callee rewriting grows a subtree before this argument in traversal order.
                 // The argument is the same actual node, regardless of its new ordinal.
                 callee.kind = ExprKind::Group(Box::new(Expr {
+                    semantic: Default::default(),
                     span: callee.span,
                     kind: ExprKind::Name("rewritten_sink".into()),
                 }));
@@ -770,7 +775,9 @@ mod tests {
         };
         let span = value.span;
         let nested = Stmt {
+            semantic: Default::default(),
             kind: StmtKind::Expression(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Literal(Literal::Integer("0".into())),
                 span,
             }),

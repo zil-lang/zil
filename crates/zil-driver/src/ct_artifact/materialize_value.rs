@@ -8,7 +8,11 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_temporary_bytes(std::mem::size_of::<s::Expr>() as u64)?;
-        Ok(s::Expr { kind, span })
+        Ok(s::Expr {
+            semantic: Default::default(),
+            kind,
+            span,
+        })
     }
     fn data_type_expr(&mut self, ty: &s::TypeRef, span: Span) -> CompileResult<s::Expr> {
         let s::TypeKind::Named { path, args } = &ty.kind else {

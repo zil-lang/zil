@@ -1240,6 +1240,7 @@ impl Visitor<'_, '_, '_> {
             self.budget.node(ty.span, depth)?;
             self.budget.text(name, ty.span)?;
             *argument = GenericArg::Const(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Name(name.clone()),
                 span: ty.span,
             });
@@ -1762,6 +1763,7 @@ impl Visitor<'_, '_, '_> {
                 };
                 ExprKind::Member {
                     object: Box::new(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Name(alias),
                         span: e.span,
                     }),
@@ -1948,6 +1950,7 @@ impl Visitor<'_, '_, '_> {
                 self.symbol(std::slice::from_ref(&f.name), types, values, f.span, false)?
             {
                 f.value = Some(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name(name),
                     span: f.span,
                 });

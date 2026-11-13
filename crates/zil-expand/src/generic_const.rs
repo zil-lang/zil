@@ -91,6 +91,7 @@ pub(super) fn argument(
             budget.ty(ty)?;
             carrier(
                 &Expr {
+                    semantic: Default::default(),
                     span: ty.span,
                     kind: ExprKind::Name(name.to_owned()),
                 },
@@ -219,6 +220,7 @@ pub(super) fn normalize(
     };
     carrier(
         &Expr {
+            semantic: Default::default(),
             span: actual.span,
             kind,
         },
@@ -536,6 +538,7 @@ pub(super) fn definition<'a>(
             budget.text(&name, parameter.span)?;
             let value = carrier(
                 &Expr {
+                    semantic: Default::default(),
                     span: parameter.span,
                     kind: ExprKind::Name(name.clone()),
                 },

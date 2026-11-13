@@ -1057,6 +1057,7 @@ fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
         unreachable!("prepaid static host type")
     };
     let callee = Expr {
+        semantic: Default::default(),
         span,
         kind: ExprKind::Name(path[0].clone()),
     };
@@ -1064,6 +1065,7 @@ fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
         callee
     } else {
         Expr {
+            semantic: Default::default(),
             span,
             kind: ExprKind::TypeApply {
                 callee: Box::new(callee),

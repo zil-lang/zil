@@ -3372,6 +3372,7 @@ mod local_class_tests {
             budget: &mut budget,
         };
         let first = Expr {
+            semantic: Default::default(),
             kind: ExprKind::Name("root".into()),
             span: Span::default(),
         };

@@ -1395,6 +1395,7 @@ mod generated_lineage_tests {
             unreachable!()
         };
         function.body = FunctionBody::Expression(Expr {
+            semantic: Default::default(),
             span: function.span,
             kind: ExprKind::Literal(Literal::Integer("9".into())),
         });

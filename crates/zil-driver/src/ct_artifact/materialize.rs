@@ -280,8 +280,10 @@ fn take_statement(statement: &mut s::Stmt) -> s::Stmt {
     std::mem::replace(
         statement,
         s::Stmt {
+            semantic: Default::default(),
             span,
             kind: s::StmtKind::Expression(s::Expr {
+                semantic: Default::default(),
                 span,
                 kind: s::ExprKind::Literal(s::Literal::Bool(false)),
             }),
@@ -306,6 +308,7 @@ fn float_expression(
     budget.reserve_temporary_bytes(26)?;
     budget.reserve_generated_nodes(1)?;
     Ok(s::Expr {
+        semantic: Default::default(),
         span,
         kind: s::ExprKind::Literal(s::Literal::Float(value.generated_spelling())),
     })
@@ -762,6 +765,7 @@ impl Materializer<'_, '_> {
                                 }
                             };
                             args.push(s::GenericArg::Const(s::Expr {
+                                semantic: Default::default(),
                                 span,
                                 kind: s::ExprKind::Literal(literal),
                             }));
@@ -785,6 +789,7 @@ impl Materializer<'_, '_> {
             CtTypeNode::Array { element, length } => s::TypeKind::Array {
                 element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?),
                 length: Some(Box::new(s::Expr {
+                    semantic: Default::default(),
                     span,
                     kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())),
                 })),
@@ -2721,6 +2726,7 @@ mod float_tests {
             "@bits:f16:00000000",
         ] {
             let expression = s::Expr {
+                semantic: Default::default(),
                 span: Span::default(),
                 kind: s::ExprKind::Literal(s::Literal::Float(spelling.into())),
             };

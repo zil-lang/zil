@@ -3427,6 +3427,7 @@ fn array_type(element: TypeRef, length: usize, span: Span) -> R<TypeRef> {
         kind: TypeKind::Array {
             element: Box::new(element),
             length: Some(Box::new(Expr {
+                semantic: Default::default(),
                 span,
                 kind: ExprKind::Literal(Literal::Integer(length.to_string())),
             })),
@@ -4268,6 +4269,7 @@ impl Substitution<'_> {
         {
             e.kind = ExprKind::Member {
                 object: Box::new(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name("self".into()),
                     span: e.span,
                 }),

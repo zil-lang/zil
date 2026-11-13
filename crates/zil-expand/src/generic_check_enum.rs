@@ -375,6 +375,7 @@ impl Check<'_, '_, '_> {
                     self.budget.node(supplied.span, 0)?;
                     self.budget.text(&supplied.name, supplied.span)?;
                     shorthand = Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Name(supplied.name.clone()),
                         span: supplied.span,
                     };
@@ -429,6 +430,7 @@ impl Check<'_, '_, '_> {
                 self.budget.node(supplied.span, 0)?;
                 self.budget.text(&supplied.name, supplied.span)?;
                 shorthand = Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name(supplied.name.clone()),
                     span: supplied.span,
                 };
@@ -1623,6 +1625,7 @@ mod error_member_budget {
         let args = (0..96)
             .map(|_| {
                 GenericArg::Const(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Literal(Literal::Integer("123456789".into())),
                     span,
                 })

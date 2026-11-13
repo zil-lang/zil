@@ -154,6 +154,7 @@ impl Index<'_> {
                                 != super::constants::identity(&value, budget)?
                             {
                                 Expr {
+                                    semantic: Default::default(),
                                     span: member.span,
                                     kind: ExprKind::Name("$ambiguous_associated_constant".into()),
                                 }
@@ -167,6 +168,7 @@ impl Index<'_> {
                         budget.text(subject, span)?;
                         let marker = consts::carrier(
                             &Expr {
+                                semantic: Default::default(),
                                 span,
                                 kind: ExprKind::Name(super::constants::SUBJECT.into()),
                             },

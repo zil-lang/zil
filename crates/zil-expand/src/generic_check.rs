@@ -2165,6 +2165,7 @@ impl Check<'_, '_, '_> {
                 ExprKind::Member { .. } => true, // The give expression separately checks the actual field.
                 ExprKind::Group(inner) => self.owning_store_expression(
                     &Expr {
+                        semantic: Default::default(),
                         span: expression.span,
                         kind: ExprKind::Unary {
                             op: UnaryOp::Give,
@@ -4192,6 +4193,7 @@ impl Check<'_, '_, '_> {
                             ));
                         }
                         let local = Expr {
+                            semantic: Default::default(),
                             span: field.span,
                             kind: ExprKind::Name(field.name.clone()),
                         };

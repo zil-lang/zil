@@ -1282,6 +1282,7 @@ impl Builder<'_, '_> {
                 }
                 s::PatternKind::Literal(literal) => {
                     let expected = s::Expr {
+                        semantic: Default::default(),
                         kind: s::ExprKind::Literal(literal.clone()),
                         span: arm.pattern.span,
                     };

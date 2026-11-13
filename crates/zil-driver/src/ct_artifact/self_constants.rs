@@ -367,7 +367,11 @@ impl Materializer<'_, '_> {
                 ));
             }
         };
-        Ok(s::Expr { span, kind })
+        Ok(s::Expr {
+            semantic: Default::default(),
+            span,
+            kind,
+        })
     }
     fn symbolic_equation(&mut self, module: &s::Module, equation: &Equation) -> CompileResult<()> {
         let mark = self.temporary_mark();
@@ -412,6 +416,7 @@ impl Materializer<'_, '_> {
             replacements.push((
                 dependency.name.clone(),
                 s::Expr {
+                    semantic: Default::default(),
                     span: value.span,
                     kind: s::ExprKind::Name(name.clone()),
                 },

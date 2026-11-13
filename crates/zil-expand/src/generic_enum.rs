@@ -995,6 +995,7 @@ impl Engine<'_> {
             }
             callee.kind = ExprKind::Member {
                 object: Box::new(Expr {
+                    semantic: Default::default(),
                     kind: ExprKind::Name(generated.clone()),
                     span,
                 }),
@@ -1155,6 +1156,7 @@ impl Engine<'_> {
         };
         callee.kind = ExprKind::Member {
             object: Box::new(Expr {
+                semantic: Default::default(),
                 kind: ExprKind::Name(path[0].clone()),
                 span,
             }),
