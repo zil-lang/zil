@@ -1294,11 +1294,24 @@ impl Transfer<'_> {
             } else {
                 None
             };
+            // Cleanup markers introduce real continuation PCs as well. Keep
+            // the pre-drop debt: Pending has not consumed this actual owner.
+            // A Direct worker's Task adapter can contain the same marker.
+            let cleanup_boundary = if task_before.is_some() {
+                match instruction.kind {
+                    InstructionKind::DropManaged { local } => matches!(
+                        &f.locals[local.0 as usize].ty, Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::Task { .. } | Type::AsyncRegistration { .. })),
+                    InstructionKind::DropClosure { local } => tasks::needs_synchronous_proof(
+                        self.module, &f.locals[local.0 as usize].ty, budget)?,
+                    _ => false,
+                }
+            } else { false };
             if validate
-                && matches!(
+                && (cleanup_boundary || matches!(
                     instruction.kind,
                     InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }
-                )
+                ))
             {
                 task_frames::capture(f, b, i, state, budget)?;
             }

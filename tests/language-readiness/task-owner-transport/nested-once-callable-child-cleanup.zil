@@ -25,15 +25,15 @@ fn close(give original:Task<i32>)->i32 {
  loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
  task_finish_destroy(give task);return 0;
 }
-extern "C" fn quiet_retired();
+extern "C" fn quiet_retired(code:i32);
 resource Quiet {value:i32}
-impl Drop for Quiet {fn drop(self:Self){unsafe{quiet_retired();}}}
+impl Drop for Quiet {fn drop(self:Self){unsafe{quiet_retired(.value);}}}
 fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnMut()->i32 {
- var task=give original;let kept=give quiet;
+ var task=give original;var kept=give quiet;
  return move()->i32=>{
   task_request_cancel(&mut task);
   loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
-  return kept.value;
+  kept.value+=1;return kept.value;
  };
 }
 fn wrap<F:FnMut()->i32 + ClosedEnvironment>(give original:F)->impl FnOnce()->i32 {

@@ -402,6 +402,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         verified.uses_scalar_tasks(),
         verified.limits(),
         &task_meter,
+        verified,
     )?);
     if verified.uses_retained_registration() {
         let runtime = registration::runtime(lir, &text, verified.limits(), &task_meter)?;

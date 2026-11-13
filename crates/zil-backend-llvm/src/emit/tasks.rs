@@ -890,6 +890,7 @@ pub(super) fn lower_workers(
         items.extend(owners::helpers(meter)?);
         items.extend(owner_groups::helpers(verified, meter)?);
     }
+    let mut direct_registration_drop = false;
     for (id, mut machine) in machines {
         let plan = plans.remove(&id).expect("actual frame was planned");
         items.extend(lower_worker(id, &machine, plan, meter, verified)?);
@@ -899,6 +900,32 @@ pub(super) fn lower_workers(
         if !verified.is_suspend(id) {
             for block in machine.blocks.as_mut().expect("actual Direct body") {
                 block.instructions.retain(|i| !owners::is_marker(&i.op));
+                for instruction in &mut block.instructions {
+                    let m::Op::Call { callee: m::Val::Global(symbol), .. } = &mut instruction.op else { continue; };
+                    if symbol == "zil.task.drop.marker" {
+                        meter.spend(symbol.len().saturating_add(1))?;
+                        *symbol = "zil.task.drop".into();
+                    } else if symbol == "zil.async_registration.drop.marker" {
+                        // Direct resource proof requires this automatic drop
+                        // to be vacant. Preserve a checked trap as well: an
+                        // unexpected Pending must never become a normal exit.
+                        meter.spend(symbol.len().saturating_add(1))?;
+                        if !direct_registration_drop {
+                            meter.spend(512)?;
+                            items.push(direct_registration_drop_function());
+                            direct_registration_drop = true;
+                        }
+                        *symbol = "zil.task.registration.drop.sync".into();
+                    } else if let Some(id) = symbol.strip_prefix("zil.task.group.").and_then(|s| s.strip_suffix(".marker")) {
+                        meter.spend(symbol.len().saturating_add(1))?;
+                        let id = id.parse::<u32>().ok().filter(|id| verified.module().closures.get(*id as usize).is_some())
+                            .ok_or_else(|| vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-TASK", None, "Direct cleanup marker has no actual environment")])?;
+                        // The separately admitted Direct body already proves
+                        // NoExternal or the actual occupant Closed. Its Task
+                        // adapter retains the resumable group above.
+                        *symbol = format!("zil.closure.drop.{id}");
+                    }
+                }
             }
             scalar_locals::promote(functions[&id], &mut machine);
             items.push(m::Item::Function(machine));
@@ -906,6 +933,17 @@ pub(super) fn lower_workers(
     }
     Ok(items)
 }
+fn direct_registration_drop_function() -> m::Item {
+    let mut entry = vec![];
+    call(&mut entry, Some("ready"), m::Ty::Int(1),
+        m::global("zil.async_registration.drop".into()),
+        vec![m::Arg::new(m::Ty::Ptr, loc("head"))]);
+    cond(&mut entry, "ready", "done", "task.trap");
+    function("zil.task.registration.drop.sync".into(), m::Ty::Void,
+        vec![m::Param::new(m::Ty::Ptr, "head")],
+        vec![block("entry", entry), block("done", vec![inst(None, m::Op::Return(None))]), trap_block()])
+}
+
 fn lower_worker(
     id: FunctionId,
     machine: &m::Function,
@@ -1640,6 +1678,7 @@ pub(super) fn runtime(
     enabled: bool,
     limits: &zil_base::Limits,
     meter: &Meter,
+    verified: &VerifiedModule,
 ) -> CompileResult<m::Code> {
     if !enabled {
         return Ok(m::Code::new());
@@ -1828,12 +1867,15 @@ pub(super) fn runtime(
             trap_block(),
         ],
     ));
-    // Only actual Suspend holders of Task owners need pollable child cleanup.
+    // A Direct worker also has a Task adapter. Reserve this primitive only
+    // for actual cleanup markers in independently reconstructed owner frames.
     let child_holders = lir.functions.iter().any(|f| {
-        f.call_kind == zil_ir::CallKind::Suspend
-            && f.locals
-                .iter()
-                .any(|l| matches!(&l.ty,Type::Managed(p) if matches!(p.as_ref(),Type::Task{..})))
+        verified.task_ownership(f.id).is_some()
+            && f.blocks.iter().flat_map(|block| &block.instructions).any(|instruction| {
+                matches!(instruction.kind, InstructionKind::DropManaged { local }
+                    if matches!(&f.locals[local.0 as usize].ty, Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::Task { .. })))
+            })
     });
     if child_holders {
         meter.spend(512)?;

@@ -382,7 +382,7 @@ fn enum_resource<'a>(
             || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.reference_return_bound.is_some()
-            || f.storage_life.is_some()
+            || (f.storage_life.as_ref().is_some_and(|life| !super::input_scope::empty_relation(life)))
             || f.return_type != Type::Unit
             || f.result_mode != PassingMode::Infer
             || f.parameters.len() != 1
@@ -392,6 +392,13 @@ fn enum_resource<'a>(
                 span,
                 "complete Enum resource teardown has an invalid actual entry",
             ));
+        }
+        // An explicit complete zero header is valid for the actual closed
+        // Record receiver. Its presence is not a new retained class; None
+        // keeps the prior interface, and nonempty/unknown rows stay rejected.
+        if f.storage_life.is_some() && !record(payload, budget)? {
+            return Err(reject("E-VERIFY-TASK", span,
+                "complete Enum teardown zero header has a nonzero or unknown actual receiver"));
         }
         let receiver = local_type(f, f.parameters[0], span)?;
         budget.type_work(receiver, false, "Enum teardown actual receiver")?;

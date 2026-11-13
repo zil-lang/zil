@@ -1659,3 +1659,6 @@ mod nested_cleanup;
 
 #[path = "task_owner_transport/once_cleanup.rs"]
 mod once_cleanup;
+
+#[path = "task_owner_transport/direct_cleanup.rs"]
+mod direct_cleanup;
