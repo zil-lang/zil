@@ -35,5 +35,35 @@ suspension, borrowed-capture escape, unknown cleanup, or permission to execute a
 Task on another thread. A Task result's metadata does not make its owner head a
 materialized ordinary Sum.
 
+
+## Owning callable cleanup
+
+A concrete inline callable can retain live child Tasks and asynchronous
+registrations. The enclosing callable remains one affine responsibility;
+cleanup segments for its captured owners are not additional owning roots.
+Cleanup follows the actual capture order and live flags. A child whose close
+returns Pending keeps its flag, the enclosing owner node, environment storage,
+and saved continuation. Ready permits retirement of that child only; the
+whole callable is retired after all remaining captures have been settled.
+Nested callable environments obey the same rule. Their cleanup never invokes
+the user callable body and must not repeat the ordinary recursive drop after
+its capture segments have already been destroyed. Mid-body Drop and
+cancellation use this same resumable cleanup contract.
+
+Closed is a private fact about an actual Task occupant and its replacement
+generation. It does not grant a type-level NoExternal or Transfer capability.
+Only Ready from that occupant's canonical poll-close establishes Closed;
+request-cancel, ordinary poll Ready and an equal-shaped constructed Ready do
+not. Result loans and retained parent ports remain live until destruction.
+Replacing the slot invalidates facts about the previous occupant.
+
+A consuming callable invocation destroys only the environment responsibility
+remaining after its actual body returns. Captures moved out by that body are
+transported with their original frame and protocol state. In addition to the existing independent NoExternal proof, remaining Task
+captures can use synchronous destruction when every normal body exit proves
+those actual occupants Closed and all other remaining teardown is synchronous. A conditional relation between the returned Poll tag and Closed
+cannot justify this cleanup: the environment is destroyed before the caller
+can inspect that tag.
+
 Authority: `_zil_design.md` §§12.1–12.3; `spec/threaded-foreign-registration.md`
 and `spec/affine-mutex.md` retain their independent thread and guard contracts.

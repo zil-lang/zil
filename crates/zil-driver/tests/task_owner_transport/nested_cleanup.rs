@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn nested_callable_pending_cleanup_keeps_the_root_and_every_live_leaf_native() {
-    let original=include_str!("../../../../tests/language-readiness/task-owner-transport/nested-callable-child-cleanup.zil");
+    for (name, original) in [
+        ("direct-capture", include_str!("../../../../tests/language-readiness/task-owner-transport/nested-callable-child-cleanup.zil")),
+        ("nested-once-capture", include_str!("../../../../tests/language-readiness/task-owner-transport/nested-once-callable-child-cleanup.zil")),
+    ] {
     let declarations="extern \"C\" fn putchar(code:i32)->i32;\nextern \"C\" fn driver_pending();\nextern \"C\" fn driver_ready();\nextern \"C\" fn child_enter();\nextern \"C\" fn child_after_yield();\nextern \"C\" fn parent_enter();\nextern \"C\" fn child_drop_pending();\n";
     let instrumented=original
         .replace("let callback=move(value:i32)->i32=>value;", "let callback=move(value:i32)->i32=>{unsafe{putchar(88);}return value;};")
@@ -24,7 +27,7 @@ fn nested_callable_pending_cleanup_keeps_the_root_and_every_live_leaf_native() {
                     let text=if prepolled {text.replace("let child=make_async_child()?;","var child=make_async_child()?;task_poll(&mut child);")} else {text.clone()};
                     let text=if middle {text.replace(".ok(original)=>{return close(give original);}",".ok(original)=>{var held=give original;task_poll(&mut held);task_poll(&mut held);unsafe{child_drop_pending();}return close(give held);}")} else {text};
                     let text=format!("{declarations}{text}");
-                    let dir=Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../out/runs/task-nested-native/{backend:?}-{optimization:?}-{prepolled}-{middle}"));
+                    let dir=Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../out/runs/task-nested-native/{name}-{backend:?}-{optimization:?}-{prepolled}-{middle}"));
                     fs::create_dir_all(&dir).unwrap();fs::write(dir.join("source.zil"),&text).unwrap();
                     let clang=std::env::var_os("ZIL_CLANG").map(PathBuf::from).unwrap_or_else(||"clang".into());
                     let observer=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/task-owner-transport/nested-frame-observer.c");
@@ -53,6 +56,7 @@ fn nested_callable_pending_cleanup_keeps_the_root_and_every_live_leaf_native() {
             }
         }
     }
+}
 }
 
 #[test]

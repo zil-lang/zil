@@ -1656,3 +1656,6 @@ fn equal_task_types_and_classes_keep_actual_source_identity_raw_and_wire() {
 
 #[path = "task_owner_transport/nested_cleanup.rs"]
 mod nested_cleanup;
+
+#[path = "task_owner_transport/once_cleanup.rs"]
+mod once_cleanup;

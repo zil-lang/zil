@@ -90,7 +90,11 @@ void child_drop_pending(void) {
         (registered && (drain_calls != 1 || !context))) abort();
 }
 void quiet_retired(void) {
-    if (++quiet_releases != 1 || (registered && (context || drain_calls != 2))) abort();
+    /* Capture order is Task then Quiet. The complete child must already be
+       destroyed, while a successfully allocated parent still owns its env. */
+    if (++quiet_releases != 1 || (registered && (context || drain_calls != 2)) ||
+        releases != (registered ? 2 : 1) ||
+        region_count - releases != (fail_at() == 3 ? 0 : 1)) abort();
 }
 static void check(void) {
     int failure = fail_at();
