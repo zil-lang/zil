@@ -1,0 +1,3023 @@
+diff --git a/crates/zil-llvm-api/src/preflight_validate_only_tests.rs b/crates/zil-llvm-api/src/preflight_validate_only_tests.rs
+index 321877289..2dc7366b7 100644
+--- a/crates/zil-llvm-api/src/preflight_validate_only_tests.rs
++++ b/crates/zil-llvm-api/src/preflight_validate_only_tests.rs
+@@ -1512,7 +1512,7 @@ int main(void) {
+             &|| false,
+         )
+         .unwrap();
+-        assert!(object.report.verify_before_after);
++        assert!(object.receipt.verify_before_after);
+         let api = scratch.join(format!("api{flag}.o"));
+         fs::write(&api, object.bytes).unwrap();
+         for (kind, input) in [("api", api), ("text", scratch.join("select.ll"))] {
+diff --git a/tools/research/incremental-demand/README.md b/tools/research/incremental-demand/README.md
+index 5e76d0ff8..d6ea533ac 100644
+--- a/tools/research/incremental-demand/README.md
++++ b/tools/research/incremental-demand/README.md
+@@ -1,3 +1,5 @@
++> 最新整链：[6face final-values原425三臂2block完整结果](full-push-final-values-checkpoint.md)：全ELF硬等/1080native过；cold/broad仍慢，noop不稳定，额外Rust overwrite失败与exit2保留。V27整体待封，下一compact-scalar未测，不宣称全面领先或合main。
++
+ > Current: [cold group source022081, complete unified acceptance and four-block unprofiled check/O2](full-push-cold-checkpoint.md). Cold/broad remain slower thanmain; complete negative results retained. Large obsolete-branch retirement is actual, with source/decision recovery proofs. No new Rust comparison.
+ 
+ > Current exact combined gates, complete profile16 and main-integration HOLD: [7bac checkpoint](full-push-checkpoint-7bac.md). Research remains default-off. Earlier source/timings below remain historical; no new formal Rust comparison.
+diff --git a/tools/research/incremental-demand/full-push-final-values-checkpoint.json b/tools/research/incremental-demand/full-push-final-values-checkpoint.json
+new file mode 100644
+index 000000000..c2253f138
+--- /dev/null
++++ b/tools/research/incremental-demand/full-push-final-values-checkpoint.json
+@@ -0,0 +1,1220 @@
++{
++  "compiled_source": "6facee9aea4daec2457b2f353754d6120eae85e0",
++  "compiled_tree": "b7596aa342080cf2868f9106a10a01c1d712ca87",
++  "binary_sha256": "46facb1a7e8cd37946835c414d50aeaa479857cc2476f8fb67555ac7cc62667a",
++  "tool_source": "ffc1aa9770f0eaafc88129ca56547f57879937d0",
++  "baseline": {
++    "source": "9170bb4210554392e36eb7528596612596ebef80",
++    "tree": "9aabdb9ebf917528ffa3f0bfc2d834809fe6b2f3",
++    "binary_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e"
++  },
++  "status": "Both complete two-block nine-scenario matrices valid; optional Rust overwrite correctness failed and o2 exit2 retained. Native cold/broad remain slower. Research not accepted into main or as universal Rust lead.",
++  "receipts": {
++    "full-value-main9170-release-01.json": {
++      "path": "/workspace/zil-push-main/out/runs/full-value-main9170-release-01.json",
++      "sha256": "26411879ac2d67caa63297d354fe351cbfd4493e37f3ab5262628b4bfbfebb43"
++    },
++    "full-value-main9170-release-01.binding.json": {
++      "path": "/workspace/zil-push-main/out/runs/full-value-main9170-release-01.binding.json",
++      "sha256": "9ef0f5900f7df393961c1e5ab378fb72ed3e3e495162a8a92645fdb0a66b0736"
++    },
++    "full-value-batch-02-release.json": {
++      "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-release.json",
++      "sha256": "6465edbafc341afb7d361a615eea9b75b7f7a8da48df2a35c0cdde9c6c2b6adc"
++    },
++    "full-value-batch-02-release.binding.json": {
++      "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-release.binding.json",
++      "sha256": "a9da4380e46ecd08a4445bfa513bf8ca4d715af28f06ecfb4fce4c3cb7ebe6bb"
++    },
++    "full-value-three-arm-01-pins.json": {
++      "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-pins.json",
++      "sha256": "4f9f078eda06bead2c063651183e271bb98f3acde5684765090abd8e83636b0f"
++    },
++    "full-value-three-arm-01-check-command.json": {
++      "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check-command.json",
++      "sha256": "0112c025c522ca9456b7ec49b5da34356eae2f2dffa685565d044d67e9a46fe3"
++    },
++    "full-value-three-arm-01-o2-command.json": {
++      "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2-command.json",
++      "sha256": "652eacb1a84670210ef67f44d3bdbb2c1381660ba7f036b0e1ffc49ba39bc363"
++    }
++  },
++  "gates": {
++    "full-value-batch-01-native": {
++      "source": "d72121e834ea9ec178ba17dcc65b193c15d178bf",
++      "exit": 101,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-01-native.json",
++        "sha256": "b106c3eb852099a0e4605988fd316b2f90fd12334de4825d7086a1c461456ab6"
++      },
++      "log_sha256": "fd18bcdb1fe4b386a2f8ca3db9eb9bf9c33ee6a0df8d388d6bd4f90ae5216263",
++      "test_results": [
++        "test result: FAILED. 82 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.37s"
++      ]
++    },
++    "full-value-batch-01-rest-clippy": {
++      "source": "d72121e834ea9ec178ba17dcc65b193c15d178bf",
++      "exit": 101,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-01-rest-clippy.json",
++        "sha256": "5f66f06433c1ef684378bcbde2c5d3255f1934629a9ba6ed1451cf4274231c1d"
++      },
++      "log_sha256": "fc633155fd7f7d092e9c9b4ddafce5764cd57434186443273a4e6bffe1857da7",
++      "test_results": []
++    },
++    "full-value-batch-01-rest-analysis-verification": {
++      "source": "d72121e834ea9ec178ba17dcc65b193c15d178bf",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-01-rest-analysis-verification.json",
++        "sha256": "9bd8dcf6a4684bea3be39514835c7f8633875bca1a05694e5f17e3bf9d42f709"
++      },
++      "log_sha256": "d1c7542c8bc665b80ae3be77f4243185153dd979537df420a9993f4eca8aa323",
++      "test_results": [
++        "test result: ok. 304 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.40s",
++        "test result: ok. 652 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.57s"
++      ]
++    },
++    "full-value-batch-01-rest-driver": {
++      "source": "d72121e834ea9ec178ba17dcc65b193c15d178bf",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-01-rest-driver.json",
++        "sha256": "8b07720fb71926bef32d9b7fccb5fba3d5cdebbcae9a2fea752c3027eb4fe9f7"
++      },
++      "log_sha256": "7601a306683aacba74a5f177308d3af47a8ee0eff5610e43811c5dd9ca71c4f6",
++      "test_results": [
++        "test result: ok. 211 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 127.83s"
++      ]
++    },
++    "full-value-batch-02-native": {
++      "source": "6facee9aea4daec2457b2f353754d6120eae85e0",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-native.json",
++        "sha256": "5514736cf0ed0d8d516f84495908369ab2ae179aba19580ec2247b0f5757daec"
++      },
++      "log_sha256": "e2264393d8e4552f5feac17a0c3dbc465f1dfda4746fa7bf3fe7a3b26443afe0",
++      "test_results": [
++        "test result: ok. 83 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.79s"
++      ]
++    },
++    "full-value-batch-02-backend": {
++      "source": "6facee9aea4daec2457b2f353754d6120eae85e0",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-backend.json",
++        "sha256": "72b415c4dfafd3f731b1785ae2e2f98b3c0d29711d673b48d2d27884e912fe19"
++      },
++      "log_sha256": "8fbff8c65bca19824f2134880502f9404307cbabd6cfbef8f19a191ddaa49b6e",
++      "test_results": [
++        "test result: ok. 262 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 31.35s"
++      ]
++    },
++    "full-value-batch-02-retained-source": {
++      "source": "6facee9aea4daec2457b2f353754d6120eae85e0",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-retained-source.json",
++        "sha256": "b4532356d649d0c4fec6574684aa13ea36131e3c73e5075808e7f6b88ca2e835"
++      },
++      "log_sha256": "2c9adc38f252b261b270e88f8ca2cb9337a45d45ac20decc131a4592c4fdc1ad",
++      "test_results": [
++        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.35s"
++      ]
++    },
++    "full-value-batch-02-clippy": {
++      "source": "6facee9aea4daec2457b2f353754d6120eae85e0",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-clippy.json",
++        "sha256": "4d73ef8c6404c2f402b6e1ad46971c6c537a515463ffa0d684f0594b1998219e"
++      },
++      "log_sha256": "e4253bf9cd04e949468486834dcfbb596c5707c3e119a73c0a009aad515d123a",
++      "test_results": []
++    },
++    "full-value-batch-02-fmt": {
++      "source": "6facee9aea4daec2457b2f353754d6120eae85e0",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-fmt.json",
++        "sha256": "0267658fef700a777b0614eae6b52e433ad2fe890b2b30b544221c021b07635d"
++      },
++      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++      "test_results": []
++    },
++    "full-value-batch-02-release": {
++      "source": "6facee9aea4daec2457b2f353754d6120eae85e0",
++      "exit": 0,
++      "receipt": {
++        "path": "/workspace/zil-push-main/out/runs/full-value-batch-02-release.json",
++        "sha256": "6465edbafc341afb7d361a615eea9b75b7f7a8da48df2a35c0cdde9c6c2b6adc"
++      },
++      "log_sha256": "d493b893c03dcb4a27ac5e82efeae58e509910e30c6bbbff13e27799d72fe705",
++      "test_results": []
++    }
++  },
++  "first_failures": {
++    "source": "d72121e834ea9ec178ba17dcc65b193c15d178bf",
++    "native": "01 exit101: typed_stage_body_preserves_values_flags_uses_and_refuses_unknown_transport assertion left0/right1; 82pass/1fail. Original failure/log preserved; native02 source6face83pass closes the gate.",
++    "clippy": "01-rest exit101: native_link.rs manual modulo is_multiple_of and chunks_exact constant-size warnings. Original failure preserved; strict02 exit0.",
++    "scope": "01 Analyze304/Verify652/driver211 receipts remain at their actual d721 source; 02 reran native83/backend262/real-source1 test with10requests, strict Clippy/fmt and release at6face. No unexecuted tests are relabelled."
++  },
++  "source_reviews": [
++    {
++      "path": "/tmp/full-push-early-scalar-astra-source-review.json",
++      "sha256": "29cc7978cb9ab9427a400611b317de74096a580b3db15be5509ee22633414d2e",
++      "reviewed_commit": "e74380577421e557a841a580fcd0c9aa96416f92",
++      "decision": "PASS_SOURCE_REVIEW_PENDING_UNIFIED_GATE"
++    },
++    {
++      "path": "/tmp/full-push-final-product-astra-source-review.json",
++      "sha256": "6a33c591c9a7ab33b242cf0fb1d9340aaf3c53883899b3a3597359773e715f39",
++      "reviewed_commit": "d72121e834ea9ec178ba17dcc65b193c15d178bf",
++      "decision": "PASS_SOURCE_REVIEW_AFTER_LATE_CANDIDATES_FIX_PENDING_UNIFIED_RUNTIME"
++    },
++    {
++      "path": "/tmp/full-push-typed-stage-astra-source-review.json",
++      "sha256": "8642e6be38113e7a1a007df1aee1aad67ac684eaba52fa27ce065a7e99b0172d",
++      "reviewed_commit": "b4dd187e634dddb4faad758eae29750f2aae059e",
++      "decision": "PASS_SOURCE_REVIEW_PENDING_UNIFIED_RUNTIME_GATES"
++    },
++    {
++      "path": "/tmp/full-push-typed-stage-astra-closure-review.json",
++      "sha256": "2454aa9b602bc98d443212f312de6473433750cf6fb39dd73f24dc2562da3550",
++      "reviewed_commit": "df6ce947c59c551886699b191b187de0bd763b39",
++      "decision": "GO_IMPLEMENT_TYPED_TRANSPORT_IN_LEAF_CONSTANT_CLOSED_DOMAIN_WITH_ORIGINAL_BC_FALLBACK"
++    }
++  ],
++  "source_review_scope": "Component reviews name their own exact reviewed commits and remain conditional runtime-source reviews; current unified gates and this matrix supply bounded actual consumers, not a general language or performance acceptance.",
++  "protocol": {
++    "blocks_per_mode": 2,
++    "fixture": "original425;20modules x20functions x16steps;22files per source language; same fixed arithmetic and six native I/O cases, two repetitions",
++    "request_order": [
++      "cold",
++      "unchanged",
++      "private",
++      "multi",
++      "broad",
++      "positions",
++      "error",
++      "recovery",
++      "restore"
++    ],
++    "parents": {
++      "cold": null,
++      "unchanged": "cold",
++      "private": "cold",
++      "multi": "cold",
++      "broad": "cold",
++      "positions": "cold",
++      "error": "cold",
++      "recovery": "error",
++      "restore": "private"
++    },
++    "requested_codegen_units": 16,
++    "jobs": 1,
++    "native_optimization": "O2",
++    "cache": "all/capacity256",
++    "candidate_flags_check": [
++      "--push-reuse"
++    ],
++    "candidate_flags_o2": [
++      "--push-reuse",
++      "--native-link-profile",
++      "/workspace/.zil-environment/native-link-v1/manifest"
++    ],
++    "success_output_policy": "Keep outputs in all three arms through every normal/parent request. Error old executable is not a new success and is not run. Optional delete/overwrite is after final native block and separate.",
++    "time_boundary": "Zil resident send-to-response excludes startup; Rust wall includes each new Cargo/rustc process. Source writes, raw artifact/hash/object/symbol capture and native runs are outside compilation timer. First native profile admission/hash is inside candidate cold request; full SDK files are archived only after native matrix. OS caches were not flushed.",
++    "process_and_cpu_memory": "Resident own and resident+waited /proc CPU deltas differ from Rust wait4 tree CPU. Root-only RSS/cumulative resident high water and Cargo sampled root/wait4 maxrss are different scopes; no cross-language memory superiority.",
++    "outer_execution": "Approved outer execution with user/PID/network namespaces; root held /workspace/.zil-env/language-build.lock across check+o2."
++  },
++  "llvm_and_rust": {
++    "zil_reported_llvm": "23.1.4",
++    "rust_release": "1.99.1",
++    "rust_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
++    "cargo_commit": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
++    "rust_embedded_llvm": "23.1.1",
++    "runtime_DSO": {
++      "baseline": [
++        {
++          "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
++          "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
++        }
++      ],
++      "candidate": [
++        {
++          "path": "/workspace/.zil-environment/llvm-function-products-v18/lib/libLLVM.so.23.1",
++          "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
++        }
++      ]
++    },
++    "toolchain_scope": "Cargo offline/locked, incremental=true, lto=false; equal requested or actual CGU counts do not establish equal partitions or safety/verification obligations."
++  },
++  "measurement": {
++    "check": {
++      "raw": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check",
++      "evidence": {
++        "manifest.json": {
++          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/manifest.json",
++          "sha256": "bc57c048713f2154736b29eaac9566de74dc8fa88842224636ad312759d06675"
++        },
++        "rows.jsonl": {
++          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/rows.jsonl",
++          "sha256": "8af15b7c403d4a379b420d91dcbbd1d83735350dfc7f7c62da27dfe7a6625798"
++        },
++        "completion.json": {
++          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-check/completion.json",
++          "sha256": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f"
++        }
++      },
++      "helper_exit": 0,
++      "blocks": 2,
++      "rows": 102,
++      "measured_rows": 54,
++      "parent_rows": 48,
++      "three_arm_requests": 34,
++      "successful_rows": 90,
++      "safe_error_rows": 12,
++      "cells": {
++        "cold": {
++          "main_median_ms": 1075.4564635,
++          "candidate_median_ms": 880.1099775,
++          "rust_median_ms": 1495.4491885,
++          "paired_candidate_over_main_GM": 0.817161926690639,
++          "paired_candidate_over_rust_GM": 0.5614129335825675,
++          "block_ms": {
++            "main": [
++              1414.451672,
++              736.461255
++            ],
++            "candidate": [
++              1161.183056,
++              599.036899
++            ],
++            "rust": [
++              1323.88635,
++              1667.012027
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.8209421919365515,
++            0.8133990687670323
++          ],
++          "paired_candidate_over_rust": [
++            0.8771017663260899,
++            0.3593476767399471
++          ]
++        },
++        "unchanged": {
++          "main_median_ms": 90.55507449999999,
++          "candidate_median_ms": 3.4796335000000003,
++          "rust_median_ms": 18.2333145,
++          "paired_candidate_over_main_GM": 0.03777996248211589,
++          "paired_candidate_over_rust_GM": 0.19212683830440658,
++          "block_ms": {
++            "main": [
++              90.344651,
++              90.765498
++            ],
++            "candidate": [
++              2.844396,
++              4.114871
++            ],
++            "rust": [
++              22.154126,
++              14.312503
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.03148383405676115,
++            0.04533518892828639
++          ],
++          "paired_candidate_over_rust": [
++            0.12839125316882283,
++            0.28750184366773585
++          ]
++        },
++        "private": {
++          "main_median_ms": 684.8409415,
++          "candidate_median_ms": 52.0349315,
++          "rust_median_ms": 228.0085445,
++          "paired_candidate_over_main_GM": 0.07602819633147032,
++          "paired_candidate_over_rust_GM": 0.2331258165013909,
++          "block_ms": {
++            "main": [
++              717.954943,
++              651.72694
++            ],
++            "candidate": [
++              50.309581,
++              53.760282
++            ],
++            "rust": [
++              275.147044,
++              180.870045
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.07007345167062942,
++            0.08248896692838874
++          ],
++          "paired_candidate_over_rust": [
++            0.18284616206888998,
++            0.29723153991585505
++          ]
++        },
++        "multi": {
++          "main_median_ms": 886.5229245,
++          "candidate_median_ms": 106.5171045,
++          "rust_median_ms": 304.9575425,
++          "paired_candidate_over_main_GM": 0.12095345836465381,
++          "paired_candidate_over_rust_GM": 0.3752559427390017,
++          "block_ms": {
++            "main": [
++              769.287758,
++              1003.758091
++            ],
++            "candidate": [
++              113.5256,
++              99.508609
++            ],
++            "rust": [
++              417.988635,
++              191.92645
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.1475723470436403,
++            0.09913604671506454
++          ],
++          "paired_candidate_over_rust": [
++            0.2715997290213405,
++            0.5184726180263326
++          ]
++        },
++        "broad": {
++          "main_median_ms": 691.581142,
++          "candidate_median_ms": 931.0792704999999,
++          "rust_median_ms": 1186.7081825,
++          "paired_candidate_over_main_GM": 1.2976222766576464,
++          "paired_candidate_over_rust_GM": 0.7551226844128909,
++          "block_ms": {
++            "main": [
++              735.725406,
++              647.436878
++            ],
++            "candidate": [
++              1185.722603,
++              676.435938
++            ],
++            "rust": [
++              1145.928882,
++              1227.487483
++            ]
++          },
++          "paired_candidate_over_main": [
++            1.6116374306639072,
++            1.044790559489878
++          ],
++          "paired_candidate_over_rust": [
++            1.0347261698566734,
++            0.551073593310116
++          ]
++        },
++        "positions": {
++          "main_median_ms": 840.087346,
++          "candidate_median_ms": 527.120503,
++          "rust_median_ms": 786.0571605,
++          "paired_candidate_over_main_GM": 0.640091555929508,
++          "paired_candidate_over_rust_GM": 0.67329369054874,
++          "block_ms": {
++            "main": [
++              1035.099298,
++              645.075394
++            ],
++            "candidate": [
++              592.548702,
++              461.692304
++            ],
++            "rust": [
++              906.054274,
++              666.060047
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.5724559017138856,
++            0.7157183614416395
++          ],
++          "paired_candidate_over_rust": [
++            0.6539880876937402,
++            0.6931691910954688
++          ]
++        },
++        "error": {
++          "main_median_ms": 503.00353500000006,
++          "candidate_median_ms": 47.855971,
++          "rust_median_ms": 206.701687,
++          "paired_candidate_over_main_GM": 0.09485798677426559,
++          "paired_candidate_over_rust_GM": 0.23085521706370207,
++          "block_ms": {
++            "main": [
++              532.983948,
++              473.023122
++            ],
++            "candidate": [
++              43.201391,
++              52.510551
++            ],
++            "rust": [
++              219.326414,
++              194.07696
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.08105570751635469,
++            0.11101053745106354
++          ],
++          "paired_candidate_over_rust": [
++            0.19697304219819142,
++            0.27056560964269016
++          ]
++        },
++        "recovery": {
++          "main_median_ms": 612.0453190000001,
++          "candidate_median_ms": 57.8973915,
++          "rust_median_ms": 319.089701,
++          "paired_candidate_over_main_GM": 0.09461500607377173,
++          "paired_candidate_over_rust_GM": 0.1833779543483439,
++          "block_ms": {
++            "main": [
++              626.56863,
++              597.522008
++            ],
++            "candidate": [
++              57.134559,
++              58.660224
++            ],
++            "rust": [
++              365.478646,
++              272.700756
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.09118643395855934,
++            0.0981724910791905
++          ],
++          "paired_candidate_over_rust": [
++            0.15632803619393948,
++            0.21510840255976407
++          ]
++        },
++        "restore": {
++          "main_median_ms": 84.4329695,
++          "candidate_median_ms": 24.848543,
++          "rust_median_ms": 252.280956,
++          "paired_candidate_over_main_GM": 0.2944307508051184,
++          "paired_candidate_over_rust_GM": 0.1026923200279036,
++          "block_ms": {
++            "main": [
++              81.707902,
++              87.158037
++            ],
++            "candidate": [
++              25.150238,
++              24.546848
++            ],
++            "rust": [
++              180.835572,
++              323.72634
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.3078066794567801,
++            0.28163608136332857
++          ],
++          "paired_candidate_over_rust": [
++            0.13907793539647167,
++            0.0758259213630871
++          ]
++        }
++      },
++      "arm_orders_by_block": {
++        "0": [
++          [
++            "baseline",
++            "candidate",
++            "rust"
++          ],
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ],
++          [
++            "baseline",
++            "rust",
++            "candidate"
++          ],
++          [
++            "rust",
++            "baseline",
++            "candidate"
++          ],
++          [
++            "candidate",
++            "baseline",
++            "rust"
++          ],
++          [
++            "baseline",
++            "candidate",
++            "rust"
++          ],
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ]
++        ],
++        "1": [
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ],
++          [
++            "baseline",
++            "rust",
++            "candidate"
++          ],
++          [
++            "rust",
++            "baseline",
++            "candidate"
++          ],
++          [
++            "candidate",
++            "baseline",
++            "rust"
++          ],
++          [
++            "baseline",
++            "candidate",
++            "rust"
++          ],
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ],
++          [
++            "baseline",
++            "rust",
++            "candidate"
++          ]
++        ]
++      },
++      "counts_by_arm": {
++        "baseline": {
++          "rows": 34,
++          "success_rows": 30,
++          "safe_errors": 4,
++          "native_executions": 0,
++          "full_elf_rows": 0,
++          "unique_elf_blobs": 0
++        },
++        "candidate": {
++          "rows": 34,
++          "success_rows": 30,
++          "safe_errors": 4,
++          "native_executions": 0,
++          "full_elf_rows": 0,
++          "unique_elf_blobs": 0
++        },
++        "rust": {
++          "rows": 34,
++          "success_rows": 30,
++          "safe_errors": 4,
++          "native_executions": 0,
++          "full_elf_rows": 0,
++          "unique_elf_blobs": 0
++        }
++      }
++    },
++    "o2": {
++      "raw": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2",
++      "evidence": {
++        "manifest.json": {
++          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/manifest.json",
++          "sha256": "d310206d5c2a29be92c47cd5505cc54474c012c86ee75defdb242abbb088eccf"
++        },
++        "rows.jsonl": {
++          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/rows.jsonl",
++          "sha256": "8049b77956c9955c786c49f748deac58a056d4c1ecd7bcb49d42e10b61c2507f"
++        },
++        "completion.json": {
++          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/completion.json",
++          "sha256": "50f920f6c9a3695c376f78251c36eb1987db18f79745a75ac8f9d9bc094434eb"
++        }
++      },
++      "helper_exit": 2,
++      "blocks": 2,
++      "rows": 102,
++      "measured_rows": 54,
++      "parent_rows": 48,
++      "three_arm_requests": 34,
++      "successful_rows": 90,
++      "safe_error_rows": 12,
++      "cells": {
++        "cold": {
++          "main_median_ms": 5916.5374375,
++          "candidate_median_ms": 8539.082564,
++          "rust_median_ms": 6776.12551,
++          "paired_candidate_over_main_GM": 1.4404334742900602,
++          "paired_candidate_over_rust_GM": 1.2578835251544194,
++          "block_ms": {
++            "main": [
++              5725.287177,
++              6107.787698
++            ],
++            "candidate": [
++              9139.819997,
++              7938.345131
++            ],
++            "rust": [
++              6529.406546,
++              7022.844474
++            ]
++          },
++          "paired_candidate_over_main": [
++            1.596395030404254,
++            1.2997087527451907
++          ],
++          "paired_candidate_over_rust": [
++            1.3997933705934078,
++            1.1303603775349673
++          ]
++        },
++        "unchanged": {
++          "main_median_ms": 581.2385194999999,
++          "candidate_median_ms": 14.350839,
++          "rust_median_ms": 14.8242445,
++          "paired_candidate_over_main_GM": 0.023424929959008443,
++          "paired_candidate_over_rust_GM": 0.909417286443399,
++          "block_ms": {
++            "main": [
++              665.974527,
++              496.502512
++            ],
++            "candidate": [
++              9.400538,
++              19.30114
++            ],
++            "rust": [
++              14.214287,
++              15.434202
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.014115461806544442,
++            0.03887420412487258
++          ],
++          "paired_candidate_over_rust": [
++            0.6613443220894583,
++            1.2505434359353338
++          ]
++        },
++        "private": {
++          "main_median_ms": 1804.9896185,
++          "candidate_median_ms": 401.1086365,
++          "rust_median_ms": 621.538569,
++          "paired_candidate_over_main_GM": 0.22242263985762778,
++          "paired_candidate_over_rust_GM": 0.6477209695892249,
++          "block_ms": {
++            "main": [
++              1882.430543,
++              1727.548694
++            ],
++            "candidate": [
++              398.614963,
++              403.60231
++            ],
++            "rust": [
++              568.244548,
++              674.83259
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.21175546926939126,
++            0.2336271686012458
++          ],
++          "paired_candidate_over_rust": [
++            0.7014848878057339,
++            0.598077680273266
++          ]
++        },
++        "multi": {
++          "main_median_ms": 2124.4567825,
++          "candidate_median_ms": 771.5729180000001,
++          "rust_median_ms": 1159.1030005,
++          "paired_candidate_over_main_GM": 0.34558879683381294,
++          "paired_candidate_over_rust_GM": 0.6327027088828686,
++          "block_ms": {
++            "main": [
++              1982.158994,
++              2266.754571
++            ],
++            "candidate": [
++              529.270631,
++              1013.875205
++            ],
++            "rust": [
++              1214.16504,
++              1104.040961
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.26701724362278884,
++            0.4472805384275544
++          ],
++          "paired_candidate_over_rust": [
++            0.4359132519579051,
++            0.9183311496719008
++          ]
++        },
++        "broad": {
++          "main_median_ms": 5758.044545999999,
++          "candidate_median_ms": 7200.5591205,
++          "rust_median_ms": 5362.8963195,
++          "paired_candidate_over_main_GM": 1.2604901136313529,
++          "paired_candidate_over_rust_GM": 1.343565804429031,
++          "block_ms": {
++            "main": [
++              6483.298894,
++              5032.790198
++            ],
++            "candidate": [
++              7276.793669,
++              7124.324572
++            ],
++            "rust": [
++              5158.239549,
++              5567.55309
++            ]
++          },
++          "paired_candidate_over_main": [
++            1.1223905897249846,
++            1.4155814750297289
++          ],
++          "paired_candidate_over_rust": [
++            1.4107126278016136,
++            1.2796150224047527
++          ]
++        },
++        "positions": {
++          "main_median_ms": 1446.7743325000001,
++          "candidate_median_ms": 952.1883399999999,
++          "rust_median_ms": 1066.4443795,
++          "paired_candidate_over_main_GM": 0.6493804099663584,
++          "paired_candidate_over_rust_GM": 0.8807315818824765,
++          "block_ms": {
++            "main": [
++              1412.780297,
++              1480.768368
++            ],
++            "candidate": [
++              1108.638686,
++              795.737994
++            ],
++            "rust": [
++              1069.443654,
++              1063.445105
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.7847212254829457,
++            0.5373818155467243
++          ],
++          "paired_candidate_over_rust": [
++            1.036649927140528,
++            0.7482642876991755
++          ]
++        },
++        "error": {
++          "main_median_ms": 365.1794005,
++          "candidate_median_ms": 59.278495500000005,
++          "rust_median_ms": 267.85169199999996,
++          "paired_candidate_over_main_GM": 0.16234716769090324,
++          "paired_candidate_over_rust_GM": 0.23591308929843058,
++          "block_ms": {
++            "main": [
++              359.39126,
++              370.967541
++            ],
++            "candidate": [
++              59.168697,
++              59.388294
++            ],
++            "rust": [
++              175.078713,
++              360.624671
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.16463588179634642,
++            0.16009027053933003
++          ],
++          "paired_candidate_over_rust": [
++            0.33795483177900676,
++            0.16468172805625939
++          ]
++        },
++        "recovery": {
++          "main_median_ms": 1670.3659525,
++          "candidate_median_ms": 391.09326450000003,
++          "rust_median_ms": 460.016143,
++          "paired_candidate_over_main_GM": 0.23318915791916922,
++          "paired_candidate_over_rust_GM": 0.84541424315847,
++          "block_ms": {
++            "main": [
++              1829.415347,
++              1511.316558
++            ],
++            "candidate": [
++              340.000142,
++              442.186387
++            ],
++            "rust": [
++              424.470662,
++              495.561624
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.1858518037238265,
++            0.29258356540814134
++          ],
++          "paired_candidate_over_rust": [
++            0.8009979780416484,
++            0.8922934415922409
++          ]
++        },
++        "restore": {
++          "main_median_ms": 519.0346595000001,
++          "candidate_median_ms": 98.9359015,
++          "rust_median_ms": 703.121538,
++          "paired_candidate_over_main_GM": 0.1903201749968171,
++          "paired_candidate_over_rust_GM": 0.1484666725966866,
++          "block_ms": {
++            "main": [
++              537.502279,
++              500.56704
++            ],
++            "candidate": [
++              105.465147,
++              92.406656
++            ],
++            "rust": [
++              931.694367,
++              474.548709
++            ]
++          },
++          "paired_candidate_over_main": [
++            0.19621339503194923,
++            0.18460395634518803
++          ],
++          "paired_candidate_over_rust": [
++            0.11319714998341296,
++            0.1947253342965053
++          ]
++        }
++      },
++      "arm_orders_by_block": {
++        "0": [
++          [
++            "baseline",
++            "candidate",
++            "rust"
++          ],
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ],
++          [
++            "baseline",
++            "rust",
++            "candidate"
++          ],
++          [
++            "rust",
++            "baseline",
++            "candidate"
++          ],
++          [
++            "candidate",
++            "baseline",
++            "rust"
++          ],
++          [
++            "baseline",
++            "candidate",
++            "rust"
++          ],
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ]
++        ],
++        "1": [
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ],
++          [
++            "baseline",
++            "rust",
++            "candidate"
++          ],
++          [
++            "rust",
++            "baseline",
++            "candidate"
++          ],
++          [
++            "candidate",
++            "baseline",
++            "rust"
++          ],
++          [
++            "baseline",
++            "candidate",
++            "rust"
++          ],
++          [
++            "rust",
++            "candidate",
++            "baseline"
++          ],
++          [
++            "candidate",
++            "rust",
++            "baseline"
++          ],
++          [
++            "baseline",
++            "rust",
++            "candidate"
++          ]
++        ]
++      },
++      "counts_by_arm": {
++        "baseline": {
++          "rows": 34,
++          "success_rows": 30,
++          "safe_errors": 4,
++          "native_executions": 360,
++          "full_elf_rows": 30,
++          "unique_elf_blobs": 5,
++          "actual_current_objects_per_success": [
++            16
++          ],
++          "object_references": 480,
++          "unique_object_payloads": 36,
++          "current_object_report_count": 480,
++          "provenance": {
++            "current-object-reports": 30
++          },
++          "physical_cache_containers_by_block_key": 72,
++          "unique_layout_payloads": 1,
++          "current_unit_cache_states": {
++            "miss": 72,
++            "hit": 408
++          }
++        },
++        "candidate": {
++          "rows": 34,
++          "success_rows": 30,
++          "safe_errors": 4,
++          "native_executions": 360,
++          "full_elf_rows": 30,
++          "unique_elf_blobs": 5,
++          "actual_current_objects_per_success": [
++            16
++          ],
++          "object_references": 480,
++          "unique_object_payloads": 36,
++          "current_object_report_count": 320,
++          "provenance": {
++            "current-object-reports": 20,
++            "before-codegen-retained-producer": 10
++          },
++          "physical_cache_containers_by_block_key": 72,
++          "unique_layout_payloads": 1,
++          "current_unit_cache_states": {
++            "miss": 72,
++            "hit": 248
++          }
++        },
++        "rust": {
++          "rows": 34,
++          "success_rows": 30,
++          "safe_errors": 4,
++          "native_executions": 360,
++          "full_elf_rows": 30,
++          "unique_elf_blobs": 5,
++          "actual_current_objects_per_success": [
++            16
++          ],
++          "object_references": 480,
++          "unique_object_payloads": 36,
++          "current_object_report_count": null,
++          "provenance": {
++            "current-rust-session": 30
++          }
++        }
++      },
++      "quality": {
++        "three_arm_requests": 34,
++        "all_request_quality_valid": true,
++        "successful_main_candidate_native_pairs": 30,
++        "complete_ELF_equal_pairs": 30,
++        "raw_LLVM_equal_pairs": 0,
++        "fingerprint_normalized_LLVM_equal_pairs": 0,
++        "aggregate_exports_equal_pairs": 30,
++        "per_unit_exports_equal_pairs": 30,
++        "native_matrix_executions": 1080,
++        "normalization_exception_for_machine_code": false,
++        "policy": {
++          "schema": "native-link-exact-elf-reviewed-ir-v1",
++          "llvm": "Full raw LLVM bytes and exact second-line-fingerprint normalization remain observations. Different IR representations are permitted for the reviewed early SSA and proven arithmetic rewrite in this candidate; LLVM textual equality is not an acceptance prerequisite.",
++          "machine": "Every paired main/candidate successful native request must have identical complete ELF bytes. Different executable bytes stop the run and require independent quality review; no normalized machine-code exception is enabled.",
++          "execution": "Every successful request in all three arms must match all fixed native input/output/exit oracles. A failed request cannot execute or claim an earlier executable.",
++          "units": "Each Zil native request requires sixteen actual current object receipts, complete physical objects/symbols, and a physical layout whose exact ownership matches current diagnostic function names. Rust inventories retain actual current sessions; CGU flags alone are not evidence of equal partitions.",
++          "authority": "IR-change permission is specific to the independently reviewed early SSA/proven rewrite and its real O0/O2 native oracle support. It does not grant permission to accept different final ELF bytes or omit current independent Verify."
++        }
++      },
++      "separate_publication_correctness": {
++        "evidence": {
++          "path": "/workspace/zil-push-main/out/runs/full-value-three-arm-01-o2/publication-correctness.jsonl",
++          "sha256": "de25bce15f834a45ea339373105349784f321e8da58a3b02067f2a9c9fc7697b"
++        },
++        "requests": 6,
++        "passed": 5,
++        "failed": 1,
++        "native_executions": 60,
++        "results": [
++          {
++            "arm": "baseline",
++            "scenario": "delete",
++            "valid": true,
++            "error": null
++          },
++          {
++            "arm": "candidate",
++            "scenario": "delete",
++            "valid": true,
++            "error": null
++          },
++          {
++            "arm": "rust",
++            "scenario": "delete",
++            "valid": true,
++            "error": null
++          },
++          {
++            "arm": "baseline",
++            "scenario": "overwrite",
++            "valid": true,
++            "error": null
++          },
++          {
++            "arm": "candidate",
++            "scenario": "overwrite",
++            "valid": true,
++            "error": null
++          },
++          {
++            "arm": "rust",
++            "scenario": "overwrite",
++            "valid": false,
++            "error": "refuse to execute missing/symlink/non-ELF publication"
++          }
++        ],
++        "matrix_rows_include_these_requests": false,
++        "exit2_reason": "Rust overwrite left a non-ELF output; harness refused execution. Main/candidate delete and overwrite, and Rust delete, passed. This failure remains false; all nine-scenario performance rows remain valid."
++      },
++      "terminal_reuse": {
++        "rows": 10,
++        "measured_rows": 4,
++        "current_object_reports": 0,
++        "current_cache_hits": 0,
++        "current_cache_misses": 0,
++        "preflight_checked_units": 0,
++        "preflight_reused_units": 160,
++        "scope": "Physical prior producer CGUs/layout/exports rehashed and bound by same-worker normalized LLVM/full ELF; no invented sixteen current hits or fresh LLVM verifier."
++      }
++    }
++  },
++  "negative_results": {
++    "check_broad": "Candidate/main pairedGM1.297622; slower than main in both blocks.",
++    "native_cold": "Candidate/main1.440433 and candidate/Rust1.257884, slower than both in both blocks.",
++    "native_broad": "Candidate/main1.260490 and candidate/Rust1.343566, slower than both in both blocks.",
++    "native_unchanged": "Block0 candidate9.400538ms/Rust14.214287; block1 candidate19.301140ms/Rust15.434202. PairedGM0.909417 is not stable superiority.",
++    "sampling": "Only two observations per cell; no confidence/significance/general lead claim and no comparison with earlier candidates."
++  },
++  "raw_custody": {
++    "v27_overall": "pending final metadata/index and root integration; not performance acceptance",
++    "SDK_first": {
++      "commit": "70f92d8677ee501fc5000c77fd1d48f5dc2407e8",
++      "path": "research/incremental-demand-full-chain-20261113-v27-001",
++      "manifest": "evidence-manifest.json",
++      "manifest_sha256": "9503feaee8f0f9e15f4527bcf2314602c28a266e4bb0bf44409b0de81384d7b3",
++      "profile_id": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6"
++    },
++    "raw_payload_commit_reported_by_archive_agent": "df9d35e00ac75188c2fed8b510395c386b159ba1"
++  },
++  "continuation": {
++    "compact_scalar": "Next complete chain under implementation; not measured by these rows.",
++    "adopted_into_main": false,
++    "universal_rust_lead": false,
++    "performance_goal": "open; cold/broad and remaining general cases still require work"
++  }
++}
+diff --git a/tools/research/incremental-demand/full-push-final-values-checkpoint.md b/tools/research/incremental-demand/full-push-final-values-checkpoint.md
+new file mode 100644
+index 000000000..0cdb7ab79
+--- /dev/null
++++ b/tools/research/incremental-demand/full-push-final-values-checkpoint.md
+@@ -0,0 +1,40 @@
++# Final native values: complete two-block three-arm checkpoint
++
++源码 `6facee9aea4daec2457b2f353754d6120eae85e0` / binary `46facb1a7e8cd37946835c414d50aeaa479857cc2476f8fb67555ac7cc62667a`，工具 `ffc1aa9770f0eaafc88129ca56547f57879937d0`；main `9170bb4210554392e36eb7528596612596ebef80` / binary `8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e`。完整机器结果复用、显式封闭链接profile、early SSA/已证明算术与typed IR运输已共同进入这次候选；仍是研究分支，不合main、不宣称全面领先Rust。精确原始路径、哈希、逐block值与父链见[JSON](full-push-final-values-checkpoint.json)。
++
++check/O2各2block、102有效rows（54测量+48父请求），均含原425、22文件、20×20×16、全部9场景及命名父链。当前独立Verify/错误断言保留。O2共1080原生I/O执行，90条完整ELF归档；main/candidate全部30成功对的完整ELF与函数exports相等。30对raw及仅去第二行fingerprint的LLVM均不同：这是经源审的SSA/算术改写允许的IR表示变化；全ELF硬等、实际16CGU/物理对象/layout及原生oracle质量门没有删除。
++
++候选10条before-codegen terminal reuse有0当前object reports/0真实cache lookups；160当前preflight单元复用，绑定同worker历史LLVM/ELF及物理CGU，不虚构16hits。其余20候选成功row保留320当前unit reports；main有480。三臂每成功row实际各16对象，但内容/划分与安全义务不据计数假定等价。main/candidate各72个(block,key)物理container，分别36个唯一object payload；Rust实际current-session对象与历史session分开保留。
++
++下表单位ms，GM为两个逐block候选/main、候选/Rust比值的几何均值；逐block原值和配对比完整保留在JSON，不是跨窗口比值。
++
++| 模式 | 请求 | main中位 | 候选中位 | Rust中位 | GM 候选/main | GM 候选/Rust |
++| --- | --- | ---: | ---: | ---: | ---: | ---: |
++| check | cold | 1075.5 | 880.1 | 1495.4 | 0.817 | 0.561 |
++| check | unchanged | 90.6 | 3.5 | 18.2 | 0.038 | 0.192 |
++| check | private | 684.8 | 52.0 | 228.0 | 0.076 | 0.233 |
++| check | multi | 886.5 | 106.5 | 305.0 | 0.121 | 0.375 |
++| check | broad | 691.6 | 931.1 | 1186.7 | 1.298 | 0.755 |
++| check | positions | 840.1 | 527.1 | 786.1 | 0.640 | 0.673 |
++| check | error | 503.0 | 47.9 | 206.7 | 0.095 | 0.231 |
++| check | recovery | 612.0 | 57.9 | 319.1 | 0.095 | 0.183 |
++| check | restore | 84.4 | 24.8 | 252.3 | 0.294 | 0.103 |
++| o2 | cold | 5916.5 | 8539.1 | 6776.1 | 1.440 | 1.258 |
++| o2 | unchanged | 581.2 | 14.4 | 14.8 | 0.023 | 0.909 |
++| o2 | private | 1805.0 | 401.1 | 621.5 | 0.222 | 0.648 |
++| o2 | multi | 2124.5 | 771.6 | 1159.1 | 0.346 | 0.633 |
++| o2 | broad | 5758.0 | 7200.6 | 5362.9 | 1.260 | 1.344 |
++| o2 | positions | 1446.8 | 952.2 | 1066.4 | 0.649 | 0.881 |
++| o2 | error | 365.2 | 59.3 | 267.9 | 0.162 | 0.236 |
++| o2 | recovery | 1670.4 | 391.1 | 460.0 | 0.233 | 0.845 |
++| o2 | restore | 519.0 | 98.9 | 703.1 | 0.190 | 0.148 |
++
++**负结果保留：** native cold约8539ms/main5917/Rust6776，broad7201/main5758/Rust5363，两个block均慢于两方；check broad也仍慢于main。native noop block0为9.40/Rust14.21ms，block1却为19.30/Rust15.43ms，不能称稳定领先。每格仅两个样本，无显著性、全场景领先或此前候选归因结论。
++
++**退出与独立正确性：** check helper exit0；O2九表102rows全部matrix-valid，但helper exit2如实保留：末尾独立delete/overwrite共6请求中5pass，main/candidate两操作及Rust delete通过，Rust overwrite仍留下非ELF，harness拒绝执行并记录false。额外60次原生执行不计入九表1080次。此反例既不掩盖，也不误报成九表失败。
++
++01门在d721上native82/1失败（typed transport fixture left0/right1）及strict Clippy两处失败原样保留；6face的02门native83/backend262、真实source单test含10requests、strict Clippy/fmt及release通过。Analyze304/Verify652/driver211沿用实际d721的未受影响收据，不冒称6face新跑。原release与补tree的immutable binding收据均列于JSON，未覆写原raw。Astra的early scalar、final product、typed-stage源审按各自精确component SHA引用，未以源审替代运行。
++
++Zil runtime LLVM23.1.4（stock2bf与SDK18 785分别实映射），Rust1.99.1内嵌LLVM23.1.1；CGU16/O2/jobs1、Rust incremental/lto=false与Zil cacheall/cap256固定。Cargo每请求新进程、Zil resident且启动另计；源码写入、对象/符号/hash归档和原生执行在编译计时外。首次profile admission/hash在候选冷请求内；完整SDK文件在native窗口后归档。OS cache未清空，CPU/RSS边界不同，不推内存优势。三臂普通请求均保留成功output，error绝不执行旧exe；恢复破坏仅在末尾独立场景。
++
++SDK profile `192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6` 的首次固定归档为 [`70f92d8677ee501fc5000c77fd1d48f5dc2407e8`](https://github.com/zil-lang/zil/tree/70f92d8677ee501fc5000c77fd1d48f5dc2407e8/research/incremental-demand-full-chain-20261113-v27-001)，V27整体metadata/index仍pending，不冒称整体恢复闭合或性能接受。下一compact-scalar整链继续施工，尚无新测量，不能用本表替它报收益。
+diff --git a/tools/research/incremental-demand/native-link-matched-pins.example.json b/tools/research/incremental-demand/native-link-matched-pins.example.json
+new file mode 100644
+index 000000000..cdfeb3574
+--- /dev/null
++++ b/tools/research/incremental-demand/native-link-matched-pins.example.json
+@@ -0,0 +1,24 @@
++{
++  "schema": "native-link-three-arm-pins-v1",
++  "tool_source": null,
++  "baseline": {
++    "source": "9170bb4210554392e36eb7528596612596ebef80",
++    "worktree": null,
++    "binary": null,
++    "binary_sha256": null,
++    "build_receipt": null,
++    "llvm_library_path": "/workspace/.zil-environment/llvm-23.1.4/lib",
++    "llvm_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
++  },
++  "candidate": {
++    "source": null,
++    "worktree": null,
++    "binary": null,
++    "binary_sha256": null,
++    "build_receipt": null,
++    "llvm_library_path": null,
++    "llvm_dso_sha256": null
++  },
++  "native_link_profile": "/workspace/.zil-environment/native-link-v1/manifest",
++  "native_link_profile_sha256": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6"
++}
+diff --git a/tools/research/incremental-demand/native-link-matched.md b/tools/research/incremental-demand/native-link-matched.md
+new file mode 100644
+index 000000000..a6a505567
+--- /dev/null
++++ b/tools/research/incremental-demand/native-link-matched.md
+@@ -0,0 +1,104 @@
++# Native-link three-arm experiment
++
++`native_link_matched_controller.py` prepares or runs separate check and O2
++windows against exact main `9170bb4210554392e36eb7528596612596ebef80`, one frozen
++candidate, and Rust 1.99.1 commit
++`58cf8f9c35b355199727627d07ae34a4e2846d67` (Cargo commit
++`5f94df4789f005f9a352888e8355ffc645b7ed0e`). No compiler is built by these tools.
++The default only writes command records; `--run` starts the experiment and must
++be launched in the approved outer execution window where user namespaces work.
++Root must hold the shared `/workspace/.zil-env/language-build.lock` with an outer
++`flock` across both mode windows; this controller does not acquire another lock.
++
++Copy `native-link-matched-pins.example.json` to a new local file and fill every
++null after compiler/source freeze. Source and binary SHA values must be exact.
++`tool_source` identifies the committed tools checkout, separately from each
++compiled production source. A compiler worktree can have subsequent committed
++changes only under `tools/`; its compiled production commit must remain an
++ancestor, and no production bytes may differ. Build receipts, actual compiler
++bytes, mapped LLVM DSO bytes, tool source/files and final identities are bound.
++An immutable `.binding.json` receipt can add the Git tree to an original build
++receipt: its original path/SHA is checked, every original field must be unchanged,
++and both original and enriched receipts are archived. No rebuild is implied.
++
++```sh
++python3 tools/research/incremental-demand/native_link_matched_controller.py \
++  --pins /tmp/frozen-link-pins.json \
++  --out-prefix /workspace/zil-push-main/out/runs/native-link-matched-01 \
++  --blocks 2
++# In the root-assigned approved outer window, use a fresh output prefix:
++python3 tools/research/incremental-demand/native_link_matched_controller.py \
++  --pins /tmp/frozen-link-pins.json \
++  --out-prefix /workspace/zil-push-main/out/runs/native-link-matched-02 \
++  --blocks 2 --run
++```
++
++Two blocks provide a complete initial control; `--blocks 6` covers all six arm
++permutations. Each block contains the original 20 modules ×20 functions ×16
++arithmetic steps, all 425 named declarations, and all nine requests in order:
++cold, unchanged, private, multi, broad, positions, error, recovery, restore.
++Every non-cold request has an immediately preceding named parent in all three
++arms. Both source languages receive the same two-line position-only edit.
++Each block has 51 rows: 27 measured and 24 parent rows. Thus two blocks have
++102 rows per mode; six have 306. O2 executes all six fixed input/exit/output
++oracles twice per successful row: 1080 outcomes for two blocks or 3240 for six.
++Check creates no native artifacts. No fixture, budget, Verify or optimization
++scope is reduced to obtain the smaller block count.
++
++The candidate uses exactly `--push-reuse`. Only its O2 build command additionally
++uses `--native-link-profile /workspace/.zil-environment/native-link-v1/manifest`;
++check explicitly omits that build-only option. Zil uses the resident protocol,
++cache=all/capacity256, CGU16/O2/jobs1. Rust uses offline/locked Cargo, a fresh
++target per block, incremental=true, CGU16, opt-level2, jobs1 and lto=false. Cargo
++starts a new process each request; Zil startup is outside request wall. Their
++LLVM versions, safety work, CPU/RSS scopes and actual partition contents remain
++different and are recorded, rather than treated as equivalent work.
++
++All three arms retain successful output between measured and parent requests.
++Nothing is deleted or overwritten before a normal request. An error must leave
++the prior publication unchanged; the old executable is neither run nor counted
++as a current success. Optional `--publication-recovery` adds delete/overwrite
++requests only after the last native block. Their evidence is written to
++`publication-correctness.jsonl`, excluded from the nine cells and performance
++row counts. A failed recovery preserves the completed matrix but returns exit2
++with a separate failed correctness result; it is never reported as a pass.
++
++The explicit `native-link-exact-elf-reviewed-ir-v1` quality policy permits LLVM
++IR representation differences for the reviewed early SSA and proven arithmetic
++rewrite, supported by the candidate's independent source review and real O0/O2
++native oracle checks. Complete raw LLVM and the strict second-line fingerprint
++comparison remain observations. LLVM text equality is not the pass condition
++for this experiment. The complete main/candidate ELF bytes must still agree in
++every successful native pair, all three arms must pass every native oracle,
++current independent Verify must execute, and both Zil arms must provide sixteen
++actual unit receipts bound to physical object bytes, symbols and layout
++ownership. Aggregate function exports must agree. Missing units, different ELF,
++oracle failure or source/provenance drift stops the run and leaves raw evidence
++for independent review. No machine-code normalization exception is enabled.
++
++Before-codegen terminal reuse is a separate receipt shape: sixteen actual units,
++zero current object reports/lookups, complete non-null checked+reused current
++preflight counts summing to sixteen, the pinned native profile ID, retained
++producer LLVM verification scope and no claimed current LLVM verifier execution.
++It must match a prior physical producer in that same worker by full ELF hash and
++complete LLVM hash with only the strict fingerprint value normalized. Prior
++objects/exports/layout are rehashed and carried as producer provenance; old cache
++states and stamps are labelled historical and current cache observations stay
++null. No sixteen hits or new native work is invented. Late final reuse keeps its
++real current unit reports and explicit null aggregate preflight counts. Missing
++counts/profile/provenance, contradictory work or malformed scope is a failure.
++
++Object bytes, full ELF, LLVM, layout files, raw responses/commands, Rust current
++and historical sessions, and typed `stage_body` V1 observations are retained.
++Unknown/missing observations remain null, never invented zeros. Full native SDK
++inputs and scripts are archived after the entire native matrix, so the harness
++does not pre-read those files before the candidate's first cold profile hash.
++The compiler's first profile verification/hash belongs inside its cold request.
++DSO capture and artifact collection remain outside compilation timers and may
++warm OS caches; no OS cold-cache claim is made.
++
++Legacy `matched_validate.py` expects a different eight-scenario/six-block schema
++and intentionally cannot qualify these new records. The runner retains that
++validator and its original runner source for provenance. This experiment only
++compares these three same-window arms; it does not compare earlier candidates,
++establish language parity, or infer statistical significance from two blocks.
+diff --git a/tools/research/incremental-demand/native_link_matched_controller.py b/tools/research/incremental-demand/native_link_matched_controller.py
+new file mode 100644
+index 000000000..ca3c1b0e3
+--- /dev/null
++++ b/tools/research/incremental-demand/native_link_matched_controller.py
+@@ -0,0 +1,124 @@
++#!/usr/bin/env python3
++"""Prepare or run exact frozen main9170/candidate/Rust check+O2 windows.
++
++Run only in the root-assigned approved outer execution window: native linker
++profiles require user/PID/network namespaces. Default prepares commands without
++launching any compiler. Source/binary/runtime pins are supplied after freeze.
++"""
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import sys
++
++ROOT = Path(__file__).resolve().parents[3]
++RUNNER = Path(__file__).with_name('native_link_matched_measure.py')
++HELPERS = Path(__file__).parent
++MAIN = '9170bb4210554392e36eb7528596612596ebef80'
++
++
++def require(condition, message):
++    if not condition:
++        raise ValueError(message)
++
++
++def digest(path):
++    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
++
++
++def validate_pins(pins):
++    require(pins['schema'] == 'native-link-three-arm-pins-v1', 'pin schema')
++    require(pins['baseline']['source'] == MAIN, 'baseline is not the requested exact main9170')
++    require(type(pins['tool_source']) is str and re.fullmatch('[0-9a-f]{40}', pins['tool_source']) is not None, 'exact tools source required')
++    for arm in ('baseline', 'candidate'):
++        item = pins[arm]
++        require(type(item['source']) is str and re.fullmatch('[0-9a-f]{40}', item['source']) is not None, arm+' exact source required')
++        for name in ('binary_sha256', 'llvm_dso_sha256'):
++            require(type(item[name]) is str and re.fullmatch('[0-9a-f]{64}', item[name]) is not None, arm+' exact '+name+' required')
++        for name in ('binary', 'worktree', 'build_receipt', 'llvm_library_path'):
++            require(type(item[name]) is str and Path(item[name]).is_absolute() and '..' not in Path(item[name]).parts, arm+' absolute '+name+' required')
++    require(pins['native_link_profile'] == '/workspace/.zil-environment/native-link-v1/manifest'
++            and type(pins['native_link_profile_sha256']) is str and re.fullmatch('[0-9a-f]{64}', pins['native_link_profile_sha256']) is not None,
++            'exact installed native profile pin required')
++
++
++def runner_command(pins, mode, out, blocks, run=False, publication_recovery=False):
++    validate_pins(pins)
++    require(mode in ('check', 'o2') and blocks in (2, 6), 'mode/block protocol')
++    command = ['python3', '-B', str(RUNNER), '--repo', str(ROOT), '--out', str(out), '--mode', mode,
++               '--blocks', str(blocks), '--tool-source', pins['tool_source'],
++               '--native-link-profile', pins['native_link_profile'],
++               '--native-link-profile-sha256', pins['native_link_profile_sha256'],
++               '--candidate-extra-arg=--push-reuse']
++    for arm in ('baseline', 'candidate'):
++        item = pins[arm]
++        for name in ('binary', 'source', 'worktree', 'build_receipt', 'llvm_library_path'):
++            option = '--'+arm if name == 'binary' else '--'+arm+'-'+name.replace('_', '-')
++            command += [option, item[name]]
++        command += ['--expected-'+arm+'-binary-sha256', item['binary_sha256'],
++                    '--expected-'+arm+'-dso-sha256', item['llvm_dso_sha256']]
++    if run:
++        command.append('--run')
++    if publication_recovery and mode == 'o2':
++        command.append('--publication-recovery')
++    return command
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--pins', required=True, type=Path)
++    parser.add_argument('--out-prefix', required=True, type=Path)
++    parser.add_argument('--blocks', type=int, choices=(2, 6), default=2)
++    parser.add_argument('--run', action='store_true')
++    parser.add_argument('--publication-recovery', action='store_true', help='explicit optional last-native-block correctness phase, excluded from the nine cells')
++    args = parser.parse_args()
++    pins = json.loads(args.pins.read_text())
++    validate_pins(pins)
++    prefix = args.out_prefix.resolve()
++    prefix.parent.mkdir(parents=True, exist_ok=True)
++    identity = {str(path): digest(path) for path in [RUNNER, Path(__file__), *[HELPERS/name for name in ('rust_compare.py', 'push_counters.py', 'matched_validate.py')]]}
++    require(len(identity) == 5, 'runner/controller/three fixed helper files required')
++    if args.run:
++        require(subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() == pins['tool_source'], 'tool source has changed since freeze')
++        require(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip(), 'root must be frozen and clean')
++        require(digest(pins['native_link_profile']) == pins['native_link_profile_sha256'], 'installed profile manifest changed')
++        for arm in ('baseline', 'candidate'):
++            require(digest(pins[arm]['binary']) == pins[arm]['binary_sha256'], arm+' binary differs from frozen SHA')
++        require(not os.environ.get('LD_PRELOAD') and not os.environ.get('LD_AUDIT'), 'loader interposition is not supported')
++        os.environ.pop('ZIL_LLVM_CONFIG', None)
++        os.environ.pop('LLVM_CONFIG', None)
++        os.environ.pop('LD_LIBRARY_PATH', None)
++        os.environ.pop('ZIL_LLVM_LIB_DIR', None)
++        os.environ['ZIL_CLANG'] = '/workspace/.zil-environment/llvm-23.1.4/bin/clang'
++    for mode in ('check', 'o2'):
++        out = prefix.with_name(prefix.name+'-'+mode)
++        record = out.with_name(out.name+'-command.json')
++        log, exit_path = out.with_suffix('.log'), out.with_suffix('.exit')
++        require(not any(path.exists() for path in (out, record, log, exit_path)), 'unique run paths required')
++        command = runner_command(pins, mode, out, args.blocks, args.run, args.publication_recovery)
++        with record.open('x') as stream:
++            json.dump({'schema': 'native-link-three-arm-controller-v1', 'command': command, 'pins': pins,
++                       'controller_and_runner_sha256': identity, 'blocks': args.blocks,
++                       'launcher_environment_policy': 'Rust has no inherited Zil LLVM loader path; LLVM_CONFIG/ZIL_LLVM_CONFIG unset. Each Zil resident receives its separately pinned LLVM directory. ZIL_CLANG is the installed LLVM23.1.4 driver.',
++                       'scope': 'One sequential main9170/current candidate/Rust 1.99.1 window per mode; full nine original425 scenarios and parents; no prior-candidate comparison. Successful outputs retained in all arms; any output mutations are separate correctness only.'}, stream, indent=2)
++            stream.write('\n')
++        if not args.run:
++            print(json.dumps({'prepared_only': True, 'command_record': str(record), 'compiler_processes_started': 0}))
++            continue
++        shutil.copyfile(__file__, out.with_name(out.name+'-controller.py'))
++        with log.open('x') as stream:
++            result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
++        with exit_path.open('x') as stream:
++            stream.write(str(result.returncode)+'\n')
++        print(json.dumps({'mode': mode, 'exit': result.returncode, 'out': str(out)}), flush=True)
++        if result.returncode:
++            return result.returncode
++    return 0
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())
+diff --git a/tools/research/incremental-demand/native_link_matched_measure.py b/tools/research/incremental-demand/native_link_matched_measure.py
+new file mode 100644
+index 000000000..71608701a
+--- /dev/null
++++ b/tools/research/incremental-demand/native_link_matched_measure.py
+@@ -0,0 +1,1052 @@
++#!/usr/bin/env python3
++"""Nine-scenario main9170/candidate/Rust experiment; generation is the default.
++
++All three arms share a sequential request window. No profiling flags, budget
++changes, artificial optimization barriers, or hidden reduced workload are used.
++Legacy matched_validate.py intentionally does not qualify this new schema. Actual object bytes and symbol tables
++are archived outside request timing; flags alone never establish partitioning.
++"""
++import argparse
++import copy
++import hashlib
++import importlib.util
++import json
++import math
++import os
++from pathlib import Path
++import re
++import select
++import shutil
++import signal
++import struct
++import subprocess
++import sys
++import threading
++import time
++
++sys.dont_write_bytecode = True
++HELPER_DIRECTORY = Path(__file__).parent
++sys.path.insert(0, str(HELPER_DIRECTORY))
++import rust_compare as rc
++import push_counters as pc
++
++MAIN = '9170bb4210554392e36eb7528596612596ebef80'
++LABELS = ['cold', 'unchanged', 'private', 'multi', 'broad', 'positions', 'error', 'recovery', 'restore']
++RUST = '58cf8f9c35b355199727627d07ae34a4e2846d67'
++CARGO = '5f94df4789f005f9a352888e8355ffc645b7ed0e'
++ARMS = ['baseline', 'candidate', 'rust']
++ORDERS = [ARMS, list(reversed(ARMS)), ['candidate', 'rust', 'baseline'],
++          ['baseline', 'rust', 'candidate'], ['rust', 'baseline', 'candidate'],
++          ['candidate', 'baseline', 'rust']]
++QUALITY_POLICY = {
++    'schema': 'native-link-exact-elf-reviewed-ir-v1',
++    'llvm': 'Full raw LLVM bytes and exact second-line-fingerprint normalization remain observations. Different IR representations are permitted for the reviewed early SSA and proven arithmetic rewrite in this candidate; LLVM textual equality is not an acceptance prerequisite.',
++    'machine': 'Every paired main/candidate successful native request must have identical complete ELF bytes. Different executable bytes stop the run and require independent quality review; no normalized machine-code exception is enabled.',
++    'execution': 'Every successful request in all three arms must match all fixed native input/output/exit oracles. A failed request cannot execute or claim an earlier executable.',
++    'units': 'Each Zil native request requires sixteen actual current object receipts, complete physical objects/symbols, and a physical layout whose exact ownership matches current diagnostic function names. Rust inventories retain actual current sessions; CGU flags alone are not evidence of equal partitions.',
++    'authority': 'IR-change permission is specific to the independently reviewed early SSA/proven rewrite and its real O0/O2 native oracle support. It does not grant permission to accept different final ELF bytes or omit current independent Verify.',
++}
++STAGE_BODY_FIELDS = ('captures', 'replays', 'declines', 'captured_bytes', 'capture_ns', 'prepare_ns', 'restore_ns', 'failed_replays')
++
++
++def candidate_flags(flags):
++    if flags != ['--push-reuse']:
++        raise ValueError('this protocol requires exactly --push-reuse; profile path is a separate pinned argument')
++    return flags
++
++
++def rust_files(workloads, label, modules, functions, steps):
++    files = rc.rust_files(workloads, label, modules, functions, steps)
++    if label == 'positions':
++        prefix = '// Source position edit; semantic body is unchanged.\n\n'
++        files = {name: prefix + value for name, value in files.items()}
++    return files
++
++
++def zil_command(args, binary, source, work, arm):
++    command = pc.zil_command(binary=binary, mode=args.mode, source=source, work=work,
++                             arm=arm, extras=candidate_flags(args.candidate_extra_arg))
++    if arm == 'candidate' and args.mode == 'o2':
++        command += ['--native-link-profile', str(args.native_link_profile)]
++    return command
++
++
++def typed_stage_observations(report):
++    native = report.get('native_codegen')
++    if native is None:
++        return None
++    result = []
++    for index, unit in enumerate(native['object_reports']):
++        unit = json.loads(unit) if isinstance(unit, str) else unit
++        stats = unit.get('native_products')
++        value = stats.get('stage_body') if stats is not None else None
++        if value is not None:
++            if (not isinstance(value, dict) or type(value.get('observer_schema')) is not int
++                    or value['observer_schema'] != 1 or any(type(value.get(field)) is not int or value[field] < 0 for field in STAGE_BODY_FIELDS)):
++                raise ValueError('malformed typed stage_body V1 observation')
++        result.append({'unit_index': index, 'stage_body': value})
++    return result
++
++
++def function_symbols(data):
++    if len(data) < 64 or data[:6] != b'\x7fELF\x02\x01':
++        raise ValueError('current object lacks a complete native ELF header')
++    offset = struct.unpack_from('<Q', data, 40)[0]
++    width, count = struct.unpack_from('<HH', data, 58)
++    if width != 64 or not count or offset + count * width > len(data):
++        raise ValueError('current object ELF section bounds')
++    sections = [struct.unpack_from('<IIQQQQIIQQ', data, offset + i * width) for i in range(count)]
++    result, tables = set(), 0
++    for section in sections:
++        if section[1] != 2:
++            continue
++        tables += 1
++        if section[6] >= count or section[9] != 24 or section[5] % 24 or section[4] + section[5] > len(data):
++            raise ValueError('current object ELF symbol-table bounds')
++        strings = sections[section[6]]
++        if strings[1] != 3 or strings[4] + strings[5] > len(data):
++            raise ValueError('current object ELF string-table bounds')
++        table = data[strings[4]:strings[4]+strings[5]]
++        for at in range(section[4], section[4]+section[5], 24):
++            name, info, other, index, value, size = struct.unpack_from('<IBBHQQ', data, at)
++            if info & 15 == 2 and index:
++                end = table.find(b'\0', name)
++                if name >= len(table) or end < 0:
++                    raise ValueError('current object ELF function-name bounds')
++                result.add(table[name:end].decode())
++    if not tables:
++        raise ValueError('current object has no physical function symbol table')
++    return result
++
++
++def layout_units(data):
++    offset = 72
++
++    def word():
++        nonlocal offset
++        if offset + 4 > len(data):
++            raise ValueError('truncated physical partition layout')
++        value = int.from_bytes(data[offset:offset+4], 'little')
++        offset += 4
++        return value
++
++    if word() != 16:
++        raise ValueError('physical partition layout is not sixteen units')
++    units = []
++    for _ in range(16):
++        unit = {'owner': word()}
++        for group in ('prelude', 'declarations', 'imports', 'definitions'):
++            size = word()
++            if size > 1_048_576:
++                raise ValueError('physical layout reference limit')
++            unit[group] = [word() for _ in range(size)]
++        units.append(unit)
++    if offset != len(data):
++        raise ValueError('trailing physical partition layout bytes')
++    return units
++
++
++def final_artifact_scope(args, report):
++    cg = report.get('native_codegen') or {}
++    artifact = cg.get('final_artifact')
++    if artifact is None:
++        return None
++    required = {'reused_program', 'retained_files', 'before_codegen', 'current_preflight_checked_units',
++                'current_preflight_reused_units', 'profile_id', 'llvm_verification_scope', 'current_llvm_verifier_executed'}
++    if (not isinstance(artifact, dict) or not required <= set(artifact) or artifact['reused_program'] is not True
++            or type(artifact['retained_files']) is not bool or type(artifact['before_codegen']) is not bool
++            or artifact['profile_id'] != args.native_link_profile_sha256
++            or artifact['llvm_verification_scope'] != 'retained-producer'
++            or (report.get('backend_work') or {}).get('reused_link') is not True):
++        raise ValueError('malformed/unbound final artifact reuse scope')
++    if artifact['before_codegen']:
++        counts = [artifact['current_preflight_checked_units'], artifact['current_preflight_reused_units']]
++        if (any(type(value) is not int or value < 0 for value in counts) or sum(counts) != cg.get('actual_units')
++                or artifact['current_llvm_verifier_executed'] is not False or cg.get('object_reports') != []
++                or report.get('commands') != []):
++            raise ValueError('before-codegen reuse lacks complete current preflight or fabricates current object/native work')
++        cache = cg.get('object_cache') or {}
++        if any(type(cache.get(field)) is not int or cache[field] != 0 for field in ('hits', 'misses', 'stored')):
++            raise ValueError('before-codegen terminal reuse must retain its actual zero object-cache lookups')
++    elif (artifact['current_preflight_checked_units'] is not None or artifact['current_preflight_reused_units'] is not None
++          or artifact['current_llvm_verifier_executed'] is not None or artifact['retained_files'] is not False
++          or len(cg.get('object_reports', [])) != cg.get('actual_units')):
++        raise ValueError('late final reuse must keep null aggregate preflight counts and actual current unit reports')
++    return artifact
++
++
++def recheck_archived(out, item):
++    relative = item['archive']
++    if Path(relative).is_absolute() or '..' in Path(relative).parts:
++        raise ValueError('unsafe retained producer artifact path')
++    path = out/relative
++    if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(out.resolve()):
++        raise ValueError('missing/unsafe retained producer artifact')
++    data = path.read_bytes()
++    if len(data) != item['bytes'] or rc.sha(data) != item['sha256']:
++        raise ValueError('retained producer artifact bytes changed')
++    return data
++
++
++def retained_inventory(args, report, cache, llvm, executable_sha256, artifact):
++    key = (str(cache.resolve()), pc.llvm_comparison_sha256(llvm), executable_sha256)
++    prior = getattr(args, '_zil_producer_inventories', {}).get(key)
++    if prior is None:
++        raise ValueError('terminal reuse has no same-worker exact LLVM/full-ELF physical producer provenance')
++    result = copy.deepcopy(prior)
++    for item in result['objects']:
++        payload = recheck_archived(args.out, item['object'])
++        container = recheck_archived(args.out, item['cache_container'])
++        if (container[:8] != b'ZILOBJ01' or container[8:40].hex() != item['action_key']
++                or container[40:72].hex() != item['object']['sha256'] or container[80:] != payload
++                or int.from_bytes(container[72:80], 'little') != len(payload)
++                or sorted(function_symbols(payload)) != item['defined_functions']):
++            raise ValueError('retained physical producer object/key/exports no longer match')
++        symbols = item['symbols']
++        path = args.out/symbols['path']
++        if path.is_symlink() or not path.resolve().is_relative_to(args.out.resolve()) or file_hash(path) != symbols['sha256']:
++            raise ValueError('retained producer symbol evidence changed')
++        item['producer_cache_observation'] = item.pop('cache_observation')
++        item['cache_observation'] = None
++        item['producer_file_stamp'] = {name: item.pop(name) for name in ('inode', 'device', 'mtime_ns')}
++        item['physical_scope'] = 'Prior real producer object archived in this same worker; no current object-cache lookup or native compilation is asserted.'
++    for layout in result['partition_layouts']:
++        data = recheck_archived(args.out, layout)
++        if data[:8] != b'ZILCGU01' or data[8:40].hex() != layout['key'] or rc.sha(data[72:]) != layout['payload_sha256'] or layout_units(data) != layout['units']:
++            raise ValueError('retained physical producer layout changed')
++    result['producer_compiler_summary'] = result.pop('compiler_summary')
++    result.update({'compiler_summary': report['native_codegen'], 'current_object_report_count': 0,
++                   'provenance_kind': 'before-codegen-retained-producer', 'final_artifact': artifact,
++                   'current_preflight_checked_units': artifact['current_preflight_checked_units'],
++                   'current_preflight_reused_units': artifact['current_preflight_reused_units'],
++                   'scope': 'Sixteen physical prior producer CGUs/exports/layout are carried forward only after complete current machine preflight and exact same-worker normalized LLVM/full-ELF binding. Real current cache hits/misses stay zero; no fabricated per-unit current receipt.'})
++    return result
++
++
++def quality(pair, args):
++    if len(pair) != 3 or {row['arm'] for row in pair} != set(ARMS):
++        raise ValueError('quality requires the complete three-arm request')
++    zil = [row for row in pair if row['arm'] != 'rust']
++    if len(zil) != 2 or {row['arm'] for row in zil} != {'baseline', 'candidate'}:
++        raise ValueError('quality requires both actual Zil arms')
++    left, right = [row['resident']['report'] for row in zil]
++    equal = all(left[key] == right[key] for key in ['status', 'phase', 'diagnostics', 'input_fingerprint', 'source_files', 'scalar_interfaces'])
++    native = args.mode == 'o2' and left['status'] == right['status'] == 'Success'
++    executable_equal = llvm_equal = normalized_equal = exports_equal = aggregate_exports_equal = None
++    oracles_valid = units_valid = True
++    if native:
++        elf_bytes = []
++        for row in zil:
++            item = row['executable']
++            data = (args.out/item['archive']).read_bytes()
++            if len(data) != item['bytes'] or rc.sha(data) != item['sha256'] or not data.startswith(b'\x7fELF'):
++                raise ValueError('complete current executable archive length/hash/ELF identity failed')
++            elf_bytes.append(data)
++            inv = row['inventory']
++            units_valid &= inv['object_count'] == len(inv['objects']) == 16 and inv['compiler_summary']['actual_units'] == 16 and bool(inv['current_layout_matches'])
++        executable_equal = elf_bytes[0] == elf_bytes[1]
++        llvm_equal = zil[0]['llvm']['sha256'] == zil[1]['llvm']['sha256']
++        normalized_equal = zil[0]['llvm']['comparison_sha256_excluding_identity_comment'] == zil[1]['llvm']['comparison_sha256_excluding_identity_comment']
++        exports_equal = [item['defined_functions'] for item in zil[0]['inventory']['objects']] == [item['defined_functions'] for item in zil[1]['inventory']['objects']]
++        aggregate_exports_equal = {name for item in zil[0]['inventory']['objects'] for name in item['defined_functions']} == {name for item in zil[1]['inventory']['objects'] for name in item['defined_functions']}
++        for row in pair:
++            outcomes = row.get('native', [])
++            oracles_valid &= len(outcomes) == 6 * args.native_repetitions and all(outcome['valid'] is True and outcome['expected'] == outcome['actual'] for outcome in outcomes)
++    valid = all(row['valid'] for row in pair) and equal and (not native or executable_equal and oracles_valid and units_valid and aggregate_exports_equal)
++    return {'schema': QUALITY_POLICY['schema'], 'valid': bool(valid), 'semantics_equal': equal,
++            'executable_equal': executable_equal, 'llvm_text_equal': llvm_equal, 'raw_llvm_equal': llvm_equal,
++            'llvm_equal_excluding_identity_comment': normalized_equal, 'per_unit_exports_equal_observed': exports_equal,
++            'aggregate_zil_function_exports_equal': aggregate_exports_equal,
++            'native_oracles_valid': bool(oracles_valid) if native else None,
++            'physical_zil_units_valid': bool(units_valid) if native else None,
++            'llvm_equality_is_acceptance_prerequisite': False}
++
++
++def load_module(name, path):
++    spec = importlib.util.spec_from_file_location(name, path)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def file_hash(path):
++    h = hashlib.sha256()
++    with Path(path).open('rb') as stream:
++        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
++            h.update(chunk)
++    return h.hexdigest()
++
++
++def blob(out, data, suffix=''):
++    identity = rc.sha(data)
++    target = out / 'blobs' / (identity + suffix)
++    target.parent.mkdir(exist_ok=True)
++    if target.is_symlink():
++        raise ValueError('symlink in hash-addressed artifact archive')
++    if target.exists():
++        existing = target.read_bytes()
++        if existing != data or len(existing) != len(data) or rc.sha(existing) != identity:
++            raise ValueError('existing content-addressed artifact differs')
++    else:
++        with target.open('xb') as stream:
++            stream.write(data)
++    return {'sha256': identity, 'bytes': len(data), 'archive': str(target.relative_to(out))}
++
++
++def preserve(out, path, suffix=''):
++    return blob(out, Path(path).read_bytes(), suffix)
++
++
++def publication_state(paths):
++    """Final publication history; source/cache/intermediate files are separate."""
++    result = {}
++    for path in paths:
++        path = Path(path)
++        if path.exists():
++            stat = path.stat()
++            result[str(path)] = {'exists': True, 'sha256': file_hash(path),
++                                 'bytes': stat.st_size, 'mtime_ns': stat.st_mtime_ns,
++                                 'inode': stat.st_ino, 'device': stat.st_dev}
++        else:
++            result[str(path)] = {'exists': False}
++    return result
++
++
++def source_identity(repo, commit, out, arm):
++    def git(*args):
++        return subprocess.check_output(['git', '-C', str(repo), *args])
++    head = git('rev-parse', 'HEAD').decode().strip()
++    if head != commit:
++        committed = git('diff', '--name-only', commit, 'HEAD').decode().splitlines()
++        if not committed or any(not name.startswith('tools/') for name in committed):
++            raise ValueError(f'{arm}: checkout differs from compiled source beyond committed tools')
++        if subprocess.run(['git', 'merge-base', '--is-ancestor', commit, 'HEAD'], cwd=repo, capture_output=True).returncode:
++            raise ValueError(f'{arm}: compiled source is not an ancestor of the tools checkout')
++    status = git('status', '--porcelain=v1', '--untracked-files=all').decode()
++    # Research tools/reports can be edited while the compiler source stays frozen.
++    changed = git('diff', '--name-only', 'HEAD').decode().splitlines()
++    changed += git('ls-files', '--others', '--exclude-standard').decode().splitlines()
++    compiler_paths = ('crates/', 'src/', 'Cargo.toml', 'Cargo.lock', 'build.rs', '.cargo/')
++    if any(p.startswith(compiler_paths) for p in changed):
++        raise ValueError(f'{arm}: compiler source differs from pinned commit')
++    listing = git('ls-tree', '-r', '--full-tree', commit)
++    diff = git('diff', '--binary', 'HEAD')
++    return {'commit': commit, 'checkout_commit': head, 'tree': git('rev-parse', commit + '^{tree}').decode().strip(),
++            'worktree': str(repo), 'status': status,
++            'source_tree_inventory': blob(out, listing, '.git-ls-tree'),
++            'worktree_diff': blob(out, diff, '.patch')}
++
++
++class Worker:
++    """Resident boundary with explicitly root-only RSS and raw JSONL transport."""
++    def __init__(self, command, directory, timeout, sample_ms, native, env, runtime_root):
++        self.directory, self.timeout, self.sample_ms = directory, timeout, sample_ms
++        self.native = native
++        self.env, self.runtime_root, self.runtime_cache = env, runtime_root, {}
++        self.buffer, self.count = b'', 0
++        self.err = (directory / 'stderr.bin').open('wb')
++        self.raw = (directory / 'stdout.jsonl').open('wb')
++        rc.save(directory / 'command.json', {'argv': command, 'cwd': os.getcwd(), 'environment': native.runtime_environment(env)})
++        start = time.perf_counter_ns()
++        self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
++                                        stderr=self.err, start_new_session=True, bufsize=0, env=env)
++        try:
++            ready = self.read()
++            if ready.get('ready') is not True or ready.get('protocol') != 1:
++                raise ValueError('invalid resident ready')
++            startup_wall_ms = (time.perf_counter_ns()-start)/1e6
++            self.raw.write(self.last_line + b'\n')
++            self.raw.flush()
++            rc.save(directory / 'startup.json', {'ready': ready, 'pid': self.process.pid, 'wall_ms': startup_wall_ms})
++            self.runtime = native.capture_runtime(self.process.pid, runtime_root, env, self.runtime_cache)
++            rc.save(directory / 'runtime-startup.json', self.runtime)
++        except BaseException:
++            self.close()
++            raise
++
++    def read(self):
++        deadline = time.monotonic() + self.timeout
++        while b'\n' not in self.buffer:
++            remaining = deadline - time.monotonic()
++            if remaining <= 0 or not select.select([self.process.stdout], [], [], remaining)[0]:
++                raise TimeoutError('resident response timeout')
++            chunk = os.read(self.process.stdout.fileno(), 65536)
++            if not chunk:
++                raise RuntimeError(f'resident exited: {self.process.poll()}')
++            self.buffer += chunk
++        line, self.buffer = self.buffer.split(b'\n', 1)
++        self.last_line = line
++        return json.loads(line)
++
++    def request(self, directory):
++        samples, stop = [], threading.Event()
++        (directory / 'stdin.bin').write_bytes(b'compile\n')
++        before = self.native.proc_stat(self.process.pid)
++        start = time.perf_counter_ns()
++        def sample():
++            while not stop.is_set():
++                samples.append({'offset_ms': (time.perf_counter_ns()-start)/1e6,
++                                'resident_pid': self.process.pid, 'resident_rss_kib': rc.memory_sample(self.process.pid)})
++                stop.wait(self.sample_ms / 1000)
++        thread = threading.Thread(target=sample, daemon=True)
++        thread.start()
++        try:
++            self.process.stdin.write(b'compile\n')
++            self.process.stdin.flush()
++            response = self.read()
++            wall_ms = (time.perf_counter_ns()-start)/1e6
++            self.raw.write(self.last_line + b'\n')
++            self.raw.flush()
++        finally:
++            stop.set()
++            thread.join()
++        after = self.native.proc_stat(self.process.pid)
++        self.count += 1
++        rc.save(directory / 'response.json', response)
++        rc.save(directory / 'memory-samples.json', samples)
++        self.native.validate_response(response, self.count)
++        if before is None or after is None:
++            raise ValueError('resident process accounting unavailable')
++        result = {'wall_ms': wall_ms, 'resident_cpu_seconds': after['own_cpu_seconds']-before['own_cpu_seconds'],
++                  'resident_and_waited_cpu_seconds': after['cpu_seconds']-before['cpu_seconds'],
++                  'resident_rss_kib': response['rss_kib'], 'resident_peak_kib': response['peak_kib']}
++        rc.save(directory / 'result.json', result)
++        current_runtime = self.native.capture_runtime(self.process.pid, self.runtime_root, self.env, self.runtime_cache)
++        rc.save(directory / 'runtime.json', current_runtime)
++        if current_runtime['llvm_dsos'] != self.runtime['llvm_dsos']:
++            raise ValueError('resident LLVM DSO changed between requests')
++        self.runtime = current_runtime
++        return result, response
++
++    def close(self):
++        if self.process.poll() is None:
++            try:
++                self.process.stdin.write(b'quit\n')
++                self.process.stdin.flush()
++                self.process.wait(timeout=3)
++            except (OSError, subprocess.TimeoutExpired):
++                os.killpg(self.process.pid, signal.SIGKILL)
++                self.process.wait()
++        self.err.close()
++        self.raw.close()
++
++
++def zil_error(report, source, files):
++    diagnostics = report.get('diagnostics', [])
++    if len(diagnostics) != 1:
++        return False
++    error = diagnostics[0]
++    span = error.get('span') or {}
++    offset = files['m0.zil'].encode().index(b'absent_name')
++    mapping = report.get('source_files', {})
++    return (error.get('code') == 'E-UNKNOWN-NAME'
++            and span.get('start') == offset and span.get('end') == offset + len(b'absent_name')
++            and mapping.get(str(span.get('file'))) == str(source / 'm0.zil'))
++
++
++def symbols(args, object_blob):
++    path = args.out / object_blob['archive']
++    destination = args.out / 'symbols' / (object_blob['sha256'] + '.txt')
++    destination.parent.mkdir(exist_ok=True)
++    if not destination.exists():
++        result = subprocess.run([args.nm, '--defined-only', '--print-size', str(path)],
++                                capture_output=True, timeout=30)
++        destination.write_bytes(result.stdout)
++        destination.with_suffix('.stderr').write_bytes(result.stderr)
++        rc.save(destination.with_suffix('.command.json'), {'argv': [args.nm, '--defined-only', '--print-size', str(path)],
++                                                          'returncode': result.returncode})
++        if result.returncode:
++            raise ValueError(f'object symbol inventory failed: {path}')
++    return {'path': str(destination.relative_to(args.out)), 'sha256': file_hash(destination)}
++
++
++def object_record(args, path, root, payload=None):
++    stat = path.stat()
++    archived = blob(args.out, payload, '.o') if payload is not None else preserve(args.out, path, '.o')
++    return {'path': str(path.relative_to(root)), 'name': path.name,
++            'inode': stat.st_ino, 'device': stat.st_dev, 'mtime_ns': stat.st_mtime_ns,
++            'object': archived, 'symbols': symbols(args, archived)}
++
++
++def rust_inventory(args, target, previous):
++    root = target / ('release' if args.mode == 'o2' else 'debug') / 'incremental'
++    objects, metadata = [], []
++    previous_objects = previous.get('objects', [])
++    if root.exists():
++        for path in sorted(root.rglob('*')):
++            if not path.is_file():
++                continue
++            if path.suffix == '.o':
++                item = object_record(args, path, root)
++                # Sessions are renamed on commit. Identical bytes alone cannot
++                # establish that rustc skipped a code generation operation.
++                old = [r for r in previous_objects if r['name'] == item['name']]
++                item['same_bytes_as_previous_request'] = any(r['object']['sha256'] == item['object']['sha256'] for r in old)
++                item['same_inode_bytes_mtime_as_previous_request'] = any(
++                    all(r[k] == item[k] for k in ['inode', 'device', 'mtime_ns'])
++                    and r['object']['sha256'] == item['object']['sha256'] for r in old)
++                objects.append(item)
++            else:
++                metadata.append({'path': str(path.relative_to(root)), **preserve(args.out, path, '.incremental')})
++    sessions = sorted(set(str(Path(r['path']).parent) for r in objects))
++    committed = [session for session in sessions if not Path(session).name.endswith('-working')
++                 and Path(session).parts[0].startswith(rc.PACKAGE + '-')
++                 and (root/session/'work-products.bin').is_file()]
++    old_sessions = set(previous.get('sessions', []))
++    new_sessions = [session for session in committed if session not in old_sessions]
++    if len(new_sessions) == 1:
++        current = new_sessions[0]
++        basis = 'unique newly committed object session since immediately preceding request'
++    elif not new_sessions and previous.get('current_session') in committed:
++        current = previous['current_session']
++        basis = 'previous committed session remains current; no new committed object session appeared'
++    elif not committed:
++        current, basis = None, 'no committed native object session (expected for cargo check)'
++    else:
++        raise ValueError('ambiguous current Rust object session; all raw evidence retained')
++    active = [r for r in objects if str(Path(r['path']).parent) == current]
++    historical = [r for r in objects if str(Path(r['path']).parent) != current]
++    return {'objects': active, 'historical_objects': historical, 'metadata': metadata,
++            'object_count': len(active), 'sessions': sessions, 'current_session': current,
++            'current_session_selection': basis, 'previous_sessions': previous.get('sessions', []),
++            'previous_current_session': previous.get('current_session'),
++            'reuse_observation': 'same inode/device/mtime/content records physical carry-forward, not rustc query red-green counters; equal content alone cannot establish skipped codegen',
++            'scope': 'Actual current committed crate-session objects, selected by unique new session or retained previous session, with older sessions listed separately. Ambiguity is fatal, not a count inferred from CGU flags.'}
++
++
++def zil_inventory(args, report, cache, llvm, executable_sha256, request_directory=None):
++    summary = report.get('native_codegen') or {}
++    reports = summary.get('object_reports', [])
++    if (summary.get('backend') != 'llvm-api' or summary.get('requested_units') != 16
++            or summary.get('actual_units') != 16 or summary.get('jobs') != 1 or summary.get('fallback') is not None):
++        raise ValueError('actual native partition/backend differs from CGU16/O2/jobs1 contract')
++    artifact = final_artifact_scope(args, report)
++    if artifact is not None and artifact['before_codegen']:
++        return retained_inventory(args, report, cache, llvm, executable_sha256, artifact)
++    if len(reports) != summary.get('actual_units') or not reports:
++        raise ValueError('missing current Zil unit receipts')
++    # This root was created empty for exactly one pinned arm/block. The
++    # compiler's schema places objects under a tool/target-specific namespace;
++    # require that namespace to be unique and stable rather than searching for
++    # an action key recursively across unrelated compiler identities.
++    schema = cache / 'objects-v1'
++    if cache.is_symlink() or schema.is_symlink() or not schema.is_dir():
++        raise ValueError('missing or unsafe Zil objects-v1 cache schema')
++    entries = list(schema.iterdir())
++    if len(entries) != 1:
++        raise ValueError('fresh Zil arm cache does not have exactly one namespace')
++    namespace_path = entries[0]
++    namespace = namespace_path.name
++    if (len(namespace) != 64 or any(c not in '0123456789abcdef' for c in namespace)
++            or namespace_path.is_symlink() or not namespace_path.is_dir()
++            or namespace_path.resolve().parent != schema.resolve()):
++        raise ValueError('invalid or unsafe Zil object cache namespace')
++    bindings = getattr(args, '_zil_namespace_bindings', {})
++    cache_identity = str(cache.resolve())
++    if cache_identity in bindings and bindings[cache_identity] != namespace:
++        raise ValueError('Zil arm cache namespace changed during the block')
++    bindings[cache_identity] = namespace
++    args._zil_namespace_bindings = bindings
++    objects = []
++    for index, receipt in enumerate(reports):
++        if isinstance(receipt, str):
++            receipt = json.loads(receipt)
++        if receipt.get('backend') != 'llvm-api' or receipt.get('pipeline') != 'default<O2>':
++            raise ValueError('actual native unit pipeline/backend differs')
++        access = receipt.get('cache', {})
++        key = access.get('action_key')
++        if not isinstance(key,str) or len(key)!=64 or any(c not in '0123456789abcdef' for c in key):
++            raise ValueError('unit receipt lacks a valid current object action key')
++        path = namespace_path / (key + '.zobj')
++        if path.is_symlink() or not path.is_file() or path.resolve().parent != namespace_path.resolve():
++            raise ValueError('missing or unsafe current Zil cached object')
++        data = path.read_bytes()
++        if (len(data) <= 80 or data[:8] != b'ZILOBJ01' or data[8:40].hex() != key
++                or data[40:72].hex() != rc.sha(data[80:])
++                or int.from_bytes(data[72:80], 'little') != len(data)-80):
++            raise ValueError('invalid current Zil cached object header/key/payload checksum/length')
++        if receipt.get('object_bytes') != len(data)-80:
++            raise ValueError('current object receipt byte count differs from physical payload')
++        item = object_record(args, path, cache, data[80:])
++        item.update({'unit_index': index, 'action_key': key, 'cache_observation': access,
++                     'cache_container': preserve(args.out, path, '.zobj'),
++                     'defined_functions': sorted(function_symbols(data[80:]))})
++        objects.append(item)
++    layouts = []
++    for path in sorted((cache / 'partition-layout-v1').glob('*.layout')):
++        if path.is_symlink() or not path.is_file():
++            raise ValueError('unsafe partition layout artifact')
++        data = path.read_bytes()
++        if (len(data) < 76 or data[:8] != b'ZILCGU01' or data[8:40].hex() != path.stem
++                or rc.sha(data[72:]) != data[40:72].hex() or int.from_bytes(data[72:76], 'little') != 16):
++            raise ValueError('invalid complete partition layout frame/key/hash')
++        layouts.append({'key': path.stem, 'payload_sha256': rc.sha(data[72:]), 'units': layout_units(data), **preserve(args.out, path, '.layout')})
++    if not layouts:
++        raise ValueError('current CGU object evidence lacks physical partition layouts')
++    items = [(match[1].decode(), match[2].decode()) for match in re.finditer(rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', llvm)]
++    definitions = [index for index, (kind, name) in enumerate(items) if kind == 'define']
++    matches = []
++    for layout in layouts:
++        units = layout['units']
++        referenced = [index for unit in units for group in ('prelude', 'declarations', 'imports', 'definitions') for index in unit[group]]
++        if (not items or not definitions or any(index >= len(items) for index in referenced)
++                or sorted(index for unit in units for index in unit['definitions']) != definitions
++                or any(unit['imports'] for unit in units)):
++            continue
++        if all(set(item['defined_functions']) == {items[index][1] for index in unit['definitions']}
++               for item, unit in zip(objects, units)):
++            matches.append(layout)
++    if not matches or len({layout['payload_sha256'] for layout in matches}) != 1:
++        raise ValueError('actual current object function exports do not uniquely bind a physical sixteen-unit layout/current LLVM item ownership')
++    states = {name: sum(item['cache_observation'].get('state') == name for item in objects) for name in ('hit', 'miss')}
++    aggregate = summary.get('object_cache') or {}
++    if (sum(states.values()) != 16 or aggregate.get('hits') != states['hit'] or aggregate.get('misses') != states['miss']
++            or aggregate.get('corrupt') != 0 or aggregate.get('write_failures') != 0):
++        raise ValueError('actual current per-unit cache observations disagree with aggregate counts')
++    result = {'object_count': len(objects), 'objects': objects, 'partition_layouts': layouts, 'compiler_summary': summary,
++            'current_layout_matches': [item['key'] for item in matches],
++            'current_object_report_count': len(reports), 'provenance_kind': 'current-object-reports',
++            'producer_request_directory': request_directory, 'final_artifact': artifact,
++            'cache_schema': 'objects-v1', 'namespace': namespace,
++            'namespace_binding': 'Unique immediate hex64 namespace in a fresh private arm/block root, stable for the pinned compiler/library/target; symlinks and path escapes rejected',
++            'scope': 'Current request unit receipts map exact action keys to archived objects and symbols; not the cumulative cache directory count'}
++    histories = getattr(args, '_zil_producer_inventories', {})
++    histories[(str(cache.resolve()), pc.llvm_comparison_sha256(llvm), executable_sha256)] = copy.deepcopy(result)
++    args._zil_producer_inventories = histories
++    return result
++
++
++def native_outcomes(args, workloads, program, label, directory, env):
++    if program.is_symlink() or not program.is_file() or not program.read_bytes().startswith(b'\x7fELF'):
++        raise ValueError('refuse to execute missing/symlink/non-ELF publication')
++    outcomes = []
++    for repeat in range(args.native_repetitions):
++        for index, data in enumerate(workloads.inputs('scalar')):
++            current = directory / f'native-{repeat:02d}-{index:02d}'
++            result = rc.run_process([str(program)], directory, current, args.native_timeout, args.sample_ms, data, env)
++            expected = workloads.oracle('scalar', data, label, 20, 20, 16)
++            actual = {'exit': result['returncode'], 'stdout_hex': (current/'stdout.bin').read_bytes().hex(),
++                      'stderr_hex': (current/'stderr.bin').read_bytes().hex()}
++            outcomes.append({'stdin_hex': data.hex(), 'expected': expected, 'actual': actual,
++                             'valid': not result['timed_out'] and actual == expected,
++                             'directory': str(current.relative_to(args.out))})
++    return outcomes
++
++
++def rust_request(args, workloads, fixtures, label, project, target, directory, env, previous):
++    source = rc.write_files(project, fixtures[label]['rust'], '.rs')
++    command = pc.rust_command(cargo=args.cargo, mode=args.mode, target=target)
++    program_path = target / ('release' if args.mode == 'o2' else 'debug') / rc.PACKAGE
++    before_publication = publication_state([program_path])
++    # run_process creates the leaf directory itself.
++    result = rc.run_process(command, project, directory, args.timeout, args.sample_ms, env=env)
++    messages = rc.cargo_messages(directory / 'stdout.bin')
++    diagnostics = [m.get('message', {}) for m in messages if m.get('reason') == 'compiler-message']
++    finished = [m for m in messages if m.get('reason') == 'build-finished']
++    success = label != 'error'
++    valid = (not result['timed_out'] and result['returncode'] == (0 if success else 101)
++             and len(finished) == 1 and finished[0].get('success') is success)
++    valid &= rc.expected_error(diagnostics, fixtures[label]['rust']) if not success else not any(d.get('level') == 'error' for d in diagnostics)
++    after_publication = publication_state([program_path])
++    if not success:
++        valid &= before_publication == after_publication
++    row = {'source': source, 'measurement': result, 'diagnostics': diagnostics, 'valid': bool(valid),
++           'publication_before': before_publication, 'publication_after': after_publication}
++    if valid and success and args.mode == 'o2':
++        artifacts = [m for m in messages if m.get('reason') == 'compiler-artifact' and m.get('target', {}).get('name') == rc.PACKAGE and m.get('executable')]
++        if len(artifacts) != 1:
++            raise ValueError('Rust executable publication missing/ambiguous')
++        program = Path(artifacts[0]['executable'])
++        row['executable'] = preserve(args.out, program, '.elf')
++        row['native'] = native_outcomes(args, workloads, program, label, directory, env)
++        row['valid'] &= all(r['valid'] for r in row['native'])
++    row['inventory'] = rust_inventory(args, target, previous)
++    if valid and success and args.mode == 'o2' and not row['inventory']['objects']:
++        row['valid'] = False
++    return row
++
++
++def zil_request(args, workloads, fixtures, current, source, source_meta, directory, arm, workers, published_llvm, leaf, environments, cold=False):
++    leaf.mkdir()
++    program = directory/arm/'program'
++    publication_paths = [program] + ([published_llvm[arm]] if arm in published_llvm else [])
++    before_publication = publication_state(publication_paths)
++    result,response = workers[arm].request(leaf)
++    report = response['report']
++    if arm == 'candidate' and '--push-reuse' in args.candidate_extra_arg:
++        pc.inspect_report(report, mode=args.mode, cold=cold)
++    valid = set(report['source_files'].values()) == {str(source/name) for name in fixtures[current]['zil']}
++    if current=='error':
++        valid &= report['status']=='SafeReject' and report['phase']=='types' and report['verification_runs']==0 and zil_error(report,source,fixtures[current]['zil'])
++    else:
++        valid &= report['status']=='Success' and report['verification_runs']==1 and report['diagnostics']==[] and sum(e=={'phase':'verify','disposition':'executed'} for e in report['query_events'])==1
++    after_publication = publication_state(publication_paths)
++    if current=='error':
++        valid &= before_publication == after_publication
++    row = {'measurement':result,'resident':response,'valid':bool(valid),'source':source_meta,
++           'runtime': workers[arm].runtime,
++           'typed_stage_observations': typed_stage_observations(report),
++           'publication_before':before_publication,'publication_after':after_publication}
++    if valid and current!='error' and args.mode=='o2':
++        if report['artifacts']['executable'] != str(program):
++            raise ValueError('unexpected Zil executable path')
++        row['executable'] = preserve(args.out,program,'.elf')
++        published_llvm[arm] = Path(report['artifacts']['llvm'])
++        row['llvm'] = preserve(args.out,published_llvm[arm],'.ll')
++        if '--push-reuse' in args.candidate_extra_arg:
++            row['llvm']['comparison_sha256_excluding_identity_comment'] = pc.llvm_comparison_sha256((args.out / row['llvm']['archive']).read_bytes())
++        row['inventory'] = zil_inventory(args,report,directory/arm/'objects', (args.out/row['llvm']['archive']).read_bytes(),
++                                          row['executable']['sha256'], str(leaf.relative_to(args.out)))
++        row['native'] = native_outcomes(args,workloads,program,current,leaf,environments[arm])
++        row['valid'] &= all(r['valid'] for r in row['native'])
++    return row
++
++
++def archive_native_profile(args):
++    """After the entire native matrix, retain the actual compiled-policy SDK inputs."""
++    manifest = args.native_link_profile
++    data = manifest.read_bytes()
++    if file_hash(manifest) != args.native_link_profile_sha256:
++        raise ValueError('native link manifest changed during the matrix')
++    compiled = subprocess.check_output(['git', 'show', args.candidate_source+':crates/zil-backend-llvm/src/native_link.policy'], cwd=args.repo)
++    if compiled != data:
++        raise ValueError('actual link manifest differs from the frozen compiled policy')
++    root = manifest.parent / 'root'
++    file_table, directories, files = {}, set(), []
++    for line in data.decode('ascii').splitlines():
++        fields = line.split()
++        if fields[0] == 'FILE':
++            _, name, size, mode, identity = fields
++            path = os.fsdecode(bytes.fromhex(name))
++            if not path.startswith('/') or '..' in Path(path).parts or path in file_table:
++                raise ValueError('unsafe/duplicate native SDK policy input')
++            file_table[path] = (int(size), int(mode, 8), identity)
++        elif fields[0] == 'DIR':
++            directories.add(os.fsdecode(bytes.fromhex(fields[1])))
++    actual_dirs, actual_files = {'/'}, set()
++    for path in root.rglob('*'):
++        if path.is_symlink():
++            raise ValueError('symlink in actual native SDK root')
++        name = '/'+str(path.relative_to(root))
++        if path.is_dir():
++            actual_dirs.add(name)
++            continue
++        if not path.is_file() or name not in file_table:
++            raise ValueError('extra or unknown native SDK file')
++        content = path.read_bytes()
++        size, mode, identity = file_table[name]
++        if len(content) != size or path.stat().st_mode & 0o7777 != mode or rc.sha(content) != identity:
++            raise ValueError('actual SDK input mode/size/bytes differ from compiled policy')
++        files.append({'path': name, 'mode': mode, **blob(args.out, content, '.sdk-input')})
++        actual_files.add(name)
++    if actual_files != set(file_table) or actual_dirs != directories or not files:
++        raise ValueError('actual native SDK complete file/directory inventory differs')
++    return {'manifest': preserve(args.out, manifest, '.native-link-policy'), 'snapshot_root': str(root),
++            'files': files, 'directories': sorted(directories),
++            'capture_boundary': 'Full SDK files are archived only after every measured native request; this does not prewarm the first candidate cold profile load.'}
++
++
++def publication_recovery(args, workloads, fixtures, source, directory, project, target,
++                         workers, published_llvm, environments, env, previous_inventory):
++    """Optional correctness phase after the last measured block; never append performance rows."""
++    rows = []
++    for action in ('delete', 'overwrite'):
++        for arm in ARMS:
++            leaf = args.out/'publication-correctness'/action/arm
++            leaf.parent.mkdir(parents=True, exist_ok=True)
++            program = (target/'release'/rc.PACKAGE) if arm == 'rust' else directory/arm/'program'
++            before = publication_state([program])
++            saved = preserve(args.out, program, '.elf') if program.is_file() else None
++            if action == 'delete':
++                program.unlink(missing_ok=True)
++            else:
++                program.write_bytes(b'ZIL-OUTPUT-RECOVERY-SENTINEL\n')
++            corrupted = publication_state([program])
++            try:
++                if arm == 'rust':
++                    row = rust_request(args, workloads, fixtures, 'restore', project, target, leaf, env, previous_inventory)
++                    previous_inventory = row['inventory']
++                else:
++                    source_meta = rc.write_files(source, fixtures['restore']['zil'], '.zil')
++                    row = zil_request(args, workloads, fixtures, 'restore', source, source_meta, directory, arm,
++                                      workers, published_llvm, leaf, environments)
++            except (ValueError, OSError, RuntimeError, TimeoutError) as error:
++                row = {'valid': False, 'error': str(error)}
++            row.update({'arm': arm, 'scenario': action, 'request': 'restore', 'measured': False,
++                        'publication_before_mutation': before, 'publication_after_mutation': corrupted,
++                        'prior_executable': saved, 'scope': 'Separate output recovery correctness; excluded from all nine scenario timings and performance rows.'})
++            leaf.mkdir(parents=True, exist_ok=True)
++            rc.save(leaf/'correctness.json', row)
++            rows.append(row)
++    with (args.out/'publication-correctness.jsonl').open('x') as stream:
++        stream.write(''.join(json.dumps(row)+'\n' for row in rows))
++    return {'executed': True, 'valid': all(row['valid'] for row in rows), 'requests': len(rows),
++            'rows': str(args.out/'publication-correctness.jsonl'), 'scope': 'No correctness request contributes to the nine measured cells.'}
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[3])
++    parser.add_argument('--out', type=Path, required=True)
++    parser.add_argument('--run', action='store_true')
++    parser.add_argument('--mode', choices=['check', 'o2'], required=True)
++    parser.add_argument('--baseline', type=Path)
++    parser.add_argument('--candidate', type=Path)
++    parser.add_argument('--baseline-llvm-library-path', type=Path)
++    parser.add_argument('--candidate-llvm-library-path', type=Path)
++    parser.add_argument('--baseline-worktree', type=Path)
++    parser.add_argument('--candidate-worktree', type=Path)
++    parser.add_argument('--baseline-source', default=MAIN, choices=[MAIN])
++    parser.add_argument('--candidate-source')
++    parser.add_argument('--tool-source')
++    parser.add_argument('--blocks', type=int, choices=[2, 6], default=2)
++    parser.add_argument('--native-link-profile', type=Path, default=Path('/workspace/.zil-environment/native-link-v1/manifest'))
++    parser.add_argument('--native-link-profile-sha256')
++    parser.add_argument('--expected-baseline-binary-sha256')
++    parser.add_argument('--expected-candidate-binary-sha256')
++    parser.add_argument('--expected-baseline-dso-sha256')
++    parser.add_argument('--expected-candidate-dso-sha256')
++    parser.add_argument('--publication-recovery', action='store_true', help='after the final native block only, separate delete/overwrite correctness; never enters the nine-scenario table')
++    parser.add_argument('--baseline-build-receipt', type=Path)
++    parser.add_argument('--candidate-build-receipt', type=Path)
++    parser.add_argument('--cargo', default='cargo')
++    parser.add_argument('--rustc', default='rustc')
++    parser.add_argument('--nm', default='nm')
++    parser.add_argument('--candidate-extra-arg', action='append', default=[])
++    parser.add_argument('--timeout', type=float, default=900)
++    parser.add_argument('--native-timeout', type=float, default=10)
++    parser.add_argument('--sample-ms', type=float, default=5)
++    parser.add_argument('--native-repetitions', type=int, default=2)
++    args = parser.parse_args()
++    if min(args.timeout, args.native_timeout, args.sample_ms, args.native_repetitions) <= 0:
++        parser.error('timeouts, sample interval and repetitions must be positive')
++    if args.publication_recovery and args.mode != 'o2':
++        parser.error('publication recovery is a separate native-only correctness phase')
++    # These are the complete permitted research switches; no budget/backend/opt overrides.
++    try:
++        candidate_flags(args.candidate_extra_arg)
++    except ValueError as error:
++        parser.error(str(error))
++    args.repo, args.out = args.repo.resolve(), args.out.resolve()
++    for arm in ['baseline', 'candidate']:
++        key = arm + '_llvm_library_path'
++        if getattr(args, key) is not None:
++            setattr(args, key, getattr(args, key).resolve(strict=True))
++    args.out.mkdir(parents=True, exist_ok=False)
++    archive = args.out / 'implementation'
++    archive.mkdir()
++    generator = args.repo / 'tools/research/reactive-query-graph/native_workloads.py'
++    native_path = generator.with_name('native_measure.py')
++    implementation = [Path(__file__), Path(rc.__file__), generator, native_path,
++                      Path(pc.__file__).with_name('matched_validate.py'), Path(pc.__file__),
++                      Path(__file__).with_name('matched_measure.py')]
++    for path in implementation:
++        shutil.copyfile(path, archive / path.name)
++    # native_measure imports native_workloads by name; bind the archived copy.
++    sys.path.insert(0, str(archive))
++    workloads = rc.load_workloads(args.repo, archive / generator.name)
++    sys.modules['native_workloads'] = workloads
++    native = load_module('matched_native', archive / native_path.name)
++    fixtures = {}
++    for label in LABELS:
++        zil = workloads.snapshot('scalar', label, 20, 20, 16)
++        rust = rust_files(workloads, label, 20, 20, 16)
++        equality = rc.validate_equivalence(zil, rust, 20, 20, 16, label)
++        directory = args.out / 'fixtures' / label
++        zmeta = rc.write_files(directory/'zil', zil, '.zil')
++        rmeta = rc.write_files(directory/'rust', rust, '.rs')
++        (directory/'rust'/'Cargo.toml').write_text(rc.manifest_text(16))
++        (directory/'rust'/'Cargo.lock').write_text(rc.lock_text())
++        fixtures[label] = {'zil': zil, 'rust': rust, 'zil_metadata': zmeta, 'rust_metadata': rmeta}
++        rc.save(directory/'equivalence.json', {**equality, 'zil': zmeta, 'rust': rmeta})
++    manifest = {'schema': 'native-link-matched-three-arm-v2', 'arguments': {k: str(v) if isinstance(v, Path) else v for k,v in vars(args).items()},
++                'fixed': {'blocks': args.blocks, 'requests': LABELS, 'modules': 20, 'functions': 20, 'steps': 16,
++                          'codegen_units_requested': 16, 'codegen_jobs': 1, 'native_opt': 'O2', 'cache': 'all', 'capacity': 256},
++                'implementation': {p.name: file_hash(archive/p.name) for p in implementation},
++                'llvm_comparison_policy': {'purpose': 'observation-only; reviewed IR representations may differ', 'normalization': pc.LLVM_PUSH},
++                'native_quality_policy': QUALITY_POLICY,
++                'timing_policy': 'Sequential three-arm requests, six balanced arm permutations rotated per block/request. Zil resident send-to-response excludes startup; Rust full Cargo process includes startup. Source writes, object inventory and native execution occur outside request wall timing. No profiling. OS cache not flushed.',
++                'parent_policy': 'Every non-cold request is immediately preceded for all three arms by its validated named parent: recovery<-error, restore<-private, all others<-cold. Preparations retained and validated, no cache reset within block.',
++                'inventory_policy': 'Archive actual object bytes and defined symbol tables, Rust incremental metadata and inode/content/mtime observations; Zil current per-unit action-key/cache-state receipts. Hash equality is not proof of skipped work. No partition equivalence implied by requested CGU16.',
++                'output_policy': 'All three arms retain successful outputs between every measured and parent request. No pre-request deletion or overwrite. Error requests must preserve prior publication, never execute it and never classify it as current success. Optional delete/overwrite recovery is after the last native block in a separate correctness file and excluded from all nine cells.',
++                'native_receipt_policy': 'Complete unmodified report JSON, including typed LLVM/native/MC observations, is retained. Missing fields remain missing/null. Current Zil unit action keys bind archived complete object containers/payloads/symbols and physical layout files. Full ELF bytes are content-addressed and checked on reuse.',
++                'comparison_scope': 'Current main9170, this frozen candidate and Rust 1.99.1 in one sequential window only. Cargo is a new process per request; Zil is resident and startup is separate. Rust embedded LLVM and actual mapped Zil LLVM versions are recorded independently; requested CGU16 is not identical partitioning or equal safety work. No previous-candidate timing attribution.',
++                'runner_derivation': {'original_matched_measure_sha256': '9a83219bfcc725efa6d1744fa34c34afbd2af03cebce74b8b7c44ff7e8377fbd', 'original_runner_retained': 'implementation/matched_measure.py', 'legacy_validator_supports_this_schema': False},
++                'memory_policy': 'Root-only RSS; resident Zil root vs Cargo root are different scopes. wait4 maxrss is largest process, not tree sum; no cross-language memory advantage.',
++                'fixture_identity': {k: {lang: v[lang+'_metadata']['identity_sha256'] for lang in ['zil','rust']} for k,v in fixtures.items()},
++                'started_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
++    rc.save(args.out/'manifest.json', manifest)
++    if not args.run:
++        print(json.dumps({'generated_only': True, 'out': str(args.out), 'compiler_commands_executed': 0}))
++        return
++    for key in ['baseline', 'candidate', 'baseline_worktree', 'candidate_worktree', 'candidate_source', 'baseline_build_receipt', 'candidate_build_receipt', 'baseline_llvm_library_path', 'candidate_llvm_library_path', 'tool_source', 'native_link_profile_sha256', 'expected_baseline_binary_sha256', 'expected_candidate_binary_sha256', 'expected_baseline_dso_sha256', 'expected_candidate_dso_sha256']:
++        if getattr(args, key) is None:
++            parser.error('--run requires --' + key.replace('_','-'))
++    if len(args.candidate_source) != 40 or any(c not in '0123456789abcdef' for c in args.candidate_source):
++        parser.error('candidate source must be an exact git commit')
++    if subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=args.repo, text=True).strip() != args.tool_source:
++        raise ValueError('exact tool source differs from frozen repo')
++    for path in implementation:
++        relative = path.resolve().relative_to(args.repo)
++        committed = subprocess.check_output(['git', 'show', args.tool_source+':'+str(relative)], cwd=args.repo)
++        if committed != path.read_bytes():
++            raise ValueError('measurement tool differs from the exact independent tool commit: '+str(relative))
++    if file_hash(generator) != 'df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964' or file_hash(args.repo/'examples/mainline/resource_closures/io.zil') != 'ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d':
++        raise ValueError('original425 fixture generator/io bytes changed')
++    if file_hash(args.native_link_profile) != args.native_link_profile_sha256:
++        raise ValueError('native link profile differs from explicit SHA pin')
++    env = os.environ.copy()
++    # Prevent inherited Cargo config from changing optimization, wrapper or target.
++    remove = [k for k in env if k in {'RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','RUSTC_WRAPPER','RUSTC_WORKSPACE_WRAPPER','CARGO_BUILD_TARGET','CARGO_INCREMENTAL','CARGO_BUILD_RUSTFLAGS','CARGO_BUILD_RUSTC_WRAPPER','CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER'} or k.startswith(('CARGO_PROFILE_','CARGO_TARGET_'))]
++    manifest['removed_environment_override_names'] = sorted(remove)
++    for key in remove:
++        env.pop(key)
++    tools = {name: rc.bind_tool(getattr(args,name), name, args, env) for name in ['cargo','rustc']}
++    args.cargo, args.rustc = tools['cargo']['actual_path'], tools['rustc']['actual_path']
++    args.nm = str(Path(shutil.which(args.nm) or args.nm).resolve(strict=True))
++    tools['nm'] = {'actual_path': args.nm, 'actual_sha256': file_hash(args.nm)}
++    cargo_home = args.out/'cargo-home'
++    cargo_home.mkdir()
++    configs = [p for directory in [args.out,*args.out.parents] for name in ['config','config.toml'] if (p:=directory/'.cargo'/name).exists()]
++    if configs:
++        raise ValueError('ancestor Cargo config detected: '+str(configs))
++    env.update({'CARGO_HOME':str(cargo_home), 'RUSTC':args.rustc, 'CARGO_INCREMENTAL':'1', 'CARGO_BUILD_JOBS':'1', 'CARGO_TERM_COLOR':'never'})
++    manifest['explicit_environment'] = {k:env[k] for k in ['CARGO_HOME','RUSTC','CARGO_INCREMENTAL','CARGO_BUILD_JOBS','CARGO_TERM_COLOR']}
++    for name, commit, version in [('rustc',RUST,'release: 1.99.1'),('cargo',CARGO,None)]:
++        result = rc.run_process([getattr(args,name),'-vV'], args.repo, args.out/(name+'-version'), 30, args.sample_ms, env=env)
++        output = (args.out/(name+'-version')/'stdout.bin').read_text()
++        if result['returncode'] or commit not in output or (version and version not in output):
++            raise ValueError('incorrect pinned toolchain: '+name)
++    manifest['tools'] = tools
++    manifest['sources'] = {}
++    manifest['binaries'] = {}
++    for arm in ['baseline','candidate']:
++        path = getattr(args,arm).resolve(strict=True)
++        setattr(args,arm,path)
++        manifest['sources'][arm] = source_identity(getattr(args,arm+'_worktree').resolve(),getattr(args,arm+'_source'),args.out,arm)
++        receipt = getattr(args,arm+'_build_receipt')
++        binding = json.loads(receipt.read_text())
++        if file_hash(path) != getattr(args, 'expected_'+arm+'_binary_sha256'):
++            raise ValueError(arm + ': binary differs from explicit binary SHA256 pin')
++        if binding.get('source') != getattr(args,arm+'_source') or binding.get('sha256') != file_hash(path) or binding.get('exit_code') != 0 or not binding.get('command'):
++            raise ValueError(arm + ': build receipt source/binary/success binding failed')
++        if binding.get('tree') != manifest['sources'][arm]['tree']:
++            raise ValueError(arm + ': build receipt tree differs from pinned source')
++        manifest['binaries'][arm] = {'path':str(path), **preserve(args.out,path,'.compiler'), 'build_receipt':preserve(args.out,receipt,'.build-receipt')}
++        if binding.get('original_receipt') is not None:
++            original = binding['original_receipt']
++            original_path = Path(original['path'])
++            if file_hash(original_path) != original['sha256']:
++                raise ValueError(arm + ': original build receipt bytes differ from immutable tree binding')
++            raw = json.loads(original_path.read_text())
++            if any(binding.get(key) != value for key, value in raw.items()):
++                raise ValueError(arm + ': tree binding changed an original build receipt field')
++            manifest['binaries'][arm]['original_build_receipt'] = preserve(args.out,original_path,'.original-build-receipt')
++    environments = {arm: native.llvm_environment(getattr(args, arm + '_llvm_library_path'))
++                    for arm in ['baseline', 'candidate']}
++    manifest['runtime_binding_schema'] = 'per-arm-resident-llvm-v1'
++    manifest['arm_runtime_environments'] = {arm: native.runtime_environment(value) for arm, value in environments.items()}
++    manifest['runtime_binding_policy'] = 'Explicit per-arm LLVM directory. Actual resident maps + mapped LLVM DSO bytes archived at startup and after every request outside timing; final DSO hash recomputed without stamp cache. Configuration alone is not loading evidence. DSO archiving can warm OS file cache; no OS cold-cache claim.'
++    manifest['runtime_environment'] = {key:os.environ.get(key) for key in ['ZIL_CLANG','ZIL_LLVM_CONFIG','LLVM_CONFIG','LD_LIBRARY_PATH','LD_PRELOAD','LD_AUDIT','CARGO_TARGET_DIR','RUSTUP_TOOLCHAIN']}
++    manifest['host'] = {'affinity':sorted(os.sched_getaffinity(0)), 'load_average':os.getloadavg(), 'uname':list(os.uname())}
++    rc.save(args.out/'manifest.json',manifest)
++    rows = []
++    correctness = {'executed': False, 'valid': None, 'scope': 'Output mutation requests were not requested; none enter the nine measured cells.'}
++    try:
++        with (args.out/'rows.jsonl').open('w') as stream:
++            for block in range(args.blocks):
++                directory = args.out/f'block-{block:02d}'
++                directory.mkdir()
++                source, project, target = directory/'source',directory/'rust-project',directory/'rust-target'
++                rc.write_files(source,fixtures['cold']['zil'],'.zil')
++                project.mkdir()
++                (project/'Cargo.toml').write_text(rc.manifest_text(16))
++                (project/'Cargo.lock').write_text(rc.lock_text())
++                workers, previous_inventory, published_llvm = {}, {}, {}
++                try:
++                    for arm in ORDERS[block]:
++                        if arm == 'rust':
++                            continue
++                        work = directory/arm
++                        work.mkdir()
++                        command = zil_command(args, getattr(args,arm), source/'main.zil', work, arm)
++                        workers[arm] = Worker(command,work,args.timeout,args.sample_ms,native,environments[arm],args.out)
++                        if [dso['sha256'] for dso in workers[arm].runtime['llvm_dsos']] != [getattr(args, 'expected_'+arm+'_dso_sha256')]:
++                            raise ValueError(arm + ': actual mapped LLVM DSO differs from explicit SHA pin')
++                        native.bind_runtime_libraries(manifest, arm, workers[arm].runtime)
++                        rc.save(args.out/'manifest.json', manifest)
++                    for index,label in enumerate(LABELS):
++                        parent = rc.parent(label)
++                        for current,measured in ([(parent,False)] if parent else [])+[(label,True)]:
++                            source_meta = rc.write_files(source,fixtures[current]['zil'],'.zil')
++                            pair = []
++                            order = ORDERS[(block+index)%6]
++                            for position,arm in enumerate(order):
++                                leaf = directory/'requests'/f'{index:02d}-{current}-{"measured" if measured else "parent"}'/arm
++                                leaf.parent.mkdir(parents=True,exist_ok=True)
++                                common = {'block':block,'request_index':index,'request':current,'target_request':label,'measured':measured,
++                                          'transition_from':parent if measured else None,'position':position,'order':order,'arm':arm,'mode':args.mode,
++                                          'started_utc_ns':time.time_ns(), 'directory':str(leaf.relative_to(args.out)),'source_identity_sha256':source_meta['identity_sha256']}
++                                if arm=='rust':
++                                    row = rust_request(args,workloads,fixtures,current,project,target,leaf,env,previous_inventory)
++                                    previous_inventory = row['inventory']
++                                else:
++                                    row = zil_request(args, workloads, fixtures, current, source, source_meta, directory, arm, workers, published_llvm, leaf, environments, cold=current == 'cold' and measured)
++                                row.update(common)
++                                row['ended_utc_ns'] = time.time_ns()
++                                pair.append(row)
++                                rc.save(leaf/'request.json',row)
++                                stream.write(json.dumps(row)+'\n')
++                                stream.flush()
++                                if not row['valid']:
++                                    raise ValueError(f'invalid request {block}/{index}/{current}/{arm}')
++                            pair_quality = quality(pair, args)
++                            pair_quality.update({'request': current, 'measured': measured})
++                            rc.save(leaf.parent/'pair-validation.json', pair_quality)
++                            if not pair_quality['valid']:
++                                raise ValueError('main/candidate semantics, complete executable bytes, native oracle or physical CGU quality differ; raw evidence retained for independent review')
++                            rows.extend(pair)
++                            print(json.dumps({'block':block,'request':current,'measured':measured,'order':order,'wall_ms':{r['arm']:r['measurement']['wall_ms'] for r in pair}}),flush=True)
++                    if args.publication_recovery and block == args.blocks - 1:
++                        correctness = publication_recovery(args, workloads, fixtures, source, directory, project, target,
++                                                            workers, published_llvm, environments, env, previous_inventory)
++                finally:
++                    try:
++                        for worker in workers.values():
++                            if worker.process.poll() is None:
++                                final = native.capture_runtime(worker.process.pid, args.out, worker.env, {})
++                                rc.save(worker.directory / 'runtime-final.json', final)
++                                if final['llvm_dsos'] != worker.runtime['llvm_dsos']:
++                                    raise ValueError('resident LLVM DSO changed during block')
++                    finally:
++                        for worker in workers.values():
++                            worker.close()
++        if args.mode == 'o2':
++            manifest['native_link_profile'] = archive_native_profile(args)
++        manifest['publication_recovery'] = correctness
++        after = {name:file_hash(identity['actual_path']) for name,identity in tools.items()}
++        manifest['tools_after_sha256'] = after
++        manifest['binary_after_sha256'] = {arm:file_hash(getattr(args,arm)) for arm in ['baseline','candidate']}
++        manifest['implementation_after_sha256'] = {p.name:file_hash(p) for p in implementation}
++        if manifest['implementation_after_sha256'] != manifest['implementation']:
++            raise ValueError('measurement implementation changed during the run')
++        for arm in ['baseline','candidate']:
++            source_identity(getattr(args,arm+'_worktree').resolve(),getattr(args,arm+'_source'),args.out,arm)
++        manifest['completed_utc'] = time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
++        rc.save(args.out/'manifest.json',manifest)
++        if any(after[name]!=identity['actual_sha256'] for name,identity in tools.items()) or any(manifest['binary_after_sha256'][arm]!=manifest['binaries'][arm]['sha256'] for arm in ['baseline','candidate']):
++            raise ValueError('tool or compiler bytes changed during run')
++        expected_counts = (args.blocks * 51, args.blocks * 27, args.blocks * 24)
++        observed_counts = (len(rows), sum(r['measured'] for r in rows), sum(not r['measured'] for r in rows))
++        if observed_counts != expected_counts:
++            raise ValueError('incomplete three-arm original-nine/parent matrix')
++        rc.save(args.out/'completion.json',{'valid':True,'rows':len(rows),'measured':sum(r['measured'] for r in rows),'preparations':sum(not r['measured'] for r in rows), 'publication_recovery': correctness})
++        if correctness['executed'] and not correctness['valid']:
++            return 2
++    except BaseException as error:
++        rc.save(args.out/'failure.json',{'type':type(error).__name__,'message':str(error),'completed_rows':len(rows)})
++        raise
++
++
++if __name__=='__main__':
++    raise SystemExit(main())
+diff --git a/tools/research/incremental-demand/test_native_link_matched.py b/tools/research/incremental-demand/test_native_link_matched.py
+new file mode 100644
+index 000000000..a9e7fc699
+--- /dev/null
++++ b/tools/research/incremental-demand/test_native_link_matched.py
+@@ -0,0 +1,394 @@
++#!/usr/bin/env python3
++"""Pure source/controller/publication mocks; never start a compiler or executable."""
++import importlib.util
++import copy
++import json
++from pathlib import Path
++import struct
++import tempfile
++import types
++import unittest
++from unittest.mock import patch
++
++
++def load(name, path):
++    spec = importlib.util.spec_from_file_location(name, path)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++runner = load('three_arm_runner', Path(__file__).with_name('native_link_matched_measure.py'))
++controller = load('three_arm_controller', Path(__file__).with_name('native_link_matched_controller.py'))
++work = load('fixed_workload', Path(__file__).resolve().parents[1]/'reactive-query-graph/native_workloads.py')
++
++
++class ThreeArmControlTests(unittest.TestCase):
++    def args(self, out):
++        return types.SimpleNamespace(out=out, mode='o2', candidate_extra_arg=['--push-reuse'],
++                                     native_link_profile=Path('/workspace/.zil-environment/native-link-v1/manifest'),
++                                     native_link_profile_sha256='f'*64)
++
++    def pins(self):
++        item = {'source': 'a'*40, 'binary': '/fixed/zil', 'worktree': '/fixed/source',
++                'build_receipt': '/fixed/build.json', 'binary_sha256': 'b'*64,
++                'llvm_library_path': '/fixed/lib', 'llvm_dso_sha256': 'c'*64}
++        return {'schema': 'native-link-three-arm-pins-v1', 'tool_source': 'd'*40,
++                'baseline': dict(item, source=controller.MAIN), 'candidate': item,
++                'native_link_profile': '/workspace/.zil-environment/native-link-v1/manifest',
++                'native_link_profile_sha256': 'e'*64}
++
++    def test_full_nine_fixtures_and_real_positions_in_both_languages(self):
++        self.assertEqual(runner.LABELS, ['cold', 'unchanged', 'private', 'multi', 'broad', 'positions', 'error', 'recovery', 'restore'])
++        for label in runner.LABELS:
++            zil = work.snapshot('scalar', label, 20, 20, 16)
++            rust = runner.rust_files(work, label, 20, 20, 16)
++            meta = runner.rc.validate_equivalence(zil, rust, 20, 20, 16, label)
++            self.assertEqual((meta['named_declarations'], meta['arithmetic_step_count'], len(zil), len(rust)), (425, 6400, 22, 22))
++        cold = runner.rust_files(work, 'cold', 20, 20, 16)
++        moved = runner.rust_files(work, 'positions', 20, 20, 16)
++        prefix = '// Source position edit; semantic body is unchanged.\n\n'
++        self.assertEqual({name: value[len(prefix):] for name, value in moved.items()}, cold)
++        self.assertTrue(all(moved[name] != cold[name] for name in cold))
++        self.assertEqual([(runner.rc.parent(label), label) for label in runner.LABELS][-3:],
++                         [('cold', 'error'), ('error', 'recovery'), ('private', 'restore')])
++
++    def test_controller_has_all_three_arms_and_explicit_profile_exact_pins(self):
++        for mode in ('check', 'o2'):
++            command = controller.runner_command(self.pins(), mode, Path('/fixed/run'), 2, True, True)
++            self.assertIn('--run', command)
++            self.assertEqual(command.count('--baseline'), 1)
++            self.assertEqual(command.count('--candidate'), 1)
++            self.assertEqual(command[command.index('--blocks')+1], '2')
++            self.assertIn('--expected-baseline-dso-sha256', command)
++            self.assertIn('--expected-candidate-dso-sha256', command)
++            self.assertEqual('--publication-recovery' in command, mode == 'o2')
++        bad = self.pins()
++        bad['baseline']['source'] = 'a'*40
++        with self.assertRaises(ValueError):
++            controller.validate_pins(bad)
++        for flags in ([], ['--profile-compilation'], ['--push-reuse', '--max-nodes', '0'],
++                      ['--push-reuse', '--native-link-profile', '/arbitrary']):
++            with self.assertRaises(ValueError):
++                runner.candidate_flags(flags)
++
++    def test_actual_zil_command_has_profile_only_on_candidate(self):
++        args = self.args(Path('/fixed/out'))
++        for mode in ('check', 'o2'):
++            args.mode = mode
++            for arm in ('baseline', 'candidate'):
++                command = runner.zil_command(args, '/fixed/zil', '/fixed/source/main.zil', '/fixed/work', arm)
++                self.assertEqual('--native-link-profile' in command, arm == 'candidate' and mode == 'o2')
++                self.assertEqual('--push-reuse' in command, arm == 'candidate')
++                self.assertNotIn('--profile-compilation', command)
++                if mode == 'o2':
++                    self.assertEqual(command[command.index('--codegen-units')+1], '16')
++                    self.assertEqual(command[command.index('--codegen-jobs')+1], '1')
++
++    def test_ir_representation_can_differ_but_whole_elf_oracle_and_units_cannot(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            args = self.args(out)
++            args.native_repetitions = 2
++            executable = runner.blob(out, b'\x7fELF'+b'complete same machine program'*8, '.elf')
++            report = {'status': 'Success', 'phase': 'link', 'diagnostics': [], 'input_fingerprint': 'a'*64,
++                      'source_files': {'0': '/fixed/main.zil'}, 'scalar_interfaces': []}
++            oracle = {'exit': 0, 'stdout_hex': '1234', 'stderr_hex': ''}
++            outcomes = [{'valid': True, 'expected': oracle, 'actual': oracle} for _ in range(12)]
++            pair = []
++            for i, arm in enumerate(runner.ARMS):
++                row = {'arm': arm, 'valid': True, 'native': outcomes, 'executable': executable}
++                if arm != 'rust':
++                    row.update({'resident': {'report': report},
++                                'llvm': {'sha256': str(i)*64, 'comparison_sha256_excluding_identity_comment': str(i+2)*64},
++                                'inventory': {'object_count': 16, 'compiler_summary': {'actual_units': 16},
++                                              'current_layout_matches': ['e'*64],
++                                              'objects': [{'defined_functions': ['f'+str(j)]} for j in range(16)]}})
++                pair.append(row)
++            result = runner.quality(pair, args)
++            self.assertTrue(result['valid'])
++            self.assertFalse(result['raw_llvm_equal'])
++            self.assertFalse(result['llvm_equal_excluding_identity_comment'])
++            self.assertFalse(result['llvm_equality_is_acceptance_prerequisite'])
++            pair[1]['executable'] = runner.blob(out, b'\x7fELF'+b'different machine program'*8, '.elf')
++            self.assertFalse(runner.quality(pair, args)['valid'])
++            pair[1]['executable'] = executable
++            pair[2]['native'] = [{'valid': False, 'expected': oracle, 'actual': dict(oracle, exit=1)}]*12
++            self.assertFalse(runner.quality(pair, args)['valid'])
++            pair[2]['native'] = outcomes
++            pair[1]['inventory']['object_count'] = 15
++            self.assertFalse(runner.quality(pair, args)['valid'])
++            pair[1]['inventory']['object_count'] = 16
++            pair[1]['inventory']['objects'][0]['defined_functions'] = ['unexpected-export']
++            self.assertFalse(runner.quality(pair, args)['valid'])
++            with self.assertRaises(ValueError):
++                runner.quality(pair[:2], args)
++
++    def test_typed_stage_observations_keep_unknown_and_reject_malformed_values(self):
++        self.assertIsNone(runner.typed_stage_observations({'native_codegen': None}))
++        def report(stats):
++            return {'native_codegen': {'object_reports': [{'native_products': stats}]}}
++        for stats in (None, {}, {'stage_body': None}):
++            self.assertIsNone(runner.typed_stage_observations(report(stats))[0]['stage_body'])
++        typed = dict.fromkeys(runner.STAGE_BODY_FIELDS, 0)
++        typed.update(observer_schema=1, captures=2, captured_bytes=123)
++        self.assertEqual(runner.typed_stage_observations(report({'stage_body': typed}))[0]['stage_body'], typed)
++        for key, value in [('observer_schema', 2), ('captures', True), ('replays', -1), ('prepare_ns', None)]:
++            with self.subTest(key=key), self.assertRaises(ValueError):
++                runner.typed_stage_observations(report({'stage_body': dict(typed, **{key: value})}))
++
++    def test_compiled_source_and_tools_commit_are_separate_without_allowing_production_drift(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            source, tools = 'a'*40, 'b'*40
++
++            def git(argv, **kwargs):
++                command = argv[3:] if argv[1] == '-C' else argv[1:]
++                if command == ['rev-parse', 'HEAD']:
++                    return (tools+'\n').encode()
++                if command == ['diff', '--name-only', source, 'HEAD']:
++                    return b'tools/research/incremental-demand/new_tool.py\n'
++                if command[:2] == ['status', '--porcelain=v1']:
++                    return b''
++                if command == ['diff', '--name-only', 'HEAD'] or command[:1] == ['ls-files']:
++                    return b''
++                if command[:1] == ['ls-tree']:
++                    return b'pinned full compiled source inventory\n'
++                if command == ['diff', '--binary', 'HEAD']:
++                    return b''
++                if command == ['rev-parse', source+'^{tree}']:
++                    return b'c'*40+b'\n'
++                raise AssertionError(command)
++
++            with patch.object(runner.subprocess, 'check_output', side_effect=git), \
++                 patch.object(runner.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)):
++                identity = runner.source_identity(out, source, out, 'candidate')
++            self.assertEqual(identity['commit'], source)
++            self.assertEqual(identity['checkout_commit'], tools)
++
++            def drift(argv, **kwargs):
++                if argv[3:] == ['diff', '--name-only', source, 'HEAD']:
++                    return b'crates/zil-backend-llvm/src/build.rs\n'
++                return git(argv, **kwargs)
++
++            with patch.object(runner.subprocess, 'check_output', side_effect=drift):
++                with self.assertRaises(ValueError):
++                    runner.source_identity(out, source, out, 'candidate')
++
++    def test_actual_object_exports_must_bind_the_current_physical_layout(self):
++        def object_bytes(name):
++            header = bytearray(64)
++            header[:6] = b'\x7fELF\x02\x01'
++            strings = b'\0'+name.encode()+b'\0'
++            symbols = bytes(24)+struct.pack('<IBBHQQ', 1, 2, 0, 1, 0, 1)
++            section_offset = 64+len(strings)+len(symbols)
++            struct.pack_into('<Q', header, 40, section_offset)
++            struct.pack_into('<HH', header, 58, 64, 3)
++            sections = bytes(64)
++            sections += struct.pack('<IIQQQQIIQQ', 0, 3, 0, 0, 64, len(strings), 0, 0, 1, 0)
++            sections += struct.pack('<IIQQQQIIQQ', 0, 2, 0, 0, 64+len(strings), len(symbols), 1, 0, 8, 24)
++            return bytes(header)+strings+symbols+sections
++
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            cache = out/'objects'
++            namespace = cache/'objects-v1'/('a'*64)
++            namespace.mkdir(parents=True)
++            reports = []
++            payload = (16).to_bytes(4, 'little')
++            for index in range(16):
++                key = f'{index+1:064x}'
++                data = object_bytes('f'+str(index))
++                container = b'ZILOBJ01'+bytes.fromhex(key)+bytes.fromhex(runner.rc.sha(data))+len(data).to_bytes(8, 'little')+data
++                (namespace/(key+'.zobj')).write_bytes(container)
++                reports.append({'backend': 'llvm-api', 'pipeline': 'default<O2>', 'object_bytes': len(data),
++                                'cache': {'state': 'miss', 'action_key': key}})
++                payload += index.to_bytes(4, 'little')+bytes(12)+(1).to_bytes(4, 'little')+index.to_bytes(4, 'little')
++            layouts = cache/'partition-layout-v1'
++            layouts.mkdir()
++            data = b'ZILCGU01'+bytes.fromhex('b'*64)+bytes.fromhex(runner.rc.sha(payload))+payload
++            (layouts/('b'*64+'.layout')).write_bytes(data)
++            report = {'native_codegen': {'backend': 'llvm-api', 'requested_units': 16, 'actual_units': 16,
++                                        'jobs': 1, 'fallback': None, 'object_reports': reports,
++                                        'object_cache': {'hits': 0, 'misses': 16, 'corrupt': 0, 'write_failures': 0, 'stored': 16}}}
++            llvm = b'; ZIL verified LLVM module\n; verified-fingerprint: '+b'a'*64+b'\n'+b''.join(('define void @f'+str(i)+'() {\n ret void\n}\n').encode() for i in range(16))
++
++            def symbols(args, item):
++                blob = runner.blob(args.out, b'physical symbol evidence\n'+item['sha256'].encode(), '.nm')
++                return {'path': blob['archive'], 'sha256': blob['sha256']}
++
++            args = self.args(out)
++            with patch.object(runner, 'symbols', symbols):
++                inventory = runner.zil_inventory(args, report, cache, llvm, 'c'*64)
++                self.assertEqual(inventory['object_count'], 16)
++                self.assertEqual(inventory['current_layout_matches'], ['b'*64])
++                artifact = {'reused_program': True, 'retained_files': True, 'before_codegen': True,
++                            'current_preflight_checked_units': 0, 'current_preflight_reused_units': 16,
++                            'profile_id': 'f'*64, 'llvm_verification_scope': 'retained-producer',
++                            'current_llvm_verifier_executed': False}
++                retained = {'backend_work': {'reused_link': True}, 'commands': [], 'native_codegen': {
++                    **report['native_codegen'], 'object_reports': [], 'final_artifact': artifact,
++                    'object_cache': {'hits': 0, 'misses': 0, 'stored': 0}}}
++                carried = runner.zil_inventory(args, retained, cache, llvm, 'c'*64)
++                self.assertEqual((carried['object_count'], carried['current_object_report_count']), (16, 0))
++                self.assertIsNone(carried['objects'][0]['cache_observation'])
++                self.assertEqual(carried['objects'][0]['producer_cache_observation']['state'], 'miss')
++                self.assertEqual(carried['compiler_summary']['object_cache']['hits'], 0)
++                for key, value in [('current_preflight_checked_units', None), ('current_preflight_reused_units', 15),
++                                   ('current_preflight_checked_units', True), ('profile_id', 'e'*64),
++                                   ('current_llvm_verifier_executed', None)]:
++                    bad = copy.deepcopy(retained)
++                    bad['native_codegen']['final_artifact'][key] = value
++                    with self.subTest(key=key), self.assertRaises(ValueError):
++                        runner.zil_inventory(args, bad, cache, llvm, 'c'*64)
++                missing = copy.deepcopy(retained)
++                del missing['native_codegen']['final_artifact']['current_preflight_checked_units']
++                with self.assertRaises(ValueError):
++                    runner.zil_inventory(args, missing, cache, llvm, 'c'*64)
++                with self.assertRaises(ValueError):
++                    runner.zil_inventory(args, retained, cache, llvm, 'd'*64)
++                late = {'backend_work': {'reused_link': True}, 'commands': [], 'native_codegen': {
++                    **report['native_codegen'], 'final_artifact': dict(artifact, retained_files=False, before_codegen=False,
++                        current_preflight_checked_units=None, current_preflight_reused_units=None, current_llvm_verifier_executed=None)}}
++                current = runner.zil_inventory(args, late, cache, llvm, 'c'*64)
++                self.assertEqual(current['current_object_report_count'], 16)
++                self.assertEqual(current['objects'][0]['cache_observation']['state'], 'miss')
++                bad_late = copy.deepcopy(late)
++                bad_late['native_codegen']['final_artifact']['current_preflight_checked_units'] = 0
++                with self.assertRaises(ValueError):
++                    runner.zil_inventory(args, bad_late, cache, llvm, 'c'*64)
++                reports[0]['cache']['action_key'], reports[1]['cache']['action_key'] = reports[1]['cache']['action_key'], reports[0]['cache']['action_key']
++                with self.assertRaisesRegex(ValueError, 'ownership'):
++                    runner.zil_inventory(self.args(out), report, cache, llvm, 'c'*64)
++
++    def test_error_preserves_stale_zil_executable_without_executing_it(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            directory = out/'block'
++            leaf = out/'request'
++            (directory/'baseline').mkdir(parents=True)
++            program = directory/'baseline/program'
++            program.write_bytes(b'\x7fELF'+b'previous successful executable'*4)
++            before = runner.publication_state([program])
++            source = directory/'source'
++            files = work.snapshot('scalar', 'error', 20, 20, 16)
++            mapping = {str(i): str(source/name) for i, name in enumerate(files)}
++            file_id = next(key for key, value in mapping.items() if value == str(source/'m0.zil'))
++            offset = files['m0.zil'].encode().index(b'absent_name')
++            report = {'status': 'SafeReject', 'phase': 'types', 'verification_runs': 0, 'source_files': mapping,
++                      'diagnostics': [{'code': 'E-UNKNOWN-NAME', 'span': {'file': file_id, 'start': offset, 'end': offset+11}}]}
++            worker = types.SimpleNamespace(request=lambda leaf: ({'wall_ms': 1}, {'report': report}), runtime={})
++            with patch.object(runner, 'native_outcomes', side_effect=AssertionError('must not execute old output')):
++                row = runner.zil_request(self.args(out), work, {'error': {'zil': files}}, 'error', source, {}, directory,
++                                         'baseline', {'baseline': worker}, {}, leaf, {'baseline': {}})
++            self.assertTrue(row['valid'])
++            self.assertEqual(runner.publication_state([program]), before)
++            self.assertNotIn('native', row)
++            self.assertNotIn('executable', row)
++
++    def test_error_preserves_stale_rust_executable_without_executing_it(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            args = self.args(out)
++            args.cargo = '/fixed/cargo'
++            args.timeout, args.sample_ms = 900, 5
++            target = out/'target'
++            program = target/'release'/runner.rc.PACKAGE
++            program.parent.mkdir(parents=True)
++            program.write_bytes(b'\x7fELF'+b'old successful Rust executable'*4)
++            before = runner.publication_state([program])
++            fixture = {'error': {'rust': runner.rust_files(work, 'error', 20, 20, 16)}}
++            messages = [{'reason': 'compiler-message', 'message': {'level': 'error'}},
++                        {'reason': 'build-finished', 'success': False}]
++            with patch.object(runner.rc, 'run_process', return_value={'timed_out': False, 'returncode': 101}), \
++                 patch.object(runner.rc, 'cargo_messages', return_value=messages), \
++                 patch.object(runner.rc, 'expected_error', return_value=True), \
++                 patch.object(runner, 'rust_inventory', return_value={'objects': []}), \
++                 patch.object(runner, 'native_outcomes', side_effect=AssertionError('must not execute old Rust output')):
++                row = runner.rust_request(args, work, fixture, 'error', out/'project', target, out/'request', {}, {})
++            self.assertTrue(row['valid'])
++            self.assertEqual(runner.publication_state([program]), before)
++            self.assertNotIn('native', row)
++            self.assertNotIn('executable', row)
++
++    def test_successful_zil_output_is_still_present_when_next_compile_begins(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            directory = out/'block'
++            (directory/'baseline').mkdir(parents=True)
++            program = directory/'baseline/program'
++            content = b'\x7fELF'+b'preserved successful executable'*4
++            program.write_bytes(content)
++            llvm = directory/'baseline/program.ll'
++            llvm.write_bytes(b'; ZIL verified LLVM module\n; verified-fingerprint: '+b'a'*64+b'\ndefine i32 @main() { ret i32 0 }\n')
++            source = directory/'source'
++            files = work.snapshot('scalar', 'restore', 20, 20, 16)
++            report = {'status': 'Success', 'phase': 'link', 'verification_runs': 1,
++                      'source_files': {str(i): str(source/name) for i, name in enumerate(files)},
++                      'diagnostics': [], 'query_events': [{'phase': 'verify', 'disposition': 'executed'}],
++                      'artifacts': {'executable': str(program), 'llvm': str(llvm)}}
++
++            def request(leaf):
++                self.assertEqual(program.read_bytes(), content)
++                return {'wall_ms': 1}, {'report': report}
++
++            worker = types.SimpleNamespace(request=request, runtime={})
++            with patch.object(runner, 'zil_inventory', return_value={'object_count': 16}), \
++                 patch.object(runner, 'native_outcomes', return_value=[{'valid': True}]):
++                row = runner.zil_request(self.args(out), work, {'restore': {'zil': files}}, 'restore', source, {}, directory,
++                                         'baseline', {'baseline': worker}, {'baseline': llvm}, out/'request', {'baseline': {}})
++            self.assertTrue(row['valid'])
++            self.assertEqual(program.read_bytes(), content)
++
++    def test_invalid_executable_is_refused_before_any_native_process(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            program = Path(tmp)/'program'
++            program.write_bytes(b'corrupt output sentinel')
++            with patch.object(runner.rc, 'run_process', side_effect=AssertionError('no native process')):
++                with self.assertRaises(ValueError):
++                    runner.native_outcomes(self.args(Path(tmp)), work, program, 'restore', Path(tmp), {})
++
++    def test_blob_reuse_checks_all_bytes_and_rejects_tampering(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            item = runner.blob(out, b'complete original artifact', '.elf')
++            self.assertEqual(item, runner.blob(out, b'complete original artifact', '.elf'))
++            (out/item['archive']).write_bytes(b'tampered original artifact')
++            with self.assertRaises(ValueError):
++                runner.blob(out, b'complete original artifact', '.elf')
++
++    def test_recovery_is_a_separate_file_and_does_not_change_performance_rows(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out = Path(tmp)
++            rows = out/'rows.jsonl'
++            rows.write_text('original performance rows remain intact\n')
++            directory, target, source = out/'block', out/'target', out/'source'
++            for arm in ('baseline', 'candidate'):
++                (directory/arm).mkdir(parents=True)
++                (directory/arm/'program').write_bytes(b'\x7fELF'+b'good'*20)
++            program = target/'release'/runner.rc.PACKAGE
++            program.parent.mkdir(parents=True)
++            program.write_bytes(b'\x7fELF'+b'good'*20)
++
++            def rust_request(*args):
++                program.write_bytes(b'\x7fELF'+b'good'*20)
++                return {'valid': True, 'inventory': {}}
++
++            def zil_request(args, workloads, fixtures, current, source, source_meta, directory, arm, *rest, **kwargs):
++                (directory/arm/'program').write_bytes(b'\x7fELF'+b'good'*20)
++                return {'valid': True}
++
++            with patch.object(runner, 'rust_request', rust_request), patch.object(runner, 'zil_request', zil_request):
++                result = runner.publication_recovery(self.args(out), work,
++                           {'restore': {'zil': work.snapshot('scalar', 'restore', 20, 20, 16)}}, source,
++                           directory, out/'project', target, {}, {}, {}, {}, {})
++            self.assertTrue(result['valid'])
++            self.assertEqual(result['requests'], 6)
++            self.assertEqual(rows.read_text(), 'original performance rows remain intact\n')
++            recorded = [json.loads(line) for line in (out/'publication-correctness.jsonl').read_text().splitlines()]
++            self.assertEqual(len(recorded), 6)
++            self.assertTrue(all(row['measured'] is False for row in recorded))
++
++
++if __name__ == '__main__':
++    unittest.main()

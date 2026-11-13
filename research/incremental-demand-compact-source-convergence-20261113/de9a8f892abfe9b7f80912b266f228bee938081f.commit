@@ -1,0 +1,6 @@
+tree abf2b0b980ec3a22f619a4f86f204a6631d8ff3a
+parent caa38c75b749ea6a7232fb17a35a30e1ff02b102
+author Cicin Ding <dsscicin@zohomail.com> 1794582070 +0000
+committer Cicin Ding <dsscicin@zohomail.com> 1794582070 +0000
+
+Read the actual native verification receipt in the select oracle

@@ -1,0 +1,31 @@
+{
+  "V27_formal_compiled_candidate": "6facee9aea4daec2457b2f353754d6120eae85e0",
+  "V27_performance_acceptance": false,
+  "cherry_pick_edges": [
+    [
+      "2dba066eb24e8fb0eca187acb17cad8b391e505c",
+      "78a9effea9cfeae8e75826e9e14d4b0ba79fa7a1"
+    ],
+    [
+      "9fd2c75d4fae22ec4f112f4d7a228c776d2ee0be",
+      "83ab99e7b39ceb381ed8f9e763bc097db4c44a23"
+    ],
+    [
+      "4ca7d7ff7dba2e5e4526dd35d6dcc896fb598599",
+      "caa38c75b749ea6a7232fb17a35a30e1ff02b102"
+    ]
+  ],
+  "compact_new_chain_build_runtime_performance_acceptance": "pending; root executing independently; no such claims here",
+  "explicit_authorization": "User/root instructs retirement now after full source custody. Owner stopped writing, source merged by cherry-pick into root, no builds/raw in author tree.",
+  "ignored": false,
+  "integrated_root": "de9a8f892abfe9b7f80912b266f228bee938081f",
+  "original_ref": "refs/heads/research/compact-scalar-machine",
+  "original_tip": "4ca7d7ff7dba2e5e4526dd35d6dcc896fb598599",
+  "original_worktree": "/workspace/zil-compact-scalar-machine",
+  "protected_root_worktree_untouched": true,
+  "raw_in_author_tree": false,
+  "root_extra_test_receipt_fix": "de9a8f892abfe9b7f80912b266f228bee938081f",
+  "status": "source convergence only; NEXT CHAIN NOT ACCEPTED",
+  "tracked_uncommitted": false,
+  "untracked": false
+}

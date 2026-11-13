@@ -1,0 +1,6 @@
+tree 086201d47cc6f4ff383a46bf5c1ede237d725d9f
+parent 9fd2c75d4fae22ec4f112f4d7a228c776d2ee0be
+author Cicin Ding <dsscicin@zohomail.com> 1794581742 +0000
+committer Cicin Ding <dsscicin@zohomail.com> 1794581742 +0000
+
+Close scalar-select planner consumers and one-arm remainder rejection cases
