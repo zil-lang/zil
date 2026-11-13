@@ -12,6 +12,7 @@ fn zero() -> Type {
 
 fn module(captures: Vec<Type>) -> TypedModule {
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),

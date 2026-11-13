@@ -21,6 +21,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn module() -> TypedModule {
     TypedModule {
+        semantic: None,
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
