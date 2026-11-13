@@ -1859,11 +1859,14 @@
       "v25_fixed_index": "4b7cb33ada7e7491609f8354add0599036a53a95",
       "v25_index_path": "research/incremental-demand-late-stage-20261113-v25-index",
       "v25_closure": "c5c87682a49eba006b166ba85d24caa373798f37",
-      "dependencies": "Full SDK18 through fixedV23, initial mainAff gates through fixedV24; source7bac and delivery52e separately frozen."
+      "dependencies": "Full SDK18 through fixedV23, initial mainAff gates through fixedV24; source7bac and delivery52e separately frozen.",
+      "recovery_entry_commit": "33f035ec53dd17eca8f94f9231a8d548385b40d1",
+      "recovery_entry_path": "research/incremental-demand-late-stage-20261113-v25-recovery/README.md",
+      "recovery_entry_status": "Three entry files actualfreshHTTPS checked; fixedV23SDK18 andV24dependency indexhashes also freshchecked, no new build/measurement."
     },
     "report": "tools/research/incremental-demand/full-push-checkpoint-7bac.md",
     "open": "Central wholepipelinepushscheduler, fullnoMF/MCincrementality,cold/broadnonregression and broadRustlead remain open; research defaultoff",
-    "delivery": "c472a07455a33aea1946a2944eb6c34860ba8330",
+    "delivery": "09614212c8e8c81bf93b76cf9a5f22a7a384c638",
     "archived_delivery": "52e276d17303d6487b6bd72382945372e41cd6a6",
     "independent_acceptance_sha256": "36c0835a3a923afae25b647e0c177c796f643a3e2a8ba80147e06f48fe68773d",
     "rejected_next_slice": "Directly execute clang -### ld command rejected before source edits: violates custom--clang wrapper real-link behavior. No new contract/flag/build/measurement, negative decision retained."
