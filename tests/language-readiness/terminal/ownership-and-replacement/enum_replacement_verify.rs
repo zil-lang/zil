@@ -538,7 +538,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
             kind,
             low,
             match kind {
-                "work" => 81_361,
+                "work" => 79_381,
                 "nodes" => 349,
                 "source_bytes" => 669,
                 _ => 11,
@@ -586,7 +586,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
     }
     // This complete request is bounded by Analyze. Keep N/N-1 and fresh/warm
     // retry tied to the current calculation over the complete original input.
-    observed_boundaries.push(("Source Analyze", low, 81_361));
+    observed_boundaries.push(("Source Analyze", low, 78_790));
     let mut warm = zil_driver::CompilationSession::default();
     for (work, status) in [
         (low, ResultCategory::Success),

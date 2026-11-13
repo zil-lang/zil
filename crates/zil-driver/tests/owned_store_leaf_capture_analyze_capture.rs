@@ -261,8 +261,9 @@ fn strong_window_new_work_and_legacy_source_metadata_have_exact_fresh_boundaries
         );
         case.write("boundary.json", format!("{{\"label\":\"{label}\",\"analyze\":{low},\"fresh_equal\":true,\"below\":\"ResourceLimit\"}}\n"));
         if old {
-            // One Fresh source tag is visited by preflight and fingerprint.
-            assert_eq!(low, 2230 + 2);
+            // One Fresh source tag is visited by preflight and fingerprint;
+            // readonly description inventory/publication adds 51 work.
+            assert_eq!(low, 2230 + 2 + 51);
         }
         println!("204 {label} Analyze N={low}, N-1 ResourceLimit, fresh equal");
     }

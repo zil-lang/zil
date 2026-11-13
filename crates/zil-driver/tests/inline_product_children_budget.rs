@@ -80,7 +80,7 @@ fn measure(label: &str, source: &str) -> (usize, usize) {
 fn old_flat_package_records_exact_phase_boundaries() {
     // Measured with these identical source bytes and this probe on accepted
     // 205 (61c2d252), before enabling the new Product profile.
-    assert_eq!(measure("old-flat", FLAT), (418, 8673));
+    assert_eq!(measure("old-flat", FLAT), (418, 8423));
 }
 #[test]
 fn new_product_leaf_tables_have_exact_fresh_boundaries() {

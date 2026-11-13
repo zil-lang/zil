@@ -2618,14 +2618,22 @@ fn callable_storage_delta(state_cells: usize, origin_cells: usize) -> usize {
 #[test]
 fn concrete_local_legacy_cost_controls() {
     let mut measured = Vec::new();
-    for (name, module, old_cost, state_cells, origin_cells) in [
-        ("ordinary", fixture(CallableKind::Fn, false, 1), 1548, 0, 0),
+    for (name, module, old_cost, state_cells, origin_cells, description_work) in [
+        (
+            "ordinary",
+            fixture(CallableKind::Fn, false, 1),
+            1548,
+            0,
+            0,
+            23,
+        ),
         (
             "helper-no-local",
             scoped_helper(CallableKind::Fn),
             1219,
             12,
             6,
+            20,
         ),
         (
             "scoped-local-borrow",
@@ -2634,6 +2642,7 @@ fn concrete_local_legacy_cost_controls() {
             2798,
             20,
             20,
+            64,
         ),
     ] {
         let limits = Limits::default();
@@ -2641,8 +2650,10 @@ fn concrete_local_legacy_cost_controls() {
         analyze_budgeted(&module, &limits, &mut budget, None).unwrap();
         let exact = limits.max_analysis_steps - budget.remaining();
         let delta = callable_storage_delta(state_cells, origin_cells);
-        measured.push((name, exact, old_cost + delta));
-        if delta != 0 {
+        // Keep the original allowances and account for the actual readonly
+        // description inventory separately from callable storage.
+        measured.push((name, exact, old_cost + delta + description_work));
+        if delta + description_work != 0 {
             assert_eq!(
                 analyze(
                     &module,

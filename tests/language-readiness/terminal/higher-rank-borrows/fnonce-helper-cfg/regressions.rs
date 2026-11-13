@@ -107,6 +107,7 @@ fn actual_source_prebranch_diamonds_and_honest_raw_wire() {
 }
 #[test]
 fn actual_dag_budget_boundaries_and_old_tail_fees() {
+    let mut observed_boundaries = Vec::new();
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     for (label, text, known, expected) in [
@@ -161,7 +162,7 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
                     );
                 }
             }
-            assert_eq!(low, expected[phase], "{label}/{phase}");
+            observed_boundaries.push((label, phase, low, expected[phase]));
             if let Some(known) = known {
                 // closure environment.10 replaces u8 marks by a pointer-sized actual-role key
                 // plus flags. This exact old source has one 4-local/12-SSA
@@ -202,6 +203,12 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
             eprintln!("HELPER_CFG_JOIN {label} phase{phase} N={low}/N-1/fresh/retry");
         }
     }
+    assert!(
+        observed_boundaries
+            .iter()
+            .all(|(_, _, actual, expected)| actual == expected),
+        "complete helper CFG boundary observations: {observed_boundaries:?}"
+    );
 }
 #[test]
 #[cfg(target_os = "linux")]

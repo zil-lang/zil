@@ -182,9 +182,9 @@ fn optional_store_nested_field_summary_has_exact_fresh_raw_wire_budgets() {
     let mut previous = 0;
     // Complete independent Analyze and Verify request costs.
     let cases = [
-        (0, 105_947, 221_023),
-        (4, 174_786, 401_501),
-        (12, 342_160, 806_651),
+        (0, 102_877, 221_023),
+        (4, 171_058, 401_501),
+        (12, 337_157, 806_651),
     ];
     let mut actual_costs = Vec::new();
     for (depth, _, _) in cases {

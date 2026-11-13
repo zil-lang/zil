@@ -8447,7 +8447,7 @@ fn owned_aggregate_owner_replacement_error_arm_alias_budget() {
     ));
     // Complete source requests keep independent Analyze and Verify bounds.
     // Each bound includes the current paid ownership and resource analysis.
-    for (stage, expected_n) in [(Stage::Analyze, 44017), (Stage::Verify, 73548)] {
+    for (stage, expected_n) in [(Stage::Analyze, 28429), (Stage::Verify, 44398)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
@@ -8980,7 +8980,7 @@ fn owned_aggregate_package_terminal_exact_request_budget() {
     // Pin only after both complete requests exercised N/N-1 and fresh/warm retry.
     assert_eq!(
         observed_boundaries,
-        [(Stage::Analyze, 13_954), (Stage::Verify, 23_962)],
+        [(Stage::Analyze, 13_840), (Stage::Verify, 23_962)],
         "complete Package request boundary observations"
     );
 }

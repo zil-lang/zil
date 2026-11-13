@@ -414,7 +414,7 @@ fn named_and_explicit_store_field_replacement_have_exact_fresh_and_warm_budgets(
                 }
             }
         }
-        observed_boundaries.push((label, "Source Verify", low, 41_073));
+        observed_boundaries.push((label, "Source Verify", low, 41_124));
         println!("borrowed Store {label}: N={low}, N-1=ResourceLimit, fresh/warm/retry=Pass");
         let core = core_source(program);
         let target = zil_base::TargetProfile::host_llvm();

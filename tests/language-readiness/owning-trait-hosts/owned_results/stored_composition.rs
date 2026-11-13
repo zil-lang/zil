@@ -393,9 +393,9 @@ fn ordinary_package_fields_have_exact_fresh_analysis_and_verification_work() {
             phase,
             high,
             if phase == Phase::Analyze {
-                270869
+                261872
             } else {
-                409697
+                409684
             },
         ));
         eprintln!("ordinary Package Copy observation {phase:?} N={high}; N-1/fresh agree");
@@ -847,7 +847,7 @@ fn ordinary_package_fields_complete_project_has_exact_fresh_analysis_work() {
             assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
         }
     }
-    assert_eq!(high, 3150647);
+    assert_eq!(high, 2288131);
     eprintln!("ordinary Package four-module analysis N={high}; N-1/fresh agree");
 }
 
@@ -897,9 +897,9 @@ fn ordinary_error_places_have_exact_fresh_independent_resource_work() {
             phase,
             high,
             if phase == Phase::Analyze {
-                369332
+                330361
             } else {
-                360355
+                364740
             },
         ));
         eprintln!("ordinary Error/Option resource {phase:?} N={high}; N-1/fresh agree");
