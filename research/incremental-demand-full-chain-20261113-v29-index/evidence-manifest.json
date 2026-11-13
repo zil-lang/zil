@@ -1,0 +1,382 @@
+{
+  "archive": {
+    "bytes": 11444325,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 11444325,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "3c8b263808688c2a1a6f509f59d516b9a44986b1e9393f1a4a489f1a71770c53"
+      }
+    ],
+    "sha256": "3c8b263808688c2a1a6f509f59d516b9a44986b1e9393f1a4a489f1a71770c53",
+    "tar_bytes": 16097280
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/archive-v29-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1800,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/archive-v29-01.log",
+        "sha256": "0b4a381b3b1fb97f25569bae3b3b47345e2f790e75bdb5d2fa7d6859a9582cdf"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/freeze-v29-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 430,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/freeze-v29-01.log",
+        "sha256": "bf4ac8d74bda1c3c8adb1dbc6fcd98a932c096522aa1d6b467fe1770bbbc6227"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/fresh-v29-source-proof-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 121,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/fresh-v29-source-proof-01.log",
+        "sha256": "2063dd162d9c17d3285472b968645b9828091670b42aabaa0ec93d716d7e49eb"
+      },
+      {
+        "bytes": 186,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/FREEZE.json",
+        "sha256": "96dde4c159cbe8213e7cc13361b5833d2a090366e273066eae58dc1dc0a5dc48"
+      },
+      {
+        "bytes": 10637,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/FRESH-SOURCE-PROOF.json",
+        "sha256": "79d8c6e97a0834c492ec8e46e79963d3fe9c708c8b8e3b36264a54f3b75c9e20"
+      },
+      {
+        "bytes": 2856,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/LATE-INVENTORY.json",
+        "sha256": "78d5d2d0d336b08607bfacdc15d1089593ea37b8b3fcf7f4e31b9a74f23d049f"
+      },
+      {
+        "bytes": 31774,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/OPERATIONS.jsonl",
+        "sha256": "2e6e07b9105d4b2e8c6257664aed8f2a2179be44ff15387c9042b76f16b7c89e"
+      },
+      {
+        "bytes": 1299758,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/RAW-UNION.json",
+        "sha256": "e5dee32ad7bff4ea74a7818bff0d6e3d89a8c9d2323c86d86ed3694a47db9afa"
+      },
+      {
+        "bytes": 1298116,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/SHARDS.json",
+        "sha256": "f4be0d5e79ac1a2ec441eb0dd5050012b3df0e895dc23f0ee783d8c645b4b1a6"
+      },
+      {
+        "bytes": 3516,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/frozen/scripts/fresh_v29_source_proof.py",
+        "sha256": "d22e709868f43c0ccfdfffe37fedf52782d8b0346cba09a8f5f0b15c70180a4e"
+      },
+      {
+        "bytes": 15161,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/frozen/scripts/publish_v29_metadata.py",
+        "sha256": "7bb8922da00ee355959321c1d9be5f74d60ac9efeb806c6e2ca452a7234c0479"
+      },
+      {
+        "bytes": 6531,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/frozen/scripts/restore_typed_producer_v29_https.py",
+        "sha256": "4aa1ebb0d340549b17ee0880f93c26f453ac7272c65f440609fd97dc9fdd6477"
+      },
+      {
+        "bytes": 11268016,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/late/docs-source-5f6a1f924124c14a0cf79ef6e654b39e989cd765.tar.gz",
+        "sha256": "6222d454b39cf5ce96bddb94f8a1868bcff18d1fd68288de8576c8715a8f12d1"
+      },
+      {
+        "bytes": 20555,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/late/docs-source-files/README.md",
+        "sha256": "1c1a52384c41bc9813955e0eb7d3d0b72e4a88528afa071bea2212c5169f75a8"
+      },
+      {
+        "bytes": 27726,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/late/docs-source-files/full-push-compact-checkpoint.json",
+        "sha256": "0a316a2ac8d1d81365583363c6a9e53dbeffc0591137303d10a2bc418a19a75c"
+      },
+      {
+        "bytes": 4139,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/late/docs-source-files/full-push-compact-checkpoint.md",
+        "sha256": "6f09403c8c19f8023a75bae89db07a3ca95dd23bc686509877699e83aaf600fc"
+      },
+      {
+        "bytes": 4308,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/late/full-push-cold-machine-capture-implementation.json",
+        "sha256": "ba746944d41e89e1d4c982ad177264a7144e3917743e374c259e75eca2e7d3ee"
+      },
+      {
+        "bytes": 13183,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/late/full-push-cold-machine-capture-implementation.patch",
+        "sha256": "fd0f71f54dd3987723d2e86752e9ea6180d5fef077b6468c9c762b0355fae064"
+      },
+      {
+        "bytes": 1461,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/late/full-push-cold-machine-capture-root-review.json",
+        "sha256": "605b898283a0b1953933071b7a741ab279456e3d156a8e6505efb2a3e61cc512"
+      },
+      {
+        "bytes": 318926,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-001-archive-index-before-skip",
+        "sha256": "819a993990df6fcce62c4334e85d904f60df948411e66e98fcf5f40eb98ebaa4"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-001-bootstrap.py",
+        "sha256": "5f669409e3a6f4a1adecfd3444d709eb52d3cdfe0125294b67f849dcecadd8a6"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-001-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 6684,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-001-https-recovery.json",
+        "sha256": "49a702bb9c948b60131e4c88d1cb59d452914015d5bd72a115227247f628d211"
+      },
+      {
+        "bytes": 2729,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-001-https-recovery.log",
+        "sha256": "37ff099bd67882c866c28d71a6212b74da9fe4d696ab007e5783469f11c72049"
+      },
+      {
+        "bytes": 1550,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-001-own-part-dematerialization.json",
+        "sha256": "de631ae85543b25b5504d948c8a1882b21e0dd52f4db83f9ce90e9b16f35983d"
+      },
+      {
+        "bytes": 320277,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-002-archive-index-before-skip",
+        "sha256": "d2e22be3da487400b2a55cfdfeeb50460143b3e79a20e06e645e7816fb19d05b"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-002-bootstrap.py",
+        "sha256": "fc0148cf2c4d7c0694a0c43f749be42602843deb9e5006958241fb4478231cd5"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-002-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 6372,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-002-https-recovery.json",
+        "sha256": "a62587b1800cac3accddfa65664e028332b6cbf2064adf5f6c53b5efa81c8281"
+      },
+      {
+        "bytes": 2620,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-002-https-recovery.log",
+        "sha256": "ad5b665921c17cfbe4583433bb5b6e84f974273e42a1683cebf7702355e5b110"
+      },
+      {
+        "bytes": 1318,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-002-own-part-dematerialization.json",
+        "sha256": "04bc53d025db5d6b9196478d620df3cae37c2f3c1a292a264b851461d4de56fe"
+      },
+      {
+        "bytes": 321324,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-003-archive-index-before-skip",
+        "sha256": "f2303e4f4bbd8d56b0d067acbc61ea384f17cacd925d30f28ddad39de077c976"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-003-bootstrap.py",
+        "sha256": "1689cd9f68cd56f0564f96b245ad4f4e62f820c387c7f06fb0c2d290c18e77b6"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-003-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 5753,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-003-https-recovery.json",
+        "sha256": "04f3624f87e23b61ada4ecfc1b9f332d1b231d67cc2e4e06d0080ecf90febb1a"
+      },
+      {
+        "bytes": 2403,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-003-https-recovery.log",
+        "sha256": "5e134615c5bbd211439d179cc93347245893b0f4f22d1f23cc88e62e90ea2576"
+      },
+      {
+        "bytes": 852,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-003-own-part-dematerialization.json",
+        "sha256": "91e3560e61c8b3b33eaf16d14cc8a8f884b1d1ee085a5044ab45f482d4baa564"
+      },
+      {
+        "bytes": 322523,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-004-archive-index-before-skip",
+        "sha256": "ee26b32df124f273b2281e70b2bbacb060a20cf1d6401abe94be717bd12d5b9d"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-004-bootstrap.py",
+        "sha256": "3de577d4308215690d6367cb2bd9caba52b1f0784a6a60e5075cdb85d86c450a"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-004-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 6061,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-004-https-recovery.json",
+        "sha256": "7a99a0851c6040109dac03f1f586097c5e8de361aabde5353692a9d4c023e7b0"
+      },
+      {
+        "bytes": 2510,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-004-https-recovery.log",
+        "sha256": "d5db6f692827465e0e0def49d0f39bad007519c2002cd5fccd0ec3ec77a8f47b"
+      },
+      {
+        "bytes": 1084,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-004-own-part-dematerialization.json",
+        "sha256": "a210bb4c755d866bd463aa7a3ddde6fbb0846221864d77a678c576b8bd0c0395"
+      },
+      {
+        "bytes": 323722,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-005-archive-index-before-skip",
+        "sha256": "d695e8d62ab7e3c8e8a9c3dbc226e371dd3784aee74760f3b13b06d719079404"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-005-bootstrap.py",
+        "sha256": "3f51f948d8a7b76ebc65b7830c01774c3ed536c29034492b43e7584410d43091"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-005-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 6067,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-005-https-recovery.json",
+        "sha256": "e5444e6fedb0f2b28e47a3254595c0c2a4c308882f4f75a062b1f2b5260de4ca"
+      },
+      {
+        "bytes": 2514,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-005-https-recovery.log",
+        "sha256": "76db1617a2246c71a4d614cf5047655252f0be7d4332c0a75809e8b23b03b8ff"
+      },
+      {
+        "bytes": 1085,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-005-own-part-dematerialization.json",
+        "sha256": "15fbf186317a9f79f4b0dbe0d9881d3f7d0a25639e13912509ca6ec397d190be"
+      },
+      {
+        "bytes": 324921,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-006-archive-index-before-skip",
+        "sha256": "1371da281f0f54f231dd0954386be4a65a968ac26040496077a6334269b63486"
+      },
+      {
+        "bytes": 3542,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-006-bootstrap.py",
+        "sha256": "7235f39da5c09256614cd50b01f7cd858f3205e262e9fb76279a93a32eca77ba"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-006-https-recovery.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 6058,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-006-https-recovery.json",
+        "sha256": "40ff09eeb4770dfbed8bc51fcb45524c85b73bccb3821678ab4703e1e9201297"
+      },
+      {
+        "bytes": 2508,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-006-https-recovery.log",
+        "sha256": "087b34e96c9a2b51d9aa5bada3eb6afc52fa5c7bc8a3ee780eca42b5dc6af930"
+      },
+      {
+        "bytes": 1083,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-29/v29-006-own-part-dematerialization.json",
+        "sha256": "c84837a12d9d08c20d4377c18a13a2833513425765a22190fce1db47d1445359"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "V29 whole typed-scalar producer chain artifact custody only. Formal compiled source and measurement tool source are124567d4d with immutable compiler07a06aac; check and O2 each102valid rows=54measured+48parents,1080native oracles and30complete hard-ELF pairs passed. Batch01 source3a1 first Clippy failure and batch02 source124 style repair/release preserved. Three exact Astra draft/integrated/style source reviews preserved. No cross-window old-candidate speedup or whole-goal performance acceptance is implied. Mutation publication controls were not requested, not a new pass and not erasure of prior V27 Rust-overwrite failure. Stock baseline9170 compiler8d8 and SDK18/785a plus native-link192bd reuse fixed V23/V27 recovery. Next Cpp cold capture f973 complete source is captured separately as unaccepted successor, not compiled/tool124 runtime source. Current Rust ProducerPlan WIP is not frozen or accepted. Prior env-cache and tracking-reference convergence evidence is included by fixed receipts, no original out/runs/source/current target/current SDK/compiler deletion by V29. No new compile/test/native/measurement. Final custody closes both windows, all first failures, all gated exact source and binaries, full raw, source/Astra codequality audit and late docs together. The final5f6a delivery snapshot includes next Cpp cold capture f973 source, unaccepted here and not V29 compiled/tool124 runtime source. Formal124 TypedIR producer is implemented and measured; later Rust ProducerPlan WIP is not frozen. SDK reused through exact fixed prior dependencies; no original deletion or new execution.",
+    "source_commits": {
+      "compiled_candidate": "124567d4d00722113818e46f1e4c662de6eb1d87",
+      "delivery_snapshot_with_unaccepted_next_producer": "5f6a1f924124c14a0cf79ef6e654b39e989cd765",
+      "measurement_tools": "124567d4d00722113818e46f1e4c662de6eb1d87"
+    }
+  },
+  "inventory_sha256": "12b18c9acae2d01482ca85872bce81adf507aacb07d82b9320e6a1afa30bcc92",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-29/metadata-staging"
+}
