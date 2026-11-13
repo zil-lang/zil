@@ -1,0 +1,96 @@
+{
+  "archive": {
+    "bytes": 1142994,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 1142994,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "5bb021e1c8fafa043618c66c74d9dbeec69ac6c235242f2e9b2da90e3e73d00c"
+      }
+    ],
+    "sha256": "5bb021e1c8fafa043618c66c74d9dbeec69ac6c235242f2e9b2da90e3e73d00c",
+    "tar_bytes": 8816640
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 1180242,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/270745312bda6749c948dc31255b988f142ffcb3e7d4eeb644bee55d6fc9d198.incremental",
+        "sha256": "270745312bda6749c948dc31255b988f142ffcb3e7d4eeb644bee55d6fc9d198"
+      },
+      {
+        "bytes": 813819,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/3417e110c82232c3f53b26ed9594bb9144495b3ab8606232291a3b29201e4aa0.incremental",
+        "sha256": "3417e110c82232c3f53b26ed9594bb9144495b3ab8606232291a3b29201e4aa0"
+      },
+      {
+        "bytes": 1179762,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/34dfe4395dbbedb9232521d9b3207e20ce014a3edb5acb294c276a1a7259ef9a.incremental",
+        "sha256": "34dfe4395dbbedb9232521d9b3207e20ce014a3edb5acb294c276a1a7259ef9a"
+      },
+      {
+        "bytes": 1179762,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/3f2b3fe5bbabfeb6b2addff0e932c881a881fb3092e19e4d1e0187d7bc24b667.incremental",
+        "sha256": "3f2b3fe5bbabfeb6b2addff0e932c881a881fb3092e19e4d1e0187d7bc24b667"
+      },
+      {
+        "bytes": 813822,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/3f7e9573cc7c2a9f2b90820d93a74c3f3b8e4075d5860242d7d929592bfedeee.incremental",
+        "sha256": "3f7e9573cc7c2a9f2b90820d93a74c3f3b8e4075d5860242d7d929592bfedeee"
+      },
+      {
+        "bytes": 813864,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/4006e704238f6908a965e913af3a3c79856528bab3ce67d2fa7d82b580fc92f9.incremental",
+        "sha256": "4006e704238f6908a965e913af3a3c79856528bab3ce67d2fa7d82b580fc92f9"
+      },
+      {
+        "bytes": 1180242,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/42881cb1fa588d13b8de4f089f6782c0ebb11c932ab019d78b503c5ad94244e6.incremental",
+        "sha256": "42881cb1fa588d13b8de4f089f6782c0ebb11c932ab019d78b503c5ad94244e6"
+      },
+      {
+        "bytes": 813822,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/447237c589fc506db2aa73a3f4c9d4f36210e8020c4842788c43bc3f4f12b002.incremental",
+        "sha256": "447237c589fc506db2aa73a3f4c9d4f36210e8020c4842788c43bc3f4f12b002"
+      },
+      {
+        "bytes": 813864,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/owned-front-metadata-three-arm-01-check/blobs/44cfed0c9139dad28bb6a20824c728298c0844c38d878b1ec0ef6c4fc3a371f5.incremental",
+        "sha256": "44cfed0c9139dad28bb6a20824c728298c0844c38d878b1ec0ef6c4fc3a371f5"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "V31 complete owned frontend metadata chain artifact custody only. Formal compiled/tool536cf228 with compiler4f01758c; check/O2 each102valid rows=54measured+48parents, both controllers0,1080native and30complete wholeELF hard pairs. All five gate identities preserve first E0478/E0599 failures, two Clippy style failures, actual expand111/backend269/driver211/Source9/retained1/strict/release success. Exact source2a/c403/1c3/eece/5a18/536 complete source archives and actual parent history are preserved;2a source tar is exact reused priorV30 full Git archive with docs-commit prefix explicitly recorded. Three Astra reviews retain their actual declared source/review scope and are not relabeled as fresh exact536 independent runtime acceptance. Cold negative O2 candidate6545/6856ms vsRust6436/6165ms and noop10.23/8.28ms remain. Same normalized LLVM SHA30cd with old44d is structural diagnosis only, no cross-window gain or causal attribution. The8stage point-to-point and143exact-body cohort JSON snapshots are structural-analysis-only, NOT reuse permission or optimized-runtime acceptance. Current crossCGU closed-cohort LLVM/C++/Rust/MIR-sharing WIP is excluded and unaccepted. Mutation controls not requested, no new publication pass. Main9170 and SDK18/785a/native-link192bd use fixed prior recovery; identical immutable raw bytes may reuse fixed exact old archive objects with current logical-path fresh checks, never timing/gate substitution. No new compiler/test/native/measurement or original raw/source/target/SDK/compiler deletion. Original raw/source/SDK/binary paths retained; storage partition is not a performance or final-acceptance boundary. Exact role labels and all publication failures remain unchanged.",
+    "source_commits": {
+      "E0599_gate_source": "1c3fad709d47e2cd06c1f6050fe6012b8b25cc21",
+      "compiled_candidate_and_measurement_tools": "536cf228829064a3b78ac71497effa2a03283cf6",
+      "first_Clippy_failure_gate_source": "eece59cd2b63da5b9dda4f64429bf2431c41b38e",
+      "gate_1c3fad709d47": "1c3fad709d47e2cd06c1f6050fe6012b8b25cc21",
+      "gate_536cf2288290": "536cf228829064a3b78ac71497effa2a03283cf6",
+      "gate_5a18fcf3f371": "5a18fcf3f371b92dd6edeafabaf587313ebd42ea",
+      "gate_c403193c888e": "c403193c888ed11c4540751bce2d32d44d18b1be",
+      "gate_eece59cd2b63": "eece59cd2b63da5b9dda4f64429bf2431c41b38e",
+      "initial_E0478_gate_source": "c403193c888ed11c4540751bce2d32d44d18b1be",
+      "owned_normalize_antecedent": "2a6257dc42f9f05c48380b64a8a57c21d2888311",
+      "second_Clippy_failure_gate_source": "5a18fcf3f371b92dd6edeafabaf587313ebd42ea"
+    }
+  },
+  "inventory_sha256": "a743d9f17b3a35c0560317c09d4f19af948cc693f66003b68cb281feb139ceae",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/**"
+  ],
+  "source_root": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-31/staging-v31-003"
+}
