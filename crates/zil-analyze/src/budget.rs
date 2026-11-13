@@ -1638,6 +1638,10 @@ pub(super) fn preflight(
                 continue;
             }
             if let Type::OwnedDyn { interface } = ty {
+                // Schedule the real dynamic opcode/cleanup consumers even
+                // for a closed owner combined with another borrowed capture.
+                // The flag adds no port, target or lifetime equality.
+                budget.dyn_contexts = true;
                 crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
                 let item=module.dyn_interfaces.iter().find(|d|d.id==*interface)
                     .ok_or_else(||bad("owned capture interface absent"))?;

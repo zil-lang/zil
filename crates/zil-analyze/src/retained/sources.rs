@@ -901,11 +901,10 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
                     "source upper cannot supply the actual captured leaf type or permission",
                 ));
             }
-            if matches!(path.last(), Some(ContractProjection::RetainedPort(_))) {
-                if header_port_class(module,f,StorageBase::Result,&f.return_type,&path,b)?
+            if matches!(path.last(), Some(ContractProjection::RetainedPort(_)))
+                && header_port_class(module,f,StorageBase::Result,&f.return_type,&path,b)?
                     != header_port_class(module,f,source.base,&f.locals[local.0 as usize].ty,&source.path,b)? {
-                    return Err(err("retained capture source changes its actual complete lifetime class"));
-                }
+                return Err(err("retained capture source changes its actual complete lifetime class"));
             }
         }
         if memory {

@@ -110,6 +110,20 @@ pub(crate) fn populate(
                     "return context omits its bound relation",
                 ));
             }
+            let function=module.functions.get(id.0 as usize)
+                .ok_or_else(||invalid(Span::default(),"inferred return life function absent"))?;
+            if let Some(returned)=&function.callable_return_contract {
+                let definition=module.closures.get(returned.closure.0 as usize)
+                    .ok_or_else(||invalid(function.span,"inferred return life definition absent"))?;
+                if let Some(actual)=&definition.storage_life {
+                    borrowed_fp::charge_contract(actual,|n|spend(left,n,function.span),2)?;
+                    let mut projected=actual.clone();
+                    projected.bindings.retain(|row|external(row.position.base));
+                    projected.classes.retain(|row|external(row.position.base));
+                    projected.static_bindings.retain(|position|external(position.base));
+                    updates.push((*id,projected));
+                }
+            }
             continue;
         };
         let f = module
