@@ -47,7 +47,7 @@ fn definition() -> SemanticModule {
                         scope: SemanticScopeRef::Ancestor(0),
                         ordinal: 0,
                     }),
-                    result_mode: PassingMode::Value,
+                    result_mode: PassingMode::Move,
                     call_kind: CallKind::Direct,
                 },
                 sites: vec![SemanticSiteRecipe {
