@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-13T14:37:28.634213+00:00",
+  "updated_at_utc": "2026-11-13T15:24:26.721272+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "All source branches consolidated into the sole Alpha branch; first whole-workspace compile failed10 integration errors. Real complete semantic/native chains remain in progress.",
+  "status": "One active Alpha branch. Formal Source Some production and two real materialized untrusted Typed artifacts now exist; actual call/closure ledger and proof obligations remain open. Alpha not ready; no formal Types/A/V/native-chain pass claimed.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -52,7 +52,11 @@
   "common_checkpoints": [
     "c6f100934e126038bcf68ce548ba4b71a5d08e0a",
     "e8f32e1cf4251fbf1810a9d6d4da4f8692ac9f04",
-    "9bddf638d219434bc557ed47f601f5514c853cf2"
+    "9bddf638d219434bc557ed47f601f5514c853cf2",
+    "c4a35e054997ef6c72957b1a78c500a8f31df9b9",
+    "0aa103e43ab203a9652d1d223570536f969a1a52",
+    "08fda7a133061c2d4b3c6c9f969b4693cc0a4a99",
+    "db1c5541a9d1cf9726f34c3803eff0e443ed1673"
   ],
   "first_joint_compile": {
     "source": "e8f32e1cf4251fbf1810a9d6d4da4f8692ac9f04",
@@ -72,5 +76,49 @@
     "retired_source_refs": 10,
     "remote_all_exact_heads_and_manifest_verified": true,
     "local_old_trees": "Nine old trees detached at exact archived commits; all ignored raw evidence retained. Active Alpha and immutable candidate unaffected."
+  },
+  "joint_compile_history": [
+    {
+      "candidate": "0aa103e43ab203a9652d1d223570536f969a1a52",
+      "exit": 101,
+      "errors": 5,
+      "scope": "one V closure-module registration and four Types constructor/public-helper errors",
+      "log": "/workspace/zil-alpha-candidate/out/runs/alpha-second-shared-candidate/compile.log"
+    },
+    {
+      "candidate": "08fda7a133061c2d4b3c6c9f969b4693cc0a4a99",
+      "exit": 101,
+      "errors": 1,
+      "scope": "Source statement walker visibility",
+      "log": "/workspace/zil-alpha-candidate/out/runs/alpha-third-shared-candidate/compile.log"
+    },
+    {
+      "candidate": "db1c5541a9d1cf9726f34c3803eff0e443ed1673",
+      "exit": 101,
+      "errors": 7,
+      "scope": "new Task backend modules missing TypedModule import; Source/A/V/CT production reached without compilation error",
+      "log": "/workspace/zil-alpha-candidate/out/runs/alpha-fourth-shared-candidate/compile.log"
+    }
+  ],
+  "real_semantic_source_probe": {
+    "candidate": "db1c5541a9d1cf9726f34c3803eff0e443ed1673",
+    "command": "cargo test --locked -p zil-types --lib semantics::source_probe::original_source_semantics_reach_typed_materialization_and_the_complete_proof_gate -- --exact --nocapture",
+    "executed": 1,
+    "passed": 0,
+    "failed": 1,
+    "source_inputs": 3,
+    "real_core_some": 3,
+    "materialized_untrusted_typed_and_wire": [
+      "ordinary-generic",
+      "local-closure"
+    ],
+    "artifact_root": "/workspace/zil-alpha-candidate/out/runs/semantic-types-source-probe",
+    "log": "/workspace/zil-alpha-candidate/out/runs/alpha-fourth-shared-candidate/probe.log",
+    "not_acceptance": "The two Typed candidates have an empty untrusted plan and are not Analyze/Types success receipts. Formal Types proof gate still rejects. No required core/native chain pass claim.",
+    "actual_blockers": [
+      "Both original and emitted ordinary-generic body/site lists are empty despite a real Call; Source emission ledger must publish actual original call recipe and Typed mapping.",
+      "local-closure omits its child semantic instance, actual closure/call sites and implicit capture-life information despite a real BorrowLocal bias capture with FixedN1. Do not rewrite original source to move or claim N0.",
+      "phantom-capture reaches real CoreSome but Types capture qualification rejects actual BS<Marker<a>> at143..149; preserve canonical phantom domain and fix actual consumer."
+    ]
   }
 }
