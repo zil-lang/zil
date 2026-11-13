@@ -81,9 +81,9 @@ pub(super) fn closed_owner_shape(
                 let Some(n) = closed_owner_shape(field, left, depth + 1, limits)? else {
                     return Ok(None);
                 };
-                count = count.checked_add(n).ok_or_else(|| {
-                    Diagnostic::limit(Phase::Types, "owned dyn owner count exceeded", None)
-                })?;
+                if n != 0 {
+                    return Ok(None);
+                }
             }
         }
         Type::Tuple(fields) => {
@@ -722,8 +722,6 @@ fn inventory_in_modules(
                 } else if owning_package {
                     table.owned_storage != Some(DynOwnedStorage::Heap)
                         || closed_owner_shape(inner, &mut left, 0, limits)?.is_none()
-                } else if table.owned_storage == Some(DynOwnedStorage::Heap) {
-                    closed_owner_shape(inner, &mut left, 0, limits)?.is_none()
                 } else {
                     fields.iter().any(|(_, ty)| !ty.is_b0_scalar())
                 }
