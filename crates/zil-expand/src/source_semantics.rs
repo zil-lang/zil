@@ -5,6 +5,8 @@ use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, Phase, Span};
 use zil_ir::*;
 use zil_syntax::ast as s;
 
+#[path = "source_semantic_builtins.rs"]
+mod builtins;
 #[path = "source_semantic_closures.rs"]
 mod closures;
 #[path = "source_semantic_constants.rs"]
@@ -15,6 +17,8 @@ pub(crate) mod emission;
 mod nodes;
 #[path = "source_semantic_plan.rs"]
 mod plan;
+#[path = "source_semantic_prelude.rs"]
+mod prelude;
 #[path = "source_semantic_program.rs"]
 pub(crate) mod program;
 #[path = "source_semantic_types.rs"]
@@ -27,6 +31,7 @@ pub struct OriginalSemanticInventory<'a> {
     /// be added by the real specialization/emission consumer before publish.
     pub modules: Vec<(ModuleId, SemanticModule)>,
     closures: Vec<closures::ClosureTemplate>,
+    compiler_nominals: Vec<builtins::CompilerNominal>,
 }
 
 fn error(span: Span, message: &str) -> Diagnostic {
@@ -130,6 +135,7 @@ struct InvocationFrame {
 }
 struct Builder<'s, 'i, 'b, 'l> {
     inventory: &'i SourceDeclarationInventory<'s>,
+    compiler_nominals: &'i [builtins::CompilerNominal],
     imports: &'i [(ModuleId, &'i [CoreImport])],
     budget: &'b mut Budget<'l>,
     owner: usize,
@@ -337,6 +343,7 @@ pub fn collect_original_semantics<'a>(
     remaining: &mut Limits,
 ) -> CompileResult<OriginalSemanticInventory<'a>> {
     let originals = collect_original_declarations_with_budget(modules, origins, remaining)?;
+    let (compiler_nominals, compiler_definitions) = prelude::collect(modules, remaining)?;
     if imports.len() != modules.len() {
         return Err(vec![error(
             Span::default(),
@@ -363,6 +370,7 @@ pub fn collect_original_semantics<'a>(
         let mut output = Vec::new();
         let mut builder = Builder {
             inventory: &originals,
+            compiler_nominals: &compiler_nominals,
             imports: &mappings,
             budget: &mut budget,
             owner: 0,
@@ -406,6 +414,12 @@ pub fn collect_original_semantics<'a>(
                 module.span,
             )?;
         }
+        for definition in compiler_definitions {
+            let module=output.first_mut()
+                .ok_or_else(||error(Span::default(),"compiler semantic program directory is absent"))?;
+            builder.budget.lineage_bytes(std::mem::size_of::<SemanticDefinition>(),Span::default())?;
+            module.1.definitions.push(definition);
+        }
         Ok((output,builder.closures))
     })();
     *remaining = budget.remaining_limits();
@@ -414,6 +428,7 @@ pub fn collect_original_semantics<'a>(
             originals,
             modules,
             closures,
+            compiler_nominals,
         })
         .map_err(|e| vec![e])
 }

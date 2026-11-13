@@ -417,36 +417,78 @@ impl Program {
                             CoreExprKind::TypeApply { callee, .. } => callee.as_ref(),
                             _ => callee.as_ref(),
                         };
-                        let CoreExprKind::Name(name) = &callee.kind else {
-                            return Err(unsupported(
-                                callee.span,
-                                "static callee requires actual qualified resolution",
-                            ));
+                        let caller = outputs
+                            .iter()
+                            .find(|(output, _)| output.core.module_id == module)
+                            .ok_or_else(|| error(callee.span, "actual caller module is absent"))?;
+                        let (target_module, name) = match &callee.kind {
+                            CoreExprKind::Name(name) => (module, name),
+                            CoreExprKind::Member {
+                                object,
+                                member,
+                                owner: None,
+                            } => {
+                                let CoreExprKind::Name(alias) = &object.kind else {
+                                    return Err(unsupported(
+                                        callee.span,
+                                        "static module call needs its actual import operand",
+                                    ));
+                                };
+                                budget.identity_work(caller.0.imports.len() + 1, callee.span)?;
+                                let mut target = None;
+                                for import in &caller.0.imports {
+                                    budget.text(&import.alias, callee.span)?;
+                                    if import.alias == *alias
+                                        && target.replace(import.module).is_some()
+                                    {
+                                        return Err(error(
+                                            callee.span,
+                                            "actual Core import alias is ambiguous",
+                                        ));
+                                    }
+                                }
+                                (
+                                    target.ok_or_else(|| {
+                                        error(callee.span, "actual Core callee import is absent")
+                                    })?,
+                                    member,
+                                )
+                            }
+                            _ => {
+                                return Err(unsupported(
+                                    callee.span,
+                                    "static callee requires actual qualified resolution",
+                                ));
+                            }
                         };
                         let output = outputs
                             .iter()
-                            .find(|(output, _)| output.core.module_id == module)
+                            .find(|(output, _)| output.core.module_id == target_module)
                             .ok_or_else(|| error(callee.span, "actual callee module is absent"))?;
                         budget.identity_work(
                             output.0.core.functions.len() + self.instances.len() + 1,
                             callee.span,
                         )?;
-                        let function = output
-                            .0
-                            .core
-                            .functions
-                            .iter()
-                            .find(|function| function.name == *name)
-                            .ok_or_else(|| {
-                                error(
+                        let mut selected = None;
+                        for candidate in &output.0.core.functions {
+                            budget.text(&candidate.name, callee.span)?;
+                            if candidate.name == *name && selected.replace(candidate).is_some() {
+                                return Err(error(
                                     callee.span,
-                                    "actual static symbol does not resolve to a Core function",
-                                )
-                            })?;
+                                    "actual static symbol resolves to multiple Core functions",
+                                ));
+                            }
+                        }
+                        let function = selected.ok_or_else(|| {
+                            error(
+                                callee.span,
+                                "actual static symbol does not resolve to a Core function",
+                            )
+                        })?;
                         let prototype = self
                             .instances
                             .iter()
-                            .find(|instance| instance.core == Some((module, function.id)))
+                            .find(|instance| instance.core == Some((target_module, function.id)))
                             .ok_or_else(|| {
                                 error(callee.span, "actual callee has no Source emission owner")
                             })?;
@@ -461,7 +503,7 @@ impl Program {
                             emission.marker,
                             definition,
                             SemanticFunctionTarget::Core {
-                                module,
+                                module: target_module,
                                 function: function.id,
                             },
                             budget,
@@ -763,6 +805,7 @@ pub(crate) fn prepare(
                 .ok_or_else(|| error(function.span, "original function owner lookup failed"))?;
             let mut normalizer = Builder {
                 inventory: &inventory.originals,
+                compiler_nominals: &inventory.compiler_nominals,
                 imports: &mappings,
                 budget: &mut budget,
                 owner,

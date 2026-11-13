@@ -372,6 +372,103 @@ pub(super) fn prepare_recorded<'a>(
     ))
 }
 
+/// The actual compiler-distributed prefix, before specializing its templates.
+/// A role comes from Prepared's insertion ledger, never a parsed spelling.
+/// Closed standard enums and aliases remain present in `item`; only Option
+/// and Poll have canonical stored-family IDs supplied by this producer.
+pub(crate) struct CompilerSemanticDeclaration {
+    pub(crate) item: Item,
+    pub(crate) origin: origins::Origin,
+    pub(crate) life_declaration: Option<zil_ir::LifeDeclarationId>,
+    pub(crate) identity: Option<zil_ir::LifeDeclarationIdentity>,
+}
+
+pub(crate) fn compiler_semantic_declarations(
+    module: &Module,
+    limits: &Limits,
+) -> CompileResult<(Vec<CompilerSemanticDeclaration>, Limits)> {
+    let (prepared, remaining) = prepare_recorded(module, limits, None)?;
+    let Some(prepared) = prepared else {
+        return Ok((Vec::new(), remaining));
+    };
+    let mut budget = Budget::new(&remaining);
+    let prefix = prepared.prelude;
+    if prefix.len > prepared.module.items.len()
+        || prefix.option.is_some_and(|index| index >= prefix.len)
+        || prefix.poll.is_some_and(|index| index >= prefix.len)
+        || (prefix.option.is_some() && prefix.option == prefix.poll)
+    {
+        return Err(vec![error(
+            module.span,
+            "actual compiler prelude placement is inconsistent",
+        )]);
+    }
+    let bytes = prefix
+        .len
+        .checked_mul(std::mem::size_of::<CompilerSemanticDeclaration>())
+        .ok_or_else(|| {
+            vec![error(
+                module.span,
+                "compiler semantic inventory size overflow",
+            )]
+        })?;
+    budget
+        .lineage_bytes(bytes, module.span)
+        .map_err(|error| vec![error])?;
+    let mut rows = Vec::new();
+    rows.try_reserve_exact(prefix.len).map_err(|_| {
+        vec![error(
+            module.span,
+            "compiler semantic inventory allocation failed",
+        )]
+    })?;
+    let actual_module = prepared.module.id;
+    let span = prepared.module.span;
+    for (index, item) in prepared
+        .module
+        .items
+        .into_iter()
+        .take(prefix.len)
+        .enumerate()
+    {
+        budget.identity_work(1, span).map_err(|error| vec![error])?;
+        // This is precisely CompilerPrelude::origin's namespace. Public
+        // stored-family identity is separately authenticated below.
+        let ordinal = if prefix.option == Some(index) {
+            0
+        } else {
+            index
+                .checked_add(1)
+                .ok_or_else(|| vec![error(span, "compiler declaration ordinal overflow")])?
+        };
+        let mut origin =
+            origins::Origin::source(actual_module, ordinal, span).map_err(|error| vec![error])?;
+        origin.compiler = true;
+        origin.declaration.compiler = true;
+        origin.role = if prefix.option == Some(index) {
+            Some(origins::CompilerRole::Option)
+        } else if prefix.poll == Some(index) {
+            Some(origins::CompilerRole::Poll)
+        } else {
+            None
+        };
+        let (life_declaration, identity) = if origin.role.is_some() {
+            let (id, identity) =
+                storage_identity(&item, origin, &mut budget).map_err(|error| vec![error])?;
+            (Some(id), Some(identity))
+        } else {
+            (None, None)
+        };
+        rows.push(CompilerSemanticDeclaration {
+            item,
+            origin,
+            life_declaration,
+            identity,
+        });
+    }
+    Ok((rows, budget.remaining_limits()))
+}
+
 fn task_declarations(span: Span) -> Vec<(Option<origins::CompilerRole>, Item)> {
     [
         (TASK_CREATE_ERROR, vec!["Allocation"], false),

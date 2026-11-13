@@ -400,6 +400,66 @@ struct Calls<'a, 's, 'i, 'b, 'l> {
     ordinal: u32,
 }
 impl Calls<'_, '_, '_, '_, '_> {
+    fn function_row(&mut self, names: &[String], span: Span) -> R<usize> {
+        let local = self.normalizer.inventory.declarations[self.normalizer.owner].module;
+        let (module, name) = match names {
+            [name] => (local, name),
+            [alias, name] => {
+                if self.locals.contains_key(alias) {
+                    return Err(unsupported(
+                        span,
+                        "receiver call requires its actual original method application",
+                    ));
+                }
+                let mut target = None;
+                for (owner, edges) in self.normalizer.imports {
+                    self.normalizer.budget.node(span, 0)?;
+                    if *owner != local {
+                        continue;
+                    }
+                    for edge in *edges {
+                        self.normalizer.budget.text(&edge.alias, span)?;
+                        if edge.alias == *alias && target.replace(edge.module).is_some() {
+                            return Err(error(span, "original callable import alias is ambiguous"));
+                        }
+                    }
+                }
+                (
+                    target.ok_or_else(|| {
+                        unsupported(span, "static member call lacks its actual source import")
+                    })?,
+                    name,
+                )
+            }
+            _ => {
+                return Err(unsupported(
+                    span,
+                    "static call needs a complete original module path",
+                ));
+            }
+        };
+        let mut target = None;
+        for (index, row) in self.normalizer.inventory.declarations.iter().enumerate() {
+            self.normalizer.budget.node(span, 0)?;
+            if row.module == module
+                && row.parent.is_none()
+                && row.function().is_some_and(|f| f.name == *name)
+            {
+                if module != local && !row.public {
+                    return Err(error(span, "original call target is private"));
+                }
+                if target.replace(index).is_some() {
+                    return Err(error(span, "original call target is ambiguous"));
+                }
+            }
+        }
+        target.ok_or_else(|| {
+            unsupported(
+                span,
+                "static call original declaration is not in the actual source inventory",
+            )
+        })
+    }
     fn value_type(&mut self, e: &s::Expr) -> R<SemanticTypeRecipe> {
         self.normalizer.budget.node(e.span, 0)?;
         match &e.kind {
@@ -440,6 +500,61 @@ impl Calls<'_, '_, '_, '_, '_> {
                 Ok(SemanticTypeRecipe::Atom(ty))
             }
             s::ExprKind::Literal(s::Literal::Bool(_)) => Ok(SemanticTypeRecipe::Atom(Type::Bool)),
+            s::ExprKind::Literal(s::Literal::Float(text)) => {
+                Ok(SemanticTypeRecipe::Atom(if text.ends_with("f32") {
+                    Type::F32
+                } else {
+                    Type::F64
+                }))
+            }
+            s::ExprKind::Group(inner)
+            | s::ExprKind::Unary {
+                operand: inner,
+                op: s::UnaryOp::Negate | s::UnaryOp::BitNot | s::UnaryOp::Give,
+            } => self.value_type(inner),
+            s::ExprKind::Unary {
+                op: s::UnaryOp::Not,
+                ..
+            } => Ok(SemanticTypeRecipe::Atom(Type::Bool)),
+            s::ExprKind::Ascribed { ty, .. } => {
+                self.normalizer
+                    .ty(ty, &mut vec![30, self.ordinal], 0, false)
+            }
+            s::ExprKind::Tuple(fields) => {
+                let mut output = Vec::new();
+                for field in fields {
+                    let ty = self.value_type(field)?;
+                    self.normalizer.push(&mut output, ty, field.span)?;
+                }
+                Ok(SemanticTypeRecipe::Tuple(output))
+            }
+            s::ExprKind::Record { ty: Some(ty), .. } => {
+                let ty = type_expression(ty, self.normalizer.budget)?;
+                self.normalizer
+                    .ty(&ty, &mut vec![30, self.ordinal], 0, false)
+            }
+            s::ExprKind::Call { callee, .. } if matches!(&callee.kind,s::ExprKind::Name(name) if crate::integer_name(name)) =>
+            {
+                let ty = type_expression(callee, self.normalizer.budget)?;
+                self.normalizer
+                    .ty(&ty, &mut vec![30, self.ordinal], 0, false)
+            }
+            s::ExprKind::Member {
+                object,
+                member: s::MemberName::TupleIndex(index),
+            } => {
+                let SemanticTypeRecipe::Tuple(fields) = self.value_type(object)? else {
+                    return Err(unsupported(
+                        e.span,
+                        "tuple field inference requires its complete source tuple",
+                    ));
+                };
+                let ty = fields
+                    .get(*index as usize)
+                    .ok_or_else(|| error(e.span, "tuple source field ordinal is out of range"))?;
+                prepay_recipe(ty, self.normalizer.budget, e.span, 0)?;
+                Ok(ty.clone())
+            }
             _ => Err(unsupported(
                 e.span,
                 "call Type inference requires its complete original expression constraints",
@@ -540,11 +655,21 @@ impl crate::generated_spans::Visitor for Calls<'_, '_, '_, '_, '_> {
     }
     fn statement(&mut self, s: &mut s::Stmt, depth: usize) -> CompileResult<()> {
         crate::generated_spans::walk_statement(self, s, depth)?;
-        if let s::StmtKind::Binding { pattern, value, .. } = &s.kind
+        if let s::StmtKind::Binding {
+            pattern,
+            ty: annotation,
+            value,
+            ..
+        } = &s.kind
             && let s::PatternKind::Name(name) = &pattern.kind
         {
-            let ty = if let Some((owner, site)) = self.program.ledger.template_site(value.semantic)
-            {
+            let ty = if let Some(annotation) = annotation {
+                Some(
+                    self.normalizer
+                        .ty(annotation, &mut vec![10, self.ordinal, 0], 0, false)
+                        .map_err(|e| vec![e])?,
+                )
+            } else if let Some((owner, site)) = self.program.ledger.template_site(value.semantic) {
                 let module = self
                     .program
                     .modules
@@ -632,25 +757,42 @@ impl crate::generated_spans::Visitor for Calls<'_, '_, '_, '_, '_> {
         Ok(())
     }
     fn expression(&mut self, e: &mut s::Expr, depth: usize) -> CompileResult<()> {
-        if matches!(e.kind, s::ExprKind::Closure { .. }) {
+        if matches!(
+            e.kind,
+            s::ExprKind::Closure { .. } | s::ExprKind::MetaEval(_)
+        ) {
             return Ok(());
         }
         crate::generated_spans::walk_expression(self, e, depth)?;
         let s::ExprKind::Call { callee, arguments } = &mut e.kind else {
             return Ok(());
         };
-        let s::ExprKind::Name(name) = &callee.kind else {
-            return Err(vec![unsupported(
-                e.span,
-                "call original target needs its complete source member resolution",
-            )]);
+        let local_name = if let s::ExprKind::Name(name) = &callee.kind {
+            Some(name.as_str())
+        } else {
+            None
+        };
+        if local_name
+            .is_some_and(|name| crate::primitive_name(name) && !self.locals.contains_key(name))
+        {
+            // A sealed language operation is lowered by its actual builtin
+            // kernel, not disguised as an original user Function declaration.
+            return Ok(());
+        }
+        let written = type_expression(callee, self.normalizer.budget).map_err(|e| vec![e])?;
+        let s::TypeKind::Named {
+            path: names,
+            args: explicit,
+        } = &written.kind
+        else {
+            unreachable!()
         };
         let site = self.ordinal;
         self.ordinal = self
             .ordinal
             .checked_add(1)
             .ok_or_else(|| vec![error(e.span, "call source occurrence namespace exhausted")])?;
-        if let Some(callee) = self.locals.get(name) {
+        if let Some(callee) = local_name.and_then(|name| self.locals.get(name)) {
             let ty = callee.as_ref().ok_or_else(|| {
                 vec![unsupported(
                     e.span,
@@ -671,22 +813,8 @@ impl crate::generated_spans::Visitor for Calls<'_, '_, '_, '_, '_> {
             .map_err(|e| vec![e])?;
             return Ok(());
         }
-        let row = self
-            .normalizer
-            .inventory
-            .declarations
-            .iter()
-            .find(|row| {
-                row.module == self.definition.module
-                    && row.parent.is_none()
-                    && row.function().is_some_and(|f| f.name == *name)
-            })
-            .ok_or_else(|| {
-                vec![unsupported(
-                    e.span,
-                    "static call original declaration is not in the actual source inventory",
-                )]
-            })?;
+        let row_index = self.function_row(names, e.span).map_err(|e| vec![e])?;
+        let row = &self.normalizer.inventory.declarations[row_index];
         let function = row.function().expect("source function selected");
         let target = SemanticDefinitionId {
             module: row.module,
@@ -694,7 +822,44 @@ impl crate::generated_spans::Visitor for Calls<'_, '_, '_, '_, '_> {
         };
         let mut actuals = Vec::new();
         let mut emitted = Vec::new();
-        for formal in &function.generics {
+        if !explicit.is_empty() && explicit.len() != function.generics.len() {
+            return Err(vec![error(
+                e.span,
+                "explicit call actuals must retain the complete original mixed order",
+            )]);
+        }
+        for (formal_ordinal, formal) in function.generics.iter().enumerate() {
+            if let Some(actual) = explicit.get(formal_ordinal) {
+                let recipe = match (&formal.kind, actual) {
+                    (s::GenericParamKind::Type(_), s::GenericArg::Type(ty)) => {
+                        SemanticActualRecipe::Type(
+                            self.normalizer
+                                .ty(ty, &mut vec![20, site, formal_ordinal as u32], 0, false)
+                                .map_err(|e| vec![e])?,
+                        )
+                    }
+                    (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
+                        SemanticActualRecipe::Life(
+                            self.normalizer
+                                .life(Some(name), &[20, site, formal_ordinal as u32], e.span)
+                                .map_err(|e| vec![e])?,
+                        )
+                    }
+                    _ => {
+                        return Err(vec![unsupported(
+                            e.span,
+                            "explicit Const call actual needs its original declaration carrier substitution",
+                        )]);
+                    }
+                };
+                prepay_recipe(&recipe, self.normalizer.budget, e.span, 0).map_err(|e| vec![e])?;
+                emitted.push(emission::Actual {
+                    recipe: recipe.clone(),
+                    inferred_argument: None,
+                });
+                actuals.push(recipe);
+                continue;
+            }
             match &formal.kind {
                 s::GenericParamKind::Type(_) => {
                     let index=function.params.iter().position(|p|matches!(&p.ty.kind,s::TypeKind::Named{path,args}if args.is_empty()&&path.as_slice()==[formal.name.as_str()])).ok_or_else(||vec![unsupported(formal.span,"generic call needs its original complete inference relation")])?;

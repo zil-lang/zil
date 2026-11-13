@@ -2471,7 +2471,7 @@ pub(crate) fn materialize_scoped<'a>(
     original_declarations: bool,
 ) -> CompileResult<Materialized<'a>> {
     let (mut declaration_origins, capture_remaining) = if original_declarations {
-        zil_expand::source_context::capture_original(
+        let (origins, remaining) = zil_expand::source_context::capture_original_required(
             sources,
             modules,
             zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
@@ -2480,7 +2480,8 @@ pub(crate) fn materialize_scoped<'a>(
                 declarations: zil_expand::source_context::DeclarationPlacement::Original,
             },
             limits,
-        )?
+        )?;
+        (Some(origins), remaining)
     } else {
         (None, limits.clone())
     };

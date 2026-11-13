@@ -127,13 +127,17 @@ fn capture_impl(
     }
     let result =
         (|| {
-            if !matches!(
+            // An aligned producer has retained the original ledger alongside
+            // its actual items. capture_identities below checks every row's
+            // complete module/package/kind/name/generated correspondence;
+            // never renumber the transformed AST as a new original namespace.
+            if matches!(
                 context,
                 SourceIdentityContext::ClosedSnapshot {
-                    declarations: DeclarationPlacement::Original,
+                    declarations: DeclarationPlacement::Unavailable,
                     ..
                 } | SourceIdentityContext::Explicit {
-                    declarations: DeclarationPlacement::Original,
+                    declarations: DeclarationPlacement::Unavailable,
                     ..
                 }
             ) {

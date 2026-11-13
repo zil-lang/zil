@@ -260,6 +260,53 @@ impl Builder<'_, '_, '_, '_> {
         }
         Ok(output)
     }
+    fn builtin_trait(&mut self, ty: &s::TypeRef) -> R<Option<SemanticBuiltinTrait>> {
+        let s::TypeKind::Named { path, args } = &ty.kind else {
+            return Ok(None);
+        };
+        let [name] = path.as_slice() else {
+            return Ok(None);
+        };
+        if !args.is_empty() {
+            return Ok(None);
+        }
+        let kind = match name.as_str() {
+            "Drop" => SemanticBuiltinTrait::Drop,
+            "Copy" => SemanticBuiltinTrait::Copy,
+            "Value" => SemanticBuiltinTrait::Value,
+            "SyncDrop" => SemanticBuiltinTrait::SyncDrop,
+            "StoreElement" => SemanticBuiltinTrait::StoreElement,
+            "Transfer" => SemanticBuiltinTrait::Transfer,
+            "Share" => SemanticBuiltinTrait::Share,
+            "ThreadCallable" => SemanticBuiltinTrait::ThreadCallable,
+            "ClosedEnvironment" => SemanticBuiltinTrait::ClosedEnvironment,
+            "Send" => SemanticBuiltinTrait::Send,
+            "Sync" => SemanticBuiltinTrait::Sync,
+            _ => return Ok(None),
+        };
+        // Preserve lexical shadowing. These raw rows do not grant a builtin
+        // implementation or make a user trait into a compiler trait.
+        if self.formal(name, 0, ty.span)?.is_some() {
+            return Ok(None);
+        }
+        let module = self.inventory.declarations[self.owner].module;
+        for source in &self.inventory.declarations {
+            self.budget.node(ty.span, 0)?;
+            if source.module == module
+                && source.parent.is_none()
+                && match &source.item.kind {
+                    s::ItemKind::Trait(value) => value.name == *name,
+                    s::ItemKind::TypeAlias(value) => value.name == *name,
+                    s::ItemKind::Aggregate(value) => value.name == *name,
+                    s::ItemKind::Enum(value) => value.name == *name,
+                    _ => false,
+                }
+            {
+                return Ok(None);
+            }
+        }
+        Ok(Some(kind))
+    }
     fn application(
         &mut self,
         ty: &s::TypeRef,
@@ -304,6 +351,14 @@ impl Builder<'_, '_, '_, '_> {
             .lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), ty.span)?;
         match &ty.kind {
             s::TypeKind::Group(inner) => self.ty(inner, path, depth + 1, payload),
+            s::TypeKind::Optional(_) => {
+                self.builtin_type(ty, path, depth, payload)?.ok_or_else(|| {
+                    error(
+                        ty.span,
+                        "optional type lost its actual compiler declaration",
+                    )
+                })
+            }
             s::TypeKind::Impl(_) => {
                 let hidden = self.opaque_result.as_ref().ok_or_else(|| {
                     unsupported(
@@ -347,6 +402,9 @@ impl Builder<'_, '_, '_, '_> {
             }
 
             s::TypeKind::Named { path: names, args } => {
+                if let Some(recipe) = self.builtin_type(ty, path, depth, payload)? {
+                    return Ok(recipe);
+                }
                 if let [name] = names.as_slice() {
                     if args.is_empty() {
                         if let Some(formal) = self.formal(name, 0, ty.span)? {
@@ -718,6 +776,12 @@ impl Builder<'_, '_, '_, '_> {
                 return Ok(SemanticRequirementRecipe::Structural { ty: subject, bound });
             }
         }
+        if let Some(trait_kind) = self.builtin_trait(bound)? {
+            return Ok(SemanticRequirementRecipe::Builtin {
+                ty: subject,
+                trait_kind,
+            });
+        }
         Ok(SemanticRequirementRecipe::Trait {
             ty: subject,
             application: self.application(bound, path, depth + 1)?,
@@ -911,10 +975,16 @@ impl Builder<'_, '_, '_, '_> {
                 (
                     SemanticDefinitionKind::Scope,
                     SemanticDefinitionBody::Scope(match &i.trait_type {
-                        Some(ty) => SemanticScopeRecipe::TraitImpl {
-                            declaration,
-                            self_type,
-                            trait_application: self.application(ty, &mut vec![7], 0)?,
+                        Some(ty) => match self.builtin_trait(ty)? {
+                            Some(trait_kind) => SemanticScopeRecipe::BuiltinImpl {
+                                self_type,
+                                trait_kind,
+                            },
+                            None => SemanticScopeRecipe::TraitImpl {
+                                declaration,
+                                self_type,
+                                trait_application: self.application(ty, &mut vec![7], 0)?,
+                            },
                         },
                         None => SemanticScopeRecipe::InherentImpl {
                             declaration,
