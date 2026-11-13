@@ -1,0 +1,25 @@
+{
+  "schema": "language-consolidated-entry-retirement-v1",
+  "status": "Historical entries retired after owner confirmation; acceptance scopes remain separate",
+  "refs": [
+    {
+      "ref": "refs/heads/task/dyn-source-atoms-analyze",
+      "sha": "47058ad1f4999a6f8a15418c1afda627a0661bed",
+      "successor": "task/dyn-static-current",
+      "decision": "Old head is an ancestor of the sole current A branch; dyn confirmed no future writes/builds."
+    },
+    {
+      "ref": "refs/heads/task/dyn-static-verify",
+      "sha": "e2dc92dd27a2ef4465631f4802408d0e5d544656",
+      "successor": "task/dyn-source-atoms-verify",
+      "decision": "Numeric confirmed mature algorithms and original nearest negatives retained in 705/current history; no future writes/builds."
+    },
+    {
+      "ref": "refs/heads/task/language-ownership-public",
+      "sha": "fb84db8bc4d8ba64ab47c194a065aa3699f56259",
+      "successor": "task/language-ownership-composition and task/language-public-integration",
+      "decision": "Original Static14/source chain inherited by composition; API now Root49; mature Sum accepted in PR87. Older V failures and fee anchors remain historical failures, not passes. Preserve ignored ownership-public raw static/mixed Wire, integer-Sum before/after profiles, strict and exact-N logs."
+    }
+  ],
+  "preservation": "Exact source heads are archive commit parents. Original worktrees detach at exact heads, and all ignored raw evidence remains on disk. This retirement grants no full-language capability."
+}
