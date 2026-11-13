@@ -3708,6 +3708,7 @@ static_dependency: StaticProvenance::NotStatic,
         }
         InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources => {
             returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
+            if b.task_sources() { task_address::create_environment(captures,values,&mut out,b)?; }
         }
         InstructionKind::MakeClosure { closure, captures }
             if module
@@ -3733,6 +3734,7 @@ static_dependency: StaticProvenance::NotStatic,
                     }
                 }
             }
+            if b.task_sources() { task_address::create_environment(captures,values,&mut out,b)?; }
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;

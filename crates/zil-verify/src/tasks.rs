@@ -488,7 +488,7 @@ fn owned_create_type(
             && !t.is_copy_value()
             && !matches!(t,Type::Managed(payload) if payload.is_copy_value())
         {
-            qualified &= matches!(t, Type::Managed(_))
+            qualified &= matches!(t, Type::Managed(_) | Type::Closure(_))
                 && input_scope::domain(t, b)? == input_scope::Domain::Known(0);
         }
     }
@@ -544,7 +544,7 @@ fn owned_create_type(
     resources::charge_payload(&tuple, b)?;
     let name = format!("@std.task:v1:TaskCreateFailure:{}", tuple.fingerprint());
     let plain = if let Type::Tuple(fields) = &tuple {
-        !fields.iter().any(|t| matches!(t, Type::Managed(_)))
+        fields.iter().all(|t| t.is_copy_value() || matches!(t,Type::Address{..}))
     } else {
         false
     };

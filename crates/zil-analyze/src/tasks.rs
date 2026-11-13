@@ -328,7 +328,7 @@ fn owned_create_type(
             && !matches!(t, Type::Address { .. })
             && !matches!(t,Type::Managed(payload) if payload.is_copy_value())
         {
-            qualify &= matches!(t, Type::Managed(_))
+            qualify &= matches!(t, Type::Managed(_) | Type::Closure(_))
                 && input_scope::domain(t, budget)? == input_scope::Domain::Known(0);
         }
     }

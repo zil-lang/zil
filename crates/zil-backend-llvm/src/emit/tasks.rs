@@ -48,6 +48,7 @@ pub(super) fn name(id: FunctionId, operation: &str) -> String {
 /// renews per worker; task-free modules perform no Task inventory or debit.
 pub(super) struct Meter(std::sync::atomic::AtomicUsize, Option<zil_base::Limits>);
 impl Meter {
+    #[cfg(test)]
     pub(super) fn new(left: usize) -> Self {
         Self(std::sync::atomic::AtomicUsize::new(left), None)
     }
