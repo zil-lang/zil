@@ -2761,11 +2761,21 @@ impl Check<'_, '_, '_> {
                     .map(|t| self.ty(t, scope, depth + 1))
                     .transpose()?;
                 let actual = self.expr(value, scope, env, annotation.as_ref(), depth + 1)?;
+                self.lookup(self.retained_returns.len(), 1, value.span)?;
+                if self.retained_returns.contains(&scope.owner)
+                    && let Some(annotation) = &annotation
+                {
+                    self.compatible_position(annotation, &actual, value.span, true)?;
+                }
                 self.bind(pattern, annotation.as_ref().unwrap_or(&actual), env)?;
             }
             StmtKind::Assign { target, value, .. } => {
                 let target = self.expr(target, scope, env, None, depth + 1)?;
-                self.expr(value, scope, env, Some(&target), depth + 1)?;
+                let actual = self.expr(value, scope, env, Some(&target), depth + 1)?;
+                self.lookup(self.retained_returns.len(), 1, value.span)?;
+                if self.retained_returns.contains(&scope.owner) {
+                    self.compatible_position(&target, &actual, value.span, true)?;
+                }
             }
             StmtKind::Return(Some(e)) => {
                 let actual = self.expr(e, scope, env, result, depth + 1)?;
@@ -3227,6 +3237,33 @@ mod local_class_tests {
             crate::lifetimes::validate(&parsed, &mut budget).unwrap();
             let result = validate(&parsed, &mut budget);
             assert_eq!(result.is_ok(), accepted, "{body}: {result:?}");
+        }
+    }
+
+    #[test]
+    fn fixed_getter_class_cannot_be_relabelled_by_a_local_annotation_or_field_write() {
+        for body in [
+            "let alias:&'a [u8]=self.second;return alias",
+            "self.first=self.second;return self.first",
+        ] {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "fixed-getter-class-wash.zil",
+                format!(
+                    "struct Holder<life a,life b>{{first:&'a [u8],second:&'b [u8]}}impl<life a,life b> Holder<'a,'b>{{fn get(self:&mut Self)->&'a [u8]{{{body}}}}}fn main(){{}}"
+                ),
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            let diagnostic = validate(&parsed, &mut budget).unwrap_err();
+            assert_eq!(
+                diagnostic.message,
+                "source annotation cannot equate distinct declared lifetime classes",
+                "{body}"
+            );
         }
     }
 
