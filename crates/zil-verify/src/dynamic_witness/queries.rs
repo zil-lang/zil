@@ -1034,7 +1034,15 @@ impl<'a> Graph<'a> {
                 } => {
                     let receiver = self.value(env, receiver, b)?;
                     values::check(self.module, &receiver.raw, env.scope, b)?;
-                    let mut nested = env.clone();
+                    dynamic_metadata::recipe(&env.receiver.raw, b)?;
+                    b.spend(env.receiver.terms.len())?;
+                    let mut nested = Environment {
+                        node: env.node,
+                        receiver: env.receiver.clone(),
+                        args: env.args.charged_clone(b)?,
+                        scope: env.scope,
+                        contextual: env.contextual,
+                    };
                     dynamic_metadata::recipe(&receiver.raw, b)?;
                     let count = quantified_lifetimes
                         .checked_add(signature.invocation_binder_count)

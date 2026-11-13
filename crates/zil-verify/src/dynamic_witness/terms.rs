@@ -101,6 +101,14 @@ impl Substitution {
         }
         Ok(())
     }
+    pub(super) fn charge(&self, b: &mut Budget) -> Check<()> {
+        b.spend(self.lives.len().saturating_add(self.types.len()))?;
+        for (_, _, value) in &self.types {
+            dynamic_metadata::recipe(&value.raw, b)?;
+            b.spend(value.terms.len())?;
+        }
+        Ok(())
+    }
     pub(super) fn enter_signature(&mut self, b: &mut Budget) -> Check<()> {
         b.spend(self.lives.len())?;
         self.lives

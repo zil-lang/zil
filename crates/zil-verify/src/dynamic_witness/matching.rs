@@ -15,6 +15,34 @@ pub(super) struct Arguments<'a> {
     pub implicit: Vec<Option<StorageBinder>>,
 }
 impl Arguments<'_> {
+    pub(super) fn charged_clone(&self, b: &mut Budget) -> Check<Self> {
+        self.terms.charge(b)?;
+        b.spend(
+            self.implicit
+                .len()
+                .saturating_add(self.projections.len())
+                .saturating_add(self.constants.len()),
+        )?;
+        for (pattern, value) in &self.projections {
+            dynamic_metadata::recipe(pattern, b)?;
+            dynamic_metadata::recipe(&value.raw, b)?;
+            b.spend(value.terms.len())?;
+        }
+        for (pattern, value, constant) in &self.constants {
+            dynamic_metadata::recipe(pattern, b)?;
+            dynamic_metadata::recipe(&value.raw, b)?;
+            dynamic_metadata::recipe(&DynConstPattern::Value(constant.clone()), b)?;
+            b.spend(value.terms.len())?;
+        }
+        for values in [&self.declaration, &self.method] {
+            if matches!(values, std::borrow::Cow::Owned(_)) {
+                for value in values.iter() {
+                    dynamic_metadata::recipe(value, b)?;
+                }
+            }
+        }
+        Ok(self.clone())
+    }
     fn bind_life(
         &mut self,
         pattern: DynLifePattern,
