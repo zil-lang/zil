@@ -6,6 +6,7 @@ use zil_base::ModuleId;
 pub(super) struct SemanticFunctionEmission {
     pub marker: u32,
     pub function: NodeId,
+    pub clone_of: Option<NodeId>,
 }
 #[derive(Clone, Debug)]
 pub(crate) struct SemanticNodeEmission {
@@ -67,7 +68,14 @@ impl Expander<'_> {
         self.member_owner_work += 1;
         self.member_owner_nodes -= 1;
         self.semantic_function_emissions
-            .push(SemanticFunctionEmission { marker, function });
+            .push(SemanticFunctionEmission {
+                marker,
+                function,
+                clone_of: self
+                    .semantic_alias_clone_of
+                    .filter(|(original, _)| *original == marker)
+                    .map(|(_, source)| source),
+            });
     }
 }
 impl generics::products::Products {
@@ -116,8 +124,33 @@ impl generics::products::Products {
         let mut budget = generics::Budget::new(self.allowance.as_ref().unwrap_or(limits));
         let result = (|| {
             for emission in std::mem::take(&mut expanded.semantic_function_emissions) {
+                let marker = if let Some(source) = emission.clone_of {
+                    let (marker, events) = program.fork_function_owner(
+                        emission.marker,
+                        module.id,
+                        source,
+                        &mut budget,
+                        module.span,
+                    )?;
+                    for node in &mut expanded.semantic_node_emissions {
+                        budget.node(module.span, 0)?;
+                        if node.creator == emission.function {
+                            node.marker = *events.get(&node.marker).ok_or_else(|| {
+                                Diagnostic::error(
+                                    Phase::Expand,
+                                    "E-SOURCE-SEMANTIC-EMISSION",
+                                    Some(module.span),
+                                    "lowering alias emitted a node outside its actual cloned owner",
+                                )
+                            })?;
+                        }
+                    }
+                    marker
+                } else {
+                    emission.marker
+                };
                 program.bind_function(
-                    emission.marker,
+                    marker,
                     module.id,
                     emission.function,
                     &mut budget,

@@ -1203,6 +1203,7 @@ struct Expander<'a> {
     source_item_ordinal: usize,
     source_signature_function: Option<(usize, *const s::Function)>,
     current_function: Option<NodeId>,
+    semantic_alias_clone_of: Option<(u32, NodeId)>,
     source_map: SourceMap,
     node_maps: BTreeMap<NodeId, SourceMapId>,
     markers: BTreeMap<Span, SourceMapId>,
@@ -1264,6 +1265,7 @@ impl<'a> Expander<'a> {
             source_item_ordinal: 0,
             source_signature_function: None,
             current_function: None,
+            semantic_alias_clone_of: None,
             source_map: SourceMap::new(module_id),
             node_maps: BTreeMap::new(),
             markers: BTreeMap::new(),
@@ -1419,7 +1421,16 @@ impl Expander<'_> {
                         // Preserve the owner's ordinary private member. The
                         // separate emitted callable has a checked trait target
                         // and is the only function exported across this edge.
+                        let source = match (&m.kind, self.functions.last()) {
+                            (s::ItemKind::Function(function), Some(core)) => function
+                                .semantic
+                                .raw_index()
+                                .map(|marker| (marker, core.id)),
+                            _ => None,
+                        };
+                        let previous = std::mem::replace(&mut self.semantic_alias_clone_of, source);
                         self.item(m, Some(&name), Some(&host), inherited.as_ref());
+                        self.semantic_alias_clone_of = previous;
                     }
                     if matches!(m.kind, s::ItemKind::Function(_))
                         && let Some(target) = self

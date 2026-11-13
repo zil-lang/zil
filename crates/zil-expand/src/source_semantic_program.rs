@@ -407,6 +407,186 @@ impl Program {
         });
         Ok(index)
     }
+    /// A private trait alias really lowers this exact source body a second
+    /// time. Mint a new owner, child forest and immutable-template productions
+    /// before binding its distinct Core creator; ordinary duplicate binds stay
+    /// errors. The caller supplies the first creator from the actual alias
+    /// lowering event, never from a spelling or matching function shape.
+    pub(crate) fn fork_function_owner(
+        &mut self,
+        marker: u32,
+        module: ModuleId,
+        source: NodeId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<(u32, BTreeMap<u32, u32>)> {
+        let old = self
+            .instances
+            .get(marker as usize)
+            .ok_or_else(|| error(span, "alias clone original function owner is absent"))?;
+        if old.core != Some((module, source)) {
+            return Err(error(
+                span,
+                "alias clone does not name its actual first Core creator",
+            ));
+        }
+        // A generic body's specialization request also carries the actual
+        // caller/Call identity. It cannot be recreated from a code alias.
+        if old.from_call {
+            return Err(unsupported(
+                span,
+                "generic code alias needs its actual independent specialization request",
+            ));
+        }
+        let old_id = old.id;
+        let template = old.template;
+        for actual in &old.actuals {
+            prepay_recipe(actual, budget, span, 0)?;
+        }
+        budget.lineage_bytes(
+            old.actuals
+                .len()
+                .checked_mul(std::mem::size_of::<SemanticActualRecipe>())
+                .ok_or_else(|| error(span, "alias actual clone allocation overflow"))?,
+            span,
+        )?;
+        let actuals = old.actuals.clone();
+        let definition = self.templates[template].definition;
+        let id = SemanticInstanceId {
+            module: definition.module,
+            index: self.next_instance,
+        };
+        self.next_instance = self
+            .next_instance
+            .checked_add(1)
+            .ok_or_else(|| error(span, "alias owner instance namespace exhausted"))?;
+        let marker = u32::try_from(self.instances.len())
+            .map_err(|_| error(span, "alias function marker namespace exhausted"))?;
+        if marker >= TEMPLATE {
+            return Err(error(
+                span,
+                "alias marker overlaps original template namespace",
+            ));
+        }
+        self.ledger.original_owner(id, definition, budget, span)?;
+        budget.lineage_push(
+            &mut self.instances,
+            Instance {
+                id,
+                template,
+                actuals,
+                from_call: false,
+                core: None,
+            },
+            span,
+        )?;
+        let mut owners = BTreeMap::new();
+        budget.lineage_bytes(
+            12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
+            span,
+        )?;
+        owners.insert(old_id, id);
+        let mut children = BTreeMap::new();
+        let old_children = self.children.len();
+        for index in 0..old_children {
+            budget.node(span, 0)?;
+            let old = &self.children[index];
+            if old.root != old_id {
+                continue;
+            }
+            if old.core.is_some() {
+                return Err(error(
+                    span,
+                    "alias clone attempted after child emission consumption",
+                ));
+            }
+            let parent = *owners
+                .get(&old.parent)
+                .ok_or_else(|| error(span, "alias child has no actual cloned lexical parent"))?;
+            let child = SemanticInstanceId {
+                module: old.definition.module,
+                index: self.next_instance,
+            };
+            self.next_instance = self
+                .next_instance
+                .checked_add(1)
+                .ok_or_else(|| error(span, "alias child namespace exhausted"))?;
+            for actual in &old.environment {
+                prepay_recipe(actual, budget, span, 0)?;
+            }
+            budget.lineage_bytes(
+                old.environment
+                    .len()
+                    .checked_mul(std::mem::size_of::<SemanticActualRecipe>())
+                    .ok_or_else(|| error(span, "alias environment clone allocation overflow"))?,
+                span,
+            )?;
+            let environment = old.environment.clone();
+            let definition = old.definition;
+            let source_id = old.id;
+            self.ledger
+                .original_owner(child, definition, budget, span)?;
+            let new_index = self.children.len();
+            budget.lineage_push(
+                &mut self.children,
+                Child {
+                    id: child,
+                    definition,
+                    parent,
+                    root: id,
+                    environment,
+                    core: None,
+                },
+                span,
+            )?;
+            budget.lineage_bytes(
+                12 * std::mem::size_of::<(SemanticInstanceId, SemanticInstanceId)>(),
+                span,
+            )?;
+            owners.insert(source_id, child);
+            budget.lineage_bytes(12 * std::mem::size_of::<(usize, usize)>(), span)?;
+            children.insert(index, new_index);
+        }
+        let original_requests = self.call_requests.len();
+        for index in 0..original_requests {
+            budget.node(span, 0)?;
+            let request = self.call_requests[index];
+            if let Some(caller) = owners.get(&request.caller) {
+                // The actual duplicated body still names this same concrete
+                // helper. Only its caller/child owner has been reminted.
+                budget.lineage_push(
+                    &mut self.call_requests,
+                    requests::Request {
+                        caller: *caller,
+                        call: request.call,
+                        callee: request.callee,
+                    },
+                    span,
+                )?;
+            }
+        }
+        let events = self.ledger.fork_templates(&owners, budget, span)?;
+        let mut closure_events = Vec::new();
+        for (old, new) in &events {
+            budget.node(span, 0)?;
+            if let Some(index) = self.closure_events.get(old) {
+                let child = *children.get(index).ok_or_else(|| {
+                    error(
+                        span,
+                        "alias Closure production lacks its actual cloned child",
+                    )
+                })?;
+                budget.lineage_push(&mut closure_events, (*new, child), span)?;
+            }
+        }
+        for (event, child) in closure_events {
+            budget.lineage_bytes(12 * std::mem::size_of::<(u32, usize)>(), span)?;
+            if self.closure_events.insert(event, child).is_some() {
+                return Err(error(span, "alias Closure event was registered twice"));
+            }
+        }
+        Ok((marker, events))
+    }
     pub(crate) fn bind_function(
         &mut self,
         marker: u32,
@@ -419,8 +599,14 @@ impl Program {
             .instances
             .get_mut(marker as usize)
             .ok_or_else(|| error(span, "actual emitted function owner is absent"))?;
-        if instance.core.is_some() {
-            return Err(error(span, "Source function owner was emitted twice"));
+        if let Some((previous_module, previous)) = instance.core {
+            return Err(error(
+                span,
+                &format!(
+                    "Source function owner {marker} was emitted twice: original module {} Core {}, new module {} Core {}",
+                    previous_module.0, previous.0, module.0, node.0
+                ),
+            ));
         }
         let definition = self.templates[instance.template].definition;
         self.ledger

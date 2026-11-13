@@ -34,6 +34,7 @@ pub(crate) struct Event {
     pub(crate) action: Action,
 }
 struct Pending {
+    original_template: Option<u32>,
     instance: SemanticInstanceId,
     creator: Option<NodeId>,
     events: Vec<Event>,
@@ -247,7 +248,66 @@ impl Ledger {
             }
         }
         let events = template.events.clone();
-        self.record_original(instance, events, budget, span)
+        let actual = self.record_original(instance, events, budget, span)?;
+        let index = actual
+            .raw_index()
+            .ok_or_else(|| unavailable("actual semantic event lacks its minted token"))?;
+        self.entries[index as usize]
+            .as_mut()
+            .ok_or_else(|| unavailable("actual semantic event is absent"))?
+            .original_template = Some(raw & !TEMPLATE);
+        Ok(actual)
+    }
+    /// Fork only original immutable templates at an actual lowering clone.
+    /// The old pending entry is never reused or silently consumed twice.
+    pub(crate) fn fork_templates(
+        &mut self,
+        owners: &std::collections::BTreeMap<SemanticInstanceId, SemanticInstanceId>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<std::collections::BTreeMap<u32, u32>> {
+        let mut inputs = Vec::new();
+        for (index, entry) in self.entries.iter().enumerate() {
+            budget.node(span, 0)?;
+            let Some(entry) = entry else {
+                continue;
+            };
+            let Some(owner) = owners.get(&entry.instance) else {
+                continue;
+            };
+            let template = entry.original_template.ok_or_else(|| {
+                unavailable("lowering clone lacks its immutable original event template")
+            })?;
+            budget.lineage_push(
+                &mut inputs,
+                (
+                    u32::try_from(index).map_err(|_| unavailable("actual event index overflow"))?,
+                    template,
+                    *owner,
+                ),
+                span,
+            )?;
+        }
+        let mut result = std::collections::BTreeMap::new();
+        for (old, template, owner) in inputs {
+            let token = self.instantiate_template(
+                s::SemanticContextMarker::untrusted(template | TEMPLATE),
+                owner,
+                budget,
+                span,
+            )?;
+            let new = token
+                .raw_index()
+                .ok_or_else(|| unavailable("forked event token is absent"))?;
+            budget.identity_work(result.len().checked_ilog2().unwrap_or(0) as usize + 1, span)?;
+            budget.lineage_bytes(12 * std::mem::size_of::<(u32, u32)>(), span)?;
+            if result.insert(old, new).is_some() {
+                return Err(unavailable(
+                    "lowering clone repeated an original actual event",
+                ));
+            }
+        }
+        Ok(result)
     }
     /// Record the actual specialization owner before Core exists. The original
     /// definition comes from the aligned source/Origins ledger, never a guessed
@@ -425,6 +485,7 @@ impl Ledger {
                 .map_err(|_| unavailable("semantic ledger allocation failed"))?;
         }
         self.entries.push(Some(Pending {
+            original_template: None,
             instance,
             creator,
             events,

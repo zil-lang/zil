@@ -297,7 +297,10 @@ fn normalize(
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
-    if runtime_ct.is_some() {
+    if runtime_ct.is_some() || products.semantic.is_some() {
+        // Capture each real module while the complete original AST and its
+        // aligned Origins are still available. The later combined module is
+        // only a transformation inventory, never an original owner.
         budget.note_source_identity();
     }
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
