@@ -468,6 +468,12 @@ impl Sites {
         if self.ids.is_empty() || pointer.targets.is_empty() || targets.is_empty() {
             return Ok(false);
         }
+        for target in &pointer.targets {
+            ordered(b, targets.len(), target_width(target))?;
+            if targets.binary_search(target).is_err() {
+                return Ok(false);
+            }
+        }
         let parents = ancestry(&pointer.loans, loans, b)?;
         for target in targets {
             let mut covered = false;
@@ -693,8 +699,18 @@ mod hold_tests {
                 .unwrap()
         );
         assert!(
-            sites
+            !sites
                 .covers_hold(&pointer, std::slice::from_ref(&first), &loans, &mut budget)
+                .unwrap(),
+            "a truncated public row cannot hide another actual pointer target"
+        );
+        let single = Permission {
+            targets: BTreeSet::from([first.clone()]),
+            loans: BTreeSet::from([1]),
+        };
+        assert!(
+            sites
+                .covers_hold(&single, std::slice::from_ref(&first), &loans, &mut budget)
                 .unwrap()
         );
         loans[0].targets.insert(second.clone());
