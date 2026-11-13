@@ -359,8 +359,26 @@
     }
   },
   "raw_custody": {
-    "status": "V26 four shards actually fresh complete, finalmetadata/index pending. Do not call localtar durable backup.",
-    "compiled_source_parent_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7"
+    "status": "complete",
+    "archive_ref": "archive/source-history",
+    "fixed_index": "f450bfcf51f57045a8230f55e79e285ec39b4961",
+    "fixed_index_path": "research/incremental-demand-late-stage-20261113-v26-index",
+    "closure": "bc8edb16ef6086609c129befaeea1200f38daf00",
+    "recovery_entry_commit": "0f02d7820952cb008b34b936764148ddf8887acd",
+    "recovery_entry_path": "research/incremental-demand-late-stage-20261113-v26-recovery",
+    "raw_shards": 4,
+    "master_files": 2429,
+    "master_bytes": 1719399362,
+    "exact_union_including_MASTER_files": 2430,
+    "exact_union_bytes": 1720143031,
+    "compiled_source": "022081e4361b8b00ffed0fe01fdcfb74b006bac7",
+    "archived_delivery": "dca27aefef67668d91ea4995ffd591876afb22f2",
+    "immutable_binary_sha256": "f9b448780db18dce7781cb50dee284cc3165962b68fe102959bea7198132251c",
+    "proof": "Every raw shard and finalmetadata actually fresh HTTPS restored and allregularfile hash/size/mode checked; closure and recoveryentry actually freshly read back. Combinedwrapper provided, not claimed as separately run end-to-end.",
+    "source_parent_anchor": "2526455215efadcc7784cb20b7cf4d8880d7b4c7",
+    "first_metadata_failure": "exact-setguard correctly rejected oldM/maincache logs from reusedcollector beforeindexpublication; failurelogs/artifact kept.02 excludesunrelated14oldlogs andpasses exactsetguard.",
+    "metadata_label_clarification": "Oldprofile16 Git title andoldAffELFgap suffix were stale metadata labels; SOURCE-LABEL-CLARIFICATION identifies actual022/136x2/new120successfullELF. Raw/MASTERunchanged; currentfullELF evidence has no suchgap.",
+    "dependencies": "SDK18 fixedV23 originalfullprefix/DSO785a; priorV25fixedrecovery33f; retirement04fixedc52/dd566. No cloudlocaltar treated asdurablebackup."
   },
   "limits": [
     "Four paired samples percell; no significance/globalnonregression claim.",
