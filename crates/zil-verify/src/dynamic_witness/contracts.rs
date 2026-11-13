@@ -372,3 +372,142 @@ pub(super) fn charge(module: &TypedModule, contract: &DynContract, b: &mut Budge
     }
     crate::dynamic_cleanup::metadata(module, contract.cleanup.as_ref(), b)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn position(base: StorageBase) -> StoragePosition {
+        StoragePosition { base, path: vec![] }
+    }
+    fn recipe() -> DynContractRecipe {
+        let sources = vec![
+            DynStorageSourceRecipe::OwnedView {
+                head: position(StorageBase::Parameter(0)),
+                leaf: DynTypePattern::Parameter(0),
+                mode: StoredBorrowMode::SharedAddress,
+            },
+            DynStorageSourceRecipe::Static {
+                leaf: DynTypePattern::Parameter(0),
+                mode: StoredBorrowMode::SharedAddress,
+            },
+            DynStorageSourceRecipe::ReborrowedLeaf {
+                source: position(StorageBase::Parameter(1)),
+                head: position(StorageBase::Receiver),
+            },
+        ];
+        DynContractRecipe {
+            requires: Some(vec![]),
+            guarantees: Some(vec![DynGuaranteeRecipe::StorageSources(
+                DynStorageSourceBindingRecipe {
+                    position: position(StorageBase::Result),
+                    sources: sources.clone(),
+                },
+            )]),
+            hold: Some(vec![]),
+            call: Some(DynCallAccess {
+                reads: vec![],
+                writes: vec![],
+            }),
+            result: Some(DynResultSourceRecipe::Borrow {
+                sources,
+                mutable: false,
+            }),
+            cleanup: Some(DynCleanupRecipe {
+                environment: false,
+                positions: vec![],
+                access: DynCallAccess {
+                    reads: vec![],
+                    writes: vec![],
+                },
+                effects: vec![],
+            }),
+            effects: Some(vec![]),
+            resume: Some(DynResumeBound::Local),
+            threads: Some(DynThreadRequirements {
+                transfer: false,
+                share: false,
+            }),
+        }
+    }
+    #[test]
+    fn generic_source_leaves_keep_their_full_scoped_values_and_atom_kinds() {
+        let limits = Limits::default();
+        let leaf = terms::Value::anchored(
+            &DynTypeValue {
+                ty: Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                },
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![StorageLifeSlot {
+                        path: vec![],
+                        mode: StoredBorrowMode::SharedAddress,
+                        binder: 0,
+                    }],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+                classes: vec![StorageBinder::Fixed(0)],
+            },
+            terms::Owner::Function(FunctionId(7)),
+            terms::Root::DeclarationType(0),
+            &mut Budget::new(&limits),
+        )
+        .unwrap();
+        let interpret = |recipe: &DynContractRecipe, budget: &mut Budget| {
+            materialize(
+                recipe,
+                |pattern, b| {
+                    if pattern != &DynTypePattern::Parameter(0) {
+                        return Err(bad("unexpected original source formal"));
+                    }
+                    dynamic_metadata::recipe(&leaf.raw, b)?;
+                    Ok(leaf.clone())
+                },
+                budget,
+            )
+        };
+        let recipe = recipe();
+        let mut measured = Budget::new(&limits);
+        let (contract, operands) = interpret(&recipe, &mut measured).unwrap();
+        assert_eq!(operands.len(), 4);
+        assert!(operands.iter().all(|operand| operand.value == leaf.raw));
+        assert_eq!(
+            operands[0].position,
+            requests::OperandPosition::GuaranteeSource(0, 0)
+        );
+        assert_eq!(
+            operands[3].position,
+            requests::OperandPosition::ResultSource(1)
+        );
+        let Some(DynResultSource::Borrow { sources, .. }) = contract.result else {
+            panic!()
+        };
+        assert!(matches!(sources[0], StorageSource::OwnedView { .. }));
+        assert!(matches!(sources[1], StorageSource::Static { .. }));
+        assert!(matches!(sources[2], StorageSource::ReborrowedLeaf { .. }));
+        let cost = limits.max_analysis_steps - measured.remaining;
+        let mut short = limits.clone();
+        short.max_analysis_steps = cost - 1;
+        assert_eq!(
+            interpret(&recipe, &mut Budget::new(&short))
+                .err()
+                .unwrap()
+                .category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        let mut exact = limits.clone();
+        exact.max_analysis_steps = cost;
+        assert!(interpret(&recipe, &mut Budget::new(&exact)).is_ok());
+        let mut wrong = recipe;
+        let Some(DynResultSourceRecipe::Borrow { sources, .. }) = &mut wrong.result else {
+            panic!()
+        };
+        let DynStorageSourceRecipe::Static { mode, .. } = &mut sources[1] else {
+            panic!()
+        };
+        *mode = StoredBorrowMode::ExclusiveAddress;
+        assert!(interpret(&wrong, &mut Budget::new(&limits)).is_err());
+    }
+}
