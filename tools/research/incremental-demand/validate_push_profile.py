@@ -84,6 +84,21 @@ def check_build_runtime(receipt, libraries, dsos):
             and receipt['sha256'] == dsos['candidate'], 'build source-specific LLVM runtime')
 
 
+def runtime_environment_pin(arm, source):
+    libraries, _ = runtime_pins(source)
+    require(arm in libraries, 'unsupported runtime arm')
+    return {'LD_LIBRARY_PATH': libraries[arm], 'ZIL_LLVM_LIB_DIR': libraries[arm],
+            'LD_PRELOAD': None, 'LD_AUDIT': None,
+            'ZIL_CLANG': '/workspace/.zil-environment/llvm-23.1.4/bin/clang',
+            'ZIL_LLVM_CONFIG': (None if source == ELF_ARCHIVE_SOURCE else
+                                '/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config'),
+            'LLVM_CONFIG': None}
+
+
+def check_runtime_environment(environment, arm, source):
+    require(environment == runtime_environment_pin(arm, source), f'{arm} runtime environment')
+
+
 def sha(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -272,11 +287,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE, tool_commit=N
     startups = {}
     for arm in ['baseline', 'candidate']:
         environment = environments[arm]
-        expected_env = {'LD_LIBRARY_PATH': libraries[arm], 'ZIL_LLVM_LIB_DIR': libraries[arm],
-                        'LD_PRELOAD': None, 'LD_AUDIT': None,
-                        'ZIL_CLANG': '/workspace/.zil-environment/llvm-23.1.4/bin/clang',
-                        'ZIL_LLVM_CONFIG': '/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config', 'LLVM_CONFIG': None}
-        require(environment == expected_env, f'{arm} runtime environment')
+        check_runtime_environment(environment, arm, source)
         work = raw/('block-0-'+arm)
         startup = startups[arm] = read(work/'startup.json')
         require(startup['command'] == runner.command(Path(a[arm]), raw/'source-0', work, types.SimpleNamespace(**a), arm), f'{arm} complete resident argv')

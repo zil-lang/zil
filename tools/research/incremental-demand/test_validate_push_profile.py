@@ -228,6 +228,25 @@ class PushProfileQualification(unittest.TestCase):
             with self.subTest(unknown=unknown), self.assertRaises(ValueError):
                 validator.runtime_pins(unknown)
 
+    def test_runtime_environment_is_source_pinned_without_optional_config_wildcard(self):
+        config = '/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config'
+        for source in validator.CANDIDATES:
+            for arm in ('baseline', 'candidate'):
+                expected = validator.runtime_environment_pin(arm, source)
+                self.assertEqual(expected['ZIL_LLVM_CONFIG'],
+                                 None if source == validator.ELF_ARCHIVE_SOURCE else config)
+                validator.check_runtime_environment(expected, arm, source)
+                for field, value in [('ZIL_LLVM_CONFIG', config if source == validator.ELF_ARCHIVE_SOURCE else None),
+                                     ('LLVM_CONFIG', config), ('LD_PRELOAD', '/tmp/inject.so'),
+                                     ('LD_AUDIT', '/tmp/audit.so'), ('ZIL_CLANG', '/other/clang'),
+                                     ('ZIL_LLVM_LIB_DIR', '/other/lib'), ('LD_LIBRARY_PATH', '/other/lib')]:
+                    with self.subTest(source=source, arm=arm, field=field), self.assertRaises(ValueError):
+                        validator.check_runtime_environment(dict(expected, **{field: value}), arm, source)
+                missing = dict(expected)
+                del missing['ZIL_LLVM_CONFIG']
+                with self.assertRaises(ValueError):
+                    validator.check_runtime_environment(missing, arm, source)
+
 
 if __name__ == '__main__':
     unittest.main()
