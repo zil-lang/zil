@@ -91,6 +91,7 @@ mod dynamic_patterns;
 mod dynamic_ports;
 mod dynamic_store;
 mod dynamic_witness;
+mod semantic;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;
