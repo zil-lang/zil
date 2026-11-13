@@ -763,14 +763,31 @@ impl FrozenReadView<'_> {
             .map(|(fingerprint, _)| fingerprint)
             .map_err(Self::wire_error)
     }
-    fn declaration(&self, symbol: &CtSymbolId) -> Option<&s::Item> {
-        self.syntax
+    fn declaration(
+        &self,
+        symbol: &CtSymbolId,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<&s::Item>> {
+        if let Some(stage) = self.stage_inventory {
+            // The original member id and a generated relocation are not root
+            // syntax ordinals. Resolve the actual immutable structural path.
+            return Ok(stage
+                .declaration(symbol, budget, self.limits)?
+                .map(|row| row.item));
+        }
+        budget.reserve_analysis_work(self.syntax.len() as u64 + 1)?;
+        Ok(self
+            .syntax
             .iter()
-            .find(|module| module.id == symbol.module)?
-            .items
-            .get(symbol.declaration.0 as usize)
+            .find(|module| module.id == symbol.module)
+            .and_then(|module| module.items.get(symbol.declaration.0 as usize)))
     }
-    fn nominal(&self, requester: &CtSymbolId, symbol: &CtSymbolId) -> CompileResult<&s::Item> {
+    fn nominal(
+        &self,
+        requester: &CtSymbolId,
+        symbol: &CtSymbolId,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<&s::Item> {
         if !self.index.visible(requester, symbol) {
             return Err(error(
                 "E-CT-VISIBILITY",
@@ -778,7 +795,7 @@ impl FrozenReadView<'_> {
             ));
         }
         let item = self
-            .declaration(symbol)
+            .declaration(symbol, budget)?
             .ok_or_else(|| phase("type declaration is not in the frozen source batch"))?;
         if !matches!(
             item.kind,
@@ -1643,7 +1660,7 @@ impl FrozenReadView<'_> {
             _ => return Err(self.unready("nested generic field type has no completed CT lineage")),
         };
         if let CtTypeNode::Nominal { symbol, arguments } = &node
-            && let ItemKind::TypeAlias(alias) = &self.nominal(requester, symbol)?.kind
+            && let ItemKind::TypeAlias(alias) = &self.nominal(requester, symbol, budget)?.kind
         {
             let rhs = alias
                 .value
@@ -1989,7 +2006,7 @@ impl FrozenReadView<'_> {
             return Err(self.unready("type alias chain exceeds CT depth"));
         }
         budget.reserve_analysis_work(1)?;
-        self.nominal(requester, alias)?;
+        self.nominal(requester, alias, budget)?;
         let ItemKind::TypeAlias(declaration) = &self
             .declaration(alias)
             .ok_or_else(|| phase("type alias declaration is absent"))?
@@ -2069,7 +2086,7 @@ impl FrozenReadView<'_> {
         let next_alias = match value.nodes.get(value.root.0 as usize) {
             Some(CtTypeNode::Nominal { symbol, .. })
                 if matches!(
-                    self.declaration(symbol).map(|item| &item.kind),
+                    self.declaration(symbol, budget)?.map(|item| &item.kind),
                     Some(ItemKind::TypeAlias(_))
                 ) =>
             {
@@ -2335,7 +2352,7 @@ impl FrozenReadView<'_> {
         owner_type: &CtTypeRef,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtShapeInfo> {
-        self.nominal(requester, owner)?;
+        self.nominal(requester, owner, budget)?;
         if let Some(template) = self.template(owner) {
             let mut fields = Vec::new();
             let mut complete = true;
@@ -2356,7 +2373,7 @@ impl FrozenReadView<'_> {
                 complete,
             });
         }
-        let derived = if matches!(self.declaration(owner).map(|item| &item.kind),
+        let derived = if matches!(self.declaration(owner, budget)?.map(|item| &item.kind),
             Some(ItemKind::Aggregate(value)) if !value.generics.is_empty())
         {
             Some(self.derived_shape(owner, owner_type, budget)?)
@@ -2429,7 +2446,7 @@ impl FrozenReadView<'_> {
     }
     fn text_name(&self, symbol: &CtSymbolId) -> CompileResult<(String, CtNameNamespace)> {
         let item = self
-            .declaration(symbol)
+            .declaration(symbol, budget)?
             .ok_or_else(|| phase("definition is absent from source index"))?;
         Ok(match &item.kind {
             ItemKind::Function(f) => (f.name.clone(), CtNameNamespace::Value),
@@ -2500,7 +2517,7 @@ impl CtReadView for FrozenReadView<'_> {
         symbol: &CtSymbolId,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtTypeRef> {
-        let item = self.nominal(requester, symbol)?;
+        let item = self.nominal(requester, symbol, budget)?;
         budget.reserve_analysis_work(1)?;
         budget.reserve_generated_nodes(1)?;
         let handle = CtTypeRef {
@@ -2524,7 +2541,7 @@ impl CtReadView for FrozenReadView<'_> {
         args: &[CtValue],
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtTypeRef> {
-        let item = self.nominal(requester, nominal)?;
+        let item = self.nominal(requester, nominal, budget)?;
         let params = match &item.kind {
             ItemKind::Aggregate(value) => &value.generics,
             ItemKind::Enum(value) => &value.generics,
@@ -2937,7 +2954,7 @@ impl CtReadView for FrozenReadView<'_> {
                     args.first()
                         .ok_or_else(|| error("E-CT-QUERY-ARG", "field query needs a type"))?,
                 )?;
-                self.nominal(requester, nominal)?;
+                self.nominal(requester, nominal, budget)?;
                 let name = match args.get(1) {
                     Some(CtValue::Text(name)) => name.as_str(),
                     _ => return Err(error("E-CT-QUERY-ARG", "field query needs a text name")),
@@ -2957,7 +2974,7 @@ impl CtReadView for FrozenReadView<'_> {
                         self.template_field_info(requester, nominal, ty, field, budget)?,
                     )
                 } else {
-                    let derived = if matches!(self.declaration(nominal).map(|item| &item.kind),
+                    let derived = if matches!(self.declaration(nominal, budget)?.map(|item| &item.kind),
                     Some(ItemKind::Aggregate(value)) if !value.generics.is_empty())
                     {
                         Some(self.derived_shape(nominal, ty, budget)?)
@@ -2995,7 +3012,7 @@ impl CtReadView for FrozenReadView<'_> {
                 for argument in args {
                     budget.reserve_analysis_work(1)?;
                     let (ty, subject) = self.nominal_root(argument)?;
-                    self.nominal(requester, subject)?;
+                    self.nominal(requester, subject, budget)?;
                     let Some(CtTypeNode::Nominal { arguments, .. }) =
                         ty.nodes.get(ty.root.0 as usize)
                     else {
@@ -3068,11 +3085,11 @@ impl CtReadView for FrozenReadView<'_> {
                     args.first()
                         .ok_or_else(|| error("E-CT-QUERY-ARG", "layout query needs a type"))?,
                 )?;
-                self.nominal(requester, nominal)?;
+                self.nominal(requester, nominal, budget)?;
                 let ready = self.shape.ok_or_else(|| {
                     self.unready("LayoutReady has not completed for this generation batch")
                 })?;
-                let ordinary = if matches!(self.declaration(nominal).map(|item| &item.kind),
+                let ordinary = if matches!(self.declaration(nominal, budget)?.map(|item| &item.kind),
                     Some(ItemKind::Aggregate(value)) if !value.generics.is_empty())
                 {
                     let (derived, bytes) = self.derived_shape(nominal, ty, budget)?;
@@ -3106,7 +3123,7 @@ impl CtReadView for FrozenReadView<'_> {
                     };
                     budget.release_temporary_bytes(bytes);
                     ordinary
-                } else if matches!(self.declaration(nominal).map(|item| &item.kind),
+                } else if matches!(self.declaration(nominal, budget)?.map(|item| &item.kind),
                     Some(ItemKind::Enum(value)) if !value.generics.is_empty())
                 {
                     let (derived, bytes) = self.derived_shape(nominal, ty, budget)?;
