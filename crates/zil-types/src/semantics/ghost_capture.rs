@@ -54,7 +54,9 @@ pub(super) fn populate(
             .iter()
             .find(|r| r.id == instance.definition)
             .ok_or_else(|| bad("ghost capture lost its original declaration"))?;
-        let SemanticDefinitionBody::Function { sites: recipes, .. } = &original.body else {
+        let (SemanticDefinitionBody::Function { sites: recipes, .. }
+        | SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. }) = &original.body
+        else {
             return Err(bad("ghost capture original is not executable"));
         };
         let mut images = Vec::new();

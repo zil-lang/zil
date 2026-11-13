@@ -4,6 +4,9 @@ use crate::*;
 pub(super) trait Context {
     fn node(&mut self, depth: usize) -> R<()>;
     fn ty(&mut self, value: &mut SemanticTypeRecipe, depth: usize) -> R<()>;
+    fn descend_closure(&self) -> bool {
+        true
+    }
     fn statement(
         &mut self,
         _id: zil_base::NodeId,
@@ -22,7 +25,7 @@ pub(super) trait Context {
     }
 }
 fn pattern(value: &mut SemanticOriginalPattern, cx: &mut impl Context, depth: usize) -> R<()> {
-    cx.expression(value.id, &value.kind, depth)?;
+    cx.node(depth)?;
     match &mut value.kind {
         CorePatternKind::Tuple(fields) => {
             for field in fields {
@@ -56,105 +59,133 @@ pub(super) fn block(
     depth: usize,
 ) -> R<()> {
     cx.node(depth)?;
-    for statement in &mut value.statements {
-        cx.statement(statement.id, &statement.kind, depth + 1)?;
-        match &mut statement.kind {
-            CoreStatementKind::Binding {
-                ty, initializer, ..
-            } => {
-                if let Some(ty) = ty {
-                    cx.ty(ty, depth + 2)?;
-                }
-                if let Some(value) = initializer {
-                    expression(value, cx, depth + 2)?;
-                }
+    for value in &mut value.statements {
+        visit_statement(value, cx, depth + 1)?;
+    }
+    Ok(())
+}
+fn visit_statement(
+    statement: &mut SemanticOriginalStatement,
+    cx: &mut impl Context,
+    depth: usize,
+) -> R<()> {
+    cx.statement(statement.id, &statement.kind, depth + 1)?;
+    match &mut statement.kind {
+        CoreStatementKind::Binding {
+            ty, initializer, ..
+        } => {
+            if let Some(ty) = ty {
+                cx.ty(ty, depth + 2)?;
             }
-            CoreStatementKind::TupleBinding {
-                pattern: p,
-                ty,
-                initializer,
-                ..
-            } => {
-                pattern(p, cx, depth + 2)?;
-                if let Some(ty) = ty {
-                    cx.ty(ty, depth + 2)?;
-                }
-                expression(initializer, cx, depth + 2)?;
-            }
-            CoreStatementKind::Assign { target, value } => {
-                expression(target, cx, depth + 2)?;
+            if let Some(value) = initializer {
                 expression(value, cx, depth + 2)?;
             }
-            CoreStatementKind::Expression(value) => expression(value, cx, depth + 2)?,
-            CoreStatementKind::Return(value) => {
-                if let Some(value) = value {
-                    expression(value, cx, depth + 2)?;
-                }
-            }
-            CoreStatementKind::If {
-                condition,
-                then_body,
-                else_body,
-            } => {
-                expression(condition, cx, depth + 2)?;
-                block(then_body, cx, depth + 2)?;
-                if let Some(body) = else_body {
-                    block(body, cx, depth + 2)?;
-                }
-            }
-            CoreStatementKind::IfLet {
-                pattern: p,
-                value,
-                then_body,
-                else_body,
-            } => {
-                pattern(p, cx, depth + 2)?;
-                expression(value, cx, depth + 2)?;
-                block(then_body, cx, depth + 2)?;
-                if let Some(body) = else_body {
-                    block(body, cx, depth + 2)?;
-                }
-            }
-            CoreStatementKind::While { condition, body } => {
-                expression(condition, cx, depth + 2)?;
-                block(body, cx, depth + 2)?;
-            }
-            CoreStatementKind::WhileLet {
-                pattern: p,
-                value,
-                body,
-            } => {
-                pattern(p, cx, depth + 2)?;
-                expression(value, cx, depth + 2)?;
-                block(body, cx, depth + 2)?;
-            }
-            CoreStatementKind::ForRange {
-                start, end, body, ..
-            } => {
-                expression(start, cx, depth + 2)?;
-                expression(end, cx, depth + 2)?;
-                block(body, cx, depth + 2)?;
-            }
-            CoreStatementKind::Match { value, arms } => {
-                expression(value, cx, depth + 2)?;
-                for arm in arms {
-                    cx.node(depth + 2)?;
-                    pattern(&mut arm.pattern, cx, depth + 3)?;
-                    block(&mut arm.body, cx, depth + 3)?;
-                }
-            }
-            CoreStatementKind::Block(body)
-            | CoreStatementKind::Defer(body)
-            | CoreStatementKind::Unsafe(body) => block(body, cx, depth + 2)?,
-            CoreStatementKind::Break
-            | CoreStatementKind::Continue
-            | CoreStatementKind::Unsupported(_) => {}
         }
+        CoreStatementKind::TupleBinding {
+            pattern: p,
+            ty,
+            initializer,
+            ..
+        } => {
+            pattern(p, cx, depth + 2)?;
+            if let Some(ty) = ty {
+                cx.ty(ty, depth + 2)?;
+            }
+            expression(initializer, cx, depth + 2)?;
+        }
+        CoreStatementKind::Assign { target, value } => {
+            expression(target, cx, depth + 2)?;
+            expression(value, cx, depth + 2)?;
+        }
+        CoreStatementKind::Expression(value) => expression(value, cx, depth + 2)?,
+        CoreStatementKind::Return(value) => {
+            if let Some(value) = value {
+                expression(value, cx, depth + 2)?;
+            }
+        }
+        CoreStatementKind::If {
+            condition,
+            then_body,
+            else_body,
+        } => {
+            expression(condition, cx, depth + 2)?;
+            block(then_body, cx, depth + 2)?;
+            if let Some(body) = else_body {
+                block(body, cx, depth + 2)?;
+            }
+        }
+        CoreStatementKind::IfLet {
+            pattern: p,
+            value,
+            then_body,
+            else_body,
+        } => {
+            pattern(p, cx, depth + 2)?;
+            expression(value, cx, depth + 2)?;
+            block(then_body, cx, depth + 2)?;
+            if let Some(body) = else_body {
+                block(body, cx, depth + 2)?;
+            }
+        }
+        CoreStatementKind::While { condition, body } => {
+            expression(condition, cx, depth + 2)?;
+            block(body, cx, depth + 2)?;
+        }
+        CoreStatementKind::WhileLet {
+            pattern: p,
+            value,
+            body,
+        } => {
+            pattern(p, cx, depth + 2)?;
+            expression(value, cx, depth + 2)?;
+            block(body, cx, depth + 2)?;
+        }
+        CoreStatementKind::ForRange {
+            start, end, body, ..
+        } => {
+            expression(start, cx, depth + 2)?;
+            expression(end, cx, depth + 2)?;
+            block(body, cx, depth + 2)?;
+        }
+        CoreStatementKind::Match { value, arms } => {
+            expression(value, cx, depth + 2)?;
+            for arm in arms {
+                cx.node(depth + 2)?;
+                pattern(&mut arm.pattern, cx, depth + 3)?;
+                block(&mut arm.body, cx, depth + 3)?;
+            }
+        }
+        CoreStatementKind::Block(body)
+        | CoreStatementKind::Defer(body)
+        | CoreStatementKind::Unsafe(body) => block(body, cx, depth + 2)?,
+        CoreStatementKind::ForEach {
+            pattern: p,
+            iterator,
+            body,
+        } => {
+            pattern(p, cx, depth + 1)?;
+            expression(iterator, cx, depth + 1)?;
+            block(body, cx, depth + 1)?;
+        }
+        CoreStatementKind::CompoundAssign { target, value, .. } => {
+            expression(target, cx, depth + 1)?;
+            expression(value, cx, depth + 1)?;
+        }
+        CoreStatementKind::Yield(value) => expression(value, cx, depth + 1)?,
+        CoreStatementKind::Loop(body) => block(body, cx, depth + 1)?,
+        CoreStatementKind::With { value, body, .. } => {
+            expression(value, cx, depth + 1)?;
+            block(body, cx, depth + 1)?;
+        }
+        CoreStatementKind::CompileTime(value) => visit_statement(value, cx, depth + 1)?,
+        CoreStatementKind::Break
+        | CoreStatementKind::Continue
+        | CoreStatementKind::Unsupported(_) => {}
     }
     Ok(())
 }
 fn expression(value: &mut SemanticOriginalExpr, cx: &mut impl Context, depth: usize) -> R<()> {
-    cx.node(depth)?;
+    cx.expression(value.id, &value.kind, depth)?;
     match &mut value.kind {
         CoreExprKind::MakeDynBorrow { source, .. } | CoreExprKind::MakeDynOwned { source, .. } => {
             expression(source, cx, depth + 1)?
@@ -250,7 +281,9 @@ fn expression(value: &mut SemanticOriginalExpr, cx: &mut impl Context, depth: us
             if let Some(ty) = return_type {
                 cx.ty(ty, depth + 1)?;
             }
-            block(body, cx, depth + 1)?;
+            if cx.descend_closure() {
+                block(body, cx, depth + 1)?;
+            }
         }
         CoreExprKind::If {
             condition,
@@ -261,6 +294,39 @@ fn expression(value: &mut SemanticOriginalExpr, cx: &mut impl Context, depth: us
             expression(then_value, cx, depth + 1)?;
             expression(else_value, cx, depth + 1)?;
         }
+        CoreExprKind::Spread(value) | CoreExprKind::Group(value) | CoreExprKind::Splice(value) => {
+            expression(value, cx, depth + 1)?
+        }
+        CoreExprKind::Range { start, end } => {
+            expression(start, cx, depth + 1)?;
+            expression(end, cx, depth + 1)?;
+        }
+        CoreExprKind::Pipeline { input, target } => {
+            expression(input, cx, depth + 1)?;
+            expression(target, cx, depth + 1)?;
+        }
+        CoreExprKind::RecordConstructor { fields, .. } => {
+            for (_, value) in fields {
+                expression(value, cx, depth + 1)?;
+            }
+        }
+        CoreExprKind::CompileTimeBlock(body) => block(body, cx, depth + 1)?,
+        CoreExprKind::SyntaxQuote { template, .. } => {
+            for hole in &mut template.holes {
+                expression(&mut hole.value, cx, depth + 1)?;
+            }
+        }
+        CoreExprKind::GenericApply { callee, arguments } => {
+            expression(callee, cx, depth + 1)?;
+            for argument in arguments {
+                match argument {
+                    CoreGenericArgument::Type(ty) => cx.ty(ty, depth + 1)?,
+                    CoreGenericArgument::Const(value) => expression(value, cx, depth + 1)?,
+                    CoreGenericArgument::Lifetime(_) => {}
+                }
+            }
+        }
+        CoreExprKind::Character(_) | CoreExprKind::SyntaxIsland { .. } => {}
         CoreExprKind::Literal(_)
         | CoreExprKind::Integer(_)
         | CoreExprKind::Float(_)

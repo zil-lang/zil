@@ -19,6 +19,9 @@ struct Index<'a> {
     left: &'a mut usize,
 }
 impl super::original_walk::Context for Index<'_> {
+    fn descend_closure(&self) -> bool {
+        false
+    }
     fn node(&mut self, depth: usize) -> R<()> {
         *self.left = self.left.checked_sub(1).ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "original body index work exceeded", None)
@@ -101,6 +104,7 @@ pub(super) fn definition(
         receiver_parameter,
         site_nodes,
         body,
+        ..
     } = &definition.body
     else {
         return Ok(BTreeMap::new());
@@ -176,9 +180,9 @@ pub(super) fn definition(
             .ok_or_else(|| fail("original operation site names an absent original body node"))?;
         let valid = match recipe.kind {
             SemanticSiteRecipeKind::DeclareLocal { .. } => statement && kind == Kind::Binding,
-            SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. } => {
-                !statement && kind == Kind::Call
-            }
+            SemanticSiteRecipeKind::Call { .. }
+            | SemanticSiteRecipeKind::CallableCall { .. }
+            | SemanticSiteRecipeKind::OriginalCall => !statement && kind == Kind::Call,
             SemanticSiteRecipeKind::Closure { .. } => !statement && kind == Kind::Closure,
             SemanticSiteRecipeKind::Construct { .. } => {
                 !statement && matches!(kind, Kind::Construct | Kind::Call)

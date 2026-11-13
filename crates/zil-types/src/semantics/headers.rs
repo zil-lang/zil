@@ -80,7 +80,9 @@ pub(super) fn program(
         {
             continue;
         }
-        let SemanticDefinitionBody::Function { sites, .. } = &original.body else {
+        let (SemanticDefinitionBody::Function { sites, .. }
+        | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &original.body
+        else {
             return Err(bad("closure original has no body"));
         };
         let mut proposal = BTreeMap::new();

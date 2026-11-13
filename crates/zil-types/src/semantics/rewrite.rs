@@ -40,6 +40,7 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
                         SemanticSiteRecipeKind::Call { actuals, .. } => {
                             actual_recipes(actuals, cx, 3)?
                         }
+                        SemanticSiteRecipeKind::OriginalCall => {}
                         SemanticSiteRecipeKind::Closure { environment, .. } => {
                             actual_recipes(environment, cx, 3)?
                         }
@@ -79,9 +80,18 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
     }
     for definition in &mut value.definitions {
         if let SemanticDefinitionBody::FunctionWithBody {
-            parameters, body, ..
+            parameters,
+            names,
+            body,
+            ..
         } = &mut definition.body
         {
+            for binding in names {
+                cx.node(1)?;
+                if let SemanticOriginalNameValue::Recipe(value) = &mut binding.value {
+                    actual_recipe(value, cx, 2)?;
+                }
+            }
             for parameter in parameters {
                 cx.node(1)?;
                 if let Some(value) = &mut parameter.ty {
@@ -116,7 +126,7 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
     for site in &mut value.sites {
         cx.node(1)?;
         match &mut site.action {
-            SemanticSiteAction::CallableCall { .. } => {}
+            SemanticSiteAction::CallableCall { .. } | SemanticSiteAction::CoreBodyCall => {}
             SemanticSiteAction::Construct { value, .. }
             | SemanticSiteAction::TypeUse {
                 expected: value, ..
@@ -127,6 +137,7 @@ pub(crate) fn module(value: &mut SemanticModule, cx: &mut impl Context) -> R<()>
             SemanticSiteAction::Call {
                 actuals: values, ..
             }
+            | SemanticSiteAction::BodyCall { actuals: values }
             | SemanticSiteAction::Closure {
                 environment: values,
                 ..

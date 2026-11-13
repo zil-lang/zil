@@ -205,6 +205,21 @@ impl<'a> Lower<'a, '_> {
                     } => self.target(target)? == *actual,
                     _ => false,
                 },
+                SemanticSiteAction::CoreBodyCall => matches!(
+                    instruction.kind,
+                    InstructionKind::Call { .. }
+                        | InstructionKind::ForeignCall { .. }
+                        | InstructionKind::SuspendCall { .. }
+                        | InstructionKind::CallIndirect { .. }
+                        | InstructionKind::CallClosure { .. }
+                        | InstructionKind::CallClosureOnce { .. }
+                        | InstructionKind::CallClosureShared { .. }
+                        | InstructionKind::CallClosureMut { .. }
+                        | InstructionKind::CallClosureBorrowed { .. }
+                ),
+                SemanticSiteAction::BodyCall { .. } => {
+                    return Err(bad("Core input claims already materialized body call"));
+                }
                 SemanticSiteAction::CallableCall { .. } => matches!(
                     instruction.kind,
                     InstructionKind::CallIndirect { .. }
@@ -244,12 +259,15 @@ impl<'a> Lower<'a, '_> {
         };
         let expected = match site.action {
             SemanticSiteAction::Construct { .. } => SemanticEmissionRole::Construct,
-            SemanticSiteAction::Call { .. } | SemanticSiteAction::CallableCall { .. } => {
-                SemanticEmissionRole::Call
-            }
+            SemanticSiteAction::Call { .. }
+            | SemanticSiteAction::CallableCall { .. }
+            | SemanticSiteAction::CoreBodyCall => SemanticEmissionRole::Call,
             SemanticSiteAction::TypeUse { .. } => SemanticEmissionRole::Ascription,
             SemanticSiteAction::DeclareLocal { .. } => SemanticEmissionRole::Binding,
             SemanticSiteAction::Closure { .. } => SemanticEmissionRole::Closure,
+            SemanticSiteAction::BodyCall { .. } => {
+                return Err(bad("Core site asserts resolved body call"));
+            }
         };
         if role != expected {
             return Err(bad(
@@ -342,7 +360,12 @@ impl<'a> Lower<'a, '_> {
                     _ => return Err(bad("callable site has another actual opcode")),
                 };
             }
-            SemanticSiteAction::Call { .. } | SemanticSiteAction::DeclareLocal { .. } => {}
+            SemanticSiteAction::Call { .. }
+            | SemanticSiteAction::DeclareLocal { .. }
+            | SemanticSiteAction::CoreBodyCall => {}
+            SemanticSiteAction::BodyCall { .. } => {
+                return Err(bad("Core site asserts resolved body call"));
+            }
         }
         if let SemanticSiteAction::Call { target, .. } = &mut site.action {
             *target = SemanticFunctionTarget::Typed(self.target(target)?);
@@ -363,6 +386,9 @@ fn recipe_kind(recipe: &SemanticSiteRecipeKind, action: &SemanticSiteAction) -> 
     matches!(
         (recipe, action),
         (
+            SemanticSiteRecipeKind::OriginalCall,
+            SemanticSiteAction::CoreBodyCall
+        ) | (
             SemanticSiteRecipeKind::Construct { .. },
             SemanticSiteAction::Construct { .. }
         ) | (
@@ -468,7 +494,9 @@ pub(super) fn program(
         let definition = originals
             .get(&owner.definition)
             .ok_or_else(|| bad("semantic site lost its original definition"))?;
-        let SemanticDefinitionBody::Function { sites, .. } = &definition.body else {
+        let (SemanticDefinitionBody::Function { sites, .. }
+        | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &definition.body
+        else {
             return Err(bad(
                 "executable semantic site belongs to a nonfunction original scope",
             ));
@@ -552,7 +580,9 @@ pub(super) fn program(
         let definition = originals
             .get(&instance.definition)
             .ok_or_else(|| bad("actual function has no original declaration"))?;
-        let SemanticDefinitionBody::Function { sites, .. } = &definition.body else {
+        let (SemanticDefinitionBody::Function { sites, .. }
+        | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &definition.body
+        else {
             return Err(bad(
                 "actual function target belongs to a nonfunction original",
             ));

@@ -290,6 +290,35 @@ impl<'a> Eval<'a, '_> {
             }
         })
     }
+    fn original_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        selector: SemanticScopeRef,
+        source: &SemanticOriginalTypeSource,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let owner = self.ancestor(scope, selector, depth + 1)?;
+        let current = self.instance(scope)?.definition;
+        let owner = self.instance(owner)?.definition;
+        let proof = self.ledger.original.borrow();
+        proof
+            .as_ref()
+            .ok_or_else(|| bad("original symbolic proof was not completed before materialization"))?
+            .type_recipe(self.input, current, owner, source, self.limits, self.left)
+    }
+    fn inferred_recipe(
+        &mut self,
+        scope: SemanticInstanceId,
+        call: SemanticSiteId,
+        formal: u32,
+    ) -> R<SemanticActualRecipe> {
+        let owner = self.instance(scope)?.definition;
+        let proof = self.ledger.original.borrow();
+        proof
+            .as_ref()
+            .ok_or_else(|| bad("original call inference was not completed"))?
+            .call_actual(owner, call, formal, self.limits, self.left)
+    }
     fn type_actual(
         &mut self,
         scope: SemanticInstanceId,
@@ -314,6 +343,17 @@ impl<'a> Eval<'a, '_> {
                 SemanticActualRecipe::Type(recipe) => self.ty(*scope, recipe, None, depth + 1)?,
                 _ => return Err(bad("Type formal selects a non-Type actual")),
             },
+            SemanticActual::CoreInferred {
+                scope,
+                call,
+                formal,
+            } => {
+                let recipe = self.inferred_recipe(*scope, *call, *formal)?;
+                let SemanticActualRecipe::Type(recipe) = recipe else {
+                    return Err(bad("original inference selected a non-Type argument"));
+                };
+                self.ty(*scope, &recipe, None, depth + 1)?
+            }
             _ => return Err(bad("Type formal selects a non-Type actual")),
         };
         self.active.remove(&(scope, ordinal));
@@ -450,7 +490,39 @@ impl<'a> Eval<'a, '_> {
                     }
                     self.ty(*scope, recipe, Some(actual), depth + 1)
                 }
-                SemanticCoreTypeSource::Expression { .. } => {
+                SemanticCoreTypeSource::OriginalExpression {
+                    module,
+                    function,
+                    expression,
+                    occurrence: 0,
+                    source,
+                } => {
+                    let recipe = self.original_type(
+                        *scope,
+                        SemanticScopeRef::Ancestor(0),
+                        source,
+                        depth + 1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        &recipe,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    let original = SemanticTypeValue::Core {
+                        scope: *scope,
+                        source: SemanticCoreTypeSource::Expression {
+                            module: *module,
+                            function: *function,
+                            expression: *expression,
+                            occurrence: 0,
+                            recipe: Box::new(recipe),
+                        },
+                    };
+                    self.value(owner, &original, hint, depth + 1)
+                }
+                SemanticCoreTypeSource::Expression { .. }
+                | SemanticCoreTypeSource::OriginalExpression { .. } => {
                     Err(bad("inferred whole-type occurrence is not a real mint"))
                 }
             },
@@ -741,6 +813,43 @@ impl<'a> Eval<'a, '_> {
                     classes.push(self.life(scope, image)?);
                 }
                 resolved(self.physical(&value.ty)?, value.life.clone(), classes)
+            }
+            SemanticTypeRecipe::OriginalType {
+                scope: selector,
+                source,
+            } => {
+                let recipe = self.original_type(scope, *selector, source, depth + 1)?;
+                return self.ty(scope, &recipe, hint, depth + 1);
+            }
+            SemanticTypeRecipe::Environment {
+                scope: selector,
+                ordinal,
+            } => {
+                let owner = self.ancestor(scope, *selector, depth + 1)?;
+                let instance = self.instance(owner)?;
+                let creator = instance
+                    .parent
+                    .ok_or_else(|| bad("Type environment has no actual creator"))?;
+                let actual = instance
+                    .environment
+                    .as_ref()
+                    .and_then(|env| env.actuals.get(*ordinal as usize))
+                    .ok_or_else(|| bad("Type environment omits its sealed slot"))?;
+                let SemanticActual::Type(value) = self.actual(creator, actual, depth + 1)? else {
+                    return Err(bad("Type environment selector chooses a non-Type slot"));
+                };
+                let SemanticTypeValue::Resolved { ty, life, .. } = value else {
+                    unreachable!()
+                };
+                self.fee(life.binder_count as usize)?;
+                let classes = (0..life.binder_count)
+                    .map(|class| SemanticClassExpr::IntrinsicClass {
+                        operand: SemanticOperand::Environment(*ordinal),
+                        path: Vec::new(),
+                        class,
+                    })
+                    .collect();
+                resolved(ty, life, classes)
             }
             SemanticTypeRecipe::Formal(reference) => {
                 let owner = self.ancestor(scope, reference.scope, depth + 1)?;
@@ -1096,7 +1205,20 @@ impl<'a> Eval<'a, '_> {
                 }
             }
             SemanticActual::Life(image) => SemanticActual::Life(self.class(owner, image)?),
+            SemanticActual::CoreInferred {
+                scope,
+                call,
+                formal,
+            } => {
+                let recipe = self.inferred_recipe(*scope, *call, *formal)?;
+                self.recipe_actual(*scope, &recipe, depth + 1)?
+            }
             SemanticActual::CoreRecipe { scope, recipe } => match recipe.as_ref() {
+                SemanticActualRecipe::Infer => {
+                    return Err(bad(
+                        "unresolved original inference variable survived its call",
+                    ));
+                }
                 SemanticActualRecipe::Type(recipe) => {
                     SemanticActual::Type(self.ty(*scope, recipe, None, depth + 1)?)
                 }
@@ -1187,6 +1309,27 @@ pub(super) fn program(
     }
     for site in &mut program.sites {
         let f = eval.function(site.instance)?;
+        if matches!(site.action, SemanticSiteAction::CoreBodyCall) {
+            let owner = eval.instance(site.instance)?.definition;
+            let recipes = {
+                let proof = ledger.original.borrow();
+                let proof = proof
+                    .as_ref()
+                    .ok_or_else(|| bad("call lacks completed original inference"))?;
+                let recipes = proof
+                    .calls
+                    .get(&(owner, site.recipe))
+                    .ok_or_else(|| bad("actual call lacks original fresh-variable solution"))?;
+                crate::dyn_metadata::semantic_operand_snapshot(recipes, limits, eval.left, 1)?;
+                recipes.clone()
+            };
+            let mut actuals = Vec::new();
+            eval.fee(recipes.len())?;
+            for recipe in &recipes {
+                actuals.push(eval.recipe_actual(site.instance, recipe, 0)?);
+            }
+            site.action = SemanticSiteAction::BodyCall { actuals };
+        }
         match &mut site.action {
             SemanticSiteAction::Construct {
                 result: SemanticOperand::Value(result),
@@ -1239,13 +1382,16 @@ pub(super) fn program(
                     .ok_or_else(|| bad("declaration constraint names an absent actual local"))?;
                 *expected = eval.value(site.instance, expected, Some(&hint.ty), 0)?;
             }
-            SemanticSiteAction::Call { actuals, .. } => {
+            SemanticSiteAction::Call { actuals, .. } | SemanticSiteAction::BodyCall { actuals } => {
                 eval.fee(actuals.len())?;
                 for actual in actuals {
                     *actual = eval.actual(site.instance, actual, 0)?;
                 }
             }
             SemanticSiteAction::CallableCall { .. } => {}
+            SemanticSiteAction::CoreBodyCall => {
+                return Err(bad("pending original call survived materialization"));
+            }
             SemanticSiteAction::DeclareLocal { .. } => {
                 return Err(bad("Core declaration target survived actual relocation"));
             }

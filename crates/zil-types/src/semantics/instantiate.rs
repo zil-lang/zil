@@ -66,6 +66,7 @@ fn actual(
     depth: usize,
 ) -> R<()> {
     match value {
+        SemanticActualRecipe::Infer => Err(fail()),
         SemanticActualRecipe::Life(value) => life(value, arguments, limits, left),
         SemanticActualRecipe::Type(value) => rewrite(value, arguments, limits, left, depth + 1),
         SemanticActualRecipe::Const { carrier, value } => {
@@ -107,6 +108,26 @@ fn rewrite(
             crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
             *value = actual.clone();
         }
+        SemanticTypeRecipe::Closure {
+            arguments: values,
+            environment,
+            ..
+        } => {
+            for value in values.iter_mut().chain(environment.iter_mut()) {
+                actual(value, arguments, limits, left, depth + 1)?;
+            }
+        }
+        SemanticTypeRecipe::Opaque {
+            arguments: values,
+            hidden,
+            ..
+        } => {
+            for value in values {
+                actual(value, arguments, limits, left, depth + 1)?;
+            }
+            rewrite(hidden, arguments, limits, left, depth + 1)?;
+        }
+        SemanticTypeRecipe::OriginalType { .. } | SemanticTypeRecipe::Environment { .. } => {}
         SemanticTypeRecipe::Nominal {
             arguments: values, ..
         } => {

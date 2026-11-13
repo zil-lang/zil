@@ -215,7 +215,7 @@ impl Proof<'_, '_> {
             SemanticActual::Life(_) => Err(pending(
                 "original lifetime actual needs its rigid world proof",
             )),
-            SemanticActual::CoreRecipe { .. } => {
+            SemanticActual::CoreRecipe { .. } | SemanticActual::CoreInferred { .. } => {
                 Err(bad("Core actual survived semantic materialization"))
             }
         }
@@ -511,7 +511,9 @@ pub(super) fn program(
                 "one actual function has multiple unproved original worlds",
             ));
         }
-        let SemanticDefinitionBody::Function { signature, .. } = &definition.body else {
+        let (SemanticDefinitionBody::Function { signature, .. }
+        | SemanticDefinitionBody::FunctionWithBody { signature, .. }) = &definition.body
+        else {
             return Err(bad(
                 "function instance changes its original declaration kind",
             ));
@@ -579,9 +581,12 @@ pub(super) fn program(
             return Err(bad("actual site is outside a function world"));
         };
         let definition = definitions[&instance.definition];
-        let SemanticDefinitionBody::Function {
+        let (SemanticDefinitionBody::Function {
             sites: originals, ..
-        } = &definition.body
+        }
+        | SemanticDefinitionBody::FunctionWithBody {
+            sites: originals, ..
+        }) = &definition.body
         else {
             return Err(bad("site has no original function body"));
         };
@@ -627,10 +632,14 @@ pub(super) fn program(
             .get(&function.id)
             .ok_or_else(|| bad("actual function has no complete original semantic instance"))?;
         let definition = definitions[&instance.definition];
-        let SemanticDefinitionBody::Function {
+        let (SemanticDefinitionBody::Function {
             sites: original_sites,
             ..
-        } = &definition.body
+        }
+        | SemanticDefinitionBody::FunctionWithBody {
+            sites: original_sites,
+            ..
+        }) = &definition.body
         else {
             unreachable!()
         };
@@ -662,6 +671,150 @@ pub(super) fn program(
                 let mut covered = false;
                 for site in rows {
                     match (&instruction.kind, &site.action) {
+                        (_, SemanticSiteAction::BodyCall { actuals }) if is_call => {
+                            proof.pay(original_sites.len())?;
+                            let recipe = original_sites
+                                .iter()
+                                .find(|r| r.id == site.recipe)
+                                .ok_or_else(|| bad("body call has no original operation recipe"))?;
+                            if !matches!(recipe.kind, SemanticSiteRecipeKind::OriginalCall) {
+                                return Err(bad("body call changes original operation kind"));
+                            }
+                            let actual_target = match &instruction.kind {
+                                InstructionKind::Call { function, .. }
+                                | InstructionKind::SuspendCall { function, .. }
+                                | InstructionKind::ForeignCall { function, .. } => *function,
+                                InstructionKind::CallClosureShared { callee, .. }
+                                | InstructionKind::CallClosureMut { callee, .. } => {
+                                    let ty = function
+                                        .locals
+                                        .get(callee.0 as usize)
+                                        .map(|l| &l.ty)
+                                        .ok_or_else(|| bad("body callable local is absent"))?;
+                                    let ty = if let Type::Address { inner, .. } = ty {
+                                        inner.as_ref()
+                                    } else {
+                                        ty
+                                    };
+                                    let Type::Closure(id) = ty else {
+                                        return Err(bad(
+                                            "body callable local is not a complete closure",
+                                        ));
+                                    };
+                                    proof.pay(module.closures.len())?;
+                                    module
+                                        .closures
+                                        .iter()
+                                        .find(|d| d.id == *id)
+                                        .ok_or_else(|| bad("body callable definition is absent"))?
+                                        .function
+                                }
+                                InstructionKind::CallClosure { callee, .. }
+                                | InstructionKind::CallClosureOnce { callee, .. }
+                                | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                                    let ty = function
+                                        .values
+                                        .get(callee.0 as usize)
+                                        .ok_or_else(|| bad("body callable SSA is absent"))?;
+                                    let ty = if let Type::Address { inner, .. } = ty {
+                                        inner.as_ref()
+                                    } else {
+                                        ty
+                                    };
+                                    let Type::Closure(id) = ty else {
+                                        return Err(bad(
+                                            "body callable SSA is not a complete closure",
+                                        ));
+                                    };
+                                    proof.pay(module.closures.len())?;
+                                    module
+                                        .closures
+                                        .iter()
+                                        .find(|d| d.id == *id)
+                                        .ok_or_else(|| bad("body callable definition is absent"))?
+                                        .function
+                                }
+                                _ => {
+                                    return Err(pending(
+                                        "original thin callable needs its complete code witness",
+                                    ));
+                                }
+                            };
+                            let target = targets.get(&actual_target).ok_or_else(|| {
+                                bad("body call has no actual callee semantic instance")
+                            })?;
+                            let (expected_target, expected) = {
+                                let original = ledger.original.borrow();
+                                let original = original.as_ref().ok_or_else(|| {
+                                    bad("body call has no completed original inference")
+                                })?;
+                                let key = (instance.definition, site.recipe);
+                                let target = *original.call_targets.get(&key).ok_or_else(|| {
+                                    bad("body call has no original resolved declaration")
+                                })?;
+                                let actuals = original.calls.get(&key).ok_or_else(|| {
+                                    bad("body call has no original mixed inference solution")
+                                })?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    actuals, limits, proof.left, 1,
+                                )?;
+                                (target, actuals.clone())
+                            };
+                            if target.definition != expected_target
+                                || actuals.len() != expected.len()
+                                || actuals.len() != target.actuals.len()
+                            {
+                                return Err(bad(
+                                    "body call changes original callee or full mixed arity",
+                                ));
+                            }
+                            for ((actual, expected), target) in
+                                actuals.iter().zip(&expected).zip(&target.actuals)
+                            {
+                                let expected = super::materialize::actual_at(
+                                    program,
+                                    module,
+                                    ledger,
+                                    instance.id,
+                                    expected,
+                                    limits,
+                                    proof.left,
+                                )?;
+                                proof.actual(actual)?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    actual, limits, proof.left, 2,
+                                )?;
+                                crate::dyn_metadata::semantic_operand_snapshot(
+                                    &expected, limits, proof.left, 1,
+                                )?;
+                                if actual != &expected {
+                                    return Err(bad(
+                                        "body call actual differs from original fresh inference",
+                                    ));
+                                }
+                                let same = match (actual, target) {
+                                    (
+                                        SemanticActual::Type(SemanticTypeValue::Resolved {
+                                            ty: a,
+                                            life: al,
+                                            ..
+                                        }),
+                                        SemanticActual::Type(SemanticTypeValue::Resolved {
+                                            ty: b,
+                                            life: bl,
+                                            ..
+                                        }),
+                                    ) => a == b && al == bl,
+                                    _ => actual == target,
+                                };
+                                if !same {
+                                    return Err(bad(
+                                        "body call differs from actual callee intrinsic Type/Const world",
+                                    ));
+                                }
+                            }
+                            covered = true;
+                        }
                         (
                             InstructionKind::Call {
                                 function: callee, ..

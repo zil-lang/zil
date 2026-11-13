@@ -473,6 +473,62 @@ impl<'a> Check<'a, '_> {
         }
         Ok(value)
     }
+    // Unfold only a whole-Type environment already sealed from the immutable
+    // lexical creator. This is a logical view, not a runtime read or a new premise.
+    fn logical(
+        &mut self,
+        owner: SemanticDefinitionId,
+        value: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(1, depth)?;
+        if let SemanticTypeRecipe::Environment {
+            scope: SemanticScopeRef::Ancestor(0),
+            ordinal,
+        } = value
+        {
+            let (parent, value) =
+                self.proof
+                    .environments
+                    .get(&(owner, *ordinal))
+                    .ok_or_else(|| {
+                        pending("original operation needs its checked whole-Type environment")
+                    })?;
+            let parent = *parent;
+            let value = self.copy(value)?;
+            return self.logical(parent, &value, depth + 1);
+        }
+        self.resolve(owner, value, depth + 1)
+    }
+    fn resolved_actual(
+        &mut self,
+        owner: SemanticDefinitionId,
+        value: &SemanticActualRecipe,
+        depth: usize,
+    ) -> R<SemanticActualRecipe> {
+        self.pay(1, depth)?;
+        Ok(match value {
+            SemanticActualRecipe::Type(value) => {
+                SemanticActualRecipe::Type(self.resolve(owner, value, depth + 1)?)
+            }
+            SemanticActualRecipe::Life(value) => {
+                crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
+                SemanticActualRecipe::Life(value.clone())
+            }
+            SemanticActualRecipe::Const { carrier, value } => {
+                crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
+                SemanticActualRecipe::Const {
+                    carrier: self.resolve(owner, carrier, depth + 1)?,
+                    value: value.clone(),
+                }
+            }
+            SemanticActualRecipe::Infer => {
+                return Err(bad(
+                    "original closure environment contains unresolved inference",
+                ));
+            }
+        })
+    }
     fn site(
         &mut self,
         owner: SemanticDefinitionId,
@@ -864,6 +920,8 @@ impl<'a> Check<'a, '_> {
             CoreExprKind::Binary { op, left, right } => {
                 let left = self.expr(owner, left, variables, wanted, depth + 1)?;
                 let right = self.expr(owner, right, variables, Some(&left), depth + 1)?;
+                let left = self.logical(owner, &left, depth + 1)?;
+                let right = self.logical(owner, &right, depth + 1)?;
                 self.same(&left, &right)?;
                 let SemanticTypeRecipe::Atom(ty) = left else {
                     return Err(bad(
@@ -1053,10 +1111,14 @@ impl<'a> Check<'a, '_> {
                         }
                     }
                 }
+                let mut sealed_environment = Vec::new();
+                for actual in environment {
+                    sealed_environment.push(self.resolved_actual(owner, actual, depth + 1)?);
+                }
                 SemanticTypeRecipe::Closure {
                     definition: *definition,
                     arguments: Vec::new(),
-                    environment: environment.clone(),
+                    environment: sealed_environment,
                 }
             }
             CoreExprKind::Tuple(fields) => {
@@ -1190,6 +1252,12 @@ impl<'a> Check<'a, '_> {
                     _ => return Err(bad("original call site has a different operation kind")),
                 };
                 let definition = self.definition(target)?;
+                if !self.proof.complete.contains(&target)
+                    && !self.active.contains(&target)
+                    && definition.kind != SemanticDefinitionKind::Closure
+                {
+                    self.function(definition, None)?;
+                }
                 let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
                 else {
                     return Err(bad(
@@ -1250,7 +1318,8 @@ impl<'a> Check<'a, '_> {
                 self.pay(actuals.len(), depth)?;
                 self.proof.call_targets.insert((owner, site.id), target);
                 self.proof.calls.insert((owner, site.id), actuals.clone());
-                super::instantiate::ty(&signature.result, &actuals, self.limits, self.left)?
+                let result = self.resolve(target, &signature.result, depth + 1)?;
+                super::instantiate::ty(&result, &actuals, self.limits, self.left)?
             }
             _ => {
                 return Err(pending(
@@ -1508,9 +1577,16 @@ impl<'a> Check<'a, '_> {
         }
         self.proof.kinds.insert(definition.id, kind);
         self.captures.insert(definition.id, names);
-        self.proof
+        if !self
+            .proof
             .types
-            .insert((definition.id, Query::Result), result);
+            .contains_key(&(definition.id, Query::Result))
+        {
+            let result = self.resolve(definition.id, &result, 0)?;
+            self.proof
+                .types
+                .insert((definition.id, Query::Result), result);
+        }
         for requirement in &definition.requirements {
             if let SemanticRequirementRecipe::Callable {
                 ty,
@@ -1604,5 +1680,93 @@ pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize)
             }
         }
     }
+    for definition in &program.definitions {
+        if matches!(
+            definition.body,
+            SemanticDefinitionBody::FunctionWithBody { .. }
+                | SemanticDefinitionBody::Function { .. }
+        ) && !check.proof.complete.contains(&definition.id)
+        {
+            return Err(bad(
+                "original code definition has no checked lexical creation context",
+            ));
+        }
+    }
     Ok(check.proof)
+}
+
+impl Proof {
+    pub(super) fn type_recipe(
+        &self,
+        program: &SemanticModule,
+        current: SemanticDefinitionId,
+        owner: SemanticDefinitionId,
+        source: &SemanticOriginalTypeSource,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<SemanticTypeRecipe> {
+        crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
+        let query = Query::from(source.clone());
+        if !self.complete.contains(&owner) {
+            return Err(bad(
+                "original query owner has no complete symbolic body proof",
+            ));
+        }
+        let value = self
+            .types
+            .get(&(owner, query))
+            .ok_or_else(|| bad("original type query has no derived symbolic solution"))?;
+        if owner != current {
+            *left = left.checked_sub(program.definitions.len()).ok_or_else(|| {
+                Diagnostic::limit(Phase::Types, "original query rehoming work exceeded", None)
+            })?;
+            let definition = program
+                .definitions
+                .iter()
+                .find(|d| d.id == current)
+                .ok_or_else(|| bad("original query current definition is absent"))?;
+            if definition.parent != Some(owner) {
+                return Err(pending(
+                    "original query crosses unproved lexical environment boundaries",
+                ));
+            }
+            for (slot, formal) in definition.environment.iter().enumerate() {
+                if matches!(&formal.source, SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: expected }) if expected == source)
+                {
+                    return Ok(SemanticTypeRecipe::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal: slot as u32,
+                    });
+                }
+            }
+            if !matches!(value, SemanticTypeRecipe::Atom(_)) {
+                return Err(pending(
+                    "original parent type requires complete checked environment sealing",
+                ));
+            }
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+        Ok(value.clone())
+    }
+    pub(super) fn call_actual(
+        &self,
+        owner: SemanticDefinitionId,
+        call: SemanticSiteId,
+        formal: u32,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<SemanticActualRecipe> {
+        if !self.complete.contains(&owner) {
+            return Err(bad(
+                "original inference owner has no complete symbolic proof",
+            ));
+        }
+        let value = self
+            .calls
+            .get(&(owner, call))
+            .and_then(|values| values.get(formal as usize))
+            .ok_or_else(|| bad("original call/formal has no derived inference solution"))?;
+        crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+        Ok(value.clone())
+    }
 }

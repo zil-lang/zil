@@ -60,7 +60,9 @@ pub(super) fn populate(
             .iter()
             .find(|d| d.id == instance.definition)
             .ok_or_else(|| bad("creator original is absent"))?;
-        let SemanticDefinitionBody::Function { signature, .. } = &original.body else {
+        let (SemanticDefinitionBody::Function { signature, .. }
+        | SemanticDefinitionBody::FunctionWithBody { signature, .. }) = &original.body
+        else {
             continue;
         };
         if signature.parameters.len() != function.parameters.len() {

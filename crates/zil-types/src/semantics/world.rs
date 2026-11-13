@@ -554,7 +554,9 @@ impl World<'_, '_> {
         original: &'a SemanticDefinition,
         id: SemanticSiteId,
     ) -> R<&'a SemanticSiteRecipe> {
-        let SemanticDefinitionBody::Function { sites, .. } = &original.body else {
+        let (SemanticDefinitionBody::Function { sites, .. }
+        | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &original.body
+        else {
             return Err(bad("operation is outside its original function"));
         };
         self.pay(sites.len())?;
@@ -991,7 +993,9 @@ impl World<'_, '_> {
         }
         let f = self.function(id)?;
         let original = self.definition(instance.definition)?;
-        let SemanticDefinitionBody::Function { signature, .. } = &original.body else {
+        let (SemanticDefinitionBody::Function { signature, .. }
+        | SemanticDefinitionBody::FunctionWithBody { signature, .. }) = &original.body
+        else {
             return Err(bad("actual function changes original scope kind"));
         };
         if original.parameters.iter().any(|p| {
@@ -1393,10 +1397,14 @@ impl World<'_, '_> {
                     }
                     let target_function = self.function(*target)?;
                     let target_original = self.definition(callee.definition)?;
-                    let SemanticDefinitionBody::Function {
+                    let (SemanticDefinitionBody::Function {
                         signature: target_signature,
                         ..
-                    } = &target_original.body
+                    }
+                    | SemanticDefinitionBody::FunctionWithBody {
+                        signature: target_signature,
+                        ..
+                    }) = &target_original.body
                     else {
                         return Err(bad("call target changes original scope kind"));
                     };
@@ -1491,7 +1499,9 @@ impl World<'_, '_> {
                     let (d, child) = self.child(*id)?;
                     let target = self.function(d.function)?;
                     let target_original = self.definition(child.definition)?;
-                    let SemanticDefinitionBody::Function { signature, .. } = &target_original.body
+                    let (SemanticDefinitionBody::Function { signature, .. }
+                    | SemanticDefinitionBody::FunctionWithBody { signature, .. }) =
+                        &target_original.body
                     else {
                         return Err(bad("closure has no original code signature"));
                     };

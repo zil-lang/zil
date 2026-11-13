@@ -22,6 +22,7 @@ fn fail(message: &str) -> Diagnostic {
 struct Check<'a, 'b> {
     definitions: BTreeMap<SemanticDefinitionId, &'a SemanticDefinition>,
     instances: BTreeMap<SemanticInstanceId, &'a SemanticInstance>,
+    nodes: BTreeMap<SemanticDefinitionId, BTreeMap<zil_base::NodeId, super::original_nodes::Kind>>,
     modules: &'a [&'a CoreModule],
     limits: &'b Limits,
     left: &'b mut usize,
@@ -156,7 +157,9 @@ impl<'a> Check<'a, '_> {
             }
             SemanticRecipeOperand::Parameter(index) => {
                 let definition = self.definition(owner)?;
-                let SemanticDefinitionBody::Function { signature, .. } = &definition.body else {
+                let (SemanticDefinitionBody::Function { signature, .. }
+                | SemanticDefinitionBody::FunctionWithBody { signature, .. }) = &definition.body
+                else {
                     return Err(fail("semantic parameter operand is outside a function"));
                 };
                 if *index as usize >= signature.parameters.len() {
@@ -218,6 +221,7 @@ impl<'a> Check<'a, '_> {
     ) -> R<()> {
         self.node(depth)?;
         match value {
+            SemanticActualRecipe::Infer => return Ok(()),
             SemanticActualRecipe::Type(value) => {
                 self.ty(owner, value, bound, invocation, depth + 1)
             }
@@ -251,6 +255,7 @@ impl<'a> Check<'a, '_> {
                 SemanticActualRecipe::Type(_) => Kind::Type,
                 SemanticActualRecipe::Const { .. } => Kind::Const,
                 SemanticActualRecipe::Life(_) => Kind::Life,
+                SemanticActualRecipe::Infer => kind(formal),
             };
             if actual_kind != kind(formal) {
                 return Err(fail(
@@ -485,6 +490,92 @@ impl<'a> Check<'a, '_> {
     ) -> R<()> {
         self.node(depth)?;
         match value {
+            SemanticTypeRecipe::OriginalType { scope, source } => {
+                let target = self.scope(owner, *scope)?;
+                let SemanticDefinitionBody::FunctionWithBody { parameters, .. } = &target.body
+                else {
+                    return Err(fail(
+                        "original type query names a definition without an immutable body",
+                    ));
+                };
+                self.fee(1)?;
+                match source {
+                    SemanticOriginalTypeSource::Parameter(index)
+                        if *index as usize >= parameters.len() =>
+                    {
+                        Err(fail("original type query parameter is absent"))
+                    }
+                    SemanticOriginalTypeSource::Parameter(_)
+                    | SemanticOriginalTypeSource::Result => Ok(()),
+                    SemanticOriginalTypeSource::Expression(node) => {
+                        if self
+                            .nodes
+                            .get(&target.id)
+                            .and_then(|nodes| nodes.get(node))
+                            .is_some_and(|kind| {
+                                !matches!(
+                                    kind,
+                                    super::original_nodes::Kind::Binding
+                                        | super::original_nodes::Kind::Statement
+                                )
+                            })
+                        {
+                            Ok(())
+                        } else {
+                            Err(fail(
+                                "original type query expression is absent from its own definition",
+                            ))
+                        }
+                    }
+                    SemanticOriginalTypeSource::Binding(node)
+                    | SemanticOriginalTypeSource::BindingProjection {
+                        statement: node, ..
+                    } => {
+                        if self.nodes.get(&target.id).and_then(|nodes| nodes.get(node))
+                            == Some(&super::original_nodes::Kind::Binding)
+                        {
+                            Ok(())
+                        } else {
+                            Err(fail(
+                                "original type query binding is absent from its own definition",
+                            ))
+                        }
+                    }
+                    SemanticOriginalTypeSource::NameAt { at, name } => {
+                        self.fee(name.len())?;
+                        let (node, statement) = match at {
+                            SemanticOriginalNode::Expression(node) => (node, false),
+                            SemanticOriginalNode::Statement(node) => (node, true),
+                        };
+                        if self
+                            .nodes
+                            .get(&target.id)
+                            .and_then(|nodes| nodes.get(node))
+                            .is_some_and(|kind| {
+                                if statement {
+                                    matches!(
+                                        kind,
+                                        super::original_nodes::Kind::Binding
+                                            | super::original_nodes::Kind::Statement
+                                    )
+                                } else {
+                                    !matches!(
+                                        kind,
+                                        super::original_nodes::Kind::Binding
+                                            | super::original_nodes::Kind::Statement
+                                    )
+                                }
+                            })
+                        {
+                            Ok(())
+                        } else {
+                            Err(fail(
+                                "original NameAt point is absent from its own definition",
+                            ))
+                        }
+                    }
+                }
+            }
             SemanticTypeRecipe::Atom(value) => {
                 if !matches!(
                     value,
@@ -630,6 +721,7 @@ impl<'a> Check<'a, '_> {
                         SemanticActualRecipe::Type(_) => Kind::Type,
                         SemanticActualRecipe::Const { .. } => Kind::Const,
                         SemanticActualRecipe::Life(_) => Kind::Life,
+                        SemanticActualRecipe::Infer => kind(&formal.kind),
                     };
                     if actual_kind != kind(&formal.kind) {
                         return Err(fail(
@@ -801,6 +893,11 @@ impl Check<'_, '_> {
                 SemanticActualRecipe::Type(_) => Kind::Type,
                 SemanticActualRecipe::Const { .. } => Kind::Const,
                 SemanticActualRecipe::Life(_) => Kind::Life,
+                SemanticActualRecipe::Infer => {
+                    return Err(fail(
+                        "environment source cannot be a free call inference variable",
+                    ));
+                }
             };
             if actual_kind != kind(&environment.kind) {
                 return Err(fail(
@@ -813,7 +910,10 @@ impl Check<'_, '_> {
             self.requirement(owner, value, &mut bound, 0, 0)?;
         }
         match &definition.body {
-            SemanticDefinitionBody::Function { signature, sites } => {
+            SemanticDefinitionBody::Function { signature, sites }
+            | SemanticDefinitionBody::FunctionWithBody {
+                signature, sites, ..
+            } => {
                 if !matches!(
                     definition.kind,
                     SemanticDefinitionKind::Function
@@ -840,6 +940,7 @@ impl Check<'_, '_> {
                     self.node(site.occurrence_path.len())?;
                     self.fee(site.occurrence_path.len())?;
                     match &site.kind {
+                        SemanticSiteRecipeKind::OriginalCall => {}
                         SemanticSiteRecipeKind::CallableCall { callee: result }
                         | SemanticSiteRecipeKind::Construct { result }
                         | SemanticSiteRecipeKind::TypeUse { expected: result }
@@ -883,6 +984,7 @@ impl Check<'_, '_> {
                                     SemanticActualRecipe::Type(_) => Kind::Type,
                                     SemanticActualRecipe::Const { .. } => Kind::Const,
                                     SemanticActualRecipe::Life(_) => Kind::Life,
+                                    SemanticActualRecipe::Infer => kind(&formal.kind),
                                 };
                                 if actual_kind != kind(&formal.kind) {
                                     return Err(fail(
@@ -1075,9 +1177,17 @@ pub(crate) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usi
             }
         }
     }
+    let mut nodes = BTreeMap::new();
+    for definition in definitions.values() {
+        nodes.insert(
+            definition.id,
+            super::original_nodes::definition(definition, limits, left)?,
+        );
+    }
     let mut check = Check {
         definitions,
         instances,
+        nodes,
         modules,
         limits,
         left,

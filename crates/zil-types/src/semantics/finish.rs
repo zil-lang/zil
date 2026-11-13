@@ -42,6 +42,8 @@ pub(crate) fn program(
         result.sites.extend(copy.sites);
         result.dyn_scopes.extend(copy.dyn_scopes);
     }
+    let original = super::original::check(&result, limits, left)?;
+    *ledger.original.borrow_mut() = Some(original);
     super::lower::program(&mut result, module, ledger, left)?;
     super::ghost_capture::populate(&mut result, module, ledger, limits, left)?;
     super::creator_headers::populate(&mut result, module, ledger, limits, left)?;
