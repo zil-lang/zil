@@ -1754,3 +1754,70 @@ fn actual_static_target_or_empty_data_does_not_discharge_a_retained_activation_h
         assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
     }
 }
+
+#[test]
+fn context_static_upper_preserves_actual_conditional_nodes_across_each_helper() {
+    let (module, mut callee, mut rows) = boundary();
+    callee.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    let mut conditional = rows.0[0].1.permission.sources[0].clone();
+    conditional.base = HoldRoot::Static;
+    conditional.static_dependency = Some((
+        ClosureId(0),
+        StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![],
+        },
+    ));
+    let mut second = conditional.clone();
+    second.static_dependency.as_mut().unwrap().1.base = StorageBase::Capture(1);
+    let instruction = Instruction {
+        result: None,
+        kind: InstructionKind::Call {
+            function: callee.id,
+            arguments: vec![],
+        },
+        span: callee.span,
+    };
+    for sources in [
+        vec![conditional.clone()],
+        vec![conditional.clone(), second],
+        vec![Source {
+            static_dependency: None,
+            ..conditional.clone()
+        }],
+    ] {
+        rows.0[0].1.permission.sources = sources.clone();
+        let mut summary = Summary {
+            complete: true,
+            dyn_ports: rows.clone(),
+            ..Summary::default()
+        };
+        // A second helper must not turn an already conditional category into
+        // a literal either. Both actual nodes must survive a union upper.
+        for _ in 0..2 {
+            let mut b = Budget::new(&Limits::default());
+            b.dyn_contexts = true;
+            let mut output = Payload::default();
+            dyn_ports::call(
+                &module,
+                &callee,
+                &callee,
+                &instruction,
+                &summary,
+                &[],
+                &[],
+                &Frame::default(),
+                &mut output,
+                &mut dyn_leases::Sites::default(),
+                &mut vec![],
+                &mut b,
+            )
+            .unwrap();
+            assert_eq!(output.dyn_ports.0[0].1.permission.sources, sources);
+            summary.dyn_ports = output.dyn_ports;
+        }
+    }
+}
