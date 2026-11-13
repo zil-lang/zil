@@ -7496,6 +7496,13 @@ mod tests {
                     _ => {}
                 }
             }
+            // Complete the fixture's private origin propagation first. Only
+            // actual weak Desc SSA rows lose their public strong-Hold claim.
+            for (value, ty) in f.values.iter().enumerate() {
+                if matches!(ty, Type::Desc(_)) {
+                    plan.holds[value].roots.clear();
+                }
+            }
             initialized.sort();
             plan.blocks[0].initialized_out = initialized;
         }
@@ -8255,9 +8262,11 @@ mod tests {
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
             println!("owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
         }
-        let mut forged = c;
-        assert!(forged.functions[0].holds[8].roots.is_empty());
+        assert!(matches!(m.functions[0].values[8], Type::Desc(_)));
+        assert!(c.functions[0].holds[8].roots.is_empty());
+        let mut forged = c.clone();
         forged.functions[0].holds[8].roots = vec![HoldRoot::Local(LocalId(1))];
+        assert_ne!(forged.functions[0].holds[8], c.functions[0].holds[8]);
         let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
         for result in [
             super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),
