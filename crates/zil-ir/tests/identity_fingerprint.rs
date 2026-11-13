@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/identity_instruction_cases.rs"]
 mod cases;
-#[path = "support/identity_reference_v48.rs"]
+#[path = "support/identity_reference_v49.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -363,16 +363,10 @@ fn module(flag: bool) -> TypedModule {
     }
 }
 fn equal(module: &TypedModule) {
-    // Keep the independent V48 encoder unchanged. For its explicitly empty
-    // inventories, V49 changes only the domain and inserts the absent lexical
-    // semantic program after the two original nominal-table counts.
-    assert!(module.semantic.is_none());
-    let mut current = legacy::bytes(module);
-    let domain = b"ZIL-TYPED-MODULE-V49\0";
-    current[..domain.len()].copy_from_slice(domain);
-    let semantic_offset = domain.len() + 4 + 4 + 32 + 8 + module.target.to_json().len() + 16;
-    current.insert(semantic_offset, 0);
-    assert_eq!(module.fingerprint(), Fingerprint::of(&current));
+    assert_eq!(
+        module.fingerprint(),
+        Fingerprint::of(&legacy::bytes(module))
+    );
 }
 
 #[test]
