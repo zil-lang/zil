@@ -1119,7 +1119,10 @@ impl<'a> Graph<'a> {
                         .checked_add(count)
                         .ok_or_else(|| limit("callable actual invocation scope overflow"))?;
                     scopes::bounded(nested.scope, b)?;
-                    nested.args.terms.enter_signature(b)?;
+                    nested
+                        .args
+                        .terms
+                        .enter_signature(*quantified_lifetimes != 0, b)?;
                     nested.args.projections.clear();
                     nested.args.constants.clear();
                     let token = self.quantified;

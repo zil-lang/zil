@@ -109,12 +109,12 @@ impl Substitution {
         }
         Ok(())
     }
-    pub(super) fn enter_signature(&mut self, b: &mut Budget) -> Check<()> {
+    pub(super) fn enter_signature(&mut self, quantified: bool, b: &mut Budget) -> Check<()> {
         b.spend(self.lives.len())?;
         self.lives
             .retain(|(pattern, _)| !matches!(pattern, DynLifePattern::Invocation(_)));
         for (pattern, _) in &mut self.lives {
-            if let DynLifePattern::Bound { depth, .. } = pattern {
+            if quantified && let DynLifePattern::Bound { depth, .. } = pattern {
                 *depth = depth
                     .checked_add(1)
                     .ok_or_else(|| limit("quantified lifetime depth overflow"))?;

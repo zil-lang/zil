@@ -454,9 +454,13 @@ impl Scope<'_> {
             } => {
                 self.ty(module, receiver, depth + 1, b)?;
                 b.spend(1)?;
-                self.bound.push(*quantified_lifetimes);
+                if *quantified_lifetimes != 0 {
+                    self.bound.push(*quantified_lifetimes);
+                }
                 self.signature(module, signature, b)?;
-                self.bound.pop();
+                if *quantified_lifetimes != 0 {
+                    self.bound.pop();
+                }
             }
             DynObligation::TypeEqual { left, right } => {
                 self.ty(module, left, depth + 1, b)?;
