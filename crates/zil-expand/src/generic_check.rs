@@ -5037,6 +5037,7 @@ impl Check<'_, '_, '_> {
                             "called generic local is neither the callable parameter nor a direct opaque factory result",
                         ))).map(Some);
             };
+            let direct_owned = bound.is_some() && mode.is_none() && !owned_state;
             if explicit.is_some() || arguments.len() != parameters.len() {
                 return (Err(error(e.span, "callable bound argument count differs"))).map(Some);
             }
@@ -5064,7 +5065,6 @@ impl Check<'_, '_, '_> {
             // A by-value generic F is an actual owned environment candidate.
             // Calling it still needs the mutable local place and the ordinary
             // alias/affine checks above; the bound grants no stored permission.
-            let direct_owned = bound.is_some() && mode.is_none() && !owned_state;
             match kind {
                 zil_ir::CallableKind::Fn => {}
                 zil_ir::CallableKind::FnMut if mode == Some(true) => {}
