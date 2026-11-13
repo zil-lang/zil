@@ -156,7 +156,16 @@ def push(t,e):
  if t in ('UnaryOp','BinaryOp'):return 'pending.push(Work::Byte(*'+e+' as u8));'
  if t=='CallableKind':return 'pending.push(Work::Byte(match '+e+' { CallableKind::FunctionPointer => 0, CallableKind::Fn => 1, CallableKind::FnMut => 2, CallableKind::FnOnce => 3 }));'
  return 'pending.push(Work::'+t+'('+e+'));'
-base={t:fp for t,(method,fp) in existing.items() if t not in items}
+# Only leaves present in the actual grammar need fingerprint work variants.
+# Runtime source values are no longer leaves of original source recipes.
+referenced=set()
+for kind,rows in items.values():
+ fs=rows if kind=='struct' else [f for _,_,fields in rows for f in fields]
+ for _,t in fs:
+  while t.startswith(('Box<','Vec<','Option<')):
+   t=t[t.index('<')+1:-1]
+  referenced.add(t)
+base={t:fp for t,(method,fp) in existing.items() if t not in items and t in referenced}
 f='//! Complete raw recipe identity with an explicit traversal stack.\nuse super::*;\n'
 f+="enum Work<'a> { Byte(u8), Word(u32), Length(usize),\n"
 for name in items:f+=name+"(&'a "+name+'),\n'
