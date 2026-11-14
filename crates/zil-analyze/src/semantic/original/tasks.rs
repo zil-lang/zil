@@ -38,6 +38,12 @@ pub(super) struct TaskType {
     // Indices in Retained select this vector, never actual caller ordinals.
     leaves: Vec<Term>,
 }
+pub(super) struct Template {
+    owner: SemanticDefinitionId,
+    result: SemanticTypeRecipe,
+    shape: SemanticRetainedShapeRecipe,
+    term: Term,
+}
 impl TaskType {
     pub(super) fn terms(&self) -> impl Iterator<Item = Term> + '_ {
         std::iter::once(self.result).chain(self.leaves.iter().copied())
@@ -124,13 +130,13 @@ impl Solver<'_, '_> {
     pub(super) fn task_type(
         &mut self,
         frame: &Frame,
-        result: &SemanticTypeRecipe,
+        result_recipe: &SemanticTypeRecipe,
         shape: &SemanticRetainedShapeRecipe,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
-        let result = self.recipe(frame, result, b, depth + 1)?;
+        let result = self.recipe(frame, result_recipe, b, depth + 1)?;
         let mut leaves = Vec::new();
         let domain = self.task_sequence(frame, &shape.domain, &mut leaves, b, depth + 1)?;
         let mut retained = Retained {
@@ -207,14 +213,76 @@ impl Solver<'_, '_> {
             };
             Self::push(&mut retained.nominal, part, b)?;
         }
-        self.term(
+        let term = self.term(
             Kind::Task(TaskType {
                 result,
                 retained,
                 leaves,
             }),
             b,
-        )
+        )?;
+        // Cache only the independently checked original declaration domain.
+        // Call/role instantiations are not allowed to overwrite that template.
+        let declaration = self.inventory.definition(frame.definition, b)?;
+        let mut original =
+            self.role_frames.is_empty() && declaration.parameters.len() == frame.formals.len();
+        for (owner, _) in &self.trait_state.selves {
+            b.spend(self.trait_state.selves.len().saturating_mul(2), WORK)?;
+            let first = self
+                .trait_state
+                .selves
+                .iter()
+                .find(|(scope, _)| scope == owner)
+                .map(|(_, term)| term);
+            let last = self
+                .trait_state
+                .selves
+                .iter()
+                .rev()
+                .find(|(scope, _)| scope == owner)
+                .map(|(_, term)| term);
+            original &= first == last;
+        }
+        for (ordinal, (formal, actual)) in declaration
+            .parameters
+            .iter()
+            .zip(&frame.formals)
+            .enumerate()
+        {
+            let ordinal = ordinal as u32;
+            original &= match (formal, &self.state.arena[self.root(*actual, b)?]) {
+                (SemanticFormal::Type { .. }, Kind::Rigid(owner, index)) => {
+                    *owner == frame.definition && *index == ordinal
+                }
+                (SemanticFormal::Lifetime, Kind::Life(Life::Formal(owner, index))) => {
+                    *owner == frame.definition && *index == ordinal
+                }
+                (
+                    SemanticFormal::Const { .. },
+                    Kind::ConstRigid {
+                        owner,
+                        ordinal: index,
+                        ..
+                    },
+                ) => *owner == frame.definition && *index == ordinal,
+                _ => false,
+            };
+        }
+        if original {
+            crate::dyn_metadata::recipe(result_recipe, b)?;
+            crate::dyn_metadata::recipe(shape, b)?;
+            Self::push(
+                &mut self.state.task_templates,
+                Template {
+                    owner: frame.definition,
+                    result: result_recipe.clone(),
+                    shape: shape.clone(),
+                    term,
+                },
+                b,
+            )?;
+        }
+        Ok(term)
     }
     pub(super) fn task_unify(
         &mut self,
@@ -393,8 +461,30 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         match &self.state.arena[self.type_root(term, b)?] {
-            Kind::Atom(_) | Kind::ConstValue(_) | Kind::Code { .. } => Ok(()),
-            Kind::Address { mutable, life, .. } => {
+            Kind::Atom(_) | Kind::ConstValue(_) => Ok(()),
+            Kind::Code { .. } | Kind::Rigid(..) => {
+                if !self.capability(term, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)? {
+                    return Err(unknown(
+                        "Task code/abstract input needs its complete nonzero class inventory",
+                    ));
+                }
+                Ok(())
+            }
+            Kind::Address {
+                mutable,
+                life,
+                inner,
+            } => {
+                if !self.capability(
+                    *inner,
+                    SemanticBuiltinTrait::ClosedEnvironment,
+                    b,
+                    depth + 1,
+                )? {
+                    return Err(unknown(
+                        "Task borrowed input needs its complete outer and pointee class occurrence mapping",
+                    ));
+                }
                 let leaf = self.task_leaf(&mut task.leaves, term, b)?;
                 let class = self.task_leaf(&mut task.leaves, *life, b)?;
                 Self::push(&mut task.retained.domain, Sequence::One(class), b)?;
@@ -413,28 +503,89 @@ impl Solver<'_, '_> {
                 )
             }
             Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
-                for field in fields {
-                    self.task_input_shape(*field, task, b, depth + 1)?;
-                }
-                // Nominal phantom classes are retained separately, even when
-                // they supply no input port or concrete borrowed target.
+                // Validate the complete mixed application before inspecting
+                // physical fields. Phantom Type arguments can recursively
+                // contain lifetime arguments and retained opaque children.
+                // A field-free nominal therefore does not imply an empty
+                // Task context. ClosedEnvironment here is a proved original
+                // premise/structural fact, never inferred from field layout.
                 if let Kind::Nominal { arguments, .. } =
                     &self.state.arena[self.type_root(term, b)?]
                 {
                     for argument in arguments {
-                        if matches!(
-                            self.state.arena[self.root(*argument, b)?],
-                            Kind::Life(_) | Kind::LifeVariable(_)
-                        ) {
-                            let class = self.task_leaf(&mut task.leaves, *argument, b)?;
-                            Self::push(&mut task.retained.domain, Sequence::One(class), b)?;
+                        match self.state.arena[self.root(*argument, b)?] {
+                            Kind::Life(_) | Kind::LifeVariable(_) => {
+                                // Input nominal arguments have no intrinsic
+                                // child selector in Task<R>. A naked domain
+                                // row would lose their declaration/ordinal
+                                // identity. Keep this case rejected until an
+                                // actual complete port-child mapping exists.
+                                return Err(unknown(
+                                    "Task nominal lifetime argument needs its exact phantom declaration and full-ordinal child mapping",
+                                ));
+                            }
+                            Kind::ConstRigid { carrier, .. } => {
+                                if !self.capability(
+                                    carrier,
+                                    SemanticBuiltinTrait::ClosedEnvironment,
+                                    b,
+                                    depth + 1,
+                                )? {
+                                    return Err(unknown(
+                                        "Task nominal constant carrier needs its complete retained class mapping",
+                                    ));
+                                }
+                            }
+                            Kind::ConstValue(_) => {}
+                            _ => {
+                                if !self.capability(
+                                    *argument,
+                                    SemanticBuiltinTrait::ClosedEnvironment,
+                                    b,
+                                    depth + 1,
+                                )? {
+                                    return Err(unknown(
+                                        "Task nominal Type argument needs its complete nested and phantom class occurrence mapping",
+                                    ));
+                                }
+                            }
                         }
                     }
                 }
+                for field in fields {
+                    self.task_input_shape(*field, task, b, depth + 1)?;
+                }
                 Ok(())
             }
-            Kind::Array { element, .. } | Kind::Wrapped(_, element) => {
-                self.task_input_shape(*element, task, b, depth + 1)
+            Kind::Array { element, .. } => {
+                if !self.capability(
+                    *element,
+                    SemanticBuiltinTrait::ClosedEnvironment,
+                    b,
+                    depth + 1,
+                )? {
+                    // One element's ports cannot stand for all initialized
+                    // array positions, including a symbolic full extent.
+                    return Err(unknown(
+                        "Task array input needs its complete extent and every retained element-port mapping",
+                    ));
+                }
+                Ok(())
+            }
+            Kind::Wrapped(_, element) => {
+                if !self.capability(
+                    *element,
+                    SemanticBuiltinTrait::ClosedEnvironment,
+                    b,
+                    depth + 1,
+                )? {
+                    // Resource payloads are opaque. Recursing as though the
+                    // payload were an inline source place would invent ports.
+                    return Err(unknown(
+                        "Task resource input needs its complete opaque child-domain and retained-port mapping",
+                    ));
+                }
+                Ok(())
             }
             Kind::ErrorUnion { error, result } => {
                 self.task_input_shape(*error, task, b, depth + 1)?;
@@ -483,6 +634,11 @@ impl Solver<'_, '_> {
             for ((argument, parameter), mode) in arguments.iter().zip(&parameters).zip(&modes) {
                 let actual = self.expression(frame, argument, b, depth + 1)?;
                 self.unify(actual, *parameter, depth + 1, b)?;
+                if !self.satisfies(*parameter, Predicate::Copy, b, depth + 1)? {
+                    return Err(unknown(
+                        "Task owning creation inputs need their complete allocation-failure ownership carrier",
+                    ));
+                }
                 if *mode == PassingMode::Copy {
                     Self::push(
                         &mut self.needs,
@@ -773,6 +929,46 @@ fn physical_leaf<'a>(
 }
 
 impl Checked {
+    pub(in crate::semantic) fn task_recipe(
+        &self,
+        context: &SemanticInstance,
+        result: &SemanticTypeRecipe,
+        shape: &SemanticRetainedShapeRecipe,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        crate::dyn_metadata::recipe(result, b)?;
+        crate::dyn_metadata::recipe(shape, b)?;
+        let mut selected = None;
+        for template in &self.task_templates {
+            b.spend(1, WORK)?;
+            if template.owner != context.definition {
+                continue;
+            }
+            crate::dyn_metadata::recipe(&template.result, b)?;
+            crate::dyn_metadata::recipe(&template.shape, b)?;
+            if template.result != *result || template.shape != *shape {
+                continue;
+            }
+            let Kind::Task(task) = &self.arena[self.root(template.term, b)?] else {
+                return Err(fail(
+                    "original Task template changes its complete term kind",
+                ));
+            };
+            let value = self.task_value(task, context, program, inventory, b, depth + 1)?;
+            if selected.as_ref().is_some_and(|old| old != &value) {
+                return Err(unknown(
+                    "original Task recipe has differing complete lexical substitutions",
+                ));
+            }
+            selected = Some(value);
+        }
+        selected.ok_or_else(|| {
+            unknown("Task recipe lacks its independently checked original declaration template")
+        })
+    }
     pub(super) fn task_value(
         &self,
         task: &TaskType,
