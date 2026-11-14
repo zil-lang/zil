@@ -18,6 +18,8 @@ mod registration_start;
 mod resources;
 mod slice_borrows;
 mod slices;
+mod traits;
+pub(super) use traits::{original_associated, original_self};
 
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::unsupported(
@@ -38,6 +40,7 @@ struct Check<'a, 'i> {
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
+    trait_queries: std::cell::RefCell<Vec<traits::Query>>,
 }
 impl Check<'_, '_> {
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -521,11 +524,18 @@ impl Check<'_, '_> {
                     self.callable_requirement(context, ty, *kind, signature, b)?;
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
-                    if self.ty(context, left, b, 0)? != self.ty(context, right, b, 0)? {
+                    if self.recipe_value(context, left, b, 0)?
+                        != self.recipe_value(context, right, b, 0)?
+                    {
                         return Err(fail(
                             "actual type specialization does not satisfy its original equality",
                         ));
                     }
+                }
+                SemanticRequirementRecipe::Trait { ty, application } => {
+                    let receiver = self.recipe_value(context, ty, b, 0)?;
+                    let arguments = self.trait_actuals(context, application, b, 0)?;
+                    self.actual_provider(&receiver, application.declaration, &arguments, b, 0)?;
                 }
                 _ => {
                     return Err(unknown(
@@ -554,6 +564,13 @@ impl Check<'_, '_> {
     fn instances(&self, b: &mut Budget) -> CompileResult<()> {
         for instance in &self.program.instances {
             let definition = self.inventory.definition(instance.definition, b)?;
+            if matches!(instance.target, SemanticInstanceTarget::Scope)
+                && matches!(definition.body, SemanticDefinitionBody::Scope(_))
+            {
+                self.scope_arguments(instance, b)?;
+                self.original_scope_self(instance, b, 0)?;
+                continue;
+            }
             if matches!(instance.target, SemanticInstanceTarget::Scope) {
                 if !matches!(definition.body, SemanticDefinitionBody::Nominal { .. })
                     || instance.parent.is_some()
@@ -601,6 +618,23 @@ impl Check<'_, '_> {
             let function = self.inventory.function(target, b)?;
             match (definition.kind, function.environment, &instance.environment) {
                 (SemanticDefinitionKind::Function, None, None) => {}
+                (SemanticDefinitionKind::Method, None, None) => {
+                    let parent = self.inventory.instance(
+                        instance
+                            .parent
+                            .ok_or_else(|| fail("actual method has no true lexical Self scope"))?,
+                        b,
+                    )?;
+                    let expected = self.original_scope_self(parent, b, 0)?;
+                    let actual = instance.self_type.as_ref().ok_or_else(|| {
+                        fail("actual method omits its complete original Self value")
+                    })?;
+                    if self.resolved(instance, actual, b, 0)? != expected {
+                        return Err(fail(
+                            "actual method Self differs from its true original parent scope",
+                        ));
+                    }
+                }
                 (SemanticDefinitionKind::Closure, Some(actual), Some(environment))
                     if environment.closure == SemanticClosureTarget::Typed(actual) => {}
                 _ => {
@@ -613,6 +647,7 @@ impl Check<'_, '_> {
                 instance.lifetime_instantiation,
                 SemanticLifetimeInstantiation::Rigid
             ) || instance.self_type.is_some()
+                && definition.kind != SemanticDefinitionKind::Method
             {
                 return Err(unknown(
                     "semantic nonempty header or partition needs its complete rigid class proof",
@@ -837,6 +872,7 @@ pub(super) fn check(
         inventory,
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
+        trait_queries: std::cell::RefCell::new(Vec::new()),
     };
     if !module.dyn_declarations.is_empty()
         || !module.dyn_interfaces.is_empty()

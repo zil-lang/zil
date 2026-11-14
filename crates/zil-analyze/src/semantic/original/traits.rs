@@ -1,7 +1,10 @@
 //! Original trait identities and projections. Receiver and all mixed actuals
 //! are interpreted in the original domain, never selected from a vtable ABI.
 use super::*;
+mod conformance;
+mod methods;
 mod providers;
+pub(in crate::semantic) use methods::TraitCall;
 
 #[derive(Default)]
 pub(super) struct State {

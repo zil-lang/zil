@@ -465,6 +465,20 @@ impl Check<'_, '_> {
             }
             (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {
                 if self
+                    .trait_operation(
+                        instance,
+                        site.recipe,
+                        point.function,
+                        point.block.id,
+                        point.instruction,
+                        actuals,
+                        b,
+                    )?
+                    .is_some()
+                {
+                    return Ok(());
+                }
+                if self
                     .abstract_operation(
                         instance,
                         point.function,

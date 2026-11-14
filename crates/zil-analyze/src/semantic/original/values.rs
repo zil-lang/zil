@@ -165,9 +165,40 @@ impl Checked {
                 };
                 value::resolved(scope, actual, inventory, b, depth + 1)
             }
-            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
-                "actual associated value requires its original provider, full mixed substitution and member bounds",
-            )),
+            Kind::SelfType(owner) => super::super::closed::original_self(
+                *owner,
+                context,
+                program,
+                inventory,
+                self,
+                b,
+                depth + 1,
+            ),
+            Kind::Associated {
+                receiver,
+                declaration,
+                arguments,
+                member,
+            } => {
+                let receiver = self.value(*receiver, context, program, inventory, b, depth + 1)?;
+                let mut actuals = Vec::new();
+                for argument in arguments {
+                    let argument =
+                        self.argument(*argument, context, program, inventory, b, depth + 1)?;
+                    Solver::push(&mut actuals, argument, b)?;
+                }
+                super::super::closed::original_associated(
+                    &receiver,
+                    *declaration,
+                    &actuals,
+                    *member,
+                    program,
+                    inventory,
+                    self,
+                    b,
+                    depth + 1,
+                )
+            }
             Kind::Address {
                 mutable,
                 life,

@@ -28,6 +28,31 @@ use constructors::Wrapper;
 use mixed::Life;
 
 type Term = usize;
+pub(super) fn declaration_scope(
+    program: &SemanticModule,
+    declaration: LifeDeclarationId,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<SemanticDefinitionId> {
+    trait_members::declaration_scope(program, declaration, inventory, b)
+}
+pub(super) fn definition_scope(
+    program: &SemanticModule,
+    definition: DynDefinitionId,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<SemanticDefinitionId> {
+    trait_members::definition_scope(program, definition, inventory, b)
+}
+pub(super) fn member_scope(
+    program: &SemanticModule,
+    declaration: LifeDeclarationId,
+    member: u32,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<SemanticDefinitionId> {
+    trait_members::member_scope(program, declaration, member, inventory, b)
+}
 #[derive(Clone)]
 enum Kind {
     Atom(Type),
@@ -169,6 +194,7 @@ pub(super) struct Checked {
     native_targets: BTreeMap<(SemanticDefinitionId, NodeId), Vec<SemanticDefinitionId>>,
     native_paths: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u32>>,
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
+    trait_calls: BTreeMap<(SemanticDefinitionId, NodeId), traits::TraitCall>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
@@ -1570,6 +1596,15 @@ impl Solver<'_, '_> {
                     b.lookup(frame.expressions.len(), WORK)?;
                     if frame.expressions.insert(value.id, term).is_some() {
                         return Err(fail("original constructor node is reused"));
+                    }
+                    return Ok(term);
+                }
+                if let Some(term) =
+                    self.original_trait_call(frame, value.id, callee, arguments, b, depth + 1)?
+                {
+                    b.lookup(frame.expressions.len(), WORK)?;
+                    if frame.expressions.insert(value.id, term).is_some() {
+                        return Err(fail("original trait call node is reused"));
                     }
                     return Ok(term);
                 }
@@ -3031,6 +3066,7 @@ pub(super) fn check(
             native_targets: BTreeMap::new(),
             native_paths: BTreeMap::new(),
             abstract_calls: BTreeMap::new(),
+            trait_calls: BTreeMap::new(),
             borrows: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
             patterns: BTreeMap::new(),
@@ -3111,6 +3147,7 @@ pub(super) fn check(
             ));
         }
     }
+    solver.original_provider_conformance(b)?;
     solver.check_callables(b)?;
     for literal in &solver.literals {
         let root = solver.type_root(literal.term, b)?;
@@ -3816,9 +3853,9 @@ impl Checked {
             Kind::Infer(_) => Err(unknown(
                 "original Type remains unresolved independently of actual caller headers",
             )),
-            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
-                "original associated or Self type needs its independently checked concrete provider substitution",
-            )),
+            Kind::Associated { .. } | Kind::SelfType(_) => Ok(self
+                .value(term, context, program, inventory, b, depth + 1)?
+                .ty),
         }
     }
     pub(super) fn source_type(

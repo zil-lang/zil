@@ -81,6 +81,26 @@ impl Check<'_, '_> {
             ));
         }
         match recipe {
+            SemanticTypeRecipe::SelfType { scope } => {
+                let context = self.ancestor(instance, *scope, b)?;
+                self.original_scope_self(context, b, depth + 1)
+            }
+            SemanticTypeRecipe::AssociatedType {
+                receiver,
+                application,
+                member,
+            } => {
+                let receiver = self.recipe_value(instance, receiver, b, depth + 1)?;
+                let arguments = self.trait_actuals(instance, application, b, depth + 1)?;
+                self.associated_actual(
+                    &receiver,
+                    application.declaration,
+                    &arguments,
+                    *member,
+                    b,
+                    depth + 1,
+                )
+            }
             SemanticTypeRecipe::OriginalType { scope, source } => self.original.source_value(
                 instance,
                 *scope,
@@ -1344,6 +1364,9 @@ impl Check<'_, '_> {
                 function: callee,
                 arguments,
             } => {
+                if let Some(value) = self.trait_result(instance, function, block, index, b)? {
+                    return Ok(value);
+                }
                 let target = self.function_instance(*callee, b)?;
                 let expected_parameters =
                     self.static_call_values(instance, function, block, index, *callee, b)?;

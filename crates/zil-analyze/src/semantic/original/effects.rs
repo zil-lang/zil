@@ -456,6 +456,13 @@ impl Pending {
                 return Err(fail("original effect edge has no caller signature"));
             };
             b.lookup(checked.abstract_calls.len(), WORK)?;
+            b.lookup(checked.trait_calls.len(), WORK)?;
+            if let Some(call) = checked.trait_calls.get(&(owner, node)) {
+                if caller.call_kind == CallKind::Direct && call.call_kind == CallKind::Suspend {
+                    return Err(fail("original Direct body invokes a Suspend trait member"));
+                }
+                continue;
+            }
             if let Some(call) = checked.abstract_calls.get(&(owner, node)) {
                 if caller.call_kind == CallKind::Direct
                     && call.signature.call_kind == CallKind::Suspend
