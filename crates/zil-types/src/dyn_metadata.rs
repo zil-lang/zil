@@ -526,19 +526,29 @@ pub(super) fn semantic_snapshot(
 }
 
 /// Prepay every nested semantic operand before cloning or interpreting it.
+#[track_caller]
 pub(crate) fn semantic_operand_snapshot(
     value: &impl DynRecipeMetadata,
     limits: &Limits,
     left: &mut usize,
     copies: usize,
 ) -> R<()> {
+    let caller = std::panic::Location::caller();
+    let before = *left;
     let mut work = Work {
         limits,
         left,
         copies,
         nodes: 0,
     };
-    value.visit_dyn_metadata(&mut work, 0)
+    value.visit_dyn_metadata(&mut work, 0).map_err(|mut diagnostic| {
+        diagnostic.notes.push(format!(
+            "semantic operand snapshot at {}:{}: copies {}, nodes visited {}, work consumed {}, remaining {}",
+            caller.file(), caller.line(), copies, work.nodes,
+            before.saturating_sub(*work.left), *work.left,
+        ));
+        diagnostic
+    })
 }
 
 /// Bounded snapshots of actual runtime Dyn data use the same traversal as
