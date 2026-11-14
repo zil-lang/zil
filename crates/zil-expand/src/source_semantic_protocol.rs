@@ -2,13 +2,19 @@
 //! These rows are untrusted contracts, never callee body/typestate proofs.
 use super::*;
 
-struct Reader<'a, 'l>(&'a mut Budget<'l>);
+struct Reader<'a, 'l> {
+    budget: &'a mut Budget<'l>,
+    nodes: usize,
+    text: usize,
+}
 impl crate::ct_selection::Visitor for Reader<'_, '_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
-        self.0.node(span, depth).map_err(|error| vec![error])
+        self.nodes = self.nodes.saturating_add(1);
+        self.budget.node(span, depth).map_err(|error| vec![error])
     }
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
-        self.0.text(value, span).map_err(|error| vec![error])
+        self.text = self.text.saturating_add(value.len());
+        self.budget.text(value, span).map_err(|error| vec![error])
     }
 }
 struct Rows<'a>(&'a [FunctionProtocolContract]);
@@ -26,27 +32,55 @@ impl DynRecipeMetadata for Rows<'_> {
         Ok(())
     }
 }
+/// Full original contract input size, useful for bounding a normalizer's
+/// repeated lexical lookups without reading any transformed header.
+pub(super) struct ContractSize {
+    pub nodes: usize,
+    pub text: usize,
+}
+pub(super) fn read_contract(function: &s::Function, budget: &mut Budget<'_>) -> R<ContractSize> {
+    use crate::ct_selection::Visitor;
+    let mut reader = Reader {
+        budget,
+        nodes: 0,
+        text: 0,
+    };
+    reader
+        .node(function.span, 0)
+        .map_err(|mut errors| errors.remove(0))?;
+    for parameter in &function.params {
+        reader
+            .node(parameter.span, 1)
+            .map_err(|mut errors| errors.remove(0))?;
+        reader
+            .text(&parameter.name, parameter.span)
+            .map_err(|mut errors| errors.remove(0))?;
+    }
+    for clause in &function.contract {
+        reader
+            .node(clause.span, 1)
+            .map_err(|mut errors| errors.remove(0))?;
+        reader
+            .text(&clause.name, clause.span)
+            .map_err(|mut errors| errors.remove(0))?;
+        for term in &clause.terms {
+            crate::ct_selection::walk_contract_term(&mut reader, term, 2)
+                .map_err(|mut errors| errors.remove(0))?;
+        }
+    }
+    Ok(ContractSize {
+        nodes: reader.nodes,
+        text: reader.text,
+    })
+}
 fn original_rows(
     function: &s::Function,
     budget: &mut Budget<'_>,
 ) -> R<Vec<FunctionProtocolContract>> {
     budget.metadata_scope(function.span, false, |budget| {
-        // This reads the complete contract syntax before normalization. All
-        // nested types/constant expressions/indices remain bounded; a rejected
-        // source contract is not replaced by an empty successful declaration.
-        budget.node(function.span, 0)?;
-        for parameter in &function.params {
-            budget.node(parameter.span, 1)?;
-            budget.text(&parameter.name, parameter.span)?;
-        }
-        for clause in &function.contract {
-            budget.node(clause.span, 1)?;
-            budget.text(&clause.name, clause.span)?;
-            for term in &clause.terms {
-                crate::ct_selection::walk_contract_term(&mut Reader(&mut *budget), term, 2)
-                    .map_err(|mut errors| errors.remove(0))?;
-            }
-        }
+        // Type/constant arguments and indices are read even when rejected by
+        // the finite normalizer. Rejection never publishes an empty contract.
+        read_contract(function, budget)?;
         let available = budget.remaining_limits().max_analysis_steps;
         let mut work = available;
         let (mut live, mut peak) = (0usize, 0usize);

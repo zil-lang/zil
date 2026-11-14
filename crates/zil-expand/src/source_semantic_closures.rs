@@ -459,6 +459,8 @@ impl Builder<'_, '_, '_, '_> {
                 environment: fields,
                 body: SemanticDefinitionBody::FunctionWithBody {
                     protocol_contracts: Vec::new(),
+                    foreign: None,
+                    resume_bound: TaskResumeBound::Local,
                     names: self.original_names()?,
                     signature,
                     sites: Vec::new(),

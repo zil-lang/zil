@@ -331,23 +331,76 @@ fn wide_literal(spelling: &str) -> Option<Vec<u16>> {
 pub(super) fn noescape_contract(
     function: &s::Function,
 ) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>, bool), Diagnostic> {
+    noescape_contract_with_storage(function, &mut |_, _| Ok(()))
+}
+fn foreign_push<T>(
+    values: &mut Vec<T>,
+    value: T,
+    storage: &mut impl FnMut(usize, usize) -> Result<(), Diagnostic>,
+    span: Span,
+) -> Result<(), Diagnostic> {
+    if values.len() == values.capacity() {
+        let old = values
+            .capacity()
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "foreign contract allocation overflow",
+                    Some(span),
+                )
+            })?;
+        let growth = values.capacity().max(4);
+        let new = values
+            .capacity()
+            .checked_add(growth)
+            .and_then(|n| n.checked_mul(std::mem::size_of::<T>()))
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "foreign contract allocation overflow",
+                    Some(span),
+                )
+            })?;
+        storage(new, old)?;
+        values.try_reserve_exact(growth).map_err(|_| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "foreign contract allocation failed",
+                Some(span),
+            )
+        })?;
+    }
+    values.push(value);
+    Ok(())
+}
+pub(crate) fn noescape_contract_with_storage(
+    function: &s::Function,
+    storage: &mut impl FnMut(usize, usize) -> Result<(), Diagnostic>,
+) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>, bool), Diagnostic> {
     let bad =
         |span, message| Diagnostic::error(Phase::Expand, "E-FFI-DECLARATION", Some(span), message);
     let mut ffi = false;
     let mut static_callbacks = false;
     let mut driver_transfer = false;
     let mut scoped_callback = None;
-    let mut parameters = BTreeSet::new();
-    let mut positions = BTreeMap::new();
+    let mut parameters = Vec::new();
+    let mut positions: Vec<(&str, u32)> = Vec::new();
     for (index, parameter) in function.params.iter().enumerate() {
         let index = u32::try_from(index)
             .map_err(|_| bad(parameter.span, "foreign parameter index overflow"))?;
-        if positions.insert(parameter.name.as_str(), index).is_some() {
+        if positions.iter().any(|(name, _)| *name == parameter.name) {
             return Err(bad(
                 parameter.span,
                 "foreign parameter names must be unique",
             ));
         }
+        foreign_push(
+            &mut positions,
+            (parameter.name.as_str(), index),
+            storage,
+            parameter.span,
+        )?;
     }
     for clause in &function.contract {
         match clause.name.as_str() {
@@ -428,15 +481,20 @@ pub(super) fn noescape_contract(
                             "noescape target must be one parameter name",
                         ));
                     }
-                    let Some(index) = positions.get(name.path[0].as_str()).copied() else {
+                    let Some(index) = positions
+                        .iter()
+                        .find(|(position, _)| *position == name.path[0])
+                        .map(|(_, index)| *index)
+                    else {
                         return Err(bad(clause.span, "noescape names an unknown parameter"));
                     };
-                    if !parameters.insert(index) {
+                    if parameters.contains(&index) {
                         return Err(bad(
                             clause.span,
                             "noescape parameter appears more than once",
                         ));
                     }
+                    foreign_push(&mut parameters, index, storage, clause.span)?;
                 }
             }
             _ => {
@@ -474,8 +532,11 @@ pub(super) fn noescape_contract(
             "driver transfer promise requires an actual threaded async role",
         ));
     }
+    storage(0, positions.capacity() * std::mem::size_of::<(&str, u32)>())?;
+    drop(positions);
+    parameters.sort_unstable();
     Ok((
-        parameters.into_iter().collect(),
+        parameters,
         static_callbacks,
         scoped_callback,
         driver_transfer,

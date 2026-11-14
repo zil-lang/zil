@@ -23,6 +23,8 @@ mod dyn_original;
 mod effects;
 #[path = "source_semantic_emission.rs"]
 pub(crate) mod emission;
+#[path = "source_semantic_head.rs"]
+mod head;
 #[path = "source_semantic_names.rs"]
 mod names;
 #[path = "source_semantic_nodes.rs"]
