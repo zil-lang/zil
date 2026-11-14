@@ -23,6 +23,8 @@ struct Apply<'a, 'b> {
     fresh_roles: bool,
     template: bool,
     template_implicit: bool,
+    scopes: Option<&'a BTreeMap<u32, u32>>,
+    allow_root_invocation: bool,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -47,13 +49,40 @@ impl<'a> Apply<'a, '_> {
     }
     fn scope(&mut self, scope: &mut SemanticScopeRef) -> R<()> {
         let SemanticScopeRef::Ancestor(depth) = scope;
-        *depth = depth
-            .checked_add(self.substitution.shift)
-            .ok_or_else(|| bad("original scope relocation overflows"))?;
+        if let Some(scopes) = self.scopes {
+            *self.left = self.left.checked_sub(scopes.len()).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original lexical correspondence work exceeded",
+                    None,
+                )
+            })?;
+            *depth = *scopes.get(depth).ok_or_else(|| {
+                Diagnostic::unsupported(
+                    Phase::Types,
+                    "original substitution has no proved source-to-use lexical domain mapping",
+                    None,
+                )
+            })?;
+        } else {
+            *depth = depth
+                .checked_add(self.substitution.shift)
+                .ok_or_else(|| bad("original scope relocation overflows"))?;
+        }
         Ok(())
     }
     fn selected(&mut self, reference: &SemanticFormalRef) -> R<Option<&'a SemanticActualRecipe>> {
         let SemanticScopeRef::Ancestor(depth) = reference.scope;
+        *self.left = self
+            .left
+            .checked_sub(self.substitution.frames.len())
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original formal correspondence work exceeded",
+                    None,
+                )
+            })?;
         for (frame, arguments) in self.substitution.frames {
             if *frame == depth {
                 return arguments
@@ -70,6 +99,16 @@ impl<'a> Apply<'a, '_> {
         ordinal: u32,
     ) -> R<Option<&'a SemanticActualRecipe>> {
         let SemanticScopeRef::Ancestor(depth) = scope;
+        *self.left = self
+            .left
+            .checked_sub(self.substitution.environments.len())
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original environment correspondence work exceeded",
+                    None,
+                )
+            })?;
         for (frame, arguments) in self.substitution.environments {
             if *frame == depth {
                 return arguments
@@ -82,9 +121,37 @@ impl<'a> Apply<'a, '_> {
     }
     fn operand(&mut self, operand: &mut SemanticRecipeOperand) -> R<()> {
         match operand {
-            SemanticRecipeOperand::TypeFormal(reference) => self.scope(&mut reference.scope)?,
+            SemanticRecipeOperand::TypeFormal(reference) => {
+                if self.scopes.is_some() {
+                    if let Some(actual) = self.selected(reference)? {
+                        match actual {
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(actual)) => { *reference = *actual; },
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Environment { scope, ordinal }) => {
+                                *operand = SemanticRecipeOperand::Environment { scope: *scope, ordinal: *ordinal };
+                            }
+                            _ => return Err(Diagnostic::unsupported(Phase::Types,
+                                "original whole-Type class operand needs its complete substituted occurrence mapping", None)),
+                        }
+                    } else {
+                        self.scope(&mut reference.scope)?;
+                    }
+                } else {
+                    self.scope(&mut reference.scope)?;
+                }
+            }
             SemanticRecipeOperand::Environment { scope, .. } => self.scope(scope)?,
-            SemanticRecipeOperand::Parameter(_) | SemanticRecipeOperand::Receiver => {}
+            SemanticRecipeOperand::Parameter(_) | SemanticRecipeOperand::Receiver => {
+                if self.scopes.is_some()
+                    && !self.allow_root_invocation
+                    && self.invocation_depth == 0
+                {
+                    return Err(Diagnostic::unsupported(
+                        Phase::Types,
+                        "original parameter endpoint has no proved source-to-use value boundary",
+                        None,
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -209,7 +276,18 @@ impl<'a> Apply<'a, '_> {
                         .ok_or_else(|| bad("original replacement Bound relocation overflows"))?;
                 }
             }
-            SemanticLifeRecipe::Invocation(_) => {}
+            SemanticLifeRecipe::Invocation(_) => {
+                if self.scopes.is_some()
+                    && !self.allow_root_invocation
+                    && self.invocation_depth == 0
+                {
+                    return Err(Diagnostic::unsupported(
+                        Phase::Types,
+                        "original Invocation endpoint has no proved source-to-use call boundary",
+                        None,
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -237,6 +315,8 @@ impl<'a> Apply<'a, '_> {
             fresh_roles: false,
             template: false,
             template_implicit: false,
+            scopes: None,
+            allow_root_invocation: true,
         }
         .ty(value, depth)
     }
@@ -264,6 +344,8 @@ impl<'a> Apply<'a, '_> {
             fresh_roles: false,
             template: false,
             template_implicit: false,
+            scopes: None,
+            allow_root_invocation: true,
         }
         .life(value, depth)
     }
@@ -291,6 +373,8 @@ impl<'a> Apply<'a, '_> {
             fresh_roles: false,
             template: false,
             template_implicit: false,
+            scopes: None,
+            allow_root_invocation: true,
         }
         .constant(value, depth)
     }
@@ -572,14 +656,13 @@ impl<'a> Apply<'a, '_> {
                     self.scope(&mut reference.scope)?;
                 }
             }
-            SemanticTypeRecipe::SelfType {
-                scope: SemanticScopeRef::Ancestor(level),
-            } => {
+            SemanticTypeRecipe::SelfType { scope } => {
+                let SemanticScopeRef::Ancestor(level) = *scope;
                 if let Some((_, replacement)) = self
                     .substitution
                     .selves
                     .iter()
-                    .find(|(frame, _)| frame == level)
+                    .find(|(frame, _)| *frame == level)
                 {
                     crate::dyn_metadata::semantic_operand_snapshot(
                         *replacement,
@@ -590,9 +673,7 @@ impl<'a> Apply<'a, '_> {
                     *ty = (*replacement).clone();
                     self.lift_type(ty, depth + 1)?;
                 } else {
-                    *level = level
-                        .checked_add(self.substitution.shift)
-                        .ok_or_else(|| bad("original Self scope overflows"))?;
+                    self.scope(scope)?;
                 }
             }
             SemanticTypeRecipe::Environment { scope, ordinal } => {
@@ -737,6 +818,8 @@ pub(crate) fn ty(
         fresh_roles: false,
         template: false,
         template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -760,6 +843,8 @@ pub(crate) fn signature(
         fresh_roles: false,
         template: false,
         template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -784,6 +869,8 @@ pub(crate) fn requirement(
         fresh_roles: false,
         template: false,
         template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -808,6 +895,8 @@ pub(crate) fn actual(
         fresh_roles: false,
         template: false,
         template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
     }
     .actual(&mut value, 1)?;
     Ok(value)
@@ -833,6 +922,8 @@ pub(crate) fn signature_template(
         fresh_roles: false,
         template: true,
         template_implicit: mark_implicit,
+        scopes: None,
+        allow_root_invocation: true,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -856,7 +947,39 @@ pub(crate) fn signature_fresh(
         fresh_roles: true,
         template: false,
         template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
     }
     .signature(&mut value, 1)?;
+    Ok(value)
+}
+
+/// The caller supplies only independently validated lexical correspondences.
+/// Every remaining source-domain reference must occur in this finite map.
+pub(crate) fn ty_in_domains(
+    value: &SemanticTypeRecipe,
+    substitution: &Substitution<'_>,
+    scopes: &BTreeMap<u32, u32>,
+    allow_root_invocation: bool,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    Apply {
+        substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: Some(scopes),
+        allow_root_invocation,
+    }
+    .ty(&mut value, 1)?;
     Ok(value)
 }

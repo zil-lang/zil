@@ -582,7 +582,13 @@ impl<'a> Check<'a, '_> {
                     } => {
                         let mut all = true;
                         for field in fields {
-                            let field = self.instantiate_type(&field.ty, arguments, depth + 1)?;
+                            let field = self.instantiate_field(
+                                owner,
+                                definition.id,
+                                &field.ty,
+                                arguments,
+                                depth + 1,
+                            )?;
                             all &= self.copy_type(owner, &field, depth + 1)?;
                         }
                         all
@@ -595,7 +601,13 @@ impl<'a> Check<'a, '_> {
                         let mut all = true;
                         for variant in variants {
                             for field in &variant.fields {
-                                let field = self.instantiate_type(field, arguments, depth + 1)?;
+                                let field = self.instantiate_field(
+                                    owner,
+                                    definition.id,
+                                    field,
+                                    arguments,
+                                    depth + 1,
+                                )?;
                                 all &= self.copy_type(owner, &field, depth + 1)?;
                             }
                         }
@@ -661,7 +673,30 @@ impl<'a> Check<'a, '_> {
         self.expression_result_origin(owner, expression, variables, &ty, depth + 1)?;
         Ok(ty)
     }
-    fn instantiate_type(
+    fn instantiate_field(
+        &mut self,
+        owner: SemanticDefinitionId,
+        source: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        arguments: &[SemanticActualRecipe],
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(1, depth)?;
+        super::instantiate::ty(
+            self.program,
+            &self.proof,
+            ty,
+            super::instantiate::DomainMapping {
+                source,
+                use_definition: owner,
+                arguments,
+                parent_call: None,
+            },
+            self.limits,
+            self.left,
+        )
+    }
+    fn instantiate_template(
         &mut self,
         ty: &SemanticTypeRecipe,
         arguments: &[SemanticActualRecipe],
@@ -751,7 +786,7 @@ impl<'a> Check<'a, '_> {
             .iter()
             .find(|field| field.name == name)
             .ok_or_else(|| bad("original field is absent from its declared nominal"))?;
-        self.instantiate_type(&field.ty, &arguments, depth + 1)
+        self.instantiate_field(owner, definition.id, &field.ty, &arguments, depth + 1)
     }
     // Only declaration paths are resolved here. A lexical value at the root
     // always wins, including when it shadows an imported module or intrinsic.
@@ -1900,7 +1935,13 @@ impl<'a> Check<'a, '_> {
                 };
                 let mut all = true;
                 for field in fields {
-                    let ty = self.instantiate_type(&field.ty, arguments, depth + 1)?;
+                    let ty = self.instantiate_field(
+                        owner,
+                        original.id,
+                        &field.ty,
+                        arguments,
+                        depth + 1,
+                    )?;
                     all &= self.ordinary_value(owner, &ty, depth + 1)?;
                 }
                 all
@@ -2133,7 +2174,7 @@ impl<'a> Check<'a, '_> {
                                 arguments.push(SemanticActualRecipe::Infer);
                             }
                         }
-                        let carrier = self.instantiate_type(carrier, &arguments, depth + 1)?;
+                        let carrier = self.instantiate_template(carrier, &arguments, depth + 1)?;
                         let actual_ty =
                             self.expr(owner, value, variables, Some(&carrier), depth + 1)?;
                         self.same(&carrier, &actual_ty)?;
@@ -3654,7 +3695,8 @@ impl<'a> Check<'a, '_> {
             return Err(bad("original variant pattern changes payload arity"));
         }
         for (ordinal, (pattern, field)) in patterns.iter().zip(&variant.fields).enumerate() {
-            let field = self.instantiate_type(field, arguments, depth + 1)?;
+            let field =
+                self.instantiate_field(owner, definition.id, field, arguments, depth + 1)?;
             self.pay(1, depth)?;
             path.push(ordinal as u32);
             self.pattern(

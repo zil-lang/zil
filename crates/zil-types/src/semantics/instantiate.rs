@@ -1,182 +1,209 @@
-//! Instantiate an original nominal field recipe at a real use. The replacement
-//! expressions stay in the actual use's world; no ordinal is reinterpreted as
-//! a same-numbered field of another definition.
+//! Full original-domain substitution at a real nominal use. Domain identities
+//! are mandatory: a source ancestor never becomes a same-numbered use ancestor.
+use super::original::{substitute, Proof};
 use crate::*;
-fn fail() -> Diagnostic {
-    Diagnostic::unsupported(
-        Phase::Types,
-        "nominal field recipe requires its complete lexical instantiation",
-        None,
-    )
+use std::collections::BTreeMap;
+
+pub(super) struct DomainMapping<'a> {
+    pub source: SemanticDefinitionId,
+    pub use_definition: SemanticDefinitionId,
+    pub arguments: &'a [SemanticActualRecipe],
+    /// Optional original method boundary proving a nonlexical parent Scope.
+    pub parent_call: Option<SemanticSiteId>,
 }
-fn life(
-    value: &mut SemanticLifeRecipe,
-    arguments: &[SemanticActualRecipe],
-    limits: &Limits,
-    left: &mut usize,
-) -> R<()> {
-    if let SemanticLifeRecipe::Formal(SemanticFormalRef {
-        scope: SemanticScopeRef::Ancestor(0),
-        ordinal,
-    }) = value
-    {
-        let Some(SemanticActualRecipe::Life(actual)) = arguments.get(*ordinal as usize) else {
-            return Err(fail());
-        };
-        crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
-        *value = actual.clone();
-    } else if matches!(value, SemanticLifeRecipe::Formal(_)) {
-        return Err(fail());
-    }
-    Ok(())
+fn bad(message: &str) -> Diagnostic {
+    error("E-SEMANTIC-ORIGINAL-DOMAIN", Span::default(), message)
 }
-fn constant(
-    value: &mut SemanticConstRecipe,
-    arguments: &[SemanticActualRecipe],
-    limits: &Limits,
-    left: &mut usize,
-) -> R<()> {
-    if let SemanticConstRecipe::Formal(SemanticFormalRef {
-        scope: SemanticScopeRef::Ancestor(0),
-        ordinal,
-    }) = value
-    {
-        let Some(SemanticActualRecipe::Const { value: actual, .. }) =
-            arguments.get(*ordinal as usize)
-        else {
-            return Err(fail());
-        };
-        crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
-        *value = actual.clone();
-    } else if !matches!(
-        value,
-        SemanticConstRecipe::Value(_)
-            | SemanticConstRecipe::IntegerLiteral(_)
-            | SemanticConstRecipe::FloatLiteral(_)
-    ) {
-        return Err(fail());
-    }
-    Ok(())
-}
-fn actual(
-    value: &mut SemanticActualRecipe,
-    arguments: &[SemanticActualRecipe],
-    limits: &Limits,
-    left: &mut usize,
-    depth: usize,
-) -> R<()> {
-    match value {
-        SemanticActualRecipe::Infer => Err(fail()),
-        SemanticActualRecipe::Life(value) => life(value, arguments, limits, left),
-        SemanticActualRecipe::Type(value) => rewrite(value, arguments, limits, left, depth + 1),
-        SemanticActualRecipe::Const { carrier, value } => {
-            rewrite(carrier, arguments, limits, left, depth + 1)?;
-            constant(value, arguments, limits, left)
-        }
-    }
-}
-fn rewrite(
-    value: &mut SemanticTypeRecipe,
-    arguments: &[SemanticActualRecipe],
-    limits: &Limits,
-    left: &mut usize,
-    depth: usize,
-) -> R<()> {
-    *left = left.checked_sub(1).ok_or_else(|| {
+fn fee(left: &mut usize, n: usize) -> R<()> {
+    *left = left.checked_sub(n).ok_or_else(|| {
         Diagnostic::limit(
             Phase::Types,
-            "nominal original instantiation work exceeded",
+            "original domain substitution work exceeded",
             None,
         )
     })?;
-    if depth > limits.max_call_depth {
-        return Err(Diagnostic::limit(
-            Phase::Types,
-            "nominal original instantiation depth exceeded",
-            None,
+    Ok(())
+}
+fn definition<'a>(
+    program: &'a SemanticModule,
+    id: SemanticDefinitionId,
+    left: &mut usize,
+) -> R<&'a SemanticDefinition> {
+    fee(left, program.definitions.len())?;
+    let mut rows = program.definitions.iter().filter(|row| row.id == id);
+    let row = rows
+        .next()
+        .ok_or_else(|| bad("original substitution domain definition is absent"))?;
+    if rows.next().is_some() {
+        return Err(bad("original substitution domain definition is duplicated"));
+    }
+    Ok(row)
+}
+fn ancestry(
+    program: &SemanticModule,
+    id: SemanticDefinitionId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<SemanticDefinitionId>> {
+    let mut result = Vec::new();
+    let mut next = Some(id);
+    while let Some(id) = next {
+        fee(left, result.len().saturating_add(1))?;
+        if result.len() > limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original domain ancestry depth exceeded",
+                None,
+            ));
+        }
+        if result.contains(&id) {
+            return Err(bad("original substitution domain ancestry is cyclic"));
+        }
+        next = definition(program, id, left)?.parent;
+        result.push(id);
+    }
+    Ok(result)
+}
+fn kinds(
+    original: &SemanticDefinition,
+    actuals: &[SemanticActualRecipe],
+    left: &mut usize,
+) -> R<()> {
+    fee(
+        left,
+        original.parameters.len().saturating_add(actuals.len()),
+    )?;
+    if original.parameters.len() != actuals.len() {
+        return Err(bad(
+            "original domain substitution omits full mixed actual positions",
         ));
     }
-    match value {
-        SemanticTypeRecipe::Atom(_) => {}
-        SemanticTypeRecipe::Formal(SemanticFormalRef {
-            scope: SemanticScopeRef::Ancestor(0),
-            ordinal,
-        }) => {
-            let Some(SemanticActualRecipe::Type(actual)) = arguments.get(*ordinal as usize) else {
-                return Err(fail());
-            };
-            crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
-            *value = actual.clone();
+    for (formal, actual) in original.parameters.iter().zip(actuals) {
+        if !matches!(
+            (formal, actual),
+            (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(_))
+                | (SemanticFormal::Lifetime, SemanticActualRecipe::Life(_))
+                | (
+                    SemanticFormal::Const { .. },
+                    SemanticActualRecipe::Const { .. }
+                )
+        ) {
+            return Err(bad(
+                "original domain substitution changes a mixed formal kind",
+            ));
         }
-        SemanticTypeRecipe::Closure {
-            arguments: values,
-            environment,
-            ..
-        } => {
-            for value in values.iter_mut().chain(environment.iter_mut()) {
-                actual(value, arguments, limits, left, depth + 1)?;
-            }
-        }
-        SemanticTypeRecipe::Opaque {
-            arguments: values,
-            hidden,
-            ..
-        } => {
-            for value in values {
-                actual(value, arguments, limits, left, depth + 1)?;
-            }
-            rewrite(hidden, arguments, limits, left, depth + 1)?;
-        }
-        SemanticTypeRecipe::OriginalType { .. } | SemanticTypeRecipe::Environment { .. } => {}
-        SemanticTypeRecipe::Nominal {
-            arguments: values, ..
-        } => {
-            for value in values {
-                actual(value, arguments, limits, left, depth + 1)?;
-            }
-        }
-        SemanticTypeRecipe::Tuple(values) | SemanticTypeRecipe::AnonymousSum(values) => {
-            for value in values {
-                rewrite(value, arguments, limits, left, depth + 1)?;
-            }
-        }
-        SemanticTypeRecipe::Array { element, length } => {
-            rewrite(element, arguments, limits, left, depth + 1)?;
-            constant(length, arguments, limits, left)?;
-        }
-        SemanticTypeRecipe::Address {
-            lifetime, inner, ..
-        }
-        | SemanticTypeRecipe::Desc { lifetime, inner } => {
-            if let SemanticOuterLifeRecipe::Class(value) = lifetime {
-                life(value, arguments, limits, left)?;
-            }
-            rewrite(inner, arguments, limits, left, depth + 1)?;
-        }
-        SemanticTypeRecipe::Slice(inner)
-        | SemanticTypeRecipe::Managed(inner)
-        | SemanticTypeRecipe::OwnedStore(inner)
-        | SemanticTypeRecipe::Mutex(inner)
-        | SemanticTypeRecipe::Registration(inner)
-        | SemanticTypeRecipe::AsyncRegistration(inner) => {
-            rewrite(inner, arguments, limits, left, depth + 1)?
-        }
-        SemanticTypeRecipe::ErrorUnion { error, result } => {
-            rewrite(error, arguments, limits, left, depth + 1)?;
-            rewrite(result, arguments, limits, left, depth + 1)?;
-        }
-        _ => return Err(fail()),
     }
     Ok(())
 }
 pub(super) fn ty(
+    program: &SemanticModule,
+    proof: &Proof,
     value: &SemanticTypeRecipe,
-    arguments: &[SemanticActualRecipe],
+    mapping: DomainMapping<'_>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<SemanticTypeRecipe> {
-    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
-    let mut result = value.clone();
-    rewrite(&mut result, arguments, limits, left, 0)?;
-    Ok(result)
+    let source = definition(program, mapping.source, left)?;
+    let source_chain = ancestry(program, mapping.source, limits, left)?;
+    let use_chain = ancestry(program, mapping.use_definition, limits, left)?;
+    kinds(source, mapping.arguments, left)?;
+    let mut scopes = BTreeMap::new();
+    fee(left, source_chain.len().saturating_mul(use_chain.len()))?;
+    for (source_hop, id) in source_chain.iter().enumerate() {
+        if let Some(use_hop) = use_chain.iter().position(|candidate| candidate == id) {
+            fee(left, 1)?;
+            scopes.insert(
+                u32::try_from(source_hop).map_err(|_| bad("original source depth overflows"))?,
+                u32::try_from(use_hop).map_err(|_| bad("original use depth overflows"))?,
+            );
+        }
+    }
+    let mut frames = Vec::new();
+    let mut selves = Vec::new();
+    fee(left, source_chain.len().saturating_add(1))?;
+    frames.push((0, mapping.arguments));
+    if let Some(call) = mapping.parent_call {
+        fee(left, source_chain.len().saturating_add(2))?;
+        let method = proof
+            .method_calls
+            .get(&(mapping.use_definition, call))
+            .ok_or_else(|| bad("original parent domain has no proved method call boundary"))?;
+        let hop = source_chain
+            .iter()
+            .position(|id| *id == method.parent)
+            .ok_or_else(|| {
+                bad("original method parent does not own the substituted declaration")
+            })?;
+        if hop == 0 {
+            return Err(bad(
+                "original nominal own arguments cannot be replaced by a parent Scope vector",
+            ));
+        }
+        let original = definition(program, method.parent, left)?;
+        if !matches!(original.body, SemanticDefinitionBody::Scope(_)) {
+            return Err(bad(
+                "original method parent mapping names a non-Scope declaration",
+            ));
+        }
+        let actuals = proof
+            .scope_calls
+            .get(&(mapping.use_definition, call, method.parent))
+            .ok_or_else(|| bad("original method parent has no full mixed Scope solution"))?;
+        kinds(original, actuals, left)?;
+        let hop = u32::try_from(hop).map_err(|_| bad("original parent Scope depth overflows"))?;
+        frames.push((hop, actuals.as_slice()));
+        selves.push((hop, &method.self_type));
+    }
+    let empty = BTreeMap::new();
+    let substitution = substitute::Substitution {
+        frames: &frames,
+        selves: &selves,
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 0,
+    };
+    // Const carriers are checked in the same source-to-use mapping as fields.
+    // A concrete actual image can never discharge a rigid carrier difference.
+    for (hop, actuals) in &frames {
+        let original = definition(program, source_chain[*hop as usize], left)?;
+        for (formal, actual) in original.parameters.iter().zip(*actuals) {
+            if let (
+                SemanticFormal::Const { carrier },
+                SemanticActualRecipe::Const {
+                    carrier: actual, ..
+                },
+            ) = (formal, actual)
+            {
+                if *hop != 0 {
+                    // The already proved parent solution is in the use domain;
+                    // its carrier is independently rechecked at that call.
+                    crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+                    continue;
+                }
+                let carrier = substitute::ty_in_domains(
+                    carrier,
+                    &substitution,
+                    &scopes,
+                    mapping.source == mapping.use_definition,
+                    limits,
+                    left,
+                )?;
+                crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+                if &carrier != actual {
+                    return Err(bad(
+                        "original substitution changes a full rigid Const carrier",
+                    ));
+                }
+            }
+        }
+    }
+    substitute::ty_in_domains(
+        value,
+        &substitution,
+        &scopes,
+        mapping.source == mapping.use_definition,
+        limits,
+        left,
+    )
 }

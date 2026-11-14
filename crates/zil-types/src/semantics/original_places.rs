@@ -93,7 +93,13 @@ impl Check<'_, '_> {
         self.pay(fields.len(), depth)?;
         let mut field_types = Vec::new();
         for field in fields {
-            field_types.push(self.instantiate_type(&field.ty, arguments, depth + 1)?);
+            field_types.push(self.instantiate_field(
+                owner,
+                definition.id,
+                &field.ty,
+                arguments,
+                depth + 1,
+            )?);
         }
         let active = copy_recipe(&ty, self.limits, self.left)?;
         self.predicate_active.push((owner, 9, active));
