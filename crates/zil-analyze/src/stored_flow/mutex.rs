@@ -135,6 +135,13 @@ fn thread_scope(
     }
     for capture in &definition.captures {
         b.type_work(capture, false, "Mutex scoped parent capture domain")?;
+        if description(capture) {
+            require_payload(
+                family_payload(capture)
+                    .ok_or_else(|| failure("Mutex parent capture omits its complete payload"))?,
+                b,
+            )?;
+        }
         if !description(capture) && !capture.is_b0_scalar() {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -154,6 +161,117 @@ fn thread_scope(
     Ok(true)
 }
 
+fn closed_copy(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+    fee(b, 1)?;
+    if depth > b.partial_depth {
+        return Err(failure(
+            "Mutex payload exceeds its complete finite type depth",
+        ));
+    }
+    if ty.is_b0_scalar() {
+        return Ok(true);
+    }
+    match ty {
+        Type::Tuple(fields) => {
+            for child in fields {
+                if !closed_copy(child, b, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        Type::Record { fields, .. } => {
+            for (_, child) in fields {
+                if !closed_copy(child, b, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for child in fields {
+                    if !closed_copy(child, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+            }
+            Ok(true)
+        }
+        Type::Array { element, .. } => closed_copy(element, b, depth + 1),
+        Type::ErrorUnion { error, result } => {
+            Ok(closed_copy(error, b, depth + 1)? && closed_copy(result, b, depth + 1)?)
+        }
+        Type::BorrowedStorage { storage, life }
+            if life.binder_count == 0
+                && life.slots.is_empty()
+                && life.retained.is_empty()
+                && life.nominal_arguments.is_empty() =>
+        {
+            closed_copy(storage, b, depth + 1)
+        }
+        _ => Ok(false),
+    }
+}
+fn require_payload(ty: &Type, b: &mut Budget) -> CompileResult<()> {
+    b.type_work(ty, false, "Mutex complete closed Copy payload")?;
+    if !closed_copy(ty, b, 0)? {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "Mutex payload needs its complete owning, borrowed or opaque storage and cleanup transport",
+            None,
+        )]);
+    }
+    Ok(())
+}
+fn family_payload(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Mutex { payload } | Type::MutexGuard { payload, .. } => Some(payload),
+        Type::Desc(inner) | Type::Managed(inner) | Type::Address { inner, .. } => {
+            family_payload(inner)
+        }
+        Type::ErrorUnion { error, result }
+            if error.as_ref() == &crate::generic_mutex::error_type() =>
+        {
+            family_payload(result)
+        }
+        _ => None,
+    }
+}
+fn actual_payload<'a>(
+    module: &'a TypedModule,
+    f: &'a TypedFunction,
+    i: &Instruction,
+) -> CompileResult<&'a Type> {
+    let ty = match &i.kind {
+        InstructionKind::MutexCreate { value } => return value_type(f, *value),
+        InstructionKind::MutexLock { mutex }
+        | InstructionKind::MutexValue { guard: mutex }
+        | InstructionKind::MutexUnlock { guard: mutex }
+        | InstructionKind::DescribeAddress { address: mutex }
+        | InstructionKind::ErrorTag { value: mutex }
+        | InstructionKind::ReadErrorUnion { value: mutex, .. }
+        | InstructionKind::TakeErrorUnion { value: mutex, .. } => value_type(f, *mutex)?,
+        InstructionKind::DescribeLocal { local }
+        | InstructionKind::DropMutexGuard { local }
+        | InstructionKind::PlaceTagLocal { local, .. }
+        | InstructionKind::TakeVariantField { local, .. }
+        | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::DropErrorUnion { local } => union_local(f, *local)?,
+        InstructionKind::DescribeCapture { index } => f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .and_then(|row| row.captures.get(*index as usize))
+            .ok_or_else(|| failure("Mutex capture payload is absent"))?,
+        InstructionKind::WithScopedThread { argument, .. } => value_type(f, *argument)?,
+        _ => value_type(
+            f,
+            i.result
+                .ok_or_else(|| failure("Mutex operation omits its complete actual family"))?,
+        )?,
+    };
+    family_payload(ty).ok_or_else(|| failure("Mutex operation selects no complete actual payload"))
+}
 fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Type::MutexGuard {
         payload,
@@ -164,7 +282,7 @@ fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     b.type_work(ty, false, "complete Mutex guard identity")?;
-    if payload.as_ref() != &Type::I32 {
+    if !closed_copy(payload, b, 0)? {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "Mutex stored payload needs its complete non-scalar storage and cleanup transport",
@@ -183,7 +301,7 @@ fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if retained_life.binder_count != 1
         || !retained_life.retained.is_empty()
         || !retained_life.nominal_arguments.is_empty()
-        || !matches!(retained_life.ports.as_slice(),[port] if port.leaf==(Type::Mutex{payload:Box::new(Type::I32)}) && port.mode==StoredBorrowMode::SharedAddress && port.binder==0)
+        || !matches!(retained_life.ports.as_slice(),[port] if port.leaf==(Type::Mutex{payload:payload.clone()}) && port.mode==StoredBorrowMode::SharedAddress && port.binder==0)
     {
         return Err(failure(
             "Mutex guard changes its complete sealed retained manager domain",
@@ -192,7 +310,7 @@ fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(true)
 }
 fn manager(ty: &Type) -> bool {
-    matches!(ty,Type::Mutex{payload} if payload.as_ref()==&Type::I32)
+    matches!(ty, Type::Mutex { .. })
 }
 fn owner(ty: &Type) -> bool {
     matches!(ty,Type::Managed(payload) if manager(payload))
@@ -231,12 +349,13 @@ fn guard_head(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         _ => Ok(false),
     }
 }
-fn resource(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+fn resource(module: &TypedModule, child: &Type, b: &mut Budget) -> CompileResult<()> {
+    require_payload(child, b)?;
     let payload = Type::Mutex {
-        payload: Box::new(Type::I32),
+        payload: Box::new(child.clone()),
     };
     b.type_work(&payload, false, "Mutex sealed resource identity")?;
-    let name = format!("@builtin:Mutex<{}>", Type::I32.fingerprint());
+    let name = format!("@builtin:Mutex<{}>", child.fingerprint());
     fee(b, name.len().saturating_add(module.resources.len()))?;
     let mut found = 0usize;
     for actual in &module.resources {
@@ -272,7 +391,11 @@ pub(super) fn admitted(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compi
         || matches!(ty,Type::Address{inner,..} if owner(inner))
         || create_union(ty);
     if selected {
-        resource(module, b)?;
+        resource(
+            module,
+            family_payload(ty).ok_or_else(|| failure("Mutex type omits its complete payload"))?,
+            b,
+        )?;
     }
     Ok(selected)
 }
@@ -284,13 +407,20 @@ pub(super) fn instruction(
 ) -> CompileResult<bool> {
     fee(b, 1)?;
     let output = i.result.map(|id| value_type(f, id)).transpose()?;
-    let guard_ty = || Type::MutexGuard {
-        payload: Box::new(Type::I32),
+    // Reserve complete operand copies before constructing expected nested
+    // Guard/Mutex/union types. An unrelated opcode has no Mutex family; every
+    // selected branch below still requires this exact operand query to work.
+    if let Ok(payload) = actual_payload(module, f, i) {
+        require_payload(payload, b)?;
+        b.type_work(payload, false, "Mutex complete expected-type construction")?;
+    }
+    let guard_ty = |payload: &Type| Type::MutexGuard {
+        payload: Box::new(payload.clone()),
         retained_life: RetainedLifeShape {
             binder_count: 1,
             ports: vec![RetainedBorrowPort {
                 leaf: Type::Mutex {
-                    payload: Box::new(Type::I32),
+                    payload: Box::new(payload.clone()),
                 },
                 mode: StoredBorrowMode::SharedAddress,
                 binder: 0,
@@ -371,15 +501,12 @@ pub(super) fn instruction(
             Some(Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]))
         }
         InstructionKind::MutexCreate { value } => {
-            if value_type(f, *value)? != &Type::I32 {
-                return Err(failure(
-                    "Mutex construction lacks its complete supported actual payload",
-                ));
-            }
+            let payload = value_type(f, *value)?;
+            require_payload(payload, b)?;
             Some(Type::ErrorUnion {
                 error: Box::new(crate::generic_mutex::error_type()),
                 result: Box::new(Type::Managed(Box::new(Type::Mutex {
-                    payload: Box::new(Type::I32),
+                    payload: Box::new(payload.clone()),
                 }))),
             })
         }
@@ -389,7 +516,7 @@ pub(super) fn instruction(
                     "Mutex lock requires its exact actual weak manager descriptor",
                 ));
             }
-            Some(guard_ty())
+            Some(guard_ty(actual_payload(module, f, i)?))
         }
         InstructionKind::MutexValue { guard: head } => {
             if !matches!(value_type(f,*head)?,Type::Address{mutable:true,inner} if guard(inner,b)?)
@@ -400,7 +527,7 @@ pub(super) fn instruction(
             }
             Some(Type::Address {
                 mutable: true,
-                inner: Box::new(Type::I32),
+                inner: Box::new(actual_payload(module, f, i)?.clone()),
             })
         }
         InstructionKind::MutexUnlock { guard: head } => {
@@ -429,7 +556,7 @@ pub(super) fn instruction(
                 .is_some_and(|row| owner(&row.ty)) =>
         {
             Some(Type::Desc(Box::new(Type::Mutex {
-                payload: Box::new(Type::I32),
+                payload: Box::new(actual_payload(module, f, i)?.clone()),
             })))
         }
         InstructionKind::DescribeCapture { index }
@@ -439,12 +566,12 @@ pub(super) fn instruction(
                 .is_some_and(owner) =>
         {
             Some(Type::Desc(Box::new(Type::Mutex {
-                payload: Box::new(Type::I32),
+                payload: Box::new(actual_payload(module, f, i)?.clone()),
             })))
         }
         InstructionKind::DescribeAddress { address } if matches!(value_type(f,*address)?,Type::Address{inner,..} if owner(inner)) => {
             Some(Type::Desc(Box::new(Type::Mutex {
-                payload: Box::new(Type::I32),
+                payload: Box::new(actual_payload(module, f, i)?.clone()),
             })))
         }
         InstructionKind::Load(local)
@@ -458,7 +585,7 @@ pub(super) fn instruction(
         }
         _ => return Ok(false),
     };
-    resource(module, b)?;
+    resource(module, actual_payload(module, f, i)?, b)?;
     if matches!(
         i.kind,
         InstructionKind::MutexCreate { .. }
@@ -522,7 +649,7 @@ fn complete(permission: &Permission, text: &str, b: &mut Budget) -> CompileResul
     Ok(())
 }
 fn allocation_value(value: &Value, b: &mut Budget) -> CompileResult<()> {
-    // The exact I32 allocation carrier has no embedded address, opaque class
+    // The exact closed Copy allocation carrier has no embedded address, opaque class
     // or environment. This checks the actual transfer fact as well as its
     // type; unknown/nonempty rows cannot disappear under an error-tag test.
     fee(
@@ -564,11 +691,19 @@ pub(super) fn seed(
     b: &mut Budget,
 ) -> CompileResult<()> {
     if description(ty) {
-        resource(module, b)?;
+        resource(
+            module,
+            family_payload(ty).ok_or_else(|| failure("Mutex seed omits its complete payload"))?,
+            b,
+        )?;
         fee(b, 1)?;
         out.store_description.targets.insert(target(base));
     } else if guard(ty, b)? || guard_head(ty, b)? {
-        resource(module, b)?;
+        resource(
+            module,
+            family_payload(ty).ok_or_else(|| failure("Mutex seed omits its complete payload"))?,
+            b,
+        )?;
         let mut source = Permission::default();
         fee(b, 1)?;
         source.targets.insert(target(base));
@@ -963,6 +1098,22 @@ pub(super) fn source_binding(
         return Err(failure("Mutex source binding is not an actual guard input"));
     };
     guard_parameter(f, index, b)?;
+    let payload = family_payload(input_type(f, index)?)
+        .ok_or_else(|| failure("Mutex payload source omits its guard's complete payload"))?;
+    let Type::Address { inner, .. } = &f.return_type else {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "nested Mutex payload result needs its complete selected result position",
+            None,
+        )]);
+    };
+    b.type_work(payload, false, "Mutex returned complete guard payload")?;
+    b.type_work(inner, false, "Mutex returned complete data pointee")?;
+    if inner.as_ref() != payload {
+        return Err(failure(
+            "Mutex returned data changes its complete guard payload type",
+        ));
+    }
     let life = f.storage_life.as_ref().ok_or_else(|| {
         failure("Mutex payload result has no complete actual header class relation")
     })?;
@@ -1156,6 +1307,25 @@ fn guard_source(f: &TypedFunction, source: &Target, b: &mut Budget) -> CompileRe
         ));
     };
     let input = input_type(f, index)?;
+    let input_payload = family_payload(input)
+        .ok_or_else(|| failure("returned guard input omits its complete payload"))?;
+    let output_payload = family_payload(&f.return_type)
+        .ok_or_else(|| failure("returned guard result omits its complete payload"))?;
+    b.type_work(
+        input_payload,
+        false,
+        "returned guard complete input payload",
+    )?;
+    b.type_work(
+        output_payload,
+        false,
+        "returned guard complete result payload",
+    )?;
+    if input_payload != output_payload {
+        return Err(failure(
+            "returned guard changes its manager's complete payload type",
+        ));
+    }
     let result = manager_binding(f, StorageBase::Result, &f.return_type, b)?;
     if manager_binding(f, StorageBase::Parameter(index), input, b)? != result {
         return Err(failure(
