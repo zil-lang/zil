@@ -137,6 +137,7 @@ pub(super) fn pointee(
         return Err(fail("whole pointee query is not an Address"));
     };
     let life = match inner.as_ref() {
+        Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
         Type::BorrowedStorage { life, .. } => {
             crate::dyn_metadata::shape(life, b)?;
             life.clone()
@@ -202,6 +203,37 @@ pub(super) fn pointee(
         ty: inner.as_ref().clone(),
         life,
         classes,
+    })
+}
+
+fn mutex_guard_domain(ty: &Type, b: &mut Budget) -> CompileResult<StorageLifeShape> {
+    crate::dyn_metadata::ty(ty, b)?;
+    let Type::MutexGuard {
+        payload,
+        retained_life,
+    } = ty
+    else {
+        return Err(fail(
+            "intrinsic guard domain selects another type constructor",
+        ));
+    };
+    if payload.as_ref() != &Type::I32
+        || retained_life.binder_count != 1
+        || !retained_life.retained.is_empty()
+        || !retained_life.nominal_arguments.is_empty()
+        || !matches!(retained_life.ports.as_slice(), [port]
+            if port.leaf == (Type::Mutex { payload: payload.clone() })
+                && port.mode == StoredBorrowMode::SharedAddress && port.binder == 0)
+    {
+        return Err(fail(
+            "semantic Mutex guard changes its complete sealed retained inventory",
+        ));
+    }
+    Ok(StorageLifeShape {
+        binder_count: 1,
+        slots: Vec::new(),
+        retained: Vec::new(),
+        nominal_arguments: Vec::new(),
     })
 }
 
@@ -740,6 +772,34 @@ pub(super) fn resolved(
                 ));
             }
         }
+        Type::MutexGuard { .. } => {
+            if mutex_guard_domain(ty, b)? != *life {
+                return Err(fail(
+                    "semantic Mutex guard changes its opaque intrinsic domain",
+                ));
+            }
+        }
+        Type::Desc(inner) => {
+            // This is only the whole weak occurrence shape. The actual
+            // descriptor origin, epoch and cleanup remain independent facts.
+            crate::stored_flow::validate_plain_nominal_zero(
+                inventory.module,
+                inner,
+                inventory.limits,
+                b,
+            )?;
+            if life.binder_count != 1
+                || classes.len() != 1
+                || !matches!(life.slots.as_slice(), [slot] if slot.path.is_empty()
+                    && slot.binder == 0 && slot.mode == StoredBorrowMode::WritableDescription)
+                || !life.retained.is_empty()
+                || !life.nominal_arguments.is_empty()
+            {
+                return Err(fail(
+                    "semantic description changes its complete weak outer occurrence",
+                ));
+            }
+        }
         Type::Address { mutable, inner } => {
             if life.slots.len() != 1
                 || !life.slots[0].path.is_empty()
@@ -755,6 +815,7 @@ pub(super) fn resolved(
                 return Err(fail("semantic address loses its exact outer occurrence"));
             }
             let child_life = match inner.as_ref() {
+                Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
                 Type::BorrowedStorage { life, .. } => {
                     crate::dyn_metadata::shape(life, b)?;
                     life.clone()
