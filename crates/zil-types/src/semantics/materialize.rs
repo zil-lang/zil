@@ -36,15 +36,22 @@ pub(super) use deferred::populate as populate_deferred_nominals;
 #[path = "materialize_opaque.rs"]
 mod opaque;
 pub(super) use opaque::call_result_at;
+#[path = "materialize_domains.rs"]
+mod domains;
 #[path = "materialize_scopes.rs"]
 mod scopes;
 #[path = "materialize_self.rs"]
 mod self_type;
 #[path = "materialize_shapes.rs"]
 mod shapes;
+#[path = "materialize_tasks.rs"]
+mod task_domains;
+#[path = "materialize_view.rs"]
+mod view;
+pub(super) use view::ActualDirectory;
 struct Eval<'a, 'b> {
     input: &'a SemanticModule,
-    module: &'a TypedModule,
+    module: &'a ActualDirectory<'a>,
     ledger: &'a Ledger,
     limits: &'b Limits,
     left: &'b mut usize,
@@ -72,6 +79,10 @@ impl<'a> Eval<'a, '_> {
         self.fee(1)
     }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
+        self.fee(self.module.instances.len().saturating_add(1).ilog2() as usize + 1)?;
+        if let Some(row) = self.module.instances.get(&id) {
+            return Ok(row);
+        }
         self.fee(self.input.instances.len())?;
         if let Some(row) = self.input.instances.iter().find(|row| row.id == id) {
             return Ok(row);
@@ -121,11 +132,9 @@ impl<'a> Eval<'a, '_> {
                 "runtime type operand is outside its actual emitted function",
             ));
         };
-        self.fee(self.module.functions.len())?;
+        self.fee(self.module.function_count())?;
         self.module
-            .functions
-            .iter()
-            .find(|f| f.id == id)
+            .function(id)
             .ok_or_else(|| bad("materialized type has no actual Typed function"))
     }
     fn copy(&mut self, value: &SemanticTypeValue) -> R<SemanticTypeValue> {
@@ -937,6 +946,19 @@ impl<'a> Eval<'a, '_> {
         hint: Option<&Type>,
         depth: usize,
     ) -> R<SemanticTypeValue> {
+        if matches!(recipe, SemanticTypeRecipe::Tuple(_)) {
+            Ok(self.type_domain(scope, recipe, hint, depth)?.value)
+        } else {
+            self.ty_raw(scope, recipe, hint, depth)
+        }
+    }
+    fn ty_raw(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        hint: Option<&Type>,
+        depth: usize,
+    ) -> R<SemanticTypeValue> {
         self.node(depth)?;
         let value = match recipe {
             SemanticTypeRecipe::Atom(ty) => resolved(self.physical(ty)?, empty(), Vec::new()),
@@ -1236,29 +1258,7 @@ impl<'a> Eval<'a, '_> {
                     classes,
                 )
             }
-            SemanticTypeRecipe::Tuple(items) if items.is_empty() => {
-                // Original empty tuple syntax denotes Unit, as in Gamma's
-                // resolution. Its complete runtime type is not Tuple([]).
-                resolved(Type::Unit, empty(), Vec::new())
-            }
-            SemanticTypeRecipe::Tuple(items) => {
-                self.fee(items.len())?;
-                let mut fields = Vec::new();
-                for item in items {
-                    let SemanticTypeValue::Resolved { ty, life, .. } =
-                        self.ty(scope, item, None, depth + 1)?
-                    else {
-                        unreachable!()
-                    };
-                    if life.binder_count != 0 {
-                        return Err(unknown(
-                            "compound type needs its full child class composition",
-                        ));
-                    }
-                    fields.push(ty);
-                }
-                resolved(Type::Tuple(fields), empty(), Vec::new())
-            }
+            SemanticTypeRecipe::Tuple(_) => self.ty(scope, recipe, hint, depth + 1)?,
             SemanticTypeRecipe::Managed(inner)
             | SemanticTypeRecipe::OwnedStore(inner)
             | SemanticTypeRecipe::Mutex(inner)
@@ -1324,7 +1324,11 @@ impl<'a> Eval<'a, '_> {
                 else {
                     unreachable!()
                 };
-                let (shape, classes) = self.retained_shape(scope, retained, depth + 1)?;
+                let (shape, classes) = if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
+                    self.task_shape(scope, retained, depth + 1)?
+                } else {
+                    self.retained_shape(scope, retained, depth + 1)?
+                };
                 if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
                     self.retained_child(
                         &shape,
@@ -1748,10 +1752,23 @@ impl<'a> Eval<'a, '_> {
                     Some(Type::ErrorUnion { error, result }) => {
                         (Some(error.as_ref()), Some(result.as_ref()))
                     }
-                    Some(_) => {
-                        return Err(bad(
-                            "ErrorUnion recipe changes its actual result constructor",
-                        ));
+                    Some(actual) => {
+                        let actual_kind = match actual {
+                            Type::Managed(_) => "Managed",
+                            Type::Desc(_) => "Desc",
+                            Type::BorrowedStorage { .. } => "BorrowedStorage",
+                            Type::Address { .. } => "Address",
+                            Type::Record { .. } => "Record",
+                            Type::Package { .. } => "Package",
+                            Type::Enum { .. } => "Enum",
+                            Type::Closure(_) => "Closure",
+                            Type::Unit => "Unit",
+                            _ => "scalar or another constructor",
+                        };
+                        let owner = self.instance(scope)?.definition;
+                        return Err(bad(&format!(
+                            "ErrorUnion recipe changes its actual result constructor: instance {scope:?}, definition {owner:?}, actual {actual_kind}"
+                        )));
                     }
                     None => (None, None),
                 };
@@ -1989,7 +2006,7 @@ pub(super) fn program(
     let input = program.clone();
     let mut eval = Eval {
         input: &input,
-        module,
+        module: &ActualDirectory::from_module(module),
         ledger,
         limits,
         left,
@@ -2164,6 +2181,27 @@ pub(super) fn type_at(
 ) -> R<SemanticTypeValue> {
     Eval {
         input: program,
+        module: &ActualDirectory::from_module(module),
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+    }
+    .ty(scope, recipe, hint, 0)
+}
+
+pub(super) fn type_in_view(
+    program: &SemanticModule,
+    module: &ActualDirectory<'_>,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticTypeRecipe,
+    hint: Option<&Type>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeValue> {
+    Eval {
+        input: program,
         module,
         ledger,
         limits,
@@ -2171,6 +2209,35 @@ pub(super) fn type_at(
         active: BTreeSet::new(),
     }
     .ty(scope, recipe, hint, 0)
+}
+
+pub(super) fn symbolic_in_view(
+    program: &SemanticModule,
+    module: &ActualDirectory<'_>,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    if let SemanticTypeRecipe::OriginalType {
+        scope: selector,
+        source,
+    } = recipe
+    {
+        Eval {
+            input: program,
+            module,
+            ledger,
+            limits,
+            left,
+            active: BTreeSet::new(),
+        }
+        .original_type(scope, *selector, source, 0)
+    } else {
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+        Ok(recipe.clone())
+    }
 }
 pub(super) fn actual_at(
     program: &SemanticModule,
@@ -2188,7 +2255,7 @@ pub(super) fn actual_at(
     };
     Eval {
         input: program,
-        module,
+        module: &ActualDirectory::from_module(module),
         ledger,
         limits,
         left,
@@ -2209,7 +2276,7 @@ pub(super) fn parent_actuals_at(
 ) -> R<Vec<SemanticActual>> {
     Eval {
         input: program,
-        module,
+        module: &ActualDirectory::from_module(module),
         ledger,
         limits,
         left,
@@ -2229,7 +2296,7 @@ pub(super) fn class_at(
 ) -> R<SemanticClassExpr> {
     Eval {
         input: program,
-        module,
+        module: &ActualDirectory::from_module(module),
         ledger,
         limits,
         left,
@@ -2256,7 +2323,7 @@ pub(super) fn symbolic_at(
     {
         Eval {
             input: program,
-            module,
+            module: &ActualDirectory::from_module(module),
             ledger,
             limits,
             left,

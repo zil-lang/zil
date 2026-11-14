@@ -13,6 +13,7 @@ pub(in crate::semantics) fn populate(
     complete: &mut BTreeSet<SemanticInstanceId>,
 ) -> R<()> {
     let mut changes = Vec::new();
+    let view = super::super::materialize::ActualDirectory::from_module(module);
     pay(left, program.instances.len())?;
     for instance in &program.instances {
         let Some(environment) = &instance.environment else {
@@ -65,10 +66,10 @@ pub(in crate::semantics) fn populate(
             return Err(bad("whole capture original has no code signature"));
         };
         let mut images = BTreeMap::new();
-        let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
+        let captures = creator_captures(program, &view, ledger, instance, id, limits, left)?;
         for (capture, ordinal, actual_ty) in captures {
             let Some(value) = capture_value(
-                program, module, ledger, instance, original, recipes, ordinal, &actual_ty, limits,
+                program, &view, ledger, instance, original, recipes, ordinal, &actual_ty, limits,
                 left,
             )?
             else {
@@ -222,7 +223,7 @@ pub(in crate::semantics) fn populate(
 #[allow(clippy::too_many_arguments)]
 fn capture_value(
     program: &SemanticModule,
-    module: &TypedModule,
+    module: &super::super::materialize::ActualDirectory<'_>,
     ledger: &super::super::emission::Ledger,
     instance: &SemanticInstance,
     original: &SemanticDefinition,
@@ -236,7 +237,7 @@ fn capture_value(
         scope: SemanticScopeRef::Ancestor(0),
         ordinal,
     };
-    let value = super::super::materialize::type_at(
+    let value = super::super::materialize::type_in_view(
         program,
         module,
         ledger,
@@ -295,7 +296,7 @@ fn capture_value(
                 if nodes.next().is_some() || node.node != SemanticOriginalNode::Expression(first) {
                     continue;
                 }
-                let observed = super::super::materialize::symbolic_at(
+                let observed = super::super::materialize::symbolic_in_view(
                     program,
                     module,
                     ledger,
@@ -319,7 +320,7 @@ fn capture_value(
             }),
             inner: Box::new(expected),
         };
-        super::super::materialize::type_at(
+        super::super::materialize::type_in_view(
             program,
             module,
             ledger,
@@ -343,7 +344,7 @@ fn capture_value(
 /// the same ordinal, and equal concrete types never establish this relation.
 fn creator_captures(
     program: &SemanticModule,
-    module: &TypedModule,
+    module: &super::super::materialize::ActualDirectory<'_>,
     ledger: &super::super::emission::Ledger,
     instance: &SemanticInstance,
     closure: ClosureId,
@@ -358,13 +359,11 @@ fn creator_captures(
         program
             .instances
             .len()
-            .saturating_add(module.functions.len())
+            .saturating_add(module.function_count())
             .saturating_add(program.sites.len()),
     )?;
-    let parent_instance = program
-        .instances
-        .iter()
-        .find(|row| row.id == parent)
+    let parent_instance = module
+        .original_instance(program, parent)
         .ok_or_else(|| bad("captured environment lost its original creator instance"))?;
     let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) =
         parent_instance.target
@@ -374,15 +373,49 @@ fn creator_captures(
         ));
     };
     let creator = module
-        .functions
-        .iter()
-        .find(|row| row.id == function)
+        .function(function)
         .ok_or_else(|| bad("captured environment creator frame is absent"))?;
+    pay(
+        left,
+        module.closures.len().saturating_add(ledger.frames.len()),
+    )?;
+    let entry = module
+        .closures
+        .iter()
+        .find(|row| row.id == closure)
+        .ok_or_else(|| bad("captured environment has no actual closure directory"))?
+        .function;
+    let frame = ledger
+        .frames
+        .get(&entry)
+        .ok_or_else(|| bad("captured environment has no actual emitter origin"))?;
+    if frame.parent != Some((function, closure)) {
+        return Err(bad("captured environment changes its actual creator frame"));
+    }
     let mut mint = None;
     for site in program.sites.iter().filter(|site| site.instance == parent) {
-        if matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(actual), .. } if actual == closure)
-            && mint.replace(site).is_some()
-        {
+        let matches = match &site.action {
+            SemanticSiteAction::Closure {
+                closure: SemanticClosureTarget::Typed(actual),
+                ..
+            } => *actual == closure,
+            SemanticSiteAction::Closure {
+                closure:
+                    SemanticClosureTarget::Core {
+                        module,
+                        creator,
+                        expression,
+                        occurrence: 0,
+                    },
+                ..
+            } => {
+                frame.origin.module == *module
+                    && frame.origin.creator == *creator
+                    && frame.origin.closure == Some(*expression)
+            }
+            _ => false,
+        };
+        if matches && mint.replace(site).is_some() {
             return Err(bad(
                 "captured environment has multiple original creator mints",
             ));
@@ -390,22 +423,55 @@ fn creator_captures(
     }
     let site =
         mint.ok_or_else(|| bad("captured environment has no exact original creator mint"))?;
-    let SemanticSiteAddress::Typed {
-        block,
-        instruction,
-        edge: SemanticSiteEdge::After,
-    } = site.at
-    else {
-        return Err(bad(
-            "captured environment mint has no actual creation instruction",
-        ));
+    let (block, instruction) = match site.at {
+        SemanticSiteAddress::Typed {
+            block,
+            instruction,
+            edge: SemanticSiteEdge::After,
+        } => (block, instruction as usize),
+        SemanticSiteAddress::Core {
+            expression,
+            occurrence: 0,
+            role: SemanticEmissionRole::Closure,
+        } => {
+            if frame.origin.closure != Some(expression) {
+                return Err(bad(
+                    "captured environment source changes its exact closure expression",
+                ));
+            }
+            let receipt = ledger
+                .frames
+                .get(&function)
+                .and_then(|frame| frame.expressions.get(&expression))
+                .ok_or_else(|| {
+                    bad("captured environment source has not reached its actual mint")
+                })?;
+            pay(left, receipt.instructions.len())?;
+            let mut selected = None;
+            for point in &receipt.instructions {
+                let op = creator
+                    .blocks
+                    .get(point.block.0 as usize)
+                    .and_then(|block| block.instructions.get(point.instruction));
+                if op.is_some_and(|op| matches!(op.kind, InstructionKind::MakeClosure { closure: actual, .. } if actual == closure))
+                    && selected.replace((point.block, point.instruction)).is_some()
+                { return Err(bad("captured environment source has multiple actual closure mints")); }
+            }
+            selected
+                .ok_or_else(|| bad("captured environment source has no exact actual MakeClosure"))?
+        }
+        _ => {
+            return Err(bad(
+                "captured environment mint has no actual creation instruction",
+            ));
+        }
     };
     pay(left, creator.blocks.len())?;
     let op = creator
         .blocks
         .iter()
         .find(|row| row.id == block)
-        .and_then(|row| row.instructions.get(instruction as usize))
+        .and_then(|row| row.instructions.get(instruction))
         .ok_or_else(|| bad("captured environment mint leaves its actual creator CFG"))?;
     let InstructionKind::MakeClosure {
         closure: actual,
@@ -620,191 +686,12 @@ pub(in crate::semantics) fn complete_emitted_headers(
                 "closure directory completion changes its actual entry identity",
             ));
         }
-        let original = program
-            .definitions
-            .iter()
-            .find(|row| row.id == instance.definition)
-            .ok_or_else(|| bad("closure directory completion lost its original definition"))?;
-        let (SemanticDefinitionBody::FunctionWithBody {
-            signature,
-            sites: recipes,
-            ..
-        }
-        | SemanticDefinitionBody::Function {
-            signature,
-            sites: recipes,
-        }) = &original.body
+        let view = super::super::materialize::ActualDirectory::from_module(module);
+        let Some((directory, mapping)) =
+            form_emitted_header(program, &view, ledger, instance, id, entry, limits, left)?
         else {
-            return Err(bad(
-                "closure directory completion has no original signature",
-            ));
-        };
-        if signature.parameters.len() != entry.parameters.len() {
-            return Err(bad(
-                "closure directory completion changes original parameter arity",
-            ));
-        }
-        let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
-        let mut capture_bindings = Vec::new();
-        let mut capture_classes = Vec::new();
-        let mut capture_statics = Vec::new();
-        let mut complete = true;
-        for (capture, ordinal, actual_ty) in captures {
-            let Some(value) = capture_value(
-                program, module, ledger, instance, original, recipes, ordinal, &actual_ty, limits,
-                left,
-            )?
-            else {
-                complete = false;
-                break;
-            };
-            super::super::creator_headers::rows::append(
-                &value,
-                StorageBase::Capture(capture),
-                &mut capture_bindings,
-                &mut capture_classes,
-                &mut capture_statics,
-                limits,
-                left,
-            )?;
-        }
-        if !complete {
             continue;
-        }
-        let mut bindings = Vec::new();
-        let mut classes = Vec::new();
-        let mut statics = Vec::new();
-        for (ordinal, local) in entry.parameters.iter().enumerate() {
-            pay(left, 1)?;
-            let actual = &entry
-                .locals
-                .get(local.0 as usize)
-                .ok_or_else(|| bad("closure directory completion lost an actual parameter"))?
-                .ty;
-            let recipe = SemanticTypeRecipe::OriginalType {
-                scope: SemanticScopeRef::Ancestor(0),
-                source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
-            };
-            let value = super::super::materialize::type_at(
-                program,
-                module,
-                ledger,
-                instance.id,
-                &recipe,
-                Some(actual),
-                limits,
-                left,
-            )?;
-            if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == actual) {
-                return Err(bad(
-                    "closure directory completion changes an original parameter type",
-                ));
-            }
-            super::super::creator_headers::rows::append(
-                &value,
-                StorageBase::Parameter(ordinal as u32),
-                &mut bindings,
-                &mut classes,
-                &mut statics,
-                limits,
-                left,
-            )?;
-        }
-        bindings.extend(capture_bindings);
-        classes.extend(capture_classes);
-        statics.extend(capture_statics);
-        let recipe = SemanticTypeRecipe::OriginalType {
-            scope: SemanticScopeRef::Ancestor(0),
-            source: SemanticOriginalTypeSource::Result,
         };
-        let value = super::super::materialize::type_at(
-            program,
-            module,
-            ledger,
-            instance.id,
-            &recipe,
-            Some(&entry.return_type),
-            limits,
-            left,
-        )?;
-        if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == &entry.return_type) {
-            return Err(bad(
-                "closure directory completion changes its original result type",
-            ));
-        }
-        super::super::creator_headers::rows::append(
-            &value,
-            StorageBase::Result,
-            &mut bindings,
-            &mut classes,
-            &mut statics,
-            limits,
-            left,
-        )?;
-        let mut directory = StorageLifeContract {
-            fixed_binder_count: 0,
-            invocation_binder_count: 0,
-            bindings: Vec::new(),
-            classes: Vec::new(),
-            static_bindings: statics,
-        };
-        let mut mapping = Vec::<SemanticHeaderBinding>::new();
-        // Persistent capture images are assigned first. Invocation inputs may
-        // share those same exact original images, never equal concrete Types.
-        for persistent in [true, false] {
-            for (base, image) in bindings
-                .iter()
-                .map(|(position, image)| (position.base, image))
-                .chain(
-                    classes
-                        .iter()
-                        .map(|(position, image)| (position.base, image)),
-                )
-            {
-                if matches!(base, StorageBase::Capture(_)) != persistent {
-                    continue;
-                }
-                header_image(
-                    &mut directory,
-                    &mut mapping,
-                    image,
-                    persistent,
-                    limits,
-                    left,
-                )?;
-            }
-        }
-        for (position, image) in bindings {
-            let binder = header_image(
-                &mut directory,
-                &mut mapping,
-                &image,
-                matches!(position.base, StorageBase::Capture(_)),
-                limits,
-                left,
-            )?;
-            directory
-                .bindings
-                .push(StorageLifeBinding { position, binder });
-        }
-        for (position, image) in classes {
-            let binder = header_image(
-                &mut directory,
-                &mut mapping,
-                &image,
-                matches!(position.base, StorageBase::Capture(_)),
-                limits,
-                left,
-            )?;
-            directory
-                .classes
-                .push(SignatureLifeClassBinding { position, binder });
-        }
-        if !instance.header_embedding.is_empty() && instance.header_embedding != mapping {
-            return Err(bad(
-                "completed closure directory changes its original domain embedding",
-            ));
-        }
         changes.push((instance.id, id, entry.id, directory, mapping));
     }
     for (instance, closure, entry, header, embedding) in changes {
@@ -837,6 +724,205 @@ pub(in crate::semantics) fn complete_emitted_headers(
             .header_embedding = embedding;
     }
     Ok(())
+}
+
+/// Form the same untrusted complete header at a real closure mint or at finish.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::semantics) fn form_emitted_header(
+    program: &SemanticModule,
+    module: &super::super::materialize::ActualDirectory<'_>,
+    ledger: &super::super::emission::Ledger,
+    instance: &SemanticInstance,
+    id: ClosureId,
+    entry: &TypedFunction,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<(StorageLifeContract, Vec<SemanticHeaderBinding>)>> {
+    let original = program
+        .definitions
+        .iter()
+        .find(|row| row.id == instance.definition)
+        .ok_or_else(|| bad("closure directory completion lost its original definition"))?;
+    let (SemanticDefinitionBody::FunctionWithBody {
+        signature,
+        sites: recipes,
+        ..
+    }
+    | SemanticDefinitionBody::Function {
+        signature,
+        sites: recipes,
+    }) = &original.body
+    else {
+        return Err(bad(
+            "closure directory completion has no original signature",
+        ));
+    };
+    if signature.parameters.len() != entry.parameters.len() {
+        return Err(bad(
+            "closure directory completion changes original parameter arity",
+        ));
+    }
+    let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
+    let mut capture_bindings = Vec::new();
+    let mut capture_classes = Vec::new();
+    let mut capture_statics = Vec::new();
+    let mut complete = true;
+    for (capture, ordinal, actual_ty) in captures {
+        let Some(value) = capture_value(
+            program, module, ledger, instance, original, recipes, ordinal, &actual_ty, limits, left,
+        )?
+        else {
+            complete = false;
+            break;
+        };
+        super::super::creator_headers::rows::append(
+            &value,
+            StorageBase::Capture(capture),
+            &mut capture_bindings,
+            &mut capture_classes,
+            &mut capture_statics,
+            limits,
+            left,
+        )?;
+    }
+    if !complete {
+        return Ok(None);
+    }
+    let mut bindings = Vec::new();
+    let mut classes = Vec::new();
+    let mut statics = Vec::new();
+    for (ordinal, local) in entry.parameters.iter().enumerate() {
+        pay(left, 1)?;
+        let actual = &entry
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| bad("closure directory completion lost an actual parameter"))?
+            .ty;
+        let recipe = SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
+        };
+        let value = super::super::materialize::type_in_view(
+            program,
+            module,
+            ledger,
+            instance.id,
+            &recipe,
+            Some(actual),
+            limits,
+            left,
+        )?;
+        if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == actual) {
+            return Err(bad(
+                "closure directory completion changes an original parameter type",
+            ));
+        }
+        super::super::creator_headers::rows::append(
+            &value,
+            StorageBase::Parameter(ordinal as u32),
+            &mut bindings,
+            &mut classes,
+            &mut statics,
+            limits,
+            left,
+        )?;
+    }
+    bindings.extend(capture_bindings);
+    classes.extend(capture_classes);
+    statics.extend(capture_statics);
+    let recipe = SemanticTypeRecipe::OriginalType {
+        scope: SemanticScopeRef::Ancestor(0),
+        source: SemanticOriginalTypeSource::Result,
+    };
+    let value = super::super::materialize::type_in_view(
+        program,
+        module,
+        ledger,
+        instance.id,
+        &recipe,
+        Some(&entry.return_type),
+        limits,
+        left,
+    )?;
+    if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == &entry.return_type) {
+        return Err(bad(
+            "closure directory completion changes its original result type",
+        ));
+    }
+    super::super::creator_headers::rows::append(
+        &value,
+        StorageBase::Result,
+        &mut bindings,
+        &mut classes,
+        &mut statics,
+        limits,
+        left,
+    )?;
+    let mut directory = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 0,
+        bindings: Vec::new(),
+        classes: Vec::new(),
+        static_bindings: statics,
+    };
+    let mut mapping = Vec::<SemanticHeaderBinding>::new();
+    // Persistent capture images are assigned first. Invocation inputs may
+    // share those same exact original images, never equal concrete Types.
+    for persistent in [true, false] {
+        for (base, image) in bindings
+            .iter()
+            .map(|(position, image)| (position.base, image))
+            .chain(
+                classes
+                    .iter()
+                    .map(|(position, image)| (position.base, image)),
+            )
+        {
+            if matches!(base, StorageBase::Capture(_)) != persistent {
+                continue;
+            }
+            header_image(
+                &mut directory,
+                &mut mapping,
+                image,
+                persistent,
+                limits,
+                left,
+            )?;
+        }
+    }
+    for (position, image) in bindings {
+        let binder = header_image(
+            &mut directory,
+            &mut mapping,
+            &image,
+            matches!(position.base, StorageBase::Capture(_)),
+            limits,
+            left,
+        )?;
+        directory
+            .bindings
+            .push(StorageLifeBinding { position, binder });
+    }
+    for (position, image) in classes {
+        let binder = header_image(
+            &mut directory,
+            &mut mapping,
+            &image,
+            matches!(position.base, StorageBase::Capture(_)),
+            limits,
+            left,
+        )?;
+        directory
+            .classes
+            .push(SignatureLifeClassBinding { position, binder });
+    }
+    if !instance.header_embedding.is_empty() && instance.header_embedding != mapping {
+        return Err(bad(
+            "completed closure directory changes its original domain embedding",
+        ));
+    }
+    Ok(Some((directory, mapping)))
 }
 
 fn header_image(

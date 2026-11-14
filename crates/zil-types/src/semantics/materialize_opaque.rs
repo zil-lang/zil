@@ -329,7 +329,12 @@ impl Eval<'_, '_> {
                         "multiple opaque origins retain a free actual class",
                     ));
                 }
-                crate::stored::ordinary_zero_type(self.module, ty, self.limits, self.left)?;
+                crate::stored::ordinary_zero_type(
+                    self.module.complete()?,
+                    ty,
+                    self.limits,
+                    self.left,
+                )?;
                 life
             }
             _ => {
@@ -391,7 +396,7 @@ impl Eval<'_, '_> {
             ));
         }
         crate::stored::ordinary_zero_type(
-            self.module,
+            self.module.complete()?,
             &Type::Closure(*id),
             self.limits,
             self.left,
@@ -713,7 +718,7 @@ pub(crate) fn call_result_at(
 ) -> R<SemanticTypeValue> {
     let mut eval = Eval {
         input: program,
-        module,
+        module: &ActualDirectory::from_module(module),
         ledger,
         limits,
         left,

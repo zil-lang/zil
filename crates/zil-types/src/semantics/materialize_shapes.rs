@@ -301,17 +301,16 @@ impl Eval<'_, '_> {
                     if images.len() != life.binder_count as usize {
                         return Err(bad("port shape projection changes its full child domain"));
                     }
-                    let child = match ty {
-                        Type::Task { retained_life, .. }
-                        | Type::MutexGuard { retained_life, .. } => retained_life,
-                        _ => {
-                            return Err(unknown(
-                                "port projection requires its actual complete opaque carrier shape",
-                            ));
-                        }
-                    };
-                    self.fee(child.ports.len())?;
-                    for port in child.ports {
+                    let child = crate::tasks::context_ports::from_type(
+                        self.module,
+                        &ty,
+                        &life,
+                        self.limits,
+                        self.left,
+                    )?;
+                    self.fee(child.len())?;
+                    for projected in child {
+                        let port = projected.port;
                         let image = images
                             .get(port.binder as usize)
                             .ok_or_else(|| bad("port child class is outside its whole domain"))?;

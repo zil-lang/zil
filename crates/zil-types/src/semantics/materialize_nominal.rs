@@ -291,7 +291,7 @@ impl Eval<'_, '_> {
         }
         self.fee(self.module.life_instances.len())?;
         let mut found = None;
-        for instance in &self.module.life_instances {
+        for instance in self.module.life_instances {
             if instance.declaration != *declaration {
                 continue;
             }

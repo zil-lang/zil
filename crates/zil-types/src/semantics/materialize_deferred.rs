@@ -206,7 +206,7 @@ pub(crate) fn populate(
     {
         let mut eval = Eval {
             input: program,
-            module,
+            module: &ActualDirectory::from_module(module),
             ledger,
             limits,
             left,

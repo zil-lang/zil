@@ -1,5 +1,6 @@
 //! Source preparation for the sealed scalar cooperative task ABI.
 use super::*;
+pub(crate) mod context_ports;
 pub(super) mod failure;
 pub(super) use failure::append_inventory as append_failure_inventory;
 pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
