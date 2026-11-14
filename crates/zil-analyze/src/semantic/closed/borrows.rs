@@ -285,7 +285,7 @@ impl Check<'_, '_> {
             if *value != id {
                 continue;
             }
-            let Some((anchor, inner)) = self.original.borrowed_source(
+            let Some((anchor, inner, slice)) = self.original.borrowed_source(
                 instance,
                 site.recipe,
                 self.program,
@@ -314,6 +314,26 @@ impl Check<'_, '_> {
             let Type::Address { mutable, .. } = expected.ty else {
                 return Err(fail("original borrow does not produce a reference"));
             };
+            if let Some(slice) = slice {
+                let value = self.source_slice_borrow(
+                    instance,
+                    function,
+                    id,
+                    anchor,
+                    &inner,
+                    slice,
+                    &expected,
+                    b,
+                    depth + 1,
+                )?;
+                if selected.as_ref().is_some_and(|old| old != &value) {
+                    return Err(fail(
+                        "actual range borrow has competing original occurrence values",
+                    ));
+                }
+                selected = Some(value);
+                continue;
+            }
             let local = self.anchored_local(instance, function, anchor, b)?;
             let (block, index, actual, actual_mutable) =
                 self.borrow_root(function, id, b, depth + 1)?;

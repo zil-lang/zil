@@ -16,6 +16,7 @@ mod protocol;
 mod registration;
 mod roles;
 pub(super) mod sealed;
+pub(super) mod slice_borrows;
 mod slices;
 mod values;
 use constructors::Wrapper;
@@ -88,6 +89,7 @@ pub(super) enum LocalAnchor {
 struct Borrow {
     anchor: LocalAnchor,
     inner: Term,
+    slice: Option<slice_borrows::SliceProjection>,
 }
 struct Local {
     anchor: Option<LocalAnchor>,
@@ -1321,6 +1323,21 @@ impl Solver<'_, '_> {
             CoreExprKind::Unary { op, operand }
                 if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) =>
             {
+                if matches!(&operand.kind, CoreExprKind::Slice { .. }) {
+                    let term = self.slice_borrow(
+                        frame,
+                        value.id,
+                        operand,
+                        *op == UnaryOp::BorrowMut,
+                        b,
+                        depth + 1,
+                    )?;
+                    b.lookup(frame.expressions.len(), WORK)?;
+                    if frame.expressions.insert(value.id, term).is_some() {
+                        return Err(fail("original range borrow node is reused"));
+                    }
+                    return Ok(term);
+                }
                 let CoreExprKind::Name(name) = &operand.kind else {
                     return Err(unknown(
                         "original borrow needs its exact initialized place projection",
@@ -1360,7 +1377,14 @@ impl Solver<'_, '_> {
                 if self
                     .state
                     .borrows
-                    .insert((frame.definition, value.id), Borrow { anchor, inner })
+                    .insert(
+                        (frame.definition, value.id),
+                        Borrow {
+                            anchor,
+                            inner,
+                            slice: None,
+                        },
+                    )
                     .is_some()
                 {
                     return Err(fail(
@@ -3684,7 +3708,13 @@ impl Checked {
         program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<Option<(LocalAnchor, crate::semantic::value::Value)>> {
+    ) -> CompileResult<
+        Option<(
+            LocalAnchor,
+            crate::semantic::value::Value,
+            Option<slice_borrows::SliceProjection>,
+        )>,
+    > {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("actual borrow has no complete original body"));
@@ -3704,6 +3734,7 @@ impl Checked {
                     found = Some((
                         source.anchor,
                         self.value(source.inner, context, program, inventory, b, 0)?,
+                        source.slice,
                     ));
                 }
             }

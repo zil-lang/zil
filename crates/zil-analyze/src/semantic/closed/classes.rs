@@ -1112,6 +1112,12 @@ impl Check<'_, '_> {
                 // parent only within a proved call role; it is never Eq(parent).
                 Ok(result)
             }
+            InstructionKind::AddressSlice { address, .. } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                self.range_projection_value(instance, function, id, *address, b, depth + 1)
+            }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 self.local_value(instance, function, *local, (block, index), b, depth + 1)
             }
