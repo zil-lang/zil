@@ -350,6 +350,24 @@ impl Builder<'_, '_> {
     }
     pub(super) fn borrow_place_mode(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
         let (address, ty) = self.address_place(e, mutable)?;
+        self.reborrow_place(address, ty, mutable, e.span)
+    }
+    pub(super) fn borrow_local_capture(
+        &mut self,
+        local: LocalId,
+        mutable: bool,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let (address, ty) = self.local_address_place(local, mutable, span)?;
+        self.reborrow_place(address, ty, mutable, span)
+    }
+    fn reborrow_place(
+        &mut self,
+        address: ValueId,
+        ty: Type,
+        mutable: bool,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
         let Type::Address {
             mutable: available,
             inner,
@@ -360,17 +378,17 @@ impl Builder<'_, '_> {
         if mutable && !available {
             return Err(error(
                 "E-ADDRESS-PERMISSION",
-                e.span,
+                span,
                 "shared address cannot be reborrowed exclusively",
             ));
         }
         let ty = Type::Address { mutable, inner };
-        self.closures.array_snapshot(&ty, 1, e.span)?;
+        self.closures.array_snapshot(&ty, 1, span)?;
         Ok((
             self.value(
                 InstructionKind::ReborrowAddress { address, mutable },
                 ty.clone(),
-                e.span,
+                span,
             )?,
             ty,
         ))
@@ -493,6 +511,163 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
+    /// Resolve a compiler-known local at its actual operation. Capture
+    /// construction has a LocalId, not another Source expression occurrence.
+    pub(super) fn local_address_place(
+        &mut self,
+        local: LocalId,
+        mutable: bool,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let actual = &self.function.locals[local.0 as usize].ty;
+        let pure_array = !mutable
+            && matches!(actual, Type::Array { .. })
+            && !actual.is_copy_value()
+            && stored::pure_inline(actual, &mut self.match_work_left, self.limits, span)?;
+        let address_array = self.closures.array_billing || stored::shared_array_related(actual);
+        if pure_array || address_array {
+            self.closures.snapshot_type(actual, 1, 0, span)?;
+            if address_array {
+                self.closures
+                    .snapshot(self.function.locals[local.0 as usize].name.len(), span)?;
+            }
+        }
+        let decl = self.function.locals[local.0 as usize].clone();
+        if self.closure_slots.contains_key(&local) {
+            return self.borrow_closure_slot(local, mutable, span);
+        }
+        if let Some(index) = self.stored_copy_captures.get(&local).copied() {
+            if mutable && !decl.mutable {
+                return Err(error(
+                    "E-IMMUTABLE-ASSIGNMENT",
+                    span,
+                    "captured Copy field has no exclusive access",
+                ));
+            }
+            let ty = Type::Address {
+                mutable,
+                inner: Box::new(decl.ty),
+            };
+            return Ok((
+                self.value(
+                    InstructionKind::BorrowCapture { index, mutable },
+                    ty.clone(),
+                    span,
+                )?,
+                ty,
+            ));
+        }
+        if let Some((index, inner)) = self.closure_captures.get(&local).cloned() {
+            let available = matches!(decl.ty, Type::Address { mutable: true, .. });
+            if mutable && !available {
+                return Err(error(
+                    "E-IMMUTABLE-ASSIGNMENT",
+                    span,
+                    "captured closure has no exclusive access",
+                ));
+            }
+            let ty = Type::Address {
+                mutable,
+                inner: Box::new(inner),
+            };
+            return Ok((
+                self.value(
+                    InstructionKind::BorrowCapture { index, mutable },
+                    ty.clone(),
+                    span,
+                )?,
+                ty,
+            ));
+        }
+        if self.borrowed_captures.contains_key(&local) {
+            let Type::Address {
+                mutable: available, ..
+            } = &decl.ty
+            else {
+                unreachable!()
+            };
+            if mutable && !available {
+                return Err(error("E-IMMUTABLE-ASSIGNMENT", span, "capture is shared"));
+            }
+            return Ok((
+                self.value(InstructionKind::Load(local), decl.ty.clone(), span)?,
+                decl.ty,
+            ));
+        }
+        let product_head = matches!(decl.ty, Type::Package { .. });
+        if product_head {
+            let work = inference::type_snapshot_work(&decl.ty, span, self.limits)?;
+            self.closures.snapshot(work, span)?;
+            if !packages::product::supported(&decl.ty) {
+                // Only the new inline Store owner enters the ordinary
+                // Product branch. Reserve both structural walks before
+                // inspecting its complete children; old accepted
+                // Product heads retain their exact previous fee.
+                self.closures.snapshot(work.saturating_mul(4), span)?;
+                if !(dynamic_store::contains_inline_carrier(&decl.ty)
+                    || packages::has_store_fields(&decl.ty))
+                    || !packages::product::owned_supported(&decl.ty)
+                {
+                    return Err(unsupported(
+                        span,
+                        if mutable {
+                            "Product heads require finite complete ordinary children"
+                        } else {
+                            "shared Product heads require finite complete ordinary children"
+                        },
+                    ));
+                }
+            }
+        }
+        let resource_head = !mutable
+            && matches!(&decl.ty, Type::Managed(payload)
+            if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
+        if resource_head && self.managed_captures.contains_key(&local) {
+            return Err(unsupported(
+                span,
+                "borrowing a captured resource head requires an explicit environment-head protocol",
+            ));
+        }
+        if !decl.ty.is_copy_value()
+            && !stored::shared_value(&decl.ty)
+            && !pure_array
+            && !matches!(decl.ty, Type::Closure(_) | Type::OwnedDyn { .. })
+            && !resource_head
+            && !matches!(decl.ty, Type::MutexGuard { .. })
+            && !(mutable
+                && matches!(decl.ty, Type::Managed(_))
+                && (tasks::resource(&decl.ty) || registration::asynchronous(&decl.ty)))
+            && !product_head
+            && !owned_shapes::sum(&decl.ty)
+        {
+            return Err(unsupported(
+                span,
+                "address targets must be finite Copy values or actual shared user-resource heads; descriptors and nested addresses are not head positions",
+            ));
+        }
+        if mutable && !decl.mutable {
+            return Err(error(
+                "E-IMMUTABLE-ASSIGNMENT",
+                span,
+                "exclusive borrow requires a mutable position",
+            ));
+        }
+        let ty = Type::Address {
+            mutable,
+            inner: Box::new(decl.ty),
+        };
+        let kind = if mutable {
+            InstructionKind::BorrowLocalMut { local }
+        } else {
+            InstructionKind::BorrowLocal { local }
+        };
+        if pure_array || address_array {
+            // The earlier snapshot pays for decl.clone(); this one
+            // pays the separate full Address result clone below.
+            self.closures.snapshot_type(&ty, 1, 0, span)?;
+        }
+        Ok((self.value(kind, ty.clone(), span)?, ty))
+    }
     /// Locate a write target before evaluating its RHS. Projections retain the
     /// same authority; only an explicit ReborrowAddress creates a child window.
     pub(super) fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
@@ -502,155 +677,7 @@ impl Builder<'_, '_> {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
                 self.semantic_local_place(e, local)?;
-                let actual = &self.function.locals[local.0 as usize].ty;
-                let pure_array = !mutable
-                    && matches!(actual, Type::Array { .. })
-                    && !actual.is_copy_value()
-                    && stored::pure_inline(actual, &mut self.match_work_left, self.limits, e.span)?;
-                let address_array =
-                    self.closures.array_billing || stored::shared_array_related(actual);
-                if pure_array || address_array {
-                    self.closures.snapshot_type(actual, 1, 0, e.span)?;
-                    if address_array {
-                        self.closures
-                            .snapshot(self.function.locals[local.0 as usize].name.len(), e.span)?;
-                    }
-                }
-                let decl = self.function.locals[local.0 as usize].clone();
-                if self.closure_slots.contains_key(&local) {
-                    return self.borrow_closure_slot(local, mutable, e.span);
-                }
-                if let Some(index) = self.stored_copy_captures.get(&local).copied() {
-                    if mutable && !decl.mutable {
-                        return Err(error(
-                            "E-IMMUTABLE-ASSIGNMENT",
-                            e.span,
-                            "captured Copy field has no exclusive access",
-                        ));
-                    }
-                    let ty = Type::Address {
-                        mutable,
-                        inner: Box::new(decl.ty),
-                    };
-                    return Ok((
-                        self.value(
-                            InstructionKind::BorrowCapture { index, mutable },
-                            ty.clone(),
-                            e.span,
-                        )?,
-                        ty,
-                    ));
-                }
-                if let Some((index, inner)) = self.closure_captures.get(&local).cloned() {
-                    let available = matches!(decl.ty, Type::Address { mutable: true, .. });
-                    if mutable && !available {
-                        return Err(error(
-                            "E-IMMUTABLE-ASSIGNMENT",
-                            e.span,
-                            "captured closure has no exclusive access",
-                        ));
-                    }
-                    let ty = Type::Address {
-                        mutable,
-                        inner: Box::new(inner),
-                    };
-                    return Ok((
-                        self.value(
-                            InstructionKind::BorrowCapture { index, mutable },
-                            ty.clone(),
-                            e.span,
-                        )?,
-                        ty,
-                    ));
-                }
-                if self.borrowed_captures.contains_key(&local) {
-                    let Type::Address {
-                        mutable: available, ..
-                    } = &decl.ty
-                    else {
-                        unreachable!()
-                    };
-                    if mutable && !available {
-                        return Err(error("E-IMMUTABLE-ASSIGNMENT", e.span, "capture is shared"));
-                    }
-                    return Ok((
-                        self.value(InstructionKind::Load(local), decl.ty.clone(), e.span)?,
-                        decl.ty,
-                    ));
-                }
-                let product_head = matches!(decl.ty, Type::Package { .. });
-                if product_head {
-                    let work = inference::type_snapshot_work(&decl.ty, e.span, self.limits)?;
-                    self.closures.snapshot(work, e.span)?;
-                    if !packages::product::supported(&decl.ty) {
-                        // Only the new inline Store owner enters the ordinary
-                        // Product branch. Reserve both structural walks before
-                        // inspecting its complete children; old accepted
-                        // Product heads retain their exact previous fee.
-                        self.closures.snapshot(work.saturating_mul(4), e.span)?;
-                        if !(dynamic_store::contains_inline_carrier(&decl.ty)
-                            || packages::has_store_fields(&decl.ty))
-                            || !packages::product::owned_supported(&decl.ty)
-                        {
-                            return Err(unsupported(
-                                e.span,
-                                if mutable {
-                                    "Product heads require finite complete ordinary children"
-                                } else {
-                                    "shared Product heads require finite complete ordinary children"
-                                },
-                            ));
-                        }
-                    }
-                }
-                let resource_head = !mutable
-                    && matches!(&decl.ty, Type::Managed(payload)
-                        if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
-                if resource_head && self.managed_captures.contains_key(&local) {
-                    return Err(unsupported(
-                        e.span,
-                        "borrowing a captured resource head requires an explicit environment-head protocol",
-                    ));
-                }
-                if !decl.ty.is_copy_value()
-                    && !stored::shared_value(&decl.ty)
-                    && !pure_array
-                    && !matches!(decl.ty, Type::Closure(_) | Type::OwnedDyn { .. })
-                    && !resource_head
-                    && !matches!(decl.ty, Type::MutexGuard { .. })
-                    && !(mutable
-                        && matches!(decl.ty, Type::Managed(_))
-                        && (tasks::resource(&decl.ty) || registration::asynchronous(&decl.ty)))
-                    && !product_head
-                    && !owned_shapes::sum(&decl.ty)
-                {
-                    return Err(unsupported(
-                        e.span,
-                        "address targets must be finite Copy values or actual shared user-resource heads; descriptors and nested addresses are not head positions",
-                    ));
-                }
-                if mutable && !decl.mutable {
-                    return Err(error(
-                        "E-IMMUTABLE-ASSIGNMENT",
-                        e.span,
-                        "exclusive borrow requires a mutable position",
-                    ));
-                }
-                let ty = Type::Address {
-                    mutable,
-                    inner: Box::new(decl.ty),
-                };
-                let kind = if mutable {
-                    InstructionKind::BorrowLocalMut { local }
-                } else {
-                    InstructionKind::BorrowLocal { local }
-                };
-                if pure_array || address_array {
-                    // The earlier snapshot pays for decl.clone(); this one
-                    // pays the separate full Address result clone below.
-                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
-                }
-                Ok((self.value(kind, ty.clone(), e.span)?, ty))
+                self.local_address_place(local, mutable, e.span)
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,

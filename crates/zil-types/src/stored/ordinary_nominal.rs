@@ -712,6 +712,9 @@ impl<'a> Check<'a, '_> {
             | Type::Package { .. }
             | Type::Enum { .. }
             | Type::BorrowedStorage { .. } => {
+                if canonical_nullary_enum(ty, self.limits, self.left)? {
+                    return Ok(());
+                }
                 fee(self.left, self.instances.len(), Span::default())?;
                 let mut selected: Option<&LifeNominalInstance> = None;
                 for row in self.instances {
@@ -801,6 +804,18 @@ impl<'a> Check<'a, '_> {
             )),
         }
     }
+}
+
+/// The two sealed error types have a canonical, complete nullary Type
+/// identity rather than a user nominal application. This predicate checks the
+/// entire language carrier and supplies no constructor/operation permission.
+pub(super) fn canonical_nullary_enum(ty: &Type, limits: &Limits, left: &mut usize) -> R<bool> {
+    if !matches!(ty, Type::Enum { .. }) {
+        return Ok(false);
+    }
+    inference::charge_type_snapshot(ty, Span::default(), limits, left, 2)?;
+    fee(left, 128, Span::default())?;
+    Ok(ty == &crate::generic_mutex::create_error() || ty == &crate::dyn_dispatch::create_error())
 }
 
 pub(super) fn rows(

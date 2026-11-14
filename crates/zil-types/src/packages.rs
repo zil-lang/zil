@@ -755,6 +755,7 @@ impl Builder<'_, '_> {
                 stored::physical(&self.function.locals[local.0 as usize].ty),
                 Type::Package { .. }
             ) {
+            self.semantic_local_place(object, local)?;
             (local, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (value, ty) = self.transfer_expr(object, None)?;

@@ -1202,3 +1202,7 @@ pub(super) fn ordinary_zero_type(
 ) -> R<()> {
     ordinary_nominal::zero_type(module, ty, limits, left)
 }
+
+pub(super) fn canonical_nullary_enum(ty: &Type, limits: &Limits, left: &mut usize) -> R<bool> {
+    ordinary_nominal::canonical_nullary_enum(ty, limits, left)
+}

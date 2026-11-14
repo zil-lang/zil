@@ -1756,17 +1756,70 @@ impl Resolver<'_> {
                 tasks::create_failure(inputs)
             }
             ty @ Type::Package { .. } if packages::product::nested(ty) => {
-                if packages::product::owned_supported(ty) {
+                let Type::Package { name, fields } = ty else {
+                    unreachable!()
+                };
+                self.charge(depth + 1, span)?;
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    name.len().saturating_add(fields.len()),
+                    span,
+                )?;
+                let mut resolved_fields = Vec::new();
+                for (field, ty) in fields {
+                    aggregate_templates::spend(
+                        &mut self.remaining,
+                        field.len().saturating_add(1),
+                        span,
+                    )?;
+                    resolved_fields.push((field.clone(), self.ty(ty, depth + 1, span)?));
+                }
+                let ty = Type::Package {
+                    name: name.clone(),
+                    fields: resolved_fields,
+                };
+                if packages::product::owned_supported(&ty) {
                     packages::product::validate_owned(
-                        ty,
+                        &ty,
                         &mut self.remaining,
                         self.depth_limit,
                         span,
                     )?;
                 } else {
-                    owned_shapes::validate(ty, &mut self.remaining, self.depth_limit, span)?;
+                    owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
                 }
-                ty.clone()
+                ty
+            }
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                // A complete nominal actual keeps its exact category and
+                // original layout, but its symbolic children still require
+                // resolution. Returning it unchanged would make `Named K`
+                // and an explicit whole K disagree about e.g. ByteBuffer.
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    name.len().saturating_add(fields.len()),
+                    span,
+                )?;
+                let mut resolved_fields = Vec::new();
+                for (field, ty) in fields {
+                    aggregate_templates::spend(
+                        &mut self.remaining,
+                        field.len().saturating_add(1),
+                        span,
+                    )?;
+                    resolved_fields.push((field.clone(), self.ty(ty, depth + 1, span)?));
+                }
+                if matches!(ty, Type::Record { .. }) {
+                    Type::Record {
+                        name: name.clone(),
+                        fields: resolved_fields,
+                    }
+                } else {
+                    Type::Package {
+                        name: name.clone(),
+                        fields: resolved_fields,
+                    }
+                }
             }
             Type::Enum { name, variants } if name == enums::ANONYMOUS_SUM => {
                 let mut members = Vec::new();
@@ -1794,6 +1847,34 @@ impl Resolver<'_> {
                     &self.generic_limits,
                     span,
                 )?
+            }
+            Type::Enum { name, variants } => {
+                // A serialized whole-Type actual is not a resolved template
+                // merely because its outer enum name is already canonical.
+                // Preserve every selected variant and carrier category while
+                // resolving its complete children in this same owner scope.
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    name.len().saturating_add(variants.len()),
+                    span,
+                )?;
+                let mut resolved = Vec::new();
+                for (variant, fields) in variants {
+                    aggregate_templates::spend(
+                        &mut self.remaining,
+                        variant.len().saturating_add(fields.len()),
+                        span,
+                    )?;
+                    let mut payload = Vec::new();
+                    for field in fields {
+                        payload.push(self.ty(field, depth + 1, span)?);
+                    }
+                    resolved.push((variant.clone(), payload));
+                }
+                Type::Enum {
+                    name: name.clone(),
+                    variants: resolved,
+                }
             }
             Type::Task {
                 result,

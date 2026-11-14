@@ -140,6 +140,9 @@ impl<'a> Check<'a, '_> {
     }
     fn domain(&mut self, ty: &Type, depth: usize) -> R<u32> {
         self.node(depth)?;
+        if stored::canonical_nullary_enum(ty, self.limits, self.left)? {
+            return Ok(0);
+        }
         match ty {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count),
             ty if ty.is_b0_scalar() => Ok(0),

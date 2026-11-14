@@ -3518,12 +3518,24 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 self.value(kind, stored, capture.span)?
             } else if capture.moved && self.borrowed_captures.contains_key(&capture.source) {
-                let expression = CoreExpr {
-                    id: zil_base::NodeId(0),
-                    kind: CoreExprKind::Name(capture.name.clone()),
-                    span: capture.span,
-                };
-                self.expr(&expression, Some(&stored))?.0
+                let address_type = &self.function.locals[capture.source.0 as usize].ty;
+                self.closures
+                    .snapshot_type(address_type, 1, 0, capture.span)?;
+                let address_type = address_type.clone();
+                let inner = &self.borrowed_captures[&capture.source];
+                self.closures.snapshot_type(inner, 1, 0, capture.span)?;
+                let inner = inner.clone();
+                let address = self.value(
+                    InstructionKind::Load(capture.source),
+                    address_type,
+                    capture.span,
+                )?;
+                self.same(&inner, &stored, capture.span)?;
+                self.value(
+                    InstructionKind::ReadAddress { address },
+                    inner,
+                    capture.span,
+                )?
             } else if capture.borrowed {
                 if matches!(capture.ty, Type::Package { .. }) {
                     self.closures.snapshot(
@@ -3540,12 +3552,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                         ));
                     }
                 }
-                let expression = CoreExpr {
-                    id: zil_base::NodeId(0),
-                    kind: CoreExprKind::Name(capture.name.clone()),
-                    span: capture.span,
-                };
-                self.borrow_place_mode(&expression, capture.written)?.0
+                self.borrow_local_capture(capture.source, capture.written, capture.span)?
+                    .0
             } else if !capture.moved && matches!(capture.ty, Type::Address { .. }) {
                 let address = self.value(
                     InstructionKind::Load(capture.source),
