@@ -2327,6 +2327,69 @@ impl<'a> Engine<'a, '_> {
         seen.push(state);
         Ok(true)
     }
+    fn unselected(
+        &mut self,
+        pattern: &SemanticOriginalPattern,
+        value: &Value,
+        state: &State,
+        depth: usize,
+    ) -> R<Vec<State>> {
+        self.pay(value.work(), depth)?;
+        if let Value::Choice(values) = value {
+            let mut out = Vec::new();
+            for value in values {
+                out.extend(self.unselected(pattern, value, state, depth + 1)?)
+            }
+            return Ok(out);
+        }
+        if self.matches(pattern, value, depth + 1)? == Some(true) {
+            return Ok(Vec::new());
+        }
+        if let Value::Poll {
+            fresh: true,
+            outcomes,
+        } = value
+        {
+            let wanted = match &pattern.kind {
+                CorePatternKind::Variant { variant, .. }
+                | CorePatternKind::Constructor { variant, .. } => match variant.as_str() {
+                    "Pending" => ProtocolExit::PollPending,
+                    "Ready" => ProtocolExit::PollReady,
+                    _ => {
+                        return Err(failure(
+                            "original Poll rejection selects an absent sealed arm",
+                        ));
+                    }
+                },
+                _ => {
+                    return Err(pending(
+                        "original Poll rejection requires its exact constructor pattern",
+                    ));
+                }
+            };
+            let mut out = Vec::new();
+            for outcome in outcomes {
+                if outcome.exit == wanted {
+                    continue;
+                }
+                let mut branch = self.copy(state, depth + 1)?;
+                self.pay(outcome.phases.len(), depth)?;
+                for (root, phase) in &outcome.phases {
+                    if !branch.roots.contains_key(root) {
+                        return Err(failure("Poll rejection lost its original owner root"));
+                    }
+                    branch.roots.insert(*root, *phase);
+                }
+                out.push(branch);
+            }
+            return Ok(out);
+        }
+        let branch = self.copy(state, depth + 1)?;
+        // A failed pattern consumes no binding, but the evaluated temporary's
+        // unmatched payload still has to be cleaned on this exact edge.
+        self.drop_value(value, &branch, depth + 1)?;
+        Ok(vec![branch])
+    }
     fn loop_body(
         &mut self,
         owner: SemanticDefinitionId,
@@ -2351,14 +2414,15 @@ impl<'a> Engine<'a, '_> {
                 let value = self.expr(owner, condition, &mut state, depth + 1)?;
                 // Both condition outcomes are real source paths. A Poll
                 // constructor pattern refines only its own matching edge.
-                let mut exit = self.copy(&state, depth)?;
-                self.condition(&value, false, &mut exit, depth)?;
-                if exit.reachable {
-                    exits.push(exit);
-                }
                 if let Some(pattern) = pattern {
+                    exits.extend(self.unselected(pattern, &value, &state, depth + 1)?);
                     entries = self.selected(owner, pattern, &value, &state, depth + 1)?;
                 } else {
+                    let mut exit = self.copy(&state, depth)?;
+                    self.condition(&value, false, &mut exit, depth)?;
+                    if exit.reachable {
+                        exits.push(exit)
+                    }
                     self.condition(&value, true, &mut state, depth)?;
                     if state.reachable {
                         entries.push(state);
@@ -2887,18 +2951,7 @@ impl<'a> Engine<'a, '_> {
                         out.push(branch);
                     }
                 }
-                let mut pending = vec![self.value_copy(&value, depth + 1)?];
-                while let Some(value) = pending.pop() {
-                    if let Value::Choice(values) = value {
-                        self.pay(values.len(), depth)?;
-                        pending.extend(values);
-                        continue;
-                    }
-                    if self.matches(pattern, &value, depth + 1)? == Some(true) {
-                        continue;
-                    }
-                    let branch = self.copy(&state, depth + 1)?;
-                    self.drop_value(&value, &branch, depth + 1)?;
+                for branch in self.unselected(pattern, &value, &state, depth + 1)? {
                     if let Some(body) = else_body {
                         out.extend(self.block(owner, body, branch, depth + 1)?);
                     } else {
