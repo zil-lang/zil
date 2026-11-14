@@ -458,6 +458,7 @@ impl Builder<'_, '_, '_, '_> {
                 requirements: Vec::new(),
                 environment: fields,
                 body: SemanticDefinitionBody::FunctionWithBody {
+                    protocol_contracts: Vec::new(),
                     names: self.original_names()?,
                     signature,
                     sites: Vec::new(),

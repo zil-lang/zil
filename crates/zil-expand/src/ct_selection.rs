@@ -157,6 +157,15 @@ fn term<V: Visitor + ?Sized>(v: &mut V, t: &s::ContractTerm, depth: usize) -> Co
     }
     Ok(())
 }
+/// Complete borrowed contract syntax traversal for original data collectors.
+/// This performs no normalization, selection, type inference or verification.
+pub(crate) fn walk_contract_term<V: Visitor + ?Sized>(
+    v: &mut V,
+    value: &s::ContractTerm,
+    depth: usize,
+) -> CompileResult<()> {
+    term(v, value, depth)
+}
 fn parameter<V: Visitor + ?Sized>(v: &mut V, p: &s::Param, depth: usize) -> CompileResult<()> {
     v.node(p.span, depth)?;
     v.text(&p.name, p.span)?;

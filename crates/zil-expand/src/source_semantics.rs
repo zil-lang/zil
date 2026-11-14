@@ -35,6 +35,8 @@ mod prelude;
 pub(crate) mod program;
 #[path = "source_semantic_projection.rs"]
 mod projection;
+#[path = "source_semantic_protocol.rs"]
+mod protocol;
 #[path = "source_semantic_requests.rs"]
 mod requests;
 #[path = "source_semantic_types.rs"]

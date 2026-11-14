@@ -12,28 +12,66 @@ fn protocol_state(term: &s::ContractTerm) -> Option<ProtocolState> {
         _ => None,
     }
 }
-fn phase_term(term: &s::ContractTerm, parameter: &str) -> Option<Vec<ProtocolState>> {
-    if term.path.as_slice() != ["state"] || !term.type_args.is_empty() || term.index.is_some() {
-        return None;
+fn protocol_push<T>(
+    values: &mut Vec<T>,
+    value: T,
+    storage: &mut impl FnMut(usize, usize) -> Result<(), Diagnostic>,
+    span: Span,
+) -> Result<(), Diagnostic> {
+    if values.len() == values.capacity() {
+        let old = values
+            .capacity()
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| {
+                Diagnostic::limit(Phase::Expand, "protocol allocation overflow", Some(span))
+            })?;
+        let growth = values.capacity().max(4);
+        let new = values
+            .capacity()
+            .checked_add(growth)
+            .and_then(|n| n.checked_mul(std::mem::size_of::<T>()))
+            .ok_or_else(|| {
+                Diagnostic::limit(Phase::Expand, "protocol allocation overflow", Some(span))
+            })?;
+        storage(new, old)?;
+        values.try_reserve_exact(growth).map_err(|_| {
+            Diagnostic::limit(Phase::Expand, "protocol allocation failed", Some(span))
+        })?;
     }
-    let (name, states) = term.arguments.split_first()?;
+    values.push(value);
+    Ok(())
+}
+fn phase_term(
+    term: &s::ContractTerm,
+    parameter: &str,
+    storage: &mut impl FnMut(usize, usize) -> Result<(), Diagnostic>,
+) -> Result<Option<Vec<ProtocolState>>, Diagnostic> {
+    if term.path.as_slice() != ["state"] || !term.type_args.is_empty() || term.index.is_some() {
+        return Ok(None);
+    }
+    let Some((name, states)) = term.arguments.split_first() else {
+        return Ok(None);
+    };
     if name.path.as_slice() != [parameter]
         || !name.arguments.is_empty()
         || !name.type_args.is_empty()
         || name.index.is_some()
     {
-        return None;
+        return Ok(None);
     }
-    let mut out = states
-        .iter()
-        .map(protocol_state)
-        .collect::<Option<Vec<_>>>()?;
+    let mut out = Vec::new();
+    for state in states {
+        let Some(state) = protocol_state(state) else {
+            return Ok(None);
+        };
+        protocol_push(&mut out, state, storage, term.span)?;
+    }
     if out.is_empty() {
-        return None;
+        return Ok(None);
     }
-    out.sort();
+    out.sort_unstable();
     out.dedup();
-    Some(out)
+    Ok(Some(out))
 }
 fn protocol_pay(work: &mut usize, amount: usize, span: Span) -> Result<(), Diagnostic> {
     *work = work.checked_sub(amount).ok_or_else(|| {
@@ -45,9 +83,19 @@ fn protocol_pay(work: &mut usize, amount: usize, span: Span) -> Result<(), Diagn
     })?;
     Ok(())
 }
-fn protocol_rows(
+pub(crate) fn protocol_rows(
     f: &s::Function,
     work: &mut usize,
+) -> Result<Vec<FunctionProtocolContract>, Diagnostic> {
+    protocol_rows_with_storage(f, work, &mut |_, _| Ok(()))
+}
+/// The allocation observer reports new storage before the previous buffer is
+/// retired. This is the same normalizer used by actual Core and the original
+/// declaration producer, with independent inputs and accounting contexts.
+pub(crate) fn protocol_rows_with_storage(
+    f: &s::Function,
+    work: &mut usize,
+    storage: &mut impl FnMut(usize, usize) -> Result<(), Diagnostic>,
 ) -> Result<Vec<FunctionProtocolContract>, Diagnostic> {
     let invalid = || {
         Diagnostic::error(
@@ -62,6 +110,11 @@ fn protocol_rows(
         .clone()
         .any(|c| c.terms.iter().any(|t| t.path.as_slice() == ["state"]))
     {
+        // A recognized protocol exit without an entry relation is incomplete,
+        // not evidence that the source function declared no protocol at all.
+        if f.contract.iter().filter(|clause|clause.name == "provides").any(|clause|clause.terms.iter().any(|term|matches!(term.path.as_slice(),[name] if matches!(name.as_str(),"state"|"retired"|"on_ok"|"on_err"|"on_pending"|"on_ready")))) {
+            return Err(invalid());
+        }
         return Ok(Vec::new());
     }
     protocol_pay(
@@ -69,7 +122,7 @@ fn protocol_rows(
         f.contract.len().saturating_add(f.params.len()),
         f.span,
     )?;
-    let mut roles = BTreeMap::new();
+    let mut roles: Vec<FunctionProtocolContract> = Vec::new();
     for clause in requires {
         if clause.terms.is_empty() {
             return Err(invalid());
@@ -95,21 +148,22 @@ fn protocol_rows(
                 .position(|p| &p.name == name)
                 .ok_or_else(invalid)?;
             protocol_pay(work, term.arguments.len(), f.span)?;
-            let entry = phase_term(term, name).ok_or_else(invalid)?;
-            if roles
-                .insert(
-                    parameter,
-                    FunctionProtocolContract {
-                        protocol: ProtocolKind::AsyncRegistrationV1,
-                        parameter: parameter as u32,
-                        entry,
-                        exits: Vec::new(),
-                    },
-                )
-                .is_some()
-            {
+            let entry = phase_term(term, name, storage)?.ok_or_else(invalid)?;
+            let parameter = u32::try_from(parameter).map_err(|_| invalid())?;
+            if roles.iter().any(|role| role.parameter == parameter) {
                 return Err(invalid());
             }
+            protocol_push(
+                &mut roles,
+                FunctionProtocolContract {
+                    protocol: ProtocolKind::AsyncRegistrationV1,
+                    parameter,
+                    entry,
+                    exits: Vec::new(),
+                },
+                storage,
+                f.span,
+            )?;
         }
     }
     for clause in f.contract.iter().filter(|c| c.name == "provides") {
@@ -160,7 +214,10 @@ fn protocol_rows(
                 .iter()
                 .position(|p| &p.name == role_name)
                 .ok_or_else(invalid)?;
-            let role = roles.get_mut(&parameter).ok_or_else(invalid)?;
+            let role = roles
+                .iter_mut()
+                .find(|role| role.parameter as usize == parameter)
+                .ok_or_else(invalid)?;
             protocol_pay(
                 work,
                 phase
@@ -177,18 +234,26 @@ fn protocol_rows(
             {
                 Vec::new()
             } else {
-                phase_term(phase, role_name).ok_or_else(invalid)?
+                phase_term(phase, role_name, storage)?.ok_or_else(invalid)?
             };
             for input in &role.entry {
-                role.exits.push(ProtocolTransition {
-                    input: *input,
-                    exit,
-                    output: output.clone(),
-                });
+                storage(std::mem::size_of_val(output.as_slice()), 0)?;
+                protocol_push(
+                    &mut role.exits,
+                    ProtocolTransition {
+                        input: *input,
+                        exit,
+                        output: output.clone(),
+                    },
+                    storage,
+                    f.span,
+                )?;
             }
+            storage(0, output.capacity() * std::mem::size_of::<ProtocolState>())?;
+            drop(output);
         }
     }
-    for role in roles.values_mut() {
+    for role in &mut roles {
         protocol_pay(
             work,
             role.exits
@@ -196,7 +261,7 @@ fn protocol_rows(
                 .saturating_mul(role.exits.len().saturating_add(1)),
             f.span,
         )?;
-        role.exits.sort_by_key(|r| (r.input, r.exit));
+        role.exits.sort_unstable_by_key(|r| (r.input, r.exit));
         if role.exits.is_empty()
             || role
                 .exits
@@ -206,7 +271,8 @@ fn protocol_rows(
             return Err(invalid());
         }
     }
-    Ok(roles.into_values().collect())
+    roles.sort_unstable_by_key(|role| role.parameter);
+    Ok(roles)
 }
 impl Expander<'_> {
     pub(super) fn resource_protocol_contracts(
