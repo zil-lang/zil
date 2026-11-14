@@ -389,6 +389,140 @@ fn implicit_observation(
         span,
     )
 }
+// A bare unit variant is an original construction, even without Call syntax.
+// Resolve its original type namespace and enum declaration; local shadowing is
+// taken from the lexical value-use directory rather than a spelling heuristic.
+fn unit_variant(
+    program: &program::Program,
+    definition: SemanticDefinitionId,
+    expression: &s::Expr,
+    original_path: &[u32],
+    nodes: &[body::OriginalBodyNode],
+    value_names: &[zil_base::NodeId],
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    let s::ExprKind::Member {
+        object,
+        member: s::MemberName::Name(variant),
+    } = &expression.kind
+    else {
+        return Ok(false);
+    };
+    let mut owner = object.as_ref();
+    budget.lineage_bytes((original_path.len() + 1) * 4, expression.span)?;
+    let mut path = original_path.to_vec();
+    path.push(0);
+    let mut parts = Vec::new();
+    loop {
+        budget.node(owner.span, parts.len())?;
+        match &owner.kind {
+            s::ExprKind::Member {
+                object,
+                member: s::MemberName::Name(name),
+            } => {
+                budget.text(name, owner.span)?;
+                budget.lineage_push(&mut parts, name.as_str(), owner.span)?;
+                owner = object;
+                budget.lineage_push(&mut path, 0, owner.span)?;
+            }
+            s::ExprKind::TypeApply { callee, .. } | s::ExprKind::Group(callee) => {
+                owner = callee;
+                budget.lineage_push(&mut path, 0, owner.span)?;
+            }
+            s::ExprKind::Name(name) => {
+                budget.identity_work(
+                    nodes.len().saturating_mul(path.len().saturating_add(1)),
+                    owner.span,
+                )?;
+                if nodes
+                    .iter()
+                    .any(|node| node.path == path && value_names.binary_search(&node.id).is_ok())
+                {
+                    return Ok(false);
+                }
+                budget.text(name, owner.span)?;
+                budget.lineage_push(&mut parts, name.as_str(), owner.span)?;
+                break;
+            }
+            _ => return Ok(false),
+        }
+    }
+    parts.reverse();
+    budget.identity_work(
+        program
+            .modules
+            .iter()
+            .map(|(_, module)| module.definitions.len())
+            .sum(),
+        expression.span,
+    )?;
+    let original = program
+        .modules
+        .iter()
+        .flat_map(|(_, module)| &module.definitions)
+        .find(|row| row.id == definition)
+        .ok_or_else(|| error(expression.span, "unit variant lost its original owner"))?;
+    let SemanticDefinitionBody::FunctionWithBody { names, .. } = &original.body else {
+        return Ok(false);
+    };
+    budget.identity_work(
+        names.len().saturating_mul(parts.len().saturating_add(1)),
+        expression.span,
+    )?;
+    let mut selected = None;
+    for name in names {
+        if name.namespace != SemanticOriginalNamespace::Type
+            || !name
+                .path
+                .iter()
+                .map(String::as_str)
+                .eq(parts.iter().copied())
+        {
+            continue;
+        }
+        let target = match &name.value {
+            SemanticOriginalNameValue::Definition(id) => *id,
+            SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                SemanticTypeRecipe::Nominal { definition, .. },
+            )) => *definition,
+            _ => return Ok(false),
+        };
+        if selected.replace(target).is_some() {
+            return Ok(false);
+        }
+    }
+    let Some(selected) = selected else {
+        return Ok(false);
+    };
+    let Some(original) = program
+        .modules
+        .iter()
+        .flat_map(|(_, module)| &module.definitions)
+        .find(|row| row.id == selected)
+    else {
+        return Ok(false);
+    };
+    let SemanticDefinitionBody::Nominal {
+        body: SemanticNominalBody::Enum { variants },
+        ..
+    } = &original.body
+    else {
+        return Ok(false);
+    };
+    budget.identity_work(
+        variants
+            .len()
+            .saturating_mul(variant.len().saturating_add(1)),
+        expression.span,
+    )?;
+    let mut found = None;
+    for row in variants {
+        if row.name == *variant && found.replace(row.fields.is_empty()).is_some() {
+            return Ok(false);
+        }
+    }
+    Ok(found == Some(true))
+}
 fn operations(
     program: &mut program::Program,
     definition: SemanticDefinitionId,
@@ -418,7 +552,7 @@ fn operations(
     )?;
     value_names.sort_unstable();
     let nodes = directory.nodes;
-    for original in nodes {
+    for original in &nodes {
         let observation = observation_operand(body, &original.path, budget, span)?;
         let projection_value = projection_value(body, &original.path, budget, span)?;
         let navigation = assignment_navigation(body, &original.path, budget, span)?;
@@ -437,7 +571,7 @@ fn operations(
         budget.lineage_bytes((original.path.len() + 1) * 4, span)?;
         path.push(40);
         path.extend_from_slice(&original.path);
-        match (original.kind, located.node) {
+        match (&original.kind, located.node) {
             (body::OriginalBodyNodeKind::Binding, body_nodes::Node::Statement(statement)) => {
                 if !matches!(statement.kind, s::StmtKind::Binding { .. }) {
                     continue;
@@ -496,6 +630,15 @@ fn operations(
                         expression.kind,
                         s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
                     );
+                let unit_variant = unit_variant(
+                    program,
+                    definition,
+                    expression,
+                    &original.path,
+                    &nodes,
+                    &value_names,
+                    budget,
+                )?;
                 let observed_projection = observation
                     && projection_value
                     && matches!(
@@ -523,6 +666,20 @@ fn operations(
                     ))
                 } else {
                     match &expression.kind {
+                        s::ExprKind::Member { .. } if unit_variant => {
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::Construct {
+                                    result: expected.clone(),
+                                },
+                                Action::Construct(expected),
+                                SemanticEmissionRole::Construct,
+                            ))
+                        }
                         s::ExprKind::Call { .. } => Some((
                             SemanticSiteRecipeKind::OriginalCall,
                             Action::BodyCall,

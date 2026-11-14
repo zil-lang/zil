@@ -2486,7 +2486,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         if self.enum_constructor(e)?.is_some() {
             let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
-            return self.make_variant(ty, variant, &[], expected, e.span);
+            return self.make_variant(e, ty, variant, &[], expected);
         }
         let result = if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none())
         {
@@ -2699,7 +2699,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 return self.foreign_callback(arguments, e.span);
             }
             if let Some((ty, variant)) = self.enum_constructor(callee)? {
-                return self.make_variant(ty, variant, arguments, expected, e.span);
+                return self.make_variant(e, ty, variant, arguments, expected);
             }
             if let CoreExprKind::Member {
                 object,

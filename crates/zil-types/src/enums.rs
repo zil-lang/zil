@@ -873,12 +873,13 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     pub(super) fn make_variant(
         &mut self,
+        expression: &CoreExpr,
         ty: &Type,
         variant: u32,
         expressions: &[CoreExpr],
         expected: Option<&Type>,
-        span: Span,
     ) -> R<(ValueId, Type)> {
+        let span = expression.span;
         let Type::Enum { variants, .. } = stored::physical(ty) else {
             unreachable!()
         };
@@ -904,10 +905,10 @@ impl<'a, 'c> Builder<'a, 'c> {
                 staged.push(self.stage_argument(value, &actual, expression.span)?);
             }
             let fields = self.commit_arguments(staged, span)?;
-            let value = self.value(
+            let value = self.semantic_constructor_value(
+                expression,
                 InstructionKind::MakeVariant { variant, fields },
                 ty.clone(),
-                span,
             )?;
             return Ok((value, ty.clone()));
         }
@@ -923,13 +924,13 @@ impl<'a, 'c> Builder<'a, 'c> {
             values.push(value);
         }
         Ok((
-            self.value(
+            self.semantic_constructor_value(
+                expression,
                 InstructionKind::MakeVariant {
                     variant,
                     fields: values,
                 },
                 ty.clone(),
-                span,
             )?,
             ty.clone(),
         ))
