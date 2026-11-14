@@ -273,7 +273,7 @@ impl Builder<'_, '_> {
             )
         })?;
         let ty = signature.foreign_callback_type().ok_or_else(|| {
-            error("E-FFI-CALLBACK", target.span, "C callbacks require an ordinary environment-free function with exact i8/i16/i32/i64/u32/isize/handle signature")
+            error("E-FFI-CALLBACK", target.span, "C callbacks require an ordinary environment-free function with exact integer/f32/f64/c_handle signature and an optional unit result")
         })?;
         let function = signature.concrete_id(span)?;
         let value = self.value(

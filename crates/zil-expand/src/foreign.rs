@@ -138,6 +138,32 @@ pub(crate) fn callback_scalar_name(name: &str) -> bool {
     )
 }
 
+fn callback_component(
+    mut ty: &s::TypeRef,
+    result: bool,
+    variables: Option<&BTreeSet<String>>,
+) -> bool {
+    while let s::TypeKind::Group(inner) = &ty.kind {
+        ty = inner;
+    }
+    match &ty.kind {
+        s::TypeKind::Named { path, args } if args.is_empty() => {
+            if let [name] = path.as_slice() {
+                match name.as_str() {
+                    name if callback_scalar_name(name) => true,
+                    "void" => result,
+                    "bool" | "c_wstr" => false,
+                    _ => variables.is_none_or(|names| names.contains(name)),
+                }
+            } else {
+                variables.is_none()
+            }
+        }
+        s::TypeKind::Tuple(fields) if fields.is_empty() => result,
+        _ => false,
+    }
+}
+
 /// Check the fixed part of a written callback type before aliases or unused
 /// templates can disappear. With no scope, names may still denote aliases;
 /// after normalization, only actual type parameters may remain unresolved.
@@ -153,28 +179,11 @@ pub(super) fn callback_type_formation(
     else {
         return Ok(());
     };
-    let admissible = |mut ty: &s::TypeRef, result: bool| {
-        while let s::TypeKind::Group(inner) = &ty.kind {
-            ty = inner;
-        }
-        match &ty.kind {
-            s::TypeKind::Named { path, args } if args.is_empty() => {
-                if let [name] = path.as_slice() {
-                    match name.as_str() {
-                        name if callback_scalar_name(name) => true,
-                        "void" => result,
-                        "bool" | "c_wstr" => false,
-                        _ => variables.is_none_or(|names| names.contains(name)),
-                    }
-                } else {
-                    variables.is_none()
-                }
-            }
-            s::TypeKind::Tuple(fields) if fields.is_empty() => result,
-            _ => false,
-        }
-    };
-    if abi != "\"C\"" || !params.iter().all(|ty| admissible(ty, false)) || !admissible(result, true)
+    if abi != "\"C\""
+        || !params
+            .iter()
+            .all(|ty| callback_component(ty, false, variables))
+        || !callback_component(result, true, variables)
     {
         return Err(Diagnostic::error(
             Phase::Expand,
@@ -268,24 +277,18 @@ pub(super) fn callback_syntax_type(
     function: &s::Function,
     span: Span,
 ) -> Result<s::TypeRef, Diagnostic> {
-    let valid = |ty: &Type| {
-        matches!(
-            ty,
-            Type::I32
-                | Type::U32
-                | Type::I8
-                | Type::I16
-                | Type::Isize
-                | Type::I64
-                | Type::ForeignHandle
-        )
-    };
-    let result = function.return_type.as_ref().map_or(Type::Unit, type_ref);
+    let concrete = BTreeSet::new();
     if !function.generics.is_empty()
         || !function.contract.is_empty()
         || matches!(function.body, s::FunctionBody::Declaration)
-        || !function.params.iter().all(|p| valid(&type_ref(&p.ty)))
-        || !(result == Type::Unit || valid(&result))
+        || !function
+            .params
+            .iter()
+            .all(|p| callback_component(&p.ty, false, Some(&concrete)))
+        || !function
+            .return_type
+            .as_ref()
+            .is_none_or(|ty| callback_component(ty, true, Some(&concrete)))
     {
         return Err(callback_error(
             span,
