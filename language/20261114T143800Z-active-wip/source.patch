@@ -1,0 +1,819 @@
+diff --git a/crates/zil-types/src/semantics/finish.rs b/crates/zil-types/src/semantics/finish.rs
+index 6dc934a9f..6b651603e 100644
+--- a/crates/zil-types/src/semantics/finish.rs
++++ b/crates/zil-types/src/semantics/finish.rs
+@@ -48,6 +48,12 @@ pub(crate) fn program(
+     stored::OrdinaryStats::step(&ledger.ordinary_stats, "finish: relocation", left, |left| {
+         super::lower::program(&mut result, module, ledger, limits, left)
+     })?;
++    stored::OrdinaryStats::step(
++        &ledger.ordinary_stats,
++        "finish: actual Dyn registry relocation",
++        left,
++        |left| super::materialize::dynamic::relocate(&result, module, ledger, limits, left),
++    )?;
+     #[cfg(test)]
+     {
+         super::source_probe::record_stage(module, "after-lower")?;
+diff --git a/crates/zil-types/src/semantics/materialize.rs b/crates/zil-types/src/semantics/materialize.rs
+index fb0ea4f57..3ac89f347 100644
+--- a/crates/zil-types/src/semantics/materialize.rs
++++ b/crates/zil-types/src/semantics/materialize.rs
+@@ -48,6 +48,8 @@ mod self_type;
+ mod shapes;
+ #[path = "materialize_tasks.rs"]
+ mod task_domains;
++#[path = "materialize_task_results.rs"]
++mod task_results;
+ pub(crate) use emitter::{PreparedTask, prepare_task};
+ #[path = "materialize_view.rs"]
+ mod view;
+@@ -1236,24 +1238,13 @@ impl<'a> Eval<'a, '_, '_> {
+                         ..row.clone()
+                     });
+                 }
+-                // An opaque element's classes remain a complete child domain.
+-                if matches!(
+-                    ty,
+-                    Type::BorrowedStorage { .. }
+-                        | Type::Closure(_)
+-                        | Type::MutexGuard { .. }
+-                        | Type::Task { .. }
+-                        | Type::Dyn { .. }
+-                        | Type::OwnedDyn { .. }
+-                ) {
+-                    self.fee(classes.len())?;
+-                    array_life.retained = (0..life.binder_count)
+-                        .map(|class| StorageRetainedBinding {
+-                            path: vec![LifeTypeProjection::Element],
+-                            class,
+-                            binder: class,
+-                        })
+-                        .collect();
++                // Element is a complete type-domain boundary even when its
++                // classes have no physical slot or only a phantom occurrence.
++                self.fee(classes.len())?;
++                for class in 0..life.binder_count {
++                    array_life.retained.push(StorageRetainedBinding {
++                        path: vec![LifeTypeProjection::Element], class, binder: class,
++                    });
+                 }
+                 for row in &life.nominal_arguments {
+                     self.fee(row.path.len().saturating_add(2))?;
+diff --git a/crates/zil-types/src/semantics/materialize_domains.rs b/crates/zil-types/src/semantics/materialize_domains.rs
+index 3164917ce..9843d36d3 100644
+--- a/crates/zil-types/src/semantics/materialize_domains.rs
++++ b/crates/zil-types/src/semantics/materialize_domains.rs
+@@ -39,6 +39,8 @@ pub(super) enum Boundary {
+     Element,
+ }
+ pub(super) struct Domain {
++    /// A complete input boundary keeps every child index when embedded.
++    pub frozen: bool,
+     pub value: SemanticTypeValue,
+     pub selectors: Vec<Selector>,
+ }
+@@ -193,6 +195,44 @@ impl Eval<'_, '_, '_> {
+             let child_count = count - offset;
+             self.fee(child_count as usize)?;
+             if child_count != 0 {
++                let child = self.type_domain_at(scope, inner, None, depth + 1, occurrence)?;
++                if child.frozen {
++                    let SemanticTypeValue::Resolved {
++                        life: child_life,
++                        classes: child_images,
++                        ..
++                    } = &child.value
++                    else {
++                        unreachable!()
++                    };
++                    let SemanticTypeValue::Resolved {
++                        classes: images, ..
++                    } = &value
++                    else {
++                        unreachable!()
++                    };
++                    for image in child_images.iter().chain(images.iter()) {
++                        crate::dyn_metadata::semantic_operand_snapshot(
++                            image,
++                            self.limits,
++                            self.left,
++                            1,
++                        )?;
++                    }
++                    if child_life.binder_count != child_count
++                        || child.selectors.len() != child_count as usize
++                        || child_images.as_slice() != &images[offset as usize..]
++                    {
++                        return Err(bad("outer type changes its complete frozen child domain"));
++                    }
++                    self.fee(child.selectors.len())?;
++                    selectors.extend(child.selectors);
++                    return Ok(Domain {
++                        frozen: false,
++                        value,
++                        selectors,
++                    });
++                }
+                 crate::dyn_metadata::semantic_operand_snapshot(
+                     inner.as_ref(),
+                     self.limits,
+@@ -212,7 +252,54 @@ impl Eval<'_, '_, '_> {
+                     });
+                 }
+             }
+-            return Ok(Domain { value, selectors });
++            return Ok(Domain {
++                frozen: false,
++                value,
++                selectors,
++            });
++        }
++        let inherited = match recipe {
++            SemanticTypeRecipe::Managed(inner)
++            | SemanticTypeRecipe::Mutex(inner)
++            | SemanticTypeRecipe::Registration(inner)
++            | SemanticTypeRecipe::AsyncRegistration(inner)
++            | SemanticTypeRecipe::OwnedStore(inner)
++            | SemanticTypeRecipe::Slice(inner)
++            | SemanticTypeRecipe::Array { element: inner, .. } => Some(inner.as_ref()),
++            _ => None,
++        };
++        if let Some(inner) = inherited {
++            let child = self.type_domain_at(scope, inner, None, depth + 1, occurrence)?;
++            if child.frozen {
++                let SemanticTypeValue::Resolved { life, classes, .. } = &value else {
++                    unreachable!()
++                };
++                let SemanticTypeValue::Resolved {
++                    life: child_life,
++                    classes: child_images,
++                    ..
++                } = &child.value
++                else {
++                    unreachable!()
++                };
++                self.fee(classes.len().saturating_add(child_images.len()))?;
++                for image in classes.iter().chain(child_images.iter()) {
++                    crate::dyn_metadata::semantic_operand_snapshot(
++                        image,
++                        self.limits,
++                        self.left,
++                        1,
++                    )?;
++                }
++                if life.binder_count != child_life.binder_count || classes != child_images {
++                    return Err(bad("container changes its complete frozen child domain"));
++                }
++                return Ok(Domain {
++                    frozen: true,
++                    value,
++                    selectors: child.selectors,
++                });
++            }
+         }
+         match recipe {
+             SemanticTypeRecipe::Formal(reference) => {
+@@ -267,7 +354,15 @@ impl Eval<'_, '_, '_> {
+         if life.binder_count != 0 {
+             crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+             let ty = Rc::new(recipe.clone());
+-            let occurrence = if boundary == Boundary::Whole {
++            let stable = matches!(
++                recipe,
++                SemanticTypeRecipe::Formal(_)
++                    | SemanticTypeRecipe::Environment { .. }
++                    | SemanticTypeRecipe::Nominal { .. }
++                    | SemanticTypeRecipe::Opaque { .. }
++                    | SemanticTypeRecipe::Closure { .. }
++            );
++            let occurrence = if boundary == Boundary::Whole && stable {
+                 None
+             } else {
+                 self.occurrence_snapshot(occurrence)?;
+@@ -283,7 +378,11 @@ impl Eval<'_, '_, '_> {
+                 });
+             }
+         }
+-        Ok(Domain { value, selectors })
++        Ok(Domain {
++            frozen: true,
++            value,
++            selectors,
++        })
+     }
+     pub(super) fn join_domain(
+         &mut self,
+@@ -400,6 +499,7 @@ impl Eval<'_, '_, '_> {
+         self.fee(children.len())?;
+         if children.is_empty() {
+             return Ok(Domain {
++                frozen: false,
+                 value: resolved(Type::Unit, empty(), Vec::new()),
+                 selectors: Vec::new(),
+             });
+@@ -412,6 +512,7 @@ impl Eval<'_, '_, '_> {
+             let ordinal =
+                 u32::try_from(ordinal).map_err(|_| bad("tuple child ordinal overflows"))?;
+             let map = self.join_domain(&mut selectors, &mut classes, &child)?;
++            let frozen = child.frozen;
+             let SemanticTypeValue::Resolved {
+                 ty, life: child, ..
+             } = child.value
+@@ -433,15 +534,17 @@ impl Eval<'_, '_, '_> {
+                     mode: slot.mode,
+                 });
+             }
+-            if matches!(
+-                ty,
+-                Type::BorrowedStorage { .. }
+-                    | Type::Closure(_)
+-                    | Type::MutexGuard { .. }
+-                    | Type::Task { .. }
+-                    | Type::Dyn { .. }
+-                    | Type::OwnedDyn { .. }
+-            ) {
++            if frozen
++                || matches!(
++                    ty,
++                    Type::BorrowedStorage { .. }
++                        | Type::Closure(_)
++                        | Type::MutexGuard { .. }
++                        | Type::Task { .. }
++                        | Type::Dyn { .. }
++                        | Type::OwnedDyn { .. }
++                )
++            {
+                 self.fee(map.len())?;
+                 for (class, binder) in map.iter().enumerate() {
+                     life.retained.push(StorageRetainedBinding {
+@@ -478,6 +581,7 @@ impl Eval<'_, '_, '_> {
+         life.binder_count = u32::try_from(selectors.len())
+             .map_err(|_| bad("tuple joint original domain overflows"))?;
+         Ok(Domain {
++            frozen: false,
+             value: resolved(Type::Tuple(fields), life, classes),
+             selectors,
+         })
+diff --git a/crates/zil-types/src/semantics/materialize_dyn.rs b/crates/zil-types/src/semantics/materialize_dyn.rs
+index 6126567b0..e0cc180d5 100644
+--- a/crates/zil-types/src/semantics/materialize_dyn.rs
++++ b/crates/zil-types/src/semantics/materialize_dyn.rs
+@@ -1,6 +1,9 @@
+ //! Materialize an original Dyn type against an actual, complete interface.
+ //! The table is a candidate for an exact type, never authority for a provider.
+ use super::*;
++#[path = "dyn_registry.rs"]
++mod registry;
++pub(crate) use registry::relocate;
+ 
+ impl Eval<'_, '_, '_> {
+     fn dyn_class(
+@@ -781,8 +784,7 @@ pub(crate) fn owned_provider(
+             .get(&entry.function)
+             .ok_or_else(|| bad("Dyn method has no actual emitter frame"))?;
+         let mut specializations = definition.instances.iter().filter(|row| {
+-            matches!(row.function, DynFunctionTarget::Core { module, source }
+-                if module == frame.origin.module && source == frame.origin.creator)
++            matches!(row.function, DynFunctionTarget::Typed(function) if function == entry.function)
+         });
+         let specialization = specializations
+             .next()
+diff --git a/crates/zil-types/src/semantics/materialize_emitter.rs b/crates/zil-types/src/semantics/materialize_emitter.rs
+index 1f6f0b379..8a4eac7e4 100644
+--- a/crates/zil-types/src/semantics/materialize_emitter.rs
++++ b/crates/zil-types/src/semantics/materialize_emitter.rs
+@@ -473,8 +473,13 @@ pub(crate) fn prepare_task(
+         left,
+         active: BTreeSet::new(),
+     };
+-    let (shape, bindings, inputs) =
+-        eval.task_inputs(scheme.instance, &scheme.signature, parameters, result)?;
++    let (shape, bindings, inputs) = eval.task_inputs(
++        scheme.instance,
++        &scheme.signature,
++        &scheme.result_sources,
++        parameters,
++        result,
++    )?;
+     // Reserve the actual success-context clone, failure input snapshot and
+     // canonical failure identity before the builder copies these products.
+     crate::dyn_metadata::semantic_operand_snapshot(&inputs, limits, left, 3)?;
+@@ -504,6 +509,7 @@ impl Eval<'_, '_, '_> {
+         &mut self,
+         scope: SemanticInstanceId,
+         signature: &SemanticSignatureRecipe,
++        sources: &[super::super::original::TaskReturnSources],
+         parameters: &[Type],
+         result: &Type,
+     ) -> R<(
+@@ -518,6 +524,7 @@ impl Eval<'_, '_, '_> {
+             ));
+         }
+         let mut domains = Vec::new();
++        let mut input_maps = Vec::new();
+         let mut selectors = Vec::new();
+         let mut classes = Vec::new();
+         let mut ports = Vec::new();
+@@ -590,6 +597,7 @@ impl Eval<'_, '_, '_> {
+                     ..projected.port
+                 });
+             }
++            input_maps.push(map);
+             domains.push(domain);
+         }
+         let output = self.type_domain_at(
+@@ -619,11 +627,20 @@ impl Eval<'_, '_, '_> {
+         }
+         let mut result_map = Vec::new();
+         for (class, (selector, image)) in output.selectors.iter().zip(images).enumerate() {
+-            let binder = self
+-                .find_selector(&selectors, &classes, selector, image)?
+-                .ok_or_else(|| {
+-                    unknown("Task result awaits its exact original input-domain origin")
+-                })?;
++            let binder =
++                if let Some(binder) = self.find_selector(&selectors, &classes, selector, image)? {
++                    binder
++                } else {
++                    self.task_return_class(
++                        scope,
++                        signature,
++                        sources,
++                        &domains,
++                        &input_maps,
++                        &output,
++                        class as u32,
++                    )?
++                };
+             self.fee(result_map.len().saturating_add(1))?;
+             if result_map.contains(&binder) {
+                 return Err(bad("Task result collapses two complete intrinsic indices"));
+diff --git a/crates/zil-types/src/semantics/original.rs b/crates/zil-types/src/semantics/original.rs
+index b79597a94..776a1d79d 100644
+--- a/crates/zil-types/src/semantics/original.rs
++++ b/crates/zil-types/src/semantics/original.rs
+@@ -44,6 +44,8 @@ mod store;
+ pub(super) mod substitute;
+ #[path = "original_task_bridge.rs"]
+ mod task_bridge;
++#[path = "original_task_families.rs"]
++mod task_families;
+ #[path = "original_task_results.rs"]
+ mod task_results;
+ pub(super) use nominal_where::{NominalRequest, NominalWhere};
+@@ -187,6 +189,7 @@ pub(super) struct Proof {
+     pub(super) body_costs: BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+     body_cost_total: usize,
+     task_returns: BTreeMap<(SemanticDefinitionId, NodeId), task_results::ReturnValue>,
++    task_result_types: BTreeMap<SemanticDefinitionId, SemanticTypeRecipe>,
+     task_binding_sources: BTreeMap<(SemanticDefinitionId, NodeId), Option<Vec<TaskResultSource>>>,
+     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
+     pub complete: BTreeSet<SemanticDefinitionId>,
+@@ -711,6 +714,24 @@ impl<'a> Check<'a, '_> {
+                 }
+                 return self.same(a, b);
+             }
++            (
++                SemanticTypeRecipe::Task {
++                    result: a,
++                    retained: al,
++                },
++                SemanticTypeRecipe::Task {
++                    result: b,
++                    retained: bl,
++                },
++            ) => {
++                self.same(a, b)?;
++                let owner = self
++                    .contexts
++                    .last()
++                    .copied()
++                    .ok_or_else(|| bad("original Task comparison has no lexical Gamma"))?;
++                return self.same_task_shape(owner, al, bl, 0);
++            }
+             (SemanticTypeRecipe::Managed(a), SemanticTypeRecipe::Managed(b))
+             | (SemanticTypeRecipe::OwnedStore(a), SemanticTypeRecipe::OwnedStore(b))
+             | (SemanticTypeRecipe::Mutex(a), SemanticTypeRecipe::Mutex(b))
+@@ -2764,11 +2785,30 @@ impl<'a> Check<'a, '_> {
+                     _ => None,
+                 };
+                 let actual = self.expr(owner, expression, variables, raw_wanted, depth + 1)?;
+-                let value = if &actual == union {
++                let equal_union = match self.same(&actual, union) {
++                    Ok(()) => true,
++                    Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
++                        return Err(error);
++                    }
++                    Err(_) => false,
++                };
++                let value = if equal_union {
+                     actual
+                 } else {
+-                    let is_error = &actual == error.as_ref();
+-                    let is_result = &actual == result.as_ref();
++                    let is_error = match self.same(&actual, error) {
++                        Ok(()) => true,
++                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
++                            return Err(error);
++                        }
++                        Err(_) => false,
++                    };
++                    let is_result = match self.same(&actual, result) {
++                        Ok(()) => true,
++                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
++                            return Err(error);
++                        }
++                        Err(_) => false,
++                    };
+                     if is_error == is_result {
+                         return Err(bad(
+                             "original implicit error injection is ambiguous or changes its payload type",
+@@ -3690,7 +3730,7 @@ impl<'a> Check<'a, '_> {
+                     bound_lifetimes: signature.bound_lifetimes,
+                     invocation_lifetimes: signature.invocation_lifetimes,
+                     parameters: signature.parameters.clone(),
+-                    result: self.resolve(target, &signature.result, depth + 1)?,
++                    result: self.effective_result(target, &signature.result, depth + 1)?,
+                     result_mode: signature.result_mode,
+                     call_kind: signature.call_kind,
+                 };
+@@ -4627,8 +4667,13 @@ impl<'a> Check<'a, '_> {
+                 }
+                 CoreStatementKind::Return(Some(value)) => {
+                     let value_node = value;
+-                    let target = self.resolve(owner, result, depth + 1).ok();
+-                    let value = self.expr(owner, value, variables, target.as_ref(), depth + 1)?;
++                    let task_family = self.task_return_family(result);
++                    let value = if task_family {
++                        self.task_return_value(owner, value, variables, result, depth + 1)?
++                    } else {
++                        let target = self.resolve(owner, result, depth + 1).ok();
++                        self.expr(owner, value, variables, target.as_ref(), depth + 1)?
++                    };
+                     self.ensure_escape(owner, &value, depth + 1)?;
+                     let infer = matches!(
+                         result,
+@@ -4660,7 +4705,7 @@ impl<'a> Check<'a, '_> {
+                             ));
+                         }
+                         self.same(&value, hidden)?;
+-                    } else {
++                    } else if !task_family {
+                         self.same(&value, &expected)?;
+                     }
+                     self.record_task_return(
+@@ -5495,6 +5540,7 @@ impl<'a> Check<'a, '_> {
+             .capture_names
+             .insert(definition.id, names.clone());
+         self.captures.insert(definition.id, names);
++        self.finish_task_result(definition.id, 0)?;
+         if !self
+             .proof
+             .types
+diff --git a/crates/zil-types/src/semantics/original_calls.rs b/crates/zil-types/src/semantics/original_calls.rs
+index fa935d9f1..392f1d090 100644
+--- a/crates/zil-types/src/semantics/original_calls.rs
++++ b/crates/zil-types/src/semantics/original_calls.rs
+@@ -662,8 +662,11 @@ impl Check<'_, '_> {
+             invocation: &empty,
+             shift: 0,
+         };
++        crate::dyn_metadata::semantic_operand_snapshot(signature, self.limits, self.left, 1)?;
++        let mut effective = signature.clone();
++        effective.result = self.effective_result(target, &signature.result, depth + 1)?;
+         let signature =
+-            self.inference_template(signature, &definition.parameters, true, depth + 1)?;
++            self.inference_template(&effective, &definition.parameters, true, depth + 1)?;
+         let signature =
+             substitute::signature(&signature, &parent_substitution, self.limits, self.left)?;
+         self.pay(
+@@ -893,7 +896,8 @@ impl Check<'_, '_> {
+                 for parameter in &mut signature.parameters {
+                     parameter.ty = self.resolve(*definition, &parameter.ty, depth + 1)?;
+                 }
+-                signature.result = self.resolve(*definition, &signature.result, depth + 1)?;
++                signature.result =
++                    self.effective_result(*definition, &signature.result, depth + 1)?;
+                 let frames = [(0, arguments.as_slice())];
+                 let environments = [(0, environment.as_slice())];
+                 let empty = BTreeMap::new();
+diff --git a/crates/zil-types/src/semantics/original_frozen.rs b/crates/zil-types/src/semantics/original_frozen.rs
+index 20f454663..01afe0ae4 100644
+--- a/crates/zil-types/src/semantics/original_frozen.rs
++++ b/crates/zil-types/src/semantics/original_frozen.rs
+@@ -142,6 +142,7 @@ fn clone_proof(
+             .saturating_add(source.closed_opaque_domains.len())
+             .saturating_add(source.body_costs.len())
+             .saturating_add(source.task_returns.len())
++            .saturating_add(source.task_result_types.len())
+             .saturating_add(source.task_binding_sources.len())
+             .saturating_add(source.protocol_complete.len())
+             .saturating_add(source.cleanup_complete.len())
+@@ -230,6 +231,9 @@ fn clone_proof(
+     for origins in source.inferred_type_origins.values() {
+         spend(left, origins.len(), 0, limits)?;
+     }
++    for result in source.task_result_types.values() {
++        crate::dyn_metadata::semantic_operand_snapshot(result, limits, left, 1)?;
++    }
+     for returned in source.task_returns.values() {
+         crate::dyn_metadata::semantic_operand_snapshot(&returned.ty, limits, left, 1)?;
+         if let Some(values) = &returned.sources {
+diff --git a/crates/zil-types/src/semantics/original_roles.rs b/crates/zil-types/src/semantics/original_roles.rs
+index bdd442920..79fc5358c 100644
+--- a/crates/zil-types/src/semantics/original_roles.rs
++++ b/crates/zil-types/src/semantics/original_roles.rs
+@@ -438,6 +438,144 @@ impl Check<'_, '_> {
+         self.escape_active.pop();
+         result
+     }
++    fn ensure_outer_escape(
++        &mut self,
++        owner: SemanticDefinitionId,
++        lifetime: &SemanticOuterLifeRecipe,
++        depth: usize,
++    ) -> R<()> {
++        let mut role = None;
++        self.pay(self.proof.local_roles.len(), depth)?;
++        for ((role_owner, binding), declaration) in &self.proof.local_roles {
++            if *role_owner == owner
++                && matches!(lifetime, SemanticOuterLifeRecipe::Class(actual) if actual == &declaration.lifetime)
++            {
++                role = Some((*role_owner, *binding));
++                break;
++            }
++        }
++        if let Some((owner, binding)) = role {
++            self.escape_role(owner, binding, &mut BTreeSet::new(), depth + 1)?;
++        } else if !matches!(lifetime, SemanticOuterLifeRecipe::Static)
++            && self.input_lifetime(owner, lifetime, depth + 1)?.is_none()
++        {
++            // Explicit life formals and checked sealed outer anchors are
++            // semantic inputs. A fresh body implicit borrow is not one.
++            if matches!(
++                lifetime,
++                SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
++                    scope: SemanticScopeRef::Ancestor(0),
++                    ..
++                })
++            ) {
++                return Err(bad(
++                    "original result exposes an unbounded local borrow occurrence",
++                ));
++            }
++        }
++        Ok(())
++    }
++    fn ensure_sequence_escape(
++        &mut self,
++        owner: SemanticDefinitionId,
++        sequence: &SemanticClassSequenceRecipe,
++        depth: usize,
++    ) -> R<()> {
++        self.pay(sequence.parts.len(), depth)?;
++        for part in &sequence.parts {
++            match part {
++                SemanticClassSequencePart::One(life) => {
++                    crate::dyn_metadata::semantic_operand_snapshot(
++                        life,
++                        self.limits,
++                        self.left,
++                        1,
++                    )?;
++                    self.ensure_outer_escape(
++                        owner,
++                        &SemanticOuterLifeRecipe::Class(life.clone()),
++                        depth + 1,
++                    )?;
++                }
++                SemanticClassSequencePart::AllClasses { ty, .. } => {
++                    self.ensure_escape(owner, ty, depth + 1)?
++                }
++            }
++        }
++        Ok(())
++    }
++    fn ensure_retained_escape(
++        &mut self,
++        owner: SemanticDefinitionId,
++        retained: &SemanticRetainedShapeRecipe,
++        depth: usize,
++    ) -> R<()> {
++        self.ensure_sequence_escape(owner, &retained.domain, depth + 1)?;
++        for part in &retained.ports {
++            match part {
++                SemanticPortPart::One { leaf, class, .. } => {
++                    self.ensure_escape(owner, leaf, depth + 1)?;
++                    crate::dyn_metadata::semantic_operand_snapshot(
++                        class,
++                        self.limits,
++                        self.left,
++                        1,
++                    )?;
++                    self.ensure_outer_escape(
++                        owner,
++                        &SemanticOuterLifeRecipe::Class(class.clone()),
++                        depth + 1,
++                    )?;
++                }
++                SemanticPortPart::FromType { ty, classes } => {
++                    self.ensure_escape(owner, ty, depth + 1)?;
++                    self.ensure_sequence_escape(owner, classes, depth + 1)?;
++                }
++            }
++        }
++        for part in &retained.retained {
++            match part {
++                SemanticRetainedPart::One { parent, .. } => {
++                    crate::dyn_metadata::semantic_operand_snapshot(
++                        parent,
++                        self.limits,
++                        self.left,
++                        1,
++                    )?;
++                    self.ensure_outer_escape(
++                        owner,
++                        &SemanticOuterLifeRecipe::Class(parent.clone()),
++                        depth + 1,
++                    )?;
++                }
++                SemanticRetainedPart::All { parents, .. } => {
++                    self.ensure_sequence_escape(owner, parents, depth + 1)?
++                }
++            }
++        }
++        for part in &retained.nominal {
++            match part {
++                SemanticNominalPart::One { class, .. } => {
++                    crate::dyn_metadata::semantic_operand_snapshot(
++                        class,
++                        self.limits,
++                        self.left,
++                        1,
++                    )?;
++                    self.ensure_outer_escape(
++                        owner,
++                        &SemanticOuterLifeRecipe::Class(class.clone()),
++                        depth + 1,
++                    )?;
++                }
++                SemanticNominalPart::FromType { ty, classes, .. } => {
++                    self.ensure_escape(owner, ty, depth + 1)?;
++                    self.ensure_sequence_escape(owner, classes, depth + 1)?;
++                }
++            }
++        }
++        Ok(())
++    }
+     fn ensure_escape_inner(
+         &mut self,
+         owner: SemanticDefinitionId,
+@@ -450,37 +588,17 @@ impl Check<'_, '_> {
+                 lifetime, inner, ..
+             }
+             | SemanticTypeRecipe::Desc { lifetime, inner } => {
+-                let mut role = None;
+-                self.pay(self.proof.local_roles.len(), depth)?;
+-                for ((role_owner, binding), declaration) in &self.proof.local_roles {
+-                    if *role_owner == owner
+-                        && matches!(lifetime, SemanticOuterLifeRecipe::Class(actual) if actual == &declaration.lifetime)
+-                    {
+-                        role = Some((*role_owner, *binding));
+-                        break;
+-                    }
+-                }
+-                if let Some((owner, binding)) = role {
+-                    self.escape_role(owner, binding, &mut BTreeSet::new(), depth + 1)?;
+-                } else if !matches!(lifetime, SemanticOuterLifeRecipe::Static)
+-                    && self.input_lifetime(owner, lifetime, depth + 1)?.is_none()
+-                {
+-                    // Explicit life formals and checked sealed outer anchors are
+-                    // semantic inputs. A fresh body implicit borrow is not one.
+-                    if matches!(
+-                        lifetime,
+-                        SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+-                            scope: SemanticScopeRef::Ancestor(0),
+-                            ..
+-                        })
+-                    ) {
+-                        return Err(bad(
+-                            "original result exposes an unbounded local borrow occurrence",
+-                        ));
+-                    }
+-                }
++                self.ensure_outer_escape(owner, lifetime, depth + 1)?;
+                 self.ensure_escape(owner, inner, depth + 1)?;
+             }
++            SemanticTypeRecipe::Task { result, retained }
++            | SemanticTypeRecipe::MutexGuard {
++                payload: result,
++                retained,
++            } => {
++                self.ensure_escape(owner, result, depth + 1)?;
++                self.ensure_retained_escape(owner, retained, depth + 1)?;
++            }
+             SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
+                 for field in fields {
+                     self.ensure_escape(owner, field, depth + 1)?;
+diff --git a/crates/zil-types/src/semantics/original_task_results.rs b/crates/zil-types/src/semantics/original_task_results.rs
+index f7dfd3f9c..c470b8558 100644
+--- a/crates/zil-types/src/semantics/original_task_results.rs
++++ b/crates/zil-types/src/semantics/original_task_results.rs
+@@ -250,6 +250,96 @@ impl Check<'_, '_> {
+                 });
+                 Some(source)
+             }
++            CoreExprKind::Member { object, member, .. } => {
++                let Some(base) = self.proof.types.get(&(owner, Query::Expression(object.id)))
++                else {
++                    return Ok(None);
++                };
++                let mut base = copy_recipe(base, self.limits, self.left)?;
++                base = self.observation_type(owner, &base, depth + 1)?;
++                let mut path = Vec::new();
++                loop {
++                    self.pay(1, depth + path.len())?;
++                    match base {
++                        SemanticTypeRecipe::Address { inner, .. }
++                        | SemanticTypeRecipe::Desc { inner, .. }
++                        | SemanticTypeRecipe::Managed(inner) => {
++                            path.push(LifeTypeProjection::Pointee);
++                            base = *inner;
++                        }
++                        _ => break,
++                    }
++                }
++                let SemanticTypeRecipe::Nominal { definition, .. } = &base else {
++                    return Ok(None);
++                };
++                let original = self.definition(*definition)?;
++                let SemanticDefinitionBody::Nominal {
++                    body: SemanticNominalBody::Product { fields },
++                    ..
++                } = &original.body
++                else {
++                    return Ok(None);
++                };
++                self.pay(fields.len().saturating_add(member.len()), depth)?;
++                let ordinal = fields
++                    .iter()
++                    .position(|field| &field.name == member)
++                    .ok_or_else(|| {
++                        bad("Task result field source is absent from its true original declaration")
++                    })?;
++                let managed_field = matches!(fields[ordinal].ty, SemanticTypeRecipe::Managed(_));
++                let value = self
++                    .proof
++                    .injections
++                    .get(&(owner, expression.id))
++                    .map(|row| &row.payload)
++                    .or_else(|| {
++                        self.proof
++                            .types
++                            .get(&(owner, Query::Expression(expression.id)))
++                    });
++                let Some(value) = value else { return Ok(None) };
++                // The existing field typing proof supplies its complete
++                // instantiated type; do not run substitution a second time.
++                if managed_field && matches!(value, SemanticTypeRecipe::Desc { .. }) {
++                    return Ok(None);
++                }
++                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
++                    ordinal as u32,
++                )));
++                let source = self.task_value_sources(owner, object, variables, depth + 1)?;
++                self.project_task_sources(source, &path, depth + 1)?
++            }
++            CoreExprKind::Index { object, .. } => {
++                let Some(ty) = self.proof.types.get(&(owner, Query::Expression(object.id))) else {
++                    return Ok(None);
++                };
++                let mut ty = copy_recipe(ty, self.limits, self.left)?;
++                ty = self.observation_type(owner, &ty, depth + 1)?;
++                let mut path = Vec::new();
++                loop {
++                    self.pay(1, depth + path.len())?;
++                    match ty {
++                        SemanticTypeRecipe::Address { inner, .. }
++                        | SemanticTypeRecipe::Desc { inner, .. }
++                        | SemanticTypeRecipe::Managed(inner) => {
++                            path.push(LifeTypeProjection::Pointee);
++                            ty = *inner;
++                        }
++                        _ => break,
++                    }
++                }
++                if !matches!(
++                    ty,
++                    SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_)
++                ) {
++                    return Ok(None);
++                }
++                path.push(LifeTypeProjection::Element);
++                let source = self.task_value_sources(owner, object, variables, depth + 1)?;
++                self.project_task_sources(source, &path, depth + 1)?
++            }
+             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
+                 let mut sources = Vec::new();
+                 self.pay(fields.len(), depth)?;

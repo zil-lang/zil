@@ -1,0 +1,34 @@
+{
+  "source_base": "7cff093b2012a645e926cf153a97cec2abf65031",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T143800Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-types/src/semantics/dyn_registry.rs": "f5edf314642585150ca9af8cc80977aaa6a3479fd5cdf8ad2e7bfb2912bb1af3",
+    "crates/zil-types/src/semantics/finish.rs": "c9bdd569fd8ebcabca6f1c04baddd8aded45fd74eb7dd8f0b4217ebe8a9f9c2a",
+    "crates/zil-types/src/semantics/materialize.rs": "7a550c9488b50088195023bfede323012fb93a99b5ea1af28dae8a00486abe87",
+    "crates/zil-types/src/semantics/materialize_domains.rs": "26888a909efdb06bb238dba97c70ff52596c1f02db59f56f5d92087535e82b93",
+    "crates/zil-types/src/semantics/materialize_dyn.rs": "1972615b9ffc7119aa2b3b59ebfe3a924daf09df30a99d156b2f8f1ee6012d4f",
+    "crates/zil-types/src/semantics/materialize_emitter.rs": "a0e06f5b1ea3c85bf4fe3b2113e06f79ce623752fe4de4362b8138c3d931ad12",
+    "crates/zil-types/src/semantics/materialize_task_results.rs": "563a0490eb1e692433058bff54e3a27cb7c9e4b6eba861c7a17ef77ce9e7bf9a",
+    "crates/zil-types/src/semantics/original.rs": "3b48ec23a67a192317c1b622bfabfc4e64751332dd69da5970b2aea5a5014efc",
+    "crates/zil-types/src/semantics/original_calls.rs": "26047627278d2599424d8c38d392fe3f7c37d9102873a54d4922e48b9841b80b",
+    "crates/zil-types/src/semantics/original_frozen.rs": "5d9b6e0fbf1bbf460668f8a68d91a7d3960a925b8df3fe8c72fe56c677f4e086",
+    "crates/zil-types/src/semantics/original_roles.rs": "2c963a93b7574ee1c5ae8d5077348ae1aa905c167f3c06d9ff292bd12784e85d",
+    "crates/zil-types/src/semantics/original_task_families.rs": "0d0b564a86cbd637fa2095e4eb75e44504d1a29770e4d385f01066013977f5a9",
+    "crates/zil-types/src/semantics/original_task_results.rs": "7102f457b9c9649e01d3edca12d12566a9e467088b25470caade740cf2d25074"
+  },
+  "artifacts": {
+    "source.patch": "8db3e03e99e72217a95fffd6ff25ee4527097cc656e435041470355296f6c10f",
+    "untracked/crates/zil-types/src/semantics/dyn_registry.rs": "f5edf314642585150ca9af8cc80977aaa6a3479fd5cdf8ad2e7bfb2912bb1af3",
+    "untracked/crates/zil-types/src/semantics/materialize_task_results.rs": "563a0490eb1e692433058bff54e3a27cb7c9e4b6eba861c7a17ef77ce9e7bf9a",
+    "untracked/crates/zil-types/src/semantics/original_task_families.rs": "0d0b564a86cbd637fa2095e4eb75e44504d1a29770e4d385f01066013977f5a9",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "4b1e48d0dacbcef936bb19328f19bfd562bc7be89f8aebb3d3b055a01b457a8e"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
