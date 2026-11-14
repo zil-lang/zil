@@ -549,6 +549,29 @@ impl Check<'_, '_> {
                             self.result(instruction, point.function, &Type::Unit)?;
                             return Ok(());
                         }
+                        id @ (original::sealed::Intrinsic::AsyncRequest
+                        | original::sealed::Intrinsic::AsyncPoll
+                        | original::sealed::Intrinsic::AsyncFinish
+                        | original::sealed::Intrinsic::AsyncFinishChecked) => {
+                            let output = self.registration_operation(
+                                instance,
+                                site.recipe,
+                                id,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            self.result(
+                                instruction.ok_or_else(|| {
+                                    fail("actual registration operation has no instruction")
+                                })?,
+                                point.function,
+                                &output,
+                            )?;
+                            return Ok(());
+                        }
                         original::sealed::Intrinsic::NumericConvert(number) => {
                             let instruction = instruction.ok_or_else(|| {
                                 fail("original conversion has no actual instruction")
@@ -1132,7 +1155,11 @@ impl Check<'_, '_> {
                         InstructionKind::Call { .. }
                         | InstructionKind::SuspendCall { .. }
                         | InstructionKind::ForeignCall { .. } => Some(0),
-                        InstructionKind::TaskYield => Some(3),
+                        InstructionKind::TaskYield
+                        | InstructionKind::AsyncRegistrationRequestClose { .. }
+                        | InstructionKind::AsyncRegistrationPollClose { .. }
+                        | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                        | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => Some(3),
                         InstructionKind::CallClosure { .. }
                         | InstructionKind::CallClosureOnce { .. }
                         | InstructionKind::CallClosureShared { .. }

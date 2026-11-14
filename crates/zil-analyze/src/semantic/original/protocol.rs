@@ -193,8 +193,8 @@ struct Proof<'a, 'i> {
     definition: &'a SemanticDefinition,
     inventory: &'i Inventory<'a>,
     checked: &'i Checked,
-    contract: &'a FunctionProtocolContract,
-    input: ProtocolState,
+    contract: Option<&'a FunctionProtocolContract>,
+    input: Option<ProtocolState>,
 }
 impl State {
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
@@ -349,23 +349,25 @@ impl Proof<'_, '_> {
         if !state.alive {
             return Ok(());
         }
+        let Some(contract) = self.contract else {
+            return Ok(());
+        };
+        let input = self
+            .input
+            .ok_or_else(|| fail("original protocol proof omits its own entry state"))?;
         let check =
             |exit: ProtocolExit, states: &BTreeMap<u32, u8>, b: &mut Budget| -> CompileResult<()> {
                 let mut actual = *states
-                    .get(&self.contract.parameter)
+                    .get(&contract.parameter)
                     .ok_or_else(|| fail("original return loses its protocol role"))?;
                 if state.cleanup_unknown && actual != 0 {
                     actual = ANY;
                 }
-                b.spend(
-                    self.contract.exits.len().saturating_add(states.len() + 1),
-                    WORK,
-                )?;
-                let row = self
-                    .contract
+                b.spend(contract.exits.len().saturating_add(states.len() + 1), WORK)?;
+                let row = contract
                     .exits
                     .iter()
-                    .find(|row| row.input == self.input && row.exit == exit)
+                    .find(|row| row.input == input && row.exit == exit)
                     .ok_or_else(|| {
                         fail("original return is absent from its declared protocol upper relation")
                     })?;
@@ -779,8 +781,7 @@ impl Proof<'_, '_> {
                     Solver::push(&mut state.locals, (name.clone(), data), b)?;
                 }
                 CoreStatementKind::Expression(value) => {
-                    let data = self.expression(state, value, b, depth + 1)?;
-                    self.plain(&data)?;
+                    self.expression(state, value, b, depth + 1)?;
                 }
                 CoreStatementKind::Return(value) => {
                     let data = if let Some(value) = value {
@@ -861,6 +862,67 @@ pub(super) fn check(
         else {
             continue;
         };
+        if protocol_contracts.is_empty() {
+            let active = checked.intrinsics.iter().any(|((owner, _), id)| {
+                *owner == definition.id
+                    && matches!(
+                        id,
+                        sealed::Intrinsic::AsyncRequest
+                            | sealed::Intrinsic::AsyncPoll
+                            | sealed::Intrinsic::AsyncFinish
+                            | sealed::Intrinsic::AsyncFinishChecked
+                    )
+            });
+            if active {
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+                else {
+                    return Err(fail(
+                        "original state operation lacks its declaration signature",
+                    ));
+                };
+                let mut phases = BTreeMap::new();
+                let mut locals = Vec::new();
+                for (ordinal, (parameter, recipe)) in
+                    parameters.iter().zip(&signature.parameters).enumerate()
+                {
+                    let alias = if owner(&recipe.ty) || borrow(&recipe.ty) {
+                        let ordinal = u32::try_from(ordinal)
+                            .map_err(|_| resource("original state parameter ordinal overflow"))?;
+                        b.lookup(phases.len(), WORK)?;
+                        phases.insert(ordinal, ANY);
+                        Some(ordinal)
+                    } else {
+                        None
+                    };
+                    b.spend(parameter.name.len(), WORK)?;
+                    Solver::push(
+                        &mut locals,
+                        (
+                            parameter.name.clone(),
+                            Data {
+                                alias,
+                                outcomes: Vec::new(),
+                            },
+                        ),
+                        b,
+                    )?;
+                }
+                let mut state = State {
+                    phases,
+                    locals,
+                    alive: true,
+                    cleanup_unknown: true,
+                };
+                let proof = Proof {
+                    definition,
+                    inventory,
+                    checked,
+                    contract: None,
+                    input: None,
+                };
+                proof.block(&mut state, body, b, 0)?;
+            }
+        }
         for contract in protocol_contracts {
             for input in &contract.entry {
                 let mut phases = BTreeMap::new();
@@ -894,8 +956,8 @@ pub(super) fn check(
                     definition,
                     inventory,
                     checked,
-                    contract,
-                    input: *input,
+                    contract: Some(contract),
+                    input: Some(*input),
                 };
                 let frame = checked.frames.get(&definition.id).ok_or_else(|| {
                     fail("original protocol function lacks its checked value parameters")

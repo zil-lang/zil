@@ -8,6 +8,7 @@ mod callable_roles;
 mod capture_heads;
 mod classes;
 mod operations;
+mod registration;
 
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::unsupported(

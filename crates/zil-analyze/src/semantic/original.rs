@@ -11,6 +11,7 @@ mod enums;
 pub(super) mod mixed;
 pub(super) mod nominal;
 mod protocol;
+mod registration;
 mod roles;
 pub(super) mod sealed;
 mod values;
@@ -145,6 +146,7 @@ pub(super) struct Checked {
     calls: BTreeMap<(SemanticDefinitionId, NodeId), Call>,
     intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
     intrinsic_inputs: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
+    intrinsic_anchors: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
@@ -1390,6 +1392,21 @@ impl Solver<'_, '_> {
                 )?
             }
             CoreExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => {
+                let value = self.expression(frame, operand, b, depth + 1)?;
+                if !matches!(
+                    self.state.arena[self.type_root(value, b)?],
+                    Kind::Wrapped(Wrapper::Managed, _)
+                ) {
+                    return Err(unknown(
+                        "original give requires its complete actual owning manager category",
+                    ));
+                }
+                value
+            }
+            CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
@@ -1573,6 +1590,27 @@ impl Solver<'_, '_> {
                     let resolution =
                         sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
                     match resolution {
+                        sealed::Resolution::Intrinsic(
+                            id @ (sealed::Intrinsic::AsyncRequest
+                            | sealed::Intrinsic::AsyncPoll
+                            | sealed::Intrinsic::AsyncFinish
+                            | sealed::Intrinsic::AsyncFinishChecked),
+                        ) => {
+                            let result = self.registration_call(
+                                frame,
+                                value.id,
+                                id,
+                                written,
+                                arguments,
+                                b,
+                                depth + 1,
+                            )?;
+                            b.lookup(frame.expressions.len(), WORK)?;
+                            if frame.expressions.insert(value.id, result).is_some() {
+                                return Err(fail("original registration call node is reused"));
+                            }
+                            return Ok(result);
+                        }
                         sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskYield) => {
                             if !written.is_empty() || !arguments.is_empty() {
                                 return Err(fail(
@@ -1945,6 +1983,86 @@ impl Solver<'_, '_> {
                 }
                 CoreStatementKind::Match { value, arms } => {
                     self.match_statement(frame, statement.id, value, arms, b, depth + 1)?;
+                }
+                CoreStatementKind::CompoundAssign { target, op, value } => {
+                    let CoreExprKind::Name(name) = &target.kind else {
+                        return Err(unknown(
+                            "original compound assignment needs its exact initialized place projection",
+                        ));
+                    };
+                    b.spend(
+                        frame
+                            .locals
+                            .iter()
+                            .map(|local| local.name.len().saturating_add(name.len() + 1))
+                            .sum::<usize>(),
+                        WORK,
+                    )?;
+                    let index = frame
+                        .locals
+                        .iter()
+                        .rposition(|local| local.name == *name)
+                        .ok_or_else(|| fail("original compound assignment has no lexical local"))?;
+                    let local = &frame.locals[index];
+                    if !local.mutable || !local.initialized {
+                        return Err(fail(
+                            "original compound assignment needs an initialized mutable binding",
+                        ));
+                    }
+                    let expected = local.ty;
+                    if local.used {
+                        Self::push(
+                            &mut self.needs,
+                            Need {
+                                term: expected,
+                                predicate: Predicate::Copy,
+                            },
+                            b,
+                        )?;
+                    }
+                    let actual = self.expression(frame, value, b, depth + 1)?;
+                    self.unify(actual, expected, depth + 1, b)?;
+                    Self::push(&mut self.numeric, expected, b)?;
+                    if matches!(
+                        op,
+                        BinaryOp::AddWrapping
+                            | BinaryOp::SubtractWrapping
+                            | BinaryOp::MultiplyWrapping
+                            | BinaryOp::Remainder
+                            | BinaryOp::BitAnd
+                            | BinaryOp::BitOr
+                            | BinaryOp::BitXor
+                            | BinaryOp::ShiftLeft
+                            | BinaryOp::ShiftRight
+                    ) {
+                        Self::push(&mut self.integers, expected, b)?;
+                    }
+                    if matches!(
+                        op,
+                        BinaryOp::And
+                            | BinaryOp::Or
+                            | BinaryOp::Equal
+                            | BinaryOp::NotEqual
+                            | BinaryOp::Less
+                            | BinaryOp::LessEqual
+                            | BinaryOp::Greater
+                            | BinaryOp::GreaterEqual
+                    ) {
+                        return Err(fail(
+                            "original compound assignment uses a non-assignment operator",
+                        ));
+                    }
+                    b.lookup(frame.expressions.len(), WORK)?;
+                    if frame.expressions.insert(target.id, expected).is_some() {
+                        return Err(fail("original compound target node is reused"));
+                    }
+                    if index < frame.inherited {
+                        b.lookup(self.mutating_closures.len(), WORK)?;
+                        self.mutating_closures.insert(frame.definition);
+                    }
+                    if frame.alive {
+                        frame.locals[index].used = false;
+                    }
                 }
                 CoreStatementKind::Assign { target, value } => {
                     let CoreExprKind::Name(name) = &target.kind else {
@@ -2328,7 +2446,8 @@ fn normalize_block(
                     normalize_expr(value, b, depth + 1)?;
                 }
             }
-            CoreStatementKind::Assign { target, value } => {
+            CoreStatementKind::Assign { target, value }
+            | CoreStatementKind::CompoundAssign { target, value, .. } => {
                 normalize_expr(target, b, depth + 1)?;
                 normalize_expr(value, b, depth + 1)?;
             }
@@ -2559,6 +2678,7 @@ pub(super) fn check(
             calls: BTreeMap::new(),
             intrinsics: BTreeMap::new(),
             intrinsic_inputs: BTreeMap::new(),
+            intrinsic_anchors: BTreeMap::new(),
             abstract_calls: BTreeMap::new(),
             borrows: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
@@ -3448,6 +3568,79 @@ impl Checked {
         let node = selected.ok_or_else(|| fail("actual core operation has no original anchor"))?;
         b.lookup(self.intrinsics.len(), WORK)?;
         Ok(self.intrinsics.get(&(context.definition, node)).copied())
+    }
+    pub(super) fn intrinsic_anchor(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<LocalAnchor> {
+        let declaration = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
+            return Err(fail("actual native head lacks its original declaration"));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(node) = link.node else {
+                    return Err(fail("actual native head selects an original statement"));
+                };
+                if selected.replace(node).is_some() {
+                    return Err(fail("actual native head has competing source anchors"));
+                }
+            }
+        }
+        let node =
+            selected.ok_or_else(|| fail("actual native head omits its source occurrence"))?;
+        b.lookup(self.intrinsic_anchors.len(), WORK)?;
+        self.intrinsic_anchors
+            .get(&(context.definition, node))
+            .copied()
+            .ok_or_else(|| {
+                fail("actual native head has no checked original parameter or binding anchor")
+            })
+    }
+    pub(super) fn intrinsic_output(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<crate::semantic::value::Value> {
+        let declaration = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
+            return Err(fail(
+                "actual native result has no complete original declaration",
+            ));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(node) = link.node else {
+                    return Err(fail("actual native result selects an original statement"));
+                };
+                if selected.replace(node).is_some() {
+                    return Err(fail(
+                        "actual native result has competing original occurrences",
+                    ));
+                }
+            }
+        }
+        let node =
+            selected.ok_or_else(|| fail("actual native result omits its original occurrence"))?;
+        let frame = self
+            .frames
+            .get(&context.definition)
+            .ok_or_else(|| fail("actual native result has no original checked frame"))?;
+        b.lookup(frame.expressions.len(), WORK)?;
+        let term = *frame.expressions.get(&node).ok_or_else(|| {
+            fail("actual native result lacks its independently checked original result")
+        })?;
+        self.value(term, context, program, inventory, b, 0)
     }
     pub(super) fn intrinsic_inputs(
         &self,
