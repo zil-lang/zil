@@ -1768,6 +1768,7 @@ impl Graph {
         result
     }
     pub(super) fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
+        self.spend_count(tasks::context_check_work(ty), span)?;
         tasks::require_closed_context(ty, span)?;
         self.spend(span)?;
         if depth > self.depth_limit {
@@ -1816,9 +1817,22 @@ impl Graph {
                 }
             }
             Type::Task {
-                result: element, ..
+                result,
+                retained_life,
+            } => {
+                for port in &retained_life.ports {
+                    self.spend(span)?;
+                    self.reserve_type(&port.leaf, depth + 1, span)?;
+                }
+                for row in &retained_life.retained {
+                    self.spend_count(row.path.len().saturating_add(1), span)?;
+                }
+                for row in &retained_life.nominal_arguments {
+                    self.spend_count(row.path.len().saturating_add(1), span)?;
+                }
+                self.reserve_type(result, depth + 1, span)?;
             }
-            | Type::Array { element, .. }
+            Type::Array { element, .. }
             | Type::Slice { element }
             | Type::Registration {
                 environment: element,

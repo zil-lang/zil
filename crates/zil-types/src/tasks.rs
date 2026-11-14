@@ -164,63 +164,90 @@ pub(super) fn retained_bindings(parameters: &[Type]) -> Vec<zil_ir::RetainedPort
         })
         .collect()
 }
+/// Validate declared metadata only. Empty directories are not a theorem that
+/// the actual input/frame/result has zero free classes.
+pub(super) fn context_check_work(ty: &Type) -> usize {
+    if let Type::Task { retained_life, .. } = ty {
+        retained_life
+            .ports
+            .len()
+            .saturating_add(retained_life.retained.len())
+            .saturating_add(retained_life.nominal_arguments.len())
+            .saturating_add(1)
+    } else {
+        0
+    }
+}
 pub(super) fn require_closed_context(ty: &Type, span: Span) -> R<()> {
-    check_context(ty, span, false)
+    check_context(ty, span)
 }
 pub(super) fn pre_resolution_context(ty: &Type, span: Span) -> R<()> {
-    // A symbolic name is a placeholder during Core inference only. Complete
-    // aggregate resolution must repeat the strict check on each resolved port.
-    check_context(ty, span, true)
+    check_context(ty, span)
 }
-fn check_context(ty: &Type, span: Span, allow_named: bool) -> R<()> {
-    let mut next = 0;
-    if let Type::Task {
-        result,
-        retained_life,
+fn check_context(ty: &Type, span: Span) -> R<()> {
+    let Type::Task {
+        retained_life: shape,
+        ..
     } = ty
-    {
-        let shared = matches!(result.as_ref(), Type::Address { mutable: false, .. });
-        if shared || !retained_life.retained.is_empty() {
-            let valid = shared
-                && retained_result_with_named(result, allow_named)
-                && retained_life.binder_count > 0
-                && retained_life.nominal_arguments.is_empty()
-                && matches!(retained_life.retained.as_slice(), [r]
-                    if r.path == [zil_ir::LifeTypeProjection::Result] && r.class == 0
-                    && r.binder < retained_life.binder_count
-                    && retained_life.ports.iter().any(|p| p.binder == r.binder && p.leaf == **result)
-                    && retained_life.ports.iter().filter(|p| p.binder == r.binder).all(|p|
-                        p.mode == zil_ir::StoredBorrowMode::SharedAddress));
-            if !valid {
-                return Err(error(
-                    "E-TASK-RESULT-CONTEXT",
-                    span,
-                    "Task shared result requires its actual shared input class and complete Result mapping",
-                ));
-            }
-        }
-    }
-    if let Type::Task {
-        result,
-        retained_life,
-    } = ty
-        && *retained_life != empty_context()
-        && (!retained_life.nominal_arguments.is_empty()
-            || retained_life.ports.iter().any(|port| {
-                let dense = if port.binder == next { next += 1; true } else { port.binder < next };
-                !dense
-                    || !matches!(&port.leaf, Type::Address { mutable, inner }
-                        if retained_pointee_with_named(inner, allow_named)
-                            && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
-            })
-            || next != retained_life.binder_count
-            || !retained_result_with_named(result, allow_named))
-    {
-        return Err(unsupported(
+    else {
+        return Ok(());
+    };
+    let occurrences = shape
+        .ports
+        .len()
+        .saturating_add(shape.retained.len())
+        .saturating_add(shape.nominal_arguments.len());
+    if shape.binder_count as usize > occurrences {
+        return Err(error(
+            "E-TASK-CONTEXT",
             span,
-            "borrowed Task retained classes require actual implemented frame port mappings",
+            "Task complete domain exceeds all retained metadata occurrences",
         ));
     }
+    for port in &shape.ports {
+        if port.binder >= shape.binder_count
+            || !matches!(
+                (&port.leaf, port.mode),
+                (
+                    Type::Address { mutable: false, .. },
+                    StoredBorrowMode::SharedAddress
+                ) | (
+                    Type::Address { mutable: true, .. },
+                    StoredBorrowMode::ExclusiveAddress
+                ) | (
+                    Type::Desc(_),
+                    StoredBorrowMode::ReadOnlyDescription | StoredBorrowMode::WritableDescription
+                )
+            )
+        {
+            return Err(error(
+                "E-TASK-CONTEXT",
+                span,
+                "Task port changes its full actual leaf/mode or leaves the complete domain",
+            ));
+        }
+    }
+    for row in &shape.retained {
+        if row.binder >= shape.binder_count {
+            return Err(error(
+                "E-TASK-CONTEXT",
+                span,
+                "Task retained child projection leaves the complete domain",
+            ));
+        }
+    }
+    for row in &shape.nominal_arguments {
+        if row.binder >= shape.binder_count {
+            return Err(error(
+                "E-TASK-CONTEXT",
+                span,
+                "Task nominal occurrence leaves the complete domain",
+            ));
+        }
+    }
+    // Coverage, canonical child indices, equality and true source roots are
+    // established against the original recipes and actual operation, not by
+    // counting physical ports or reading this metadata as its own premise.
     Ok(())
 }
 

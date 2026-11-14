@@ -1115,6 +1115,7 @@ fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()>
 }
 fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -> R<()> {
     budget.node(depth, span)?;
+    budget.work(tasks::context_check_work(ty), span)?;
     tasks::pre_resolution_context(ty, span)?;
     match ty {
         // The concrete interface ID is checked against the complete inventory
@@ -1172,8 +1173,25 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             validate_type(element, depth + 1, span, budget)?;
             budget.inside_store = previous;
         }
-        Type::Task { result: inner, .. }
-        | Type::Registration { environment: inner }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            for port in &retained_life.ports {
+                budget.node(depth + 1, span)?;
+                validate_type(&port.leaf, depth + 1, span, budget)?;
+            }
+            for row in &retained_life.retained {
+                budget.node(depth + 1, span)?;
+                budget.work(row.path.len(), span)?;
+            }
+            for row in &retained_life.nominal_arguments {
+                budget.node(depth + 1, span)?;
+                budget.work(row.path.len(), span)?;
+            }
+            validate_type(result, depth + 1, span, budget)?;
+        }
+        Type::Registration { environment: inner }
         | Type::AsyncRegistration { environment: inner }
         | Type::Address { inner, .. }
         | Type::Slice { element: inner }
