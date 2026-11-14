@@ -56,9 +56,23 @@
     "compile time and scale: real scalar CT and owning collections under default budgets"
   ],
   "acceptance": "One exact candidate preserves all existing positive native chains; all thirteen unchanged inputs pass nonzero independent Verify, then their original full native/C consumer and failure-cleanup checks run with nearby negative cases and budget controls. Not merely 13 check successes.",
-  "current_candidate_under_validation": null,
+  "current_candidate_under_validation": "9c8d46b2bf067081453e97331f900685d4e69e3d",
   "status": "Structural changes implemented, pushed and integrated workspace all-targets checked. Source129, Vsemantic12, Aeffects4 and hostile unused body1 pass; 12 native successes preserved; 13 core consumers still 0/13 before V. No Alpha acceptance.",
-  "updated_at_utc": "2026-11-14T02:21:16.035201+00:00",
+  "updated_at_utc": "2026-11-14T06:03:02.278696+00:00",
   "latest_receipt": "records/language-alpha-validation/df924e09b.json",
-  "latest_completed_candidate": "df924e09b"
+  "latest_completed_candidate": "df924e09b",
+  "followup_20261114": {
+    "reviewed_at_utc": "2026-11-14T06:03:02.278696+00:00",
+    "candidate": "09ceeded3",
+    "test_run_by_reviewer": false,
+    "assessment": "Direction is converging on actual whole-chain gaps. Freeze public representation expansion and let exact candidate results decide the next batch.",
+    "actions": [
+      "Retain13 audited positive cases and4 preserved original-obligation negatives, including all unused definitions in their full import closure.",
+      "Solve three common classes together: complete categories and lexical domains; original CFG responsibility through all exits; original-to-actual instruction/ABI correspondence.",
+      "Use existing representations; no evidence warrants a new certificate system, fourth IR or another schema migration.",
+      "Reused request-local OriginalContext is a real structural improvement; observe actual program/budget results before more caching refactoring.",
+      "13/13 check results alone do not close Alpha: map existing CT/source-generation, project workflow, native/C and failure-cleanup consumers to the Alpha profile."
+    ],
+    "review_scope": "Read-only public specs, IR, Source, Types and profile/runner; no Analyze or Verify algorithm reading, no edits, Git or tests."
+  }
 }

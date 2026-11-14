@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-14T04:09:00.633958+00:00",
+  "updated_at_utc": "2026-11-14T06:03:02.278696+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Alpha not ready. Latest complete runtime candidate e13f41bbd preserves 12 native executions but 13 unchanged core checks remain0/13 before independent Verify. Later Source002b19caf full lib137 passes, IR e4cc273ca all-targets133 passes; these are separate exact snapshots, not one Alpha acceptance. Source/Types actual resource categories and independent original resource/protocol semantics are being completed as whole chains.",
+  "status": "Alpha not ready. Last completed end-to-end candidate e13 retains12 native successes and0/13 old positive breadth checks. New09ceeded3 Source lib143/0 passes, but Types internal mode/visibility and CT frozen traversal compile errors prevented a CLI run; repaired in9c8d46b2b. Current9c8d includes complete local family categories and independent async protocol CFG batches and is undergoing real foundation13-positive/4-negative check, native and unified regression. No new broad language success claimed before results.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -105,6 +105,13 @@
       "errors": 7,
       "scope": "new Task backend modules missing TypedModule import; Source/A/V/CT production reached without compilation error",
       "log": "/workspace/zil-alpha-candidate/out/runs/alpha-fourth-shared-candidate/compile.log"
+    },
+    {
+      "candidate": "09ceeded3",
+      "exit": 101,
+      "errors": 4,
+      "scope": "One CT frozen Core walker omitted three new declaration fields; Types header-row visibility and two nonexistent PassingMode variants. All corrected in9c8d46b2b; Source full lib143 passed.",
+      "log": "/workspace/zil-alpha-candidate/out/runs/alpha-resource-category-coherent/compile.log"
     }
   ],
   "real_semantic_source_probe": {
@@ -222,7 +229,7 @@
     "decision": "Source owner and Analyze helper coordinate independent write sets to complete ordinary Source model; do not rewrite consumers or erase Some."
   },
   "shared_snapshot_rule": "Owners pause declared hot files at complete logic checkpoint; Root immediately stages exact owner paths and acknowledges before next batch. Candidate uses staged complete batches; never git-add the entire actively edited tree.",
-  "latest_remote_source": "de2931202c7556a30de360381f1375021eebd566",
+  "latest_remote_source": "9c8d46b2bf067081453e97331f900685d4e69e3d",
   "original_body_architecture": {
     "advice_model": "Astra; public IR/spec/Source only, no opposite kernel algorithms",
     "decision": "Preserve original operations, explicit/inferred actual obligations and actual emission identities; do not duplicate typeof in Source or infer original validity from concrete instances.",
@@ -1974,7 +1981,8 @@
   "workflow_applied_further": [
     "Reassign complete sealed resource/Store/Task/thread original-to-actual chain to the actual CFG owner, keeping original namespace/fresh inference/frozen caller in the original body owner.",
     "Resume independent Analyze and Verify original builtin and effect chains in parallel before Types completes, using public inputs/contracts and no algorithm sharing.",
-    "Pause and immediately commit each precise READY set; keep final background-aware candidate immutable while source work continues."
+    "Pause and immediately commit each precise READY set; keep final background-aware candidate immutable while source work continues.",
+    "Prioritize compiler build and actual13-positive/4-negative feature checks plus native consumers before all-target regression compilation, retaining exact immutable snapshots and the single heavy-build lock."
   ],
   "latest_integrated_validation": {
     "candidate": "e13f41bbd",
@@ -1994,7 +2002,7 @@
   },
   "path_review": "records/language-alpha-path-review.json",
   "latest_receipt": "records/language-alpha-validation/e13f41bbd.json",
-  "current_candidate_under_validation": null,
+  "current_candidate_under_validation": "9c8d46b2bf067081453e97331f900685d4e69e3d",
   "latest_completed_candidate": "e13f41bbd",
   "protocol_review": "records/language-alpha-protocol-review.json",
   "resource_category_review": "records/language-alpha-resource-category-review.json",
@@ -2011,6 +2019,12 @@
       "ir_alltargets_exit": 0,
       "passed": 133,
       "failed": 0
+    },
+    {
+      "candidate": "09ceeded3",
+      "run": "alpha-resource-category-coherent",
+      "source_lib_passed": 143,
+      "source_lib_failed": 0
     }
   ],
   "corpus_review": "records/language-alpha-corpus-review.json",

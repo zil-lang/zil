@@ -6,19 +6,14 @@
       "path": "/workspace/zil-public-integration",
       "local_branch": "task/language-alpha",
       "remote_branch": "task/language-alpha",
-      "head": "18c1dba3309ee921593151c136a0eca3a752b99e",
-      "remote_head": "18c1dba3309ee921593151c136a0eca3a752b99e",
+      "head": "9c8d46b2bf067081453e97331f900685d4e69e3d",
+      "remote_head": "9c8d46b2bf067081453e97331f900685d4e69e3d",
       "committed_checkpoint_synced": true,
       "uncommitted": true,
       "uncommitted_paths": [
-        " M crates/zil-verify/src/semantic/original/bodies.rs",
-        " M crates/zil-verify/src/semantic/original/calls.rs",
-        " M crates/zil-verify/src/semantic/original/materialize.rs",
-        " M crates/zil-verify/src/semantic/original/mod.rs",
-        " M crates/zil-verify/src/semantic/original/recipes.rs",
-        " M crates/zil-verify/src/semantic/original/terms.rs",
-        "?? crates/zil-verify/src/semantic/original/lifetimes.rs",
-        "?? crates/zil-verify/src/semantic/original/substitution.rs"
+        " M crates/zil-types/src/semantics/original_modes.rs",
+        " M crates/zil-types/src/semantics/original_resources.rs",
+        "?? crates/zil-types/src/semantics/original_cleanup.rs"
       ]
     }
   ],
@@ -180,11 +175,18 @@
   ],
   "active_alpha_checkpoint": {
     "branch": "task/language-alpha",
-    "source": "53b6b7029",
+    "source": "9c8d46b2bf067081453e97331f900685d4e69e3d",
     "full_wip_safety_checkpoint": "5211d1506",
     "all_historical_refs": "Fixed archive/source-history@4df2635230564c3e10cfbc1389ff915e05007a12 retains retired ten branch histories.",
     "warning": "Ongoing active writer increments are not claimed already pushed. Root immediately commits exact READY sets; backup is not acceptance.",
-    "note": "Exact READY batches through complete original head and codecs, independent resource checkpoints, deferred nominal and actual reference Resolver are pushed. Active Source specialization/Types original matrix and A/V successor increments are not yet READY and are not claimed synchronized. Backup is not acceptance."
+    "note": "All precise READY batches through complete Source/Types categories, local initialized resource families, independent original async protocol CFGs and frozen snapshot head traversal are pushed. Active generic cleanup WIP is separately listed and is not claimed synchronized. Backup is not acceptance.",
+    "remote_head": "9c8d46b2bf067081453e97331f900685d4e69e3d",
+    "verified_at_utc": "2026-11-14T06:03:02.278696+00:00",
+    "uncommitted_paths": [
+      " M crates/zil-types/src/semantics/original_modes.rs",
+      " M crates/zil-types/src/semantics/original_resources.rs",
+      "?? crates/zil-types/src/semantics/original_cleanup.rs"
+    ]
   },
-  "updated_at_utc": "2026-11-14T04:09:00.633958+00:00"
+  "updated_at_utc": "2026-11-14T06:03:02.278696+00:00"
 }
