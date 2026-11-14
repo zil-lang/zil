@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T15:27:33.119871+00:00",
+  "updated_at_utc": "2026-11-14T15:57:58.505217+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,257 +9,19 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "b37d7474384b53c36a3bcd9c5fc55764905fee4a",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-runtime-type-and-callback-boundaries",
-    "accepted": false,
-    "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
-    "cli_build": 0,
-    "foundation_positives": {
-      "passed": 1,
-      "total": 13
-    },
-    "intended_negatives": {
-      "passed": 4,
-      "total": 4
-    },
-    "native_small_sources": {
-      "passed": 12,
-      "total": 16
-    },
-    "verify_semantic": {
-      "passed": 22,
-      "failed": 0,
-      "ignored": 0
-    },
-    "failures": [
-      {
-        "group": "positive_cases",
-        "family": "patterns",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "SafeReject",
-            "code": "E-ANALYZE-IR",
-            "message": "semantic program: actual Store intrinsic invents generic function actuals",
-            "span": null,
-            "notes": [
-              "actual semantic instance 0:6 original definition 0:10 function 6 recipe 2 at block 0 instruction 7 After"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "generic-libraries",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "SafeReject",
-            "code": "E-ANALYZE-IR",
-            "message": "semantic program: actual Store intrinsic invents generic function actuals",
-            "span": null,
-            "notes": [
-              "actual semantic instance 0:0 original definition 0:4 function 0 recipe 8 at block 8 instruction 2 After"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "closures",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "class-bearing call result has no complete callee header",
-            "span": null,
-            "notes": [
-              "actual semantic instance 0:1 original definition 0:4 function 1 recipe 24 at block 13 instruction 1 Before"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "ownership",
-        "status": "ResourceLimit",
-        "diagnostics": [
-          {
-            "phase": "types",
-            "category": "ResourceLimit",
-            "code": "E-RESOURCE-LIMIT",
-            "message": "semantic type materialization work exceeded",
-            "span": null,
-            "notes": [
-              "ordinary-domain request totals Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 51746, first_allowance: 9999971, last_remaining: 9948225 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 1129, first_allowance: 590222, last_remaining: 589093 }, \"abi: original function heads\": PassStats { calls: 1, work: 23, first_allowance: 9999994, last_remaining: 9999971 }, \"abi: seal original context\": PassStats { calls: 1, work: 406, first_allowance: 590628, last_remaining: 590222 }, \"abi: universal original body check\": PassStats { calls: 1, work: 9357489, first_allowance: 9948225, last_remaining: 590736 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 231, first_allowance: 179358, last_remaining: 179127 }, \"finish: ghost capture\": PassStats { calls: 1, work: 434, first_allowance: 179127, last_remaining: 178693 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 50952, first_allowance: 329256, last_remaining: 278304 }, \"finish: relocation\": PassStats { calls: 1, work: 98946, first_allowance: 278304, last_remaining: 179358 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 51023, first_allowance: 380279, last_remaining: 329256 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 1408, first_allowance: 589093, last_remaining: 587685 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 184339, first_allowance: 572577, last_remaining: 388238 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 142, first_allowance: 387286, last_remaining: 387144 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 15108, first_allowance: 587685, last_remaining: 572577 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 271, first_allowance: 380556, last_remaining: 380285 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 9410907, first_allowance: 10000000, last_remaining: 589093 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 6588, first_allowance: 387144, last_remaining: 380556 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 952, first_allowance: 388238, last_remaining: 387286 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 4 }: (1, 766644, 700839), SemanticDefinitionId { module: ModuleId(1), index: 5 }: (2, 24904, 7543), SemanticDefinitionId { module: ModuleId(1), index: 7 }: (2, 1781, 1781), SemanticDefinitionId { module: ModuleId(1), index: 13 }: (1, 14914, 14914), SemanticDefinitionId { module: ModuleId(2), index: 4 }: (2, 3248, 3248), SemanticDefinitionId { module: ModuleId(2), index: 5 }: (2, 7050, 7050), SemanticDefinitionId { module: ModuleId(2), index: 6 }: (2, 6861, 6861), SemanticDefinitionId { module: ModuleId(2), index: 7 }: (2, 8915, 8915), SemanticDefinitionId { module: ModuleId(2), index: 8 }: (2, 2417, 2417), SemanticDefinitionId { module: ModuleId(2), index: 10 }: (2, 1780, 1780), SemanticDefinitionId { module: ModuleId(3), index: 3 }: (2, 49, 49), SemanticDefinitionId { module: ModuleId(3), index: 4 }: (2, 17, 17), SemanticDefinitionId { module: ModuleId(3), index: 5 }: (2, 666, 617), SemanticDefinitionId { module: ModuleId(3), index: 6 }: (2, 461, 444), SemanticDefinitionId { module: ModuleId(3), index: 7 }: (2, 1288, 1288), SemanticDefinitionId { module: ModuleId(3), index: 8 }: (2, 1288, 1288), SemanticDefinitionId { module: ModuleId(3), index: 12 }: (1, 1679, 1679), SemanticDefinitionId { module: ModuleId(4), index: 0 }: (2, 833, 833), SemanticDefinitionId { module: ModuleId(4), index: 1 }: (2, 1245, 1245), SemanticDefinitionId { module: ModuleId(4), index: 2 }: (2, 948, 948), SemanticDefinitionId { module: ModuleId(4), index: 3 }: (2, 636, 636), SemanticDefinitionId { module: ModuleId(4), index: 4 }: (2, 646, 646), SemanticDefinitionId { module: ModuleId(4), index: 5 }: (2, 380, 380), SemanticDefinitionId { module: ModuleId(4), index: 6 }: (2, 2905, 2905)}, original_stages: {\"all_functions_and_carriers\": 769154, \"associated_inventory\": 63408, \"associated_obligations\": 1, \"closed_opaque_finalize\": 2786, \"finish_effects\": 3974, \"protocol_cleanup\": 8516926}, phases: {\"deferred nominals\": PhaseStats { contexts: 1, zero_calls: 72, index_builds: 1, hashed_types: 7, complete_comparisons: 52, work: 23634, first_allowance: 173890 }} }",
-              "actual type evaluation at crates/zil-types/src/semantics/materialize_opaque.rs:663; requested work 43; remaining 27; active original holder None; holder count 0",
-              "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 51746, first_allowance: 9999971, last_remaining: 9948225 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 1129, first_allowance: 590222, last_remaining: 589093 }, \"abi: original function heads\": PassStats { calls: 1, work: 23, first_allowance: 9999994, last_remaining: 9999971 }, \"abi: seal original context\": PassStats { calls: 1, work: 406, first_allowance: 590628, last_remaining: 590222 }, \"abi: universal original body check\": PassStats { calls: 1, work: 9357489, first_allowance: 9948225, last_remaining: 590736 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 231, first_allowance: 179358, last_remaining: 179127 }, \"finish: deferred nominals\": PassStats { calls: 1, work: 178666, first_allowance: 178693, last_remaining: 27 }, \"finish: ghost capture\": PassStats { calls: 1, work: 434, first_allowance: 179127, last_remaining: 178693 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 50952, first_allowance: 329256, last_remaining: 278304 }, \"finish: relocation\": PassStats { calls: 1, work: 98946, first_allowance: 278304, last_remaining: 179358 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 51023, first_allowance: 380279, last_remaining: 329256 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 1408, first_allowance: 589093, last_remaining: 587685 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 184339, first_allowance: 572577, last_remaining: 388238 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 142, first_allowance: 387286, last_remaining: 387144 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 15108, first_allowance: 587685, last_remaining: 572577 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 271, first_allowance: 380556, last_remaining: 380285 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 9410907, first_allowance: 10000000, last_remaining: 589093 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 6588, first_allowance: 387144, last_remaining: 380556 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 952, first_allowance: 388238, last_remaining: 387286 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 4 }: (1, 766644, 700839), SemanticDefinitionId { module: ModuleId(1), index: 5 }: (2, 24904, 7543), SemanticDefinitionId { module: ModuleId(1), index: 7 }: (2, 1781, 1781), SemanticDefinitionId { module: ModuleId(1), index: 13 }: (1, 14914, 14914), SemanticDefinitionId { module: ModuleId(2), index: 4 }: (2, 3248, 3248), SemanticDefinitionId { module: ModuleId(2), index: 5 }: (2, 7050, 7050), SemanticDefinitionId { module: ModuleId(2), index: 6 }: (2, 6861, 6861), SemanticDefinitionId { module: ModuleId(2), index: 7 }: (2, 8915, 8915), SemanticDefinitionId { module: ModuleId(2), index: 8 }: (2, 2417, 2417), SemanticDefinitionId { module: ModuleId(2), index: 10 }: (2, 1780, 1780), SemanticDefinitionId { module: ModuleId(3), index: 3 }: (2, 49, 49), SemanticDefinitionId { module: ModuleId(3), index: 4 }: (2, 17, 17), SemanticDefinitionId { module: ModuleId(3), index: 5 }: (2, 666, 617), SemanticDefinitionId { module: ModuleId(3), index: 6 }: (2, 461, 444), SemanticDefinitionId { module: ModuleId(3), index: 7 }: (2, 1288, 1288), SemanticDefinitionId { module: ModuleId(3), index: 8 }: (2, 1288, 1288), SemanticDefinitionId { module: ModuleId(3), index: 12 }: (1, 1679, 1679), SemanticDefinitionId { module: ModuleId(4), index: 0 }: (2, 833, 833), SemanticDefinitionId { module: ModuleId(4), index: 1 }: (2, 1245, 1245), SemanticDefinitionId { module: ModuleId(4), index: 2 }: (2, 948, 948), SemanticDefinitionId { module: ModuleId(4), index: 3 }: (2, 636, 636), SemanticDefinitionId { module: ModuleId(4), index: 4 }: (2, 646, 646), SemanticDefinitionId { module: ModuleId(4), index: 5 }: (2, 380, 380), SemanticDefinitionId { module: ModuleId(4), index: 6 }: (2, 2905, 2905)}, original_stages: {\"all_functions_and_carriers\": 769154, \"associated_inventory\": 63408, \"associated_obligations\": 1, \"closed_opaque_finalize\": 2786, \"finish_effects\": 3974, \"protocol_cleanup\": 8516926}, phases: {\"deferred nominals\": PhaseStats { contexts: 1, zero_calls: 72, index_builds: 1, hashed_types: 7, complete_comparisons: 52, work: 23634, first_allowance: 173890 }} }"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "dynamic-abstraction",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original semantic type constructor requires complete class and nominal evaluation",
-            "span": null,
-            "notes": []
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "async-ownership",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "SafeReject",
-            "code": "E-ANALYZE-IR",
-            "message": "semantic program: actual Task intrinsic invents generic actuals",
-            "span": null,
-            "notes": [
-              "actual semantic instance 0:1 original definition 0:1 function 1 recipe 2 at block 2 instruction 4 After"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "threads",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "owned or opaque value has no actual stored permission integration in increment: Desc(Mutex { payload: I32 })",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 119
-            },
-            "notes": []
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "foreign-lifecycle",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "SafeReject",
-            "code": "E-ANALYZE-IR",
-            "message": "semantic program: original thread execution retains unproved data, an external borrowed head or cleanup dependency",
-            "span": null,
-            "notes": []
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "owning-collections",
-        "status": "ResourceLimit",
-        "diagnostics": [
-          {
-            "phase": "types",
-            "category": "ResourceLimit",
-            "code": "E-RESOURCE-LIMIT",
-            "message": "source closure constraint work budget exceeded",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
-            "notes": [
-              "complete type snapshot at crates/zil-types/src/dyn_metadata.rs:447: copies 1, nodes visited 6, work consumed 154, caller remaining 10, type constructor Discriminant(37)",
-              "semantic operand snapshot at crates/zil-types/src/semantics/world.rs:174: copies 1, nodes visited 2, work consumed 158, remaining 10",
-              "actual world work: entry allowance 847236, failing instance SemanticInstanceId { module: ModuleId(0), index: 5 }/definition SemanticDefinitionId { module: ModuleId(0), index: 11 } began 776453, consumed 776443, remaining 10; type cache hits 61, misses 93, lookup work 42884, evaluation work 69229; state snapshots 53 work 373852, comparisons 27 work 39112",
-              "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(0), index: 5 }); definition Some(SemanticDefinitionId { module: ModuleId(0), index: 11 }); entry allowance 847236; consumed 847226; remaining 10",
-              "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 163063, first_allowance: 9999974, last_remaining: 9836911 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 3328, first_allowance: 4427705, last_remaining: 4424377 }, \"abi: original function heads\": PassStats { calls: 1, work: 19, first_allowance: 9999993, last_remaining: 9999974 }, \"abi: seal original context\": PassStats { calls: 1, work: 835, first_allowance: 4428540, last_remaining: 4427705 }, \"abi: universal original body check\": PassStats { calls: 1, work: 5408127, first_allowance: 9836911, last_remaining: 4428784 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 182, first_allowance: 3648284, last_remaining: 3648102 }, \"finish: actual worlds\": PassStats { calls: 1, work: 847226, first_allowance: 847236, last_remaining: 10 }, \"finish: capture domains\": PassStats { calls: 1, work: 45, first_allowance: 3262410, last_remaining: 3262365 }, \"finish: complete headers\": PassStats { calls: 1, work: 45, first_allowance: 3262572, last_remaining: 3262527 }, \"finish: creator headers\": PassStats { calls: 1, work: 191084, first_allowance: 2395171, last_remaining: 2204087 }, \"finish: deferred nominals\": PassStats { calls: 1, work: 385485, first_allowance: 3648057, last_remaining: 3262572 }, \"finish: full materialization\": PassStats { calls: 1, work: 1356851, first_allowance: 2204087, last_remaining: 847236 }, \"finish: ghost capture\": PassStats { calls: 1, work: 45, first_allowance: 3648102, last_remaining: 3648057 }, \"finish: header bindings\": PassStats { calls: 1, work: 117, first_allowance: 3262527, last_remaining: 3262410 }, \"finish: ordinary inventory\": PassStats { calls: 1, work: 3192, first_allowance: 3262365, last_remaining: 3259173 }, \"finish: original nominal catalog\": PassStats { calls: 1, work: 864002, first_allowance: 3259173, last_remaining: 2395171 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 158677, first_allowance: 4067218, last_remaining: 3908541 }, \"finish: relocation\": PassStats { calls: 1, work: 260257, first_allowance: 3908541, last_remaining: 3648284 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 160318, first_allowance: 4227536, last_remaining: 4067218 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 2116, first_allowance: 4424377, last_remaining: 4422261 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 161934, first_allowance: 4403009, last_remaining: 4241075 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 0, first_allowance: 4241075, last_remaining: 4241075 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 19252, first_allowance: 4422261, last_remaining: 4403009 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 19, first_allowance: 4227562, last_remaining: 4227543 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 5575623, first_allowance: 10000000, last_remaining: 4424377 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 13513, first_allowance: 4241075, last_remaining: 4227562 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 0, first_allowance: 4241075, last_remaining: 4241075 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 8 }: (1, 3373, 3373), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 3373, 3373), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (1, 15, 15), SemanticDefinitionId { module: ModuleId(0), index: 11 }: (1, 1019391, 102886), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (1, 4403, 4403), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (1, 1197, 1197), SemanticDefinitionId { module: ModuleId(1), index: 7 }: (2, 26438, 26438), SemanticDefinitionId { module: ModuleId(1), index: 8 }: (2, 13951, 13951), SemanticDefinitionId { module: ModuleId(1), index: 9 }: (2, 5711, 5711), SemanticDefinitionId { module: ModuleId(1), index: 10 }: (2, 142411, 141695), SemanticDefinitionId { module: ModuleId(1), index: 11 }: (1, 14133, 14133), SemanticDefinitionId { module: ModuleId(1), index: 12 }: (2, 40014, 40014), SemanticDefinitionId { module: ModuleId(1), index: 13 }: (1, 46511, 46511), SemanticDefinitionId { module: ModuleId(1), index: 14 }: (2, 207722, 207722), SemanticDefinitionId { module: ModuleId(1), index: 15 }: (2, 41373, 41373), SemanticDefinitionId { module: ModuleId(1), index: 16 }: (2, 62535, 62535), SemanticDefinitionId { module: ModuleId(1), index: 17 }: (2, 697878, 289606), SemanticDefinitionId { module: ModuleId(1), index: 18 }: (2, 69978, 69978), SemanticDefinitionId { module: ModuleId(1), index: 19 }: (1, 2162, 2162), SemanticDefinitionId { module: ModuleId(1), index: 20 }: (2, 250, 250), SemanticDefinitionId { module: ModuleId(2), index: 4 }: (1, 18043, 18043), SemanticDefinitionId { module: ModuleId(2), index: 5 }: (1, 13119, 13119), SemanticDefinitionId { module: ModuleId(2), index: 6 }: (1, 15061, 15061), SemanticDefinitionId { module: ModuleId(2), index: 7 }: (1, 18305, 18305), SemanticDefinitionId { module: ModuleId(2), index: 8 }: (1, 13816, 13816), SemanticDefinitionId { module: ModuleId(2), index: 9 }: (1, 19992, 19992), SemanticDefinitionId { module: ModuleId(2), index: 10 }: (1, 51260, 51260), SemanticDefinitionId { module: ModuleId(2), index: 11 }: (1, 26085, 26085), SemanticDefinitionId { module: ModuleId(2), index: 12 }: (1, 14150, 14150), SemanticDefinitionId { module: ModuleId(2), index: 13 }: (1, 17359, 17359), SemanticDefinitionId { module: ModuleId(3), index: 3 }: (1, 3206, 3206), SemanticDefinitionId { module: ModuleId(3), index: 4 }: (1, 3836, 3836), SemanticDefinitionId { module: ModuleId(3), index: 5 }: (1, 4115, 4115), SemanticDefinitionId { module: ModuleId(3), index: 6 }: (1, 5585, 5585), SemanticDefinitionId { module: ModuleId(3), index: 7 }: (1, 36862, 18213), SemanticDefinitionId { module: ModuleId(3), index: 8 }: (1, 6243, 6243), SemanticDefinitionId { module: ModuleId(4), index: 4 }: (1, 11147, 11147), SemanticDefinitionId { module: ModuleId(4), index: 5 }: (1, 9074, 9074), SemanticDefinitionId { module: ModuleId(4), index: 6 }: (1, 35034, 35034), SemanticDefinitionId { module: ModuleId(4), index: 7 }: (1, 5382, 5382), SemanticDefinitionId { module: ModuleId(4), index: 8 }: (1, 26242, 26242), SemanticDefinitionId { module: ModuleId(4), index: 9 }: (1, 25264, 25264), SemanticDefinitionId { module: ModuleId(4), index: 10 }: (1, 92490, 92490), SemanticDefinitionId { module: ModuleId(4), index: 11 }: (1, 57522, 57522), SemanticDefinitionId { module: ModuleId(4), index: 12 }: (1, 25043, 25043), SemanticDefinitionId { module: ModuleId(4), index: 13 }: (2, 466, 466), SemanticDefinitionId { module: ModuleId(5), index: 0 }: (1, 572, 572), SemanticDefinitionId { module: ModuleId(5), index: 1 }: (1, 993, 993), SemanticDefinitionId { module: ModuleId(5), index: 2 }: (1, 1448, 1448), SemanticDefinitionId { module: ModuleId(5), index: 3 }: (1, 10505, 10505), SemanticDefinitionId { module: ModuleId(5), index: 4 }: (1, 1108, 1108), SemanticDefinitionId { module: ModuleId(5), index: 5 }: (1, 756, 756), SemanticDefinitionId { module: ModuleId(5), index: 6 }: (1, 766, 766), SemanticDefinitionId { module: ModuleId(5), index: 7 }: (1, 2656, 2656), SemanticDefinitionId { module: ModuleId(5), index: 8 }: (2, 16766, 16766), SemanticDefinitionId { module: ModuleId(5), index: 9 }: (2, 18649, 14129), SemanticDefinitionId { module: ModuleId(5), index: 10 }: (1, 3837, 3837), SemanticDefinitionId { module: ModuleId(5), index: 11 }: (2, 4520, 4520)}, original_stages: {\"all_functions_and_carriers\": 1673660, \"associated_inventory\": 118203, \"associated_obligations\": 4006, \"closed_opaque_finalize\": 72, \"finish_effects\": 8532, \"protocol_cleanup\": 3602101}, phases: {\"nominal_catalog\": PhaseStats { contexts: 1, zero_calls: 1, index_builds: 1, hashed_types: 7, complete_comparisons: 1, work: 1533, first_allowance: 3224914 }, \"world\": PhaseStats { contexts: 1, zero_calls: 29, index_builds: 1, hashed_types: 7, complete_comparisons: 36, work: 20059, first_allowance: 818676 }} }"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "buffered-io",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original borrow needs its exact initialized place projection",
-            "span": null,
-            "notes": [
-              "original definition module 1 index 7, expression 19",
-              "original definition module 1 index 7, expression 16",
-              "original definition module 1 index 7, expression 15"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "iteration",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original where premise requires its complete rigid-role proof",
-            "span": null,
-            "notes": [
-              "actual world work: entry allowance 3887344, failing instance SemanticInstanceId { module: ModuleId(1), index: 14 }/definition SemanticDefinitionId { module: ModuleId(1), index: 25 } began 2650891, consumed 13, remaining 2650878; type cache hits 89, misses 162, lookup work 94377, evaluation work 294215; state snapshots 80 work 198180, comparisons 17 work 7854",
-              "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(1), index: 14 }); definition Some(SemanticDefinitionId { module: ModuleId(1), index: 25 }); entry allowance 3887344; consumed 1236466; remaining 2650878",
-              "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 88073, first_allowance: 9999981, last_remaining: 9911908 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 1009, first_allowance: 5878767, last_remaining: 5877758 }, \"abi: original function heads\": PassStats { calls: 1, work: 15, first_allowance: 9999996, last_remaining: 9999981 }, \"abi: seal original context\": PassStats { calls: 1, work: 605, first_allowance: 5879372, last_remaining: 5878767 }, \"abi: universal original body check\": PassStats { calls: 1, work: 4032352, first_allowance: 9911908, last_remaining: 5879556 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 1182, first_allowance: 5634790, last_remaining: 5633608 }, \"finish: actual worlds\": PassStats { calls: 1, work: 1236466, first_allowance: 3887344, last_remaining: 2650878 }, \"finish: capture domains\": PassStats { calls: 1, work: 21, first_allowance: 5598561, last_remaining: 5598540 }, \"finish: complete headers\": PassStats { calls: 1, work: 21, first_allowance: 5598666, last_remaining: 5598645 }, \"finish: creator headers\": PassStats { calls: 1, work: 197815, first_allowance: 4668683, last_remaining: 4470868 }, \"finish: deferred nominals\": PassStats { calls: 1, work: 34921, first_allowance: 5633587, last_remaining: 5598666 }, \"finish: full materialization\": PassStats { calls: 1, work: 583524, first_allowance: 4470868, last_remaining: 3887344 }, \"finish: ghost capture\": PassStats { calls: 1, work: 21, first_allowance: 5633608, last_remaining: 5633587 }, \"finish: header bindings\": PassStats { calls: 1, work: 84, first_allowance: 5598645, last_remaining: 5598561 }, \"finish: ordinary inventory\": PassStats { calls: 1, work: 7157, first_allowance: 5598540, last_remaining: 5591383 }, \"finish: original nominal catalog\": PassStats { calls: 1, work: 922700, first_allowance: 5591383, last_remaining: 4668683 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 82306, first_allowance: 5734530, last_remaining: 5652224 }, \"finish: relocation\": PassStats { calls: 1, work: 17434, first_allowance: 5652224, last_remaining: 5634790 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 87525, first_allowance: 5822055, last_remaining: 5734530 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 2824, first_allowance: 5877758, last_remaining: 5874934 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 46890, first_allowance: 5874934, last_remaining: 5828044 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 0, first_allowance: 5828044, last_remaining: 5828044 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 0, first_allowance: 5874934, last_remaining: 5874934 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 15, first_allowance: 5822074, last_remaining: 5822059 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 4122242, first_allowance: 10000000, last_remaining: 5877758 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 5970, first_allowance: 5828044, last_remaining: 5822074 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 0, first_allowance: 5828044, last_remaining: 5828044 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 1 }: (1, 46, 46), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (1, 712336, 471975), SemanticDefinitionId { module: ModuleId(0), index: 11 }: (1, 981, 981), SemanticDefinitionId { module: ModuleId(0), index: 13 }: (2, 2142, 2142), SemanticDefinitionId { module: ModuleId(0), index: 21 }: (1, 12705, 12705), SemanticDefinitionId { module: ModuleId(0), index: 22 }: (1, 3014, 3014), SemanticDefinitionId { module: ModuleId(1), index: 1 }: (1, 4357, 4357), SemanticDefinitionId { module: ModuleId(1), index: 2 }: (1, 6086, 6086), SemanticDefinitionId { module: ModuleId(1), index: 3 }: (1, 5020, 5020), SemanticDefinitionId { module: ModuleId(1), index: 4 }: (1, 5099, 5099), SemanticDefinitionId { module: ModuleId(1), index: 5 }: (1, 7032, 7032), SemanticDefinitionId { module: ModuleId(1), index: 6 }: (1, 7635, 7635), SemanticDefinitionId { module: ModuleId(1), index: 7 }: (1, 45479, 45479), SemanticDefinitionId { module: ModuleId(1), index: 9 }: (1, 53187, 50814), SemanticDefinitionId { module: ModuleId(1), index: 14 }: (1, 1482, 1482), SemanticDefinitionId { module: ModuleId(1), index: 16 }: (2, 8845, 8845), SemanticDefinitionId { module: ModuleId(1), index: 18 }: (2, 55166, 55166), SemanticDefinitionId { module: ModuleId(1), index: 21 }: (2, 43687, 43687), SemanticDefinitionId { module: ModuleId(1), index: 23 }: (1, 37440, 37440), SemanticDefinitionId { module: ModuleId(1), index: 25 }: (2, 129245, 116014), SemanticDefinitionId { module: ModuleId(1), index: 26 }: (1, 48344, 48344), SemanticDefinitionId { module: ModuleId(1), index: 27 }: (1, 30551, 30551), SemanticDefinitionId { module: ModuleId(1), index: 28 }: (2, 1276, 1276), SemanticDefinitionId { module: ModuleId(1), index: 29 }: (1, 73175, 73175), SemanticDefinitionId { module: ModuleId(1), index: 31 }: (2, 2373, 2373), SemanticDefinitionId { module: ModuleId(1), index: 33 }: (2, 3138, 3138), SemanticDefinitionId { module: ModuleId(1), index: 35 }: (1, 4584, 4584), SemanticDefinitionId { module: ModuleId(1), index: 36 }: (1, 429, 429), SemanticDefinitionId { module: ModuleId(1), index: 39 }: (1, 9499, 9499), SemanticDefinitionId { module: ModuleId(1), index: 43 }: (1, 333638, 333638), SemanticDefinitionId { module: ModuleId(1), index: 47 }: (1, 221165, 221165), SemanticDefinitionId { module: ModuleId(2), index: 0 }: (1, 554, 554), SemanticDefinitionId { module: ModuleId(2), index: 1 }: (1, 957, 957), SemanticDefinitionId { module: ModuleId(2), index: 2 }: (1, 1403, 1403), SemanticDefinitionId { module: ModuleId(2), index: 3 }: (2, 10093, 10093), SemanticDefinitionId { module: ModuleId(2), index: 4 }: (1, 1072, 1072), SemanticDefinitionId { module: ModuleId(2), index: 5 }: (1, 729, 729), SemanticDefinitionId { module: ModuleId(2), index: 6 }: (1, 739, 739), SemanticDefinitionId { module: ModuleId(2), index: 7 }: (1, 2512, 2512), SemanticDefinitionId { module: ModuleId(2), index: 8 }: (1, 16197, 16197), SemanticDefinitionId { module: ModuleId(2), index: 9 }: (1, 18071, 13696), SemanticDefinitionId { module: ModuleId(2), index: 10 }: (1, 3648, 3648), SemanticDefinitionId { module: ModuleId(2), index: 11 }: (2, 4375, 4375)}, original_stages: {\"all_functions_and_carriers\": 1670835, \"associated_inventory\": 89256, \"associated_obligations\": 61459, \"closed_opaque_finalize\": 63, \"finish_effects\": 1481, \"protocol_cleanup\": 2207786}, phases: {\"world\": PhaseStats { contexts: 1, zero_calls: 73, index_builds: 1, hashed_types: 9, complete_comparisons: 89, work: 29646, first_allowance: 3874189 }} }"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "project-workflow",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "SafeReject",
-            "code": "E-ANALYZE-IR",
-            "message": "semantic program: original actual does not establish Value",
-            "span": null,
-            "notes": [
-              "original inline field definition 2:0 field 0"
-            ]
-          }
-        ]
-      }
-    ]
+    "candidate": "361e584cc6839db4e6fb22cbf29b2829828bf929",
+    "record": "records/language-alpha-validation/361e584cc.json",
+    "acceptance": "NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "ac56180cf0df7c1078f7359803a6e6d6abab3506",
-  "current_candidate_under_validation": "ac56180cf",
+  "latest_ready_source": "fbbc395c595881b3aaf06d59780d44b5c3a74af5",
+  "current_candidate_under_validation": "fbbc395c595881b3aaf06d59780d44b5c3a74af5",
   "wip_backup": {
-    "archive_commit": "c199c406a5437554aca3db84e648cf320500f6f8",
-    "previous_archive": "fc5b05c7ae6cd6afe2c2e6609cabdb2535a94507",
-    "source_base": "7cff093b2012a645e926cf153a97cec2abf65031",
-    "prefix": "language/20261114T143800Z-active-wip",
-    "changed_files": 13,
-    "artifacts": 11,
+    "archive_commit": "4fc4bca071838141edd530222e4ea0d1564f6240",
+    "source_base": "3c24419bd71438acc731eb3b272e576afd7ebaf2",
+    "prefix": "language/20261114T155333Z-active-wip",
+    "changed_files": 20,
+    "artifacts": 12,
     "remote_manifest_and_patch_readback_equal": true,
     "state": "WIP, not functional acceptance"
   },
@@ -317,11 +79,11 @@
   "latest_runtime_acceptance_summary": "NOT ACCEPTED: foundation source/check remains1/13 and intended SyncDrop negatives4/4. Actual C ABI passed Types and Analyze, now Verify original external ABI specialization guard. Small native12/16, phantom now actual source Fixed origin. Source153 and full alltargets have passed separately versioned regressions. Protocol cleanup8.516M/10M root cost identified; immutable CleanupType interning1345fc6e7 under new candidate test. No Alpha PR, merge or release.",
   "remaining_alpha_claims": "No complete Alpha, no new PR/merge/release; keep original uninstantiated definitions, independent kernels, default budgets, full native/C/CT/project and restoration acceptance.",
   "active_open_work": [
-    "Types complete request cost attribution before deferred nominals; World fixed ABI and whole-type equations",
-    "Analyze all actual class/capture dataflow, sealed-call schemes, enum mixed actuals and complete nominal/layout bounds",
-    "Source second closure Task inference and complete task structural visitors",
-    "Original Gamma hidden Task return family and original Result-to-input full-domain relations",
-    "Verify complete callable factory, rigid callee/result domain and member bridges; Task raw/source flow continuation must be resumed after slot allocation"
+    "Source private FunctionDraft for truly deferred Task closure return plus full Poll/Task results",
+    "Types actual where consumption through complete original caller API, full nominal domains, owning collection scale and true resumable Task cleanup/source bindings",
+    "Analyze complete original-to-actual correspondence and physical resource/borrow consumers; Mutex guard/complex payload and full Dyn remain open",
+    "Verify complete external/enum/SABI stored consumers now integrated; Task complete source paths and compound retained result consumers still active",
+    "Root immutable full-profile, Source/Verify grouped regression, native/C/failure cleanup acceptance and continuous GitHub source/WIP recovery"
   ],
   "public_contract_clarifications": [
     {
@@ -334,9 +96,20 @@
     }
   ],
   "scalar_native_latest": {
-    "candidate": "b37d7474384b53c36a3bcd9c5fc55764905fee4a",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scalars-cabi-native-b37d74743",
+    "candidate": "844fd81bcf8ab1003e9f94c4d93cc623a5f2178a",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scalars-cabi-native-844fd81bc",
     "scalar_four_configurations": "Pass",
-    "c_abi_companion": "Fail in Verify frozen generic/nominal external ABI specialization/source-domain correspondence original0:5. Original ffi/C consumer unchanged."
+    "c_abi_companion": "Executed and failed Verify stored signature profile conflict. Original external nominal ABI gate was passed; no source/fixture/expected output reduced."
+  },
+  "path_review_20261114_1552": {
+    "model": "gpt-6-astra",
+    "read_analyze_algorithm": false,
+    "groups": [
+      "Complete original/site/recipe to actual operations, classes and physical projections",
+      "Fixed ABI from true calls and cleanup edges; mature resource/extern consumers consistently routed",
+      "Complete original where premises, full nominal domains and default-budget scale"
+    ],
+    "public_profile": "13 positive anchors retained; full CT/C/native/failure exits remain required. No additional positive declared illegal.",
+    "root_correction": "Overbroad type-occurrence cleanup ABI upper reverted in full, 3c24419bd."
   }
 }

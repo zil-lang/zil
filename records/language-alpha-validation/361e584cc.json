@@ -1,0 +1,143 @@
+{
+  "candidate": "361e584cc6839db4e6fb22cbf29b2829828bf929",
+  "accepted": false,
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-indexed-protocol-cleanup-and-thread-mutex",
+  "cli_build": 0,
+  "foundation_positives": {
+    "passed": 1,
+    "total": 13
+  },
+  "intended_negatives": {
+    "passed": 4,
+    "total": 4
+  },
+  "native_small_sources": {
+    "passed": 12,
+    "total": 16
+  },
+  "source_regression": {
+    "passed": 154,
+    "failed": 0,
+    "ignored": 0,
+    "note": "Includes the cleanup-upper test subsequently removed with the reverted overbroad change; not evidence for its successor."
+  },
+  "verify_semantic_regression": {
+    "passed": 23,
+    "failed": 0,
+    "ignored": 0
+  },
+  "protocol_work": {
+    "before": 8517085,
+    "after": 1830049,
+    "default_budget": 10000000,
+    "note": "Same ownership input; exact query/category caches and lexical exit index, not increased allowance."
+  },
+  "invalid_cleanup_upper": {
+    "introduced": "245a925ec",
+    "reverted": "3c24419bd",
+    "reason": "Owner transport and phantom/type occurrences do not establish executable cleanup. Caused async/foreign fixed ABI regressions; no FnDirect constraint was relaxed."
+  },
+  "cases": [
+    {
+      "family": "async-ownership",
+      "status": "SafeReject",
+      "first_failure": {
+        "phase": "types",
+        "message": "original callable changes its complete scoped call scheme"
+      }
+    },
+    {
+      "family": "buffered-io",
+      "status": "Unsupported",
+      "first_failure": {
+        "phase": "analyze",
+        "message": "original borrow needs its exact initialized physical place projection"
+      }
+    },
+    {
+      "family": "closures",
+      "status": "SafeReject",
+      "first_failure": {
+        "phase": "analyze",
+        "message": "semantic program: original emission recipe has no actual operation"
+      }
+    },
+    {
+      "family": "dynamic-abstraction",
+      "status": "SafeReject",
+      "first_failure": {
+        "phase": "analyze",
+        "message": "dyn type lacks a checked interface"
+      }
+    },
+    {
+      "family": "foreign-lifecycle",
+      "status": "SafeReject",
+      "first_failure": {
+        "phase": "types",
+        "message": "actual call opcode changes the callee's fixed original ABI convention"
+      }
+    },
+    {
+      "family": "generic-libraries",
+      "status": "SafeReject",
+      "first_failure": {
+        "phase": "analyze",
+        "message": "semantic program: actual semantic claim changes its complete original class value"
+      }
+    },
+    {
+      "family": "iteration",
+      "status": "Unsupported",
+      "first_failure": {
+        "phase": "types",
+        "message": "original where premise requires its complete rigid-role proof"
+      }
+    },
+    {
+      "family": "ownership",
+      "status": "Unsupported",
+      "first_failure": {
+        "phase": "types",
+        "message": "ordinary nominal child has no complete known-zero persistent domain"
+      }
+    },
+    {
+      "family": "owning-collections",
+      "status": "ResourceLimit",
+      "first_failure": {
+        "phase": "types",
+        "message": "source closure constraint work budget exceeded"
+      }
+    },
+    {
+      "family": "patterns",
+      "status": "SafeReject",
+      "first_failure": {
+        "phase": "analyze",
+        "message": "signature value needs its ownership consumer"
+      }
+    },
+    {
+      "family": "project-workflow",
+      "status": "Unsupported",
+      "first_failure": {
+        "phase": "analyze",
+        "message": "borrow SSA has no complete original occurrence value"
+      }
+    },
+    {
+      "family": "scalars",
+      "status": "Success",
+      "first_failure": null
+    },
+    {
+      "family": "threads",
+      "status": "SafeReject",
+      "first_failure": {
+        "phase": "analyze",
+        "message": "stored target proof: pure error observation retains actual targets"
+      }
+    }
+  ]
+}
