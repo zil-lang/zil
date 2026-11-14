@@ -237,11 +237,11 @@ impl Scope<'_> {
                     return Err(bad("type recipe selects a non-Type method formal"));
                 }
             }
-            DynTypePattern::Semantic { scope, .. } => {
-                bridge::owner(module, &self.owner, *scope, b)?;
-                return Err(bad(
-                    "semantic type bridge requires complete checked type WF in its original owner scope",
-                ));
+            DynTypePattern::Semantic { scope, ty } => {
+                bridge::original_type(module, &self.owner, *scope, ty, b)?;
+                // This pass checks original grammar only. The independent
+                // original checker retains full type WF and where obligations;
+                // actual queries evaluate the recipe in the complete domain.
             }
             DynTypePattern::Concrete(ty) => self.concrete(ty, b)?,
             DynTypePattern::Nominal(app) => self.application(module, app, false, depth + 1, b)?,

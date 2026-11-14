@@ -64,6 +64,10 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         // actual Call substitution are checked separately; no global union
         // equates those outside images with the rigid creator's identities.
     }
+    {
+        let original=context.original.borrow();let original=original.as_ref().ok_or_else(||bad("selected method obligations have no complete original body proof"))?;
+        for method in std::mem::take(&mut external.pending_original_methods){original.checked_method_body(module,method,b)?;}
+    }
     // External shape requests are obligations, not proof tokens. No Some
     // program is published while its actual entry/static memory is pending.
     if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty() {

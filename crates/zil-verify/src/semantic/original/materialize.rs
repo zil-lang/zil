@@ -2,6 +2,16 @@
 //! This never infers a source type from the Typed value it is checking.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn checked_method_body(&self,module:&TypedModule,id:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+        let programme=module.semantic.as_ref().ok_or_else(||bad("original method obligation has no complete programme"))?;b.spend(programme.definitions.len().saturating_add(2))?;
+        let mut definitions=programme.definitions.iter().filter(|row|row.id==id);let definition=definitions.next().ok_or_else(||bad("selected original method body is absent"))?;
+        if definitions.next().is_some()||definition.kind!=SemanticDefinitionKind::Method||!matches!(definition.body,SemanticDefinitionBody::FunctionWithBody{body:SemanticOriginalFunctionBody::Defined(_),..}){return Err(bad("selected method has no unique complete original Defined body"));}
+        if !self.checked.contains(&id)||!self.prototypes.contains_key(&id){return Err(bad("selected original method has unfinished universal body obligations"));}
+        // This container is installed in CheckedContext only after all use,
+        // cleanup, effects and protocol obligations have completed. It is not
+        // an assertion about a DynContract or a runtime entry CFG.
+        Ok(())
+    }
     pub(in crate::semantic) fn callable_source(&self,_module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<NodeId>{b.spend(1)?;self.callable_nodes.get(&(definition,node)).copied().ok_or_else(||bad("actual callable has no independently checked original callee expression"))}
 
     pub(in crate::semantic) fn type_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{

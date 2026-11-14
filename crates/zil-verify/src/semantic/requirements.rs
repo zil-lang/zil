@@ -106,7 +106,7 @@ impl CheckedContext {
         }
         Ok(())
     }
-    fn external_requirement(&self,module:&TypedModule,environment:&EvalEnv,request:ExternalRequest,mode:RequirementMode,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(crate) fn external_requirement(&self,module:&TypedModule,environment:&EvalEnv,request:ExternalRequest,mode:RequirementMode,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let key=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
         if mode==RequirementMode::DeclarationPremise {
             b.spend(1)?;

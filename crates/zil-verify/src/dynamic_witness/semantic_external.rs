@@ -2,11 +2,49 @@
 //! entry obligation; it never exports class equations or runtime authority.
 use super::*;
 use crate::semantic::{self, api::*};
+#[path = "semantic_associated.rs"]
+mod associated;
+
+pub(crate) fn original_scope<'a>(
+    module: &'a TypedModule,
+    id: LifeDeclarationId,
+    b: &mut Budget,
+) -> Check<&'a SemanticDefinition> {
+    associated::scope(module, id, b)
+}
+pub(crate) fn original_type_recipe(
+    module: &TypedModule,
+    owner: LifeDeclarationId,
+    pattern: &DynTypePattern,
+    b: &mut Budget,
+) -> Check<SemanticTypeRecipe> {
+    associated::type_recipe(module, owner, pattern, b, 0)
+}
+pub(crate) fn original_constant_recipe(
+    module: &TypedModule,
+    owner: LifeDeclarationId,
+    pattern: &DynConstPattern,
+    b: &mut Budget,
+) -> Check<SemanticConstRecipe> {
+    associated::constant_recipe(module, owner, pattern, b, 0)
+}
+pub(crate) fn original_requirement_recipes(
+    module: &TypedModule,
+    owner: LifeDeclarationId,
+    rows: &[DynObligation],
+    b: &mut Budget,
+) -> Check<Vec<SemanticRequirementRecipe>> {
+    associated::requirement_recipes(module, owner, rows, b)
+}
 
 #[derive(Default)]
 pub(crate) struct Proofs {
     pub(crate) callable_shapes: Vec<requests::CallableShapeRequest>,
     pub(crate) pending_statics: Vec<(StorageBase, StaticOccurrence)>,
+    pub(crate) pending_original_methods: Vec<SemanticDefinitionId>,
+    active_original: Vec<ExternalRequest>,
+    available_original: Vec<(ExternalRequest, ExternalValue)>,
+    original_domain: Option<associated::LocalDomain>,
 }
 
 /// One request-local representation of already checked semantic identities.
@@ -342,8 +380,36 @@ impl ExternalProofs for Proofs {
             }
             ExternalRequest::Trait { .. }
             | ExternalRequest::AssociatedType { .. }
-            | ExternalRequest::AssociatedConst { .. }
-            | ExternalRequest::Dyn { .. } => Err(bad(
+            | ExternalRequest::AssociatedConst { .. } => {
+                b.spend(self.available_original.len())?;
+                if let Some((_, value)) = self
+                    .available_original
+                    .iter()
+                    .rev()
+                    .find(|(key, _)| key == request)
+                {
+                    return Ok(value.clone());
+                }
+                b.spend(self.active_original.len().saturating_add(1))?;
+                if self.active_original.contains(request) {
+                    return Err(bad("original trait/associated query forms a cycle"));
+                }
+                let token = active.fresh(b)?;
+                self.active_original.push(request.clone());
+                let result = active.with_query(
+                    semantic::DependencyKey {
+                        kind: semantic::QueryKind::External,
+                        token,
+                    },
+                    b,
+                    |active, b| {
+                        associated::query(self, module, context, environment, request, active, b)
+                    },
+                );
+                self.active_original.pop();
+                result
+            }
+            ExternalRequest::Dyn { .. } => Err(bad(
                 "semantic external query requires the complete original FullW instance graph",
             )),
         }

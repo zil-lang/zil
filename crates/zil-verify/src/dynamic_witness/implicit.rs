@@ -62,10 +62,13 @@ impl Walk<'_> {
     fn ty(&mut self, ty: &DynTypePattern) -> Check<()> {
         self.node()?;
         match ty {
-            DynTypePattern::Semantic { .. } => {
-                return Err(bad(
-                    "semantic implicit occurrences require their exact original lexical scope directory",
-                ));
+            DynTypePattern::Semantic { ty, .. } => {
+                // Semantic implicit ordinals belong to their original lexical
+                // scope, not this Dyn anonymous-token namespace. The scoped
+                // grammar pass checks each referenced original occurrence;
+                // the original/actual interpreters still check its full WF.
+                // Never insert an invented Dyn binder or infer a zero domain.
+                dynamic_metadata::recipe(ty.as_ref(), self.b)?;
             }
             DynTypePattern::AssociatedProjection {
                 receiver,

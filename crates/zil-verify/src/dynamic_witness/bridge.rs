@@ -57,7 +57,11 @@ pub(super) fn owner<'a>(
         },
         SemanticDynOwner::MethodSignature { .. } | SemanticDynOwner::MethodDefinition(_) => {
             if definition.kind != SemanticDefinitionKind::Method
-                || !matches!(definition.body, SemanticDefinitionBody::Function { .. })
+                || !matches!(
+                    definition.body,
+                    SemanticDefinitionBody::Function { .. }
+                        | SemanticDefinitionBody::FunctionWithBody { .. }
+                )
             {
                 return Err(bad(
                     "semantic bridge method binding is not an original method scope",
@@ -192,6 +196,600 @@ pub(super) fn owner<'a>(
         }
     }
     Ok(definition)
+}
+
+/// Original lexical grammar only. This does not discharge WF or where clauses;
+/// the independent original checker and concrete interpreter retain those
+/// obligations. In particular no implicit lifetime becomes an empty domain.
+pub(super) fn original_type(
+    module: &TypedModule,
+    expected: &SemanticDynOwner,
+    requested: SemanticDefinitionId,
+    recipe: &SemanticTypeRecipe,
+    b: &mut Budget,
+) -> Check<()> {
+    let definition = owner(module, expected, requested, b)?;
+    let invocation = match &definition.body {
+        SemanticDefinitionBody::Function { signature, .. }
+        | SemanticDefinitionBody::FunctionWithBody { signature, .. } => {
+            signature.invocation_lifetimes
+        }
+        _ => 0,
+    };
+    let mut grammar = Grammar {
+        module,
+        definition,
+        bounds: vec![],
+        invocation,
+    };
+    grammar.ty(recipe, b, 0)
+}
+
+struct Grammar<'a> {
+    module: &'a TypedModule,
+    definition: &'a SemanticDefinition,
+    bounds: Vec<u32>,
+    invocation: u32,
+}
+impl<'a> Grammar<'a> {
+    fn step(&self, depth: usize, b: &mut Budget) -> Check<()> {
+        b.spend(1)?;
+        if depth >= b.limits.max_call_depth.min(128) {
+            return Err(limit("original semantic grammar depth exceeded"));
+        }
+        Ok(())
+    }
+    fn definition(
+        &self,
+        reference: SemanticScopeRef,
+        b: &mut Budget,
+    ) -> Check<&'a SemanticDefinition> {
+        let SemanticScopeRef::Ancestor(depth) = reference;
+        let mut current = self.definition;
+        for _ in 0..depth {
+            let id = current
+                .parent
+                .ok_or_else(|| bad("original semantic recipe escapes its real lexical parent"))?;
+            let program = self
+                .module
+                .semantic
+                .as_ref()
+                .ok_or_else(|| bad("original semantic program is absent"))?;
+            b.spend(program.definitions.len())?;
+            let mut rows = program.definitions.iter().filter(|r| r.id == id);
+            current = rows
+                .next()
+                .ok_or_else(|| bad("original semantic parent is absent"))?;
+            if rows.next().is_some() {
+                return Err(bad("original semantic parent is duplicated"));
+            }
+        }
+        Ok(current)
+    }
+    fn formal(&self, p: &SemanticFormalRef, b: &mut Budget) -> Check<&'a SemanticFormal> {
+        self.definition(p.scope, b)?
+            .parameters
+            .get(p.ordinal as usize)
+            .ok_or_else(|| bad("original semantic recipe selects an absent full formal"))
+    }
+    fn environment(
+        &self,
+        scope: SemanticScopeRef,
+        ordinal: u32,
+        b: &mut Budget,
+    ) -> Check<&'a SemanticFormal> {
+        self.definition(scope, b)?
+            .environment
+            .get(ordinal as usize)
+            .map(|r| &r.kind)
+            .ok_or_else(|| {
+                bad("original semantic recipe selects an absent sealed environment slot")
+            })
+    }
+    fn operand(&self, p: &SemanticRecipeOperand, b: &mut Budget) -> Check<()> {
+        match p {
+            SemanticRecipeOperand::TypeFormal(p) => {
+                if !matches!(self.formal(p, b)?, SemanticFormal::Type { .. }) {
+                    return Err(bad("original class operand selects a non-Type formal"));
+                }
+            }
+            SemanticRecipeOperand::Environment { scope, ordinal } => {
+                if !matches!(
+                    self.environment(*scope, *ordinal, b)?,
+                    SemanticFormal::Type { .. }
+                ) {
+                    return Err(bad(
+                        "original class operand selects a non-Type environment slot",
+                    ));
+                }
+            }
+            SemanticRecipeOperand::Parameter(_) | SemanticRecipeOperand::Receiver => {
+                if !matches!(
+                    self.definition.body,
+                    SemanticDefinitionBody::Function { .. }
+                        | SemanticDefinitionBody::FunctionWithBody { .. }
+                ) {
+                    return Err(bad(
+                        "original declaration type recipe reads a runtime operand outside a function",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn life(&self, p: &SemanticLifeRecipe, b: &mut Budget) -> Check<()> {
+        b.spend(1)?;
+        match p {
+            SemanticLifeRecipe::Formal(p) => {
+                if !matches!(self.formal(p, b)?, SemanticFormal::Lifetime) {
+                    return Err(bad("original semantic life selects another formal kind"));
+                }
+            }
+            SemanticLifeRecipe::Environment { scope, ordinal } => {
+                if !matches!(
+                    self.environment(*scope, *ordinal, b)?,
+                    SemanticFormal::Lifetime
+                ) {
+                    return Err(bad(
+                        "original semantic life selects another environment kind",
+                    ));
+                }
+            }
+            SemanticLifeRecipe::Implicit { scope, ordinal } => {
+                let definition = self.definition(*scope, b)?;
+                b.spend(definition.implicit_lifetimes.len())?;
+                let mut rows = definition
+                    .implicit_lifetimes
+                    .iter()
+                    .filter(|r| r.ordinal == *ordinal);
+                let row = rows
+                    .next()
+                    .ok_or_else(|| bad("original semantic implicit occurrence is absent"))?;
+                b.spend(row.occurrence_path.len())?;
+                if rows.next().is_some() {
+                    return Err(bad("original semantic implicit ordinal is duplicated"));
+                }
+            }
+            SemanticLifeRecipe::Bound { depth, index } => {
+                if !self
+                    .bounds
+                    .iter()
+                    .rev()
+                    .nth(*depth as usize)
+                    .is_some_and(|n| *index < *n)
+                {
+                    return Err(bad(
+                        "original semantic Bound escapes its complete quantifier domain",
+                    ));
+                }
+            }
+            SemanticLifeRecipe::Invocation(i) => {
+                if *i >= self.invocation {
+                    return Err(bad(
+                        "original semantic Invocation escapes its signature domain",
+                    ));
+                }
+            }
+            SemanticLifeRecipe::OuterOccurrence { operand, path, .. }
+            | SemanticLifeRecipe::IntrinsicClass { operand, path, .. } => {
+                b.spend(path.len())?;
+                self.operand(operand, b)?;
+            }
+        }
+        Ok(())
+    }
+    fn actual(
+        &mut self,
+        p: &SemanticActualRecipe,
+        formal: &SemanticFormal,
+        b: &mut Budget,
+        depth: usize,
+    ) -> Check<()> {
+        match (p, formal) {
+            (SemanticActualRecipe::Type(p), SemanticFormal::Type { .. }) => {
+                self.ty(p, b, depth + 1)
+            }
+            (SemanticActualRecipe::Life(p), SemanticFormal::Lifetime) => self.life(p, b),
+            (SemanticActualRecipe::Const { carrier, value }, SemanticFormal::Const { .. }) => {
+                self.ty(carrier, b, depth + 1)?;
+                self.constant(value, b, depth + 1)
+            }
+            _ => Err(bad(
+                "original semantic application changes its complete mixed formal kind",
+            )),
+        }
+    }
+    fn application(&mut self, p: &SemanticTraitRecipe, b: &mut Budget, depth: usize) -> Check<()> {
+        b.spend(self.module.dyn_declarations.len())?;
+        let mut rows = self
+            .module
+            .dyn_declarations
+            .iter()
+            .filter(|r| r.id == p.declaration);
+        let declaration = rows
+            .next()
+            .ok_or_else(|| bad("original semantic trait application declaration is absent"))?;
+        if rows.next().is_some()
+            || declaration.kind != DynDeclarationKind::Trait
+            || declaration.parameters.len() != p.arguments.len()
+        {
+            return Err(bad(
+                "original semantic trait application has another identity or full arity",
+            ));
+        }
+        for (formal, actual) in declaration.parameters.iter().zip(&p.arguments) {
+            match (formal, actual) {
+                (LifeParameterKind::Type, SemanticActualRecipe::Type(p)) => {
+                    self.ty(p, b, depth + 1)?
+                }
+                (LifeParameterKind::Lifetime, SemanticActualRecipe::Life(p)) => self.life(p, b)?,
+                (LifeParameterKind::Const(_), SemanticActualRecipe::Const { carrier, value }) => {
+                    self.ty(carrier, b, depth + 1)?;
+                    self.constant(value, b, depth + 1)?;
+                }
+                _ => {
+                    return Err(bad(
+                        "original semantic trait application changes a full formal kind",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn member(
+        &self,
+        p: &SemanticTraitRecipe,
+        member: u32,
+        constant: bool,
+        b: &mut Budget,
+    ) -> Check<()> {
+        b.spend(self.module.dyn_declarations.len())?;
+        let mut rows = self
+            .module
+            .dyn_declarations
+            .iter()
+            .filter(|r| r.id == p.declaration);
+        let row = rows
+            .next()
+            .ok_or_else(|| bad("original associated declaration is absent"))?;
+        if rows.next().is_some() {
+            return Err(bad("original associated declaration duplicated"));
+        }
+        if !matches!(
+            (row.members.get(member as usize).map(|m| &m.kind), constant),
+            (Some(DynMemberKind::Type), false) | (Some(DynMemberKind::Constant), true)
+        ) {
+            return Err(bad(
+                "original associated projection selects another full member kind",
+            ));
+        }
+        Ok(())
+    }
+    fn constant(&mut self, p: &SemanticConstRecipe, b: &mut Budget, depth: usize) -> Check<()> {
+        self.step(depth, b)?;
+        match p {
+            SemanticConstRecipe::Formal(p) => {
+                if !matches!(self.formal(p, b)?, SemanticFormal::Const { .. }) {
+                    return Err(bad("original constant selects another formal kind"));
+                }
+            }
+            SemanticConstRecipe::Environment { scope, ordinal } => {
+                if !matches!(
+                    self.environment(*scope, *ordinal, b)?,
+                    SemanticFormal::Const { .. }
+                ) {
+                    return Err(bad("original constant selects another environment kind"));
+                }
+            }
+            SemanticConstRecipe::Value(v) => dynamic_metadata::ty(&v.ty(), b)?,
+            SemanticConstRecipe::IntegerLiteral(v) | SemanticConstRecipe::FloatLiteral(v) => {
+                b.spend(v.len())?;
+                if v.is_empty() {
+                    return Err(bad("original constant literal is empty"));
+                }
+            }
+            SemanticConstRecipe::Unary {
+                operand_type,
+                value,
+                ..
+            } => {
+                self.ty(operand_type, b, depth + 1)?;
+                self.constant(value, b, depth + 1)?;
+            }
+            SemanticConstRecipe::Binary {
+                operand_type,
+                left,
+                right,
+                ..
+            } => {
+                self.ty(operand_type, b, depth + 1)?;
+                self.constant(left, b, depth + 1)?;
+                self.constant(right, b, depth + 1)?;
+            }
+            SemanticConstRecipe::Convert {
+                source_type,
+                target_type,
+                value,
+            } => {
+                self.ty(source_type, b, depth + 1)?;
+                self.ty(target_type, b, depth + 1)?;
+                self.constant(value, b, depth + 1)?;
+            }
+            SemanticConstRecipe::AssociatedConst {
+                receiver,
+                application,
+                member,
+            } => {
+                self.ty(receiver, b, depth + 1)?;
+                self.application(application, b, depth + 1)?;
+                self.member(application, *member, true, b)?;
+            }
+        }
+        Ok(())
+    }
+    fn sequence(
+        &mut self,
+        p: &SemanticClassSequenceRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> Check<()> {
+        for p in &p.parts {
+            match p {
+                SemanticClassSequencePart::One(p) => self.life(p, b)?,
+                SemanticClassSequencePart::AllClasses { ty, path } => {
+                    b.spend(path.len())?;
+                    self.ty(ty, b, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn retained(
+        &mut self,
+        retained: &[SemanticRetainedPart],
+        nominal: &[SemanticNominalPart],
+        b: &mut Budget,
+        depth: usize,
+    ) -> Check<()> {
+        for p in retained {
+            match p {
+                SemanticRetainedPart::One { parent, path, .. } => {
+                    b.spend(path.len())?;
+                    self.life(parent, b)?;
+                }
+                SemanticRetainedPart::All { parents, path } => {
+                    b.spend(path.len())?;
+                    self.sequence(parents, b, depth + 1)?;
+                }
+            }
+        }
+        for p in nominal {
+            match p {
+                SemanticNominalPart::One { class, path, .. } => {
+                    b.spend(path.len())?;
+                    self.life(class, b)?;
+                }
+                SemanticNominalPart::FromType { ty, classes, path } => {
+                    b.spend(path.len())?;
+                    self.ty(ty, b, depth + 1)?;
+                    self.sequence(classes, b, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn retained_shape(
+        &mut self,
+        p: &SemanticRetainedShapeRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> Check<()> {
+        self.sequence(&p.domain, b, depth + 1)?;
+        for p in &p.ports {
+            match p {
+                SemanticPortPart::One { leaf, class, .. } => {
+                    self.ty(leaf, b, depth + 1)?;
+                    self.life(class, b)?;
+                }
+                SemanticPortPart::FromType { ty, classes } => {
+                    self.ty(ty, b, depth + 1)?;
+                    self.sequence(classes, b, depth + 1)?;
+                }
+            }
+        }
+        self.retained(&p.retained, &p.nominal, b, depth + 1)
+    }
+    fn signature(
+        &mut self,
+        p: &SemanticSignatureRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> Check<()> {
+        let invocation = self.invocation;
+        self.invocation = p.invocation_lifetimes;
+        if p.bound_lifetimes != 0 {
+            self.bounds.push(p.bound_lifetimes);
+        }
+        for p in &p.parameters {
+            self.ty(&p.ty, b, depth + 1)?;
+        }
+        self.ty(&p.result, b, depth + 1)?;
+        if p.bound_lifetimes != 0 {
+            self.bounds.pop();
+        }
+        self.invocation = invocation;
+        Ok(())
+    }
+    fn ty(&mut self, p: &SemanticTypeRecipe, b: &mut Budget, depth: usize) -> Check<()> {
+        self.step(depth, b)?;
+        match p {
+            SemanticTypeRecipe::Atom(ty) => dynamic_metadata::ty(ty, b)?,
+            SemanticTypeRecipe::Exact(p) => {
+                dynamic_metadata::ty(&p.ty, b)?;
+                if p.classes.len() != p.life.binder_count as usize {
+                    return Err(bad("original exact type omits its complete class domain"));
+                }
+                for p in &p.classes {
+                    self.life(p, b)?;
+                }
+            }
+            SemanticTypeRecipe::Formal(p) => {
+                if !matches!(self.formal(p, b)?, SemanticFormal::Type { .. }) {
+                    return Err(bad("original type selects another formal kind"));
+                }
+            }
+            SemanticTypeRecipe::Environment { scope, ordinal } => {
+                if !matches!(
+                    self.environment(*scope, *ordinal, b)?,
+                    SemanticFormal::Type { .. }
+                ) {
+                    return Err(bad("original type selects another environment kind"));
+                }
+            }
+            SemanticTypeRecipe::SelfType { scope } => {
+                let definition = self.definition(*scope, b)?;
+                if !matches!(definition.body, SemanticDefinitionBody::Scope(_)) {
+                    return Err(bad("original Self selects a nonowner scope"));
+                }
+            }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            }
+            | SemanticTypeRecipe::Closure {
+                definition,
+                arguments,
+                ..
+            }
+            | SemanticTypeRecipe::Opaque {
+                definition,
+                arguments,
+                ..
+            } => {
+                let program = self
+                    .module
+                    .semantic
+                    .as_ref()
+                    .ok_or_else(|| bad("original type program is absent"))?;
+                b.spend(program.definitions.len())?;
+                let mut rows = program.definitions.iter().filter(|r| r.id == *definition);
+                let target = rows
+                    .next()
+                    .ok_or_else(|| bad("original type target definition absent"))?;
+                if rows.next().is_some() || target.parameters.len() != arguments.len() {
+                    return Err(bad(
+                        "original type target identity/full mixed arity differs",
+                    ));
+                }
+                for (p, f) in arguments.iter().zip(&target.parameters) {
+                    self.actual(p, f, b, depth + 1)?;
+                }
+                if let SemanticTypeRecipe::Opaque { hidden, .. } = p {
+                    self.ty(hidden, b, depth + 1)?;
+                }
+                if let SemanticTypeRecipe::Closure { environment, .. } = p {
+                    for (p, f) in environment.iter().zip(&target.environment) {
+                        self.actual(p, &f.kind, b, depth + 1)?;
+                    }
+                    if environment.len() != target.environment.len() {
+                        return Err(bad("original closure omits sealed environment domain"));
+                    }
+                }
+            }
+            SemanticTypeRecipe::AssociatedType {
+                receiver,
+                application,
+                member,
+            } => {
+                self.ty(receiver, b, depth + 1)?;
+                self.application(application, b, depth + 1)?;
+                self.member(application, *member, false, b)?;
+            }
+            SemanticTypeRecipe::Tuple(ps) | SemanticTypeRecipe::AnonymousSum(ps) => {
+                for p in ps {
+                    self.ty(p, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Array { element, length } => {
+                self.ty(element, b, depth + 1)?;
+                self.constant(length, b, depth + 1)?;
+            }
+            SemanticTypeRecipe::Slice(p)
+            | SemanticTypeRecipe::Managed(p)
+            | SemanticTypeRecipe::OwnedStore(p)
+            | SemanticTypeRecipe::Mutex(p)
+            | SemanticTypeRecipe::Registration(p)
+            | SemanticTypeRecipe::AsyncRegistration(p) => self.ty(p, b, depth + 1)?,
+            SemanticTypeRecipe::Address {
+                lifetime, inner, ..
+            }
+            | SemanticTypeRecipe::Desc { lifetime, inner } => {
+                if let SemanticOuterLifeRecipe::Class(p) = lifetime {
+                    self.life(p, b)?;
+                }
+                self.ty(inner, b, depth + 1)?;
+            }
+            SemanticTypeRecipe::Task { result, retained }
+            | SemanticTypeRecipe::MutexGuard {
+                payload: result,
+                retained,
+            } => {
+                self.ty(result, b, depth + 1)?;
+                self.retained_shape(retained, b, depth + 1)?;
+            }
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                self.ty(error, b, depth + 1)?;
+                self.ty(result, b, depth + 1)?;
+            }
+            SemanticTypeRecipe::Qualified { storage, life } => {
+                self.ty(storage, b, depth + 1)?;
+                self.sequence(&life.domain, b, depth + 1)?;
+                for p in &life.slots {
+                    self.life(&p.class, b)?;
+                }
+                self.retained(&life.retained, &life.nominal, b, depth + 1)?;
+            }
+            SemanticTypeRecipe::Code { signature, .. } => {
+                self.signature(signature, b, depth + 1)?
+            }
+            SemanticTypeRecipe::Dyn { interface, .. } => {
+                self.application(&interface.application, b, depth + 1)?;
+                match &interface.context {
+                    SemanticDynContextRecipe::Closed => {}
+                    SemanticDynContextRecipe::Type(p) => self.ty(p, b, depth + 1)?,
+                    SemanticDynContextRecipe::Shape(p) => self.retained_shape(p, b, depth + 1)?,
+                };
+                for p in &interface.associated {
+                    self.application(&p.application, b, depth + 1)?;
+                    match &p.value {
+                        SemanticAssociatedRecipe::Type(ty) => {
+                            self.member(&p.application, p.member, false, b)?;
+                            self.ty(ty, b, depth + 1)?;
+                        }
+                        SemanticAssociatedRecipe::Const { carrier, value } => {
+                            self.member(&p.application, p.member, true, b)?;
+                            self.ty(carrier, b, depth + 1)?;
+                            self.constant(value, b, depth + 1)?;
+                        }
+                    }
+                }
+            }
+            SemanticTypeRecipe::OriginalType { scope, .. } => {
+                if !matches!(
+                    self.definition(*scope, b)?.body,
+                    SemanticDefinitionBody::FunctionWithBody { .. }
+                ) {
+                    return Err(bad(
+                        "original inferred type does not select a complete source body",
+                    ));
+                }
+            }
+            SemanticTypeRecipe::UnresolvedNamed(_) | SemanticTypeRecipe::Unsupported(_) => {
+                return Err(bad("original semantic type retains an unresolved recipe"));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
