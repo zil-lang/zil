@@ -261,6 +261,7 @@ struct Solver<'a, 'i> {
     capture_state: captures::CaptureState,
     receiving: Vec<Term>,
     field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
+    enum_declaration: Option<SemanticDefinitionId>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -3644,6 +3645,7 @@ pub(super) fn check(
         capture_state: captures::CaptureState::default(),
         receiving: Vec::new(),
         field_needs: Vec::new(),
+        enum_declaration: None,
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {
@@ -3666,7 +3668,20 @@ pub(super) fn check(
                 let term = solver.rigid_formal(definition.id, ordinal, formal, &arguments, b)?;
                 Solver::push(&mut arguments, term, b)?;
             }
-            solver.application(definition.id, arguments, b, 0)?;
+            solver.enum_declaration = if matches!(
+                definition.body,
+                SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Enum,
+                    ..
+                }
+            ) {
+                Some(definition.id)
+            } else {
+                None
+            };
+            let formed = solver.application(definition.id, arguments, b, 0);
+            solver.enum_declaration = None;
+            formed?;
         }
     }
     for definition in &program.definitions {

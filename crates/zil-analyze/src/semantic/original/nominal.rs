@@ -161,7 +161,16 @@ impl Solver<'_, '_> {
             false
         };
         for (index, field) in fields.iter().enumerate() {
-            if canonical_template {
+            // An ordinary Enum's direct formal payload is a conditional
+            // formation requirement, not an assertion that the formal has
+            // Value in every context. Only the original declaration walk can
+            // defer it; every real application below recreates the Need with
+            // the caller's own complete actual, including generic callers.
+            let direct_enum_formal = self.enum_declaration == Some(definition)
+                && *kind == LifeNominalKind::Enum
+                && matches!(self.state.arena[self.root(*field,b)?],Kind::Rigid(owner,ordinal)
+                    if owner==definition && matches!(declaration.parameters.get(ordinal as usize),Some(SemanticFormal::Type{..})));
+            if canonical_template || direct_enum_formal {
                 continue;
             }
             Self::push(
