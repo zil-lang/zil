@@ -429,7 +429,20 @@ fn creator_captures(
             .values
             .get(value.0 as usize)
             .ok_or_else(|| bad("actual capture selection has no emitted value type"))?;
+        pay(left, module.closures.len())?;
+        let stored = module
+            .closures
+            .iter()
+            .find(|row| row.id == closure)
+            .and_then(|row| row.captures.get(capture))
+            .ok_or_else(|| bad("actual MakeClosure has no corresponding stored capture"))?;
         inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
+        inference::charge_type_snapshot(stored, Span::default(), limits, left, 1)?;
+        if ty != stored {
+            return Err(bad(
+                "actual MakeClosure capture value changes its stored environment type",
+            ));
+        }
         result.push((capture as u32, ordinal, ty.clone()));
     }
     Ok(result)

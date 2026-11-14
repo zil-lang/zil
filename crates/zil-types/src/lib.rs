@@ -3591,12 +3591,16 @@ impl<'a, 'c> Builder<'a, 'c> {
             capture_sources.push((capture.name, value));
             values.push(value);
         }
+        let mut capture_work = self.closures.remaining_work();
+        let before_capture = capture_work;
         self.closures.semantic_emission.capture_sources(
             id,
             capture_sources,
-            &mut self.closures.work_left,
+            &mut capture_work,
             span,
         )?;
+        self.closures
+            .snapshot(before_capture - capture_work, span)?;
         let ty = Type::Closure(id);
         let value = self.value(
             InstructionKind::MakeClosure {
