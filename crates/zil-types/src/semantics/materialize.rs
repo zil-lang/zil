@@ -2294,6 +2294,25 @@ pub(super) fn actual_at(
     limits: &Limits,
     left: &mut usize,
 ) -> R<SemanticActual> {
+    actual_in_view(
+        program,
+        &ActualDirectory::from_module(module),
+        ledger,
+        scope,
+        recipe,
+        limits,
+        left,
+    )
+}
+pub(super) fn actual_in_view(
+    program: &SemanticModule,
+    module: &ActualDirectory<'_>,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticActualRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticActual> {
     crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
     let actual = SemanticActual::CoreRecipe {
         scope,
@@ -2301,7 +2320,7 @@ pub(super) fn actual_at(
     };
     Eval {
         input: program,
-        module: &ActualDirectory::from_module(module),
+        module,
         ledger,
         limits,
         left,

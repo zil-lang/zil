@@ -84,7 +84,7 @@ struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     types: types::Table,
-    ordinary: stored::OrdinaryContext<'a>,
+    view: super::materialize::ActualDirectory<'a>,
     snapshots: usize,
     snapshot_work: usize,
     comparisons: usize,
@@ -205,7 +205,7 @@ impl<'a> World<'a, '_> {
         match ty {
             ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
-                self.ordinary.zero(ty, self.limits, self.left)?;
+                self.view.ordinary_zero(ty, self.limits, self.left)?;
                 self.resolved(ty, empty(), Vec::new())
             }
             Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
@@ -353,9 +353,9 @@ impl<'a> World<'a, '_> {
             return Ok(value);
         }
         let before = *self.left;
-        let value = super::materialize::type_at(
+        let value = super::materialize::type_in_view(
             self.program,
-            self.module,
+            &self.view,
             self.ledger,
             scope,
             recipe,
@@ -4002,7 +4002,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
-        ordinary: stored::OrdinaryContext::new(module),
+        view: super::materialize::ActualDirectory::from_module(module),
         snapshots: 0,
         snapshot_work: 0,
         comparisons: 0,

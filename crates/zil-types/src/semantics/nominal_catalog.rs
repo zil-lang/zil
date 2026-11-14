@@ -11,7 +11,7 @@ fn pending(message: &str) -> Diagnostic {
 struct Check<'a, 'b> {
     program: &'a SemanticModule,
     module: &'a TypedModule,
-    ordinary: stored::OrdinaryContext<'a>,
+    view: super::materialize::ActualDirectory<'a>,
     ledger: &'a super::emission::Ledger,
     where_session: super::original::NominalWhere<'a>,
     requests:
@@ -160,7 +160,7 @@ impl<'a> Check<'a, '_> {
                 // A callable is opaque to physical field counting. Rebuild
                 // its actual definition/entry/capture directory instead of
                 // treating an empty visible layout or Some0 as zero.
-                self.ordinary.zero(ty, self.limits, self.left)?;
+                self.view.ordinary_zero(ty, self.limits, self.left)?;
                 Ok(0)
             }
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
@@ -287,7 +287,7 @@ impl<'a> Check<'a, '_> {
                 "qualified field outer occurrence requires its complete child domain",
             ));
         }
-        self.ordinary.zero(inner, self.limits, self.left)?;
+        self.view.ordinary_zero(inner, self.limits, self.left)?;
         self.pay(path.len().saturating_add(1))?;
         let mut physical_path = Vec::with_capacity(path.len());
         for step in path {
@@ -1005,9 +1005,9 @@ impl<'a> Check<'a, '_> {
                     if scope.definition != request.caller {
                         continue;
                     }
-                    let proposed = match super::materialize::type_at(
+                    let proposed = match super::materialize::type_in_view(
                         self.program,
-                        self.module,
+                        &self.view,
                         self.ledger,
                         scope.id,
                         &request.recipe,
@@ -1043,9 +1043,9 @@ impl<'a> Check<'a, '_> {
                     }
                     let mut same = true;
                     for (ordinal, recipe) in arguments.iter().enumerate() {
-                        let actual = super::materialize::actual_at(
+                        let actual = super::materialize::actual_in_view(
                             self.program,
-                            self.module,
+                            &self.view,
                             self.ledger,
                             scope.id,
                             recipe,
@@ -1230,7 +1230,7 @@ pub(super) fn program<'a>(
     let mut check = Check {
         program,
         module,
-        ordinary: stored::OrdinaryContext::new(module),
+        view: super::materialize::ActualDirectory::from_module(module),
         ledger,
         where_session: super::original::NominalWhere::new(&context.semantic, &context.original),
         requests: std::collections::BTreeMap::new(),

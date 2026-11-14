@@ -89,6 +89,7 @@ pub(super) fn populate(
     left: &mut usize,
 ) -> R<()> {
     invocations::seed(program, module, ledger, limits, left)?;
+    let view = super::materialize::ActualDirectory::from_module(module);
     let mut changes = Vec::new();
     for instance in &program.instances {
         pay(left, 1)?;
@@ -138,9 +139,9 @@ pub(super) fn populate(
                 scope: SemanticScopeRef::Ancestor(0),
                 source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
             };
-            let value = super::materialize::type_at(
+            let value = super::materialize::type_in_view(
                 program,
-                module,
+                &view,
                 ledger,
                 instance.id,
                 &recipe,
@@ -162,9 +163,9 @@ pub(super) fn populate(
             scope: SemanticScopeRef::Ancestor(0),
             source: SemanticOriginalTypeSource::Result,
         };
-        let value = super::materialize::type_at(
+        let value = super::materialize::type_in_view(
             program,
-            module,
+            &view,
             ledger,
             instance.id,
             &recipe,
@@ -338,6 +339,7 @@ pub(super) fn populate(
         }
         changes.push((instance.id, id, proposed, embedding));
     }
+    drop(view);
     for (instance, function, header, embedding) in changes {
         pay(
             left,
