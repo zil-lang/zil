@@ -1,0 +1,814 @@
+{
+  "schema": "closed-body-full-chain-checkpoint-v1",
+  "compiled_source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+  "binary_sha256": "8ec292e47c55a24e5370f623355d6360aae2c938d43c78c77374b531a675a468",
+  "tool_source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+  "test_only_followup": "e5e14cc0fe4ee6377436b4364bb05b89f66c553b",
+  "test_only_followup_is_not_measured_source": true,
+  "baseline": {
+    "source": "9170bb4210554392e36eb7528596612596ebef80",
+    "worktree": "/workspace/zil-baseline9170",
+    "binary": "/workspace/zil-recovery/baseline/compiler",
+    "binary_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e",
+    "build_receipt": "/workspace/zil-recovery/baseline/build-receipt.json",
+    "llvm_library_path": "/workspace/zil-recovery/baseline",
+    "llvm_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+  },
+  "unified_gates": {
+    "schema": "closed-body-unified-gates-v1",
+    "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+    "binary_sha256": "8ec292e47c55a24e5370f623355d6360aae2c938d43c78c77374b531a675a468",
+    "gates": [
+      {
+        "gate": "native86",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-llvm-api",
+          "--features",
+          "native-products,text-reference",
+          "--lib"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/native86.json",
+        "receipt_sha256": "ddd906deb2d1062bcbc5e70cc1a264aea44ab85be045b8f4f4a8b611f3c27326",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/native86.log",
+        "log_sha256": "2e04d09f650a0477e3e04df05d281297425b4664ab62e5e743dd9c4c21ade9df",
+        "passed": 86,
+        "exit": 0
+      },
+      {
+        "gate": "backend",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "native-products",
+          "--lib"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/backend.json",
+        "receipt_sha256": "21a3f293069e6d408cc9ced0d6ffa905137829d8fb754b751078170b603b4603",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/backend.log",
+        "log_sha256": "ea8d76ecafdaacfd272fd651c38899dcc8589c9a083d27ac680c3e0ada474b9a",
+        "passed": 269,
+        "exit": 0
+      },
+      {
+        "gate": "driver",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "native-products",
+          "--lib"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/driver.json",
+        "receipt_sha256": "4eb93b3029931bd9248745511f1f9bc5e9989281eede74c12d838aa732cc2585",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/driver.log",
+        "log_sha256": "c345c2680e2ab73900ceee7245f34b10c5b1bf2172787c585abebb183b37c316",
+        "passed": 211,
+        "exit": 0
+      },
+      {
+        "gate": "scalar-source",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "native-products",
+          "--test",
+          "scalar_local_promotion"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/scalar-source.json",
+        "receipt_sha256": "50b75c9b6a7f90d2ed7cea61a5a614d648210a684151d1c0846245c6d92d5eb0",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/scalar-source.log",
+        "log_sha256": "2545a8c9d79735d5d9097633b30f24c8ed633dccbe0e44902ee90e94d229f91c",
+        "passed": 9,
+        "exit": 0
+      },
+      {
+        "gate": "retained-source-executed-02",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--features",
+          "native-products",
+          "--test",
+          "retained_native_publication",
+          "--",
+          "--ignored"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/retained-source-executed-02.json",
+        "receipt_sha256": "f476561802c7c06469bc91036a8416799df40bf6f0915f11338947f992d192af",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/retained-source-executed-02.log",
+        "log_sha256": "c64d8c3af6def3ff95dcc519b3b5878faa1c1a370f8a8c68157e22ca1cd704ae",
+        "passed": 1,
+        "exit": 0
+      },
+      {
+        "gate": "clippy",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-cli",
+          "--features",
+          "native-products",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/clippy.json",
+        "receipt_sha256": "8032dc4bf4702bf4933fb32495738e79d01ba05d49e875907b8a75b73ef46bd6",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/clippy.log",
+        "log_sha256": "d500f92575ec61a2592bd365370df15298783e4e4a0617259212e7e1257f0381",
+        "passed": null,
+        "exit": 0
+      },
+      {
+        "gate": "fmt",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/fmt.json",
+        "receipt_sha256": "7c3fa63ca68359144cbb91c3d428be56e2a9dd4acabc8e74341623844372f1b4",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/fmt.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "passed": null,
+        "exit": 0
+      },
+      {
+        "gate": "release",
+        "source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+        "command": [
+          "cargo",
+          "build",
+          "--locked",
+          "--offline",
+          "--release",
+          "-p",
+          "zil-cli",
+          "--features",
+          "native-products"
+        ],
+        "receipt": "out/runs/closed-body-batch-11-restored-20261114-02/release.json",
+        "receipt_sha256": "2005d9a1135211b39297b4fa715a1d990012b56bcbfc2629f41730922cf8063f",
+        "log": "out/runs/closed-body-batch-11-restored-20261114-02/release.log",
+        "log_sha256": "f29ed1bcb76e3c2caff8ac5c36f78a20712dc3813f0b5e57302d7923f61ccb26",
+        "passed": null,
+        "exit": 0
+      }
+    ],
+    "scope": "Executed functional/strict/release gates only; no independent review, timing, universal Rust lead or main merge implied."
+  },
+  "isolated_closed_prior": {
+    "source": "e5e14cc0fe4ee6377436b4364bb05b89f66c553b",
+    "production_source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+    "production_equivalence": "Only cfg(test) fixture and standalone evidence aggregator changed; release not relabeled.",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-llvm-api",
+      "--features",
+      "native-products,text-reference",
+      "--lib",
+      "native::native_product_tests::completed_cohorts_cross_cgu_owners_keep_exact_objects_and_prior_accounting",
+      "--",
+      "--exact",
+      "--nocapture"
+    ],
+    "exit": 0,
+    "passed": 1,
+    "filtered_out": 85,
+    "world_projections": {
+      "producer_direct": 7,
+      "producer_fallback": 0,
+      "consumer_direct": 0,
+      "consumer_fallback": 0
+    },
+    "ir_mir_mc_replays_nonzero": true,
+    "whole_object_equal": true,
+    "failed_replays": 0,
+    "fresh_context_fallbacks": 0,
+    "strict_clippy_exit": 0,
+    "fmt_exit": 0,
+    "logs": {
+      "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test.log": "dc11742e99b7fc34784b18127052e654cb39543f03e6cd3ad7dc7ee7407de268",
+      "clippy.log": "d5ae17be200094638052486fbe455549f0d72160a42c4284e9f1874df028b43b"
+    }
+  },
+  "independent_review": {
+    "path": "out/runs/closed-body-recovery/closed-body-review.md",
+    "sha256": "fe6c7a84bab966e0253850847e9c2881ab3b67e8254c2f5d4bb1e076a1b9ea69",
+    "verdict": "No confirmed P0/P1 authorization-chain blocker; P2 WorldBound masking closed by isolated leaf test followup."
+  },
+  "analysis": {
+    "path": "out/runs/closed-body-three-arm-01-analysis.json",
+    "sha256": "8fd1939afa1cc99e054e4dfb96f783301747398da1ec25e54799d21f1297e451",
+    "valid": true,
+    "verify_blobs": true
+  },
+  "windows": [
+    {
+      "mode": "check",
+      "completion": {
+        "valid": true,
+        "rows": 102,
+        "measured": 54,
+        "preparations": 48,
+        "publication_recovery": {
+          "executed": false,
+          "valid": null,
+          "scope": "Output mutation requests were not requested; none enter the nine measured cells."
+        }
+      },
+      "raw": "out/runs/closed-body-three-arm-01-check",
+      "raw_hashes": {
+        "manifest.json": "cdfa21b866bb74873b8d4edd368aaa1ce3e7d62f402241d16520472165438d0f",
+        "completion.json": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f",
+        "rows.jsonl": "fcb9ef49f53f2a29a5547e3e66b4b4d77c93379c9146d248ae929b17e7428001"
+      },
+      "cells": [
+        {
+          "request": "cold",
+          "wall_ms_block0_1": {
+            "baseline": [
+              1607.799622,
+              815.902232
+            ],
+            "candidate": [
+              1072.234922,
+              909.345756
+            ],
+            "rust": [
+              1379.336989,
+              960.127479
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1211.850927,
+            "candidate": 990.7903390000001,
+            "rust": 1169.732234
+          },
+          "candidate_over_main_paired_GM": 0.8621334076487793,
+          "candidate_over_Rust_paired_GM": 0.8580445852152868
+        },
+        {
+          "request": "unchanged",
+          "wall_ms_block0_1": {
+            "baseline": [
+              100.509946,
+              96.567631
+            ],
+            "candidate": [
+              2.811123,
+              3.156056
+            ],
+            "rust": [
+              16.581041,
+              10.445009
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 98.53878850000001,
+            "candidate": 2.9835895,
+            "rust": 13.513024999999999
+          },
+          "candidate_over_main_paired_GM": 0.030233746406253547,
+          "candidate_over_Rust_paired_GM": 0.22633513084992762
+        },
+        {
+          "request": "private",
+          "wall_ms_block0_1": {
+            "baseline": [
+              703.216092,
+              862.917856
+            ],
+            "candidate": [
+              74.421142,
+              64.651467
+            ],
+            "rust": [
+              308.608718,
+              266.504271
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 783.0669740000001,
+            "candidate": 69.5363045,
+            "rust": 287.5564945
+          },
+          "candidate_over_main_paired_GM": 0.08904473154049539,
+          "candidate_over_Rust_paired_GM": 0.2418695379768068
+        },
+        {
+          "request": "multi",
+          "wall_ms_block0_1": {
+            "baseline": [
+              684.482352,
+              563.962889
+            ],
+            "candidate": [
+              82.921035,
+              90.72448
+            ],
+            "rust": [
+              364.936142,
+              265.488819
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 624.2226205,
+            "candidate": 86.8227575,
+            "rust": 315.21248049999997
+          },
+          "candidate_over_main_paired_GM": 0.1396008973811987,
+          "candidate_over_Rust_paired_GM": 0.27865256486757256
+        },
+        {
+          "request": "broad",
+          "wall_ms_block0_1": {
+            "baseline": [
+              1005.697977,
+              743.465243
+            ],
+            "candidate": [
+              717.646029,
+              494.386881
+            ],
+            "rust": [
+              1080.697555,
+              870.298986
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 874.58161,
+            "candidate": 606.016455,
+            "rust": 975.4982705
+          },
+          "candidate_over_main_paired_GM": 0.6888497238873248,
+          "candidate_over_Rust_paired_GM": 0.6141893601977061
+        },
+        {
+          "request": "positions",
+          "wall_ms_block0_1": {
+            "baseline": [
+              1136.966537,
+              990.24712
+            ],
+            "candidate": [
+              432.525163,
+              478.86554
+            ],
+            "rust": [
+              973.51037,
+              698.133383
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1063.6068285000001,
+            "candidate": 455.6953515,
+            "rust": 835.8218764999999
+          },
+          "candidate_over_main_paired_GM": 0.4289106663689455,
+          "candidate_over_Rust_paired_GM": 0.5520431029352107
+        },
+        {
+          "request": "error",
+          "wall_ms_block0_1": {
+            "baseline": [
+              538.55387,
+              474.113799
+            ],
+            "candidate": [
+              42.061325,
+              53.917072
+            ],
+            "rust": [
+              336.395818,
+              255.757495
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 506.33383449999997,
+            "candidate": 47.9891985,
+            "rust": 296.0766565
+          },
+          "candidate_over_main_paired_GM": 0.09424292379982717,
+          "candidate_over_Rust_paired_GM": 0.16235480473504885
+        },
+        {
+          "request": "recovery",
+          "wall_ms_block0_1": {
+            "baseline": [
+              506.339716,
+              672.512692
+            ],
+            "candidate": [
+              55.481495,
+              95.155529
+            ],
+            "rust": [
+              174.042552,
+              222.61608
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 589.426204,
+            "candidate": 75.318512,
+            "rust": 198.329316
+          },
+          "candidate_over_main_paired_GM": 0.12451447798309809,
+          "candidate_over_Rust_paired_GM": 0.36913489737079436
+        },
+        {
+          "request": "restore",
+          "wall_ms_block0_1": {
+            "baseline": [
+              94.057529,
+              126.816937
+            ],
+            "candidate": [
+              27.263015,
+              25.206092
+            ],
+            "rust": [
+              200.949092,
+              308.499341
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 110.43723299999999,
+            "candidate": 26.2345535,
+            "rust": 254.7242165
+          },
+          "candidate_over_main_paired_GM": 0.24002378914320574,
+          "candidate_over_Rust_paired_GM": 0.10528574035695912
+        }
+      ],
+      "quality": {
+        "native_outcomes": 0,
+        "full_ELF_equal_pairs": 0,
+        "aggregate_exports_equal_pairs": 0,
+        "artifact_rehash_executed": true,
+        "unique_blobs_rehashed": 0,
+        "scope": "Existing runner current independent Verify/native/ELF/CGU quality receipts; optional blob rehash does not execute native code."
+      }
+    },
+    {
+      "mode": "o2",
+      "completion": {
+        "valid": true,
+        "rows": 102,
+        "measured": 54,
+        "preparations": 48,
+        "publication_recovery": {
+          "executed": false,
+          "valid": null,
+          "scope": "Output mutation requests were not requested; none enter the nine measured cells."
+        }
+      },
+      "raw": "out/runs/closed-body-three-arm-01-o2",
+      "raw_hashes": {
+        "manifest.json": "be5114916bd0ba9972df35230c8fedc7b5fc15a73ada7ef8ab05e90bf38ce5a2",
+        "completion.json": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f",
+        "rows.jsonl": "963f9279b38ca0bf3224e3c34b141f731b755394294caf740ba15b359c9e756d"
+      },
+      "cells": [
+        {
+          "request": "cold",
+          "wall_ms_block0_1": {
+            "baseline": [
+              5795.728298,
+              6172.544658
+            ],
+            "candidate": [
+              4128.707293,
+              5173.485511
+            ],
+            "rust": [
+              5536.893988,
+              6099.737741
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 5984.136478,
+            "candidate": 4651.096402,
+            "rust": 5818.3158645
+          },
+          "candidate_over_main_paired_GM": 0.7727028900283647,
+          "candidate_over_Rust_paired_GM": 0.7952615405453703
+        },
+        {
+          "request": "unchanged",
+          "wall_ms_block0_1": {
+            "baseline": [
+              792.113129,
+              483.418422
+            ],
+            "candidate": [
+              8.905411,
+              17.087675
+            ],
+            "rust": [
+              11.068299,
+              14.195549
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 637.7657755,
+            "candidate": 12.996543,
+            "rust": 12.631924
+          },
+          "candidate_over_main_paired_GM": 0.01993486355728,
+          "candidate_over_Rust_paired_GM": 0.9841287823615888
+        },
+        {
+          "request": "private",
+          "wall_ms_block0_1": {
+            "baseline": [
+              1414.422167,
+              1914.191161
+            ],
+            "candidate": [
+              367.206022,
+              349.313124
+            ],
+            "rust": [
+              436.638008,
+              522.694815
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1664.306664,
+            "candidate": 358.25957300000005,
+            "rust": 479.6664115
+          },
+          "candidate_over_main_paired_GM": 0.21766077366623024,
+          "candidate_over_Rust_paired_GM": 0.7496826918286601
+        },
+        {
+          "request": "multi",
+          "wall_ms_block0_1": {
+            "baseline": [
+              1562.529759,
+              2041.507581
+            ],
+            "candidate": [
+              609.276147,
+              509.982193
+            ],
+            "rust": [
+              1041.172757,
+              909.895448
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1802.01867,
+            "candidate": 559.62917,
+            "rust": 975.5341025
+          },
+          "candidate_over_main_paired_GM": 0.31210084668642407,
+          "candidate_over_Rust_paired_GM": 0.5727003517792809
+        },
+        {
+          "request": "broad",
+          "wall_ms_block0_1": {
+            "baseline": [
+              4510.15835,
+              4986.563353
+            ],
+            "candidate": [
+              4567.621845,
+              4855.51417
+            ],
+            "rust": [
+              5641.987169,
+              5235.338977
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 4748.3608515,
+            "candidate": 4711.5680075,
+            "rust": 5438.663073
+          },
+          "candidate_over_main_paired_GM": 0.9930385724686619,
+          "candidate_over_Rust_paired_GM": 0.8665113052172589
+        },
+        {
+          "request": "positions",
+          "wall_ms_block0_1": {
+            "baseline": [
+              1800.465747,
+              1807.360301
+            ],
+            "candidate": [
+              740.302874,
+              1058.259554
+            ],
+            "rust": [
+              1270.533002,
+              1139.941723
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1803.913024,
+            "candidate": 899.281214,
+            "rust": 1205.2373625
+          },
+          "candidate_over_main_paired_GM": 0.4906660569089662,
+          "candidate_over_Rust_paired_GM": 0.7354726322143911
+        },
+        {
+          "request": "error",
+          "wall_ms_block0_1": {
+            "baseline": [
+              446.54042,
+              338.739197
+            ],
+            "candidate": [
+              54.495715,
+              83.09151
+            ],
+            "rust": [
+              211.658364,
+              168.714435
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 392.63980849999996,
+            "candidate": 68.7936125,
+            "rust": 190.1863995
+          },
+          "candidate_over_main_paired_GM": 0.17302003203606914,
+          "candidate_over_Rust_paired_GM": 0.3560948270539712
+        },
+        {
+          "request": "recovery",
+          "wall_ms_block0_1": {
+            "baseline": [
+              1525.154858,
+              1581.222486
+            ],
+            "candidate": [
+              413.761535,
+              318.654414
+            ],
+            "rust": [
+              456.531487,
+              541.840013
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1553.188672,
+            "candidate": 366.2079745,
+            "rust": 499.18575
+          },
+          "candidate_over_main_paired_GM": 0.23381995064470135,
+          "candidate_over_Rust_paired_GM": 0.7300693597282409
+        },
+        {
+          "request": "restore",
+          "wall_ms_block0_1": {
+            "baseline": [
+              525.318892,
+              611.508987
+            ],
+            "candidate": [
+              65.64673,
+              76.763733
+            ],
+            "rust": [
+              454.387544,
+              555.497044
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 568.4139395,
+            "candidate": 71.2052315,
+            "rust": 504.94229399999995
+          },
+          "candidate_over_main_paired_GM": 0.12524824819137312,
+          "candidate_over_Rust_paired_GM": 0.14129620810708826
+        }
+      ],
+      "quality": {
+        "native_outcomes": 1080,
+        "full_ELF_equal_pairs": 30,
+        "aggregate_exports_equal_pairs": 30,
+        "artifact_rehash_executed": true,
+        "unique_blobs_rehashed": 178,
+        "scope": "Existing runner current independent Verify/native/ELF/CGU quality receipts; optional blob rehash does not execute native code."
+      }
+    }
+  ],
+  "historical_formal_result": {
+    "compiled_source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
+    "publication": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
+    "not_relabelled": true
+  },
+  "remaining": [
+    "Global ReactiveGraph still evaluates BodyKey; complete central point-to-point propagation is unfinished.",
+    "Only two blocks per cell; no comprehensive/stable Rust lead. O2 unchanged block1 candidate17.088ms vsRust14.196ms; candidate median13.00ms vsRust12.63ms.",
+    "Check cold block1 candidate909.346ms vsmain815.902ms; O2 broad block0 candidate4567.622ms vsmain4510.158ms.",
+    "No main merge, default research flags unchanged; current independent Verify, budgets, fullO2 and quality gates unchanged."
+  ],
+  "custody": {
+    "local_archive": "tools/research/incremental-demand/evidence/closed-body-20261114",
+    "remote_status": "pending; GitHub write authentication unavailable",
+    "SDK18_rebuilt": false,
+    "native_link_reinstalled": false,
+    "archive_manifest_sha256": "7823d3a3457299473cca35ed8f42862a751b50127b5ac9e8ed365ed5e046aaa9",
+    "archive_bytes": 225190863,
+    "archive_sha256": "2e20a6e3965f56c0b423034149346df0f585b92d9d405236d1dd5070c71880bc",
+    "parts": 9,
+    "regular_files": 10375,
+    "logical_bytes": 1346293214,
+    "fresh_local_restore_verified": true,
+    "fresh_restore_receipt_sha256": "f3f7695d6d874055d49a7a2ff4bde64fb302f84aa21b053e518baed83a193a5d"
+  },
+  "test_followup_scope": {
+    "production_source_unchanged": true,
+    "changed_crate_file": "crates/zil-llvm-api/src/native.rs",
+    "changed_region": "cfg(test) native_product_tests only",
+    "additional_file": "standalone closed_body_acceptance.py raw-log/count collector",
+    "functional_receipts_reused_without_full_rerun": true,
+    "new_focused_test": {
+      "source": "e5e14cc0fe4ee6377436b4364bb05b89f66c553b",
+      "production_source": "021997a7d0b68e61b86fd084dba319583b6dc464",
+      "production_equivalence": "Only cfg(test) fixture and standalone evidence aggregator changed; release not relabeled.",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "native::native_product_tests::completed_cohorts_cross_cgu_owners_keep_exact_objects_and_prior_accounting",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "passed": 1,
+      "filtered_out": 85,
+      "world_projections": {
+        "producer_direct": 7,
+        "producer_fallback": 0,
+        "consumer_direct": 0,
+        "consumer_fallback": 0
+      },
+      "ir_mir_mc_replays_nonzero": true,
+      "whole_object_equal": true,
+      "failed_replays": 0,
+      "fresh_context_fallbacks": 0,
+      "strict_clippy_exit": 0,
+      "fmt_exit": 0,
+      "logs": {
+        "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "test.log": "dc11742e99b7fc34784b18127052e654cb39543f03e6cd3ad7dc7ee7407de268",
+        "clippy.log": "d5ae17be200094638052486fbe455549f0d72160a42c4284e9f1874df028b43b"
+      }
+    },
+    "release_not_relabelled": true
+  }
+}
