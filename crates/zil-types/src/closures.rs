@@ -8,6 +8,7 @@ mod patterns;
 mod projection_scopes;
 mod slots;
 mod source_context;
+mod task_pending;
 
 pub(super) fn source_owned_capture(ty: &Type) -> bool {
     source_context::owned_scalar_resource(ty)
@@ -1614,6 +1615,7 @@ pub(super) const VALUE: u16 = SCALAR | AGGREGATE;
 
 #[derive(Clone)]
 enum Shape {
+    Pending(task_pending::Pending),
     Tuple(Vec<Variable>),
     Array {
         element: Variable,
@@ -1645,6 +1647,7 @@ struct Node {
     shape: Option<Shape>,
 }
 pub(super) struct Graph {
+    has_pending_tasks: bool,
     nodes: Vec<Node>,
     projections: Vec<(Variable, Projection, Variable, Span)>,
     work_left: std::cell::Cell<usize>,
@@ -1656,6 +1659,7 @@ pub(super) struct Graph {
 impl Graph {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
+            has_pending_tasks: false,
             nodes: vec![],
             projections: vec![],
             work_left: std::cell::Cell::new(limits.max_analysis_steps),
@@ -1964,6 +1968,7 @@ impl Graph {
     }
     fn clone_shape(&self, shape: &Option<Shape>, span: Span) -> R<Option<Shape>> {
         let count = match shape {
+            Some(Shape::Pending(value)) => value.width(),
             Some(Shape::Tuple(fields)) => fields.len(),
             Some(Shape::FunctionPointer { parameters, .. }) => parameters.len() + 1,
             Some(Shape::Array { .. } | Shape::Slice { .. } | Shape::Address { .. }) => 1,
@@ -2058,7 +2063,7 @@ impl Graph {
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if matches!(ty, Type::TaskI32 | Type::Task { .. }) || ty.is_exclusive_task_head_address() || resources::head_address(ty) || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+            ty if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_))) || matches!(ty, Type::Closure(_) | Type::TaskI32 | Type::Task { .. }) || ty.is_exclusive_task_head_address() || resources::head_address(ty) || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
                 || matches!(ty, Type::Mutex { .. } | Type::MutexGuard { .. })
                 || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
                 || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
@@ -2138,6 +2143,16 @@ impl Graph {
             }
             let shape = self.clone_shape(&self.nodes[root].shape, span)?;
             match (shape, ty) {
+                (Some(Shape::Pending(value)), _) => self.pending_bind(value, ty, span)?,
+                (Some(Shape::Tuple(variables)), Type::BorrowedStorage { storage, .. }) if matches!(storage.as_ref(), Type::Tuple(fields) if fields.len()==variables.len()) =>
+                {
+                    let Type::Tuple(fields) = storage.as_ref() else {
+                        unreachable!()
+                    };
+                    for (variable, ty) in variables.into_iter().zip(fields) {
+                        self.bind(variable, ty, span)?;
+                    }
+                }
                 (Some(Shape::Tuple(variables)), Type::Tuple(fields))
                     if variables.len() == fields.len() =>
                 {
@@ -2214,6 +2229,10 @@ impl Graph {
                 continue;
             }
             match &self.nodes[v].shape {
+                Some(Shape::Pending(value)) => {
+                    self.spend_count(value.width(), span)?;
+                    pending.extend(value.variables());
+                }
                 Some(Shape::Tuple(fields)) => {
                     self.spend_count(fields.len(), span)?;
                     pending.extend(fields);
@@ -2272,6 +2291,9 @@ impl Graph {
         let mut a_shape = self.clone_shape(&self.nodes[a].shape, span)?;
         let b_shape = self.clone_shape(&self.nodes[b].shape, span)?;
         match (&a_shape, &b_shape) {
+            (Some(Shape::Pending(a)), Some(Shape::Pending(b))) => {
+                self.pending_unify(a, b, span, depth + 1)?
+            }
             (Some(Shape::Tuple(left)), Some(Shape::Tuple(right))) if left.len() == right.len() => {
                 for (a, b) in left.iter().zip(right) {
                     self.unify_depth(*a, *b, span, depth + 1)?;
@@ -2506,6 +2528,11 @@ impl Graph {
                     .address_shape(base, span)?
                     .map_or(base, |(inner, _)| inner);
                 let base_root = self.root(base);
+                if let Some(field) = self.pending_project(base, &projection, span)? {
+                    self.unify(result, field, span)?;
+                    progressed = true;
+                    continue;
+                }
                 let projected_variable = match (&self.nodes[base_root].shape, &projection) {
                     (Some(Shape::Tuple(fields)), Projection::Field(name)) => name
                         .parse::<usize>()
@@ -2592,6 +2619,9 @@ impl Graph {
                     Some(ty.clone())
                 } else {
                     match &node.shape {
+                        // Only an existing explicit constraint may give this
+                        // node a concrete type; requests never invent Context.
+                        Some(Shape::Pending(_)) => None,
                         Some(Shape::Tuple(fields)) => {
                             let mut types = Vec::new();
                             for field in fields {
@@ -3386,6 +3416,22 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
     }
     fn pattern_local(&mut self, variable: Variable, span: Span) -> R<LocalType> {
+        if let Some(task_pending::Pending::Managed(payload)) = self.graph.pending(variable, span)? {
+            return Ok(LocalType::Resource(payload, true));
+        }
+        if let Some(task_pending::Pending::Description(payload)) =
+            self.graph.pending(variable, span)?
+        {
+            return Ok(LocalType::Resource(payload, false));
+        }
+        if let Some(task_pending::Pending::Callable { index, mode, .. }) =
+            self.graph.pending(variable, span)?
+        {
+            return Ok(LocalType::Nested(index, mode));
+        }
+        if let Some(Type::Closure(id)) = self.graph.ty(variable)? {
+            return Ok(LocalType::Closure(id, None, None));
+        }
         if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
             return Ok(LocalType::Address(inner, mutable));
         }
@@ -3554,6 +3600,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                     Some(true),
                                     expression.span,
                                 )?;
+                            }
+                            LocalType::Resource(payload, true)
+                                if matches!(
+                                    self.graph.pending(payload, expression.span)?,
+                                    Some(task_pending::Pending::Task { .. })
+                                ) =>
+                            {
+                                let owner = self.graph.pending_managed(payload, expression.span)?;
+                                self.graph.unify(self.result, owner, expression.span)?;
                             }
                             LocalType::Resource(payload, true)
                                 if matches!(self.graph.ty(payload)?, Some(Type::Task { .. })) =>
@@ -3955,6 +4010,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 "give requires a whole managed local or capture",
             ));
         };
+        if matches!(
+            value,
+            LocalType::Closure(_, None, _) | LocalType::Nested(_, None)
+        ) {
+            self.transferred_closure(operand, value);
+            return Ok(value);
+        }
         if matches!(value, LocalType::Address(_, true)) {
             if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
                 capture.moved = true;
@@ -4216,6 +4278,35 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             )
         {
             let value = self.expr_raw(expression, None, depth)?;
+            if let LocalType::Resource(payload, true) = value
+                && matches!(
+                    self.graph.pending(payload, expression.span)?,
+                    Some(task_pending::Pending::Task { .. })
+                )
+            {
+                let Type::ErrorUnion {
+                    error: failure,
+                    result,
+                } = union
+                else {
+                    unreachable!()
+                };
+                value.bind(&mut self.graph, result, expression.span)?;
+                let owner = self.graph.pending_managed(payload, expression.span)?;
+                let failure_variable = self.graph.fresh(AGGREGATE, false);
+                self.graph
+                    .bind(failure_variable, failure, expression.span)?;
+                let result = self
+                    .graph
+                    .pending_union(failure_variable, owner, expression.span)?;
+                return Ok(LocalType::Scalar(result));
+            }
+            if let LocalType::Scalar(variable) = value
+                && self.graph.pending(variable, expression.span)?.is_some()
+            {
+                self.graph.bind(variable, union, expression.span)?;
+                return Ok(value);
+            }
             let actual = self
                 .graph
                 .injection_type(value.scalar(expression.span)?, expression.span)?;
@@ -4382,6 +4473,37 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             unreachable!("expression dispatcher variant");
         };
         let ty = self.expr(operand, depth + 1)?.scalar(span)?;
+        if let Some(failure_variable) = self.graph.pending_arm(ty, true, span)? {
+            let failure = self.graph.ty(failure_variable)?.ok_or_else(|| {
+                error(
+                    "E-TRY-ERROR-TYPE",
+                    span,
+                    "owned Task allocation failure requires its actual input-recovery pattern",
+                )
+            })?;
+            let Some(Type::ErrorUnion {
+                error: expected, ..
+            }) = self.graph.ty(self.result)?
+            else {
+                return Err(error(
+                    "E-TRY-RETURN-TYPE",
+                    span,
+                    "? requires the original enclosing error result",
+                ));
+            };
+            if failure != *expected {
+                return Err(error(
+                    "E-TRY-ERROR-TYPE",
+                    span,
+                    "Task error must match the original enclosing error type",
+                ));
+            }
+            let payload = self
+                .graph
+                .pending_arm(ty, false, span)?
+                .ok_or_else(|| unsupported(span, "Task creation lost its logical success arm"))?;
+            return self.pattern_local(payload, span);
+        }
         let Type::ErrorUnion {
             error: failure,
             result,
@@ -4456,6 +4578,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             if *op == UnaryOp::BorrowMut
                 && let LocalType::Resource(variable, _) = value
             {
+                if matches!(
+                    self.graph.pending(variable, span)?,
+                    Some(task_pending::Pending::Task { .. })
+                ) {
+                    self.mark_address_write(operand, depth + 1)?;
+                    let head = self.graph.pending_managed(variable, span)?;
+                    return Ok(LocalType::Address(head, true));
+                }
                 let payload = self
                     .graph
                     .ty(variable)?
@@ -4676,7 +4806,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         "task_create requires a static worker",
                     ));
                 }
-                let signature = self.callee(worker)?.clone();
+                let selected = self.callee(worker)?;
+                self.graph.spend_count(
+                    inference::signature_snapshot_work("", selected, span, self.limits)?,
+                    span,
+                )?;
+                let signature = selected.clone();
                 if arguments.len() != signature.parameters.len() + 1 {
                     return Err(error(
                         "E-CALL-ARITY",
@@ -4684,9 +4819,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         "task_create actual input count mismatch",
                     ));
                 }
-                for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
-                    let term = self.expr_expected(argument, Some(wanted), depth + 1)?;
-                    term.bind(&mut self.graph, wanted, argument.span)?;
+                let mut input_terms = Vec::new();
+                for (index, (argument, wanted)) in
+                    arguments[1..].iter().zip(&signature.parameters).enumerate()
+                {
+                    let term = if let Some(bound) = signature
+                        .callable
+                        .iter()
+                        .find(|bound| bound.index as usize == index)
+                    {
+                        let mode=helpers::parameter_mode(wanted,&bound.generic_name).ok_or_else(|| unsupported(argument.span,"Task callable input lacks its original passing-mode occurrence"))?;
+                        self.helper_argument(argument, bound, mode, depth + 1)?
+                    } else {
+                        let term = self.expr_expected(argument, Some(wanted), depth + 1)?;
+                        term.bind(&mut self.graph, wanted, argument.span)?;
+                        term
+                    };
+                    input_terms.push(term);
                 }
                 for _ in 0..4 {
                     self.graph.reserve_type(&signature.result, 0, span)?;
@@ -4698,36 +4847,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         }
                     }
                 }
-                return self.known(
-                    &if name == "task_await" {
-                        signature.result
-                    } else {
-                        tasks::call_create_type(
-                            name,
-                            &signature.result,
-                            tasks::borrowed_context_with_life(
-                                &signature.parameters,
-                                signature
-                                    .life
-                                    .clone()
-                                    .or_else(|| {
-                                        matches!(
-                                            signature.result,
-                                            Type::Address { mutable: false, .. }
-                                        )
-                                        .then(|| {
-                                            signature.storage_life.as_ref().and_then(|life| {
-                                                life.to_flat(signature.parameters.len())
-                                            })
-                                        })
-                                        .flatten()
-                                    })
-                                    .as_ref(),
-                                &signature.result,
-                            ),
-                            &signature.parameters,
-                        )
-                    },
+                if name == "task_await" {
+                    return self.known(&signature.result, span);
+                }
+                return self.pending_create(
+                    expression.id,
+                    signature,
+                    input_terms,
+                    name == "task_create_owned",
                     span,
                 );
             }
@@ -4763,6 +4890,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             let mut returned = tasks::result(name);
             for (argument, wanted) in arguments[offset..].iter().zip(&parameters) {
                 let term = self.expr_expected(argument, None, depth + 1)?;
+                if let Some(result) = self.pending_operation(name, term, span)? {
+                    return Ok(result);
+                }
                 let variable = match term {
                     LocalType::Address(v, _) | LocalType::Resource(v, _) | LocalType::Scalar(v) => {
                         v

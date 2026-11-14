@@ -77,6 +77,10 @@ impl Graph {
                 is_error,
                 pattern: inner,
             } => {
+                if let Some(arm) = self.pending_arm(value, *is_error, pattern.span)? {
+                    self.pattern_constraints(inner, arm, names, bindings, depth + 1)?;
+                    return Ok(());
+                }
                 let expected = self.ty(value)?.ok_or_else(|| {
                     error(
                         "E-MATCH-TYPE",
@@ -146,6 +150,24 @@ impl Graph {
                 variant,
                 fields,
             } => {
+                if let Some(task_pending::Pending::Poll(result)) =
+                    self.pending(value, pattern.span)?
+                {
+                    match (variant.as_str(), fields.as_slice()) {
+                        ("Pending", []) => return Ok(()),
+                        ("Ready", [field]) => {
+                            self.pattern_constraints(field, result, names, bindings, depth + 1)?;
+                            return Ok(());
+                        }
+                        _ => {
+                            return Err(error(
+                                "E-MATCH-ARITY",
+                                pattern.span,
+                                "Task poll pattern differs from its actual logical result",
+                            ));
+                        }
+                    }
+                }
                 if variant == enums::TYPE_MEMBER {
                     let expected = self.ty(value)?.ok_or_else(|| {
                         error(

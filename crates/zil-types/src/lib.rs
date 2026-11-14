@@ -4019,6 +4019,31 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         }
         let typed = builder.finish(&function.body)?;
+        let before = self.closures.remaining_work();
+        let mut remaining = before;
+        let state = &mut *self.closures;
+        let (earlier, remaining_pending) = state.pending.split_at_mut(id.0 as usize);
+        let (pending, later) = remaining_pending
+            .split_first_mut()
+            .ok_or_else(|| unsupported(typed.span, "actual closure inference entry disappeared"))?;
+        remaining = remaining
+            .checked_sub(earlier.len().saturating_add(later.len()))
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "actual callable directory work exceeded",
+                    Some(typed.span),
+                )
+            })?;
+        let entries = earlier.iter().chain(later.iter()).collect::<Vec<_>>();
+        let completed = pending.inference.complete_actual_tasks(
+            &typed,
+            &state.semantic_emission,
+            &entries,
+            &mut remaining,
+        );
+        self.closures.snapshot(before - remaining, typed.span)?;
+        completed?;
         self.closures.pending[id.0 as usize].typed = Some(typed);
         Ok(())
     }
