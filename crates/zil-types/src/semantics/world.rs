@@ -205,7 +205,8 @@ impl<'a> World<'a, '_> {
         match ty {
             ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
-                self.view.ordinary_zero(ty, self.limits, self.left)?;
+                self.view
+                    .ordinary_zero(ty, self.limits, self.left, &self.ledger.ordinary_stats)?;
                 self.resolved(ty, empty(), Vec::new())
             }
             Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
@@ -4002,7 +4003,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
-        view: super::materialize::ActualDirectory::from_module(module),
+        view: super::materialize::ActualDirectory::from_module_at(module, "world"),
         snapshots: 0,
         snapshot_work: 0,
         comparisons: 0,

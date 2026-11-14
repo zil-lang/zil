@@ -160,7 +160,8 @@ impl<'a> Check<'a, '_> {
                 // A callable is opaque to physical field counting. Rebuild
                 // its actual definition/entry/capture directory instead of
                 // treating an empty visible layout or Some0 as zero.
-                self.view.ordinary_zero(ty, self.limits, self.left)?;
+                self.view
+                    .ordinary_zero(ty, self.limits, self.left, &self.ledger.ordinary_stats)?;
                 Ok(0)
             }
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
@@ -287,7 +288,8 @@ impl<'a> Check<'a, '_> {
                 "qualified field outer occurrence requires its complete child domain",
             ));
         }
-        self.view.ordinary_zero(inner, self.limits, self.left)?;
+        self.view
+            .ordinary_zero(inner, self.limits, self.left, &self.ledger.ordinary_stats)?;
         self.pay(path.len().saturating_add(1))?;
         let mut physical_path = Vec::with_capacity(path.len());
         for step in path {
@@ -1230,7 +1232,7 @@ pub(super) fn program<'a>(
     let mut check = Check {
         program,
         module,
-        view: super::materialize::ActualDirectory::from_module(module),
+        view: super::materialize::ActualDirectory::from_module_at(module, "nominal_catalog"),
         ledger,
         where_session: super::original::NominalWhere::new(&context.semantic, &context.original),
         requests: std::collections::BTreeMap::new(),

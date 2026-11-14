@@ -89,7 +89,7 @@ pub(super) fn populate(
     left: &mut usize,
 ) -> R<()> {
     invocations::seed(program, module, ledger, limits, left)?;
-    let view = super::materialize::ActualDirectory::from_module(module);
+    let view = super::materialize::ActualDirectory::from_module_at(module, "creator_headers");
     let mut changes = Vec::new();
     for instance in &program.instances {
         pay(left, 1)?;

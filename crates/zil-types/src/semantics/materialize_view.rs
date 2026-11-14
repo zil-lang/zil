@@ -19,9 +19,12 @@ pub(in crate::semantics) struct ActualDirectory<'a> {
 }
 impl<'a> ActualDirectory<'a> {
     pub(in crate::semantics) fn from_module(module: &'a TypedModule) -> Self {
+        Self::from_module_at(module, "complete directory")
+    }
+    pub(in crate::semantics) fn from_module_at(module: &'a TypedModule, tag: &'static str) -> Self {
         Self {
             complete: Some(module),
-            ordinary: std::cell::RefCell::new(Some(stored::OrdinaryContext::new(module))),
+            ordinary: std::cell::RefCell::new(Some(stored::OrdinaryContext::tagged(module, tag))),
             functions: Functions::Complete(&module.functions),
             closures: Cow::Borrowed(&module.closures),
             life_instances: &module.life_instances,
@@ -42,6 +45,7 @@ impl<'a> ActualDirectory<'a> {
         ty: &Type,
         limits: &Limits,
         left: &mut usize,
+        stats: &std::rc::Rc<std::cell::RefCell<stored::OrdinaryStats>>,
     ) -> R<()> {
         self.complete()?;
         let mut context = self
@@ -53,7 +57,7 @@ impl<'a> ActualDirectory<'a> {
             .ok_or_else(|| {
                 unknown("ordinary domain awaits the complete immutable actual directory")
             })?
-            .zero(ty, limits, left)
+            .zero_tracked(ty, limits, left, stats)
     }
     pub(in crate::semantics) fn function_count(&self) -> usize {
         match &self.functions {

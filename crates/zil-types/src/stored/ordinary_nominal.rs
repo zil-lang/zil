@@ -18,6 +18,23 @@ struct Check<'a, 'b> {
         Option<std::collections::BTreeMap<zil_base::Fingerprint, Vec<&'a LifeNominalInstance>>>,
     checked_rows: std::collections::BTreeSet<usize>,
     checked_closures: std::collections::BTreeSet<ClosureId>,
+    index_builds: usize,
+    hashed_types: usize,
+    complete_comparisons: usize,
+}
+#[derive(Debug, Default)]
+pub(crate) struct Stats {
+    phases: std::collections::BTreeMap<&'static str, PhaseStats>,
+}
+#[derive(Debug, Default)]
+struct PhaseStats {
+    contexts: usize,
+    zero_calls: usize,
+    index_builds: usize,
+    hashed_types: usize,
+    complete_comparisons: usize,
+    work: usize,
+    first_allowance: usize,
 }
 /// A mathematical zero-domain directory for one immutable actual module.
 /// Its borrow prevents reuse across mutation; it stores no live ownership,
@@ -28,15 +45,74 @@ pub(crate) struct Context<'a> {
         Option<std::collections::BTreeMap<zil_base::Fingerprint, Vec<&'a LifeNominalInstance>>>,
     checked_rows: std::collections::BTreeSet<usize>,
     checked_closures: std::collections::BTreeSet<ClosureId>,
+    index_builds: usize,
+    hashed_types: usize,
+    complete_comparisons: usize,
+    tag: &'static str,
+    stats: Option<std::rc::Rc<std::cell::RefCell<Stats>>>,
 }
 impl<'a> Context<'a> {
     pub(crate) fn new(module: &'a TypedModule) -> Self {
+        Self::tagged(module, "standalone")
+    }
+    pub(crate) fn tagged(module: &'a TypedModule, tag: &'static str) -> Self {
         Self {
             module,
             type_index: None,
             checked_rows: Default::default(),
             checked_closures: Default::default(),
+            index_builds: 0,
+            hashed_types: 0,
+            complete_comparisons: 0,
+            tag,
+            stats: None,
         }
+    }
+    pub(crate) fn zero_tracked(
+        &mut self,
+        ty: &Type,
+        limits: &Limits,
+        left: &mut usize,
+        stats: &std::rc::Rc<std::cell::RefCell<Stats>>,
+    ) -> R<()> {
+        let fresh = self.stats.is_none();
+        if let Some(previous) = &self.stats {
+            if !std::rc::Rc::ptr_eq(previous, stats) {
+                return Err(unknown(
+                    "ordinary domain context crossed its original request",
+                ));
+            }
+        } else {
+            self.stats = Some(stats.clone());
+        }
+        let before = *left;
+        let previous = (
+            self.index_builds,
+            self.hashed_types,
+            self.complete_comparisons,
+        );
+        let result = self.zero(ty, limits, left);
+        let mut stats = stats.borrow_mut();
+        let phase = stats.phases.entry(self.tag).or_default();
+        if phase.zero_calls == 0 {
+            phase.first_allowance = before;
+        }
+        phase.contexts = phase.contexts.saturating_add(usize::from(fresh));
+        phase.zero_calls = phase.zero_calls.saturating_add(1);
+        phase.index_builds = phase
+            .index_builds
+            .saturating_add(self.index_builds.saturating_sub(previous.0));
+        phase.hashed_types = phase
+            .hashed_types
+            .saturating_add(self.hashed_types.saturating_sub(previous.1));
+        phase.complete_comparisons = phase
+            .complete_comparisons
+            .saturating_add(self.complete_comparisons.saturating_sub(previous.2));
+        phase.work = phase.work.saturating_add(before.saturating_sub(*left));
+        result.map_err(|mut diagnostic| {
+            diagnostic.notes.push(format!("request ordinary-domain costs: phase {}; current type {:?}; directory rows {}; contexts/phases {:?}", self.tag, std::mem::discriminant(ty), self.module.life_instances.len(), &*stats));
+            diagnostic
+        })
     }
     pub(crate) fn zero(&mut self, ty: &Type, limits: &Limits, left: &mut usize) -> R<()> {
         fee(left, 1, Span::default())?;
@@ -52,6 +128,9 @@ impl<'a> Context<'a> {
             type_index: self.type_index.take(),
             checked_rows: std::mem::take(&mut self.checked_rows),
             checked_closures: std::mem::take(&mut self.checked_closures),
+            index_builds: self.index_builds,
+            hashed_types: self.hashed_types,
+            complete_comparisons: self.complete_comparisons,
         };
         let result = check.ty(ty, 0);
         // Only complete successful rows enter these sets. An unrelated error
@@ -60,6 +139,9 @@ impl<'a> Context<'a> {
         self.type_index = check.type_index;
         self.checked_rows = check.checked_rows;
         self.checked_closures = check.checked_closures;
+        self.index_builds = check.index_builds;
+        self.hashed_types = check.hashed_types;
+        self.complete_comparisons = check.complete_comparisons;
         result
     }
 }
@@ -80,6 +162,7 @@ impl<'a> Check<'a, '_> {
     }
     fn candidates(&mut self, ty: &Type) -> R<Vec<&'a LifeNominalInstance>> {
         if self.type_index.is_none() {
+            self.index_builds = self.index_builds.saturating_add(1);
             if self.instances.len() > self.limits.max_nodes {
                 return Err(Diagnostic::limit(
                     Phase::Types,
@@ -101,6 +184,7 @@ impl<'a> Check<'a, '_> {
                     2,
                 )?;
                 let key = row.ty.fingerprint();
+                self.hashed_types = self.hashed_types.saturating_add(1);
                 fee(
                     self.left,
                     (usize::BITS - index.len().leading_zeros()) as usize + 2,
@@ -847,6 +931,7 @@ impl<'a> Check<'a, '_> {
                         self.left,
                         1,
                     )?;
+                    self.complete_comparisons = self.complete_comparisons.saturating_add(1);
                     if &row.ty != ty {
                         continue;
                     }
@@ -1010,6 +1095,9 @@ pub(super) fn rows(
         type_index: None,
         checked_rows: Default::default(),
         checked_closures: Default::default(),
+        index_builds: 0,
+        hashed_types: 0,
+        complete_comparisons: 0,
     }
     .row(instance, 0)
 }
@@ -1030,6 +1118,9 @@ pub(super) fn module(module: &TypedModule, limits: &Limits, left: &mut usize) ->
         type_index: None,
         checked_rows: Default::default(),
         checked_closures: Default::default(),
+        index_builds: 0,
+        hashed_types: 0,
+        complete_comparisons: 0,
     };
     for row in &module.life_instances {
         for actual in &row.arguments {

@@ -70,6 +70,7 @@ impl<'a> Eval<'a, '_, '_> {
                 "semantic type materialization work exceeded",
                 None,
             );
+            diagnostic.notes.push(format!("ordinary-domain request totals {:?}", self.ledger.ordinary_stats.borrow()));
             diagnostic.notes.push(format!("actual type evaluation at {}:{}; requested work {}; remaining {}; active original holder {:?}; holder count {}", location.file(), location.line(), count, *self.left, self.active.iter().next(), self.active.len()));
             diagnostic
         })?;
@@ -2021,7 +2022,7 @@ pub(super) fn program(
     // do not deep-copy every original body merely to avoid a borrow conflict.
     let mut eval = Eval {
         input: &*program,
-        module: &ActualDirectory::from_module(module),
+        module: &ActualDirectory::from_module_at(module, "materialize::program"),
         ledger,
         limits,
         left,
@@ -2227,7 +2228,7 @@ pub(super) fn type_at(
 ) -> R<SemanticTypeValue> {
     Eval {
         input: program,
-        module: &ActualDirectory::from_module(module),
+        module: &ActualDirectory::from_module_at(module, "materialize::type_at"),
         ledger,
         limits,
         left,
@@ -2296,7 +2297,7 @@ pub(super) fn actual_at(
 ) -> R<SemanticActual> {
     actual_in_view(
         program,
-        &ActualDirectory::from_module(module),
+        &ActualDirectory::from_module_at(module, "materialize::actual_at"),
         ledger,
         scope,
         recipe,
@@ -2341,7 +2342,7 @@ pub(super) fn parent_actuals_at(
 ) -> R<Vec<SemanticActual>> {
     Eval {
         input: program,
-        module: &ActualDirectory::from_module(module),
+        module: &ActualDirectory::from_module_at(module, "materialize::parent_actuals_at"),
         ledger,
         limits,
         left,
@@ -2361,7 +2362,7 @@ pub(super) fn class_at(
 ) -> R<SemanticClassExpr> {
     Eval {
         input: program,
-        module: &ActualDirectory::from_module(module),
+        module: &ActualDirectory::from_module_at(module, "materialize::class_at"),
         ledger,
         limits,
         left,
@@ -2388,7 +2389,7 @@ pub(super) fn symbolic_at(
     {
         Eval {
             input: program,
-            module: &ActualDirectory::from_module(module),
+            module: &ActualDirectory::from_module_at(module, "materialize::symbolic_at"),
             ledger,
             limits,
             left,

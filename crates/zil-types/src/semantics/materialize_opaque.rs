@@ -329,7 +329,12 @@ impl Eval<'_, '_, '_> {
                         "multiple opaque origins retain a free actual class",
                     ));
                 }
-                self.module.ordinary_zero(ty, self.limits, self.left)?;
+                self.module.ordinary_zero(
+                    ty,
+                    self.limits,
+                    self.left,
+                    &self.ledger.ordinary_stats,
+                )?;
                 life
             }
             _ => {
@@ -390,8 +395,12 @@ impl Eval<'_, '_, '_> {
                 "multiple opaque origins have a free actual result domain",
             ));
         }
-        self.module
-            .ordinary_zero(&Type::Closure(*id), self.limits, self.left)?;
+        self.module.ordinary_zero(
+            &Type::Closure(*id),
+            self.limits,
+            self.left,
+            &self.ledger.ordinary_stats,
+        )?;
         self.fee(
             self.module
                 .closures
@@ -709,7 +718,7 @@ pub(crate) fn call_result_at(
 ) -> R<SemanticTypeValue> {
     let mut eval = Eval {
         input: program,
-        module: &ActualDirectory::from_module(module),
+        module: &ActualDirectory::from_module_at(module, "opaque call_result_at"),
         ledger,
         limits,
         left,

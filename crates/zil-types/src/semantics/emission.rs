@@ -51,6 +51,7 @@ pub(crate) struct Frame {
 }
 #[derive(Default)]
 pub(crate) struct Ledger {
+    pub(super) ordinary_stats: std::rc::Rc<std::cell::RefCell<stored::OrdinaryStats>>,
     pub(super) fixed_abis: Option<super::abi::Choices>,
     pub(super) abi_origins: Vec<super::abi::SourceOrigin>,
     /// Only the explicit frozen-context entry may install this independently
