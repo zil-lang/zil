@@ -1,0 +1,478 @@
+{
+  "recorded_at_utc": "2026-11-14T06:20:15.150558+00:00",
+  "candidate": "0a212bc38ca0b0fd2d7759eebacbc087fd558f43",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-foundation-source-ct-flow",
+  "accepted": false,
+  "cli_sha256": "704eca448b5c6ff7c3d3b67f766d4b087fd2828af5e648985e317533ad79110f",
+  "profile_sha256": "1cb51ba1ed6dd9fc2d71c2e939116837a7beaf1bac77931e60acb1ff14f69c81",
+  "exits": [
+    "CLI_BUILD_EXIT=0",
+    "FOUNDATION_PROFILE_EXIT=1",
+    "CORE_CHAIN_EXIT=1",
+    "WORKSPACE_ALLTARGETS_EXIT=0",
+    "TYPES_PROBE_EXIT=101",
+    "SOURCE_TESTS_EXIT=0"
+  ],
+  "foundation_positive": {
+    "passed": 0,
+    "total": 13
+  },
+  "foundation_negative": {
+    "passed": 2,
+    "total": 4
+  },
+  "foundation_rows": [
+    {
+      "group": "positive_cases",
+      "family": "scalars",
+      "source": "tests/integers/complete-domains.zil",
+      "source_sha256": "8b4677e668bcb425724ba30599b11d3138121b8818bb25d8379fd1c3fbabeaa3",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "semantic class-bearing function complete header is Unknown",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "patterns",
+      "source": "tests/fixtures/ownership/owned-option-session.zil",
+      "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "original site does not match its actual operation and operand",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "generic-libraries",
+      "source": "examples/mainline/draft_foundations/main.zil",
+      "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "actual operation requires its complete original class transfer",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "closures",
+      "source": "examples/mainline/generic-callbacks/main.zil",
+      "source_sha256": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original type query awaits its symbolic binding/expression equation",
+          "span": {
+            "file": 3,
+            "start": 57,
+            "end": 79
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(3), index: 1 }, expression NodeId(1)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(1)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "ownership",
+      "source": "examples/mainline/state-replacement/main.zil",
+      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Value argument has no unique type",
+          "span": {
+            "file": 0,
+            "start": 1216,
+            "end": 1283
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "dynamic-abstraction",
+      "source": "tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+      "source_sha256": "8a5df893801e58386b266191b6c62bcf82a55211e2fbef639ad015db827be8ff",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "original type recipe differs from its actual emitted complete type",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "async-ownership",
+      "source": "tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+      "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "error arm type cannot be inferred",
+          "span": {
+            "file": 0,
+            "start": 156,
+            "end": 162
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "threads",
+      "source": "tests/fixtures/threading/mutex-worker-helpers.zil",
+      "source_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "whole closure type is missing an actual Fixed image: closure ClosureId(0), child SemanticInstanceId { module: ModuleId(0), index: 6 }, definition SemanticDefinitionId { module: ModuleId(0), index: 8 }, missing [0], embeddings [], type-use subjects [(SemanticSiteId(1), Value(ValueId(1)))]",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "foreign-lifecycle",
+      "source": "tests/language-readiness/foreign-thread-registration/threaded-generic-sync-drop.zil",
+      "source_sha256": "171812ab53d0b274cdf2bae0dd47cae94ca151e447bd6bbb19347325a7f57aa5",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original affine field observation needs its explicit view/transfer rule",
+          "span": {
+            "file": 0,
+            "start": 1449,
+            "end": 1462
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 12 }, expression NodeId(14)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 12 }, expression NodeId(12)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 12 }, expression NodeId(10)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 12 }, expression NodeId(6)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 12 }, expression NodeId(5)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 12 }, expression NodeId(4)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 9 }, expression NodeId(21)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "owning-collections",
+      "source": "tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+      "source_sha256": "ef8f72781a1e834993cfc9b5ee3b09343a896c1a9fdb212755e00598d55ad870",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "nominal child has no complete original catalogue entry",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "buffered-io",
+      "source": "tests/fixtures/buffered-io/short_io.zil",
+      "source_sha256": "25f26e1397071fd97bae5a83ede8eb91e3ceee94c1c1ec27615667143f5bcf5a",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "semantic source expression NodeId(59) in FunctionId(6) was not actually emitted",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "iteration",
+      "source": "tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+      "source_sha256": "bdebeb8bd047fb868889de3e6a4acefa2e615f860192105f2cb5538272ccbfe1",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "original caller lacks a complete trait premise or provider",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 10 }, expression NodeId(44)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "project-workflow",
+      "source": "examples/mainline/stream/main.zil",
+      "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original type query awaits its symbolic binding/expression equation",
+          "span": {
+            "file": 0,
+            "start": 199,
+            "end": 480
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(11)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "foreign-lifecycle",
+      "source": "tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+      "source_sha256": "492843ac3b06c3e1a904e968811e47ebe5047178ea92a3db6be292857d1e7818",
+      "pass": true,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "registration construction lacks the callback's independent original SyncDrop premise",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 6 }, expression NodeId(2)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "foreign-lifecycle-unused",
+      "source": "tests/language-readiness/foreign-thread-registration/unused-install-missing-sync-drop.zil",
+      "source_sha256": "5a8e823faf707d6a148843367b7b7ed10deb427392084329fc7c41c5d7665ae3",
+      "pass": true,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "registration construction lacks the callback's independent original SyncDrop premise",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 6 }, expression NodeId(2)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-original",
+      "source": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil",
+      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-STORED-IDENTITY",
+          "message": "one complete nominal actual vector has multiple semantic types",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-unused",
+      "source": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/unused.zil",
+      "source_sha256": "cc3d89991162fcfd86b9442197cd92e8051bcde922f1886711345a7e454618ab",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "Core semantic target has no actual emitter binding",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "native_by_source": {
+    "tests/fixtures/semantic-scopes/ordinary-generic.zil": {
+      "passed": 4,
+      "total": 4,
+      "diagnostics": []
+    },
+    "tests/fixtures/semantic-scopes/local-closure.zil": {
+      "passed": 0,
+      "total": 4,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original type query awaits its symbolic binding/expression equation",
+          "span": {
+            "file": 0,
+            "start": 43,
+            "end": 66
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 0 }, expression NodeId(3)"
+          ]
+        }
+      ]
+    },
+    "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil": {
+      "passed": 0,
+      "total": 4,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original type query awaits its symbolic binding/expression equation",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    "tests/fixtures/semantic-scopes/unused-generic-identity.zil": {
+      "passed": 4,
+      "total": 4,
+      "diagnostics": []
+    }
+  },
+  "component_results": {
+    "source_lib_passed": 147,
+    "source_lib_failed": 0,
+    "workspace_alltargets_exit": 0,
+    "types_probe_passed": 1,
+    "types_probe_failed": 1
+  },
+  "limits": "No positive foundation chain accepted. Two foreign obligation negatives now reject for intended SyncDrop; other negatives remain unrelated failures. Native regressions to8/16 are explicitly retained. Early closure result query regression is fixed in successorbefcb94c2 but not retested in this record."
+}
