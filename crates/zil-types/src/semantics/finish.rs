@@ -42,10 +42,11 @@ pub(crate) fn program(
         super::source_probe::record_stage(module, "after-ghost")?;
         super::source_probe::record_semantic_stage(&result, "after-ghost")?;
     }
+    super::materialize::populate_deferred_nominals(&result, module, ledger, limits, left)?;
+    super::headers::complete_emitted_headers(&mut result, module, ledger, limits, left)?;
     // Captured-head embeddings are derived from the actual entry's reads;
     // materializing a whole closure must not invent those persistent images.
     let mut headers = super::headers::program(&mut result, module, left)?;
-    super::materialize::populate_deferred_nominals(&result, module, ledger, limits, left)?;
     super::headers::capture_domains(&mut result, module, ledger, limits, left, &mut headers)?;
     stored::ordinary_inventory(module, limits, left)?;
     super::nominal_catalog::program(&result, module, limits, left)?;

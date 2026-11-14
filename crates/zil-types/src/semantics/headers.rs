@@ -4,6 +4,7 @@ use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
 #[path = "header_captures.rs"]
 mod captures;
+pub(super) use captures::complete_emitted_headers;
 pub(super) use captures::populate as capture_domains;
 
 fn bad(message: &str) -> Diagnostic {

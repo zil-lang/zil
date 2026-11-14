@@ -397,9 +397,12 @@ impl<'a> Eval<'a, '_> {
     fn original_constructor_type(
         &mut self,
         scope: SemanticInstanceId,
+        selector: SemanticScopeRef,
         source: &SemanticOriginalTypeSource,
     ) -> R<SemanticTypeRecipe> {
-        let owner = self.instance(scope)?.definition;
+        let current = self.instance(scope)?.definition;
+        let owner = self.ancestor(scope, selector, 0)?;
+        let owner = self.instance(owner)?.definition;
         let proof = self.ledger.original.borrow();
         if let Some(proof) = proof
             .as_ref()
@@ -407,7 +410,7 @@ impl<'a> Eval<'a, '_> {
         {
             return proof.constructor_type_recipe(
                 self.input,
-                owner,
+                current,
                 owner,
                 source,
                 self.limits,
@@ -749,7 +752,29 @@ impl<'a> Eval<'a, '_> {
         proposed: &SemanticTypeValue,
         result: ValueId,
         hint: &Type,
+        site: SemanticSiteId,
     ) -> R<SemanticTypeValue> {
+        let definition = self.instance(owner)?.definition;
+        let original = self.definition(definition)?;
+        let original_node =
+            if let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body {
+                self.fee(site_nodes.len())?;
+                let mut nodes = site_nodes.iter().filter(|row| row.site == site);
+                let node = nodes
+                    .next()
+                    .ok_or_else(|| bad("constructor site has no exact original node"))?;
+                if nodes.next().is_some() {
+                    return Err(bad("constructor site has multiple original nodes"));
+                }
+                let SemanticOriginalNode::Expression(node) = node.node else {
+                    return Err(bad(
+                        "constructor site does not select an original expression",
+                    ));
+                };
+                Some(node)
+            } else {
+                None
+            };
         let SemanticTypeValue::Core { scope, source } = proposed else {
             return self.value(owner, proposed, Some(hint), 0);
         };
@@ -768,7 +793,28 @@ impl<'a> Eval<'a, '_> {
                 occurrence,
                 ..
             } => (*module, *function, *expression, *occurrence),
-            SemanticCoreTypeSource::OriginalRecipe(_) => {
+            SemanticCoreTypeSource::OriginalRecipe(recipe) => {
+                // Source records original-site recipes directly; these are
+                // the ordinary constructor path, rather than a reified Core
+                // expression wrapper. The exact original injection theorem
+                // still selects the producer's payload role.
+                if let SemanticTypeRecipe::OriginalType {
+                    scope: selector,
+                    source,
+                } = recipe.as_ref()
+                {
+                    if original_node.is_some_and(|node| {
+                        *scope != owner
+                            || *selector != SemanticScopeRef::Ancestor(0)
+                            || *source != SemanticOriginalTypeSource::Expression(node)
+                    }) {
+                        return Err(bad(
+                            "constructor recipe changes its exact original site expression",
+                        ));
+                    }
+                    let recipe = self.original_constructor_type(*scope, *selector, source)?;
+                    return self.ty(*scope, &recipe, Some(hint), 0);
+                }
                 return self.value(owner, proposed, Some(hint), 0);
             }
         };
@@ -801,7 +847,15 @@ impl<'a> Eval<'a, '_> {
                 self.ty(*scope, recipe, Some(hint), 0)
             }
             SemanticCoreTypeSource::OriginalExpression { source, .. } => {
-                let recipe = self.original_constructor_type(*scope, source)?;
+                if original_node.is_some_and(|node| {
+                    *scope != owner || *source != SemanticOriginalTypeSource::Expression(node)
+                }) {
+                    return Err(bad(
+                        "constructor wrapper changes its exact original site expression",
+                    ));
+                }
+                let recipe =
+                    self.original_constructor_type(*scope, SemanticScopeRef::Ancestor(0), source)?;
                 self.ty(*scope, &recipe, Some(hint), 0)
             }
             SemanticCoreTypeSource::OriginalRecipe(_) => unreachable!(),
@@ -1405,7 +1459,7 @@ impl<'a> Eval<'a, '_> {
                 let life = closure
                     .storage_life
                     .as_ref()
-                    .ok_or_else(|| unknown("whole closure type has an unknown actual domain"))?;
+                    .ok_or_else(|| unknown(&format!("whole closure type has an unknown actual domain: instance {scope:?}, definition {definition:?}, child {:?}, actual closure {id:?}, entry {:?}", child.id, closure.function)))?;
                 self.fee(life.fixed_binder_count as usize + child.header_embedding.len())?;
                 let mut images = vec![None; life.fixed_binder_count as usize];
                 for row in &child.header_embedding {
@@ -2016,7 +2070,8 @@ pub(super) fn program(
                     .values
                     .get(result.0 as usize)
                     .ok_or_else(|| bad("constructor type materialization lost its actual SSA"))?;
-                *value = eval.constructor_value(site.instance, value, *result, hint)?;
+                *value =
+                    eval.constructor_value(site.instance, value, *result, hint, site.recipe)?;
             }
             SemanticSiteAction::Construct { .. } => {
                 return Err(bad("constructor result was not relocated to actual SSA"));

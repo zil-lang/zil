@@ -87,6 +87,26 @@ impl Builder<'_, '_> {
         expression: &CoreExpr,
         expected: Option<&Type>,
     ) -> R<(ValueId, Type)> {
+        let entered = self.closures.semantic_begin(self.function.id, expression)?;
+        let result = self.owned_array_input_context(expression, expected);
+        self.closures.semantic_end(
+            self.function.id,
+            expression.id,
+            entered,
+            result.as_ref().ok().map(|row| row.0),
+            self.current.map(|block| crate::semantics::emission::Point {
+                block,
+                instruction: self.function.blocks[block.0 as usize].instructions.len(),
+            }),
+            expression.span,
+        )?;
+        result
+    }
+    fn owned_array_input_context(
+        &mut self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+    ) -> R<(ValueId, Type)> {
         // Entering a unique element slot transfers a concrete environment even
         // when its captures carry no resource cleanup obligations.
         if let CoreExprKind::Name(name) = &expression.kind

@@ -273,9 +273,69 @@ impl<'a> Scan<'a, '_, '_, '_> {
             _ => Ok(false),
         }
     }
+    fn field_target(
+        &mut self,
+        receiver: Target,
+        member: &str,
+        depth: usize,
+        span: Span,
+    ) -> R<Target> {
+        self.budget.node(span, depth)?;
+        let Target::NominalReceiver(owner) = receiver else {
+            return Ok(Target::Unknown);
+        };
+        let Some(index) = declaration_index(self.definitions, owner, self.budget, span)? else {
+            return Ok(Target::Unknown);
+        };
+        let SemanticDefinitionBody::Nominal {
+            body: SemanticNominalBody::Product { fields },
+            ..
+        } = &self.definitions[index].body
+        else {
+            return Ok(Target::Unknown);
+        };
+        self.budget.identity_work(
+            fields.len().saturating_mul(member.len().saturating_add(1)),
+            span,
+        )?;
+        let mut selected = None;
+        for field in fields {
+            if field.name == member && selected.replace(field).is_some() {
+                return Ok(Target::Unknown);
+            }
+        }
+        let Some(field) = selected else {
+            return Ok(Target::Unknown);
+        };
+        // The field's declaration-domain bounds provide an ABI upper. They
+        // remain full independent nominal obligations; an actual field Type
+        // or an implementation's coincident concrete image cannot narrow it.
+        self.callable_type(index, &field.ty, depth + 1, span)
+    }
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            CoreExprKind::Member { object, member, .. } => {
+                let receiver = self.target(object, depth + 1)?;
+                let target = self.field_target(receiver, member, depth + 1, expression.span)?;
+                if target != Target::Unknown {
+                    return Ok(target);
+                }
+            }
+            CoreExprKind::ReceiverMember(member) => {
+                self.budget
+                    .identity_work(self.locals.len(), expression.span)?;
+                let receiver = self
+                    .locals
+                    .iter()
+                    .rev()
+                    .find(|(name, _)| *name == "self")
+                    .map_or(Target::Unknown, |(_, target)| *target);
+                let target = self.field_target(receiver, member, depth + 1, expression.span)?;
+                if target != Target::Unknown {
+                    return Ok(target);
+                }
+            }
             CoreExprKind::Record { ty, .. } => {
                 return self.callable_type(self.owner, ty, depth + 1, expression.span);
             }
