@@ -1,0 +1,21 @@
+{
+  "source_base": "33aff46219f40f3c51fe3098791f83c16c00d89f",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T132834Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-verify/src/semantic/flow.rs": "98bbd844e60ca8771ee4df6a9ec60b4046b9b03b0659d255649c945e30b28fb0",
+    "crates/zil-verify/src/semantic/flow/trait_members.rs": "1c980c6090295a56570bcaefec1d08c9d2c4bde9aab2361df7d08bed516833e8",
+    "crates/zil-verify/src/semantic/flow/worlds.rs": "cbe1974c9fb3a3bf3183b8e72344b85291c354c581293e38e01df7e59e95adf8"
+  },
+  "artifacts": {
+    "source.patch": "0aca63e1abb3b03bcd3fee0063f5761756ff3423ce7bf2185ca6e1ed3dddc26d",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "4b1e48d0dacbcef936bb19328f19bfd562bc7be89f8aebb3d3b055a01b457a8e"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}

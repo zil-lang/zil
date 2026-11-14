@@ -1,0 +1,204 @@
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index c175ee035..5ad15ee26 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -112,16 +112,26 @@ impl CheckedContext {
+         if actual.life.retained.len()!=expected.life.retained.len()||actual.life.nominal_arguments.len()!=expected.life.nominal_arguments.len() {return Ok(false);}
+         for (a,c) in actual.life.retained.iter().zip(&expected.life.retained) {
+             if a.path!=c.path||a.class!=c.class {return Ok(false);}
++            if !self.same_origin(environment,actual.origins.get(a.binder as usize).ok_or_else(||bad("actual child origin is absent"))?,expected.origins.get(c.binder as usize).ok_or_else(||bad("expected child origin is absent"))?,b)? {return Ok(false);}
+             let a=actual.classes.get(a.binder as usize).ok_or_else(||bad("actual child class is absent"))?;
+             let c=expected.classes.get(c.binder as usize).ok_or_else(||bad("expected child class is absent"))?;
+             if !self.same(environment,a,c,b)? {return Ok(false);}
+         }
+         for (a,c) in actual.life.nominal_arguments.iter().zip(&expected.life.nominal_arguments) {
+             if a.path!=c.path||a.declaration!=c.declaration||a.argument!=c.argument {return Ok(false);}
++            if !self.same_origin(environment,actual.origins.get(a.binder as usize).ok_or_else(||bad("actual nominal origin is absent"))?,expected.origins.get(c.binder as usize).ok_or_else(||bad("expected nominal origin is absent"))?,b)? {return Ok(false);}
+             let a=actual.classes.get(a.binder as usize).ok_or_else(||bad("actual nominal class is absent"))?;
+             let c=expected.classes.get(c.binder as usize).ok_or_else(||bad("expected nominal class is absent"))?;
+             if !self.same(environment,a,c,b)? {return Ok(false);}
+         }
++        b.spend(actual.life.slots.len().saturating_add(expected.life.slots.len()))?;
++        let actual_children=actual.life.slots.iter().filter(|slot|!slot.path.is_empty()).collect::<Vec<_>>();
++        let expected_children=expected.life.slots.iter().filter(|slot|!slot.path.is_empty()).collect::<Vec<_>>();
++        if actual_children.len()!=expected_children.len(){return Ok(false);}
++        for(a,c)in actual_children.iter().zip(&expected_children){
++            if a.path!=c.path||a.mode!=c.mode{return Ok(false);}
++            if !self.same(environment,actual.classes.get(a.binder as usize).ok_or_else(||bad("actual nested borrow class is absent"))?,expected.classes.get(c.binder as usize).ok_or_else(||bad("expected nested borrow class is absent"))?,b)?||!self.same_origin(environment,actual.origins.get(a.binder as usize).ok_or_else(||bad("actual nested borrow origin is absent"))?,expected.origins.get(c.binder as usize).ok_or_else(||bad("expected nested borrow origin is absent"))?,b)?{return Ok(false);}
++        }
+         let a=actual.life.slots.iter().find(|row|row.path.is_empty());
+         let c=expected.life.slots.iter().find(|row|row.path.is_empty());
+         match (a,c) {
+@@ -628,11 +638,11 @@ impl CheckedContext {
+         lexical.insert(0,LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:None});
+         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
+         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
+-        self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
++        let worlds=self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
+         self.evaluate_requirements(module,&target_definition.requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;
+         for formal in &target_definition.parameters {if let SemanticFormal::Type{requirements}=formal {self.evaluate_requirements(module,requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;}}
+         let SemanticDefinitionBody::FunctionWithBody{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
+-        let mut signature=self.evaluate_signature(module,signature,&call_environment,external,active,b)?;
++        let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
+         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
+         let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
+         for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
+@@ -648,8 +658,10 @@ impl CheckedContext {
+                 else {invocation.push((expected_key.clone(),actual_key.clone()));}
+             }
+         }
+-        for (parameter,_) in &mut signature.parameters {substitute(parameter,&invocation,b)?;}
+-        substitute(&mut signature.result,&invocation,b)?;
++        let mut invocation_boundary=trait_members::Boundary::default();
++        for(source,image)in &invocation{invocation_boundary.class(self,environment,source,image,b)?;}
++        for(parameter,_)in &mut signature.parameters{*parameter=invocation_boundary.project_type(self,environment,parameter,b)?;}
++        signature.result=invocation_boundary.project_type(self,environment,&signature.result,b)?;
+         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
+         for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
+             if !self.call_argument(module,caller,*argument,values,expected,environment,b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
+diff --git a/crates/zil-verify/src/semantic/flow/trait_members.rs b/crates/zil-verify/src/semantic/flow/trait_members.rs
+index 8b37a9bd9..7118519fd 100644
+--- a/crates/zil-verify/src/semantic/flow/trait_members.rs
++++ b/crates/zil-verify/src/semantic/flow/trait_members.rs
+@@ -43,9 +43,58 @@ impl CheckedContext {
+ }
+ 
+ #[derive(Default)]
+-pub(super) struct Boundary{classes:Vec<(ClassKey,ClassKey)>,origins:Vec<(IntrinsicOrigin,IntrinsicOrigin)>}
++pub(super) struct Boundary{classes:Vec<(ClassKey,ClassKey)>,origins:Vec<(IntrinsicOrigin,IntrinsicOrigin)>,scopes:Vec<(ScopeKey,ScopeKey)>}
+ impl Boundary{
+-    fn class(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&ClassKey,expected:&ClassKey,b:&mut Budget)->Check<()>{
++    pub(super) fn scope(&mut self,actual:ScopeKey,expected:ScopeKey,b:&mut Budget)->Check<()>{
++        b.spend(self.scopes.len().saturating_add(1))?;
++        if let Some((_,known))=self.scopes.iter().find(|(key,_)|*key==actual){if *known!=expected{return Err(bad("Call world changes one original lexical scope image"));}}else{self.scopes.push((actual,expected));}Ok(())
++    }
++    fn image(&self,key:&ClassKey,b:&mut Budget)->Check<ClassKey>{
++        b.spend(self.classes.len().saturating_add(self.scopes.len()).saturating_add(1))?;
++        if let Some((_,image))=self.classes.iter().find(|(source,_)|source==key){return Ok(image.clone());}
++        // An inferred outer occurrence belongs to this fresh call frame. Its
++        // correspondence is a role substitution, never global equality.
++        if let ClassKey::Implicit{scope,ordinal}=key{if let Some((_,image))=self.scopes.iter().find(|(source,_)|source==scope){return Ok(ClassKey::Implicit{scope:*image,ordinal:*ordinal});}}
++        Ok(key.clone())
++    }
++    pub(super) fn project_type(&mut self,context:&CheckedContext,env:&EvalEnv,value:&CheckedType,b:&mut Budget)->Check<CheckedType>{
++        charge_value(value,b)?;
++        let mut output=value.clone();
++        for(key,source)in output.classes.iter_mut().zip(&value.classes){*key=self.image(source,b)?;}
++        for(origin,source)in output.origins.iter_mut().zip(&value.origins){*origin=self.project_origin(context,env,source,0,b)?;}
++        Ok(output)
++    }
++    fn project_origin(&self,context:&CheckedContext,env:&EvalEnv,origin:&IntrinsicOrigin,depth:usize,b:&mut Budget)->Check<IntrinsicOrigin>{
++        if depth>b.limits.max_call_depth.min(128){return Err(limit("Call boundary intrinsic origin depth exceeded"));}
++        super::super::nominal_origins::charge_origin(origin,b)?;
++        b.spend(self.origins.len())?;
++        for(source,image)in &self.origins{super::super::nominal_origins::charge_origin(source,b)?;if source==origin{return context.canonical_origin(image,b);}}
++        Ok(match origin{
++            IntrinsicOrigin::DerivedClass{source}=>IntrinsicOrigin::DerivedClass{source:self.image(source,b)?},
++            IntrinsicOrigin::Existing{..}=>context.canonical_origin(origin,b)?,
++            IntrinsicOrigin::Nominal{source,class}=>{
++                let mut actuals=Vec::new();let mut environment=Vec::new();let mut class_sources=Vec::new();
++                for actual in &source.actuals{actuals.push(self.project_actual(context,env,actual,depth+1,b)?);}
++                for actual in &source.environment{environment.push(self.project_actual(context,env,actual,depth+1,b)?);}
++                for origin in &source.class_sources{class_sources.push(self.project_origin(context,env,origin,depth+1,b)?);}
++                dynamic_metadata::life_shape(&source.domain,b)?;
++                IntrinsicOrigin::Nominal{source:std::rc::Rc::new(NominalOrigin{declaration:source.declaration,actuals,environment,domain:source.domain.clone(),class_sources}),class:*class}
++            },
++        })
++    }
++    fn project_actual(&self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedActual,depth:usize,b:&mut Budget)->Check<CheckedActual>{
++        if depth>b.limits.max_call_depth.min(128){return Err(limit("Call boundary actual origin depth exceeded"));}
++        Ok(match actual{
++            CheckedActual::Life(key)=>CheckedActual::Life(self.image(key,b)?),
++            CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{
++                charge_value(value,b)?;
++                let mut output=value.clone();for key in &mut output.classes{*key=self.image(key,b)?;}
++                for(origin,source)in output.origins.iter_mut().zip(&value.origins){*origin=self.project_origin(context,env,source,depth+1,b)?;}
++                match actual{CheckedActual::Type(_)=>CheckedActual::Type(output),CheckedActual::Const{value,..}=>{dynamic_metadata::constant(value,b)?;CheckedActual::Const{carrier:output,value:value.clone()}},_=>unreachable!()}
++            },
++        })
++    }
++    pub(super) fn class(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&ClassKey,expected:&ClassKey,b:&mut Budget)->Check<()>{
+         b.spend(self.classes.len().saturating_add(1))?;
+         if let Some((_,known))=self.classes.iter().find(|(known,_)|known==actual){if !context.same(env,known,expected,b)?{return Err(bad("one member body class has inconsistent call-boundary images"));}}
+         else{self.classes.push((actual.clone(),expected.clone()));}Ok(())
+@@ -68,3 +117,12 @@ impl Boundary{
+         match(actual,expected){(CheckedActual::Type(a),CheckedActual::Type(z))=>self.value(context,env,a,z,b),(CheckedActual::Life(a),CheckedActual::Life(z))=>self.class(context,env,a,z,b),(CheckedActual::Const{carrier:a,value:av},CheckedActual::Const{carrier:z,value:zv})if av==zv=>self.value(context,env,a,z,b),_=>Err(bad("member call boundary changes its ordered actual kind or constant value"))}
+     }
+ }
++
++fn charge_value(value:&CheckedType,b:&mut Budget)->Check<()>{
++    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
++    b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
++    for key in &value.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
++    for origin in &value.origins{super::super::nominal_origins::charge_origin(origin,b)?;}
++    for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
++    Ok(())
++}
+diff --git a/crates/zil-verify/src/semantic/flow/worlds.rs b/crates/zil-verify/src/semantic/flow/worlds.rs
+index 981c73b0c..5968f4c77 100644
+--- a/crates/zil-verify/src/semantic/flow/worlds.rs
++++ b/crates/zil-verify/src/semantic/flow/worlds.rs
+@@ -4,12 +4,17 @@
+ //! independent function pass as well.
+ use super::*;
+ 
++pub(super) struct CallWorld {
++    environment: EvalEnv,
++    boundary: trait_members::Boundary,
++}
++
+ impl CheckedContext {
+     #[allow(clippy::too_many_arguments)]
+-    pub(super) fn call_worlds(&self,module:&TypedModule,function:FunctionId,definition:SemanticDefinitionId,expected:&EvalEnv,caller:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
++    pub(super) fn call_worlds(&self,module:&TypedModule,function:FunctionId,definition:SemanticDefinitionId,expected:&EvalEnv,caller:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<CallWorld>> {
+         let program=module.semantic.as_ref().ok_or_else(||bad("actual Call lacks its original instance directory"))?;
+         b.spend(program.instances.len())?;
+-        let mut matched=false;
++        let mut matched=Vec::new();
+         for instance in program.instances.iter().filter(|row|row.definition==definition&&matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==function)) {
+             // An actual lexical ancestor is an identity, not a same-typed
+             // substitute. Witness frames name independently selected impl
+@@ -39,13 +44,40 @@ impl CheckedContext {
+             if !shape{continue;}
+             let mut boundary=trait_members::Boundary::default();
+             for(a,z)in actual.lexical.iter().zip(&expected.lexical){
++                boundary.scope(a.key,z.key,b)?;
+                 for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){boundary.actual(self,caller,a,z,b)?;}
+                 if let(Some(a),Some(z))=(&a.self_type,&z.self_type){boundary.value(self,caller,a,z,b)?;}
+             }
+-            matched=true;
++            b.spend(1)?;
++            matched.push(CallWorld{environment:actual,boundary});
++        }
++        if matched.is_empty(){return Err(bad("actual Call has no complete source instance in its exact lexical world"));}
++        Ok(matched)
++    }
++
++    // Construct the complete callee domain while original Life formals are
++    // still rigid. Only then apply this occurrence's outside images. Rebuilding
++    // P<A,B> after A and B both map to a would lose its original N2 boundary.
++    pub(super) fn world_signature(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,worlds:Vec<CallWorld>,caller:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
++        let mut selected:Option<CheckedSignature>=None;
++        for mut world in worlds{
++            let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;
++            self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
++            for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;}}
++            let mut signature=self.evaluate_signature(module,recipe,&world.environment,external,active,b)?;
++            for(parameter,_)in &mut signature.parameters{*parameter=world.boundary.project_type(self,caller,parameter,b)?;}
++            signature.result=world.boundary.project_type(self,caller,&signature.result,b)?;
++            if let Some(expected)=&selected{
++                if signature.bound.len()!=expected.bound.len()||signature.invocation.len()!=expected.invocation.len()||signature.call_kind!=expected.call_kind||signature.result_mode!=expected.result_mode||signature.parameters.len()!=expected.parameters.len(){return Err(bad("compatible Call worlds disagree on their complete original signature"));}
++                let mut alpha=trait_members::Boundary::default();
++                for(a,z)in signature.bound.iter().zip(&expected.bound).chain(signature.invocation.iter().zip(&expected.invocation)){alpha.class(self,caller,a,z,b)?;}
++                for(parameter,_)in &mut signature.parameters{*parameter=alpha.project_type(self,caller,parameter,b)?;}
++                signature.result=alpha.project_type(self,caller,&signature.result,b)?;
++                for((actual,mode),(expected,expected_mode))in signature.parameters.iter().zip(&expected.parameters){if mode!=expected_mode||!self.same_type(caller,actual,expected,b)?{return Err(unsupported("compatible Call worlds retain distinct original parameter domains",None));}}
++                if !self.same_type(caller,&signature.result,&expected.result,b)?{return Err(unsupported("compatible Call worlds retain distinct original result domains",None));}
++            }else{selected=Some(signature);}
+         }
+-        if !matched{return Err(bad("actual Call has no complete source instance in its exact lexical world"));}
+-        Ok(())
++        selected.ok_or_else(||bad("Call signature has no independently selected original world"))
+     }
+ }
+ fn same_value_shape(a:&CheckedType,z:&CheckedType)->bool {
