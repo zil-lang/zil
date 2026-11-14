@@ -59,9 +59,13 @@ pub(super) fn abi(
             }
             Ok(())
         }
-        _ => Err(bad(
-            "actual call opcode changes the callee's fixed original ABI convention",
-        )),
+        _ => {
+            world.pay(target.name.len().saturating_add(1))?;
+            let mut diagnostic =
+                bad("actual call opcode changes the callee's fixed original ABI convention");
+            diagnostic.notes.push(format!("caller original definition {:?}; actual point {:?}; target {:?} {}; actual target convention {:?}; foreign {}; call opcode {:?}", original.id, world.current_point, target.id, target.name, target.call_kind, target.foreign.is_some(), std::mem::discriminant(instruction)));
+            Err(diagnostic)
+        }
     }
 }
 

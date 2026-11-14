@@ -138,6 +138,32 @@ pub(crate) fn prepare(
     ledger.original.install(context)?;
     Ok(())
 }
+/// Select the instruction convention from this actual target's authentic
+/// emitter frame, never a static name or a concrete body's apparent effect.
+pub(crate) fn callee_kind(
+    ledger: &Ledger,
+    actual: FunctionId,
+    left: &mut usize,
+) -> R<Option<CallKind>> {
+    let Some(choices) = ledger.fixed_abis.as_ref() else {
+        return Ok(None);
+    };
+    pay(
+        left,
+        ledger.frames.len().saturating_add(1).ilog2() as usize + 1,
+    )?;
+    let origin = ledger
+        .frames
+        .get(&actual)
+        .ok_or_else(|| bad("call target has no exact emitted original ABI frame"))?
+        .origin;
+    pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
+    choices
+        .get(&(origin.module, origin.creator, origin.closure))
+        .copied()
+        .map(Some)
+        .ok_or_else(|| bad("call target has no checked fixed original ABI convention"))
+}
 pub(crate) fn selected(
     ledger: &Ledger,
     function: &CoreFunction,

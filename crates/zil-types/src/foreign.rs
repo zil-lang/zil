@@ -285,7 +285,7 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn direct_call(
-        &self,
+        &mut self,
         signature: &Signature,
         arguments: Vec<ValueId>,
         span: Span,
@@ -318,9 +318,24 @@ impl Builder<'_, '_> {
                 region,
             })
         } else {
-            Ok(InstructionKind::Call {
-                function: signature.concrete_id(span)?,
-                arguments,
+            let function = signature.concrete_id(span)?;
+            let before = self.closures.remaining_work();
+            let mut remaining = before;
+            let kind = semantics::abi::callee_kind(
+                &self.closures.semantic_emission,
+                function,
+                &mut remaining,
+            )?;
+            self.closures.snapshot(before - remaining, span)?;
+            Ok(match kind {
+                Some(CallKind::Suspend) => InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                },
+                Some(CallKind::Direct) | None => InstructionKind::Call {
+                    function,
+                    arguments,
+                },
             })
         }
     }
