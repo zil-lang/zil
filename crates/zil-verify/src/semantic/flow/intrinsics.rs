@@ -11,7 +11,7 @@ impl CheckedContext {
         let site=candidates.next().ok_or_else(||bad("actual intrinsic has no original exact Call site"))?;
         if candidates.next().is_some(){return Err(bad("actual intrinsic has several original Call claims"));}
         let SemanticSiteAction::BodyCall{actuals}=&site.action else{unreachable!()};
-        if !actuals.is_empty(){return Err(bad("nongeneric closed intrinsic adds mixed actuals"));}
+        if !actuals.is_empty(){return Err(unsupported("operational mixed actual vector requires its complete original closed-scheme substitution",None));}
         let use_=self.original.borrow().as_ref().ok_or_else(||bad("actual intrinsic lacks universal original proof"))?.intrinsic(caller.definition,site.recipe,b)?;
         if Intrinsic::actual(&instruction.kind)!=Some(use_.kind){return Err(bad("actual opcode differs from its independently resolved original intrinsic"));}
         if let Intrinsic::Convert(target)=use_.kind{
@@ -24,6 +24,7 @@ impl CheckedContext {
             if f.call_kind!=CallKind::Suspend{return Err(bad("actual task_yield changes its fixed Suspend convention"));}
             return Ok(Some(atomic(&Type::Unit,b)?));
         }
+        if !matches!(use_.kind,Intrinsic::BytesNew|Intrinsic::BytesReserve|Intrinsic::BytesPush|Intrinsic::BytesTruncate|Intrinsic::BytesLen|Intrinsic::BytesCapacity){return self.actual_operation(module,caller,f,instruction,use_,values,environment,active,b).map(Some);}
         let actual=crate::byte_buffers::check_instruction(module,f,instruction,b)?.ok_or_else(||bad("byte intrinsic has no checked result type"))?;
         let buffer=match &instruction.kind{
             InstructionKind::ByteBufferReserve{buffer,capacity}|InstructionKind::ByteBufferTruncate{buffer,length:capacity}=>{if value_at(values,*capacity)?.ty!=Type::I64{return Err(bad("actual byte length/capacity has another carrier"));}Some(*buffer)},
@@ -51,7 +52,7 @@ impl CheckedContext {
         if expected.ty!=actual||!expected.classes.is_empty()||!expected.statics.is_empty(){return Err(bad("closed byte result differs from its original complete scheme"));}
         Ok(Some(expected))
     }
-    fn intrinsic_buffer_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,source:BufferSource,b:&mut Budget)->Check<()> {
+    pub(super) fn intrinsic_buffer_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,source:BufferSource,b:&mut Budget)->Check<()> {
         let local=match source{
             BufferSource::Parameter{definition,ordinal}=>{
                 if definition!=caller.definition{return Err(bad("intrinsic description uses another original parameter scope"));}
@@ -74,11 +75,15 @@ impl CheckedContext {
                 local.ok_or_else(||bad("intrinsic original buffer has no exact actual local declaration"))?
             },
         };
-        let mut producer=None;
-        for block in &f.blocks{b.spend(block.instructions.len())?;for row in &block.instructions{if row.result==Some(value)&&producer.replace(row).is_some(){return Err(bad("intrinsic buffer has several actual SSA definitions"));}}}
-        match &producer.ok_or_else(||bad("intrinsic buffer has no defining instruction"))?.kind{
-            InstructionKind::DescribeLocal{local:actual}|InstructionKind::Load(actual) if *actual==local=>Ok(()),
-            _=>Err(bad("intrinsic descriptor selects another original buffer value")),
+        let mut value=value;let mut seen=std::collections::BTreeSet::new();
+        loop{b.spend(1)?;if !seen.insert(value){return Err(bad("operational owner reborrow has a producer cycle"));}
+            let mut producer=None;
+            for block in &f.blocks{b.spend(block.instructions.len())?;for row in &block.instructions{if row.result==Some(value)&&producer.replace(row).is_some(){return Err(bad("intrinsic buffer has several actual SSA definitions"));}}}
+            match &producer.ok_or_else(||bad("intrinsic buffer has no defining instruction"))?.kind{
+                InstructionKind::DescribeLocal{local:actual}|InstructionKind::Load(actual)|InstructionKind::TakeLocal{local:actual}|InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual} if *actual==local=>return Ok(()),
+                InstructionKind::ReborrowAddress{address,..}=>value=*address,
+                _=>return Err(bad("intrinsic descriptor selects another original buffer value")),
+            }
         }
     }
 }

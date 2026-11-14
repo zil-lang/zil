@@ -34,11 +34,15 @@ impl CheckedOriginal {
     }
     pub(super) fn typed_external(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,function:FunctionId,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("external original ABI selects an absent actual function"))?;
+        let definition=context.definition(module,prototype.environment.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{foreign,resume_bound,..}=&definition.body else{return Err(bad("external ABI lacks its original header"));};
+        if f.foreign!=*foreign||f.resume_bound!=*resume_bound{return Err(bad("actual external provider promise differs from its original declaration"));}
         if f.foreign.is_none()||f.call_kind!=prototype.call_kind||f.parameters.len()!=prototype.parameters.len()||f.result_mode!=prototype.result_mode{return Err(bad("original external declaration differs from its exact actual ABI"));}
         for (local,expected)in f.parameters.iter().zip(&prototype.parameters){let actual=f.locals.get(local.0 as usize).ok_or_else(||bad("external parameter local is absent"))?;if !self.core_abi_type(module,context,expected,&actual.ty,&prototype.environment,active,b)?{return Err(bad("original external parameter differs from its full actual C ABI"));}}
         if !self.core_abi_type(module,context,&prototype.result,&f.return_type,&prototype.environment,active,b)?{return Err(bad("original external result differs from its actual complete C ABI"));}Ok(())
     }
     pub(super) fn frozen_external(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,source:&super::super::frozen::FrozenFunction,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let definition=context.definition(module,prototype.environment.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{foreign,resume_bound,protocol_contracts,..}=&definition.body else{return Err(bad("frozen external ABI lacks its original header"));};
+        if source.foreign!=*foreign||source.resume_bound!=*resume_bound||source.protocol_contracts!=*protocol_contracts{return Err(bad("frozen Core external promises differ from their original complete header"));}
         if source.foreign.is_none()||source.parameters.len()!=prototype.parameters.len()||source.result_mode!=prototype.result_mode{return Err(bad("frozen original external declaration lacks its actual complete Core ABI"));}
         for((mode,actual),(expected,expected_mode))in source.parameters.iter().zip(prototype.parameters.iter().zip(&prototype.modes)){
             if mode!=expected_mode||!self.core_abi_type(module,context,expected,actual,&prototype.environment,active,b)?{return Err(bad("frozen external original parameter differs from its real Core ABI type/mode"));}

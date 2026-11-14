@@ -27,6 +27,9 @@ mod thread_graph;
 mod resources;
 mod sealed;
 mod invocation;
+mod operations;
+mod elements;
+mod heads;
 pub(super) mod intrinsics;
 use usage::{Binder,Place,Uses};
 use terms::*;
@@ -55,6 +58,7 @@ pub(super) struct CheckedOriginal {
     free_values:BTreeMap<SemanticDefinitionId,BTreeMap<String,Binding>>,
     uses:BTreeMap<SemanticDefinitionId,Uses>,
     used:BTreeMap<SemanticDefinitionId,BTreeSet<Binder>>,
+    element_obligations:Vec<(Ty,Env)>,
     copy_obligations:Vec<(Ty,Env)>,
     written:BTreeMap<SemanticDefinitionId,BTreeSet<Binder>>,
     live:BTreeMap<SemanticDefinitionId,BTreeMap<Binder,Binding>>,
@@ -68,6 +72,8 @@ pub(super) struct CheckedOriginal {
     in_defer:BTreeMap<SemanticDefinitionId,usize>,
     created:BTreeSet<(SemanticDefinitionId,NodeId)>,
     created_bindings:BTreeSet<Binder>,
+    creation_tainted:BTreeSet<Binder>,
+    creation_returns:Vec<Binder>,
     executing_effects:BTreeMap<SemanticDefinitionId,CallKind>,
     intrinsic_calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),intrinsics::Use>,
 }
@@ -86,9 +92,11 @@ impl CheckedOriginal {
         for definition in pending {result.definition(module,context,definition.id,active,b)?;}
         let obligations=std::mem::take(&mut result.copy_obligations);
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
+        for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
         result.current=None;
         result.check_cleanups(module,context,active,b)?;
         result.check_effects(b)?;
+        for binding in &result.creation_returns{b.spend(1)?;if result.creation_tainted.contains(binding){return Err(bad("original create result has a reassigned or loop-carried unproved lineage"));}}
         Ok(result)
     }
     fn fresh(&mut self,b:&mut Budget)->Check<Ty>{b.spend(1)?;let id=self.next_inference;self.next_inference=id.checked_add(1).ok_or_else(||limit("original body inference identity exhausted"))?;Ok(Ty::Infer(id))}

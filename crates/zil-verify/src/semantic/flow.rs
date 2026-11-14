@@ -3,6 +3,9 @@
 use super::*;
 use std::collections::VecDeque;
 mod intrinsics;
+mod capture_values;
+mod closed_values;
+mod operations;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -14,7 +17,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     crate::foreign::check_declarations(module,b)?;
     let mut active=ActiveQueries::new();
     let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
-    if frozen.is_some(){original.frozen_schemes(module,&context,&mut active,b)?;}
+    original.frozen_schemes(module,&context,&mut active,b)?;
     *context.original.borrow_mut()=Some(original);
     if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut external=dynamic_witness::semantic_external::Proofs::default();
@@ -119,7 +122,8 @@ impl CheckedContext {
     fn function(&self,module:&TypedModule,instance:&SemanticInstance,function:FunctionId,signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
         let original_definition=self.definition(module,instance.definition,b)?;
-        let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,..}=&original_definition.body else{return Err(bad("actual protocol bridge lacks its original body"));};
+        let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,foreign,resume_bound,..}=&original_definition.body else{return Err(bad("actual protocol bridge lacks its original body"));};
+        if f.foreign!=*foreign||f.resume_bound!=*resume_bound{return Err(bad("actual external/resume header differs from its complete original declaration"));}
         if f.protocol_contracts!=*protocol_contracts{return Err(bad("actual phase contract differs from the complete original protocol declaration"));}
         if f.parameters.len()!=signature.parameters.len()||f.return_type!=signature.result.ty||f.result_mode!=signature.result_mode||f.call_kind!=signature.call_kind {return Err(bad("actual function ABI differs from the original complete signature"));}
         let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
@@ -183,18 +187,19 @@ impl CheckedContext {
                     }
                     InstructionKind::DescribeLocal{local}=>{
                         let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual description has no initialized owner"))?;
-                        if owner.ty!=Type::Managed(Box::new(Type::ByteBuffer))||!owner.classes.is_empty()||!owner.statics.is_empty(){return Err(unsupported("actual description requires its complete qualified owner domain",Some(instruction.span)));}
-                        crate::byte_buffers::check_carrier(module,&owner.ty,Some(instruction.span),b)?;
+                        if !owner.classes.is_empty()||!owner.statics.is_empty(){return Err(unsupported("actual description requires its complete qualified owner domain",Some(instruction.span)));}
+                        let Type::Managed(payload)=&owner.ty else{return Err(bad("actual description has no initialized complete owning carrier"));};
+                        crate::resources::check_type_for(module,&owner.ty,Some(instruction.span),b)?;
+                        let child=self.closed_value(module,payload,b)?;
                         let result=instruction.result.ok_or_else(||bad("actual description has no result"))?;
-                        let child=CheckedType{ty:Type::ByteBuffer,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
                         let mode=StoredBorrowMode::ReadOnlyDescription;
                         let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
                         Some(dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},&[child],active,b)?)
                     }
                     InstructionKind::DropManaged{local}=>{
                         if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_ref){
-                            if value.ty!=Type::Managed(Box::new(Type::ByteBuffer))||!value.classes.is_empty()||!value.statics.is_empty(){return Err(unsupported("actual owner cleanup requires its complete qualified debt transfer",Some(instruction.span)));}
-                            crate::byte_buffers::check_carrier(module,&value.ty,Some(instruction.span),b)?;
+                            if !value.classes.is_empty()||!value.statics.is_empty(){return Err(unsupported("actual owner cleanup requires its complete qualified debt transfer",Some(instruction.span)));}
+                            crate::resources::check_type_for(module,&value.ty,Some(instruction.span),b)?;
                         }
                         state.locals[local.0 as usize]=None;None
                     }
@@ -202,7 +207,7 @@ impl CheckedContext {
                         if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?}
                         else{let source=&value_at(&values,*value)?.ty;if (!source.is_integer()&&!source.is_float())||(!target.is_integer()&&!target.is_float()){return Err(bad("numeric operation has a nonnumeric endpoint"));}Some(atomic(target,b)?)}
                     }
-                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)
@@ -240,7 +245,8 @@ impl CheckedContext {
                         for (field,expected) in fields.iter().zip(expected_fields) {
                             let actual=value_at(&values,*field)?;
                             if actual.ty!=*expected {return Err(bad("actual construction field differs from its original complete type"));}
-                            if !expected.is_b0_scalar() {return Err(unsupported("semantic construction requires complete child-class occurrence substitution",Some(instruction.span)));}
+                            if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("semantic construction requires complete child-class occurrence substitution",Some(instruction.span)));}
+                            self.closed_value(module,expected,b)?;
                         }
                         if let Some(result)=instruction.result {self.record(scope,OperandKey::Value(result),&value,b)?;}
                         if let SemanticSiteAction::Construct{value:claim,..}=&site.action {self.claim(module,claim,&value,&environment,b)?;}
@@ -374,6 +380,8 @@ impl CheckedContext {
                 // the creator activation with the child's persistent domain.
                 capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
+            }else if value.classes.is_empty()&&value.statics.is_empty(){
+                self.classfree_capture(module,creator,child,index as u32,*capture,b)?;
             }else{return Err(unsupported("actual capture needs its complete original binding and full class inventory",None));}
             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;
         }
@@ -536,9 +544,8 @@ impl CheckedContext {
         let mut definitions=module.closures.iter().filter(|row|row.id==id);
         let definition=definitions.next().ok_or_else(||bad("actual callable definition is absent"))?;
         if definitions.next().is_some()||definition.parameters.len()!=arguments.len(){return Err(bad("actual callable identity or arity differs"));}
-        if !definition.result.is_b0_scalar()||definition.parameters.iter().any(|ty|!ty.is_b0_scalar()){return Err(unsupported("actual CallableCall requires its complete per-role borrowed/qualified result proof",None));}
-        for (argument,expected) in arguments.iter().zip(&definition.parameters){if value_at(values,*argument)?.ty!=*expected{return Err(bad("actual callable argument has a different complete scalar type"));}}
-        if definition.result==Type::Unit{Ok(None)}else{Ok(Some(atomic(&definition.result,b)?))}
+        for (argument,expected) in arguments.iter().zip(&definition.parameters){let actual=value_at(values,*argument)?;if actual.ty!=*expected{return Err(bad("actual callable argument has a different complete type"));}if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("actual CallableCall requires complete per-role borrowed/qualified arguments",None));}self.closed_value(module,expected,b)?;}
+        if definition.result==Type::Unit{Ok(None)}else{Ok(Some(self.closed_value(module,&definition.result,b)?))}
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;
@@ -666,7 +673,7 @@ impl CheckedContext {
         b.spend(path.len().saturating_add(1))?;
         Ok(Some(IntrinsicOrigin::Existing{scope,operand,path:path.clone(),class:*class}))
     }
-    fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+    pub(super) fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let (ty,life,expressions)=resolved(claim)?;
         let mut classes=Vec::new();for expression in expressions {classes.push(self.class(module,expression,environment,b)?);}
         let mut actual=self.checked_value(module,ty,life,classes,b)?;

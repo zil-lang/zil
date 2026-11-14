@@ -55,24 +55,28 @@ impl CheckedOriginal {
             _=>return Err(bad("resource payload has a nonresource passing mode")),
         })
     }
-    pub(super) fn return_resource(&self,expression:Option<&SemanticOriginalExpr>,actual:&Ty,env:&Env,b:&mut Budget)->Check<()> {
+    pub(super) fn return_resource(&mut self,expression:Option<&SemanticOriginalExpr>,actual:&Ty,env:&Env,b:&mut Budget)->Check<()> {
         let prototype=self.prototypes.get(&env.current()?).ok_or_else(||bad("resource Return has no original signature"))?;
         let ty=self.resolved(actual,b)?;
         let resource=matches!(ty,Ty::Managed(_));
         if !resource{return Ok(());}
         let expression=expression.ok_or_else(||bad("resource Return lacks an operand"))?;
         match prototype.result_mode{
-            PassingMode::Create=>if self.created.contains(&(env.current()?,expression.id)){Ok(())}else{Err(bad("original create result transfers an incoming or unproved resource lineage"))},
+            PassingMode::Create=>{
+                if !self.created.contains(&(env.current()?,expression.id)){return Err(bad("original create result transfers an incoming or unproved resource lineage"));}
+                let mut source=expression;loop{b.spend(1)?;match &source.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:inner}=>source=inner,CoreExprKind::Name(_)=>{if let Some(binding)=self.value_bindings.get(&(env.current()?,source.id)){self.creation_returns.push(binding.clone());}break;},_=>break,}}
+                Ok(())
+            },
             PassingMode::Give=>if matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){Ok(())}else{Err(bad("original give result omits explicit ownership transfer"))},
             _=>Err(bad("original resource Return lacks its owning result mode")),
         }
     }
     pub(super) fn creation(&self,definition:SemanticDefinitionId,expression:&SemanticOriginalExpr,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<bool>{
         b.spend(1)?;
-        if self.created.contains(&(definition,expression.id)){return Ok(true);}
+        if !matches!(expression.kind,CoreExprKind::Name(_))&&self.created.contains(&(definition,expression.id)){return Ok(true);}
         Ok(match &expression.kind{
-            CoreExprKind::Name(name)=>bindings.get(name).is_some_and(|row|self.created_bindings.contains(&row.identity)),
-            CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:inner}=>self.creation(definition,inner,bindings,b)?,
+            CoreExprKind::Name(name)=>bindings.get(name).is_some_and(|row|self.created_bindings.contains(&row.identity)&&!self.creation_tainted.contains(&row.identity)),
+            CoreExprKind::Group(inner)|CoreExprKind::Try(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:inner}=>self.creation(definition,inner,bindings,b)?,
             _=>false,
         })
     }

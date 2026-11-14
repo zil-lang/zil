@@ -2,6 +2,11 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn capture_read_source(&self,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
+        b.spend(1)?;let Some(Binder::Capture{definition,source})=self.value_bindings.get(&(child,node)) else{return Err(bad("actual capture read has no original sealed free binder"));};
+        if *definition!=child{return Err(bad("actual capture read selects another original child"));}
+        match source.as_ref(){Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested captured owner needs its complete original parent capture identity",None))}
+    }
     pub(in crate::semantic) fn closure_creation(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>> {
         if !matches!(self.original_type(definition,source,b)?,Ty::Closure(..)){return Ok(None);}
         let index=index::build(module,b)?;

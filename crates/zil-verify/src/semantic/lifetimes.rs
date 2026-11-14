@@ -42,7 +42,7 @@ impl CheckedContext {
         b.spend(environment.images.len())?;
         Ok(environment.images.iter().find(|(source,_)|source==&key).map_or(key.clone(),|(_,image)|image.clone()))
     }
-    fn recipe_operand(&self, environment:&EvalEnv, operand:&SemanticRecipeOperand,b:&mut Budget)->Check<(ScopeKey,OperandKey)> {
+    pub(super) fn recipe_operand(&self, environment:&EvalEnv, operand:&SemanticRecipeOperand,b:&mut Budget)->Check<(ScopeKey,OperandKey)> {
         let current = self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
         Ok(match operand {
             SemanticRecipeOperand::TypeFormal(reference) => {

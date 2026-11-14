@@ -13,6 +13,8 @@ pub(super) struct FrozenFunction {
     pub(super) result:Type,
     pub(super) result_mode:PassingMode,
     pub(super) foreign:Option<ForeignDeclaration>,
+    pub(super) resume_bound:TaskResumeBound,
+    pub(super) protocol_contracts:Vec<FunctionProtocolContract>,
 }
 pub(crate) struct FrozenContext<'s> {
     source:&'s CoreProgram,
@@ -93,7 +95,8 @@ impl<'s> FrozenContext<'s> {
             if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Core{module,function})=instance.target {
                 let source=*self.core.get(&(module,function)).ok_or_else(||bad("frozen function lookup is absent"))?;
                 b.spend(source.parameters.len())?;
-                functions.insert(instance.id,FrozenFunction{module,id:function,parameters:source.parameters.iter().map(|row|(row.mode,row.ty.clone())).collect(),result:source.return_type.clone(),result_mode:source.result_mode,foreign:source.foreign.clone()});
+                for contract in &source.protocol_contracts{b.spend(contract.entry.len().saturating_add(contract.exits.len()).saturating_add(1))?;for row in &contract.exits{b.spend(row.output.len())?;}}
+                functions.insert(instance.id,FrozenFunction{module,id:function,parameters:source.parameters.iter().map(|row|(row.mode,row.ty.clone())).collect(),result:source.return_type.clone(),result_mode:source.result_mode,foreign:source.foreign.clone(),resume_bound:source.resume_bound,protocol_contracts:source.protocol_contracts.clone()});
             }
         }Ok(functions)
     }

@@ -263,6 +263,25 @@ impl CheckedContext {
                 value.life.binder_count = value.classes.len() as u32;
                 Ok(value)
             }
+            SemanticTypeRecipe::Task{result,retained}|SemanticTypeRecipe::MutexGuard{payload:result,retained}=>{
+                let child=self.evaluate_type(module,result,environment,external,active,b)?;
+                let checked=self.retained_shape(module,retained,environment,external,active,b)?;
+                if !child.statics.is_empty(){return Err(unsupported("opaque result/payload retains unproved complete static occurrences",None));}
+                if matches!(recipe,SemanticTypeRecipe::Task{..}){
+                    for (class,(key,origin)) in child.classes.iter().zip(&child.origins).enumerate(){
+                        b.spend(checked.shape.retained.len().saturating_add(1))?;
+                        let mut rows=checked.shape.retained.iter().filter(|row|row.path==[LifeTypeProjection::Result]&&row.class==class as u32);
+                        let row=rows.next().ok_or_else(||bad("Task directory omits a complete result class/phantom occurrence"))?;
+                        if rows.next().is_some(){return Err(bad("Task result class occurrence is duplicated"));}
+                        let actual=checked.classes.get(row.binder as usize).ok_or_else(||bad("Task result class maps outside its complete domain"))?;
+                        let actual_origin=checked.origins.get(row.binder as usize).ok_or_else(||bad("Task result intrinsic origin is absent"))?;
+                        if !self.same(environment,key,actual,b)?||!self.same_origin(environment,origin,actual_origin,b)?{return Err(bad("Task result class changes its pre-image identity or outside image"));}
+                    }
+                }else if !child.classes.is_empty(){return Err(unsupported("guard payload requires its complete retained child domain and manager relation",None));}
+                let ty=if matches!(recipe,SemanticTypeRecipe::Task{..}){Type::Task{result:Box::new(child.ty),retained_life:checked.shape}}else{Type::MutexGuard{payload:Box::new(child.ty),retained_life:checked.shape}};
+                let life=StorageLifeShape{binder_count:checked.classes.len() as u32,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+                let mut value=self.checked_value(module,&ty,&life,checked.classes,b)?;value.origins=checked.origins;Ok(value)
+            }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.evaluate_type(module, error, environment, external, active, b)?;
                 let result =

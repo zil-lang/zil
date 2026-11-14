@@ -13,10 +13,12 @@ impl CheckedOriginal {
         b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;
         if candidates!=1{return Err(bad("original Call has no unique exact operation site"));}
         if let Some(intrinsic)=self.intrinsic_name(module,context,base,env,bindings,b)? {
-            if written_types.is_some()||written_mixed.is_some(){return Err(bad("registered intrinsic does not accept written mixed arguments"));}
+            let mut written=Vec::new();
+            if let Some(types)=written_types{for ty in types{written.push(Arg::Type(self.ty(module,context,ty,env,active,b)?));}}
+            if let Some(mixed)=written_mixed{for arg in mixed{match arg{CoreGenericArgument::Type(ty)=>written.push(Arg::Type(self.ty(module,context,ty,env,active,b)?)),_=>return Err(unsupported("registered mixed Const/Life arguments need their exact closed scheme",None))}}}
             let site=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).find(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall)).ok_or_else(||bad("registered intrinsic has another original call role"))?;
-            let result=self.intrinsic_call(module,context,intrinsic,site.id,arguments,env,bindings,active,b)?;
-            if intrinsic==intrinsics::Intrinsic::BytesNew{b.spend(1)?;self.created.insert((env.current()?,call.id));}
+            let result=self.intrinsic_call(module,context,intrinsic,site.id,&written,expected,arguments,env,bindings,active,b)?;
+            if matches!(intrinsic,intrinsics::Intrinsic::BytesNew|intrinsics::Intrinsic::StoreNew|intrinsics::Intrinsic::AsyncStart|intrinsics::Intrinsic::MutexCreate|intrinsics::Intrinsic::TaskCreate){b.spend(1)?;self.created.insert((env.current()?,call.id));}
             if let Some(expected)=expected{self.unify(&result,expected,b)?;}
             return Ok(result);
         }
@@ -85,7 +87,7 @@ impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     fn invoke(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{self.execute_effect(env,prototype.call_kind,b)?;if prototype.parameters.len()!=arguments.len(){return Err(bad("original Callable arity differs"));}for((argument,expected),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,expected,*mode,env,bindings,active,b)?;self.unify(&actual,expected,b)?;}Ok(prototype.result.clone())}
     pub(super) fn same_argument(&mut self,left:&Arg,right:&Arg,b:&mut Budget)->Check<()>{match(left,right){(Arg::Type(left),Arg::Type(right))=>self.unify(left,right,b),(Arg::Life(left),Arg::Life(right))=>self.unify_life(left,right,b),_ if left==right=>Ok(()),_=>Err(bad("original Call argument differs from its solved symbolic identity/carrier"))}}
-    fn callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
+    pub(super) fn callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
         let mut result=None;
         for(index,frame)in env.lexical.iter().enumerate(){let definition=context.definition(module,frame.definition,b)?;let mut lexical=env.clone();lexical.lexical=lexical.lexical[index..].to_vec();let mut requirements=definition.requirements.iter().collect::<Vec<_>>();for formal in &definition.parameters{if let SemanticFormal::Type{requirements:rows}=formal{requirements.extend(rows);}}
             for requirement in requirements{if let SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=requirement{let receiver=self.ty(module,context,receiver,&lexical,active,b)?;if self.same(&receiver,ty,b)?{let mut prototype=self.signature(module,context,signature,&lexical,active,b)?;prototype.callable_kind=Some(*kind);if let Some(previous)=&result{let previous:&Prototype=previous;if previous.parameters.len()!=prototype.parameters.len()||previous.modes!=prototype.modes||previous.result_mode!=prototype.result_mode||previous.call_kind!=prototype.call_kind||previous.bound_lifetimes!=prototype.bound_lifetimes||previous.invocation_lifetimes!=prototype.invocation_lifetimes{return Err(unsupported("original Callable overloads need exact role selection",None));}for(a,c)in previous.parameters.iter().zip(&prototype.parameters){if !self.same(a,c,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}if !self.same(&previous.result,&prototype.result,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}result=Some(prototype);}}}
@@ -118,7 +120,7 @@ impl CheckedOriginal {
             DynStructuralBound::Copy=>self.is_copy(module,context,ty,caller,active,b)?,
             DynStructuralBound::SyncDrop=>self.sync_drop(module,context,ty,caller,active,b)?,
             DynStructuralBound::Value=>self.value_type(module,context,ty,caller,active,b)?,
-            DynStructuralBound::StoreElement=>matches!(self.resolved(ty,b)?,Ty::Atom(ref ty)if ty.is_b0_scalar()),
+            DynStructuralBound::StoreElement=>self.store_element(module,context,ty,caller,active,b)?,
         };
         if proved{Ok(())}else{Err(unsupported("original caller lacks a complete structural/cleanup obligation proof",None))}
     }
