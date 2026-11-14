@@ -2,7 +2,7 @@
 //! Physical equality never selects a declaration or supplies a lifetime root.
 use super::*;
 
-fn frame(definition: SemanticDefinitionId, formals: Vec<Term>) -> Frame {
+pub(super) fn frame(definition: SemanticDefinitionId, formals: Vec<Term>) -> Frame {
     Frame {
         definition,
         formals,
@@ -131,7 +131,17 @@ impl Solver<'_, '_> {
                 }
             }
         }
-        for field in &fields {
+        for (index, field) in fields.iter().enumerate() {
+            Self::push(
+                &mut self.field_needs,
+                (
+                    *field,
+                    definition,
+                    u32::try_from(index)
+                        .map_err(|_| resource("original field ordinal overflow"))?,
+                ),
+                b,
+            )?;
             Self::push(
                 &mut self.needs,
                 Need {
@@ -717,9 +727,15 @@ pub(in crate::semantic) fn predicate_actual(
     match ty {
         Type::Tuple(fields) => {
             if matches!(predicate, Predicate::StoreElement) {
-                return Err(unknown(
-                    "product StoreElement needs complete actual layout qualification",
-                ));
+                for field in fields {
+                    if !predicate_actual(field, Predicate::Value, inventory, b, depth + 1)?
+                        || !predicate_actual(field, Predicate::SyncDrop, inventory, b, depth + 1)?
+                    {
+                        return Ok(false);
+                    }
+                }
+                crate::pod_store::semantic_element(inventory.module, complete, b)?;
+                return Ok(true);
             }
             for field in fields {
                 if !predicate_actual(field, predicate, inventory, b, depth + 1)? {
@@ -735,7 +751,63 @@ pub(in crate::semantic) fn predicate_actual(
                 inventory.limits,
                 b,
             )?;
+            let mut declaration = None;
+            for instance in &inventory.module.life_instances {
+                crate::dyn_metadata::ty(&instance.ty, b)?;
+                crate::dyn_metadata::ty(complete, b)?;
+                if instance.ty == *complete && declaration.replace(instance.declaration).is_some() {
+                    return Err(fail(
+                        "actual nominal predicate has competing exact identities",
+                    ));
+                }
+            }
+            let declaration = declaration
+                .ok_or_else(|| fail("actual nominal predicate has no original identity"))?;
+            let mut owner = None;
+            for definition in inventory.definitions.values() {
+                b.spend(1, WORK)?;
+                if let SemanticDefinitionBody::Nominal {
+                    declaration: id,
+                    kind,
+                    ..
+                } = &definition.body
+                    && *id == declaration
+                {
+                    if *kind == LifeNominalKind::Resource {
+                        return Ok(false);
+                    }
+                    if owner.replace(definition.id).is_some() {
+                        return Err(fail(
+                            "actual nominal predicate has ambiguous original definitions",
+                        ));
+                    }
+                }
+            }
+            resources::ordinary_drop_absent(
+                owner.ok_or_else(|| {
+                    fail("actual nominal predicate has no complete original declaration")
+                })?,
+                inventory,
+                b,
+            )?;
             if matches!(predicate, Predicate::StoreElement) {
+                if matches!(ty, Type::Record { .. }) {
+                    for (_, field) in fields {
+                        if !predicate_actual(field, Predicate::Value, inventory, b, depth + 1)?
+                            || !predicate_actual(
+                                field,
+                                Predicate::SyncDrop,
+                                inventory,
+                                b,
+                                depth + 1,
+                            )?
+                        {
+                            return Ok(false);
+                        }
+                    }
+                    crate::pod_store::semantic_element(inventory.module, complete, b)?;
+                    return Ok(true);
+                }
                 return Err(unknown(
                     "nominal StoreElement needs complete actual layout qualification",
                 ));
@@ -770,6 +842,19 @@ pub(in crate::semantic) fn predicate_actual(
                 }
             }
             Ok(true)
+        }
+        Type::Array { element, .. } => {
+            if matches!(predicate, Predicate::StoreElement) {
+                if !predicate_actual(element, Predicate::Value, inventory, b, depth + 1)?
+                    || !predicate_actual(element, Predicate::SyncDrop, inventory, b, depth + 1)?
+                {
+                    return Ok(false);
+                }
+                crate::pod_store::semantic_element(inventory.module, complete, b)?;
+                Ok(true)
+            } else {
+                predicate_actual(element, predicate, inventory, b, depth + 1)
+            }
         }
         _ => Err(unknown(
             "structural predicate needs its complete actual ownership and cleanup proof",

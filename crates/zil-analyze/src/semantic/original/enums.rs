@@ -197,25 +197,80 @@ impl Solver<'_, '_> {
                     return Ok(None);
                 }
                 let mut actuals = Vec::new();
-                for formal in &definition.parameters {
-                    let actual = match formal {
-                        SemanticFormal::Type { .. } => self.var(b)?,
-                        SemanticFormal::Lifetime => self.term(Kind::LifeVariable(None), b)?,
-                        SemanticFormal::Const { .. } => {
+                let (types, written) = match &object.kind {
+                    CoreExprKind::TypeApply { type_arguments, .. } => {
+                        (Some(type_arguments.as_slice()), None)
+                    }
+                    CoreExprKind::GenericApply { arguments, .. } => {
+                        (None, Some(arguments.as_slice()))
+                    }
+                    _ => (None, None),
+                };
+                let count = types
+                    .map(|rows| rows.len())
+                    .or_else(|| written.map(|rows| rows.len()));
+                if count.is_some_and(|count| count != definition.parameters.len()) {
+                    return Err(fail(
+                        "original explicit enum actuals change the full mixed arity",
+                    ));
+                }
+                for (ordinal, formal) in definition.parameters.iter().enumerate() {
+                    let actual = match (
+                        formal,
+                        types.and_then(|rows| rows.get(ordinal)),
+                        written.and_then(|rows| rows.get(ordinal)),
+                    ) {
+                        (SemanticFormal::Type { .. }, Some(ty), None)
+                        | (
+                            SemanticFormal::Type { .. },
+                            None,
+                            Some(CoreGenericArgument::Type(ty)),
+                        ) => self.recipe(frame, ty, b, depth + 1)?,
+                        (
+                            SemanticFormal::Lifetime,
+                            None,
+                            Some(CoreGenericArgument::Lifetime(name)),
+                        ) => self.named_life(frame, name, b, depth + 1)?,
+                        (
+                            SemanticFormal::Const { carrier },
+                            None,
+                            Some(CoreGenericArgument::Const(value)),
+                        ) => {
+                            b.spend(actuals.len(), WORK)?;
+                            let context = nominal::frame(*id, actuals.clone());
+                            let carrier = self.recipe(&context, carrier, b, depth + 1)?;
+                            let CoreExprKind::Integer(text) = &value.kind else {
+                                return Err(unknown(
+                                    "enum Const actual needs its complete original constant expression",
+                                ));
+                            };
+                            b.spend(text.len(), WORK)?;
+                            self.constant(
+                                frame,
+                                &SemanticConstRecipe::IntegerLiteral(text.clone()),
+                                carrier,
+                                b,
+                                depth + 1,
+                            )?
+                        }
+                        (SemanticFormal::Type { .. }, None, None) if count.is_none() => {
+                            self.var(b)?
+                        }
+                        (SemanticFormal::Lifetime, None, None) if count.is_none() => {
+                            self.term(Kind::LifeVariable(None), b)?
+                        }
+                        (SemanticFormal::Const { .. }, None, None) if count.is_none() => {
                             return Err(unknown(
                                 "original enum constructor needs its complete const actual inference",
                             ));
                         }
+                        _ => {
+                            return Err(fail(
+                                "original explicit enum actual changes its mixed formal kind",
+                            ));
+                        }
                     };
                     Self::push(&mut actuals, actual, b)?;
-                }
-                if matches!(
-                    object.kind,
-                    CoreExprKind::GenericApply { .. } | CoreExprKind::TypeApply { .. }
-                ) {
-                    return Err(unknown(
-                        "original explicit enum actuals require their full mixed substitution",
-                    ));
                 }
                 self.application(*id, actuals, b, depth + 1)?
             }

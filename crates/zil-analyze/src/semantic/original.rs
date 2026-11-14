@@ -252,6 +252,7 @@ struct Solver<'a, 'i> {
     trait_state: traits::State,
     capture_state: captures::CaptureState,
     receiving: Vec<Term>,
+    field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -3649,6 +3650,7 @@ pub(super) fn check(
         trait_state: traits::State::default(),
         capture_state: captures::CaptureState::default(),
         receiving: Vec::new(),
+        field_needs: Vec::new(),
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {
@@ -3780,7 +3782,7 @@ pub(super) fn check(
     }
     for need in &solver.needs {
         if !solver.satisfies(need.term, need.predicate, b, 0)? {
-            return Err(fail(match need.predicate {
+            let mut errors = fail(match need.predicate {
                 Predicate::Copy => "original repeated use requires Copy in its declaration context",
                 Predicate::SyncDrop => {
                     "original live cleanup edge requires SyncDrop in its declaration context"
@@ -3790,7 +3792,20 @@ pub(super) fn check(
                 Predicate::Capability(_) => {
                     "original actual does not establish its declared sealed capability"
                 }
-            }));
+            });
+            if matches!(need.predicate, Predicate::Value) {
+                for (term, owner, field) in &solver.field_needs {
+                    b.spend(1, WORK)?;
+                    if solver.root(*term, b)? == solver.root(need.term, b)? {
+                        b.spend(64, WORK)?;
+                        errors[0].notes.push(format!(
+                            "original inline field definition {}:{} field {}",
+                            owner.module.0, owner.index, field
+                        ));
+                    }
+                }
+            }
+            return Err(errors);
         }
     }
     for frame in solver.state.frames.values() {

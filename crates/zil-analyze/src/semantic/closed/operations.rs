@@ -1230,10 +1230,41 @@ impl Check<'_, '_> {
             };
             let function = self.inventory.function(target, b)?;
             let definition = self.inventory.definition(instance.definition, b)?;
-            let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
+            let SemanticDefinitionBody::FunctionWithBody {
+                sites: recipes,
+                body,
+                foreign,
+                ..
+            } = &definition.body
             else {
                 return Err(fail("original function body is absent"));
             };
+            if let Some(actual) = &function.foreign {
+                b.spend(
+                    recipes.len().saturating_add(self.program.sites.len() + 1),
+                    WORK,
+                )?;
+                if !matches!(body, SemanticOriginalFunctionBody::External)
+                    || foreign.as_ref() != Some(actual)
+                    || function.call_kind != CallKind::Direct
+                    || function.environment.is_some()
+                    || !function.blocks.is_empty()
+                    || !recipes.is_empty()
+                    || self
+                        .program
+                        .sites
+                        .iter()
+                        .any(|site| site.instance == instance.id)
+                {
+                    return Err(fail(
+                        "foreign declaration changes its original external body or emits runtime sites",
+                    ));
+                }
+                // instances() has already checked the exact original ABI,
+                // promises, full P/R and class header. External declarations
+                // have no executable CFG to initialize here.
+                continue;
+            }
             let initialization = crate::initialize(function, b)?;
             let mut declared = BTreeMap::new();
             let mut declared_values = BTreeMap::new();

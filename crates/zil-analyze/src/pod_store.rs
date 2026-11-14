@@ -178,6 +178,27 @@ fn layout(ty: &Type, budget: &mut Budget) -> CompileResult<(u64, u64)> {
 
 /// Every new Store occurrence, including unused metadata and constructor-only
 /// elements, needs its exact complete sealed resource, independently of Types.
+pub(super) fn semantic_element(
+    module: &TypedModule,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.type_work(element, true, WORK)?;
+    if !module.target.is_supported_x64_llvm() {
+        return Err(unsupported(
+            "POD element layout requires a supported actual target",
+        ));
+    }
+    let (size, _) = layout(element, budget)?;
+    if size == 0 {
+        return Err(unsupported(
+            "POD Store element requires nonzero complete inline layout",
+        ));
+    }
+    Ok(())
+}
+
+/// Actual Store occurrences additionally prove the exact sealed manager.
 pub(super) fn carrier(
     module: &TypedModule,
     element: &Type,
