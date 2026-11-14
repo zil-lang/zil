@@ -1,0 +1,25 @@
+{
+  "source_base": "3fa02491bfaaf78a3f532688e5d14b42a4bf4c6e",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T154240Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-verify/src/semantic/task_domains.rs": "5ba7d170974db5844deb49e30cd1e4d65731ad765d4cad357d283e92a954cb8b",
+    "crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "c0377b558d505c3b7c8516048683a446fdd0d9399626501a9f57e8edcd9c4563",
+    "crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d5c8b498d138f518b5f72de664fb0741be454c9690ccb737ff9fde485c1140ba",
+    "crates/zil-verify/src/tasks/owned.rs": "b6b2c877559de3545bc0ee2d62db4a4f0d4097a5879c6e1217d592a12e4a302c"
+  },
+  "artifacts": {
+    "source.patch": "b214947da9969e1a921ba008768e64ada40b4f562b991289d16b74255b41eaad",
+    "untracked/crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d5c8b498d138f518b5f72de664fb0741be454c9690ccb737ff9fde485c1140ba",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "61d16fe88003befb533104778396f774164072088ba88e25fcdd9d677ce47c14"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}

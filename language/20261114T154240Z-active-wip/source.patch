@@ -1,0 +1,274 @@
+diff --git a/crates/zil-verify/src/semantic/task_domains.rs b/crates/zil-verify/src/semantic/task_domains.rs
+index 2cb0748d2..0b40c9570 100644
+--- a/crates/zil-verify/src/semantic/task_domains.rs
++++ b/crates/zil-verify/src/semantic/task_domains.rs
+@@ -1,6 +1,8 @@
+ //! Request-local Task frame metadata and outstanding constructor obligations.
+ //! Metadata is not WF, a worker entry, a root, a loan, or a Closed fact.
+ use super::*;
++#[path = "task_domains/ports.rs"]
++mod ports;
+ 
+ #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(crate) struct FrameKey {
+@@ -802,156 +804,12 @@ pub(crate) fn raw_input_ports(
+     life: &StorageLifeShape,
+     b: &mut Budget,
+ ) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
+-    let mut result = Vec::new();
+-    for slot in &life.slots {
+-        b.spend(slot.path.len().saturating_add(1))?;
+-        let path = slot
+-            .path
+-            .iter()
+-            .copied()
+-            .map(LifeTypeProjection::Place)
+-            .collect::<Vec<_>>();
+-        let leaf = lifetimes::select(ty, &path, b)?;
+-        dynamic_metadata::ty(leaf, b)?;
+-        result.push((
+-            leaf.clone(),
+-            slot.mode,
+-            slot.binder,
+-            slot.path
+-                .iter()
+-                .copied()
+-                .map(ContractProjection::Place)
+-                .collect(),
+-        ));
+-    }
+-    let mut payload = ty;
+-    let mut prefix = Vec::new();
+-    loop {
+-        match payload {
+-            Type::BorrowedStorage { storage, .. } => payload = storage,
+-            Type::Managed(inner) => {
+-                payload = inner;
+-                prefix.push(LifeTypeProjection::Pointee);
+-            }
+-            _ => break,
+-        }
+-    }
+-    let opaque = match payload {
+-        Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
+-            Some(retained_life)
+-        }
+-        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+-            b.spend(module.dyn_interfaces.len())?;
+-            Some(
+-                &module
+-                    .dyn_interfaces
+-                    .iter()
+-                    .find(|row| row.id == *interface)
+-                    .ok_or_else(|| bad("Task input opaque interface is absent"))?
+-                    .retained_life,
+-            )
+-        }
+-        _ => None,
+-    };
+-    if let Some(shape) = opaque {
+-        dynamic_metadata::retained_shape(shape, b)?;
+-        for (index, port) in shape.ports.iter().enumerate() {
+-            let class = if prefix.is_empty() {
+-                port.binder
+-            } else {
+-                let mut rows = life
+-                    .retained
+-                    .iter()
+-                    .filter(|row| row.path == prefix && row.class == port.binder);
+-                let row = rows
+-                    .next()
+-                    .ok_or_else(|| bad("Task opaque input loses its complete child map"))?;
+-                if rows.next().is_some() {
+-                    return Err(bad("Task opaque child class mapping duplicated"));
+-                }
+-                row.binder
+-            };
+-            result.push((
+-                port.leaf.clone(),
+-                port.mode,
+-                class,
+-                vec![ContractProjection::RetainedPort(index as u32)],
+-            ));
+-        }
+-    }
+-    if let Type::Closure(id) = payload {
+-        b.spend(module.closures.len())?;
+-        let mut definitions = module.closures.iter().filter(|row| row.id == *id);
+-        let closure = definitions
+-            .next()
+-            .ok_or_else(|| bad("Task closure input has no exact capture inventory"))?;
+-        if definitions.next().is_some() {
+-            return Err(bad("Task closure input has duplicate original identity"));
+-        }
+-        let header = closure
+-            .storage_life
+-            .as_ref()
+-            .ok_or_else(|| bad("Task closure complete capture domain is Unknown"))?;
+-        signature_life::charge(header, b)?;
+-        for binding in &header.bindings {
+-            let StorageBase::Capture(ordinal) = binding.position.base else {
+-                continue;
+-            };
+-            let StorageBinder::Fixed(class) = binding.binder else {
+-                return Err(bad(
+-                    "Task closure capture port escapes its persistent domain",
+-                ));
+-            };
+-            if class >= header.fixed_binder_count {
+-                return Err(bad(
+-                    "Task closure capture port exceeds its full fixed domain",
+-                ));
+-            }
+-            let capture = closure
+-                .captures
+-                .get(ordinal as usize)
+-                .ok_or_else(|| bad("Task closure port selects a missing actual capture"))?;
+-            let leaf = contract_leaf(module, capture, &binding.position.path, b)?;
+-            let mode = match &leaf {
+-                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+-                Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+-                Type::Desc(_) => StoredBorrowMode::ReadOnlyDescription,
+-                _ => {
+-                    return Err(bad(
+-                        "Task closure port does not select a complete borrowed leaf",
+-                    ));
+-                }
+-            };
+-            let class = if prefix.is_empty() {
+-                class
+-            } else {
+-                let mut rows = life
+-                    .retained
+-                    .iter()
+-                    .filter(|row| row.path == prefix && row.class == class);
+-                let row = rows.next().ok_or_else(|| {
+-                    bad("Task closure input loses its exact complete child-domain map")
+-                })?;
+-                if rows.next().is_some() {
+-                    return Err(bad("Task closure child domain map is duplicated"));
+-                }
+-                row.binder
+-            };
+-            b.spend(binding.position.path.len().saturating_add(1))?;
+-            if result.len() >= b.limits.max_nodes {
+-                return Err(limit("Task complete capture-port inventory exceeded"));
+-            }
+-            let mut path = vec![ContractProjection::Capture(ordinal)];
+-            path.extend_from_slice(&binding.position.path);
+-            result.push((leaf, mode, class, path));
+-        }
+-    }
+-    Ok(result)
++    ports::expand(module, ty, life, b)
+ }
+ 
+ /// Select only a declared logical/physical borrow occurrence. This never
+ /// computes a GEP or proves that the selected actual root remains live.
+-fn contract_leaf(
++pub(crate) fn contract_leaf(
+     module: &TypedModule,
+     root: &Type,
+     path: &[ContractProjection],
+diff --git a/crates/zil-verify/src/stored_flow/task_address.rs b/crates/zil-verify/src/stored_flow/task_address.rs
+index f4ce719fc..0f27d21ce 100644
+--- a/crates/zil-verify/src/stored_flow/task_address.rs
++++ b/crates/zil-verify/src/stored_flow/task_address.rs
+@@ -1,6 +1,7 @@
+ //! Independent external Task-result permission reconstruction.
+ use super::*;
+ mod carriers;
++mod inputs;
+ 
+ pub(super) fn port_relation(
+     module: &TypedModule,
+@@ -701,24 +702,28 @@ pub(super) fn transfer(
+                 let StorageBase::Parameter(index) = row.source.base else {
+                     return Err(err("Task port source is not a parameter"));
+                 };
+-                if row.port != ordinal as u32 || !row.source.path.is_empty() {
+-                    return Err(err("Task input has noncanonical port selector"));
++                if row.port != ordinal as u32 {
++                    return Err(err("Task input has a noncanonical retained port ordinal"));
+                 }
+                 let input = *arguments
+                     .get(index as usize)
+                     .ok_or_else(|| err("Task input is absent"))?;
+-                let actual = vt(f, input)?;
+-                type_work(actual, &b.limits.clone(), b)?;
++                let actual = inputs::leaf(module, vt(f, input)?, &row.source.path, b)?;
++                type_work(&actual, &b.limits.clone(), b)?;
+                 type_work(&port.leaf, &b.limits.clone(), b)?;
+-                if actual != &port.leaf {
+-                    return Err(err("Task port differs from actual complete argument type"));
++                if actual != port.leaf {
++                    return Err(err(
++                        "Task retained port differs from its exact complete input occurrence",
++                    ));
+                 }
+-                let permission = &get(input)?.address;
+-                all_inputs &= !permission.sources.is_empty();
++                let permission =
++                    inputs::permission(module, f, input, &row.source.path, values, state, b)?;
++                all_inputs &= !permission.sources.is_empty()
++                    || inputs::inactive(f, input, &row.source.path, values, b)?;
+                 insert(
+                     &mut out,
+                     &port_path(&[PlaceProjection::ErrorArm(false)], ordinal as u32),
+-                    permission,
++                    &permission,
+                     b,
+                 )?;
+             }
+diff --git a/crates/zil-verify/src/tasks/owned.rs b/crates/zil-verify/src/tasks/owned.rs
+index 95d683ef0..8246578ae 100644
+--- a/crates/zil-verify/src/tasks/owned.rs
++++ b/crates/zil-verify/src/tasks/owned.rs
+@@ -156,6 +156,10 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> Check<bool> {
+                 dynamic_metadata::ty(t, budget)?;
+                 work.push(storage);
+             }
++            Type::Address {
++                mutable: false,
++                inner,
++            } if retained_pointee(inner) => {}
+             t if scalar(t) => {}
+             Type::Managed(payload) => {
+                 if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
+@@ -369,25 +373,26 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
+                         _ => {}
+                     }
+                 }
+-                if let Type::Address {
+-                    mutable: false,
+-                    inner,
+-                } = capture
+-                {
++                if let Type::Address { mutable, inner } = capture {
+                     let Some(life) = &c.storage_life else {
+                         return Ok(false);
+                     };
+-                    budget.spend(life.static_bindings.len())?;
++                    budget.spend(
++                        life.static_bindings
++                            .len()
++                            .saturating_add(life.bindings.len()),
++                    )?;
+                     let position = StoragePosition {
+                         base: StorageBase::Capture(index as u32),
+                         path: vec![],
+                     };
+-                    if !life.static_bindings.contains(&position) || !retained_pointee(inner) {
++                    let variable=life.bindings.iter().any(|row|row.position==position&&matches!(row.binder,StorageBinder::Fixed(class)if class<life.fixed_binder_count));
++                    let literal = !*mutable && life.static_bindings.contains(&position);
++                    if !(variable || literal) || !retained_pointee(inner) {
+                         return Ok(false);
+                     }
+-                    // Conditional shape only. The independent global SSA
+-                    // Static proof must discharge every ctor/write and all
+-                    // actual parent loans before this module can be accepted.
++                    // Eligibility only: actual capture sources, all parent
++                    // loans and every static dependency remain ordinary WF.
+                     continue;
+                 }
+                 let complete = if matches!(capture, Type::Closure(_)) {
