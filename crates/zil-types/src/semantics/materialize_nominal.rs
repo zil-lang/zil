@@ -318,7 +318,13 @@ impl Eval<'_, '_> {
             }
         }
         let instance = found.ok_or_else(|| {
-            unknown("nominal recipe has no actual complete declaration/application")
+            let hint_kind = match hint {
+                None => "none", Some(Type::Managed(_)) => "Managed", Some(Type::Desc(_)) => "Desc",
+                Some(Type::Record { .. }) => "Record", Some(Type::Package { .. }) => "Package",
+                Some(Type::Enum { .. }) => "Enum", Some(Type::BorrowedStorage { .. }) => "BorrowedStorage",
+                Some(Type::Address { .. }) => "Address", Some(_) => "other",
+            };
+            unknown(&format!("nominal recipe has no actual complete declaration/application: instance {scope:?}, definition {definition:?}, declaration {declaration:?}, original kind {kind:?}, actual hint {hint_kind}, mixed actuals {}", expected.len()))
         })?;
         let actual_kind = match stored::physical(&instance.ty) {
             Type::Record { .. } if *kind == LifeNominalKind::Resource => LifeNominalKind::Resource,
