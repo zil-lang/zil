@@ -9,6 +9,53 @@ pub(super) struct Constructor {
     pub(super) payload: Vec<Term>,
 }
 impl Solver<'_, '_> {
+    pub(super) fn tuple_binding(
+        &mut self,
+        frame: &mut Frame,
+        statement: NodeId,
+        pattern: &SemanticOriginalPattern,
+        subject: Term,
+        mutable: bool,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let mut stack = Vec::new();
+        Self::push(&mut stack, pattern, b)?;
+        while let Some(pattern) = stack.pop() {
+            self.step(depth + 1, b)?;
+            match &pattern.kind {
+                CorePatternKind::Name(_) | CorePatternKind::Wildcard => {}
+                CorePatternKind::Tuple(fields) => {
+                    for field in fields {
+                        Self::push(&mut stack, field, b)?;
+                    }
+                }
+                _ => {
+                    return Err(unknown(
+                        "original binding pattern requires its complete refutability and branch relation",
+                    ));
+                }
+            }
+        }
+        let start = frame.locals.len();
+        if !self.pattern_bind(
+            frame,
+            statement,
+            &mut Vec::new(),
+            pattern,
+            subject,
+            b,
+            depth + 1,
+        )? {
+            return Err(fail("original tuple binding is not irrefutable"));
+        }
+        for local in &mut frame.locals[start..] {
+            b.spend(1, WORK)?;
+            local.mutable = mutable;
+        }
+        Ok(())
+    }
     fn enum_variant(
         &self,
         value: Term,
@@ -251,7 +298,7 @@ impl Solver<'_, '_> {
                 Ok(true)
             }
             CorePatternKind::Tuple(patterns) => {
-                let Kind::Tuple(fields) = &self.state.arena[self.root(subject, b)?] else {
+                let Kind::Tuple(fields) = &self.state.arena[self.type_root(subject, b)?] else {
                     return Err(fail(
                         "original tuple pattern has another subject constructor",
                     ));

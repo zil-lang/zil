@@ -29,6 +29,27 @@ impl Wrapper {
     }
 }
 impl Solver<'_, '_> {
+    pub(super) fn raw_resource_family(&self, term: Term, b: &mut Budget) -> CompileResult<bool> {
+        Ok(match self.state.arena[self.type_root(term, b)?] {
+            Kind::Atom(Type::ByteBuffer)
+            | Kind::Wrapped(
+                Wrapper::Store
+                | Wrapper::Mutex
+                | Wrapper::Registration
+                | Wrapper::AsyncRegistration,
+                _,
+            )
+            | Kind::Task(_) => true,
+            Kind::Nominal { definition, .. } => matches!(
+                self.inventory.definition(definition, b)?.body,
+                SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Resource,
+                    ..
+                }
+            ),
+            _ => false,
+        })
+    }
     pub(super) fn wrapper(
         &mut self,
         frame: &Frame,

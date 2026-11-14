@@ -2430,13 +2430,34 @@ impl Solver<'_, '_> {
                     if frame.bindings.insert(statement.id, local).is_some() {
                         return Err(fail("original binding node identity is reused"));
                     }
+                    let mut family = None;
                     if let Some(annotation) = ty {
                         let expected = self.recipe(frame, annotation, b, depth + 1)?;
-                        self.unify(local, expected, depth + 1, b)?;
+                        if self.raw_resource_family(expected, b)? {
+                            family = Some(expected);
+                        } else {
+                            self.unify(local, expected, depth + 1, b)?;
+                        }
                     }
                     if let Some(value) = initializer {
                         let value = self.expression(frame, value, b, depth + 1)?;
+                        if let Some(family) = family {
+                            let payload = match self.state.arena[self.type_root(value, b)?] {
+                                Kind::Wrapped(Wrapper::Managed, payload)
+                                | Kind::Desc { inner: payload, .. } => payload,
+                                _ => {
+                                    return Err(fail(
+                                        "bare resource binding annotation needs its initializer's real owning or description category",
+                                    ));
+                                }
+                            };
+                            self.unify(family, payload, depth + 1, b)?;
+                        }
                         self.unify(local, value, depth + 1, b)?;
+                    } else if family.is_some() {
+                        return Err(unknown(
+                            "uninitialized raw resource family needs its later whole category constraint",
+                        ));
                     }
                     self.bind(frame, name, local, *mutable, b)?;
                     frame
@@ -2449,6 +2470,33 @@ impl Solver<'_, '_> {
                             local.initialized = false;
                         }
                     }
+                }
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    mutable,
+                    ty,
+                    initializer,
+                } => {
+                    let subject = self.expression(frame, initializer, b, depth + 1)?;
+                    if let Some(annotation) = ty {
+                        let expected = self.recipe(frame, annotation, b, depth + 1)?;
+                        self.unify(subject, expected, depth + 1, b)?;
+                    }
+                    b.lookup(frame.bindings.len(), WORK)?;
+                    if frame.bindings.insert(statement.id, subject).is_some() {
+                        return Err(fail(
+                            "original destructuring binding reuses its source node",
+                        ));
+                    }
+                    self.tuple_binding(
+                        frame,
+                        statement.id,
+                        pattern,
+                        subject,
+                        *mutable,
+                        b,
+                        depth + 1,
+                    )?;
                 }
                 CoreStatementKind::Expression(value) => {
                     let discarded = self.expression(frame, value, b, depth + 1)?;

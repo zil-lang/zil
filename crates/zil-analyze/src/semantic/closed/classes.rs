@@ -780,7 +780,9 @@ impl Check<'_, '_> {
         }
         let (block, index, instruction) = self.defining(function, value, b)?;
         match instruction.kind {
-            InstructionKind::ReadCapture { index } => Ok(index),
+            InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
+                Ok(index)
+            }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 self.capture_local_origin(function, local, (block, index), b, depth + 1)
             }
