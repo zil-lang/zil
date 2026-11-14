@@ -835,7 +835,7 @@ impl<'a> Expander<'a> {
                 };
                 work = left;
                 let host_ty = type_ref(&i.target);
-                let ty = |t: &s::TypeRef| substitute_self(type_ref(t), Some(&host_ty));
+                let ty = |t: &s::TypeRef| self.type_ref_in_host(t, Some(&host_ty));
                 let mut actual: Vec<_> = f.params.iter().map(|p| (ty(&p.ty), p.give)).collect();
                 let inherited = signature.params.first().filter(|p| p.name == "self");
                 let explicit = f.params.first().is_some_and(|p| p.name == "self");

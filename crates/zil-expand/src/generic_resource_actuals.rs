@@ -181,6 +181,31 @@ impl Engine<'_> {
             Ok(())
         })
     }
+    pub(super) fn preserve_resource_reference(&mut self, inner: &mut TypeRef) -> R<()> {
+        let program = self.products.semantic.as_ref();
+        let owner = self.nominal_owner;
+        let nominals = &self.nominals;
+        let instances = &self.instance_types;
+        self.budget.metadata_scope(inner.span, false, |budget| {
+            let names = match (program, owner) {
+                (Some(program), Some(owner)) => {
+                    program.nominal_owner_names(owner, budget, inner.span)?
+                }
+                _ => &[],
+            };
+            let mut normalize = Normalize {
+                nominals,
+                instances,
+                names,
+                budget,
+                key_peak: 0,
+            };
+            if normalize.bare_resource(inner, 0)? {
+                normalize.carrier(inner, crate::receivers::REFERENCE_OWNER)?;
+            }
+            Ok(())
+        })
+    }
     pub(super) fn preserve_resource_header(&mut self, function: &mut Function) -> R<()> {
         let program = self.products.semantic.as_ref();
         let owner = self.nominal_owner;
@@ -200,6 +225,25 @@ impl Engine<'_> {
                 budget,
                 key_peak: 0,
             };
+            for formal in &mut function.generics {
+                match &mut formal.kind {
+                    GenericParamKind::Type(bounds) => {
+                        for bound in bounds {
+                            normalize.ty(bound, false, false, 0)?;
+                        }
+                    }
+                    GenericParamKind::Const(carrier) => normalize.ty(carrier, false, false, 0)?,
+                    GenericParamKind::Lifetime => {}
+                }
+            }
+            for clause in &mut function.where_clause {
+                if let BoundSubject::Type(subject) = &mut clause.subject {
+                    normalize.ty(subject, false, false, 0)?;
+                }
+                for bound in &mut clause.bounds {
+                    normalize.ty(bound, false, false, 0)?;
+                }
+            }
             for parameter in &mut function.params {
                 normalize.ty(&mut parameter.ty, false, false, 0)?;
             }
@@ -400,6 +444,28 @@ mod tests {
         expander.self_type = Some(zil_ir::Type::Named("R".into()));
         assert!(
             matches!(expander.type_ref(&reference),zil_ir::Type::Address{inner,..} if matches!(*inner,zil_ir::Type::Managed(_)))
+        );
+        let mut explicit = reference.clone();
+        let TypeKind::Reference { lifetime, .. } = &mut explicit.kind else {
+            panic!()
+        };
+        *lifetime = Some("a".into());
+        assert!(
+            matches!(crate::lifetimes::signature_type(&expander,&explicit),zil_ir::Type::Address{inner,..} if matches!(*inner,zil_ir::Type::Managed(_)))
+        );
+        let code = TypeRef {
+            span: module.span,
+            kind: TypeKind::Function {
+                params: vec![reference.clone()],
+                result: Box::new(named("i32", module.span)),
+            },
+        };
+        let zil_ir::Type::BorrowedFunctionPointer { parameters, .. } = expander.type_ref(&code)
+        else {
+            panic!()
+        };
+        assert!(
+            matches!(&parameters[0],zil_ir::Type::Address{inner,..} if matches!(inner.as_ref(),zil_ir::Type::Managed(payload) if matches!(payload.as_ref(),zil_ir::Type::Named(name) if name=="R")))
         );
         expander.self_type = Some(zil_ir::Type::Desc(Box::new(zil_ir::Type::Named(
             "R".into(),

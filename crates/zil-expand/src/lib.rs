@@ -2604,21 +2604,7 @@ pub(crate) fn type_ref_with_resources(
             mutable,
             inner,
             lifetime: None,
-        } => {
-            let referent = lower(inner);
-            let referent = if receivers::bare_resource_syntax(inner, classify) {
-                match referent {
-                    Type::Desc(payload) => Type::Managed(payload),
-                    payload => Type::Managed(Box::new(payload)),
-                }
-            } else {
-                referent
-            };
-            Type::Address {
-                mutable: *mutable,
-                inner: Box::new(referent),
-            }
-        }
+        } => reference_type_with_resources(*mutable, inner, classify),
         s::TypeKind::Error { error, result } => Type::ErrorUnion {
             error: Box::new(lower(error)),
             result: Box::new(lower(result)),
@@ -2661,6 +2647,26 @@ pub(crate) fn type_ref_with_resources(
         _ => Type::Unsupported("type form is not yet lowered".into()),
     }
 }
+fn reference_type_with_resources(
+    mutable: bool,
+    inner: &s::TypeRef,
+    classify: &impl Fn(&s::TypeRef) -> Option<bool>,
+) -> Type {
+    let referent = type_ref_with_resources(inner, classify);
+    let referent = if receivers::bare_resource_syntax(inner, classify) {
+        match referent {
+            Type::Desc(payload) => Type::Managed(payload),
+            payload => Type::Managed(Box::new(payload)),
+        }
+    } else {
+        referent
+    };
+    Type::Address {
+        mutable,
+        inner: Box::new(referent),
+    }
+}
+
 fn type_path(t: &s::TypeRef) -> Option<String> {
     if let s::TypeKind::Named { path, .. } = &t.kind {
         Some(path.join("."))

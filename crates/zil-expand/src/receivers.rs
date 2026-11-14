@@ -616,42 +616,47 @@ impl Expander<'_> {
         member
     }
 
-    pub(super) fn type_ref(&self, ty: &s::TypeRef) -> Type {
-        let classify = |referent: &s::TypeRef| {
-            let s::TypeKind::Named { path, args } = &ungroup_resource(referent).kind else {
-                return None;
-            };
-            if let [name] = path.as_slice() {
-                if self
-                    .resource_type_formals
-                    .iter()
-                    .any(|formal| formal == name)
-                {
-                    return Some(false);
-                }
-                if name == "Self" && args.is_empty() {
-                    // This host was selected by actual original impl lowering,
-                    // not a caller hint. Explicit carrier Self remains a value
-                    // carrier, rather than becoming a second Managed wrapper.
-                    let name = match self.self_type.as_ref()? {
-                        Type::Named(name)
-                        | Type::Record { name, .. }
-                        | Type::Package { name, .. } => name,
-                        _ => return Some(false),
-                    };
-                    return self
-                        .declarations
-                        .get(name)
-                        .map(|row| row.kind == s::AggregateKind::Resource);
-                }
-            }
-            let name = path.join(".");
-            self.declarations.get(&name).map(|row| {
-                row.kind == s::AggregateKind::Resource && row.generics.len() == args.len()
-            })
+    fn resource_kind_in_host(&self, referent: &s::TypeRef, host: Option<&Type>) -> Option<bool> {
+        let s::TypeKind::Named { path, args } = &ungroup_resource(referent).kind else {
+            return None;
         };
+        if let [name] = path.as_slice() {
+            if self
+                .resource_type_formals
+                .iter()
+                .any(|formal| formal == name)
+            {
+                return Some(false);
+            }
+            if name == "Self" && args.is_empty() {
+                let name = match host? {
+                    Type::Named(name) | Type::Record { name, .. } | Type::Package { name, .. } => {
+                        name
+                    }
+                    _ => return Some(false),
+                };
+                return self
+                    .declarations
+                    .get(name)
+                    .map(|row| row.kind == s::AggregateKind::Resource);
+            }
+        }
+        self.declarations
+            .get(&path.join("."))
+            .map(|row| row.kind == s::AggregateKind::Resource && row.generics.len() == args.len())
+    }
+    pub(super) fn type_ref_in_host(&self, ty: &s::TypeRef, host: Option<&Type>) -> Type {
+        let classify = |referent: &s::TypeRef| self.resource_kind_in_host(referent, host);
+        substitute_self(type_ref_with_resources(ty, &classify), host)
+    }
+    pub(super) fn type_ref(&self, ty: &s::TypeRef) -> Type {
+        self.type_ref_in_host(ty, self.self_type.as_ref())
+    }
+    pub(super) fn reference_type(&self, mutable: bool, inner: &s::TypeRef) -> Type {
+        let classify =
+            |referent: &s::TypeRef| self.resource_kind_in_host(referent, self.self_type.as_ref());
         substitute_self(
-            type_ref_with_resources(ty, &classify),
+            reference_type_with_resources(mutable, inner, &classify),
             self.self_type.as_ref(),
         )
     }
@@ -699,6 +704,18 @@ pub(super) fn substitute_self(ty: Type, host: Option<&Type>) -> Type {
                 .map(|t| substitute_self(t, host))
                 .collect(),
             result: Box::new(substitute_self(*result, host)),
+        },
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => Type::BorrowedFunctionPointer {
+            parameters: parameters
+                .into_iter()
+                .map(|ty| substitute_self(ty, host))
+                .collect(),
+            result: Box::new(substitute_self(*result, host)),
+            life,
         },
         other => other,
     }

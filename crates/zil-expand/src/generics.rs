@@ -2036,8 +2036,11 @@ impl<'a> Engine<'a> {
                     args.clear();
                 }
             }
-            TypeKind::Reference { inner, .. }
-            | TypeKind::Group(inner)
+            TypeKind::Reference { inner, .. } => {
+                self.preserve_resource_reference(inner)?;
+                self.ty(inner, depth + 1)?;
+            }
+            TypeKind::Group(inner)
             | TypeKind::Optional(inner)
             | TypeKind::ForLifetime { inner, .. } => self.ty(inner, depth + 1)?,
             TypeKind::Tuple(items) | TypeKind::Union(items) | TypeKind::Impl(items) => {

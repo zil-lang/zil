@@ -846,10 +846,7 @@ pub(super) fn signature_type(expander: &Expander<'_>, ty: &s::TypeRef) -> Type {
             lifetime: Some(_),
             mutable,
             inner,
-        } => Type::Address {
-            mutable: *mutable,
-            inner: Box::new(expander.type_ref(inner)),
-        },
+        } => expander.reference_type(*mutable, inner),
         _ => expander.type_ref(ty),
     }
 }
