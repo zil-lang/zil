@@ -208,7 +208,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let closure_definitions = closures.values().map(|c| (*c).clone()).collect::<Vec<_>>();
     let dyn_module = no_dyn_test_module(target.clone(), &definitions, &closure_definitions, &[]);
     let mut intrinsics = BTreeSet::new();
-    let mut code = m::Code::from(vec![
+    let code = m::Code::from(vec![
         m::Event::NamedType("zil_env_0".into(), vec![]),
         m::Event::NamedType("zil_env_1".into(), vec![]),
         m::Event::Declare(m::Function {
@@ -256,7 +256,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             blocks: None,
         }),
     ]);
-    code.append(
+    let mut items = code.into_items().expect("helper declarations");
+    items.extend(
         FunctionEmitter {
             dyn_module: &dyn_module,
             task_ownership: None,
@@ -277,6 +278,9 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             replacements: BTreeMap::new(),
             partial_sums: BTreeMap::new(),
             safe_divisors: None,
+            scalar_facts: None,
+            scalar_exits: Vec::new(),
+            scalar_label: None,
             copy_values: &BTreeMap::new(),
             abi_plans: &large_copy_abi::Plans::default(),
             unsupported_large_copy: false,
@@ -284,8 +288,11 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
         .emit()
         .expect("raw machine lowering"),
     );
-    let mut module = m::Module::from_code(target.triple, "raw-callback-llvm-shape".into(), code)
-        .expect("machine model");
+    let mut module = m::Module {
+        triple: target.triple,
+        fingerprint: "raw-callback-llvm-shape".into(),
+        items,
+    };
     for item in &mut module.items {
         if let m::Item::Function(machine) = item
             && machine.name == "zil.fn.0"

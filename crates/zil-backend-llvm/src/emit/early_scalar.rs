@@ -34,6 +34,40 @@ pub(super) fn optimize(source: &TypedFunction, machine: &mut m::Function) {
     let _ = run(source, machine, DEFAULT_FUEL);
 }
 
+/// Only the private current producer completion marker reaches this entry.
+/// Memory SSA was constructed from the same source plan; current machine range
+/// simplification and the complete compact cleanup remain unchanged. Native
+/// independent model preflight and LLVM before/after verification still follow.
+pub(super) fn optimize_produced_ssa(source: &TypedFunction, machine: &mut m::Function) {
+    if machine.name != super::symbol(source.id) || source.environment.is_some() {
+        return;
+    }
+    let Some(blocks) = machine.blocks.as_ref() else {
+        return;
+    };
+    if blocks.len() > MAX_BLOCKS
+        || source.locals.len() > MAX_SLOTS
+        || blocks
+            .iter()
+            .try_fold(0usize, |n, b| n.checked_add(b.instructions.len()))
+            .is_none_or(|n| n > MAX_INSTRUCTIONS)
+    {
+        return;
+    }
+    let mut fuel = Fuel(DEFAULT_FUEL);
+    let Some(cfg) = ssa::Cfg::new(machine, &mut fuel) else {
+        return;
+    };
+    let mut candidate = machine.clone();
+    let Some(_) = ranges::simplify(&mut candidate, &cfg, &mut fuel) else {
+        return;
+    };
+    let Some(_) = cleanup::simplify(&mut candidate, &mut fuel) else {
+        return;
+    };
+    *machine = candidate;
+}
+
 fn run(source: &TypedFunction, machine: &mut m::Function, fuel: usize) -> Option<Work> {
     if machine.name != super::symbol(source.id) || source.environment.is_some() {
         return None;

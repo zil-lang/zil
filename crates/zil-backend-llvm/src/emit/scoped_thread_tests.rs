@@ -240,8 +240,9 @@ fn model() -> (m::Module, LirModule) {
         &lir.closures,
         &lir.resources,
     );
+    let mut items = code.into_items().unwrap();
     for f in lir.functions.iter().filter(|f| f.foreign.is_none()) {
-        code.append(
+        items.extend(
             FunctionEmitter {
                 dyn_module: &dyn_module,
                 task_ownership: None,
@@ -262,6 +263,9 @@ fn model() -> (m::Module, LirModule) {
                 replacements: BTreeMap::new(),
                 partial_sums: BTreeMap::new(),
                 safe_divisors: None,
+                scalar_facts: None,
+                scalar_exits: Vec::new(),
+                scalar_label: None,
                 copy_values: &BTreeMap::new(),
                 abi_plans: &large_copy_abi::Plans::default(),
                 unsupported_large_copy: false,
@@ -271,7 +275,7 @@ fn model() -> (m::Module, LirModule) {
         );
     }
     for (operation, bits) in intrinsics {
-        code.push(m::Event::Declare(m::Function {
+        items.push(m::Item::Function(m::Function {
             name: format!("llvm.{operation}.with.overflow.i{bits}"),
             linkage: m::Linkage::External,
             signature: m::Signature::new(
@@ -286,12 +290,11 @@ fn model() -> (m::Module, LirModule) {
         }));
     }
     (
-        m::Module::from_code(
-            lir.target.triple.clone(),
-            "thread-backend-model".into(),
-            code,
-        )
-        .unwrap(),
+        m::Module {
+            triple: lir.target.triple.clone(),
+            fingerprint: "thread-backend-model".into(),
+            items,
+        },
         lir,
     )
 }

@@ -38,6 +38,7 @@ mod slices;
 pub(crate) mod static_utf8;
 mod stored_borrows;
 mod tasks;
+mod typed_scalar_facts;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
 
@@ -654,6 +655,23 @@ fn lower_function_batch(
         } else {
             BTreeSet::new()
         };
+        // bind_lir and the original budget reservation have already succeeded.
+        // Only this current by-value primitive leaf may authorize direct guard
+        // omission. Calls, aliases, environments, loops and unknown shapes miss.
+        let mut scalar_facts = if !task_worker && verified.task_ownership(function.id).is_none() {
+            typed_scalar_facts::prepare(function, lir.target)
+        } else {
+            None
+        };
+        let cleanup = cleanup_tails::plan(
+            function,
+            verified.limits(),
+            task_worker || verified.task_ownership(function.id).is_some(),
+        );
+        if let Some(facts) = scalar_facts.as_mut() {
+            facts.retain_scalar_ssa(cleanup.is_none());
+        }
+        let scalar_divisors = incremental_scalar_policy || scalar_facts.is_some();
         let emitted = FunctionEmitter {
             dyn_module: verified.module(),
             task_ownership: verified.task_ownership(function.id),
@@ -673,7 +691,17 @@ fn lower_function_batch(
             partial_packages: BTreeSet::new(),
             replacements: BTreeMap::new(),
             partial_sums: BTreeMap::new(),
-            safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
+            safe_divisors: scalar_divisors.then(BTreeSet::new),
+            scalar_exits: if scalar_facts
+                .as_ref()
+                .is_some_and(typed_scalar_facts::Facts::scalar_ssa)
+            {
+                vec![None; function.blocks.len()]
+            } else {
+                vec![]
+            },
+            scalar_label: None,
+            scalar_facts,
             copy_values: copy_plans
                 .values
                 .get(&function.id)
@@ -681,14 +709,9 @@ fn lower_function_batch(
             abi_plans: copy_plans,
             unsupported_large_copy: false,
         }
-        .emit_with_cleanup(cleanup_tails::plan(
-            function,
-            verified.limits(),
-            task_worker || verified.task_ownership(function.id).is_some(),
-        ))?
-        .into_items()
-        .map_err(machine_error)?;
-        for item in emitted {
+        .emit_with_cleanup(cleanup)?;
+        let produced_scalar_ssa = emitted.scalar_ssa;
+        for item in emitted.items {
             let mut item = match item {
                 m::Item::Function(machine)
                     if task_symbol
@@ -701,8 +724,12 @@ fn lower_function_batch(
                 item => item,
             };
             if let m::Item::Function(machine) = &mut item {
-                scalar_locals::promote(function, machine);
-                early_scalar::optimize(function, machine);
+                if produced_scalar_ssa {
+                    early_scalar::optimize_produced_ssa(function, machine);
+                } else {
+                    scalar_locals::promote(function, machine);
+                    early_scalar::optimize(function, machine);
+                }
             }
             body.push(item);
         }
@@ -1535,6 +1562,12 @@ fn entry_wrapper(
     Ok(text)
 }
 
+// Private completion marker; only the current emitter can construct it, after
+// every source Load/Store/parameter setup and actual edge label was consumed.
+struct FunctionEmission {
+    items: Vec<m::Item>,
+    scalar_ssa: bool,
+}
 struct FunctionEmitter<'a> {
     dyn_module: &'a zil_ir::TypedModule,
     task_ownership: Option<&'a zil_verify::TaskOwnership>,
@@ -1557,6 +1590,9 @@ struct FunctionEmitter<'a> {
     replacements: BTreeMap<zil_ir::ReservationId, &'a InstructionKind>,
     partial_sums: BTreeMap<LocalId, Vec<partial_places::Leaf>>,
     safe_divisors: Option<BTreeSet<ValueId>>,
+    scalar_facts: Option<typed_scalar_facts::Facts<'a>>,
+    scalar_exits: Vec<Option<String>>,
+    scalar_label: Option<String>,
     copy_values: &'a copy_aggregates::Plan,
     abi_plans: &'a large_copy_abi::Plans,
     unsupported_large_copy: bool,
@@ -1564,13 +1600,18 @@ struct FunctionEmitter<'a> {
 
 impl FunctionEmitter<'_> {
     #[cfg(test)]
-    fn emit(self) -> CompileResult<m::Code> {
-        self.emit_with_cleanup(None)
+    fn emit(self) -> CompileResult<Vec<m::Item>> {
+        self.emit_with_cleanup(None).map(|emission| emission.items)
+    }
+    fn scalar_ssa(&self) -> bool {
+        self.scalar_facts
+            .as_ref()
+            .is_some_and(typed_scalar_facts::Facts::scalar_ssa)
     }
     fn emit_with_cleanup(
         mut self,
         cleanup: Option<cleanup_tails::Plan<'_>>,
-    ) -> CompileResult<m::Code> {
+    ) -> CompileResult<FunctionEmission> {
         let mut parameters = self
             .function
             .parameters
@@ -1680,6 +1721,9 @@ impl FunctionEmitter<'_> {
         }
         constant_divisors::retain_safe(self.function, &mut self.safe_divisors);
         for local in &self.function.locals {
+            if self.scalar_ssa() {
+                continue;
+            }
             if let Some(index) = package_views.get(&local.id) {
                 self.package_capture_storage(local.id, *index)?;
                 continue;
@@ -1761,6 +1805,9 @@ impl FunctionEmitter<'_> {
             }
         }
         for (index, local) in self.function.parameters.iter().enumerate() {
+            if self.scalar_ssa() {
+                continue;
+            }
             let ty = self.local_type(*local)?;
             if let Some(slot) = self.abi().parameters.get(index).and_then(Option::as_ref) {
                 self.copy_bytes(
@@ -1823,6 +1870,9 @@ impl FunctionEmitter<'_> {
                         self.event(tasks::owner_marker(action));
                     }
                 }
+            }
+            if self.scalar_ssa() {
+                self.scalar_exits[block_index] = self.scalar_label.clone();
             }
             if let Some(start) = shared {
                 let Terminator::Return(value) = block.terminator else {
@@ -1904,10 +1954,24 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         }
-        Ok(self.text)
+        let mut items = self.text.into_items().map_err(machine_error)?;
+        let scalar_ssa = if let Some(facts) = &self.scalar_facts {
+            facts.finish_scalar_ssa(self.function, self.target, &mut items, &self.scalar_exits)?
+        } else {
+            false
+        };
+        Ok(FunctionEmission { items, scalar_ssa })
     }
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
+        if self.scalar_ssa()
+            && matches!(
+                instruction.kind,
+                InstructionKind::Load(_) | InstructionKind::Store { .. }
+            )
+        {
+            return Ok(());
+        }
         if self.copy_instruction(instruction)? {
             return Ok(());
         }
@@ -2514,7 +2578,21 @@ impl FunctionEmitter<'_> {
                         )))
                     }
                     UnaryOp::Negate => {
-                        self.checked_binary("ssub", &ty, "0", &value(*operand), result)?
+                        if self.scalar_facts.as_ref().is_some_and(|facts| {
+                            facts.negate(self.function, self.target, *operand, result)
+                        }) {
+                            self.event(m::Event::Instruction(m::Inst::new(
+                                Some(format!("v.{}", result.0)),
+                                m::Op::Binary {
+                                    opcode: "sub".into(),
+                                    ty: llvm_type(&ty)?,
+                                    left: m::Val::Int(0),
+                                    right: m::val(value(*operand)),
+                                },
+                            )));
+                        } else {
+                            self.checked_binary("ssub", &ty, "0", &value(*operand), result)?;
+                        }
                     }
                     UnaryOp::Not => self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result.0)),
@@ -3030,6 +3108,26 @@ impl FunctionEmitter<'_> {
         }
         let operand_type = llvm_type(&ty)?;
         let (left_text, right_text) = (value(left), value(right));
+        if self.scalar_facts.as_ref().is_some_and(|facts| {
+            facts.binary(self.function, self.target, operation, left, right, result)
+        }) {
+            let opcode = match operation {
+                BinaryOp::Add => "add",
+                BinaryOp::Subtract => "sub",
+                BinaryOp::Multiply => "mul",
+                _ => unreachable!("a typed fact only admits exact checked arithmetic"),
+            };
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(format!("v.{}", result.0)),
+                m::Op::Binary {
+                    opcode: opcode.into(),
+                    ty: operand_type,
+                    left: m::val(left_text),
+                    right: m::val(right_text),
+                },
+            )));
+            return Ok(());
+        }
         match operation {
             BinaryOp::Add => self.checked_binary("sadd", &ty, &left_text, &right_text, result)?,
             BinaryOp::Subtract => {
@@ -3767,6 +3865,11 @@ impl FunctionEmitter<'_> {
         format!("%tmp.{id}")
     }
     fn event(&mut self, event: m::Event) {
+        if self.scalar_ssa()
+            && let m::Event::Label(label) = &event
+        {
+            self.scalar_label = Some(label.clone());
+        }
         self.copy_event(event);
     }
 
