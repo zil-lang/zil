@@ -68,6 +68,7 @@ impl Check<'_, '_> {
                 "c_callback target must have a real ordinary defined body",
             ));
         };
+        self.pay(signature.parameters.len(), depth)?;
         if signature.bound_lifetimes != 0
             || signature.invocation_lifetimes != 0
             || signature.call_kind != CallKind::Direct

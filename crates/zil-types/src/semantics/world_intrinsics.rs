@@ -428,6 +428,9 @@ fn identity(
             let actual = world.function(*function)?;
             if actual.foreign.is_some()
                 || actual.environment.is_some()
+                || actual.retained_return_sources.is_some()
+                || actual.callable_contract.is_some()
+                || actual.callable_return_contract.is_some()
                 || actual.call_kind != CallKind::Direct
                 || !actual.protocol_contracts.is_empty()
                 || !matches!(ty, Some(Type::ForeignCallback { parameters, result }) if crate::foreign::callback_signature(parameters, result))
@@ -447,6 +450,11 @@ fn identity(
                     || callee.parent.is_some()
                     || !callee.actuals.is_empty()
                     || callee.environment.is_some()
+                    || callee.self_type.is_some()
+                    || !matches!(
+                        callee.lifetime_instantiation,
+                        SemanticLifetimeInstantiation::Rigid
+                    )
                 {
                     return Err(bad(
                         "callback formation changes its exact original target or captures a specialization environment",
