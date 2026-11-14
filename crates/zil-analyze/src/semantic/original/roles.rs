@@ -236,80 +236,249 @@ impl Solver<'_, '_> {
     }
 
     pub(super) fn check_roles(&mut self, b: &mut Budget) -> CompileResult<()> {
-        let pending = std::mem::take(&mut self.callable_needs);
-        for need in pending {
-            let term = self.type_root(need.term, b)?;
-            b.spend(
-                match &self.state.arena[term] {
-                    Kind::Closure {
-                        parameters,
-                        environment,
-                        ..
-                    } => parameters.len().saturating_add(environment.len() + 1),
-                    _ => 1,
-                },
-                WORK,
-            )?;
-            let Kind::Closure {
-                definition,
-                parameters,
-                result,
-                ..
-            } = self.state.arena[term].clone()
-            else {
-                return Err(unknown(
-                    "original abstract callable needs its complete declared premise resolution",
-                ));
-            };
-            let declaration = self.inventory.definition(definition, b)?;
-            self.capture_role(definition, need.kind, b)?;
-            let SemanticDefinitionBody::FunctionWithBody {
-                signature,
-                parameters: originals,
-                ..
-            } = &declaration.body
-            else {
-                return Err(fail(
-                    "original callable omits its complete declared signature",
-                ));
-            };
-            if signature.call_kind != need.call_kind
-                || signature.result_mode != need.result_mode
-                || parameters.len() != need.parameters.len()
-                || originals.len() != parameters.len()
-                || signature.parameters.len() != parameters.len()
-                || (need.kind == CallableKind::Fn && self.mutating_closures.contains(&definition))
-                || need.kind == CallableKind::FunctionPointer
-            {
-                return Err(fail(
-                    "original value does not satisfy its declared callable mode, ABI or arity",
-                ));
-            }
-            let mut input_lives = BTreeSet::new();
-            for (index, original) in originals.iter().enumerate() {
-                b.spend(1, WORK)?;
-                if signature.parameters[index].mode != need.parameter_modes[index] {
+        let mut pending = std::mem::take(&mut self.callable_needs);
+        while !pending.is_empty() {
+            for need in pending {
+                let term = self.type_root(need.term, b)?;
+                if self.rigid_role(term, &need, b)? {
+                    continue;
+                }
+                if let Kind::Code {
+                    kind: SemanticCodeKind::FunctionPointer,
+                    parameters,
+                    result,
+                    modes,
+                    result_mode,
+                    call_kind,
+                } = &self.state.arena[term]
+                {
+                    if *call_kind != need.call_kind
+                        || *result_mode != need.result_mode
+                        || *modes != need.parameter_modes
+                        || parameters.len() != need.parameters.len()
+                    {
+                        return Err(fail(
+                            "original code value changes its requested callable signature",
+                        ));
+                    }
+                    b.spend(parameters.len().saturating_add(modes.len() + 1), WORK)?;
+                    let parameters = parameters.clone();
+                    let result = *result;
+                    let mut forward = BTreeMap::new();
+                    let mut backward = BTreeMap::new();
+                    for (actual, expected) in parameters.into_iter().zip(&need.parameters) {
+                        self.role_match(
+                            *expected,
+                            actual,
+                            &BTreeSet::new(),
+                            &mut forward,
+                            &mut backward,
+                            true,
+                            b,
+                            0,
+                        )?;
+                    }
+                    self.role_match(
+                        need.result,
+                        result,
+                        &BTreeSet::new(),
+                        &mut forward,
+                        &mut backward,
+                        true,
+                        b,
+                        0,
+                    )?;
+                    continue;
+                }
+                b.spend(
+                    match &self.state.arena[term] {
+                        Kind::Closure {
+                            parameters,
+                            environment,
+                            ..
+                        } => parameters.len().saturating_add(environment.len() + 1),
+                        _ => 1,
+                    },
+                    WORK,
+                )?;
+                let Kind::Closure {
+                    definition,
+                    parameters,
+                    result,
+                    ..
+                } = self.state.arena[term].clone()
+                else {
                     return Err(unknown(
-                        "original callable input modes need their complete adaptation proof",
+                        "original abstract callable needs its complete declared premise resolution",
+                    ));
+                };
+                let declaration = self.inventory.definition(definition, b)?;
+                self.capture_role(definition, need.kind, b)?;
+                let SemanticDefinitionBody::FunctionWithBody {
+                    signature,
+                    parameters: originals,
+                    ..
+                } = &declaration.body
+                else {
+                    return Err(fail(
+                        "original callable omits its complete declared signature",
+                    ));
+                };
+                if signature.call_kind != need.call_kind
+                    || signature.result_mode != need.result_mode
+                    || parameters.len() != need.parameters.len()
+                    || originals.len() != parameters.len()
+                    || signature.parameters.len() != parameters.len()
+                    || (need.kind == CallableKind::Fn
+                        && self.mutating_closures.contains(&definition))
+                    || need.kind == CallableKind::FunctionPointer
+                {
+                    return Err(fail(
+                        "original value does not satisfy its declared callable mode, ABI or arity",
                     ));
                 }
-                let life = original
-                    .ty
-                    .as_ref()
-                    .and_then(|ty| self.parameter_lifetime(definition, ty))
-                    .or_else(|| {
-                        self.parameter_lifetime(definition, &signature.parameters[index].ty)
-                    });
-                if let Some(life) = life {
-                    b.lookup(input_lives.len(), WORK)?;
-                    input_lives.insert(life);
+                let mut input_lives = BTreeSet::new();
+                for (index, original) in originals.iter().enumerate() {
+                    b.spend(1, WORK)?;
+                    if signature.parameters[index].mode != need.parameter_modes[index] {
+                        return Err(unknown(
+                            "original callable input modes need their complete adaptation proof",
+                        ));
+                    }
+                    let life = original
+                        .ty
+                        .as_ref()
+                        .and_then(|ty| self.parameter_lifetime(definition, ty))
+                        .or_else(|| {
+                            self.parameter_lifetime(definition, &signature.parameters[index].ty)
+                        });
+                    if let Some(life) = life {
+                        b.lookup(input_lives.len(), WORK)?;
+                        input_lives.insert(life);
+                    }
+                }
+                let mut forward = BTreeMap::new();
+                let mut backward = BTreeMap::new();
+                for (actual, expected) in parameters.into_iter().zip(need.parameters) {
+                    self.role_match(
+                        expected,
+                        actual,
+                        &input_lives,
+                        &mut forward,
+                        &mut backward,
+                        true,
+                        b,
+                        0,
+                    )?;
+                }
+                self.role_match(
+                    need.result,
+                    result,
+                    &input_lives,
+                    &mut forward,
+                    &mut backward,
+                    true,
+                    b,
+                    0,
+                )?;
+            }
+            pending = std::mem::take(&mut self.callable_needs);
+        }
+        Ok(())
+    }
+
+    fn rigid_role(
+        &mut self,
+        term: Term,
+        need: &CallableNeed,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Kind::Rigid(owner, ordinal) = self.state.arena[term] else {
+            return Ok(false);
+        };
+        let declaration = self.inventory.definition(owner, b)?;
+        let Some(SemanticFormal::Type { requirements }) =
+            declaration.parameters.get(ordinal as usize)
+        else {
+            return Err(fail("original callable premise changes its formal kind"));
+        };
+        let frame = self.state.frames.remove(&owner).ok_or_else(|| {
+            unknown("original callable premise needs its complete declaration frame")
+        })?;
+        let checked = (|| {
+            let mut selected = None;
+            for requirement in requirements.iter().chain(&declaration.requirements) {
+                let SemanticRequirementRecipe::Callable {
+                    ty,
+                    kind,
+                    signature,
+                } = requirement
+                else {
+                    continue;
+                };
+                let supports = *kind == need.kind
+                    || (*kind == CallableKind::Fn
+                        && matches!(need.kind, CallableKind::FnMut | CallableKind::FnOnce))
+                    || (*kind == CallableKind::FnMut && need.kind == CallableKind::FnOnce);
+                if !supports
+                    || signature.call_kind != need.call_kind
+                    || signature.parameters.len() != need.parameters.len()
+                    || signature.result_mode != need.result_mode
+                {
+                    continue;
+                }
+                let subject = self.recipe(&frame, ty, b, 0)?;
+                if !self.same_original(subject, term, b, 0)? {
+                    continue;
+                }
+                if signature
+                    .parameters
+                    .iter()
+                    .zip(&need.parameter_modes)
+                    .any(|(parameter, mode)| parameter.mode != *mode)
+                {
+                    continue;
+                }
+                if selected.replace(signature).is_some() {
+                    return Err(unknown(
+                        "multiple original callable premises require an exact overload selection",
+                    ));
+                }
+            }
+            let Some(signature) = selected else {
+                return Err(unknown(
+                    "original rigid callable lacks its complete declared role premise",
+                ));
+            };
+            let before = self.callable_needs.len();
+            self.role_need(&frame, term, need.kind, signature, b, 0)?;
+            if self.callable_needs.len() != before + 1 {
+                return Err(fail(
+                    "original callable premise creates competing role obligations",
+                ));
+            }
+            let available = self
+                .callable_needs
+                .pop()
+                .ok_or_else(|| fail("original callable premise loses its scoped role"))?;
+            let mut input_lives = BTreeSet::new();
+            for parameter in &available.parameters {
+                if let Kind::Address { life, .. } =
+                    &self.state.arena[self.type_root(*parameter, b)?]
+                {
+                    if let Kind::Life(life @ Life::Role(..)) =
+                        self.state.arena[self.root(*life, b)?]
+                    {
+                        b.lookup(input_lives.len(), WORK)?;
+                        input_lives.insert(life);
+                    }
                 }
             }
             let mut forward = BTreeMap::new();
             let mut backward = BTreeMap::new();
-            for (actual, expected) in parameters.into_iter().zip(need.parameters) {
+            for (actual, expected) in available.parameters.into_iter().zip(&need.parameters) {
                 self.role_match(
-                    expected,
+                    *expected,
                     actual,
                     &input_lives,
                     &mut forward,
@@ -321,7 +490,7 @@ impl Solver<'_, '_> {
             }
             self.role_match(
                 need.result,
-                result,
+                available.result,
                 &input_lives,
                 &mut forward,
                 &mut backward,
@@ -329,7 +498,10 @@ impl Solver<'_, '_> {
                 b,
                 0,
             )?;
-        }
-        Ok(())
+            Ok(true)
+        })();
+        b.lookup(self.state.frames.len(), WORK)?;
+        self.state.frames.insert(owner, frame);
+        checked
     }
 }
