@@ -906,7 +906,9 @@ pub(super) fn self_contained(
                 ));
             }
             Type::BorrowedStorage { storage, life } => {
-                if !life.slots.is_empty() || !life.retained.is_empty() {
+                if (!life.slots.is_empty() || !life.retained.is_empty())
+                    && !stored_callables::inline_qualified_capture(module, ty, budget)?
+                {
                     return Err(unsupported(
                         "self-contained environment retains borrowed storage dependencies",
                         None,

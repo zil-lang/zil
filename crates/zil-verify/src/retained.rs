@@ -385,7 +385,9 @@ pub(super) fn check_claim(
         } else if let Type::Closure(id) = ty {
             closures::self_contained(module, *id, budget)?;
             cleanup.push(index as u32);
-        } else if !ty.is_copy_value() {
+        } else if !ty.is_copy_value()
+            && !stored_callables::inline_qualified_capture(module, ty, budget)?
+        {
             return Err(unsupported(
                 "returned callable captures must be self-contained finite Copy, Managed or Package values",
                 Some(f.span),
@@ -550,7 +552,8 @@ fn check_parameter_claim(
                 dynamic_store::check_owned_capture(module, ty, None, budget)?;
                 cleanup.push(index as u32);
             }
-            ty if ty.is_copy_value() => {}
+            ty if ty.is_copy_value()
+                || stored_callables::inline_qualified_capture(module, ty, budget)? => {}
             _ => {
                 return Err(unsupported(
                     "forwarded environment has an external capture dependency",
