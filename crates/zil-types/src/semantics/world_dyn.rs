@@ -69,6 +69,7 @@ pub(super) fn borrow(
 pub(super) fn seal_borrow(
     world: &mut World<'_, '_>,
     original: &SemanticDefinition,
+    function: &TypedFunction,
     sites: &[&SemanticSite],
     block: BlockId,
     index: usize,
@@ -84,39 +85,89 @@ pub(super) fn seal_borrow(
     let proof = proof
         .as_ref()
         .ok_or_else(|| bad("dynamic receiver borrow has no original Gamma"))?;
+    let SemanticClassExpr::OuterOccurrence {
+        operand: SemanticOperand::Value(result),
+        path,
+        ..
+    } = image
+    else {
+        return Err(bad(
+            "dynamic receiver borrow has no fresh actual result occurrence",
+        ));
+    };
+    if !path.is_empty() {
+        return Err(bad(
+            "dynamic receiver borrow invents an inner outer occurrence",
+        ));
+    }
+    world.pay(function.blocks.len())?;
+    let operation = function
+        .blocks
+        .iter()
+        .find(|row| row.id == block)
+        .and_then(|row| row.instructions.get(index))
+        .ok_or_else(|| bad("dynamic receiver borrow leaves its actual CFG"))?;
+    if operation.result != Some(*result)
+        || !matches!(operation.kind, InstructionKind::BorrowDynOwned { local: actual, .. } if actual == local)
+    {
+        return Err(bad(
+            "dynamic receiver role is not its actual BorrowDynOwned producer",
+        ));
+    }
     let mut role = None;
-    for site in world.point_sites(sites, block, index)? {
+    world.pay(sites.len())?;
+    for call_site in sites {
+        let Some(call) = proof.intrinsics.get(&(original.id, call_site.recipe)) else {
+            continue;
+        };
+        let IntrinsicKind::DynCall { receiver_node, .. } = &call.kind else {
+            continue;
+        };
         if !matches!(
-            site.at,
-            SemanticSiteAddress::Typed {
-                edge: SemanticSiteEdge::Before,
-                ..
-            }
-        ) || !matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Local(target), .. } if target == local)
+            call_site.action,
+            SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }
+        ) {
+            continue;
+        }
+        let SemanticSiteAddress::Typed {
+            block: call_block,
+            instruction,
+            ..
+        } = call_site.at
+        else {
+            continue;
+        };
+        world.pay(function.blocks.len())?;
+        let operation = function
+            .blocks
+            .iter()
+            .find(|row| row.id == call_block)
+            .and_then(|row| row.instructions.get(instruction as usize))
+            .ok_or_else(|| bad("dynamic call occurrence leaves its actual CFG"))?;
+        if !matches!(operation.kind, InstructionKind::CallDynSlot { callee, .. } if callee == *result)
         {
             continue;
         }
-        let recipe = world.original_recipe(original, site.recipe)?;
-        world.pay(site_nodes.len())?;
-        let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
-        let Some(row) = nodes.next() else {
-            return Err(bad("dynamic receiver observation has no original node"));
-        };
-        if nodes.next().is_some() {
-            return Err(bad(
-                "dynamic receiver observation repeats its original node",
-            ));
-        }
-        let SemanticOriginalNode::Expression(node) = row.node else {
-            return Err(bad("dynamic receiver observation is not an expression"));
-        };
-        world.pay(proof.intrinsics.len())?;
-        for ((owner, _), call) in &proof.intrinsics {
-            if *owner != original.id
-                || !matches!(call.kind, IntrinsicKind::DynCall { receiver_node, .. } if receiver_node == node)
+        world.pay(sites.len().saturating_add(proof.intrinsics.len()))?;
+        for site in sites {
+            if !matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Local(target), .. } if target == local)
             {
                 continue;
             }
+            world.pay(site_nodes.len())?;
+            let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
+            let Some(binding) = nodes.next() else {
+                continue;
+            };
+            if nodes.next().is_some() {
+                return Err(bad(
+                    "dynamic receiver observation repeats its original source",
+                ));
+            }
+            if binding.node != SemanticOriginalNode::Expression(*receiver_node) {
+                continue;
+            }
+            let recipe = world.original_recipe(original, site.recipe)?;
             let Some(SemanticTypeRecipe::Address {
                 lifetime:
                     SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
@@ -142,8 +193,11 @@ pub(super) fn seal_borrow(
             role = Some(*ordinal);
         }
     }
-    let ordinal = role
-        .ok_or_else(|| bad("dynamic receiver borrow has no complete original occurrence seal"))?;
+    let ordinal = role.ok_or_else(|| {
+        let mut diagnostic = bad("dynamic receiver borrow has no complete original occurrence seal");
+        diagnostic.notes.push(format!("original {:?}; actual function {:?}, block {:?}, instruction {}, local {:?}, result {:?}", original.id, function.id, block, index, local, result));
+        diagnostic
+    })?;
     world.pay(implicit.len().saturating_add(1))?;
     crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
     if let Some(old) = implicit.insert(ordinal, image.clone()) {

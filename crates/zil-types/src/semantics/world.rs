@@ -2342,6 +2342,7 @@ impl World<'_, '_> {
                             dynamic::seal_borrow(
                                 self,
                                 original,
+                                f,
                                 &sites,
                                 block.id,
                                 index,
@@ -3494,7 +3495,7 @@ impl World<'_, '_> {
                                     "actual package description does not select its live owning resource field",
                                 ));
                             }
-                            let payload = self.pointee(&owner)?;
+                            let payload = projection::pointee(self, &owner)?;
                             let result = instruction.result.ok_or_else(|| {
                                 bad("actual package description has no result occurrence")
                             })?;
@@ -3516,7 +3517,7 @@ impl World<'_, '_> {
                                     "actual addressed description has no owning carrier",
                                 ));
                             }
-                            let child = self.pointee(&owner)?;
+                            let child = projection::pointee(self, &owner)?;
                             Some(self.address_projection(
                                 ty.ok_or_else(|| bad("addressed description has no type"))?,
                                 &parent,
