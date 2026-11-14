@@ -13,6 +13,7 @@ pub(crate) struct MethodCall {
 #[derive(Clone)]
 pub(crate) struct CallableCall {
     pub callee: SemanticTypeRecipe,
+    pub callee_node: NodeId,
     pub kind: CallableKind,
     pub signature: SemanticSignatureRecipe,
 }
@@ -1029,6 +1030,7 @@ impl Check<'_, '_> {
             (owner, site),
             CallableCall {
                 callee: callee_type,
+                callee_node: base.id,
                 kind,
                 signature: signature.clone(),
             },

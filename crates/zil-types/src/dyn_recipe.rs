@@ -1,6 +1,8 @@
 //! Reconstruct original impl formals from actual nominal occurrences.
 //! Canonical Self class ordinals are not declaration parameter ordinals.
 use super::*;
+#[path = "dyn_semantic.rs"]
+mod semantic;
 
 struct Proof<'a, 'b> {
     modules: &'a [&'a CoreModule],
@@ -155,7 +157,10 @@ impl Proof<'_, '_> {
                     self.left,
                     2,
                 )?;
-                if instance.ty == *ty && found.replace(instance).is_some() {
+                if instance.declaration == recipe.declaration
+                    && instance.ty == *ty
+                    && found.replace(instance).is_some()
+                {
                     return Err(self.fail());
                 }
             }
@@ -172,6 +177,9 @@ impl Proof<'_, '_> {
             _ => ty,
         };
         let actual_kind = match physical {
+            Type::Record { .. } if declaration.kind == LifeNominalKind::Resource => {
+                LifeNominalKind::Resource
+            }
             Type::Record { .. } => LifeNominalKind::Record,
             Type::Package { .. } => LifeNominalKind::Package,
             Type::Managed(_) => LifeNominalKind::Resource,
@@ -234,6 +242,38 @@ impl Proof<'_, '_> {
             ));
         }
         match pattern {
+            DynTypePattern::Semantic { scope, ty: recipe } => {
+                self.semantic_self(*scope, recipe, ty, path, depth + 1)
+            }
+            DynTypePattern::Managed(pattern) => {
+                let Type::Managed(inner) = ty else {
+                    return Err(self.fail());
+                };
+                self.ty(pattern, inner, path, depth + 1)
+            }
+            DynTypePattern::OwnedStore(pattern) => {
+                let Type::OwnedStore { element } = ty else {
+                    return Err(self.fail());
+                };
+                self.ty(pattern, element, path, depth + 1)
+            }
+            DynTypePattern::ErrorUnion { error, result } => {
+                let Type::ErrorUnion {
+                    error: actual_error,
+                    result: actual_result,
+                } = ty
+                else {
+                    return Err(self.fail());
+                };
+                self.pay(2)?;
+                path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(true)));
+                self.ty(error, actual_error, path, depth + 1)?;
+                path.pop();
+                path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)));
+                self.ty(result, actual_result, path, depth + 1)?;
+                path.pop();
+                Ok(())
+            }
             DynTypePattern::Concrete(expected) => {
                 self.closed(expected)?;
                 inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 2)?;

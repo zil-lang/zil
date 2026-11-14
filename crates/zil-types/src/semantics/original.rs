@@ -9,6 +9,8 @@ mod calls;
 mod dynamic;
 #[path = "original_effects.rs"]
 mod effects;
+#[path = "original_places.rs"]
+mod places;
 #[path = "original_results.rs"]
 mod results;
 pub(super) use results::CalleeResultBoundary;
@@ -212,6 +214,7 @@ struct Binding {
     origin_owner: SemanticDefinitionId,
     initialized: bool,
     written: bool,
+    taken_fields: BTreeSet<String>,
     // Source shadowing preserves the state of the hidden binder. It must be
     // recovered by its original binding identity when the lexical scope exits.
     shadowed: Option<Box<Binding>>,
@@ -284,7 +287,11 @@ impl<'a> Check<'a, '_> {
     fn same_inner(&mut self, a: &SemanticTypeRecipe, b: &SemanticTypeRecipe) -> R<()> {
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
-        if a == b {
+        if a == b
+            || matches!((a, b),
+            (SemanticTypeRecipe::Tuple(fields), SemanticTypeRecipe::Atom(Type::Unit))
+            | (SemanticTypeRecipe::Atom(Type::Unit), SemanticTypeRecipe::Tuple(fields)) if fields.is_empty())
+        {
             return Ok(());
         }
         if let Some(owner) = self.contexts.last().copied() {
@@ -575,12 +582,7 @@ impl<'a> Check<'a, '_> {
                     } => {
                         let mut all = true;
                         for field in fields {
-                            let field = super::instantiate::ty(
-                                &field.ty,
-                                arguments,
-                                self.limits,
-                                self.left,
-                            )?;
+                            let field = self.instantiate_type(&field.ty, arguments, depth + 1)?;
                             all &= self.copy_type(owner, &field, depth + 1)?;
                         }
                         all
@@ -593,12 +595,7 @@ impl<'a> Check<'a, '_> {
                         let mut all = true;
                         for variant in variants {
                             for field in &variant.fields {
-                                let field = super::instantiate::ty(
-                                    field,
-                                    arguments,
-                                    self.limits,
-                                    self.left,
-                                )?;
+                                let field = self.instantiate_type(field, arguments, depth + 1)?;
                                 all &= self.copy_type(owner, &field, depth + 1)?;
                             }
                         }
@@ -628,15 +625,21 @@ impl<'a> Check<'a, '_> {
                 let value = variables
                     .get_mut(name)
                     .ok_or_else(|| bad("original place has no lexical binder"))?;
-                if value.used || !value.initialized {
+                if value.used || !value.initialized || !value.taken_fields.is_empty() {
                     return Err(bad("original place was already transferred"));
                 }
                 value.observed = true;
                 copy_recipe(&value.ty, self.limits, self.left)
             }
             CoreExprKind::Member { object, member, .. } => {
-                let owner_type = self.place(owner, object, variables, depth + 1)?;
-                self.field(owner, &owner_type, member, depth + 1)
+                if let Some(field) =
+                    self.package_field(owner, object, member, variables, true, depth + 1)?
+                {
+                    Ok(field)
+                } else {
+                    let owner_type = self.place(owner, object, variables, depth + 1)?;
+                    self.field(owner, &owner_type, member, depth + 1)
+                }
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
@@ -655,7 +658,31 @@ impl<'a> Check<'a, '_> {
         self.proof
             .types
             .insert((owner, Query::Expression(expression.id)), copy);
+        self.expression_result_origin(owner, expression, variables, &ty, depth + 1)?;
         Ok(ty)
+    }
+    fn instantiate_type(
+        &mut self,
+        ty: &SemanticTypeRecipe,
+        arguments: &[SemanticActualRecipe],
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(arguments.len(), depth)?;
+        let frames = [(0, arguments)];
+        let empty = BTreeMap::new();
+        substitute::ty(
+            ty,
+            &substitute::Substitution {
+                frames: &frames,
+                selves: &[],
+                environments: &[],
+                implicit: &empty,
+                invocation: &empty,
+                shift: 0,
+            },
+            self.limits,
+            self.left,
+        )
     }
     fn field(
         &mut self,
@@ -724,7 +751,7 @@ impl<'a> Check<'a, '_> {
             .iter()
             .find(|field| field.name == name)
             .ok_or_else(|| bad("original field is absent from its declared nominal"))?;
-        super::instantiate::ty(&field.ty, &arguments, self.limits, self.left)
+        self.instantiate_type(&field.ty, &arguments, depth + 1)
     }
     // Only declaration paths are resolved here. A lexical value at the root
     // always wins, including when it shadows an imported module or intrinsic.
@@ -813,7 +840,7 @@ impl<'a> Check<'a, '_> {
                     SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(selector))
                 }
                 SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
-                    carrier: carrier.clone(),
+                    carrier: copy_recipe(carrier, self.limits, self.left)?,
                     value: SemanticConstRecipe::Formal(selector),
                 },
             };
@@ -835,7 +862,22 @@ impl<'a> Check<'a, '_> {
                             })
                         }
                         SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
-                            carrier: carrier.clone(),
+                            carrier: {
+                                let empty = BTreeMap::new();
+                                substitute::ty(
+                                    carrier,
+                                    &substitute::Substitution {
+                                        frames: &[],
+                                        selves: &[],
+                                        environments: &[],
+                                        implicit: &empty,
+                                        invocation: &empty,
+                                        shift: 1,
+                                    },
+                                    self.limits,
+                                    self.left,
+                                )?
+                            },
                             value: SemanticConstRecipe::Environment {
                                 scope: SemanticScopeRef::Ancestor(0),
                                 ordinal: slot as u32,
@@ -844,9 +886,41 @@ impl<'a> Check<'a, '_> {
                     });
                 }
             }
-            actuals.push(replacement.unwrap_or(source));
+            let actual = if let Some(replacement) = replacement {
+                replacement
+            } else {
+                let empty = BTreeMap::new();
+                substitute::actual(
+                    &source,
+                    &substitute::Substitution {
+                        frames: &[],
+                        selves: &[],
+                        environments: &[],
+                        implicit: &empty,
+                        invocation: &empty,
+                        shift: 1,
+                    },
+                    self.limits,
+                    self.left,
+                )?
+            };
+            actuals.push(actual);
         }
-        super::instantiate::ty(ty, &actuals, self.limits, self.left)
+        let frames = [(0, actuals.as_slice())];
+        let empty = BTreeMap::new();
+        substitute::ty(
+            ty,
+            &substitute::Substitution {
+                frames: &frames,
+                selves: &[],
+                environments: &[],
+                implicit: &empty,
+                invocation: &empty,
+                shift: 1,
+            },
+            self.limits,
+            self.left,
+        )
     }
     fn charge_variables(&mut self, variables: &BTreeMap<String, Binding>) -> R<()> {
         self.pay(variables.len(), 0)?;
@@ -861,6 +935,10 @@ impl<'a> Check<'a, '_> {
                     self.left,
                     1,
                 )?;
+                self.pay(value.taken_fields.len(), 0)?;
+                for field in &value.taken_fields {
+                    self.pay(field.len(), 0)?;
+                }
                 current = value.shadowed.as_deref();
             }
         }
@@ -971,6 +1049,9 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
+        if matches!(ty, SemanticTypeRecipe::Tuple(fields) if fields.is_empty()) {
+            return Ok(SemanticTypeRecipe::Atom(Type::Unit));
+        }
         if let SemanticTypeRecipe::SelfType {
             scope: SemanticScopeRef::Ancestor(hops),
         } = ty
@@ -1819,7 +1900,7 @@ impl<'a> Check<'a, '_> {
                 };
                 let mut all = true;
                 for field in fields {
-                    let ty = super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
+                    let ty = self.instantiate_type(&field.ty, arguments, depth + 1)?;
                     all &= self.ordinary_value(owner, &ty, depth + 1)?;
                 }
                 all
@@ -1845,8 +1926,16 @@ impl<'a> Check<'a, '_> {
         {
             return Ok(());
         }
-        if let SemanticRequirementRecipe::Builtin { ty, trait_kind } = requirement {
-            if let Some(satisfied) = self.sealed_capability(owner, ty, *trait_kind, depth + 1)? {
+        let sealed = match requirement {
+            SemanticRequirementRecipe::Builtin { ty, trait_kind } => Some((ty, *trait_kind)),
+            SemanticRequirementRecipe::Structural {
+                ty,
+                bound: DynStructuralBound::SyncDrop,
+            } => Some((ty, SemanticBuiltinTrait::SyncDrop)),
+            _ => None,
+        };
+        if let Some((ty, trait_kind)) = sealed {
+            if let Some(satisfied) = self.sealed_capability(owner, ty, trait_kind, depth + 1)? {
                 return if satisfied {
                     Ok(())
                 } else {
@@ -2044,8 +2133,7 @@ impl<'a> Check<'a, '_> {
                                 arguments.push(SemanticActualRecipe::Infer);
                             }
                         }
-                        let carrier =
-                            super::instantiate::ty(carrier, &arguments, self.limits, self.left)?;
+                        let carrier = self.instantiate_type(carrier, &arguments, depth + 1)?;
                         let actual_ty =
                             self.expr(owner, value, variables, Some(&carrier), depth + 1)?;
                         self.same(&carrier, &actual_ty)?;
@@ -2243,7 +2331,7 @@ impl<'a> Check<'a, '_> {
                 let value = variables
                     .get_mut(name)
                     .ok_or_else(|| bad("original name has no lexical value binder"))?;
-                if value.used || !value.initialized {
+                if value.used || !value.initialized || !value.taken_fields.is_empty() {
                     return Err(bad(
                         "original body reads a value after its affine whole-type transfer",
                     ));
@@ -2257,7 +2345,7 @@ impl<'a> Check<'a, '_> {
                         inner: Box::new(inner),
                     }
                 } else {
-                    let reusable_descriptor = matches!(&value.ty, SemanticTypeRecipe::Desc { .. });
+                    let reusable_descriptor = matches!(&observed, SemanticTypeRecipe::Desc { .. });
                     if !reusable_descriptor && !self.copy_type(owner, &value.ty, depth + 1)? {
                         if value.borrowed {
                             return Err(bad(
@@ -2266,7 +2354,11 @@ impl<'a> Check<'a, '_> {
                         }
                         value.used = true;
                     }
-                    copy_recipe(&value.ty, self.limits, self.left)?
+                    if reusable_descriptor {
+                        observed
+                    } else {
+                        copy_recipe(&value.ty, self.limits, self.left)?
+                    }
                 }
             }
             CoreExprKind::CompileTime(value) => {
@@ -2388,30 +2480,7 @@ impl<'a> Check<'a, '_> {
             CoreExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
-            } => {
-                let CoreExprKind::Name(name) = &operand.kind else {
-                    return Err(bad("original give requires an owning lexical place"));
-                };
-                let value = variables
-                    .get_mut(name)
-                    .ok_or_else(|| bad("original give has no lexical binder"))?;
-                if value.used || !value.initialized || value.borrowed {
-                    return Err(bad(
-                        "original give transfers an unavailable or borrowed value",
-                    ));
-                }
-                let source = copy_recipe(&value.ty, self.limits, self.left)?;
-                let head = self.observation_type(owner, &source, depth + 1)?;
-                let SemanticTypeRecipe::Managed(resource) = &head else {
-                    return Err(bad("original give requires an owning resource head"));
-                };
-                if !self.resource_head(owner, resource, depth + 1)? {
-                    return Err(bad("original give payload is not a declared resource head"));
-                }
-                value.used = true;
-                value.observed = true;
-                head
-            }
+            } => self.give_place(owner, operand, variables, depth + 1)?,
             CoreExprKind::Ascribed { ty, value } => {
                 let expected = self.resolve(owner, ty, depth + 1)?;
                 let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
@@ -2610,9 +2679,8 @@ impl<'a> Check<'a, '_> {
                 }
                 field
             }
-            CoreExprKind::Member { object, member, .. } => {
-                let owner_type = self.place(owner, object, variables, depth + 1)?;
-                let field = self.field(owner, &owner_type, member, depth + 1)?;
+            CoreExprKind::Member { .. } => {
+                let field = self.place(owner, expression, variables, depth + 1)?;
                 if !self.copy_type(owner, &field, depth + 1)? {
                     return Err(pending(
                         "original affine field observation needs its explicit view/transfer rule",
@@ -2676,7 +2744,16 @@ impl<'a> Check<'a, '_> {
                         self.left,
                         1,
                     )?;
-                    self.pay(value.origin.copy_work(), depth)?;
+                    self.pay(
+                        value
+                            .origin
+                            .copy_work()
+                            .saturating_add(value.taken_fields.len()),
+                        depth,
+                    )?;
+                    for field in &value.taken_fields {
+                        self.pay(field.len(), depth)?;
+                    }
                     let mut value = Binding {
                         ty: copy_recipe(&value.ty, self.limits, self.left)?,
                         mutable: value.mutable,
@@ -2688,6 +2765,7 @@ impl<'a> Check<'a, '_> {
                         origin_owner: value.origin_owner,
                         initialized: value.initialized,
                         written: value.written,
+                        taken_fields: value.taken_fields.clone(),
                         shadowed: None,
                     };
                     value.capture = true;
@@ -2775,7 +2853,7 @@ impl<'a> Check<'a, '_> {
                             .get_mut(&name)
                             .ok_or_else(|| bad("original capture lost its creator binder"))?;
                         if !self.copy_type(owner, &value.ty, depth + 1)? {
-                            if value.used || !value.initialized {
+                            if value.used || !value.initialized || !value.taken_fields.is_empty() {
                                 return Err(bad(
                                     "original closure captures an already transferred affine value",
                                 ));
@@ -3087,6 +3165,7 @@ impl<'a> Check<'a, '_> {
         self.pay(branches.len(), depth)?;
         let mut used = false;
         let mut initialized = !branches.is_empty();
+        let mut taken_fields = BTreeSet::new();
         for branch in branches {
             let inner = self.binding_at(branch, &output.origin)?;
             self.same(&output.ty, &inner.ty)?;
@@ -3094,7 +3173,13 @@ impl<'a> Check<'a, '_> {
             output.observed |= inner.observed;
             output.written |= inner.written;
             initialized &= inner.initialized;
+            self.pay(inner.taken_fields.len(), depth)?;
+            for field in &inner.taken_fields {
+                self.pay(field.len(), depth)?;
+                taken_fields.insert(field.clone());
+            }
         }
+        output.taken_fields = taken_fields;
         // A dominating reassignment can restore availability; prior used bits
         // are not an additional incoming control-flow edge.
         output.used = used;
@@ -3160,6 +3245,12 @@ impl<'a> Check<'a, '_> {
                 Ok(*inner)
             }
             CoreExprKind::Member { object, member, .. } => {
+                if let Some(field) =
+                    self.package_field(owner, object, member, variables, false, depth + 1)?
+                {
+                    self.writable(owner, object, variables, depth + 1)?;
+                    return Ok(field);
+                }
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
                 match &object_ty {
                     SemanticTypeRecipe::Address { mutable: true, .. } => {}
@@ -3271,6 +3362,7 @@ impl<'a> Check<'a, '_> {
                         origin_owner: owner,
                         initialized: true,
                         written: false,
+                        taken_fields: BTreeSet::new(),
                         shadowed: None,
                     },
                     depth,
@@ -3562,7 +3654,7 @@ impl<'a> Check<'a, '_> {
             return Err(bad("original variant pattern changes payload arity"));
         }
         for (ordinal, (pattern, field)) in patterns.iter().zip(&variant.fields).enumerate() {
-            let field = super::instantiate::ty(field, arguments, self.limits, self.left)?;
+            let field = self.instantiate_type(field, arguments, depth + 1)?;
             self.pay(1, depth)?;
             path.push(ordinal as u32);
             self.pattern(
@@ -3613,6 +3705,14 @@ impl<'a> Check<'a, '_> {
                     &before.origin,
                 )?;
                 self.same(&before.ty, &after.ty)?;
+                self.pay(after.taken_fields.len(), depth)?;
+                if after
+                    .taken_fields
+                    .iter()
+                    .any(|field| !before.taken_fields.contains(field))
+                {
+                    return Err(bad("original loop back edge consumes a package field needed by another iteration"));
+                }
                 if !before.used && after.used || before.initialized && !after.initialized {
                     return Err(bad("original loop back edge consumes an affine value needed by another iteration"));
                 }
@@ -3738,6 +3838,7 @@ impl<'a> Check<'a, '_> {
                             origin_owner: owner,
                             initialized: initializer.is_some(),
                             written: false,
+                            taken_fields: BTreeSet::new(),
                             shadowed: None,
                         },
                         depth,
@@ -3942,6 +4043,14 @@ impl<'a> Check<'a, '_> {
                         target.used = false;
                         target.initialized = true;
                         target.written = true;
+                        target.taken_fields.clear();
+                    } else if let CoreExprKind::Member { object, member, .. } = &target.kind {
+                        if let CoreExprKind::Name(name) = &object.kind {
+                            self.pay(name.len().saturating_add(member.len()), depth)?;
+                            if let Some(binding) = variables.get_mut(name) {
+                                binding.taken_fields.remove(member);
+                            }
+                        }
                     }
                 }
                 CoreStatementKind::TupleBinding {
@@ -4222,6 +4331,7 @@ impl<'a> Check<'a, '_> {
                 origin_owner: owner,
                 initialized: true,
                 written: false,
+                taken_fields: BTreeSet::new(),
                 shadowed: None,
             },
             depth,
@@ -4410,6 +4520,7 @@ impl<'a> Check<'a, '_> {
                     origin_owner: definition.id,
                     initialized: true,
                     written: false,
+                    taken_fields: BTreeSet::new(),
                     shadowed: None,
                 },
             );

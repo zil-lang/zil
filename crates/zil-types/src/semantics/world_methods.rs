@@ -638,7 +638,11 @@ pub(super) fn callable(
             "actual borrowed callable changes its receiver permission or consumption",
         ));
     }
-    let expected = world.ty(instance.id, &scheme.callee, World::type_of(raw_value)?)?;
+    let callee_query = SemanticTypeRecipe::OriginalType {
+        scope: SemanticScopeRef::Ancestor(0),
+        source: SemanticOriginalTypeSource::Expression(scheme.callee_node),
+    };
+    let expected = world.ty(instance.id, &callee_query, World::type_of(raw_value)?)?;
     world.same(instance.id, raw_value, &expected, implicit)?;
     let signature = &scheme.signature;
     if arguments.len() != signature.parameters.len()
