@@ -414,13 +414,23 @@ fn fused_scalar_placement_and_current_import_changes_do_not_reuse_stale_maps() {
         map.validate_iter(moved.iter().map(ParsedSource::source), &limits)
             .unwrap();
     }
-    // Current import metadata is always read by the real inventory, not carried
-    // as an authorization from Capture's parser-only no-CT facts.
+    // Expand preserves unresolved ordinary value calls and raw import edges;
+    // Types checks absent import owners (E-MODULE-NOT-FOUND). Changing the
+    // target must still invalidate prior products and agree with fresh/raw
+    // expansion, never authorize the old target from Capture's no-CT facts.
     let mut changed_imports = moved_imports.clone();
     changed_imports[0][0].module = ModuleId(99);
     let actual = run(&mut session, &moved, &changed_imports, &aliases, &limits)
-        .err()
-        .expect("missing import owner");
+        .expect("Expand preserves the unresolved import for Types");
+    assert_eq!(
+        session.environment.as_ref().unwrap().imports,
+        changed_imports
+    );
+    assert_eq!(session.last_stats().lower_modules, moved.len() as u64);
+    assert_eq!(session.last_stats().reused_lower_modules, 0);
+    assert_eq!(actual[0].0.imports, changed_imports[0]);
+    assert_ne!(actual, current, "the old import target must not escape");
+    assert!(!Arc::ptr_eq(&actual[0].0.core, &current[0].0.core));
     let fresh = run(
         &mut ExpandSession::default(),
         &moved,
@@ -428,9 +438,17 @@ fn fused_scalar_placement_and_current_import_changes_do_not_reuse_stale_maps() {
         &aliases,
         &limits,
     )
-    .err()
-    .expect("fresh missing owner");
+    .expect("fresh Expand also preserves the unresolved import");
     assert_eq!(actual, fresh);
+    assert_eq!(actual, raw(&moved, &changed_imports, &limits).unwrap());
+    for (_, map) in &actual {
+        map.validate_iter(moved.iter().map(ParsedSource::source), &limits)
+            .unwrap();
+    }
+    assert_eq!(
+        run(&mut session, &moved, &changed_imports, &aliases, &limits).unwrap(),
+        actual
+    );
     assert_eq!(
         run(&mut session, &moved, &moved_imports, &aliases, &limits).unwrap(),
         current
