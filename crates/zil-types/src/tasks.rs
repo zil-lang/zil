@@ -328,6 +328,29 @@ pub(super) fn call_create_type(
     }
     ty
 }
+pub(super) fn call_create_full(
+    name: &str,
+    result: &Type,
+    prepared: &semantics::materialize::PreparedTask,
+) -> R<Type> {
+    let mut ty = create_type(result, prepared.context.clone());
+    if name == "task_create_owned" {
+        let zil_ir::SemanticTypeValue::Resolved {
+            ty: inputs, life, ..
+        } = &prepared.inputs
+        else {
+            return Err(unsupported(
+                Span::default(),
+                "Task failure awaits its complete composed input domain",
+            ));
+        };
+        let failure = failure::carrier_full(inputs, life, &prepared.context)?;
+        if let Type::ErrorUnion { error, .. } = &mut ty {
+            **error = failure;
+        }
+    }
+    Ok(ty)
+}
 pub(super) fn result_for(name: &str, task: &Type) -> Type {
     let Type::Task { result: t, .. } = task else {
         return result(name);
@@ -517,6 +540,66 @@ pub(super) fn add_definition(
     Ok(has_mutex)
 }
 impl Builder<'_, '_> {
+    pub(super) fn actual_task_context(
+        &mut self,
+        worker: FunctionId,
+        parameters: &[Type],
+        result: &Type,
+        span: Span,
+    ) -> R<Option<semantics::materialize::PreparedTask>> {
+        let before = self.closures.remaining_work();
+        let mut left = before;
+        let prepared = semantics::materialize::prepare_task(
+            self.closures,
+            &self.function,
+            &self.actual_functions,
+            self.life_instances,
+            self.dyn_declarations,
+            self.dyn_interfaces,
+            worker,
+            parameters,
+            result,
+            self.limits,
+            &mut left,
+        );
+        self.closures.snapshot(before - left, span)?;
+        let mut prepared = prepared?;
+        if let Some(prepared) = &mut prepared {
+            for (id, header, embedding) in std::mem::take(&mut prepared.headers) {
+                let pending = self
+                    .closures
+                    .pending
+                    .iter_mut()
+                    .find(|pending| pending.id == id)
+                    .ok_or_else(|| {
+                        unsupported(
+                            span,
+                            "actual Task closure header lost its real pending entry",
+                        )
+                    })?;
+                let entry = pending.typed.as_mut().ok_or_else(|| {
+                    unsupported(span, "actual Task closure header has no real typed entry")
+                })?;
+                if entry
+                    .storage_life
+                    .as_ref()
+                    .is_some_and(|previous| previous != &header)
+                {
+                    return Err(error(
+                        "E-TASK-CONTEXT",
+                        span,
+                        "actual Task closure header changes its existing directory",
+                    ));
+                }
+                entry.storage_life = Some(header.clone());
+                self.closures
+                    .semantic_emission
+                    .record_formed_header(id, header, embedding)?;
+            }
+        }
+        Ok(prepared)
+    }
+
     pub(super) fn task_call(
         &mut self,
         name: &str,
@@ -582,17 +665,6 @@ impl Builder<'_, '_> {
             })();
             self.closures.snapshot(before - remaining, span)?;
             let (worker, parameters, worker_result, worker_life) = prepared?;
-            if name == "task_create"
-                && !borrowed_context_with_life(&parameters, worker_life.as_ref(), &worker_result)
-                    .ports
-                    .is_empty()
-                && !retained_result(&worker_result)
-            {
-                return Err(unsupported(
-                    span,
-                    "retained Task result requires an actual supported complete result",
-                ));
-            }
             if arguments.len() != parameters.len() + 1 {
                 return Err(error(
                     "E-CALL-ARITY",
@@ -620,9 +692,30 @@ impl Builder<'_, '_> {
                     self.closures.snapshot_type(parameter, 6, 128, span)?;
                 }
             }
+            let prepared_context = if name == "task_await" {
+                None
+            } else {
+                self.actual_task_context(worker, &parameters, &worker_result, span)?
+            };
+            let bindings = prepared_context
+                .as_ref()
+                .map(|prepared| prepared.bindings.clone())
+                .unwrap_or_else(|| retained_bindings(&parameters));
             let ty = if name == "task_await" {
                 worker_result
+            } else if let Some(prepared) = &prepared_context {
+                call_create_full(name, &worker_result, prepared)?
             } else {
+                if !parameters.iter().all(|ty| {
+                    retained_pointee(ty)
+                        || matches!(ty, Type::Address { inner, .. } if retained_pointee(inner))
+                }) || !retained_result(&worker_result)
+                {
+                    return Err(unsupported(
+                        span,
+                        "Task without original preparation context requires complete ordinary scalar input/result types",
+                    ));
+                }
                 call_create_type(
                     name,
                     &worker_result,
@@ -643,13 +736,13 @@ impl Builder<'_, '_> {
                     InstructionKind::TaskCreateOwned {
                         worker,
                         arguments: inputs,
-                        port_bindings: retained_bindings(&parameters),
+                        port_bindings: bindings,
                     }
                 } else {
                     InstructionKind::TaskCreate {
                         worker,
                         arguments: inputs,
-                        port_bindings: retained_bindings(&parameters),
+                        port_bindings: bindings,
                     }
                 },
                 ty.clone(),

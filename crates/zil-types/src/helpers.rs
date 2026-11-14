@@ -962,17 +962,26 @@ impl Builder<'_, '_> {
                 )?;
                 parameters.push(t.clone());
             }
-            let life = actual
-                .storage_life
-                .as_ref()
-                .and_then(|life| life.to_flat(parameters.len()));
-            let context = tasks::borrowed_context_with_life(&parameters, life.as_ref(), &result);
+
             self.closures.snapshot(before - remaining, span)?;
-            let output = tasks::call_create_type(name, &result, context, &parameters);
+            let prepared_context =
+                self.actual_task_context(instance, &parameters, &result, span)?;
+            let output = if let Some(prepared) = &prepared_context {
+                tasks::call_create_full(name, &result, prepared)?
+            } else {
+                return Err(unsupported(
+                    span,
+                    "specialized Task worker awaits its exact original preparation context",
+                ));
+            };
             if let Some(wanted) = expected {
                 self.same(&output, wanted, span)?;
             }
-            let bindings = tasks::retained_bindings(&parameters);
+            let bindings = prepared_context
+                .as_ref()
+                .expect("prepared Task context")
+                .bindings
+                .clone();
             let instruction = if name == "task_create_owned" {
                 InstructionKind::TaskCreateOwned {
                     worker: instance,
@@ -1324,6 +1333,20 @@ impl Builder<'_, '_> {
             &mut work,
         )?;
         self.closures.snapshot(before - work, span)?;
+        self.closures
+            .snapshot(bindings.extra_key_work().saturating_add(1), span)?;
+        if self
+            .closures
+            .prepared_helpers
+            .insert(id, (key, bindings.clone()))
+            .is_some()
+        {
+            return Err(error(
+                "E-TASK-CONTEXT",
+                span,
+                "actual helper repeats its preparation bindings",
+            ));
+        }
         let mut builder = Builder::new(
             &function,
             id,
@@ -1331,6 +1354,12 @@ impl Builder<'_, '_> {
             self.limits,
             self.closures,
         )?;
+        builder.life_instances = self.life_instances;
+        builder
+            .closures
+            .snapshot(self.actual_functions.len().saturating_add(1), span)?;
+        builder.actual_functions = self.actual_functions.clone();
+        builder.actual_functions.push(&self.function);
         builder.state_uses = state_uses;
         builder.closures.snapshot(
             plan::tree_work(builder.closures.forward_callers.len())

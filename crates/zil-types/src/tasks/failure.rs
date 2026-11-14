@@ -21,7 +21,10 @@ pub(crate) fn owns(t: &Type) -> bool {
 }
 
 pub(crate) fn is_carrier(ty: &Type) -> bool {
-    matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record {name,fields} | Type::Package {name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(), [(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs")))
+    let Type::BorrowedStorage { storage, .. } = ty else {
+        return false;
+    };
+    matches!(storage.as_ref(), Type::Record {name,fields} | Type::Package {name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(), [(reason,_),(inputs,_)] if reason=="reason" && inputs=="inputs"))
 }
 
 /// Inputs are in the actual worker's complete parameter order. Its retained
@@ -84,16 +87,96 @@ pub(super) fn carrier(inputs: &[Type], context: &zil_ir::RetainedLifeShape) -> T
     }
 }
 
+/// Actual creation uses the already composed input domain. No second scan of
+/// physical input types may infer its class equality.
+pub(super) fn carrier_full(
+    inputs: &Type,
+    life: &zil_ir::StorageLifeShape,
+    context: &zil_ir::RetainedLifeShape,
+) -> R<Type> {
+    if life.binder_count != context.binder_count {
+        return Err(error(
+            "E-TASK-CREATE-FAILURE",
+            Span::default(),
+            "failure input and Task context domains differ",
+        ));
+    }
+    let input = if life.binder_count == 0 {
+        inputs.clone()
+    } else {
+        Type::BorrowedStorage {
+            storage: Box::new(inputs.clone()),
+            life: life.clone(),
+        }
+    };
+    let physical = super::create_failure(input);
+    if life.binder_count == 0 {
+        return Ok(physical);
+    }
+    let mut shape = zil_ir::StorageLifeShape {
+        binder_count: life.binder_count,
+        slots: vec![],
+        retained: vec![],
+        nominal_arguments: vec![],
+    };
+    for slot in &life.slots {
+        let mut path = vec![P::Field(1)];
+        path.extend_from_slice(&slot.path);
+        shape.slots.push(zil_ir::StorageLifeSlot {
+            path,
+            ..slot.clone()
+        });
+    }
+    for class in 0..life.binder_count {
+        for path in [
+            vec![L::Place(P::Field(1))],
+            vec![L::TypeArgument(0)],
+            vec![L::TypeArgument(1)],
+        ] {
+            shape.retained.push(zil_ir::StorageRetainedBinding {
+                path,
+                class,
+                binder: class,
+            });
+        }
+    }
+    for row in &life.nominal_arguments {
+        let mut path = vec![L::Place(P::Field(1))];
+        path.extend_from_slice(&row.path);
+        shape.nominal_arguments.push(zil_ir::NominalLifeArgument {
+            path,
+            ..row.clone()
+        });
+    }
+    Ok(Type::BorrowedStorage {
+        storage: Box::new(physical),
+        life: shape,
+    })
+}
+
 /// Keep the implicit actual context in the nominal key. Two equal physical
 /// input tuples with different fixed class maps are different full instances.
 pub(super) fn context_actual(context: &zil_ir::RetainedLifeShape) -> Type {
+    // This nominal argument has Unit as its result, while retaining the same
+    // complete input context as both arms of the actual create operation.
+    // Parameter and phantom class maps are not result projections.
     Type::Task {
         result: Box::new(Type::Unit),
         retained_life: zil_ir::RetainedLifeShape {
             binder_count: context.binder_count,
             ports: context.ports.clone(),
-            retained: vec![],
-            nominal_arguments: vec![],
+            retained: context
+                .retained
+                .iter()
+                .filter(|row| !matches!(row.path.first(), Some(L::Result)))
+                .cloned()
+                .collect(),
+            nominal_arguments: context
+                .nominal_arguments
+                .iter()
+                .filter(|row| !matches!(row.path.first(), Some(L::Result)))
+                .cloned()
+                .collect(),
         },
     }
 }
@@ -200,7 +283,39 @@ pub(crate) fn append_inventory(
                     .iter()
                     .map(|local| target.locals[local.0 as usize].ty.clone())
                     .collect();
-                if carrier(&inputs, retained_life) != **failure {
+                let fields = match storage.as_ref() {
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
+                    _ => return Err(unsupported(i.span, "actual failure has no physical fields")),
+                };
+                let input = fields
+                    .get(1)
+                    .filter(|(name, _)| name == "inputs")
+                    .map(|(_, ty)| ty)
+                    .ok_or_else(|| {
+                        unsupported(i.span, "actual failure has no complete input field")
+                    })?;
+                let (physical_inputs, input_life) = match input {
+                    Type::BorrowedStorage { storage, life } => (storage.as_ref(), Some(life)),
+                    other => (other, None),
+                };
+                let matches_worker = if inputs.is_empty() {
+                    *physical_inputs == Type::Unit || *physical_inputs == Type::Tuple(vec![])
+                } else {
+                    matches!(physical_inputs, Type::Tuple(fields) if fields == &inputs)
+                };
+                if !matches_worker {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        i.span,
+                        "failure input field changes the actual worker parameter inventory",
+                    ));
+                }
+                let expected = if let Some(life) = input_life {
+                    carrier_full(physical_inputs, life, retained_life)?
+                } else {
+                    carrier(&inputs, retained_life)
+                };
+                if expected != **failure {
                     return Err(error(
                         "E-TASK-CREATE-FAILURE",
                         i.span,
@@ -214,7 +329,7 @@ pub(crate) fn append_inventory(
                             .id,
                         ty: (**failure).clone(),
                         arguments: vec![
-                            zil_ir::LifeNominalActual::Type(Type::Tuple(inputs)),
+                            zil_ir::LifeNominalActual::Type(input.clone()),
                             zil_ir::LifeNominalActual::Type(context_actual(retained_life)),
                         ],
                     },

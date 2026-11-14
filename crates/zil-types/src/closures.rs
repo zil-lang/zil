@@ -408,6 +408,8 @@ pub(super) struct State {
     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
     pub helper_tables: std::rc::Rc<helpers::Tables>,
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
+    /// Real helper mint bindings, retained while its body is being built.
+    pub prepared_helpers: BTreeMap<FunctionId, helpers::Instance>,
     pub forward_callers: BTreeSet<helpers::Instance>,
     pub forward_results: BTreeMap<FunctionId, u32>,
     pub deferred_closed: BTreeMap<ClosureId, Span>,
@@ -762,6 +764,7 @@ impl State {
             active_helpers: std::collections::BTreeSet::new(),
             helper_tables: std::rc::Rc::new(BTreeMap::new()),
             helper_instances: BTreeMap::new(),
+            prepared_helpers: BTreeMap::new(),
             forward_callers: BTreeSet::new(),
             forward_results: BTreeMap::new(),
             deferred_closed: BTreeMap::new(),

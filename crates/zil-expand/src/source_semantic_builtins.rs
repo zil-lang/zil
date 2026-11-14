@@ -268,56 +268,75 @@ impl Builder<'_, '_, '_, '_> {
         };
         let mut domain = Vec::new();
         let mut ports = Vec::new();
+        let mut retained = Vec::new();
+        let mut nominal = Vec::new();
         for (index, field) in fields.iter().enumerate() {
-            path.extend([1, index as u32]);
+            let ordinal = u32::try_from(index)
+                .map_err(|_| error(field.span, "Task input Context ordinal overflow"))?;
+            path.extend([1, ordinal]);
             let value = self.ty(field, path, depth + 1, false);
             path.pop();
             path.pop();
             let value = value?;
-            let SemanticTypeRecipe::Address {
-                mutable,
-                lifetime: SemanticOuterLifeRecipe::Class(class),
-                ..
-            } = &value
-            else {
-                return Err(unsupported(
-                    field.span,
-                    "Task input Context requires its complete actual address ports",
-                ));
-            };
-            self.budget.identity_work(domain.len(), field.span)?;
-            for old in &domain {
-                prepay_recipe(old, self.budget, field.span, depth + 1)?;
-            }
-            prepay_recipe(class, self.budget, field.span, depth + 1)?;
-            let part = SemanticClassSequencePart::One(class.clone());
-            if !domain.contains(&part) {
-                self.push(&mut domain, part, field.span)?;
-            }
-            prepay_recipe(class, self.budget, field.span, depth + 1)?;
-            let class = class.clone();
-            let mode = if *mutable {
-                StoredBorrowMode::ExclusiveAddress
-            } else {
-                StoredBorrowMode::SharedAddress
-            };
-            self.budget
-                .lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), field.span)?;
+            // The complete input Type contributes its entire domain, including
+            // classes behind an outer address and phantom nominal arguments.
+            // Ports remain occurrences: equal leaves may be distinct roots.
+            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
             self.push(
-                &mut ports,
-                SemanticPortPart::One {
-                    leaf: Box::new(value),
-                    mode,
-                    class,
+                &mut domain,
+                SemanticClassSequencePart::AllClasses {
+                    ty: Box::new(value.clone()),
+                    path: Vec::new(),
                 },
                 field.span,
             )?;
-        }
-        if ports.is_empty() {
-            return Err(error(
-                context.span,
-                "Task explicit Context has no actual port",
-            ));
+            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
+            self.budget.lineage_bytes(
+                std::mem::size_of::<SemanticClassSequencePart>()
+                    .saturating_add(std::mem::size_of::<SemanticTypeRecipe>()),
+                field.span,
+            )?;
+            let classes = SemanticClassSequenceRecipe {
+                parts: vec![SemanticClassSequencePart::AllClasses {
+                    ty: Box::new(value.clone()),
+                    path: Vec::new(),
+                }],
+            };
+            prepay_recipe(&classes, self.budget, field.span, depth + 1)?;
+            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
+            self.push(
+                &mut ports,
+                SemanticPortPart::FromType {
+                    ty: Box::new(value.clone()),
+                    classes: classes.clone(),
+                },
+                field.span,
+            )?;
+            prepay_recipe(&classes, self.budget, field.span, depth + 1)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<LifeTypeProjection>(), field.span)?;
+            self.push(
+                &mut retained,
+                SemanticRetainedPart::All {
+                    path: vec![LifeTypeProjection::Parameter(ordinal)],
+                    parents: classes.clone(),
+                },
+                field.span,
+            )?;
+            self.budget.lineage_bytes(
+                std::mem::size_of::<LifeTypeProjection>()
+                    .saturating_add(std::mem::size_of::<SemanticTypeRecipe>()),
+                field.span,
+            )?;
+            self.push(
+                &mut nominal,
+                SemanticNominalPart::FromType {
+                    path: vec![LifeTypeProjection::Parameter(ordinal)],
+                    ty: Box::new(value),
+                    classes,
+                },
+                field.span,
+            )?;
         }
         // This is an equality obligation into the public input domain, not a
         // new domain copied from R. Zero result classes emit no rows; nonzero
@@ -339,11 +358,18 @@ impl Builder<'_, '_, '_, '_> {
         Ok(SemanticRetainedShapeRecipe {
             domain: SemanticClassSequenceRecipe { parts: domain },
             ports,
-            retained: vec![SemanticRetainedPart::All {
-                path: vec![LifeTypeProjection::Result],
-                parents: result_classes,
-            }],
-            nominal: Vec::new(),
+            retained: {
+                self.push(
+                    &mut retained,
+                    SemanticRetainedPart::All {
+                        path: vec![LifeTypeProjection::Result],
+                        parents: result_classes,
+                    },
+                    context.span,
+                )?;
+                retained
+            },
+            nominal,
         })
     }
 }

@@ -673,7 +673,8 @@ pub(in crate::semantics) fn complete_emitted_headers(
             .iter()
             .find(|row| row.id == id)
             .ok_or_else(|| bad("closure directory completion has no actual definition"))?;
-        if definition.storage_life.is_some() {
+        let early = ledger.formed_headers.get(&id);
+        if definition.storage_life.is_some() && early.is_none() {
             continue;
         }
         let entry = module
@@ -681,7 +682,7 @@ pub(in crate::semantics) fn complete_emitted_headers(
             .iter()
             .find(|row| row.id == definition.function)
             .ok_or_else(|| bad("closure directory completion has no actual entry"))?;
-        if entry.storage_life.is_some() || entry.environment != Some(id) {
+        if (entry.storage_life.is_some() && early.is_none()) || entry.environment != Some(id) {
             return Err(bad(
                 "closure directory completion changes its actual entry identity",
             ));
@@ -690,8 +691,29 @@ pub(in crate::semantics) fn complete_emitted_headers(
         let Some((directory, mapping)) =
             form_emitted_header(program, &view, ledger, instance, id, entry, limits, left)?
         else {
+            if early.is_some() {
+                return Err(bad(
+                    "early actual Task closure directory has no complete finish reconstruction",
+                ));
+            }
             continue;
         };
+        if let Some((expected, embedding)) = early {
+            crate::borrowed_fp::charge_contract(expected, |work| pay(left, work), 2)?;
+            crate::borrowed_fp::charge_contract(&directory, |work| pay(left, work), 2)?;
+            for row in embedding.iter().chain(mapping.iter()) {
+                crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
+            }
+            if expected != &directory
+                || embedding != &mapping
+                || definition.storage_life.as_ref() != Some(&directory)
+                || entry.storage_life.as_ref() != Some(&directory)
+            {
+                return Err(bad(
+                    "early actual Task closure directory differs from its complete finish reconstruction",
+                ));
+            }
+        }
         changes.push((instance.id, id, entry.id, directory, mapping));
     }
     for (instance, closure, entry, header, embedding) in changes {

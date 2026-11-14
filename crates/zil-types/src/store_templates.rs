@@ -591,6 +591,12 @@ impl Builder<'_, '_> {
                 self.closures,
             )?;
             builder.imports = Some(&imports);
+            builder.life_instances = self.life_instances;
+            builder
+                .closures
+                .snapshot(self.actual_functions.len().saturating_add(1), span)?;
+            builder.actual_functions = self.actual_functions.clone();
+            builder.actual_functions.push(&self.function);
             builder.enums = Some(&template.context.enums);
             builder.finish(&function.body)
         })();

@@ -689,6 +689,9 @@ pub fn check(
             &mut closure_state,
         )
         .and_then(|mut b| {
+            b.life_instances = &life_instances;
+            b.closures.snapshot(functions.len(), f.span)?;
+            b.actual_functions = functions.iter().collect();
             b.enums = Some(&enum_types);
             b.dyn_declarations = &core.dyn_declarations;
             b.dyn_interfaces = &core.dyn_interfaces;
@@ -816,6 +819,8 @@ struct Builder<'a, 'c> {
     state_uses: Option<state_origins::Uses>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
+    life_instances: &'a [LifeNominalInstance],
+    actual_functions: Vec<&'a TypedFunction>,
     dyn_declarations: &'a [DynDeclaration],
     dyn_interfaces: &'a [DynInterface],
     dyn_vtables: &'a [DynVtable],
@@ -1002,6 +1007,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             state_uses: None,
             factory_bound: f.callable_return.clone(),
             signatures,
+            life_instances: &[],
+            actual_functions: Vec::new(),
             dyn_declarations: &[],
             dyn_interfaces: &[],
             dyn_vtables: &[],
@@ -3467,6 +3474,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 self.closures,
             )?;
             builder.imports = self.imports;
+            builder.life_instances = self.life_instances;
+            builder
+                .closures
+                .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
+            builder.actual_functions = self.actual_functions.clone();
+            builder.actual_functions.push(&self.function);
             builder.enums = self.enums;
             let typed = builder.finish(&function.body)?;
             self.closures.thin[slot] = Some(typed);
@@ -3699,6 +3712,12 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.closures,
         )?;
         builder.imports = self.imports;
+        builder.life_instances = self.life_instances;
+        builder
+            .closures
+            .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
+        builder.actual_functions = self.actual_functions.clone();
+        builder.actual_functions.push(&self.function);
         builder.enums = self.enums;
         builder.dyn_declarations = self.dyn_declarations;
         builder.dyn_interfaces = self.dyn_interfaces;

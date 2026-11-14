@@ -38,6 +38,8 @@ mod opaque;
 pub(super) use opaque::call_result_at;
 #[path = "materialize_domains.rs"]
 mod domains;
+#[path = "materialize_emitter.rs"]
+mod emitter;
 #[path = "materialize_scopes.rs"]
 mod scopes;
 #[path = "materialize_self.rs"]
@@ -46,6 +48,7 @@ mod self_type;
 mod shapes;
 #[path = "materialize_tasks.rs"]
 mod task_domains;
+pub(crate) use emitter::{PreparedTask, prepare_task};
 #[path = "materialize_view.rs"]
 mod view;
 pub(super) use view::ActualDirectory;
@@ -1422,7 +1425,7 @@ impl<'a> Eval<'a, '_, '_> {
                                 .saturating_add(self.ledger.frames.len()),
                         )?;
                         let mut found = None;
-                        for child in &self.input.instances {
+                        for child in self.module.semantic_instances(self.input) {
                             if child.parent != Some(scope) || child.definition != *definition {
                                 continue;
                             }
@@ -1474,7 +1477,7 @@ impl<'a> Eval<'a, '_, '_> {
                     .iter()
                     .find(|row| row.id == *id)
                     .ok_or_else(|| bad("whole closure type has no actual definition"))?;
-                let mut children = self.input.instances.iter().filter(|child| child.parent == Some(scope) && child.definition == *definition && matches!(child.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == closure.function));
+                let mut children = self.module.semantic_instances(self.input).filter(|child| child.parent == Some(scope) && child.definition == *definition && matches!(child.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == closure.function));
                 let child = children
                     .next()
                     .ok_or_else(|| bad("closure recipe has no matching actual original child"))?;

@@ -64,6 +64,10 @@ pub(crate) struct Ledger {
     >,
     /// Lexical selections recorded while emitting this exact MakeClosure.
     pub(super) closure_captures: BTreeMap<ClosureId, Vec<(String, ValueId)>>,
+    /// Candidate headers formed at real MakeClosure operations. Publication
+    /// rebuilds and compares them; they confer no closedness or permissions.
+    pub(super) formed_headers:
+        BTreeMap<ClosureId, (StorageLifeContract, Vec<SemanticHeaderBinding>)>,
     /// Actual Core headers deliberately retained for a later callable/value
     /// specialization. A missing frame by itself is never this fact.
     pub templates: std::collections::BTreeSet<Origin>,
@@ -81,6 +85,37 @@ fn lookup_cost(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
 impl Ledger {
+    pub(crate) fn record_formed_header(
+        &mut self,
+        closure: ClosureId,
+        header: StorageLifeContract,
+        embedding: Vec<SemanticHeaderBinding>,
+    ) -> R<()> {
+        if let Some(previous) = self.formed_headers.get(&closure) {
+            if previous != &(header, embedding) {
+                return Err(invalid(
+                    Span::default(),
+                    "actual Task preparation changes an earlier complete closure header",
+                ));
+            }
+        } else {
+            self.formed_headers.insert(closure, (header, embedding));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn active_expression(
+        &self,
+        function: FunctionId,
+        left: &mut usize,
+        span: Span,
+    ) -> R<Option<NodeId>> {
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        Ok(self
+            .frames
+            .get(&function)
+            .and_then(|frame| frame.stack.last().copied()))
+    }
     pub(crate) fn capture_sources(
         &mut self,
         closure: ClosureId,

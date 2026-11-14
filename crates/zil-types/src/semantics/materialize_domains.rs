@@ -384,7 +384,21 @@ impl Eval<'_, '_, '_> {
     ) -> R<Domain> {
         self.node(depth)?;
         self.fee(items.len())?;
-        if items.is_empty() {
+        let mut children = Vec::new();
+        for (ordinal, item) in items.iter().enumerate() {
+            let ordinal =
+                u32::try_from(ordinal).map_err(|_| bad("tuple child ordinal overflows"))?;
+            self.occurrence_snapshot(occurrence)?;
+            let mut child_occurrence = occurrence.clone();
+            child_occurrence.path.push(ordinal);
+            children.push(self.type_domain_at(scope, item, None, depth + 1, &child_occurrence)?);
+        }
+        self.compose_tuple(children)
+    }
+
+    pub(super) fn compose_tuple(&mut self, children: Vec<Domain>) -> R<Domain> {
+        self.fee(children.len())?;
+        if children.is_empty() {
             return Ok(Domain {
                 value: resolved(Type::Unit, empty(), Vec::new()),
                 selectors: Vec::new(),
@@ -394,13 +408,9 @@ impl Eval<'_, '_, '_> {
         let mut life = empty();
         let mut classes = Vec::new();
         let mut selectors = Vec::new();
-        for (ordinal, item) in items.iter().enumerate() {
+        for (ordinal, child) in children.into_iter().enumerate() {
             let ordinal =
                 u32::try_from(ordinal).map_err(|_| bad("tuple child ordinal overflows"))?;
-            self.occurrence_snapshot(occurrence)?;
-            let mut child_occurrence = occurrence.clone();
-            child_occurrence.path.push(ordinal);
-            let child = self.type_domain_at(scope, item, None, depth + 1, &child_occurrence)?;
             let map = self.join_domain(&mut selectors, &mut classes, &child)?;
             let SemanticTypeValue::Resolved {
                 ty, life: child, ..
