@@ -95,7 +95,7 @@
       "No fake physical BorrowRoot for a semantic-only class; raw/Wire consumers independently validate full semantic relations and actual value flow."
     ]
   },
-  "updated_at_utc": "2026-11-13T23:16:22.122916+00:00",
+  "updated_at_utc": "2026-11-14T00:41:48.641629+00:00",
   "callable_fixed_relation": {
     "status": "Astra semantic rule; private FullW structure tests passed42, actual Source/runtime consumer remains open",
     "rule": "Only the same authenticated P/R outer Address/Desc occurrence may match equal Fixed images in the same original W lexical domain. Do not compare after to_context, union origins, alter fresh Nominal/TypeEqual/query partitions, or instantiate Invocation/Bound through this rule. Actual targets and parent loans remain independently checked."
@@ -209,5 +209,17 @@
       "two make calls cannot exchange dependencies through reused callee implicit ordinal",
       "phantom/nonactive result classes remain in N even equal outside images"
     ]
+  },
+  "original_fixed_call_kind": {
+    "advice_model": "Astra public-only",
+    "normative_source": "spec/semantic-scopes.md at a7884c049",
+    "decision": "Signature call_kind is a fixed unverified ABI upper bound. Preserve explicit choice; propose default from complete original binding/effect graph. Independently prove whole original body effect <= proposal and actual ABI == proposal. No silent Direct upgrade or Suspend downgrade.",
+    "counterexamples": [
+      "explicit effects(io) with yield rejects, including unused body",
+      "explicit Suspend with empty body retains Suspend",
+      "task_create referring to a Suspend worker does not execute that body in the creator",
+      "abstract Callable and unresolved SCC edges cannot use first specialization or be treated as no effect"
+    ],
+    "schema": "No new declared/default bit required for fixed selected upper-bound interpretation; Core Some/None facts remain intact."
   }
 }

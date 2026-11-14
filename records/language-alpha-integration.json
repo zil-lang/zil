@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-13T23:16:22.122916+00:00",
+  "updated_at_utc": "2026-11-14T00:41:48.641629+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
@@ -139,45 +139,36 @@
     "boundary": "Untrusted Typed emitted by test-only probe; not formal Types publication or native/Alpha acceptance. Local closure Analyze still SafeReject; empty-plan V failure is not a semantic result."
   },
   "latest_unified_check": {
-    "candidate": "e91b453ac689b4ce4a8d280af77e08ea56da639d",
+    "candidate": "0f061c8024be9bbaad70eae2386ddb3c95d27531",
     "workspace_all_targets_exit": 0,
-    "workspace_check_seconds": 43.26,
     "cli_build_exit": 0,
-    "native_successes": 4,
-    "native_blocked": 12,
+    "native_successes": 12,
+    "native_blocked": 4,
+    "matrix": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "successful_original_sources": [
+      "ordinary-generic",
+      "local-closure",
+      "unused-generic-identity"
+    ],
+    "source_and_typed_with_body": true,
+    "independent_verification_each_native_success": 1,
+    "fallback_each_native_success": null,
+    "native_exit_each_success": 0,
     "types_probe": {
-      "tests": 2,
+      "executed": 2,
       "passed": 1,
       "failed": 1,
-      "positive_inputs": 4,
+      "positive_sources": 4,
       "types_successes": 3,
-      "blocked": "phantom-capture E-SEMANTIC-WORLD whole type/rigid class mismatch; local closure now Types succeeds"
+      "blocked": "phantom-capture: original life formal outside definition; exact callee hidden-domain boundary is being implemented, no caller ordinal substitution"
     },
-    "independent_verify_semantic_tests": {
-      "passed": 8,
-      "failed": 0,
-      "ignored": 0
-    },
-    "hostile_original_body_test": {
-      "passed": 1,
-      "failed": 0,
-      "routes": [
-        "Types",
-        "Analyze",
-        "raw Verify",
-        "Wire Verify"
-      ]
-    },
-    "ir_transport": {
-      "candidate": "5a8138370",
-      "passed": 131,
-      "failed": 0,
-      "ignored": 0,
-      "groups": 6,
-      "scope": "Includes all18 owner/original/wrapper combinations, partial records, old magic and trailing rejection; no CT execution claim."
-    },
-    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context",
-    "regressions": "A newly treated potential source Name/Binding implicit occurrences as function binder frames: ordinary/local now Unsupported, eight native configurations blocked. Follow-up3ab168ac4 committed but not retested. Phantom real Reborrow boundary pending CFG exact P-role bridge."
+    "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent",
+    "not_acceptance": "Current complete original-body native twelve restored after regression; the thirteen-family breadth gate remains 0/13. Not a usable Alpha release."
   },
   "first_complete_native_chains": {
     "candidate": "dbabad56211047782ea04ed93babdd872829c4cb",
@@ -231,7 +222,7 @@
     "decision": "Source owner and Analyze helper coordinate independent write sets to complete ordinary Source model; do not rewrite consumers or erase Some."
   },
   "shared_snapshot_rule": "Owners pause declared hot files at complete logic checkpoint; Root immediately stages exact owner paths and acknowledges before next batch. Candidate uses staged complete batches; never git-add the entire actively edited tree.",
-  "latest_remote_source": "3ab168ac4ffae2460b73ab37b2cbb2e2b5113dcd",
+  "latest_remote_source": "de2931202c7556a30de360381f1375021eebd566",
   "original_body_architecture": {
     "advice_model": "Astra; public IR/spec/Source only, no opposite kernel algorithms",
     "decision": "Preserve original operations, explicit/inferred actual obligations and actual emission identities; do not duplicate typeof in Source or infer original validity from concrete instances.",
@@ -304,7 +295,7 @@
     "limitation": "Historical accepted limited-chain evidence. Later mandatory world introduced local capture regression; not current Alpha acceptance."
   },
   "current_broader_real_source_coverage": {
-    "candidate": "e91b453ac689b4ce4a8d280af77e08ea56da639d",
+    "candidate": "0f061c8024be9bbaad70eae2386ddb3c95d27531",
     "existing_source_programs": 13,
     "check_successes": 0,
     "blocked": 13,
@@ -319,7 +310,7 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/integers/complete-domains.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/scalars/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/scalars/phases",
           "--json"
         ],
         "pass": false,
@@ -330,14 +321,19 @@
           {
             "phase": "ct",
             "category": "SafeReject",
-            "code": "E-INTEGER-RANGE",
-            "message": "integer does not fit i8",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original body changes a rigid whole type or lifetime anchor",
             "span": {
               "file": 0,
-              "start": 314,
-              "end": 317
+              "start": 0,
+              "end": 0
             },
             "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 7 }, expression NodeId(16)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 7 }, expression NodeId(15)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 7 }, expression NodeId(14)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 7 }, expression NodeId(13)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 7 }, expression NodeId(12)",
               "while compiling a pure #(...) query"
             ]
           }
@@ -352,7 +348,7 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/fixtures/ownership/owned-option-session.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/patterns/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/patterns/phases",
           "--json"
         ],
         "pass": false,
@@ -363,8 +359,8 @@
           {
             "phase": "types",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-ORIGINAL",
-            "message": "original record constructor has no nominal declaration",
+            "code": "E-SEMANTIC-EMISSION",
+            "message": "semantic site does not name its actual emitted operation",
             "span": {
               "file": 0,
               "start": 0,
@@ -383,21 +379,28 @@
           "check",
           "/workspace/zil-alpha-candidate/examples/mainline/draft_foundations/main.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/generic-libraries/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/generic-libraries/phases",
           "--json"
         ],
         "pass": false,
-        "exit": 3,
-        "status": "Unsupported",
+        "exit": 1,
+        "status": "SafeReject",
         "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original Store constructor requires its complete element result context",
-            "span": null,
-            "notes": []
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original body changes a rigid whole type or lifetime anchor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 7 }, expression NodeId(4)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 7 }, expression NodeId(3)"
+            ]
           }
         ]
       },
@@ -410,7 +413,7 @@
           "check",
           "/workspace/zil-alpha-candidate/examples/mainline/generic-callbacks/main.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/closures/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/closures/phases",
           "--json"
         ],
         "pass": false,
@@ -422,13 +425,15 @@
             "phase": "types",
             "category": "SafeReject",
             "code": "E-SEMANTIC-ORIGINAL",
-            "message": "original scheme omits a complete mixed formal",
+            "message": "original callable changes its complete scoped call scheme",
             "span": {
               "file": 0,
               "start": 0,
               "end": 0
             },
-            "notes": []
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(32)"
+            ]
           }
         ]
       },
@@ -441,7 +446,7 @@
           "check",
           "/workspace/zil-alpha-candidate/examples/mainline/state-replacement/main.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/ownership/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/ownership/phases",
           "--json"
         ],
         "pass": false,
@@ -472,7 +477,7 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/dynamic-abstraction/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/dynamic-abstraction/phases",
           "--json"
         ],
         "pass": false,
@@ -484,9 +489,17 @@
             "phase": "types",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "original call path lacks its real declaration import binding",
-            "span": null,
-            "notes": []
+            "message": "original field requires a visible complete nominal shape",
+            "span": {
+              "file": 0,
+              "start": 883,
+              "end": 895
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 11 }, expression NodeId(1)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 9 }, expression NodeId(10)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 9 }, expression NodeId(10)"
+            ]
           }
         ]
       },
@@ -499,21 +512,29 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/async-ownership/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/async-ownership/phases",
           "--json"
         ],
         "pass": false,
-        "exit": 3,
-        "status": "Unsupported",
+        "exit": 1,
+        "status": "SafeReject",
         "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original call path lacks its real declaration import binding",
-            "span": null,
-            "notes": []
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original give requires an owning resource head",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(3)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(1)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 2 }, expression NodeId(1)"
+            ]
           }
         ]
       },
@@ -526,7 +547,7 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/fixtures/threading/mutex-worker-helpers.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/threads/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/threads/phases",
           "--json"
         ],
         "pass": false,
@@ -544,7 +565,12 @@
               "start": 0,
               "end": 0
             },
-            "notes": []
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(15)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(14)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(10)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(9)"
+            ]
           }
         ]
       },
@@ -557,21 +583,27 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/foreign-lifecycle/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/foreign-lifecycle/phases",
           "--json"
         ],
         "pass": false,
-        "exit": 3,
-        "status": "Unsupported",
+        "exit": 1,
+        "status": "SafeReject",
         "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original call path lacks its real declaration import binding",
-            "span": null,
-            "notes": []
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "registration mutation requires an exclusive owning head address",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 7 }, expression NodeId(1)"
+            ]
           }
         ]
       },
@@ -584,7 +616,7 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/fixtures/owning-hash-collections/replacement-recovery.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/owning-collections/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/owning-collections/phases",
           "--json"
         ],
         "pass": false,
@@ -615,7 +647,7 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/fixtures/buffered-io/short_io.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/buffered-io/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/buffered-io/phases",
           "--json"
         ],
         "pass": false,
@@ -627,13 +659,17 @@
             "phase": "types",
             "category": "SafeReject",
             "code": "E-SEMANTIC-ORIGINAL",
-            "message": "original place has no lexical binder",
+            "message": "original body changes a rigid whole type or lifetime anchor",
             "span": {
               "file": 0,
               "start": 0,
               "end": 0
             },
-            "notes": []
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 11 }, expression NodeId(2)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 11 }, expression NodeId(1)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 3 }, expression NodeId(20)"
+            ]
           }
         ]
       },
@@ -646,21 +682,30 @@
           "check",
           "/workspace/zil-alpha-candidate/tests/language-readiness/iterator-adapters/owning-pipeline.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/iteration/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/iteration/phases",
           "--json"
         ],
         "pass": false,
-        "exit": 3,
-        "status": "Unsupported",
+        "exit": 1,
+        "status": "SafeReject",
         "verification_runs": 0,
         "diagnostics": [
           {
             "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original Store constructor requires its complete element result context",
-            "span": null,
-            "notes": []
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original body changes a rigid whole type or lifetime anchor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 16 }, expression NodeId(15)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 16 }, expression NodeId(14)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 10 }, expression NodeId(37)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 10 }, expression NodeId(36)"
+            ]
           }
         ]
       },
@@ -673,7 +718,7 @@
           "check",
           "/workspace/zil-alpha-candidate/examples/mainline/stream/main.zil",
           "--emit-dir",
-          "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/project-workflow/phases",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/project-workflow/phases",
           "--json"
         ],
         "pass": false,
@@ -696,13 +741,7 @@
         ]
       }
     ],
-    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/receipt.json",
-    "phase_summary": {
-      "ct": 1,
-      "types": 11,
-      "expand_resource_limit": 1
-    },
-    "runner_correction": "Initial invocation omitted required --baseline and exited2 without running inputs. Corrected explicit baseline invocation executed all13, exit1. Both logs retained; no infrastructure failure counted as language rejection."
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-core-schemes-coherent/core-coverage/receipt.json"
   },
   "whole_program_counterexamples": {
     "candidate": "ebad98ccb75ebe4c6eac26ece08c67e04944cab1",
@@ -1410,6 +1449,450 @@
         ],
         "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-types-world/core-coverage/receipt.json"
       }
+    },
+    {
+      "latest_unified_check": {
+        "candidate": "e91b453ac689b4ce4a8d280af77e08ea56da639d",
+        "workspace_all_targets_exit": 0,
+        "workspace_check_seconds": 43.26,
+        "cli_build_exit": 0,
+        "native_successes": 4,
+        "native_blocked": 12,
+        "types_probe": {
+          "tests": 2,
+          "passed": 1,
+          "failed": 1,
+          "positive_inputs": 4,
+          "types_successes": 3,
+          "blocked": "phantom-capture E-SEMANTIC-WORLD whole type/rigid class mismatch; local closure now Types succeeds"
+        },
+        "independent_verify_semantic_tests": {
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0
+        },
+        "hostile_original_body_test": {
+          "passed": 1,
+          "failed": 0,
+          "routes": [
+            "Types",
+            "Analyze",
+            "raw Verify",
+            "Wire Verify"
+          ]
+        },
+        "ir_transport": {
+          "candidate": "5a8138370",
+          "passed": 131,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 6,
+          "scope": "Includes all18 owner/original/wrapper combinations, partial records, old magic and trailing rejection; no CT execution claim."
+        },
+        "log_root": "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context",
+        "regressions": "A newly treated potential source Name/Binding implicit occurrences as function binder frames: ordinary/local now Unsupported, eight native configurations blocked. Follow-up3ab168ac4 committed but not retested. Phantom real Reborrow boundary pending CFG exact P-role bridge."
+      },
+      "current_broader_real_source_coverage": {
+        "candidate": "e91b453ac689b4ce4a8d280af77e08ea56da639d",
+        "existing_source_programs": 13,
+        "check_successes": 0,
+        "blocked": 13,
+        "native_executions": 0,
+        "actual_results": [
+          {
+            "family": "scalars",
+            "source": "tests/integers/complete-domains.zil",
+            "source_sha256": "8b4677e668bcb425724ba30599b11d3138121b8818bb25d8379fd1c3fbabeaa3",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/integers/complete-domains.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/scalars/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 1,
+            "status": "SafeReject",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "ct",
+                "category": "SafeReject",
+                "code": "E-INTEGER-RANGE",
+                "message": "integer does not fit i8",
+                "span": {
+                  "file": 0,
+                  "start": 314,
+                  "end": 317
+                },
+                "notes": [
+                  "while compiling a pure #(...) query"
+                ]
+              }
+            ]
+          },
+          {
+            "family": "patterns",
+            "source": "tests/fixtures/ownership/owned-option-session.zil",
+            "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/fixtures/ownership/owned-option-session.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/patterns/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 1,
+            "status": "SafeReject",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-ORIGINAL",
+                "message": "original record constructor has no nominal declaration",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "generic-libraries",
+            "source": "examples/mainline/draft_foundations/main.zil",
+            "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/examples/mainline/draft_foundations/main.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/generic-libraries/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 3,
+            "status": "Unsupported",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "Unsupported",
+                "code": "E-UNSUPPORTED",
+                "message": "original Store constructor requires its complete element result context",
+                "span": null,
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "closures",
+            "source": "examples/mainline/generic-callbacks/main.zil",
+            "source_sha256": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/examples/mainline/generic-callbacks/main.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/closures/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 1,
+            "status": "SafeReject",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-ORIGINAL",
+                "message": "original scheme omits a complete mixed formal",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "ownership",
+            "source": "examples/mainline/state-replacement/main.zil",
+            "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/examples/mainline/state-replacement/main.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/ownership/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 1,
+            "status": "SafeReject",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-STORED-IDENTITY",
+                "message": "one complete nominal actual vector has multiple semantic types",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "dynamic-abstraction",
+            "source": "tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+            "source_sha256": "8a5df893801e58386b266191b6c62bcf82a55211e2fbef639ad015db827be8ff",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/dynamic-abstraction/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 3,
+            "status": "Unsupported",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "Unsupported",
+                "code": "E-UNSUPPORTED",
+                "message": "original call path lacks its real declaration import binding",
+                "span": null,
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "async-ownership",
+            "source": "tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+            "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/async-ownership/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 3,
+            "status": "Unsupported",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "Unsupported",
+                "code": "E-UNSUPPORTED",
+                "message": "original call path lacks its real declaration import binding",
+                "span": null,
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "threads",
+            "source": "tests/fixtures/threading/mutex-worker-helpers.zil",
+            "source_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/fixtures/threading/mutex-worker-helpers.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/threads/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 1,
+            "status": "SafeReject",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-ORIGINAL",
+                "message": "original body changes a rigid whole type or lifetime anchor",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "foreign-lifecycle",
+            "source": "tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+            "source_sha256": "492843ac3b06c3e1a904e968811e47ebe5047178ea92a3db6be292857d1e7818",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/foreign-lifecycle/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 3,
+            "status": "Unsupported",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "Unsupported",
+                "code": "E-UNSUPPORTED",
+                "message": "original call path lacks its real declaration import binding",
+                "span": null,
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "owning-collections",
+            "source": "tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+            "source_sha256": "ef8f72781a1e834993cfc9b5ee3b09343a896c1a9fdb212755e00598d55ad870",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/owning-collections/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 4,
+            "status": "ResourceLimit",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "expand",
+                "category": "ResourceLimit",
+                "code": "E-RESOURCE-LIMIT",
+                "message": "declaration lineage temporary bytes exhausted",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "buffered-io",
+            "source": "tests/fixtures/buffered-io/short_io.zil",
+            "source_sha256": "25f26e1397071fd97bae5a83ede8eb91e3ceee94c1c1ec27615667143f5bcf5a",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/fixtures/buffered-io/short_io.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/buffered-io/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 1,
+            "status": "SafeReject",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-ORIGINAL",
+                "message": "original place has no lexical binder",
+                "span": {
+                  "file": 0,
+                  "start": 0,
+                  "end": 0
+                },
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "iteration",
+            "source": "tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+            "source_sha256": "bdebeb8bd047fb868889de3e6a4acefa2e615f860192105f2cb5538272ccbfe1",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/iteration/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 3,
+            "status": "Unsupported",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "Unsupported",
+                "code": "E-UNSUPPORTED",
+                "message": "original Store constructor requires its complete element result context",
+                "span": null,
+                "notes": []
+              }
+            ]
+          },
+          {
+            "family": "project-workflow",
+            "source": "examples/mainline/stream/main.zil",
+            "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4",
+            "command": [
+              "/workspace/.zil-env/target-language-alpha/debug/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/examples/mainline/stream/main.zil",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/project-workflow/phases",
+              "--json"
+            ],
+            "pass": false,
+            "exit": 1,
+            "status": "SafeReject",
+            "verification_runs": 0,
+            "diagnostics": [
+              {
+                "phase": "types",
+                "category": "SafeReject",
+                "code": "E-SEMANTIC-EMISSION",
+                "message": "a direct place reuses an already emitted expression identity",
+                "span": {
+                  "file": 0,
+                  "start": 320,
+                  "end": 325
+                },
+                "notes": []
+              }
+            ]
+          }
+        ],
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-real-core-context/core-coverage/receipt.json",
+        "phase_summary": {
+          "ct": 1,
+          "types": 11,
+          "expand_resource_limit": 1
+        },
+        "runner_correction": "Initial invocation omitted required --baseline and exited2 without running inputs. Corrected explicit baseline invocation executed all13, exit1. Both logs retained; no infrastructure failure counted as language rejection."
+      }
     }
   ],
   "hostile_unused_original_body": {
@@ -1437,5 +1920,60 @@
   "cloud_recovery": {
     "last_full_safety_checkpoint": "5211d1506",
     "meaning": "Unverified WIP source backup only, taken with no active writers after environment recovery. Subsequent owners use READY exact-path pause/commit/ack; no whole-tree staging while active."
-  }
+  },
+  "latest_component_validation": {
+    "source": {
+      "candidate": "cf129d281",
+      "passed": 126,
+      "failed": 0,
+      "ignored": 0,
+      "scope": "Complete zil-expand --lib, includes new whole-original effect proposal control",
+      "evidence": "/workspace/zil-alpha-candidate/out/runs/alpha-original-effect-compiled/source-tests.log"
+    },
+    "analyze": {
+      "candidate": "cf129d281",
+      "all_targets_check_exit": 0,
+      "evidence": "/workspace/zil-alpha-candidate/out/runs/alpha-original-effect-compiled/analyze-compile.log"
+    },
+    "verify": {
+      "candidate": "beb16d9d2",
+      "semantic_tests_passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "scope": "Includes two independent original frozen scheme controls; not actual CT packet admission",
+      "evidence": "/workspace/zil-alpha-candidate/out/runs/alpha-original-effect-schemes/verify-tests.log"
+    },
+    "ct_context_boundary": {
+      "candidate": "999765945",
+      "raw_and_wire_positive_and_missing_source_rejection_group": 1,
+      "freeze_identity_and_exact_N_boundary_tests": 2,
+      "evidence": "/workspace/zil-alpha-candidate/out/runs/alpha-context-trust-boundaries",
+      "filter_correction": "Initial source_frozen module filter selected zero; corrected source::frozen filter actually executed two. Zero selection not counted."
+    },
+    "ir": {
+      "candidate": "5a8138370",
+      "passed": 131,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "frozen_context_implementation": {
+    "types": "b01ada345 removes unconditional Unsupported and connects immutable source proof/WF, E-only builder, materialization and actual world checks. Compile succeeds after f866/0f061 corrections. Real CT still blocked by original full source body typing.",
+    "analyze": "65d301ddd removes unconditional frozen wrapper bridge rejection; cd8c50c65 plus47d97f542 reconstruct ghost and capture classes. Original core builtins/effect coverage still incomplete and under independent implementation.",
+    "verify": "02ca06d38 context entry plus eb80a9167 original declaration WF, ten semantic controls pass; broad original builtin/control coverage incomplete, independent implementation continues.",
+    "status": "Actual success must come from real same-version CT Source/Typed/packet/VM; APIs and component controls alone are not acceptance."
+  },
+  "current_root_causes": {
+    "common_binary_context": "Numeric comparison operands incorrectly received Bool result context; operator-wide fix de2931202 saved, not yet retested.",
+    "source_call_kind": "Source fixed Direct placeholder replaced by original graph candidate. Actual Scalar Slice.len receiver resolution needed correction, pending next Source batch. Each kernel still proves bounds independently.",
+    "nominal_actual_identity": "Two raw State entries carry same Named(F) vector for distinct actual owners. Preserve owner and defer full actual materialization; never de-duplicate or treat F as known0.",
+    "source_dyn": "Actual Read A/B lacks original dyn_scopes/method directories. Producer and consumer complete identity/header mapping under construction; missing data not interpreted as empty proof.",
+    "task_failure_prelude": "Canonical product2/3 exists in old declaration inventory but new prepare filters it out; Source is adding authenticated full templates.",
+    "budget": "Name allocation filtering passes126 component tests but owning hash real source still exhausts default lineage bytes; no raised limit."
+  },
+  "workflow_applied_further": [
+    "Reassign complete sealed resource/Store/Task/thread original-to-actual chain to the actual CFG owner, keeping original namespace/fresh inference/frozen caller in the original body owner.",
+    "Resume independent Analyze and Verify original builtin and effect chains in parallel before Types completes, using public inputs/contracts and no algorithm sharing.",
+    "Pause and immediately commit each precise READY set; keep final background-aware candidate immutable while source work continues."
+  ]
 }
