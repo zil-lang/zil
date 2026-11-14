@@ -492,6 +492,15 @@ impl Check<'_, '_> {
                     InstructionKind::Call {
                         function,
                         arguments,
+                    }
+                    | InstructionKind::SuspendCall {
+                        function,
+                        arguments,
+                    }
+                    | InstructionKind::ForeignCall {
+                        function,
+                        arguments,
+                        ..
                     } if !closure => {
                         let callee = self
                             .module
@@ -499,6 +508,48 @@ impl Check<'_, '_> {
                             .get(function.0 as usize)
                             .filter(|callee| callee.id == *function)
                             .ok_or_else(|| fail("actual original callee function is absent"))?;
+                        let declaration = self.inventory.definition(original, b)?;
+                        let SemanticDefinitionBody::FunctionWithBody {
+                            signature, body, ..
+                        } = &declaration.body
+                        else {
+                            return Err(fail(
+                                "actual static call has no independently checked original scheme",
+                            ));
+                        };
+                        let valid = match (&instruction.kind, body) {
+                            (
+                                InstructionKind::ForeignCall { .. },
+                                SemanticOriginalFunctionBody::External,
+                            ) => {
+                                signature.call_kind == CallKind::Direct
+                                    && callee.call_kind == CallKind::Direct
+                                    && callee.foreign.is_some()
+                            }
+                            (
+                                InstructionKind::SuspendCall { .. },
+                                SemanticOriginalFunctionBody::Defined(_),
+                            ) => {
+                                signature.call_kind == CallKind::Suspend
+                                    && callee.call_kind == CallKind::Suspend
+                                    && callee.foreign.is_none()
+                                    && point.function.call_kind == CallKind::Suspend
+                            }
+                            (
+                                InstructionKind::Call { .. },
+                                SemanticOriginalFunctionBody::Defined(_),
+                            ) => {
+                                signature.call_kind == CallKind::Direct
+                                    && callee.call_kind == CallKind::Direct
+                                    && callee.foreign.is_none()
+                            }
+                            _ => false,
+                        };
+                        if !valid {
+                            return Err(fail(
+                                "actual static call changes its original foreign or Suspend ABI role",
+                            ));
+                        }
                         let mut parameters = Vec::new();
                         for parameter in &callee.parameters {
                             b.spend(callee.locals.len().saturating_add(1), WORK)?;
@@ -920,16 +971,16 @@ impl Check<'_, '_> {
                         }
                     }
                     let requires = match instruction.kind {
-                        InstructionKind::Call { .. } => Some(0),
+                        InstructionKind::Call { .. }
+                        | InstructionKind::SuspendCall { .. }
+                        | InstructionKind::ForeignCall { .. } => Some(0),
                         InstructionKind::TaskYield => Some(3),
                         InstructionKind::CallClosure { .. }
                         | InstructionKind::CallClosureOnce { .. }
                         | InstructionKind::CallClosureShared { .. }
                         | InstructionKind::CallClosureMut { .. } => Some(1),
                         InstructionKind::MakeClosure { .. } => Some(2),
-                        InstructionKind::SuspendCall { .. }
-                        | InstructionKind::ForeignCall { .. }
-                        | InstructionKind::CallIndirect { .. }
+                        InstructionKind::CallIndirect { .. }
                         | InstructionKind::CallClosureBorrowed { .. } => {
                             return Err(unknown(
                                 "actual semantic code operation has no completed scoped boundary proof",

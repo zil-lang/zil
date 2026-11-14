@@ -366,6 +366,12 @@ impl Checked {
         let instruction = actual.ok_or_else(|| fail("original result role has no actual call"))?;
         if let InstructionKind::Call {
             function: target, ..
+        }
+        | InstructionKind::SuspendCall {
+            function: target, ..
+        }
+        | InstructionKind::ForeignCall {
+            function: target, ..
         } = instruction.kind
         {
             let mut selected = None;

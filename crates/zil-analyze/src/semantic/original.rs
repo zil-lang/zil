@@ -1091,123 +1091,145 @@ impl Solver<'_, '_> {
                     self.step(depth, b)?;
                     head = inner;
                 }
+                let mut type_written = Vec::new();
                 let (head, written) = match &head.kind {
                     CoreExprKind::GenericApply { callee, arguments } => {
                         (callee.as_ref(), arguments.as_slice())
                     }
+                    CoreExprKind::TypeApply {
+                        callee,
+                        type_arguments,
+                    } => {
+                        for argument in type_arguments {
+                            crate::dyn_metadata::recipe(argument, b)?;
+                            Self::push(
+                                &mut type_written,
+                                CoreGenericArgument::Type(argument.clone()),
+                                b,
+                            )?;
+                        }
+                        (callee.as_ref(), type_written.as_slice())
+                    }
                     _ => (head, &[][..]),
                 };
-                let (parameters, result) = if let CoreExprKind::Name(name) = &head.kind {
-                    if let Some(local) = self.local(frame, name, b)? {
-                        if !written.is_empty() {
-                            return Err(unknown(
-                                "original generic callable needs its complete method instantiation",
-                            ));
-                        }
-                        let mut local = self.root(local, b)?;
-                        for _ in 0..=b.partial_depth {
-                            if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
-                                local = self.root(hidden, b)?;
-                            } else {
-                                break;
-                            }
-                        }
-                        b.spend(
-                            match &self.state.arena[local] {
-                                Kind::Closure {
-                                    parameters,
-                                    environment,
-                                    ..
-                                } => parameters.len().saturating_add(environment.len() + 1),
-                                _ => 1,
-                            },
-                            WORK,
-                        )?;
-                        let Kind::Closure {
-                            definition: target,
-                            parameters,
-                            result,
-                            ..
-                        } = self.state.arena[local].clone()
-                        else {
-                            return Err(unknown(
-                                "original indirect call needs its full callable premise",
-                            ));
-                        };
-                        b.spend(self.state.calls.len().saturating_add(1), WORK)?;
-                        self.state.calls.insert(
-                            (frame.definition, value.id),
-                            Call {
-                                target,
-                                actuals: Vec::new(),
-                                closure: true,
-                            },
-                        );
-                        (parameters, result)
-                    } else {
-                        let resolution = sealed::resolve(
-                            self.inventory,
-                            frame.definition,
-                            &[name.as_str()],
-                            &BTreeSet::new(),
-                            b,
-                        )?;
-                        match resolution {
-                            sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskYield) => {
-                                if !written.is_empty() || !arguments.is_empty() {
-                                    return Err(fail(
-                                        "original task_yield has neither generic nor value arguments",
-                                    ));
-                                }
-                                b.lookup(self.state.intrinsics.len(), WORK)?;
-                                if self
-                                    .state
-                                    .intrinsics
-                                    .insert(
-                                        (frame.definition, value.id),
-                                        sealed::Intrinsic::TaskYield,
-                                    )
-                                    .is_some()
-                                {
-                                    return Err(fail(
-                                        "original core operation has competing scheme resolutions",
-                                    ));
-                                }
-                                (Vec::new(), self.atom(Type::Unit, b)?)
-                            }
-                            sealed::Resolution::Intrinsic(_) => {
-                                return Err(unknown(
-                                    "original core operation needs its complete parameter, mode and cleanup scheme",
-                                ));
-                            }
-                            sealed::Resolution::Definition(target) => {
-                                let (actuals, parameters, result) =
-                                    self.scheme(frame, target, written, b, depth + 1)?;
-                                b.spend(
-                                    self.state.calls.len().saturating_add(actuals.len()),
-                                    WORK,
-                                )?;
-                                self.state.calls.insert(
-                                    (frame.definition, value.id),
-                                    Call {
-                                        target,
-                                        actuals,
-                                        closure: false,
-                                    },
-                                );
-                                (parameters, result)
-                            }
-                            sealed::Resolution::Deferred => {
-                                return Err(unknown(
-                                    "original call has no complete lexical declaration or core scheme",
-                                ));
-                            }
+                if matches!(
+                    head.kind,
+                    CoreExprKind::GenericApply { .. } | CoreExprKind::TypeApply { .. }
+                ) {
+                    return Err(unknown(
+                        "original nested generic application needs every mixed layer interpreted",
+                    ));
+                }
+                let local = if let CoreExprKind::Name(name) = &head.kind {
+                    self.local(frame, name, b)?
+                } else {
+                    None
+                };
+                let (parameters, result) = if let Some(local) = local {
+                    if !written.is_empty() {
+                        return Err(unknown(
+                            "original generic callable needs its complete method instantiation",
+                        ));
+                    }
+                    let mut local = self.root(local, b)?;
+                    for _ in 0..=b.partial_depth {
+                        if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
+                            local = self.root(hidden, b)?;
+                        } else {
+                            break;
                         }
                     }
+                    b.spend(
+                        match &self.state.arena[local] {
+                            Kind::Closure {
+                                parameters,
+                                environment,
+                                ..
+                            } => parameters.len().saturating_add(environment.len() + 1),
+                            _ => 1,
+                        },
+                        WORK,
+                    )?;
+                    let Kind::Closure {
+                        definition: target,
+                        parameters,
+                        result,
+                        ..
+                    } = self.state.arena[local].clone()
+                    else {
+                        return Err(unknown(
+                            "original indirect call needs its full callable premise",
+                        ));
+                    };
+                    b.spend(self.state.calls.len().saturating_add(1), WORK)?;
+                    self.state.calls.insert(
+                        (frame.definition, value.id),
+                        Call {
+                            target,
+                            actuals: Vec::new(),
+                            closure: true,
+                        },
+                    );
+                    (parameters, result)
                 } else {
-                    return Err(unknown(
-                        "original member or expression call needs its full source resolution",
-                    ));
+                    let path = sealed::path(head, b, depth + 1)?.ok_or_else(|| {
+                        unknown("original expression call needs its full source resolution")
+                    })?;
+                    // A qualified lexical path is resolved by its complete
+                    // Names binding. A value root shadows every static path;
+                    // neither a member spelling nor ABI shape selects code.
+                    let mut names = BTreeSet::new();
+                    for local in &frame.locals {
+                        b.spend(local.name.len().saturating_add(names.len() + 1), WORK)?;
+                        names.insert(local.name.clone());
+                    }
+                    let resolution =
+                        sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
+                    match resolution {
+                        sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskYield) => {
+                            if !written.is_empty() || !arguments.is_empty() {
+                                return Err(fail(
+                                    "original task_yield has neither generic nor value arguments",
+                                ));
+                            }
+                            b.lookup(self.state.intrinsics.len(), WORK)?;
+                            if self
+                                .state
+                                .intrinsics
+                                .insert((frame.definition, value.id), sealed::Intrinsic::TaskYield)
+                                .is_some()
+                            {
+                                return Err(fail(
+                                    "original core operation has competing scheme resolutions",
+                                ));
+                            }
+                            (Vec::new(), self.atom(Type::Unit, b)?)
+                        }
+                        sealed::Resolution::Intrinsic(_) => {
+                            return Err(unknown(
+                                "original core operation needs its complete parameter, mode and cleanup scheme",
+                            ));
+                        }
+                        sealed::Resolution::Definition(target) => {
+                            let (actuals, parameters, result) =
+                                self.scheme(frame, target, written, b, depth + 1)?;
+                            b.spend(self.state.calls.len().saturating_add(actuals.len()), WORK)?;
+                            self.state.calls.insert(
+                                (frame.definition, value.id),
+                                Call {
+                                    target,
+                                    actuals,
+                                    closure: false,
+                                },
+                            );
+                            (parameters, result)
+                        }
+                        sealed::Resolution::Deferred => {
+                            return Err(unknown(
+                                "original call has no complete lexical declaration or core scheme",
+                            ));
+                        }
+                    }
                 };
                 if parameters.len() != arguments.len() {
                     return Err(fail(
@@ -1691,6 +1713,11 @@ impl Solver<'_, '_> {
                 self.block(&mut frame, body, b, depth + 1)?
             }
             SemanticOriginalFunctionBody::External => {
+                if signature.call_kind != CallKind::Direct {
+                    return Err(fail(
+                        "original foreign declaration cannot claim a Suspend execution ABI",
+                    ));
+                }
                 for instance in self
                     .inventory
                     .instances

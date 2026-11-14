@@ -197,7 +197,11 @@ pub(super) fn path<'a>(
     }
     match &value.kind {
         CoreExprKind::Name(name) => Ok(Some(vec![name.as_str()])),
-        CoreExprKind::Member { object, member, .. } => {
+        CoreExprKind::Member {
+            object,
+            member,
+            owner: None,
+        } => {
             let Some(mut path) = path(object, b, depth + 1)? else {
                 return Ok(None);
             };

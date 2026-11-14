@@ -375,6 +375,8 @@ impl<'a> Inventory<'a> {
                         matches!(
                             instruction.kind,
                             InstructionKind::Call { .. }
+                                | InstructionKind::SuspendCall { .. }
+                                | InstructionKind::ForeignCall { .. }
                                 | InstructionKind::CallClosure { .. }
                                 | InstructionKind::CallClosureOnce { .. }
                                 | InstructionKind::CallClosureShared { .. }
