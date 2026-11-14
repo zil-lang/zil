@@ -85,6 +85,7 @@ impl Check<'_, '_> {
         let SemanticDefinitionBody::Nominal {
             kind: LifeNominalKind::Package,
             body: SemanticNominalBody::Product { fields },
+            ..
         } = &definition.body
         else {
             return Ok(false);
