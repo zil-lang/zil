@@ -28,6 +28,7 @@ struct Child {
 #[derive(Default)]
 pub(crate) struct Program {
     pub(crate) nominal_declarations: Vec<LifeNominalDeclaration>,
+    dyn_templates: Vec<dyn_original::Template>,
     pub(super) original_nodes: Vec<DefinitionBodyNodes>,
     pub(crate) modules: Vec<(ModuleId, SemanticModule)>,
     templates: Vec<FunctionTemplate>,
@@ -1105,6 +1106,7 @@ impl Program {
                 dyn_scopes: std::mem::take(&mut data.dyn_scopes),
             });
         }
+        dyn_original::publish(&mut self.dyn_templates, cores, budget)?;
         Ok(())
     }
 }
@@ -1252,6 +1254,22 @@ pub(crate) fn prepare(
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
         }
         effects::propose(&mut program.modules, &inventory.originals, &mut budget)?;
+        let mut normalizer = Builder {
+            inventory: &inventory.originals,
+            compiler_nominals: &inventory.compiler_nominals,
+            imports: &mappings,
+            budget: &mut budget,
+            owner: 0,
+            lexical_offset: 0,
+            implicit: Vec::new(),
+            bound_lives: Vec::new(),
+            invocations: Vec::new(),
+            closures: Vec::new(),
+            next_body_nodes: Vec::new(),
+            opaque_result: None,
+            body_nodes: Vec::new(),
+        };
+        program.dyn_templates = dyn_original::collect(&mut normalizer, &program.modules)?;
         budget.drop_lineage_vec(mappings, span)?;
         Ok((modules, program))
     })();

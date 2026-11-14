@@ -8,6 +8,12 @@ use super::*;
 enum Target {
     Definition(usize),
     Kind(CallKind),
+    TraitReceiver(LifeDeclarationId),
+    NominalReceiver(SemanticDefinitionId),
+    FormalReceiver { owner: usize, ordinal: u32 },
+    FallibleTrait(LifeDeclarationId),
+    FallibleNominal(SemanticDefinitionId),
+    LengthReceiver,
     Unknown,
 }
 struct Vertex {
@@ -44,7 +50,14 @@ impl<'a> Scan<'a, '_, '_, '_> {
     fn edge(&mut self, target: Target, span: Span) -> R<()> {
         match target {
             Target::Kind(CallKind::Direct) => {}
-            Target::Kind(CallKind::Suspend) | Target::Unknown => self.vertex.suspend = true,
+            Target::Kind(CallKind::Suspend)
+            | Target::Unknown
+            | Target::TraitReceiver(_)
+            | Target::NominalReceiver(_)
+            | Target::FormalReceiver { .. }
+            | Target::FallibleTrait(_)
+            | Target::FallibleNominal(_)
+            | Target::LengthReceiver => self.vertex.suspend = true,
             Target::Definition(index) => {
                 self.budget.identity_work(self.vertex.edges.len(), span)?;
                 if !self.vertex.edges.contains(&index) {
@@ -94,7 +107,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
         self.budget.node(span, depth)?;
         Ok(match ty {
             SemanticTypeRecipe::Code { signature, .. } => Target::Kind(signature.call_kind),
-            SemanticTypeRecipe::Address { inner, .. }
+            SemanticTypeRecipe::Managed(inner)
+            | SemanticTypeRecipe::Address { inner, .. }
             | SemanticTypeRecipe::Desc { inner, .. }
             | SemanticTypeRecipe::Qualified { storage: inner, .. }
             | SemanticTypeRecipe::Opaque { hidden: inner, .. } => {
@@ -134,7 +148,55 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     depth + 1,
                     span,
                 )?;
-                found.map_or(Target::Unknown, Target::Kind)
+                found.map_or(
+                    Target::FormalReceiver {
+                        owner,
+                        ordinal: reference.ordinal,
+                    },
+                    Target::Kind,
+                )
+            }
+            SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_) => {
+                Target::LengthReceiver
+            }
+            SemanticTypeRecipe::Dyn { interface, .. } => {
+                Target::TraitReceiver(interface.application.declaration)
+            }
+            SemanticTypeRecipe::Nominal { definition, .. } => Target::NominalReceiver(*definition),
+            SemanticTypeRecipe::ErrorUnion { result, .. } => {
+                match self.callable_type(owner, result, depth + 1, span)? {
+                    Target::TraitReceiver(id) => Target::FallibleTrait(id),
+                    Target::NominalReceiver(id) => Target::FallibleNominal(id),
+                    _ => Target::Unknown,
+                }
+            }
+            SemanticTypeRecipe::SelfType { scope } => {
+                let Some(mut owner) = self.scope(owner, scope, span)? else {
+                    return Ok(Target::Unknown);
+                };
+                loop {
+                    self.budget.node(span, depth + 1)?;
+                    match &self.definitions[owner].body {
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait {
+                            declaration,
+                        }) => break Target::TraitReceiver(*declaration),
+                        SemanticDefinitionBody::Scope(
+                            SemanticScopeRecipe::InherentImpl { self_type, .. }
+                            | SemanticScopeRecipe::TraitImpl { self_type, .. }
+                            | SemanticScopeRecipe::BuiltinImpl { self_type, .. },
+                        ) => break self.callable_type(owner, self_type, depth + 1, span)?,
+                        _ => {}
+                    }
+                    let Some(parent) = self.definitions[owner].parent else {
+                        break Target::Unknown;
+                    };
+                    let Some(next) =
+                        declaration_index(self.definitions, parent, self.budget, span)?
+                    else {
+                        break Target::Unknown;
+                    };
+                    owner = next;
+                }
             }
             _ => Target::Unknown,
         })
@@ -214,6 +276,43 @@ impl<'a> Scan<'a, '_, '_, '_> {
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            CoreExprKind::Record { ty, .. } => {
+                return self.callable_type(self.owner, ty, depth + 1, expression.span);
+            }
+            CoreExprKind::RecordConstructor {
+                definition: Some(definition),
+                ..
+            } => return Ok(Target::NominalReceiver(*definition)),
+            CoreExprKind::Try(value) => {
+                return Ok(match self.target(value, depth + 1)? {
+                    Target::FallibleTrait(id) => Target::TraitReceiver(id),
+                    Target::FallibleNominal(id) => Target::NominalReceiver(id),
+                    _ => Target::Unknown,
+                });
+            }
+            CoreExprKind::Call { callee, .. } => {
+                if let CoreExprKind::GenericApply {
+                    callee: factory,
+                    arguments,
+                } = &callee.kind
+                    && matches!(&factory.kind,CoreExprKind::Name(name) if name=="owned_dyn")
+                    && let [CoreGenericArgument::Type(SemanticTypeRecipe::Dyn { interface, .. })] =
+                        arguments.as_slice()
+                {
+                    return Ok(Target::FallibleTrait(interface.application.declaration));
+                }
+                if let Target::Definition(owner) = self.target(callee, depth + 1)?
+                    && let Some(signature) = signature(self.definitions[owner])
+                {
+                    return self.callable_type(
+                        owner,
+                        &signature.result,
+                        depth + 1,
+                        expression.span,
+                    );
+                }
+                return Ok(Target::Unknown);
+            }
             CoreExprKind::Ascribed { ty, .. } => {
                 return self.callable_type(self.owner, ty, depth + 1, expression.span);
             }
@@ -264,7 +363,14 @@ impl<'a> Scan<'a, '_, '_, '_> {
         }
         let mut path = Vec::new();
         let is_path = self.path(expression, &mut path, depth + 1)?;
-        let target = if is_path {
+        let local_root = if let Some(root) = path.first() {
+            self.budget
+                .identity_work(self.locals.len(), expression.span)?;
+            self.locals.iter().rev().any(|(name, _)| name == root)
+        } else {
+            false
+        };
+        let target = if is_path && !local_root {
             self.budget.identity_work(
                 self.names().len().saturating_mul(path.len() + 1),
                 expression.span,
@@ -303,45 +409,213 @@ impl<'a> Scan<'a, '_, '_, '_> {
         self.budget.drop_lineage_vec(path, expression.span)?;
         Ok(target)
     }
+    fn method_scope(
+        &mut self,
+        scope: SemanticDefinitionId,
+        spelling: &str,
+        depth: usize,
+        span: Span,
+    ) -> R<bool> {
+        self.budget.node(span, depth)?;
+        self.budget.identity_work(self.definitions.len(), span)?;
+        let mut found = false;
+        for (index, definition) in self.definitions.iter().enumerate() {
+            if definition.parent == Some(scope) && definition.kind == SemanticDefinitionKind::Method
+            {
+                self.budget.identity_work(
+                    definition
+                        .identity
+                        .declaration_path
+                        .last()
+                        .map_or(0, String::len)
+                        .saturating_add(spelling.len()),
+                    span,
+                )?;
+                if definition
+                    .identity
+                    .declaration_path
+                    .last()
+                    .is_some_and(|name| name == spelling)
+                {
+                    self.edge(Target::Definition(index), span)?;
+                    found = true;
+                }
+            }
+        }
+        Ok(found)
+    }
+    fn trait_methods(
+        &mut self,
+        declaration: LifeDeclarationId,
+        spelling: &str,
+        depth: usize,
+        span: Span,
+        active: &mut Vec<SemanticDefinitionId>,
+    ) -> R<bool> {
+        self.budget.node(span, depth)?;
+        let mut found = false;
+        for definition in self.definitions {
+            let SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait {
+                declaration: source,
+            }) = &definition.body
+            else {
+                continue;
+            };
+            if *source != declaration {
+                continue;
+            }
+            self.budget.identity_work(active.len(), span)?;
+            if active.contains(&definition.id) {
+                self.vertex.suspend = true;
+                return Ok(true);
+            }
+            self.budget.lineage_push(active, definition.id, span)?;
+            found |= self.method_scope(definition.id, spelling, depth + 1, span)?;
+            for requirement in &definition.requirements {
+                self.budget.node(span, depth)?;
+                if let SemanticRequirementRecipe::Trait {
+                    ty: SemanticTypeRecipe::SelfType { .. },
+                    application,
+                } = requirement
+                {
+                    found |= self.trait_methods(
+                        application.declaration,
+                        spelling,
+                        depth + 1,
+                        span,
+                        active,
+                    )?;
+                }
+            }
+            active.pop();
+        }
+        Ok(found)
+    }
+    fn receiver_method(
+        &mut self,
+        target: Target,
+        spelling: &str,
+        depth: usize,
+        span: Span,
+    ) -> R<bool> {
+        self.budget.node(span, depth)?;
+        match target {
+            Target::LengthReceiver if spelling == "len" => {
+                self.edge(Target::Kind(CallKind::Direct), span)?;
+                Ok(true)
+            }
+            Target::TraitReceiver(declaration) => {
+                let mut active = Vec::new();
+                let found =
+                    self.trait_methods(declaration, spelling, depth + 1, span, &mut active)?;
+                self.budget.drop_lineage_vec(active, span)?;
+                Ok(found)
+            }
+            Target::NominalReceiver(owner) => {
+                let Some(index) = declaration_index(self.definitions, owner, self.budget, span)?
+                else {
+                    return Ok(false);
+                };
+                if let SemanticDefinitionBody::Nominal {
+                    body: SemanticNominalBody::Product { fields },
+                    ..
+                } = &self.definitions[index].body
+                {
+                    self.budget.identity_work(fields.len(), span)?;
+                    if let Some(field) = fields.iter().find(|field| field.name == spelling) {
+                        let target = self.callable_type(index, &field.ty, depth + 1, span)?;
+                        self.edge(target, span)?;
+                        return Ok(true);
+                    }
+                }
+                let mut found = false;
+                for definition in self.definitions {
+                    let self_type = match &definition.body {
+                        SemanticDefinitionBody::Scope(
+                            SemanticScopeRecipe::InherentImpl { self_type, .. }
+                            | SemanticScopeRecipe::TraitImpl { self_type, .. }
+                            | SemanticScopeRecipe::BuiltinImpl { self_type, .. },
+                        ) => self_type,
+                        _ => continue,
+                    };
+                    self.budget.node(span, depth)?;
+                    if matches!(self_type,SemanticTypeRecipe::Nominal {definition,..} if *definition==owner)
+                    {
+                        found |= self.method_scope(definition.id, spelling, depth + 1, span)?;
+                    } else if !matches!(self_type, SemanticTypeRecipe::Nominal { .. }) {
+                        // An unresolved blanket/projection receiver is not
+                        // discarded merely because its image is not known.
+                        if self.method_scope(definition.id, spelling, depth + 1, span)? {
+                            self.vertex.suspend = true;
+                            found = true;
+                        }
+                    }
+                }
+                Ok(found)
+            }
+            Target::FormalReceiver { owner, ordinal } => {
+                let definition = self.definitions[owner];
+                let mut found = false;
+                let empty = [];
+                let own = if let Some(SemanticFormal::Type { requirements }) =
+                    definition.parameters.get(ordinal as usize)
+                {
+                    requirements.as_slice()
+                } else {
+                    &empty
+                };
+                for requirements in [own, definition.requirements.as_slice()] {
+                    for requirement in requirements {
+                        self.budget.node(span, depth)?;
+                        if let SemanticRequirementRecipe::Trait {
+                            ty: SemanticTypeRecipe::Formal(reference),
+                            application,
+                        } = requirement
+                            && reference.scope == SemanticScopeRef::Ancestor(0)
+                            && reference.ordinal == ordinal
+                        {
+                            found |= self.receiver_method(
+                                Target::TraitReceiver(application.declaration),
+                                spelling,
+                                depth + 1,
+                                span,
+                            )?;
+                        }
+                    }
+                }
+                Ok(found)
+            }
+            _ => Ok(false),
+        }
+    }
     fn invoke(&mut self, callee: &'a SemanticOriginalExpr, depth: usize) -> R<()> {
         let target = self.target(callee, depth + 1)?;
         if target != Target::Unknown {
             return self.edge(target, callee.span);
         }
-        // Unresolved method selection is not a fabricated static target. Keep
-        // every same-spelled visible declaration as an upper candidate. If
-        // there is no such complete binding, retain the unknown Suspend upper.
-        let spelling = match &callee.kind {
-            CoreExprKind::Member { member, .. } | CoreExprKind::ReceiverMember(member) => {
-                Some(member.as_str())
+        let receiver = match &callee.kind {
+            CoreExprKind::Member { object, member, .. } => {
+                Some((self.target(object, depth + 1)?, member.as_str()))
             }
+            CoreExprKind::ReceiverMember(member) => {
+                self.budget.identity_work(self.locals.len(), callee.span)?;
+                self.locals
+                    .iter()
+                    .rev()
+                    .find(|(name, _)| *name == "self")
+                    .map(|(_, target)| (*target, member.as_str()))
+            }
+            CoreExprKind::GenericApply { callee, .. }
+            | CoreExprKind::TypeApply { callee, .. }
+            | CoreExprKind::Group(callee) => return self.invoke(callee, depth + 1),
             _ => None,
         };
-        let mut found = false;
-        if let Some(spelling) = spelling {
-            for binding in self.names() {
-                self.budget.node(callee.span, depth)?;
-                if binding.namespace != SemanticOriginalNamespace::Value
-                    || binding.path.last().is_none_or(|part| part != spelling)
-                {
-                    continue;
-                }
-                if let SemanticOriginalNameValue::Definition(id) = binding.value {
-                    if let Some(index) =
-                        declaration_index(self.definitions, id, self.budget, callee.span)?
-                    {
-                        if signature(self.definitions[index]).is_some() {
-                            self.edge(Target::Definition(index), callee.span)?;
-                            found = true;
-                        }
-                    }
-                }
-            }
+        if let Some((target, member)) = receiver
+            && self.receiver_method(target, member, depth + 1, callee.span)?
+        {
+            return Ok(());
         }
-        if !found {
-            self.edge(Target::Unknown, callee.span)?
-        }
-        Ok(())
+        self.edge(Target::Unknown, callee.span)
     }
     fn pattern(&mut self, pattern: &'a SemanticOriginalPattern, depth: usize) -> R<()> {
         self.budget.node(pattern.span, depth)?;
@@ -756,7 +1030,7 @@ mod tests {
             FileId(0),
             ModuleId(0),
             "original-effects.zil",
-            "fn leaf(){task_yield();}fn relay(){leaf();}fn a(){b();}fn b(){a();}fn declared_direct() contract{effects(io);}{task_yield();}fn declared_suspend() contract{effects(suspend);}{}fn creator(){let worker=()=>task_yield();}fn invoked(){let worker=()=>task_yield();worker();}fn through<F:Fn()->void>(worker:F){worker();}fn deferred(){defer{task_yield();}}fn unknown(){unresolved();}",
+            "fn leaf(){task_yield();}fn relay(){leaf();}fn a(){b();}fn b(){a();}fn declared_direct() contract{effects(io);}{task_yield();}fn declared_suspend() contract{effects(suspend);}{}fn creator(){let worker=()=>task_yield();}fn invoked(){let worker=()=>task_yield();worker();}fn through<F:Fn()->void>(worker:F){worker();}fn deferred(){defer{task_yield();}}fn unknown(){unresolved();}fn length(values:&mut[u8])->i64{return values.len()}",
         );
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let limits = Limits::default();
@@ -788,5 +1062,53 @@ mod tests {
         assert_eq!(kind(8), CallKind::Direct); // Original callable premise, not actual F.
         assert_eq!(kind(9), CallKind::Suspend);
         assert_eq!(kind(10), CallKind::Suspend); // Unresolved is not silently Direct.
+        assert_eq!(kind(11), CallKind::Direct); // Registered slice method, from original annotation.
+    }
+    #[test]
+    fn method_candidates_use_original_receiver_bindings_not_same_spelling() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "original-method-effects.zil",
+            "trait Read{fn read(self:&Self)->i32;}struct Provider{n:i32}impl Read for Provider{fn read(self:&Self)->i32{return self.n}}fn declared_receiver(value:&Provider){value.read();}fn unknown_receiver<F>(value:F){value.read();}fn bounded_receiver<F:Read>(value:F){value.read();}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut remaining = limits.clone();
+        let (_, program) =
+            super::super::program::prepare(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+                .unwrap();
+        let kind = |node| {
+            signature(
+                program.modules[0]
+                    .1
+                    .definitions
+                    .iter()
+                    .find(|definition| {
+                        definition.id
+                            == SemanticDefinitionId {
+                                module: source.module_id,
+                                index: node,
+                            }
+                    })
+                    .unwrap(),
+            )
+            .unwrap()
+            .call_kind
+        };
+        assert_eq!(kind(3), CallKind::Direct);
+        assert_eq!(kind(4), CallKind::Suspend);
+        assert_eq!(kind(5), CallKind::Direct);
     }
 }

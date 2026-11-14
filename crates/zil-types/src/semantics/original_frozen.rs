@@ -143,6 +143,7 @@ fn clone_proof(
             .saturating_add(source.method_calls.len())
             .saturating_add(source.callable_calls.len())
             .saturating_add(source.direct_calls.len())
+            .saturating_add(source.call_result_origins.len())
             .saturating_add(source.scope_calls.len())
             .saturating_add(source.local_roles.len())
             .saturating_add(source.environments.len())
@@ -157,6 +158,9 @@ fn clone_proof(
     for ((_, query), ty) in &source.types {
         spend(left, query.copy_work(), 0, limits)?;
         crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1)?;
+    }
+    for ((_, query), _) in &source.call_result_origins {
+        spend(left, query.copy_work(), 0, limits)?;
     }
     for actuals in source.calls.values().chain(source.scope_calls.values()) {
         spend(left, actuals.len(), 0, limits)?;
@@ -179,6 +183,12 @@ fn clone_proof(
         }
         if let IntrinsicKind::RegistrationStart { providers, .. } = &call.kind {
             spend(left, providers.len(), 0, limits)?;
+        }
+        if let IntrinsicKind::DynCall {
+            parameter_modes, ..
+        } = &call.kind
+        {
+            spend(left, parameter_modes.len(), 0, limits)?;
         }
     }
     for call in source.method_calls.values() {

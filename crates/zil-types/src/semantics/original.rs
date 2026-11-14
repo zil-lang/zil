@@ -5,8 +5,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_base::NodeId;
 #[path = "original_calls.rs"]
 mod calls;
+#[path = "original_dyn.rs"]
+mod dynamic;
 #[path = "original_effects.rs"]
 mod effects;
+#[path = "original_results.rs"]
+mod results;
+pub(super) use results::CalleeResultBoundary;
 #[path = "original_frozen.rs"]
 mod frozen;
 pub(super) use frozen::check_with_frozen;
@@ -154,6 +159,8 @@ pub(super) struct Proof {
         (SemanticDefinitionId, SemanticSiteId, SemanticDefinitionId),
         Vec<SemanticActualRecipe>,
     >,
+    call_result_origins:
+        BTreeMap<(SemanticDefinitionId, Query), (SemanticDefinitionId, SemanticSiteId)>,
     environments: BTreeMap<(SemanticDefinitionId, u32), (SemanticDefinitionId, SemanticTypeRecipe)>,
     frozen_environments: BTreeMap<(SemanticDefinitionId, bool, NodeId), BTreeMap<String, Binding>>,
 }
@@ -914,11 +921,34 @@ impl<'a> Check<'a, '_> {
                 let value = variables.get(name).ok_or_else(|| {
                     bad("original NameAt has no lexical binder at its exact source point")
                 })?;
+                self.pay(value.origin.copy_work(), 0)?;
+                let result_origin = if value.origin_owner == owner {
+                    self.proof
+                        .call_result_origins
+                        .get(&(owner, value.origin.clone()))
+                        .copied()
+                } else {
+                    None
+                };
                 let value = copy_recipe(&value.ty, self.limits, self.left)?;
                 let (expression, node) = match at {
                     SemanticOriginalNode::Expression(node) => (true, node),
                     SemanticOriginalNode::Statement(node) => (false, node),
                 };
+                if let Some(origin) = result_origin {
+                    self.pay(name.len().saturating_add(2), 0)?;
+                    self.proof.call_result_origins.insert(
+                        (
+                            owner,
+                            Query::NameAt {
+                                expression,
+                                node,
+                                name: name.clone(),
+                            },
+                        ),
+                        origin,
+                    );
+                }
                 self.proof.types.insert(
                     (
                         owner,
@@ -1022,8 +1052,20 @@ impl<'a> Check<'a, '_> {
         }
         let mut value = copy_recipe(ty, self.limits, self.left)?;
         match &mut value {
-            SemanticTypeRecipe::Opaque { hidden, .. } => {
-                **hidden = self.resolve(owner, hidden, depth + 1)?
+            SemanticTypeRecipe::Opaque {
+                definition,
+                arguments,
+                hidden,
+            } => {
+                for actual in arguments {
+                    *actual = self.resolved_actual(owner, actual, depth + 1)?;
+                }
+                // The hidden recipe belongs to its defining function. Its
+                // explicit arguments live at this use; the body domain never
+                // becomes a same-numbered caller domain.
+                if *definition == owner {
+                    **hidden = self.resolve(owner, hidden, depth + 1)?;
+                }
             }
             SemanticTypeRecipe::Address { inner, .. }
             | SemanticTypeRecipe::Desc { inner, .. }
@@ -2082,7 +2124,12 @@ impl<'a> Check<'a, '_> {
         wanted: Option<&SemanticTypeRecipe>,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
-        let result = self.expr_inner(owner, expression, variables, wanted, depth);
+        let result = self
+            .expr_inner(owner, expression, variables, wanted, depth)
+            .and_then(|result| {
+                self.expression_result_origin(owner, expression, variables, &result, depth + 1)?;
+                Ok(result)
+            });
         result.map_err(|mut diagnostic| {
             // Error context is also bounded; budget exhaustion never triggers
             // an uncharged formatting walk over attacker-supplied source text.
@@ -2802,6 +2849,15 @@ impl<'a> Check<'a, '_> {
                     SemanticSiteRecipeKind::OriginalCall
                         | SemanticSiteRecipeKind::CallableCall { .. }
                 ) {
+                    if let Some(result) =
+                        self.dyn_call(owner, expression, variables, wanted, depth + 1)?
+                    {
+                        let copy = copy_recipe(&result, self.limits, self.left)?;
+                        self.proof
+                            .types
+                            .insert((owner, Query::Expression(expression.id)), copy);
+                        return Ok(result);
+                    }
                     if let Some(result) =
                         self.method_call(owner, site.id, expression, variables, wanted, depth + 1)?
                     {
@@ -3660,6 +3716,14 @@ impl<'a> Check<'a, '_> {
                     self.proof
                         .types
                         .insert((owner, Query::Binding(statement.id)), copy);
+                    if let Some(initializer) = initializer {
+                        self.alias_result_origin(
+                            owner,
+                            Query::Binding(statement.id),
+                            &Query::Expression(initializer.id),
+                            depth + 1,
+                        )?;
+                    }
                     self.insert_binding(
                         variables,
                         name.clone(),
