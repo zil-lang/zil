@@ -874,13 +874,9 @@ pub(super) fn check(
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         trait_queries: std::cell::RefCell::new(Vec::new()),
     };
-    if !module.dyn_declarations.is_empty()
-        || !module.dyn_interfaces.is_empty()
-        || !module.dyn_vtables.is_empty()
-        || !program.dyn_scopes.is_empty()
-    {
+    if !module.dyn_interfaces.is_empty() || !module.dyn_vtables.is_empty() {
         return Err(unknown(
-            "semantic Dyn owners need their complete independently interpreted scope bridge",
+            "runtime Dyn interfaces and tables need their complete independently interpreted slot and witness bridge",
         ));
     }
     checker.instances(b)?;
@@ -928,6 +924,15 @@ pub(super) fn check(
         // nonzero domain; this table is never a zero/Copy/loan certificate.
         b.lookup(b.semantic_closures_proven.len(), WORK)?;
         b.semantic_closures_proven.insert(closure.id);
+    }
+    for declaration in &module.dyn_declarations {
+        // The original checker proved all definitions (also unused bodies),
+        // exact raw scope links, full mixed premises, member conformance and
+        // associated RHS before instances/sites above proved their actuals.
+        // This only prevents the legacy runtime-only inventory from treating
+        // a complete original declaration as an executable interface table.
+        b.lookup(b.semantic_declarations_proven.len(), WORK)?;
+        b.semantic_declarations_proven.insert(declaration.id);
     }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
     // No semantic context manufactures a target, loan, epoch or effect.

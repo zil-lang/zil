@@ -56,6 +56,9 @@ pub(super) struct Budget {
     // Complete original/actual class relation for this immutable request,
     // including nonzero phantom domains. No memory/cleanup permission.
     pub(super) semantic_closures_proven: BTreeSet<zil_ir::ClosureId>,
+    // Completed original declaration/where/member/RHS and actual entry proof
+    // for this immutable request. No runtime interface or vtable authority.
+    pub(super) semantic_declarations_proven: BTreeSet<zil_ir::LifeDeclarationId>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -217,6 +220,7 @@ impl Budget {
             dyn_interfaces: BTreeSet::new(),
             semantic_zero_closures: BTreeSet::new(),
             semantic_closures_proven: BTreeSet::new(),
+            semantic_declarations_proven: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,

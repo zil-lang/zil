@@ -455,6 +455,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     let mut declarations = BTreeMap::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
+        budget.lookup(budget.semantic_declarations_proven.len(), WORK)?;
+        let original_proven = budget
+            .semantic_declarations_proven
+            .contains(&declaration.id);
         budget.spend(declaration.parameters.len(), WORK)?;
         for parameter in &declaration.parameters {
             if let LifeParameterKind::Const(ty) = parameter {
@@ -462,12 +466,13 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             }
         }
         crate::dyn_metadata::recipe_declaration(declaration, budget)?;
-        if declaration.implicit_lifetimes.is_some()
-            || declaration.direct_supertraits.is_some()
-            || declaration.requirements.is_some()
-            || declaration.associated_definitions.is_some()
-            || declaration.method_signatures.is_some()
-            || declaration.method_definitions.is_some()
+        if !original_proven
+            && (declaration.implicit_lifetimes.is_some()
+                || declaration.direct_supertraits.is_some()
+                || declaration.requirements.is_some()
+                || declaration.associated_definitions.is_some()
+                || declaration.method_signatures.is_some()
+                || declaration.method_definitions.is_some())
         {
             return Err(bad(
                 "dynamic declaration recipes require their complete static proof",
@@ -483,7 +488,9 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 "trait declaration cannot claim an implemented-trait recipe",
             ));
         }
-        crate::dyn_provider::declaration(module, declaration, budget)?;
+        if !original_proven {
+            crate::dyn_provider::declaration(module, declaration, budget)?;
+        }
         budget.spend(
             declaration
                 .identity
@@ -531,10 +538,11 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
         {
             return Err(bad("dyn declaration identity is repeated"));
         }
-        if declaration
-            .members
-            .iter()
-            .any(|m| !matches!(&m.kind, DynMemberKind::Method(actuals) if actuals.is_empty()))
+        if !original_proven
+            && declaration
+                .members
+                .iter()
+                .any(|m| !matches!(&m.kind, DynMemberKind::Method(actuals) if actuals.is_empty()))
         {
             return Err(bad(
                 "dyn declaration is outside finite ordinary method profile",
