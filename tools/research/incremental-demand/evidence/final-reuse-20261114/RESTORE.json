@@ -1,0 +1,34 @@
+{
+  "schema": "zil.final-reuse-recovery.v1",
+  "compiled_source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+  "compiled_tree": "35a051da13de600c71ddc9ecb76edbe82cf23c85",
+  "binary_sha256": "584e5ec59ec89fa83e69f4afb9a0f2185523ea8d0ebc1b671204168ad03ea810",
+  "tool_source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+  "manifest": "evidence-manifest.json",
+  "archive_sha256": "3e00d02563d2ffa34dc20defd8f9391c21d8bb31bd8935f1595cb12002f6c725",
+  "archive_bytes": 217597018,
+  "parts": 9,
+  "regular_files": 10359,
+  "logical_bytes": 1356679068,
+  "verifier": "archive_evidence.py",
+  "verifier_sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a",
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "verify_command": [
+    "python3",
+    "archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    ".",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "candidate_binary_relative_to_restored_payload": "out/binaries/8ce584f81a405b8c5aa69e555b80ede276f07143/zil",
+  "raw_run_prefix_relative_to_restored_payload": "out/runs/final-reuse-chain-13-",
+  "dependencies": {
+    "SDK18_native_link_restore": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "prior_complete_b6_evidence_commit": "9b0a8b6e29c49673c234cca5704430d5e4455e0e",
+    "baseline_source": "9170bb4210554392e36eb7528596612596ebef80",
+    "baseline_binary_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e"
+  },
+  "scope": "Exact new gates/raw windows/current binary and current-source review. Old SDK/native-link/baseline dependencies are separately pinned; this archive is not a complete LLVM/toolchain installation. Fresh verifier checks every selected regular file size/bytes/mode and membership without executing payload; original absolute runtime paths require explicit reconstruction or rebinding when reproducing. No LLVM rebuild."
+}

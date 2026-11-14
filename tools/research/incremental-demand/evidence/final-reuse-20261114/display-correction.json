@@ -1,0 +1,16 @@
+{
+  "schema": "zil.evidence-display-correction.v1",
+  "compiled_source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+  "prior_outer_json_sha256": "d218cff936beb34539ecdc5a18ff8c77770632da5d045525d9008436e4b6f290",
+  "corrected_outer_json_sha256": "90425ba6c99ebe710c8fe5b105c46d99955ca1fcf57df0a9abf30e1bda208dbf",
+  "corrected_outer_md_sha256": "01a84e6afe10f92e80949f552413b0dd994336191a385fc34390de3ba5b5b929",
+  "original_review_sha256": "33d1aa21155c5b77905bbedeac7dad280aee6fdffb2a32b9dc7e60b045b6b4af",
+  "corrected_synthesis_script_sha256": "32f678b798139c0dc0334cc494c445e983025891ca8432b9c4e84dc524cf9909",
+  "strict_analysis_sha256": "55834c439b688a0b6ba9193a1c7cc28096f4bb1e85946013b53b9bb8a59dc38d",
+  "sealed_archive_sha256": "3e00d02563d2ffa34dc20defd8f9391c21d8bb31bd8935f1595cb12002f6c725",
+  "changes": [
+    "Rename leading-cell field to identify candidate over Rust.",
+    "Include all individual blocks slower than main or Rust as well as non-leading aggregates; check/broad block1 main-negative was already in raw samples."
+  ],
+  "scope": "Presentation corrections only. Raw measurements, compiler/binary, native executions, strict analysis and sealed archive are unchanged. Original synthesis snapshot remains historical in payload; corrected generator and review adjacent."
+}

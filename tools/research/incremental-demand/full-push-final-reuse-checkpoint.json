@@ -1,0 +1,892 @@
+{
+  "schema": "zil.final-reuse-chain.checkpoint.v1",
+  "compiled_source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+  "compiled_tree": "35a051da13de600c71ddc9ecb76edbe82cf23c85",
+  "binary_sha256": "584e5ec59ec89fa83e69f4afb9a0f2185523ea8d0ebc1b671204168ad03ea810",
+  "measurement_tool_source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+  "analysis_script_sha256": "2e6582fee4f3ad6962dcbb83166ac3460b68d0c097d4a1d6f8ce3d66bc8d2a2e",
+  "baseline": {
+    "source": "9170bb4210554392e36eb7528596612596ebef80",
+    "worktree": "/workspace/zil-baseline9170",
+    "binary": "/workspace/zil-recovery/baseline/compiler",
+    "binary_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e",
+    "build_receipt": "/workspace/zil-recovery/baseline/build-receipt.json",
+    "llvm_library_path": "/workspace/zil-recovery/baseline",
+    "llvm_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+  },
+  "status": "Complete final-value retention/current-preflight/publication implementation, unified exact-source acceptance and separately timed check/O2 original425 two-block main/candidate/Rust windows. Finite-window results, no universal/stable lead acceptance.",
+  "changes": [
+    "Exact final Product/configuration/units owners are shared only after current machine authorization; diagnostics change clears publication lease.",
+    "Each current unit still calls checker; same ordinal is only a candidate selector, exact-value reordering fallback retained.",
+    "Backend staging and unit snapshot copy delayed until actual restoration/codegen; driver staging and transaction/current filesystem checks remain.",
+    "Real Source contract covers placement diagnostic refresh, output destination change, cancellation and recovery, existing external mutation/race/Verify rejection."
+  ],
+  "acceptance": {
+    "actual_current_gates": [
+      {
+        "gate": "backend",
+        "exit": 0,
+        "test_results": [
+          [
+            "ok",
+            "273",
+            "0",
+            "0"
+          ]
+        ],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/backend.json",
+          "sha256": "352c5978c925930ed2310a890ed88d3e75bd7cb5488d639c6d102a36abfb1ca2"
+        }
+      },
+      {
+        "gate": "driver",
+        "exit": 0,
+        "test_results": [
+          [
+            "ok",
+            "211",
+            "0",
+            "0"
+          ]
+        ],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/driver.json",
+          "sha256": "fbe384a6d2f43e6eab47eba5426ca996090246e73eee7927fdd42c1dcabd6097"
+        }
+      },
+      {
+        "gate": "scalar-source",
+        "exit": 0,
+        "test_results": [
+          [
+            "ok",
+            "9",
+            "0",
+            "0"
+          ]
+        ],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/scalar-source.json",
+          "sha256": "756143f1d47e78075a95737d34769e0a466fec518a5199bf20139b157b2d8dc4"
+        }
+      },
+      {
+        "gate": "retained-source",
+        "exit": 0,
+        "test_results": [
+          [
+            "ok",
+            "1",
+            "0",
+            "0"
+          ]
+        ],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/retained-source.json",
+          "sha256": "6ceaee7ae4c2bde2171970629fa771246878f15bb67e496063a76f6d7812a005"
+        }
+      },
+      {
+        "gate": "clippy",
+        "exit": 0,
+        "test_results": [],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/clippy.json",
+          "sha256": "51d766a75b6f7504cc6b9c6b4315c450cd509e9086069e056f058c73366687e7"
+        }
+      },
+      {
+        "gate": "changed-targets-clippy",
+        "exit": 0,
+        "test_results": [],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/changed-targets-clippy.json",
+          "sha256": "d6239565811c95c87a329e64151e9486d442c6a2435abe4649338b7a4378beee"
+        }
+      },
+      {
+        "gate": "fmt",
+        "exit": 0,
+        "test_results": [],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/fmt.json",
+          "sha256": "1884e84bcb75304146089091345cee5619e13fc3c74fe400011c310eb55c1bf9"
+        }
+      },
+      {
+        "gate": "release",
+        "exit": 0,
+        "test_results": [],
+        "receipt": {
+          "path": "out/runs/final-reuse-chain-13-8ce584f81a40/release.json",
+          "sha256": "e4d41bebaa7d7c18c5a9081b2e585786645e8a414ff81f1d95ca2a6027b421d1"
+        }
+      }
+    ],
+    "reused_unmodified_producer_receipts": {
+      "candidate": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+      "reused": [
+        {
+          "gate": "native",
+          "original_source": "b6e019894986b43a1bf1a81cf549a0850d66b9b4",
+          "original_receipt": "out/runs/full-chain-12-b6e019894986/native.json",
+          "original_receipt_sha256": "3bb1327e6804d87d596db4cedc7ca646e0a2c68e8bdcb412dc5f421a37197143",
+          "exact_unchanged_paths": [
+            "crates/zil-llvm-api",
+            "crates/zil-base",
+            "Cargo.toml",
+            "Cargo.lock",
+            ".cargo"
+          ],
+          "git_diff_command": [
+            "git",
+            "diff",
+            "--binary",
+            "b6e019894986b43a1bf1a81cf549a0850d66b9b4",
+            "8ce584f81a405b8c5aa69e555b80ede276f07143",
+            "--",
+            "crates/zil-llvm-api",
+            "crates/zil-base",
+            "Cargo.toml",
+            "Cargo.lock",
+            ".cargo"
+          ],
+          "diff_bytes": 0,
+          "test_results": [
+            [
+              "ok",
+              "86",
+              "0",
+              "0"
+            ]
+          ],
+          "scope": "Reused unchanged producer receipt, not executed at current source; current changed backend/driver full-chain acceptance separate."
+        },
+        {
+          "gate": "expand",
+          "original_source": "37fb410dd00e1f92b6ec660f313f8cf57d84fd71",
+          "original_receipt": "out/runs/full-chain-12-retry-37fb410dd00e/expand.json",
+          "original_receipt_sha256": "5deb416c2e06f932047e7b15dd4d4b4a131e9bc38a6b7863673d3f684a320773",
+          "exact_unchanged_paths": [
+            "crates/zil-expand",
+            "crates/zil-syntax",
+            "crates/zil-base",
+            "crates/zil-ir",
+            "Cargo.toml",
+            "Cargo.lock",
+            ".cargo"
+          ],
+          "git_diff_command": [
+            "git",
+            "diff",
+            "--binary",
+            "37fb410dd00e1f92b6ec660f313f8cf57d84fd71",
+            "8ce584f81a405b8c5aa69e555b80ede276f07143",
+            "--",
+            "crates/zil-expand",
+            "crates/zil-syntax",
+            "crates/zil-base",
+            "crates/zil-ir",
+            "Cargo.toml",
+            "Cargo.lock",
+            ".cargo"
+          ],
+          "diff_bytes": 0,
+          "test_results": [
+            [
+              "ok",
+              "116",
+              "0",
+              "0"
+            ]
+          ],
+          "scope": "Reused unchanged producer receipt, not executed at current source; current changed backend/driver full-chain acceptance separate."
+        }
+      ]
+    },
+    "independent_review": {
+      "source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+      "base": "c9ae033dc1a1bbcdff2616127f69ad3e1957d1c7",
+      "patch_sha256": "e924c564c6ea4f6ffc1f077608042646cd7c45b1089a89b478b1319dfa3d3f07",
+      "report_sha256": "42c1eab15962576a6c616ad302263d11b33c24e8e1c48059e6955e12a4b4edd8",
+      "verdict": "ACCEPT",
+      "scope": "Independent non-author static review plus separately enumerated actual backend receipt; current driver/strict/release receipts bound by root."
+    },
+    "review_report": {
+      "path": "out/runs/final-reuse-chain-13-8ce584f81a40/independent-review.md",
+      "sha256": "42c1eab15962576a6c616ad302263d11b33c24e8e1c48059e6955e12a4b4edd8"
+    },
+    "final_evidence_review_path": "tools/research/incremental-demand/evidence/final-reuse-20261114/evidence-final-review.md"
+  },
+  "analysis": {
+    "path": "out/runs/final-reuse-chain-13-three-arm-01-analysis-strict.json",
+    "sha256": "55834c439b688a0b6ba9193a1c7cc28096f4bb1e85946013b53b9bb8a59dc38d"
+  },
+  "windows": [
+    {
+      "mode": "check",
+      "blocks": 2,
+      "raw": "out/runs/final-reuse-chain-13-three-arm-01-check",
+      "raw_hashes": {
+        "manifest.json": "f72b40cf9baecc2ed4e86421b797c737b2cf9109b441df2f0d4636f2f9003535",
+        "completion.json": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f",
+        "rows.jsonl": "bb858e257f079d335d53240e39ce24cf58bbeb74534d79f6f0e06ff04d77f76e"
+      },
+      "completion": {
+        "valid": true,
+        "rows": 102,
+        "measured": 54,
+        "preparations": 48,
+        "publication_recovery": {
+          "executed": false,
+          "valid": null,
+          "scope": "Output mutation requests were not requested; none enter the nine measured cells."
+        }
+      },
+      "cells": [
+        {
+          "request": "cold",
+          "wall_ms_by_block": {
+            "baseline": [
+              1174.201162,
+              901.946267
+            ],
+            "candidate": [
+              918.294315,
+              514.334742
+            ],
+            "rust": [
+              1214.262763,
+              877.195744
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1038.0737145,
+            "candidate": 716.3145285,
+            "rust": 1045.7292535
+          },
+          "candidate_over_main_paired_GM": 0.6678090382986327,
+          "candidate_over_Rust_paired_GM": 0.6659004092421119
+        },
+        {
+          "request": "unchanged",
+          "wall_ms_by_block": {
+            "baseline": [
+              92.84287,
+              83.758333
+            ],
+            "candidate": [
+              2.734427,
+              3.00021
+            ],
+            "rust": [
+              12.301155,
+              14.976362
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 88.3006015,
+            "candidate": 2.8673185,
+            "rust": 13.6387585
+          },
+          "candidate_over_main_paired_GM": 0.03248035017738471,
+          "candidate_over_Rust_paired_GM": 0.21102450199301714
+        },
+        {
+          "request": "private",
+          "wall_ms_by_block": {
+            "baseline": [
+              571.919362,
+              477.997657
+            ],
+            "candidate": [
+              56.369117,
+              76.653122
+            ],
+            "rust": [
+              206.034201,
+              203.213594
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 524.9585095,
+            "candidate": 66.5111195,
+            "rust": 204.6238975
+          },
+          "candidate_over_main_paired_GM": 0.1257202558451548,
+          "candidate_over_Rust_paired_GM": 0.32124731209383506
+        },
+        {
+          "request": "multi",
+          "wall_ms_by_block": {
+            "baseline": [
+              543.993564,
+              499.03853
+            ],
+            "candidate": [
+              85.697869,
+              164.627776
+            ],
+            "rust": [
+              212.051488,
+              260.547082
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 521.516047,
+            "candidate": 125.1628225,
+            "rust": 236.299285
+          },
+          "candidate_over_main_paired_GM": 0.22796734805556204,
+          "candidate_over_Rust_paired_GM": 0.505327342604702
+        },
+        {
+          "request": "broad",
+          "wall_ms_by_block": {
+            "baseline": [
+              961.529723,
+              620.657598
+            ],
+            "candidate": [
+              461.276086,
+              663.060208
+            ],
+            "rust": [
+              805.181246,
+              800.78601
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 791.0936604999999,
+            "candidate": 562.168147,
+            "rust": 802.983628
+          },
+          "candidate_over_main_paired_GM": 0.7158953766811743,
+          "candidate_over_Rust_paired_GM": 0.6887345801345307
+        },
+        {
+          "request": "positions",
+          "wall_ms_by_block": {
+            "baseline": [
+              736.073957,
+              572.796029
+            ],
+            "candidate": [
+              353.308369,
+              310.037431
+            ],
+            "rust": [
+              780.646695,
+              616.885967
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 654.434993,
+            "candidate": 331.6729,
+            "rust": 698.766331
+          },
+          "candidate_over_main_paired_GM": 0.5097101734704944,
+          "candidate_over_Rust_paired_GM": 0.4769296460270625
+        },
+        {
+          "request": "error",
+          "wall_ms_by_block": {
+            "baseline": [
+              366.69673,
+              317.131897
+            ],
+            "candidate": [
+              42.425108,
+              43.143805
+            ],
+            "rust": [
+              193.971153,
+              180.157485
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 341.9143135,
+            "candidate": 42.784456500000005,
+            "rust": 187.064319
+          },
+          "candidate_over_main_paired_GM": 0.12545767046897136,
+          "candidate_over_Rust_paired_GM": 0.22886320292690138
+        },
+        {
+          "request": "recovery",
+          "wall_ms_by_block": {
+            "baseline": [
+              546.773809,
+              428.885543
+            ],
+            "candidate": [
+              85.556034,
+              50.251311
+            ],
+            "rust": [
+              257.981048,
+              181.085851
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 487.829676,
+            "candidate": 67.9036725,
+            "rust": 219.5334495
+          },
+          "candidate_over_main_paired_GM": 0.13540180855302175,
+          "candidate_over_Rust_paired_GM": 0.3033631742384345
+        },
+        {
+          "request": "restore",
+          "wall_ms_by_block": {
+            "baseline": [
+              87.125379,
+              90.667012
+            ],
+            "candidate": [
+              22.278061,
+              26.826519
+            ],
+            "rust": [
+              175.707171,
+              196.299633
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 88.8961955,
+            "candidate": 24.55229,
+            "rust": 186.003402
+          },
+          "candidate_over_main_paired_GM": 0.2750577358179391,
+          "candidate_over_Rust_paired_GM": 0.13163348171814818
+        }
+      ],
+      "quality": {
+        "native_outcomes": 0,
+        "full_ELF_equal_pairs": 0,
+        "aggregate_exports_equal_pairs": 0,
+        "per_block": [
+          {
+            "block": 0,
+            "rows": 51,
+            "measured": 27,
+            "preparations": 24,
+            "pair_records": 17,
+            "native_outcomes": 0,
+            "full_ELF_equal_pairs": 0,
+            "aggregate_exports_equal_pairs": 0
+          },
+          {
+            "block": 1,
+            "rows": 51,
+            "measured": 27,
+            "preparations": 24,
+            "pair_records": 17,
+            "native_outcomes": 0,
+            "full_ELF_equal_pairs": 0,
+            "aggregate_exports_equal_pairs": 0
+          }
+        ],
+        "strict_quality_structure_valid": true,
+        "native_repetitions": 2,
+        "artifact_rehash_executed": true,
+        "unique_blobs_rehashed": 0,
+        "scope": "Existing runner current independent Verify/native/ELF/CGU quality receipts; optional blob rehash does not execute native code."
+      }
+    },
+    {
+      "mode": "o2",
+      "blocks": 2,
+      "raw": "out/runs/final-reuse-chain-13-three-arm-01-o2",
+      "raw_hashes": {
+        "manifest.json": "0a3bc19331d40b768f5adccf13b03e2c5805c8bdb527ccbda679c73bb8bc7569",
+        "completion.json": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f",
+        "rows.jsonl": "c26568bad467a10f2835f2a447f3ab3387903cea6a882ec6de75977f1015fd9e"
+      },
+      "completion": {
+        "valid": true,
+        "rows": 102,
+        "measured": 54,
+        "preparations": 48,
+        "publication_recovery": {
+          "executed": false,
+          "valid": null,
+          "scope": "Output mutation requests were not requested; none enter the nine measured cells."
+        }
+      },
+      "cells": [
+        {
+          "request": "cold",
+          "wall_ms_by_block": {
+            "baseline": [
+              5620.747011,
+              5507.751931
+            ],
+            "candidate": [
+              4259.200735,
+              4617.368146
+            ],
+            "rust": [
+              5991.378477,
+              6338.016355
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 5564.249471,
+            "candidate": 4438.2844405,
+            "rust": 6164.697416
+          },
+          "candidate_over_main_paired_GM": 0.7970344640166726,
+          "candidate_over_Rust_paired_GM": 0.7196498685335213
+        },
+        {
+          "request": "unchanged",
+          "wall_ms_by_block": {
+            "baseline": [
+              440.990069,
+              507.47894
+            ],
+            "candidate": [
+              7.011219,
+              20.412657
+            ],
+            "rust": [
+              15.072828,
+              40.801559
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 474.2345045,
+            "candidate": 13.711938,
+            "rust": 27.9371935
+          },
+          "candidate_over_main_paired_GM": 0.025288502853067475,
+          "candidate_over_Rust_paired_GM": 0.4824038720089884
+        },
+        {
+          "request": "private",
+          "wall_ms_by_block": {
+            "baseline": [
+              1674.978614,
+              1395.818761
+            ],
+            "candidate": [
+              416.404627,
+              295.888725
+            ],
+            "rust": [
+              571.075877,
+              558.317101
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1535.3986875,
+            "candidate": 356.146676,
+            "rust": 564.6964889999999
+          },
+          "candidate_over_main_paired_GM": 0.229563497455773,
+          "candidate_over_Rust_paired_GM": 0.6216337834686912
+        },
+        {
+          "request": "multi",
+          "wall_ms_by_block": {
+            "baseline": [
+              1579.88629,
+              1506.163589
+            ],
+            "candidate": [
+              455.91501,
+              440.220934
+            ],
+            "rust": [
+              955.087387,
+              863.919527
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1543.0249395,
+            "candidate": 448.067972,
+            "rust": 909.503457
+          },
+          "candidate_over_main_paired_GM": 0.29042119182370696,
+          "candidate_over_Rust_paired_GM": 0.4931954833295684
+        },
+        {
+          "request": "broad",
+          "wall_ms_by_block": {
+            "baseline": [
+              4672.766477,
+              5135.689086
+            ],
+            "candidate": [
+              4167.343103,
+              4197.669211
+            ],
+            "rust": [
+              5139.902144,
+              5525.911401
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 4904.2277815,
+            "candidate": 4182.506157,
+            "rust": 5332.9067725
+          },
+          "candidate_over_main_paired_GM": 0.8537826680353651,
+          "candidate_over_Rust_paired_GM": 0.7847916088539276
+        },
+        {
+          "request": "positions",
+          "wall_ms_by_block": {
+            "baseline": [
+              1137.880731,
+              1122.757733
+            ],
+            "candidate": [
+              423.796131,
+              717.868429
+            ],
+            "rust": [
+              681.058295,
+              1039.81204
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1130.3192319999998,
+            "candidate": 570.83228,
+            "rust": 860.4351675
+          },
+          "candidate_over_main_paired_GM": 0.4879884261415825,
+          "candidate_over_Rust_paired_GM": 0.6554376073035236
+        },
+        {
+          "request": "error",
+          "wall_ms_by_block": {
+            "baseline": [
+              313.03069,
+              307.990871
+            ],
+            "candidate": [
+              38.708544,
+              56.699808
+            ],
+            "rust": [
+              168.590182,
+              173.328241
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 310.5107805,
+            "candidate": 47.704176000000004,
+            "rust": 170.95921149999998
+          },
+          "candidate_over_main_paired_GM": 0.15088005399734042,
+          "candidate_over_Rust_paired_GM": 0.2740585827402188
+        },
+        {
+          "request": "recovery",
+          "wall_ms_by_block": {
+            "baseline": [
+              1234.296233,
+              1252.84523
+            ],
+            "candidate": [
+              289.810002,
+              541.342419
+            ],
+            "rust": [
+              390.457242,
+              501.995707
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 1243.5707315,
+            "candidate": 415.5762105,
+            "rust": 446.2264745
+          },
+          "candidate_over_main_paired_GM": 0.3185182352746463,
+          "candidate_over_Rust_paired_GM": 0.8946557795419084
+        },
+        {
+          "request": "restore",
+          "wall_ms_by_block": {
+            "baseline": [
+              447.506027,
+              483.36743
+            ],
+            "candidate": [
+              59.900152,
+              142.208103
+            ],
+            "rust": [
+              429.397577,
+              578.89896
+            ]
+          },
+          "wall_median_ms": {
+            "baseline": 465.4367285,
+            "candidate": 101.05412749999999,
+            "rust": 504.1482685
+          },
+          "candidate_over_main_paired_GM": 0.19844401148339924,
+          "candidate_over_Rust_paired_GM": 0.18511642493952857
+        }
+      ],
+      "quality": {
+        "native_outcomes": 1080,
+        "full_ELF_equal_pairs": 30,
+        "aggregate_exports_equal_pairs": 30,
+        "per_block": [
+          {
+            "block": 0,
+            "rows": 51,
+            "measured": 27,
+            "preparations": 24,
+            "pair_records": 17,
+            "native_outcomes": 540,
+            "full_ELF_equal_pairs": 15,
+            "aggregate_exports_equal_pairs": 15
+          },
+          {
+            "block": 1,
+            "rows": 51,
+            "measured": 27,
+            "preparations": 24,
+            "pair_records": 17,
+            "native_outcomes": 540,
+            "full_ELF_equal_pairs": 15,
+            "aggregate_exports_equal_pairs": 15
+          }
+        ],
+        "strict_quality_structure_valid": true,
+        "native_repetitions": 2,
+        "artifact_rehash_executed": true,
+        "unique_blobs_rehashed": 178,
+        "scope": "Existing runner current independent Verify/native/ELF/CGU quality receipts; optional blob rehash does not execute native code."
+      }
+    }
+  ],
+  "negative_observations": [
+    {
+      "mode": "check",
+      "request": "broad",
+      "wall_ms_by_block": {
+        "baseline": [
+          961.529723,
+          620.657598
+        ],
+        "candidate": [
+          461.276086,
+          663.060208
+        ],
+        "rust": [
+          805.181246,
+          800.78601
+        ]
+      },
+      "wall_median_ms": {
+        "baseline": 791.0936604999999,
+        "candidate": 562.168147,
+        "rust": 802.983628
+      },
+      "candidate_over_main_paired_GM": 0.7158953766811743,
+      "candidate_over_Rust_paired_GM": 0.6887345801345307,
+      "slower_than_Rust_blocks": [],
+      "slower_than_main_blocks": [
+        1
+      ],
+      "cause": "Unattributed; no cross-window causal improvement or regression inferred."
+    },
+    {
+      "mode": "o2",
+      "request": "recovery",
+      "wall_ms_by_block": {
+        "baseline": [
+          1234.296233,
+          1252.84523
+        ],
+        "candidate": [
+          289.810002,
+          541.342419
+        ],
+        "rust": [
+          390.457242,
+          501.995707
+        ]
+      },
+      "wall_median_ms": {
+        "baseline": 1243.5707315,
+        "candidate": 415.5762105,
+        "rust": 446.2264745
+      },
+      "candidate_over_main_paired_GM": 0.3185182352746463,
+      "candidate_over_Rust_paired_GM": 0.8946557795419084,
+      "slower_than_Rust_blocks": [
+        1
+      ],
+      "slower_than_main_blocks": [],
+      "cause": "Unattributed; no cross-window causal improvement or regression inferred."
+    }
+  ],
+  "protocol": {
+    "arms": [
+      "actual main9170",
+      "current candidate8ce584",
+      "Rust1.99.1"
+    ],
+    "fixture": "original425,20modules*20functions,16steps,22sourcefiles",
+    "codegen": "CGU16/O2/jobs1/cacheall/cap256; check and native separate",
+    "timing_scope": "ZIL resident send-to-response excludes startup; Rust fresh Cargo/rustc includes startup. Source writes, hash/archive/native oracles outside compile timer. OS caches not flushed. Root RSS/process-tree scopes differ; no memory advantage inferred.",
+    "LLVM": "ZIL23.1.4, Rust23.1.1; actual stock baseline DSO2bf890 and SDK18 candidate785a24 pinned and actual mappings checked. Equal requested CGUs do not imply equal partitions/checking guarantees.",
+    "LLVM_rebuilt": false
+  },
+  "historical_sources_unmodified": {
+    "98fa": "Historical formal results remain at59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628 and V32; never relabeled.",
+    "021997": "Prior closed-body windows remain separately bound.",
+    "b6e019": "Full six-block windows and evidence9b0a8b6e2 remain historical b6 source, not assigned to this candidate."
+  },
+  "remaining": [
+    "Global ReactiveGraph still primarily BodyKey, not complete global end-to-end propagation.",
+    "Broad-language stable universal superiority over Rust remains open; this is a finite scalar fixture window.",
+    "Reordering fallback can still be quadratic; driver still creates its staging directory.",
+    "No main merge or default research flag activation."
+  ],
+  "custody": {
+    "source_remote_verified_commit": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+    "branch": "research/full-push-native",
+    "archive": "tools/research/incremental-demand/evidence/final-reuse-20261114",
+    "SDK_native_link_recovery_dependency": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "prior_complete_evidence_commit": "9b0a8b6e29c49673c234cca5704430d5e4455e0e",
+    "archive_manifest_sha256": "7244364578767d9811b00dbef67b653bc6594850db1ca15c2f5762b3a5280501",
+    "archive_sha256": "3e00d02563d2ffa34dc20defd8f9391c21d8bb31bd8935f1595cb12002f6c725",
+    "archive_bytes": 217597018,
+    "parts": 9,
+    "regular_files": 10359,
+    "logical_bytes": 1356679068,
+    "fresh_local_restore_verified": true,
+    "fresh_restore_receipt_sha256": "3c47dc90f4e133393acebd1aab6504c80c24c7b88a9c4425b63ca5c7ae552d63",
+    "fresh_restore_root": "/workspace/zil-final-reuse-13-evidence-verified",
+    "verifier_sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  },
+  "candidate_leading_over_Rust_median_and_paired_GM_cells": [
+    "check/cold",
+    "check/unchanged",
+    "check/private",
+    "check/multi",
+    "check/broad",
+    "check/positions",
+    "check/error",
+    "check/recovery",
+    "check/restore",
+    "o2/cold",
+    "o2/unchanged",
+    "o2/private",
+    "o2/multi",
+    "o2/broad",
+    "o2/positions",
+    "o2/error",
+    "o2/recovery",
+    "o2/restore"
+  ]
+}
