@@ -630,21 +630,22 @@ fn operations(
                         expression.kind,
                         s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
                     );
-                let unit_variant = unit_variant(
-                    program,
-                    definition,
-                    expression,
-                    &original.path,
-                    &nodes,
-                    &value_names,
-                    budget,
-                )?;
                 let observed_projection = observation
                     && projection_value
                     && matches!(
                         expression.kind,
                         s::ExprKind::Member { .. } | s::ExprKind::TypeApply { .. }
                     );
+                let unit_variant = observed_projection
+                    && unit_variant(
+                        program,
+                        definition,
+                        expression,
+                        &original.path,
+                        &nodes,
+                        &value_names,
+                        budget,
+                    )?;
                 if observed_name || observed_projection {
                     implicit_observation(program, definition, &path, budget, expression.span)?;
                 }
