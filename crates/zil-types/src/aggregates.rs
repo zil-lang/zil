@@ -1932,7 +1932,11 @@ impl Resolver<'_> {
             Type::Address { mutable, inner } => {
                 let inner = self.ty(inner, depth + 1, span)?;
                 let inner = match inner {
-                    Type::Managed(payload) | Type::Desc(payload)
+                    // Source has already selected a resource head, an
+                    // explicit descriptor slot, or a complete generic actual.
+                    // Resolving the payload must not change that category:
+                    // in particular &T with T=Desc<R> never becomes &Managed<R>.
+                    Type::Managed(payload)
                         if *mutable
                             && matches!(
                                 payload.as_ref(),
@@ -1941,7 +1945,7 @@ impl Resolver<'_> {
                     {
                         Type::Managed(payload)
                     }
-                    Type::Managed(payload) | Type::Desc(payload)
+                    Type::Managed(payload)
                         if !*mutable
                             && matches!(payload.as_ref(), Type::Record { .. })
                             && payload.is_copy_value() =>
@@ -1984,7 +1988,13 @@ impl Resolver<'_> {
                         )?;
                         inner
                     }
-                    Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
+                    Type::Desc(_) => {
+                        return Err(unsupported(
+                            span,
+                            "descriptor-slot address requires its complete slot borrow and access profile; it cannot be promoted to a resource head",
+                        ));
+                    }
+                    Type::Managed(_) | Type::Package { .. } => {
                         return Err(unsupported(
                             span,
                             "head addresses require a shared finite user-resource head or a supported Store element; byte-storage and other Package heads are not implemented",
