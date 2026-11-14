@@ -394,6 +394,40 @@ impl<'a> Eval<'a, '_> {
             self.left,
         )
     }
+    fn original_constructor_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        source: &SemanticOriginalTypeSource,
+    ) -> R<SemanticTypeRecipe> {
+        let owner = self.instance(scope)?.definition;
+        let proof = self.ledger.original.borrow();
+        if let Some(proof) = proof
+            .as_ref()
+            .filter(|proof| proof.complete.contains(&owner))
+        {
+            return proof.constructor_type_recipe(
+                self.input,
+                owner,
+                owner,
+                source,
+                self.limits,
+                self.left,
+            );
+        }
+        let frozen = self
+            .ledger
+            .frozen
+            .as_deref()
+            .ok_or_else(|| bad("constructor lacks its completed exact original proof"))?;
+        frozen.original.constructor_type_recipe(
+            &frozen.semantic,
+            owner,
+            owner,
+            source,
+            self.limits,
+            self.left,
+        )
+    }
     fn inferred_recipe(
         &mut self,
         scope: SemanticInstanceId,
@@ -767,8 +801,7 @@ impl<'a> Eval<'a, '_> {
                 self.ty(*scope, recipe, Some(hint), 0)
             }
             SemanticCoreTypeSource::OriginalExpression { source, .. } => {
-                let recipe =
-                    self.original_type(*scope, SemanticScopeRef::Ancestor(0), source, 0)?;
+                let recipe = self.original_constructor_type(*scope, source)?;
                 self.ty(*scope, &recipe, Some(hint), 0)
             }
             SemanticCoreTypeSource::OriginalRecipe(_) => unreachable!(),
@@ -1058,15 +1091,9 @@ impl<'a> Eval<'a, '_> {
                 else {
                     unreachable!()
                 };
-                if life.binder_count != 0
-                    || !classes.is_empty()
-                    || !life.slots.is_empty()
-                    || !life.retained.is_empty()
-                    || !life.nominal_arguments.is_empty()
-                    || !stored::pure_inline(&ty, self.left, self.limits, Span::default())?
-                {
-                    return Err(unknown(
-                        "array element requires its complete qualified occurrence and intrinsic-class composition",
+                if life.binder_count as usize != classes.len() {
+                    return Err(bad(
+                        "array element omits its complete intrinsic class domain",
                     ));
                 }
                 let length = self.constant(scope, length, &Type::Usize, depth + 1)?;
@@ -1083,13 +1110,66 @@ impl<'a> Eval<'a, '_> {
                     ));
                 }
                 self.fee(length as usize)?;
+                let mut array_life = empty();
+                array_life.binder_count = life.binder_count;
+                // Every physical element occurrence survives, including N=0.
+                // Element is the one complete type-domain projection; it
+                // grants neither a StoreElement premise nor a byte address.
+                for index in 0..length {
+                    for slot in &life.slots {
+                        self.fee(slot.path.len().saturating_add(2))?;
+                        let mut path = vec![PlaceProjection::Field(index)];
+                        path.extend_from_slice(&slot.path);
+                        array_life.slots.push(StorageLifeSlot {
+                            path,
+                            ..slot.clone()
+                        });
+                    }
+                }
+                for row in &life.retained {
+                    self.fee(row.path.len().saturating_add(2))?;
+                    let mut path = vec![LifeTypeProjection::Element];
+                    path.extend_from_slice(&row.path);
+                    array_life.retained.push(StorageRetainedBinding {
+                        path,
+                        ..row.clone()
+                    });
+                }
+                // An opaque element's classes remain a complete child domain.
+                if matches!(
+                    ty,
+                    Type::BorrowedStorage { .. }
+                        | Type::Closure(_)
+                        | Type::MutexGuard { .. }
+                        | Type::Task { .. }
+                        | Type::Dyn { .. }
+                        | Type::OwnedDyn { .. }
+                ) {
+                    self.fee(classes.len())?;
+                    array_life.retained = (0..life.binder_count)
+                        .map(|class| StorageRetainedBinding {
+                            path: vec![LifeTypeProjection::Element],
+                            class,
+                            binder: class,
+                        })
+                        .collect();
+                }
+                for row in &life.nominal_arguments {
+                    self.fee(row.path.len().saturating_add(2))?;
+                    let mut path = vec![LifeTypeProjection::Element];
+                    path.extend_from_slice(&row.path);
+                    array_life.nominal_arguments.push(NominalLifeArgument {
+                        path,
+                        ..row.clone()
+                    });
+                }
                 resolved(
                     Type::Array {
                         element: Box::new(ty),
                         length,
                     },
-                    empty(),
-                    Vec::new(),
+                    array_life,
+                    classes,
                 )
             }
             SemanticTypeRecipe::Tuple(items) if items.is_empty() => {

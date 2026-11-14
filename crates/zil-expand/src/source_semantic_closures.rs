@@ -5,7 +5,6 @@ use std::collections::BTreeSet;
 
 pub(super) struct ClosureUse {
     pub node: zil_base::NodeId,
-    pub ty: SemanticTypeRecipe,
 }
 pub(super) struct ClosureTemplate {
     pub path: Vec<u32>,
@@ -384,17 +383,7 @@ impl Builder<'_, '_, '_, '_> {
                 };
                 prepay_recipe(&ty, self.budget, span, 0)?;
                 self.push(&mut captured, (name, ty), span)?;
-                self.push(
-                    &mut uses,
-                    ClosureUse {
-                        node: occurrence,
-                        ty: SemanticTypeRecipe::Environment {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            ordinal,
-                        },
-                    },
-                    span,
-                )?;
+                self.push(&mut uses, ClosureUse { node: occurrence }, span)?;
             }
             // Recursively inventory child templates using the child's true
             // lexical directory. No creator value ID is reused as a child ID.

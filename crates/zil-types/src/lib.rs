@@ -3484,6 +3484,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         // inference never reloads these outer locals or re-resolves their names.
         let captures = self.closures.pending[id.0 as usize].captures.clone();
         let mut values = Vec::new();
+        let mut capture_sources = Vec::new();
         for capture in captures {
             let stored = capture.stored_type();
             let value = if capture.moved && self.inline_store_sum_slots.contains(&capture.source) {
@@ -3585,8 +3586,17 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 self.value(kind, stored, capture.span)?
             };
+            self.closures
+                .snapshot(capture.name.len().saturating_add(1), capture.span)?;
+            capture_sources.push((capture.name, value));
             values.push(value);
         }
+        self.closures.semantic_emission.capture_sources(
+            id,
+            capture_sources,
+            &mut self.closures.work_left,
+            span,
+        )?;
         let ty = Type::Closure(id);
         let value = self.value(
             InstructionKind::MakeClosure {

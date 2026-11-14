@@ -505,13 +505,20 @@ fn operations(
                 if observed_name || observed_projection {
                     implicit_observation(program, definition, &path, budget, expression.span)?;
                 }
-                let action = if let Some(usage) = capture {
-                    prepay_recipe(&usage.ty, budget, expression.span, 0)?;
+                let action = if capture.is_some() {
+                    // Capturing seals the declaration-domain whole value. A
+                    // runtime Name still observes its own expression role
+                    // (for example Desc<T> when the environment owns T).
+                    let expected = SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Expression(original.id),
+                    };
+                    prepay_recipe(&expected, budget, expression.span, 0)?;
                     Some((
                         SemanticSiteRecipeKind::TypeUse {
-                            expected: usage.ty.clone(),
+                            expected: expected.clone(),
                         },
-                        Action::TypeUse(usage.ty.clone()),
+                        Action::TypeUse(expected),
                         SemanticEmissionRole::Ascription,
                     ))
                 } else {

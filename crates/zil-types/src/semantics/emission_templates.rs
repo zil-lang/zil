@@ -104,11 +104,8 @@ pub(super) fn activate(
             if !lower.ledger.templates.contains(&origin) {
                 continue;
             }
-            // Already Source-requested concrete targets are not minted twice.
-            pay(lower.left, targets.len())?;
-            if targets.values().any(|f| *f == callee) {
-                continue;
-            }
+            // Sharing executable code does not share an original caller
+            // world. Each exact request receives its own semantic instance.
             pay(lower.left, program.instances.len())?;
             let mut source_requested = false;
             for row in &program.instances {

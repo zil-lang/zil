@@ -317,6 +317,19 @@ pub(super) fn publish(
                 created(lower, program, instance, parent)?
             };
             lower.actual(actual)?;
+            if let Some(call) = call {
+                let mut receipts = lower.ledger.instance_requests.borrow_mut();
+                pay(lower.left, search(receipts.len()).saturating_add(1))?;
+                let request = (dependency, call, actual);
+                if receipts
+                    .insert(id, request)
+                    .is_some_and(|old| old != request)
+                {
+                    return Err(bad(
+                        "one actual instance changes its exact original call request",
+                    ));
+                }
+            }
             targets.insert(id, actual);
             pending.remove(&id);
             progress = true;

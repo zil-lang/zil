@@ -571,6 +571,17 @@ impl Builder<'_, '_> {
                 "recursive ordinary template has no finite instance plan",
             ));
         }
+        let mut work = self.closures.remaining_work();
+        let before = work;
+        semantics::abi::bind_generated(
+            &mut self.closures.semantic_emission,
+            &template.function,
+            template.context.module,
+            id,
+            self.limits,
+            &mut work,
+        )?;
+        self.closures.snapshot(before - work, span)?;
         let result = (|| {
             let mut builder = Builder::new(
                 &function,

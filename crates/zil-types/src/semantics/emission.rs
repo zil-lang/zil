@@ -56,6 +56,12 @@ pub(crate) struct Ledger {
     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
     pub(super) original: super::original_context::Slot,
     pub frames: BTreeMap<FunctionId, Frame>,
+    /// Bound only by relocation of the exact source request and emitted call.
+    pub(super) instance_requests: std::cell::RefCell<
+        BTreeMap<SemanticInstanceId, (SemanticInstanceId, SemanticSiteId, FunctionId)>,
+    >,
+    /// Lexical selections recorded while emitting this exact MakeClosure.
+    pub(super) closure_captures: BTreeMap<ClosureId, Vec<(String, ValueId)>>,
     /// Actual Core headers deliberately retained for a later callable/value
     /// specialization. A missing frame by itself is never this fact.
     pub templates: std::collections::BTreeSet<Origin>,
@@ -73,6 +79,32 @@ fn lookup_cost(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
 impl Ledger {
+    pub(crate) fn capture_sources(
+        &mut self,
+        closure: ClosureId,
+        captures: Vec<(String, ValueId)>,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() {
+            return Ok(());
+        }
+        pay(
+            left,
+            lookup_cost(self.closure_captures.len()).saturating_add(captures.len()),
+            span,
+        )?;
+        for (name, _) in &captures {
+            pay(left, name.len(), span)?;
+        }
+        if self.closure_captures.insert(closure, captures).is_some() {
+            return Err(invalid(
+                span,
+                "one actual closure repeats its capture selections",
+            ));
+        }
+        Ok(())
+    }
     pub fn register_template(&mut self, origin: Origin, left: &mut usize, span: Span) -> R<()> {
         pay(
             left,
