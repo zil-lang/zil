@@ -2029,6 +2029,7 @@ impl World<'_, '_> {
                         });
                     }
                     InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::DescribeAddress { address }
                     | InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. }
                     | InstructionKind::AddressField { address, .. } => {
@@ -3557,12 +3558,15 @@ impl World<'_, '_> {
                             let result = instruction
                                 .result
                                 .ok_or_else(|| bad("local description has no result"))?;
+                            let result_type =
+                                ty.ok_or_else(|| bad("local description has no type"))?;
+                            if !matches!(result_type, Type::Desc(_)) {
+                                return Err(bad(
+                                    "description opcode has another actual outer constructor",
+                                ));
+                            }
                             let image = self.occurrence(f, result)?;
-                            Some(self.address(
-                                ty.ok_or_else(|| bad("local description has no type"))?,
-                                image,
-                                &value,
-                            )?)
+                            Some(self.address(result_type, image, &value)?)
                         }
                         InstructionKind::DescribePackageField {
                             local,
@@ -3582,18 +3586,23 @@ impl World<'_, '_> {
                             let result = instruction.result.ok_or_else(|| {
                                 bad("actual package description has no result occurrence")
                             })?;
+                            let result_type = ty.ok_or_else(|| {
+                                bad("actual package description has no complete result type")
+                            })?;
+                            if !matches!(result_type, Type::Desc(_)) {
+                                return Err(bad(
+                                    "description opcode has another actual outer constructor",
+                                ));
+                            }
                             let image = self.occurrence(f, result)?;
-                            Some(self.address(
-                                ty.ok_or_else(|| {
-                                    bad("actual package description has no complete result type")
-                                })?,
-                                image,
-                                &payload,
-                            )?)
+                            Some(self.address(result_type, image, &payload)?)
                         }
                         InstructionKind::DescribeAddress { address } => {
                             let parent = self.get(&values, *address)?;
-                            places::address_mutable(self, &parent, true)?;
+                            // A description may be observed through a shared
+                            // head. It retains that real parent loan/root; its
+                            // physical Desc shape grants no write authority.
+                            places::address_mutable(self, &parent, false)?;
                             let owner = self.pointee(&parent)?;
                             if !matches!(Self::type_of(&owner)?, Type::Managed(_)) {
                                 return Err(bad(
@@ -3601,11 +3610,18 @@ impl World<'_, '_> {
                                 ));
                             }
                             let child = projection::pointee(self, &owner)?;
-                            Some(self.address_projection(
-                                ty.ok_or_else(|| bad("addressed description has no type"))?,
-                                &parent,
-                                &child,
-                            )?)
+                            let result = instruction.result.ok_or_else(|| {
+                                bad("addressed description has no actual result occurrence")
+                            })?;
+                            let result_type =
+                                ty.ok_or_else(|| bad("addressed description has no type"))?;
+                            if !matches!(result_type, Type::Desc(_)) {
+                                return Err(bad(
+                                    "description opcode has another actual outer constructor",
+                                ));
+                            }
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(result_type, image, &child)?)
                         }
                         InstructionKind::ReadDesc { desc, index: field } => {
                             let desc = self.get(&values, *desc)?;

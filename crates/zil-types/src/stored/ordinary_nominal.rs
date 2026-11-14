@@ -25,6 +25,7 @@ struct Check<'a, 'b> {
 #[derive(Debug, Default)]
 pub(crate) struct Stats {
     passes: std::collections::BTreeMap<&'static str, PassStats>,
+    original_bodies: std::collections::BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
     phases: std::collections::BTreeMap<&'static str, PhaseStats>,
 }
 #[derive(Debug, Default)]
@@ -35,6 +36,13 @@ struct PassStats {
     last_remaining: usize,
 }
 impl Stats {
+    pub(crate) fn record_original_bodies(
+        &mut self,
+        bodies: &std::collections::BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+    ) {
+        self.original_bodies
+            .extend(bodies.iter().map(|(id, cost)| (*id, *cost)));
+    }
     pub(crate) fn record_pass(&mut self, tag: &'static str, before: usize, after: usize) {
         let pass = self.passes.entry(tag).or_default();
         if pass.calls == 0 {
