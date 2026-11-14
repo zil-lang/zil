@@ -93,7 +93,8 @@ impl Checked {
             b.spend(1, WORK)?;
             current = self.root(current, b)?;
             current = match &self.arena[current] {
-                Kind::Address { inner, .. }
+                Kind::CallResult { hidden: inner, .. }
+                | Kind::Address { inner, .. }
                 | Kind::Desc { inner, .. }
                 | Kind::Wrapped(Wrapper::Managed, inner) => *inner,
                 Kind::ErrorUnion { result, .. } if expect_task => *result,

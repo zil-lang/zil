@@ -51,16 +51,25 @@ impl Check<'_, '_> {
         let expected_type =
             self.original
                 .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
-        let [actual_type] = actuals else {
-            return Err(fail(
-                "sealed resource operation requires its one complete intrinsic Type actual",
-            ));
-        };
-        if !matches!(self.actual_value(instance, actual_type, b, 0)?, value::Argument::Type(actual) if actual == expected_type)
-        {
-            return Err(fail(
-                "sealed resource Type actual changes its independently checked original scheme",
-            ));
+        match actuals {
+            [] => {
+                // No generic function actual is required by this intrinsic.
+                // Its full type is nevertheless independently reconstructed
+                // above and checked against the actual operands/result below.
+            }
+            [actual_type] => {
+                if !matches!(self.actual_value(instance, actual_type, b, 0)?, value::Argument::Type(actual) if actual == expected_type)
+                {
+                    return Err(fail(
+                        "sealed resource Type actual changes its independently checked original scheme",
+                    ));
+                }
+            }
+            _ => {
+                return Err(fail(
+                    "sealed resource operation changes its intrinsic Type actual arity",
+                ));
+            }
         }
         if let Some(store) = store {
             if inputs.len() != 2 + usize::from(extra.is_some()) {
