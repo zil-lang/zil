@@ -214,7 +214,34 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
-        let root = self.root(term, b)?;
+        let root = self.type_root(term, b)?;
+        if let Kind::Tuple(fields) = &self.state.arena[root] {
+            b.spend(name.len().saturating_add(fields.len() + 1), WORK)?;
+            if name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_digit()) {
+                return Err(fail(
+                    "original tuple selection is not an exact positional member",
+                ));
+            }
+            let ordinal = name
+                .parse::<usize>()
+                .map_err(|_| fail("original tuple member ordinal is invalid"))?;
+            let selected = *fields
+                .get(ordinal)
+                .ok_or_else(|| fail("original tuple member exceeds its complete arity"))?;
+            for (index, field) in fields.iter().enumerate() {
+                if index != ordinal {
+                    Self::push(
+                        &mut self.needs,
+                        Need {
+                            term: *field,
+                            predicate: Predicate::SyncDrop,
+                        },
+                        b,
+                    )?;
+                }
+            }
+            return Ok(selected);
+        }
         let Kind::Nominal {
             definition, fields, ..
         } = &self.state.arena[root]
