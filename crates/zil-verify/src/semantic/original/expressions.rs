@@ -14,7 +14,7 @@ impl CheckedOriginal {
                 CoreExprKind::CompileTime(value)|CoreExprKind::Group(value)=>self.expression(module,context,value,env,bindings,expected,active,b)?,
                 CoreExprKind::Ascribed{ty,value}=>{let expected=self.ty(module,context,ty,env,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.unify(&actual,&expected,b)?;expected},
                 CoreExprKind::NumericConvert{value,target}|CoreExprKind::IntegerConvert{value,target}=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;let target=self.ty(module,context,target,env,active,b)?;if !matches!(self.resolved(&source,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float())||!matches!(self.resolved(&target,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion has nonnumeric endpoint"));}target},
-                CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.literal_original(module,&format!("-{text}"),false,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
+                CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.literal_original_sign(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
                 CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>{
                     let mutable=matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::BorrowMut,..});
                     if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
@@ -70,11 +70,21 @@ impl CheckedOriginal {
         })
     }
     pub(super) fn literal_original(&self,module:&TypedModule,text:&str,floating:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
+        self.literal_original_sign(module,text,floating,false,expected,b)
+    }
+    fn literal_original_sign(&self,module:&TypedModule,text:&str,floating:bool,negate:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
+        // Integer patterns can carry their original leading minus; ordinary
+        // expressions retain UnaryNeg. Feed both to the existing exact-width
+        // unary evaluator, never a signed string to the magnitude parser.
+        b.spend(text.len().saturating_add(3))?;
+        let(text,negate)=if !floating{match text.strip_prefix('-'){Some(text)=>(text,!negate),None=>(text,negate)}}else{(text,negate)};
         let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;
         let suffixes=[("isize",Type::Isize),("usize",Type::Usize),("i64",Type::I64),("i32",Type::I32),("i16",Type::I16),("i8",Type::I8),("u64",Type::U64),("u32",Type::U32),("u16",Type::U16),("u8",Type::U8),("f64",Type::F64),("f32",Type::F32)];
         let suffix=suffixes.iter().find(|(suffix,_)|text.ends_with(suffix)).map(|(_,ty)|ty.clone());
         let ty=match(suffix,contextual){(Some(ty),_)=>ty,(None,Some(Ty::Atom(ty)))if ty.is_integer()||ty.is_float()=>ty,_=>if floating{Type::F64}else{Type::I32}};
-        let pattern=if floating{DynConstPattern::FloatLiteral(text.into())}else{DynConstPattern::IntegerLiteral(text.into())};scalar::closed(&pattern,&ty,module.target.pointer_width,b)?.ok_or_else(||bad("original literal carrier is unresolved"))?;Ok(Ty::Atom(ty))
+        let mut pattern=if floating{DynConstPattern::FloatLiteral(text.into())}else{DynConstPattern::IntegerLiteral(text.into())};
+        if negate{pattern=DynConstPattern::Unary{op:UnaryOp::Negate,ty:Box::new(DynTypePattern::Concrete(ty.clone())),value:Box::new(pattern)};}
+        scalar::closed(&pattern,&ty,module.target.pointer_width,b)?.ok_or_else(||bad("original literal carrier is unresolved"))?;Ok(Ty::Atom(ty))
     }
     pub(super) fn field(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,name:&str,_env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let ty=self.resolved(ty,b)?;

@@ -3342,6 +3342,16 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
+        let owner = self
+            .signatures
+            .get(name)
+            .and_then(|function| function.semantic.raw_index().map(|_| function.semantic));
+        // An unresolved callable/opaque Type in this header is owned by the
+        // actual callee template/instance. A caller with the same spelling or
+        // no formal at all cannot close that nominal application's domain.
+        self.with_nominal_owner(owner, |engine| engine.signature_result_in_owner(name))
+    }
+    fn signature_result_in_owner(&mut self, name: &str) -> R<Option<TypeRef>> {
         if !self.stored_nominals {
             return self.signature_result_inner(name);
         }

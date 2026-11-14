@@ -233,6 +233,87 @@ mod tests {
     use zil_ir::SemanticScopeRef;
 
     #[test]
+    fn returned_symbolic_nominal_uses_the_actual_callee_owner() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "returned-nominal-owner.zil",
+            "package State<F>{pub a:F;pub b:F}fn pack<F:FnMut(i32)->i32>(a:F,b:F)->State<F>{return State::<F>{a:a,b:b}}fn caller()->i32{return 0}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let aliases = BTreeMap::new();
+        let (originals, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&syntax],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let (prepared, program) = crate::source_semantics::program::prepare(
+            &[&syntax],
+            &originals,
+            &[Vec::new()],
+            &mut limits.clone(),
+        )
+        .unwrap();
+        let module = &prepared[0];
+        let ItemKind::Function(pack) = &module.items[1].kind else {
+            panic!()
+        };
+        let ItemKind::Function(caller) = &module.items[2].kind else {
+            panic!()
+        };
+        let mut budget = Budget::new(&limits);
+        let context = SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Aligned(&originals),
+        }
+        .resolve(std::slice::from_ref(&source), &mut budget)
+        .unwrap();
+        let mut origins = origins::Origins::single(module, false, &mut budget).unwrap();
+        origins
+            .capture_identities(module, false, &context, &mut budget)
+            .unwrap();
+        let patterns = BTreeMap::new();
+        let mut engine = Engine::with_budget(
+            module,
+            &limits,
+            &patterns,
+            Some(&origins),
+            &[],
+            budget,
+            None,
+        )
+        .unwrap();
+        engine.products.semantic = Some(program);
+        engine.nominal_owner = Some(caller.semantic);
+        let first = engine.signature_result("pack").unwrap().unwrap();
+        let second = engine.signature_result("pack").unwrap().unwrap();
+        assert_eq!(first, second);
+        assert_eq!(engine.nominal_owner, Some(caller.semantic));
+        assert_eq!(engine.products.nominal_applications.len(), 1);
+        let application = &engine.products.nominal_applications[0];
+        assert_eq!(application.owner, Some(pack.semantic));
+        let ApplicationArguments::Deferred(dependencies) = &application.arguments else {
+            panic!("unbound callable must not become a complete Named(F) actual")
+        };
+        assert!(
+            dependencies
+                .iter()
+                .any(|dependency| dependency.argument == 0
+                    && dependency.namespace == SemanticOriginalNamespace::Type
+                    && dependency.formal.ordinal == 0
+                    && dependency.formal.scope == SemanticScopeRef::Ancestor(0))
+        );
+    }
+
+    #[test]
     fn actual_owner_dependencies_preserve_the_original_mixed_ordinals() {
         let source = SourceUnit::new(
             FileId(0),

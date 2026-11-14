@@ -775,7 +775,7 @@ mod tests {
     #[test]
     fn observed_resource_field_has_its_own_potential_head_occurrence() {
         let (mut syntax, program) = prepare(
-            "resource R{code:i32}package Owner{manages resource:R}fn observe(owner:&Owner){let descriptor=owner.resource;return ()}",
+            "resource R{code:i32}package Owner{manages item:R}fn observe(owner:&Owner){let descriptor=owner.item;return ()}",
         );
         let definition = program.modules[0]
             .1
