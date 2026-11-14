@@ -688,7 +688,7 @@ pub(in crate::semantics) fn complete_emitted_headers(
             ));
         }
         let view = super::super::materialize::ActualDirectory::from_module(module);
-        let Some((directory, mapping)) =
+        let Some((directory, mapping, values)) =
             form_emitted_header(program, &view, ledger, instance, id, entry, limits, left)?
         else {
             if early.is_some() {
@@ -698,13 +698,18 @@ pub(in crate::semantics) fn complete_emitted_headers(
             }
             continue;
         };
-        if let Some((expected, embedding)) = early {
+        if let Some((expected, embedding, proposed_values)) = early {
             crate::borrowed_fp::charge_contract(expected, |work| pay(left, work), 2)?;
             crate::borrowed_fp::charge_contract(&directory, |work| pay(left, work), 2)?;
             for row in embedding.iter().chain(mapping.iter()) {
                 crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
             }
-            if expected != &directory
+            pay(left, values.len().saturating_add(proposed_values.len()))?;
+            for (_, value) in values.iter().chain(proposed_values.iter()) {
+                crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+            }
+            if proposed_values != &values
+                || expected != &directory
                 || embedding != &mapping
                 || definition.storage_life.as_ref() != Some(&directory)
                 || entry.storage_life.as_ref() != Some(&directory)
@@ -759,7 +764,13 @@ pub(in crate::semantics) fn form_emitted_header(
     entry: &TypedFunction,
     limits: &Limits,
     left: &mut usize,
-) -> R<Option<(StorageLifeContract, Vec<SemanticHeaderBinding>)>> {
+) -> R<
+    Option<(
+        StorageLifeContract,
+        Vec<SemanticHeaderBinding>,
+        Vec<(StorageBase, SemanticTypeValue)>,
+    )>,
+> {
     let original = program
         .definitions
         .iter()
@@ -785,6 +796,7 @@ pub(in crate::semantics) fn form_emitted_header(
         ));
     }
     let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
+    let mut values = Vec::new();
     let mut capture_bindings = Vec::new();
     let mut capture_classes = Vec::new();
     let mut capture_statics = Vec::new();
@@ -806,6 +818,7 @@ pub(in crate::semantics) fn form_emitted_header(
             limits,
             left,
         )?;
+        values.push((StorageBase::Capture(capture), value));
     }
     if !complete {
         return Ok(None);
@@ -848,6 +861,7 @@ pub(in crate::semantics) fn form_emitted_header(
             limits,
             left,
         )?;
+        values.push((StorageBase::Parameter(ordinal as u32), value));
     }
     bindings.extend(capture_bindings);
     classes.extend(capture_classes);
@@ -880,6 +894,23 @@ pub(in crate::semantics) fn form_emitted_header(
         limits,
         left,
     )?;
+    values.push((StorageBase::Result, value));
+    let (directory, mapping) = complete_rows(bindings, classes, statics, limits, left)?;
+    if !instance.header_embedding.is_empty() && instance.header_embedding != mapping {
+        return Err(bad(
+            "completed closure directory changes its original domain embedding",
+        ));
+    }
+    Ok(Some((directory, mapping, values)))
+}
+
+fn complete_rows(
+    bindings: Vec<(StoragePosition, SemanticClassExpr)>,
+    classes: Vec<(SignatureLifeClass, SemanticClassExpr)>,
+    statics: Vec<StoragePosition>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<(StorageLifeContract, Vec<SemanticHeaderBinding>)> {
     let mut directory = StorageLifeContract {
         fixed_binder_count: 0,
         invocation_binder_count: 0,
@@ -939,12 +970,95 @@ pub(in crate::semantics) fn form_emitted_header(
             .classes
             .push(SignatureLifeClassBinding { position, binder });
     }
-    if !instance.header_embedding.is_empty() && instance.header_embedding != mapping {
+    Ok((directory, mapping))
+}
+
+/// Recheck the complete actual operand directory at the early metadata consumer.
+/// Final publication derives these operands anew from the original program.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::semantics) fn validate_formed_header(
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    header: &StorageLifeContract,
+    embedding: &[SemanticHeaderBinding],
+    values: &[(StorageBase, SemanticTypeValue)],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    pay(
+        left,
+        parameters
+            .len()
+            .saturating_add(captures.len())
+            .saturating_add(values.len())
+            .saturating_add(1),
+    )?;
+    if values.len()
+        != parameters
+            .len()
+            .saturating_add(captures.len())
+            .saturating_add(1)
+    {
+        return Err(bad("formed closure header omits complete P/C/R operands"));
+    }
+    let mut seen = BTreeSet::new();
+    let mut bindings = Vec::new();
+    let mut classes = Vec::new();
+    let mut statics = Vec::new();
+    let mut ordered = values.iter().collect::<Vec<_>>();
+    pay(
+        left,
+        ordered
+            .len()
+            .saturating_mul(ordered.len().saturating_add(1).ilog2() as usize + 1),
+    )?;
+    ordered.sort_by_key(|(base, _)| match base {
+        StorageBase::Parameter(i) => (0u8, *i),
+        StorageBase::Capture(i) => (1, *i),
+        StorageBase::Result => (2, 0),
+    });
+    for (base, value) in ordered {
+        let actual = match *base {
+            StorageBase::Parameter(i) => parameters.get(i as usize),
+            StorageBase::Capture(i) => captures.get(i as usize),
+            StorageBase::Result => Some(result),
+        }
+        .ok_or_else(|| bad("formed closure operand leaves the actual P/C/R inventory"))?;
+        if !seen.insert(*base) {
+            return Err(bad("formed closure repeats an actual P/C/R operand"));
+        }
+        let SemanticTypeValue::Resolved { ty, .. } = value else {
+            return Err(bad("formed closure retained an unresolved operand"));
+        };
+        crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+        inference::charge_type_snapshot(actual, Span::default(), limits, left, 1)?;
+        if ty != actual {
+            return Err(bad(
+                "formed closure operand changes its actual complete type",
+            ));
+        }
+        super::super::creator_headers::rows::append(
+            value,
+            *base,
+            &mut bindings,
+            &mut classes,
+            &mut statics,
+            limits,
+            left,
+        )?;
+    }
+    let (expected, mapping) = complete_rows(bindings, classes, statics, limits, left)?;
+    crate::borrowed_fp::charge_contract(header, |work| pay(left, work), 1)?;
+    for row in embedding {
+        crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
+    }
+    if &expected != header || mapping != embedding {
         return Err(bad(
-            "completed closure directory changes its original domain embedding",
+            "formed closure header changes a complete operand row or original Fixed image",
         ));
     }
-    Ok(Some((directory, mapping)))
+    Ok(())
 }
 
 fn header_image(

@@ -66,8 +66,14 @@ pub(crate) struct Ledger {
     pub(super) closure_captures: BTreeMap<ClosureId, Vec<(String, ValueId)>>,
     /// Candidate headers formed at real MakeClosure operations. Publication
     /// rebuilds and compares them; they confer no closedness or permissions.
-    pub(super) formed_headers:
-        BTreeMap<ClosureId, (StorageLifeContract, Vec<SemanticHeaderBinding>)>,
+    pub(super) formed_headers: BTreeMap<
+        ClosureId,
+        (
+            StorageLifeContract,
+            Vec<SemanticHeaderBinding>,
+            Vec<(StorageBase, SemanticTypeValue)>,
+        ),
+    >,
     /// Actual Core headers deliberately retained for a later callable/value
     /// specialization. A missing frame by itself is never this fact.
     pub templates: std::collections::BTreeSet<Origin>,
@@ -90,20 +96,52 @@ impl Ledger {
         closure: ClosureId,
         header: StorageLifeContract,
         embedding: Vec<SemanticHeaderBinding>,
+        values: Vec<(StorageBase, SemanticTypeValue)>,
     ) -> R<()> {
         if let Some(previous) = self.formed_headers.get(&closure) {
-            if previous != &(header, embedding) {
+            if previous != &(header, embedding, values) {
                 return Err(invalid(
                     Span::default(),
                     "actual Task preparation changes an earlier complete closure header",
                 ));
             }
         } else {
-            self.formed_headers.insert(closure, (header, embedding));
+            self.formed_headers
+                .insert(closure, (header, embedding, values));
         }
         Ok(())
     }
 
+    pub(crate) fn validate_formed_capture(
+        &self,
+        closure: ClosureId,
+        parameters: &[Type],
+        captures: &[Type],
+        result: &Type,
+        header: &StorageLifeContract,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<bool> {
+        pay(
+            left,
+            lookup_cost(self.formed_headers.len()),
+            Span::default(),
+        )?;
+        let Some((proposed, embedding, values)) = self.formed_headers.get(&closure) else {
+            return Ok(false);
+        };
+        crate::borrowed_fp::charge_contract(proposed, |work| pay(left, work, Span::default()), 1)?;
+        if proposed != header {
+            return Err(invalid(
+                Span::default(),
+                "actual closure changed its early formed header",
+            ));
+        }
+        super::headers::validate_formed_header(
+            parameters, captures, result, header, embedding, values, limits, left,
+        )?;
+        Ok(true)
+    }
     pub(crate) fn active_expression(
         &self,
         function: FunctionId,

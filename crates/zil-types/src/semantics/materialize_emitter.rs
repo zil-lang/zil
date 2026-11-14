@@ -8,7 +8,12 @@ pub(crate) struct PreparedTask {
     pub context: RetainedLifeShape,
     pub bindings: Vec<RetainedPortBinding>,
     pub inputs: SemanticTypeValue,
-    pub headers: Vec<(ClosureId, StorageLifeContract, Vec<SemanticHeaderBinding>)>,
+    pub headers: Vec<(
+        ClosureId,
+        StorageLifeContract,
+        Vec<SemanticHeaderBinding>,
+        Vec<(StorageBase, SemanticTypeValue)>,
+    )>,
 }
 
 fn fee(left: &mut usize, n: usize) -> R<()> {
@@ -369,7 +374,7 @@ pub(crate) fn prepare_task(
             let Some(function) = directory.function(entry) else {
                 continue;
             };
-            let Some((header, embedding)) = super::super::headers::form_emitted_header(
+            let Some((header, embedding, values)) = super::super::headers::form_emitted_header(
                 &context.semantic,
                 &directory,
                 ledger,
@@ -399,7 +404,7 @@ pub(crate) fn prepare_task(
                 .get_mut(&instance_id)
                 .ok_or_else(|| bad("formed Task input original world disappeared"))?
                 .header_embedding = embedding.clone();
-            headers.push((closure, header, embedding));
+            headers.push((closure, header, embedding, values));
             progress = true;
         }
         install_callable_actuals(&mut directory, &context.semantic, state, limits, left)?;

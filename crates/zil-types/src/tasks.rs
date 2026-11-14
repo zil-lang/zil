@@ -565,7 +565,7 @@ impl Builder<'_, '_> {
         self.closures.snapshot(before - left, span)?;
         let mut prepared = prepared?;
         if let Some(prepared) = &mut prepared {
-            for (id, header, embedding) in std::mem::take(&mut prepared.headers) {
+            for (id, header, embedding, values) in std::mem::take(&mut prepared.headers) {
                 let pending = self
                     .closures
                     .pending
@@ -594,7 +594,7 @@ impl Builder<'_, '_> {
                 entry.storage_life = Some(header.clone());
                 self.closures
                     .semantic_emission
-                    .record_formed_header(id, header, embedding)?;
+                    .record_formed_header(id, header, embedding, values)?;
             }
         }
         Ok(prepared)

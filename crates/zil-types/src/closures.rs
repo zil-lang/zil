@@ -1415,7 +1415,19 @@ impl State {
                     })?;
                     Ok(())
                 })?;
-                if pending.source_context.is_some() {
+                if self.semantic_emission.validate_formed_capture(
+                    pending.id,
+                    &parameters,
+                    &captures,
+                    &result,
+                    life,
+                    &self.limits,
+                    &mut remaining,
+                )? {
+                    // The complete original operand proposal is checked here;
+                    // finish reconstructs every value/header again before the
+                    // independent body/domain proofs publish this metadata.
+                } else if pending.source_context.is_some() {
                     for capture in &captures {
                         if let Type::Managed(payload) = capture
                             && let Type::Record { fields, .. } = payload.as_ref()
