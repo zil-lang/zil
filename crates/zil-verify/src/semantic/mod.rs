@@ -16,6 +16,7 @@ mod constants;
 mod nominal;
 mod closures;
 mod opaque;
+mod method_obligations;
 mod catalogue;
 mod instances;
 mod flow;

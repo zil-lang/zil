@@ -23,7 +23,7 @@ impl CheckedOriginal {
         let result=self.map_invocation_type(&prototype.result,&mut rewrite,0,b)?;
         Ok(Prototype{parameters,result:self.apply_type(&result,selected,b)?,environment:selected.clone(),modes:prototype.modes.clone(),result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:prototype.bound_lifetimes,invocation_lifetimes:prototype.invocation_lifetimes,callable_kind:prototype.callable_kind})
     }
-    fn map_invocation_type(&self,ty:&Ty,life:&mut impl FnMut(&Life,&mut Budget)->Check<Life>,depth:usize,b:&mut Budget)->Check<Ty>{
+    pub(super) fn map_invocation_type(&self,ty:&Ty,life:&mut impl FnMut(&Life,&mut Budget)->Check<Life>,depth:usize,b:&mut Budget)->Check<Ty>{
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original call input domain depth exceeded"));}
         Ok(match self.resolved(ty,b)?{
             Ty::Address{mutable,life:outer,inner}=>Ty::Address{mutable,life:life(&outer,b)?,inner:Box::new(self.map_invocation_type(&inner,life,depth+1,b)?)},

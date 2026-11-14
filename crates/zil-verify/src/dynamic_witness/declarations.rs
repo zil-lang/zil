@@ -238,7 +238,15 @@ impl Scope<'_> {
                 }
             }
             DynTypePattern::Semantic { scope, ty } => {
-                bridge::original_type(module, &self.owner, *scope, ty, b)?;
+                bridge::original_type(
+                    module,
+                    &self.owner,
+                    *scope,
+                    ty,
+                    &self.bound,
+                    self.invocation,
+                    b,
+                )?;
                 // This pass checks original grammar only. The independent
                 // original checker retains full type WF and where obligations;
                 // actual queries evaluate the recipe in the complete domain.

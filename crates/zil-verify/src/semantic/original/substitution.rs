@@ -28,7 +28,7 @@ impl CheckedOriginal {
             other=>other,
         })
     }
-    fn apply_arguments(&self,arguments:&[Arg],env:&Env,depth:usize,b:&mut Budget)->Check<Vec<Arg>>{let mut result=Vec::new();for argument in arguments{b.spend(1)?;result.push(match argument{Arg::Type(ty)=>Arg::Type(self.apply_type_at(ty,env,depth+1,b)?),Arg::Life(life)=>Arg::Life(self.apply_life(life,env,b)?),Arg::Const(value)=>Arg::Const(self.apply_constant(value,env,depth+1,b)?)});}Ok(result)}
+    pub(super) fn apply_arguments(&self,arguments:&[Arg],env:&Env,depth:usize,b:&mut Budget)->Check<Vec<Arg>>{let mut result=Vec::new();for argument in arguments{b.spend(1)?;result.push(match argument{Arg::Type(ty)=>Arg::Type(self.apply_type_at(ty,env,depth+1,b)?),Arg::Life(life)=>Arg::Life(self.apply_life(life,env,b)?),Arg::Const(value)=>Arg::Const(self.apply_constant(value,env,depth+1,b)?)});}Ok(result)}
     pub(super) fn apply_life(&self,life:&Life,env:&Env,b:&mut Budget)->Check<Life>{
         let life=self.resolved_life(life,b)?;b.spend(env.lexical.len())?;
         if let Life::Formal(definition,ordinal)=life{if let Some(frame)=env.lexical.iter().find(|frame|frame.definition==definition){match frame.actuals.get(ordinal as usize){Some(Arg::Life(value))=>return self.resolved_life(value,b),_=>return Err(bad("original lifetime substitution changes full-ordinal kind"))}}}Ok(life)

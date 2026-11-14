@@ -69,6 +69,7 @@ impl CheckedContext {
                 let scope_environment=EvalEnv{assumptions:lexical.iter().map(|frame|frame.key).collect(),lexical:lexical.clone(),images:vec![],bounds:vec![],invocations:vec![],at:None};
                 let mut external=dynamic_witness::semantic_external::Proofs::default();
                 let value=self.evaluate_type(module,recipe,&scope_environment,&mut external,active,b)?;
+                self.finish_external_methods(module,&mut external,active,b)?;
                 if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty(){return Err(unsupported("impl Self construction retains unproved entry/static obligations",None));}
                 Some(value)
             }else if matches!(definition.kind,SemanticDefinitionKind::Method){

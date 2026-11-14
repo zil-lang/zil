@@ -41,6 +41,7 @@ impl LocalDomain {
         local: bool,
         b: &mut Budget,
     ) -> Check<CheckedType> {
+        charge_type(value, b)?;
         if value.classes.len() != value.origins.len()
             || value.classes.len() != value.life.binder_count as usize
         {
@@ -51,8 +52,14 @@ impl LocalDomain {
             *origin = self.origin(origin, b)?;
             if local {
                 let mut found = None;
-                for (key, _, known) in &self.rows {
+                for (key, outside, known) in &self.rows {
                     if context.same_origin(env, known, origin, b)? {
+                        let current = self.outside(class, b)?;
+                        if !context.same(env, outside, &current, b)? {
+                            return Err(bad(
+                                "one original intrinsic origin has conflicting outside images",
+                            ));
+                        }
                         found = Some(key.clone());
                         break;
                     }
@@ -60,6 +67,11 @@ impl LocalDomain {
                 if let Some(key) = found {
                     *class = key;
                 } else {
+                    if self.rows.len() >= b.limits.max_nodes {
+                        return Err(limit(
+                            "original query intrinsic key domain exceeds selected bound",
+                        ));
+                    }
                     let outside = self.outside(class, b)?;
                     let key = ClassKey::Intrinsic {
                         scope: self.scope,
@@ -764,22 +776,59 @@ fn retain_actuals(
     Ok(())
 }
 
-fn life(pattern: DynLifePattern) -> Check<SemanticLifeRecipe> {
+pub(super) fn type_recipe(
+    module: &TypedModule,
+    owner: LifeDeclarationId,
+    p: &DynTypePattern,
+    b: &mut Budget,
+    depth: usize,
+) -> Check<SemanticTypeRecipe> {
+    scoped_type_recipe(module, &SemanticDynOwner::Declaration(owner), p, b, depth)
+}
+pub(super) fn constant_recipe(
+    module: &TypedModule,
+    owner: LifeDeclarationId,
+    p: &DynConstPattern,
+    b: &mut Budget,
+    depth: usize,
+) -> Check<SemanticConstRecipe> {
+    scoped_constant_recipe(module, &SemanticDynOwner::Declaration(owner), p, b, depth)
+}
+
+fn life(owner: &SemanticDynOwner, pattern: DynLifePattern) -> Check<SemanticLifeRecipe> {
     Ok(match pattern {
         DynLifePattern::DeclarationParameter(ordinal) => {
             SemanticLifeRecipe::Formal(SemanticFormalRef {
-                scope: SemanticScopeRef::Ancestor(0),
+                scope: SemanticScopeRef::Ancestor(
+                    if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                        0
+                    } else {
+                        1
+                    },
+                ),
                 ordinal,
             })
         }
         DynLifePattern::ImplicitDeclaration(ordinal) => SemanticLifeRecipe::Implicit {
-            scope: SemanticScopeRef::Ancestor(0),
+            scope: SemanticScopeRef::Ancestor(
+                if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                    0
+                } else {
+                    1
+                },
+            ),
             ordinal,
         },
         DynLifePattern::Bound { depth, index } => SemanticLifeRecipe::Bound { depth, index },
         DynLifePattern::Invocation(index) => SemanticLifeRecipe::Invocation(index),
-        DynLifePattern::MethodParameter(_) => {
-            return Err(bad("associated declaration recipe refers to method formal"));
+        DynLifePattern::MethodParameter(ordinal) => {
+            if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                return Err(bad("declaration recipe refers to a method formal"));
+            }
+            SemanticLifeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal,
+            })
         }
     })
 }
@@ -806,7 +855,7 @@ fn nominal_definition(
 }
 fn application(
     module: &TypedModule,
-    owner: LifeDeclarationId,
+    owner: &SemanticDynOwner,
     p: &DynSelfPattern,
     b: &mut Budget,
     depth: usize,
@@ -829,7 +878,7 @@ fn application(
 }
 fn actual_recipes(
     module: &TypedModule,
-    owner: LifeDeclarationId,
+    owner: &SemanticDynOwner,
     formals: &[LifeParameterKind],
     patterns: &[DynPatternActual],
     b: &mut Budget,
@@ -847,10 +896,10 @@ fn actual_recipes(
         .map(|(kind, p)| {
             Ok(match (kind, p) {
                 (LifeParameterKind::Type, DynPatternActual::Type(p)) => {
-                    SemanticActualRecipe::Type(type_recipe(module, owner, p, b, depth + 1)?)
+                    SemanticActualRecipe::Type(scoped_type_recipe(module, owner, p, b, depth + 1)?)
                 }
                 (LifeParameterKind::Lifetime, DynPatternActual::Life(p)) => {
-                    SemanticActualRecipe::Life(life(*p)?)
+                    SemanticActualRecipe::Life(life(owner, *p)?)
                 }
                 (LifeParameterKind::Const(carrier), DynPatternActual::Const(p)) => {
                     SemanticActualRecipe::Const {
@@ -864,7 +913,7 @@ fn actual_recipes(
                             },
                             classes: vec![],
                         })),
-                        value: constant_recipe(module, owner, p, b, depth + 1)?,
+                        value: scoped_constant_recipe(module, owner, p, b, depth + 1)?,
                     }
                 }
                 _ => return Err(bad("original application changes a mixed formal kind")),
@@ -872,9 +921,9 @@ fn actual_recipes(
         })
         .collect()
 }
-pub(super) fn type_recipe(
+fn scoped_type_recipe(
     module: &TypedModule,
-    owner: LifeDeclarationId,
+    owner: &SemanticDynOwner,
     p: &DynTypePattern,
     b: &mut Budget,
     depth: usize,
@@ -884,23 +933,41 @@ pub(super) fn type_recipe(
         return Err(limit("original associated type recipe depth exceeded"));
     }
     let nested = |p: &DynTypePattern, b: &mut Budget| {
-        type_recipe(module, owner, p, b, depth + 1).map(Box::new)
+        scoped_type_recipe(module, owner, p, b, depth + 1).map(Box::new)
     };
     Ok(match p {
         DynTypePattern::Semantic { scope, ty } => {
-            bridge::owner(module, &SemanticDynOwner::Declaration(owner), *scope, b)?;
+            bridge::owner(module, owner, *scope, b)?;
             dynamic_metadata::recipe(ty.as_ref(), b)?;
             ty.as_ref().clone()
         }
         DynTypePattern::SelfType => SemanticTypeRecipe::SelfType {
-            scope: SemanticScopeRef::Ancestor(0),
+            scope: SemanticScopeRef::Ancestor(
+                if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                    0
+                } else {
+                    1
+                },
+            ),
         },
         DynTypePattern::Parameter(ordinal) => SemanticTypeRecipe::Formal(SemanticFormalRef {
-            scope: SemanticScopeRef::Ancestor(0),
+            scope: SemanticScopeRef::Ancestor(
+                if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                    0
+                } else {
+                    1
+                },
+            ),
             ordinal: *ordinal,
         }),
-        DynTypePattern::MethodParameter(_) => {
-            return Err(bad("original associated type depends on a method formal"));
+        DynTypePattern::MethodParameter(ordinal) => {
+            if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                return Err(bad("declaration type refers to a method formal"));
+            }
+            SemanticTypeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: *ordinal,
+            })
         }
         DynTypePattern::Concrete(ty) => {
             values::closed(module, ty, b)?;
@@ -956,12 +1023,14 @@ pub(super) fn type_recipe(
         } => SemanticTypeRecipe::Address {
             mutable: *mutable,
             lifetime: SemanticOuterLifeRecipe::Class(life(
+                owner,
                 lifetime.ok_or_else(|| bad("original associated Address lifetime is Unknown"))?,
             )?),
             inner: nested(inner, b)?,
         },
         DynTypePattern::Desc { lifetime, inner } => SemanticTypeRecipe::Desc {
             lifetime: SemanticOuterLifeRecipe::Class(life(
+                owner,
                 lifetime
                     .ok_or_else(|| bad("original associated Description lifetime is Unknown"))?,
             )?),
@@ -972,12 +1041,12 @@ pub(super) fn type_recipe(
         DynTypePattern::Slice(p) => SemanticTypeRecipe::Slice(nested(p, b)?),
         DynTypePattern::Tuple(ps) => SemanticTypeRecipe::Tuple(
             ps.iter()
-                .map(|p| type_recipe(module, owner, p, b, depth + 1))
+                .map(|p| scoped_type_recipe(module, owner, p, b, depth + 1))
                 .collect::<Check<Vec<_>>>()?,
         ),
         DynTypePattern::Array { element, length } => SemanticTypeRecipe::Array {
             element: nested(element, b)?,
-            length: Box::new(constant_recipe(module, owner, length, b, depth + 1)?),
+            length: Box::new(scoped_constant_recipe(module, owner, length, b, depth + 1)?),
         },
         DynTypePattern::ErrorUnion { error, result } => SemanticTypeRecipe::ErrorUnion {
             error: nested(error, b)?,
@@ -985,9 +1054,9 @@ pub(super) fn type_recipe(
         },
     })
 }
-pub(super) fn constant_recipe(
+fn scoped_constant_recipe(
     module: &TypedModule,
-    owner: LifeDeclarationId,
+    owner: &SemanticDynOwner,
     p: &DynConstPattern,
     b: &mut Budget,
     depth: usize,
@@ -997,22 +1066,34 @@ pub(super) fn constant_recipe(
         return Err(limit("original associated constant recipe depth exceeded"));
     }
     let nested = |p: &DynConstPattern, b: &mut Budget| {
-        constant_recipe(module, owner, p, b, depth + 1).map(Box::new)
+        scoped_constant_recipe(module, owner, p, b, depth + 1).map(Box::new)
     };
     Ok(match p {
         DynConstPattern::Value(v) => SemanticConstRecipe::Value(v.clone()),
         DynConstPattern::IntegerLiteral(v) => SemanticConstRecipe::IntegerLiteral(v.clone()),
         DynConstPattern::FloatLiteral(v) => SemanticConstRecipe::FloatLiteral(v.clone()),
         DynConstPattern::Parameter(ordinal) => SemanticConstRecipe::Formal(SemanticFormalRef {
-            scope: SemanticScopeRef::Ancestor(0),
+            scope: SemanticScopeRef::Ancestor(
+                if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                    0
+                } else {
+                    1
+                },
+            ),
             ordinal: *ordinal,
         }),
-        DynConstPattern::MethodParameter(_) => {
-            return Err(bad("associated constant depends on a method formal"));
+        DynConstPattern::MethodParameter(ordinal) => {
+            if matches!(owner, SemanticDynOwner::Declaration(_)) {
+                return Err(bad("declaration constant refers to a method formal"));
+            }
+            SemanticConstRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: *ordinal,
+            })
         }
         DynConstPattern::Unary { op, value, ty } => SemanticConstRecipe::Unary {
             op: *op,
-            operand_type: Box::new(type_recipe(module, owner, ty, b, depth + 1)?),
+            operand_type: Box::new(scoped_type_recipe(module, owner, ty, b, depth + 1)?),
             value: nested(value, b)?,
         },
         DynConstPattern::Binary {
@@ -1022,7 +1103,7 @@ pub(super) fn constant_recipe(
             ty,
         } => SemanticConstRecipe::Binary {
             op: *op,
-            operand_type: Box::new(type_recipe(module, owner, ty, b, depth + 1)?),
+            operand_type: Box::new(scoped_type_recipe(module, owner, ty, b, depth + 1)?),
             left: nested(left, b)?,
             right: nested(right, b)?,
         },
@@ -1036,7 +1117,7 @@ pub(super) fn constant_recipe(
             application: p,
             member,
         } => SemanticConstRecipe::AssociatedConst {
-            receiver: Box::new(type_recipe(module, owner, receiver, b, depth + 1)?),
+            receiver: Box::new(scoped_type_recipe(module, owner, receiver, b, depth + 1)?),
             application: Box::new(application(module, owner, p, b, depth + 1)?),
             member: *member,
         },
@@ -1063,10 +1144,19 @@ pub(super) fn requirement_recipes(
     rows: &[DynObligation],
     b: &mut Budget,
 ) -> Check<Vec<SemanticRequirementRecipe>> {
+    scoped_requirement_recipes(module, &SemanticDynOwner::Declaration(owner), rows, b)
+}
+
+fn scoped_requirement_recipes(
+    module: &TypedModule,
+    owner: &SemanticDynOwner,
+    rows: &[DynObligation],
+    b: &mut Budget,
+) -> Check<Vec<SemanticRequirementRecipe>> {
     let mut recipes = vec![];
     for row in rows {
         b.spend(1)?;
-        let ty = |p: &DynTypePattern, b: &mut Budget| type_recipe(module, owner, p, b, 0);
+        let ty = |p: &DynTypePattern, b: &mut Budget| scoped_type_recipe(module, owner, p, b, 0);
         recipes.push(match row {
             DynObligation::Structural { receiver, bound } => {
                 SemanticRequirementRecipe::Structural {
@@ -1088,8 +1178,8 @@ pub(super) fn requirement_recipes(
             DynObligation::ConstEqual { ty: p, left, right } => {
                 SemanticRequirementRecipe::ConstEqual {
                     carrier: ty(p, b)?,
-                    left: constant_recipe(module, owner, left, b, 0)?,
-                    right: constant_recipe(module, owner, right, b, 0)?,
+                    left: scoped_constant_recipe(module, owner, left, b, 0)?,
+                    right: scoped_constant_recipe(module, owner, right, b, 0)?,
                 }
             }
             DynObligation::Callable {
@@ -1629,6 +1719,106 @@ fn query_inner(
         } => (receiver, application, Some((*member, true))),
         _ => return Err(bad("original query received another external request kind")),
     };
+    let Provider {
+        trait_decl,
+        implementation,
+        trait_env,
+        impl_env,
+    } = provider(
+        proofs,
+        module,
+        context,
+        caller,
+        receiver,
+        application,
+        active,
+        b,
+    )?;
+    if let Some((member, constant)) = requested {
+        associated(
+            proofs,
+            module,
+            context,
+            trait_decl,
+            implementation,
+            &trait_env,
+            &impl_env,
+            member,
+            constant,
+            active,
+            b,
+        )
+    } else {
+        // Every associated member is part of the original trait instance,
+        // including unused members and defaults. No ordinal coincidence is used.
+        for (ordinal, member) in trait_decl.members.iter().enumerate() {
+            match member.kind {
+                DynMemberKind::Type => {
+                    associated(
+                        proofs,
+                        module,
+                        context,
+                        trait_decl,
+                        implementation,
+                        &trait_env,
+                        &impl_env,
+                        ordinal as u32,
+                        false,
+                        active,
+                        b,
+                    )?;
+                }
+                DynMemberKind::Constant => {
+                    associated(
+                        proofs,
+                        module,
+                        context,
+                        trait_decl,
+                        implementation,
+                        &trait_env,
+                        &impl_env,
+                        ordinal as u32,
+                        true,
+                        active,
+                        b,
+                    )?;
+                }
+                DynMemberKind::Method(_) => {}
+            }
+        }
+        methods(
+            proofs,
+            module,
+            context,
+            trait_decl,
+            implementation,
+            &trait_env,
+            &impl_env,
+            active,
+            b,
+        )?;
+        Ok(ExternalValue::Proved)
+    }
+}
+
+struct Provider<'a> {
+    trait_decl: &'a DynDeclaration,
+    implementation: &'a DynDeclaration,
+    trait_env: EvalEnv,
+    impl_env: EvalEnv,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn provider<'a>(
+    proofs: &mut Proofs,
+    module: &'a TypedModule,
+    context: &semantic::CheckedContext,
+    caller: &EvalEnv,
+    receiver: &CheckedType,
+    application: &CheckedApplication,
+    active: &mut semantic::ActiveQueries,
+    b: &mut Budget,
+) -> Check<Provider<'a>> {
     let trait_decl = declaration(module, application.declaration, b)?;
     if trait_decl.kind != DynDeclarationKind::Trait {
         return Err(bad("original trait query selects a nontrait declaration"));
@@ -1794,71 +1984,134 @@ fn query_inner(
             _ => return Err(bad("original super query did not establish satisfaction")),
         }
     }
-    if let Some((member, constant)) = requested {
-        associated(
-            proofs,
-            module,
-            context,
-            trait_decl,
-            implementation,
-            &trait_env,
-            &impl_env,
-            member,
-            constant,
-            active,
-            b,
-        )
-    } else {
-        // Every associated member is part of the original trait instance,
-        // including unused members and defaults. No ordinal coincidence is used.
-        for (ordinal, member) in trait_decl.members.iter().enumerate() {
-            match member.kind {
-                DynMemberKind::Type => {
-                    associated(
-                        proofs,
-                        module,
-                        context,
-                        trait_decl,
-                        implementation,
-                        &trait_env,
-                        &impl_env,
-                        ordinal as u32,
-                        false,
-                        active,
-                        b,
-                    )?;
-                }
-                DynMemberKind::Constant => {
-                    associated(
-                        proofs,
-                        module,
-                        context,
-                        trait_decl,
-                        implementation,
-                        &trait_env,
-                        &impl_env,
-                        ordinal as u32,
-                        true,
-                        active,
-                        b,
-                    )?;
-                }
-                DynMemberKind::Method(_) => {}
-            }
-        }
-        methods(
-            proofs,
-            module,
-            context,
-            trait_decl,
-            implementation,
-            &trait_env,
-            &impl_env,
-            active,
-            b,
-        )?;
-        Ok(ExternalValue::Proved)
+    Ok(Provider {
+        trait_decl,
+        implementation,
+        trait_env,
+        impl_env,
+    })
+}
+
+struct MethodSelection<'a> {
+    signature: &'a DynMethodRecipe,
+    body: &'a DynDefinitionDeclaration,
+    expected: &'a SemanticDefinition,
+    actual: &'a SemanticDefinition,
+    trait_default: bool,
+}
+
+fn method_selection<'a>(
+    module: &'a TypedModule,
+    trait_decl: &'a DynDeclaration,
+    implementation: &'a DynDeclaration,
+    ordinal: u32,
+    b: &mut Budget,
+) -> Check<MethodSelection<'a>> {
+    let member = trait_decl
+        .members
+        .get(ordinal as usize)
+        .ok_or_else(|| bad("original method selection member is absent"))?;
+    if !matches!(member.kind, DynMemberKind::Method(_)) {
+        return Err(bad("original method selection selects another member kind"));
     }
+    let signatures = trait_decl
+        .method_signatures
+        .as_ref()
+        .ok_or_else(|| bad("original trait method signatures are Unknown"))?;
+    let definitions = implementation
+        .method_definitions
+        .as_ref()
+        .ok_or_else(|| bad("original impl method definitions are Unknown"))?;
+    let defaults = trait_decl
+        .method_definitions
+        .as_ref()
+        .ok_or_else(|| bad("original default method definitions are Unknown"))?;
+    b.spend(
+        signatures
+            .len()
+            .saturating_add(definitions.len())
+            .saturating_add(defaults.len())
+            .saturating_add(implementation.members.len()),
+    )?;
+    let mut rows = signatures.iter().filter(|r| r.member == ordinal);
+    let signature = rows
+        .next()
+        .ok_or_else(|| bad("exact original trait method signature is absent"))?;
+    if rows.next().is_some() {
+        return Err(bad("exact original trait method signature is duplicated"));
+    }
+    let mut members = implementation
+        .members
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.name == member.name);
+    let selected = members.next();
+    if members.next().is_some() {
+        return Err(bad("original impl has duplicate same-name method members"));
+    }
+    let (body, trait_default) = if let Some((index, actual)) = selected {
+        if actual.kind != member.kind {
+            return Err(bad(
+                "original impl method changes its full mixed formal kinds",
+            ));
+        }
+        let mut rows = definitions.iter().filter(|r| r.member == index as u32);
+        let row = rows
+            .next()
+            .ok_or_else(|| bad("exact original impl method body is absent"))?;
+        if rows.next().is_some() || row.scope != DynDefinitionScope::ImplOverride {
+            return Err(bad(
+                "original impl method body is duplicated or has another scope",
+            ));
+        }
+        (row, false)
+    } else {
+        let id = signature
+            .default_definition
+            .ok_or_else(|| bad("original trait method has no actual override or default body"))?;
+        let mut rows = defaults
+            .iter()
+            .filter(|r| r.id == id && r.member == ordinal);
+        let row = rows
+            .next()
+            .ok_or_else(|| bad("exact original trait default body is absent"))?;
+        if rows.next().is_some() || row.scope != DynDefinitionScope::TraitDefault {
+            return Err(bad(
+                "original trait default body is duplicated or has another scope",
+            ));
+        }
+        (row, true)
+    };
+    let program = module
+        .semantic
+        .as_ref()
+        .ok_or_else(|| bad("original method proof has no semantic program"))?;
+    let find = |owner: SemanticDynOwner, b: &mut Budget| -> Check<&SemanticDefinition> {
+        b.spend(program.dyn_scopes.len())?;
+        let mut rows = program.dyn_scopes.iter().filter(|r| r.owner == owner);
+        let row = rows
+            .next()
+            .ok_or_else(|| bad("exact original method scope binding is absent"))?;
+        if rows.next().is_some() {
+            return Err(bad("exact original method scope binding is duplicated"));
+        }
+        bridge::owner(module, &owner, row.scope, b)
+    };
+    let expected = find(
+        SemanticDynOwner::MethodSignature {
+            declaration: trait_decl.id,
+            member: ordinal,
+        },
+        b,
+    )?;
+    let actual = find(SemanticDynOwner::MethodDefinition(body.id), b)?;
+    Ok(MethodSelection {
+        signature,
+        body,
+        expected,
+        actual,
+        trait_default,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1873,105 +2126,24 @@ fn methods(
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<()> {
-    let signatures = trait_decl
-        .method_signatures
-        .as_ref()
-        .ok_or_else(|| bad("original trait method signatures are Unknown"))?;
-    let definitions = implementation
-        .method_definitions
-        .as_ref()
-        .ok_or_else(|| bad("original impl method definitions are Unknown"))?;
-    let defaults = trait_decl
-        .method_definitions
-        .as_ref()
-        .ok_or_else(|| bad("original default method definitions are Unknown"))?;
     for (ordinal, member) in trait_decl.members.iter().enumerate() {
         let DynMemberKind::Method(formals) = &member.kind else {
             continue;
         };
-        b.spend(
-            signatures
-                .len()
-                .saturating_add(definitions.len())
-                .saturating_add(defaults.len())
-                .saturating_add(implementation.members.len()),
-        )?;
-        let mut rows = signatures.iter().filter(|r| r.member == ordinal as u32);
-        let signature = rows
-            .next()
-            .ok_or_else(|| bad("exact original trait method signature is absent"))?;
-        if rows.next().is_some() {
-            return Err(bad("exact original trait method signature is duplicated"));
-        }
-        let mut members = implementation
-            .members
-            .iter()
-            .enumerate()
-            .filter(|(_, m)| m.name == member.name);
-        let selected = members.next();
-        if members.next().is_some() {
-            return Err(bad("original impl has duplicate same-name method members"));
-        }
-        let (body, parent) = if let Some((index, actual)) = selected {
-            if actual.kind != member.kind {
-                return Err(bad(
-                    "original impl method changes its full mixed formal kinds",
-                ));
-            }
-            let mut rows = definitions.iter().filter(|r| r.member == index as u32);
-            let row = rows
-                .next()
-                .ok_or_else(|| bad("exact original impl method body is absent"))?;
-            if rows.next().is_some() || row.scope != DynDefinitionScope::ImplOverride {
-                return Err(bad(
-                    "original impl method body is duplicated or has another scope",
-                ));
-            }
-            (row, impl_env)
-        } else {
-            let id = signature.default_definition.ok_or_else(|| {
-                bad("original trait method has no actual override or default body")
-            })?;
-            let mut rows = defaults
-                .iter()
-                .filter(|r| r.id == id && r.member == ordinal as u32);
-            let row = rows
-                .next()
-                .ok_or_else(|| bad("exact original trait default body is absent"))?;
-            if rows.next().is_some() || row.scope != DynDefinitionScope::TraitDefault {
-                return Err(bad(
-                    "original trait default body is duplicated or has another scope",
-                ));
-            }
-            (row, trait_env)
-        };
-        let program = module
-            .semantic
-            .as_ref()
-            .ok_or_else(|| bad("original method proof has no semantic program"))?;
-        let find = |owner: SemanticDynOwner, b: &mut Budget| -> Check<&SemanticDefinition> {
-            b.spend(program.dyn_scopes.len())?;
-            let mut rows = program.dyn_scopes.iter().filter(|r| r.owner == owner);
-            let row = rows
-                .next()
-                .ok_or_else(|| bad("exact original method scope binding is absent"))?;
-            if rows.next().is_some() {
-                return Err(bad("exact original method scope binding is duplicated"));
-            }
-            bridge::owner(module, &owner, row.scope, b)
-        };
-        let expected = find(
-            SemanticDynOwner::MethodSignature {
-                declaration: trait_decl.id,
-                member: ordinal as u32,
-            },
-            b,
-        )?;
-        let actual = find(SemanticDynOwner::MethodDefinition(body.id), b)?;
+        let selection = method_selection(module, trait_decl, implementation, ordinal as u32, b)?;
+        let MethodSelection {
+            expected,
+            actual,
+            trait_default,
+            ..
+        } = selection;
+        let parent = if trait_default { trait_env } else { impl_env };
+        pending_method(proofs, trait_decl, implementation, &selection, b)?;
         if !formals.is_empty() {
-            return Err(bad(
-                "generic original method requires its complete universal signature substitution proof",
-            ));
+            // Its original universal relation remains a mandatory final
+            // obligation. A concrete member call supplies the complete mixed
+            // method actuals to select_member below; no N0 is fabricated here.
+            continue;
         }
         fn signature_of(definition: &SemanticDefinition) -> Check<&SemanticSignatureRecipe> {
             match &definition.body {
@@ -2030,15 +2202,387 @@ fn methods(
             actual_env.lexical[0].key,
             b,
         )?;
-        b.spend(1)?;
-        if !proofs.pending_original_methods.contains(&actual.id) {
-            proofs.pending_original_methods.push(actual.id);
-        }
         // This request supplies no runtime entry, memory contract or vtable
         // authority. The original full body and every actual function/entry
         // remain independent obligations at their existing final gates.
     }
     Ok(())
+}
+
+fn pending_method(
+    proofs: &mut Proofs,
+    trait_decl: &DynDeclaration,
+    implementation: &DynDeclaration,
+    selection: &MethodSelection<'_>,
+    b: &mut Budget,
+) -> Check<()> {
+    b.spend(
+        proofs
+            .pending_original_methods
+            .len()
+            .saturating_add(proofs.pending_original_method_relations.len())
+            .saturating_add(2),
+    )?;
+    if !proofs
+        .pending_original_methods
+        .contains(&selection.actual.id)
+    {
+        if proofs.pending_original_methods.len() >= b.limits.max_nodes {
+            return Err(limit("selected original method body domain exceeds bound"));
+        }
+        proofs.pending_original_methods.push(selection.actual.id);
+    }
+    let relation = OriginalMethodRelation {
+        trait_declaration: trait_decl.id,
+        implementation_declaration: implementation.id,
+        trait_signature: selection.expected.id,
+        body: selection.actual.id,
+        source: selection.body.scope,
+    };
+    if !proofs.pending_original_method_relations.contains(&relation) {
+        if proofs.pending_original_method_relations.len() >= b.limits.max_nodes {
+            return Err(limit("original method relation domain exceeds bound"));
+        }
+        proofs.pending_original_method_relations.push(relation);
+    }
+    Ok(())
+}
+
+fn signature_of(definition: &SemanticDefinition) -> Check<&SemanticSignatureRecipe> {
+    match &definition.body {
+        SemanticDefinitionBody::FunctionWithBody { signature, .. }
+        | SemanticDefinitionBody::Function { signature, .. } => Ok(signature),
+        _ => Err(bad("original method scope has no complete signature")),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn raw_method_signature(
+    proofs: &mut Proofs,
+    module: &TypedModule,
+    context: &semantic::CheckedContext,
+    owner: &SemanticDynOwner,
+    raw: &DynSignatureRecipe,
+    definition: &SemanticDefinition,
+    env: &EvalEnv,
+    active: &mut semantic::ActiveQueries,
+    b: &mut Budget,
+) -> Check<CheckedSignature> {
+    let declared = signature_of(definition)?;
+    dynamic_metadata::recipe(raw, b)?;
+    if declared.bound_lifetimes != 0 {
+        return Err(bad(
+            "original method raw signature omits its higher-ranked header domain",
+        ));
+    }
+    let mut parameters = vec![];
+    for p in &raw.parameters {
+        parameters.push(SemanticParameterRecipe {
+            ty: scoped_type_recipe(module, owner, &p.ty, b, 0)?,
+            mode: p.mode,
+        });
+    }
+    let converted = SemanticSignatureRecipe {
+        bound_lifetimes: 0,
+        invocation_lifetimes: raw.invocation_binder_count,
+        parameters,
+        result: scoped_type_recipe(module, owner, &raw.result, b, 0)?,
+        result_mode: raw.result_mode,
+        call_kind: raw.call_kind,
+    };
+    let proposed = context.evaluate_signature(module, &converted, env, proofs, active, b)?;
+    let original = context.evaluate_signature(module, declared, env, proofs, active, b)?;
+    let key = env
+        .lexical
+        .first()
+        .ok_or_else(|| bad("raw method signature lacks its exact lexical frame"))?
+        .key;
+    signature_equal(context, env, &original, &proposed, key, key, b)?;
+    Ok(original)
+}
+
+fn outside_environment(
+    proofs: &mut Proofs,
+    context: &semantic::CheckedContext,
+    env: &EvalEnv,
+    b: &mut Budget,
+) -> Check<EvalEnv> {
+    b.spend(
+        env.lexical
+            .len()
+            .saturating_add(env.images.len())
+            .saturating_add(env.assumptions.len())
+            .saturating_add(env.invocations.len())
+            .saturating_add(env.bounds.len()),
+    )?;
+    for frame in &env.lexical {
+        for actual in frame.actuals.iter().chain(&frame.environment) {
+            charge_actual(actual, b)?;
+        }
+        if let Some(value) = &frame.self_type {
+            charge_type(value, b)?;
+        }
+    }
+    let mut result = env.clone();
+    for frame in &mut result.lexical {
+        for actual in frame.actuals.iter_mut().chain(&mut frame.environment) {
+            *actual = map_actual(proofs, context, env, actual, false, b)?;
+        }
+        if let Some(value) = &mut frame.self_type {
+            *value = map_type(proofs, context, env, value, false, b)?;
+        }
+    }
+    for (_, image) in &mut result.images {
+        *image = outside_life(proofs, image, b)?;
+    }
+    Ok(result)
+}
+
+fn outside_signature(
+    proofs: &mut Proofs,
+    context: &semantic::CheckedContext,
+    env: &EvalEnv,
+    mut signature: CheckedSignature,
+    b: &mut Budget,
+) -> Check<CheckedSignature> {
+    for (parameter, _) in &mut signature.parameters {
+        *parameter = map_type(proofs, context, env, parameter, false, b)?;
+    }
+    signature.result = map_type(proofs, context, env, &signature.result, false, b)?;
+    Ok(signature)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn select_member(
+    proofs: &mut Proofs,
+    module: &TypedModule,
+    context: &semantic::CheckedContext,
+    caller: &EvalEnv,
+    receiver: &CheckedType,
+    application: &CheckedApplication,
+    member: u32,
+    method_actuals: &[CheckedActual],
+    active: &mut semantic::ActiveQueries,
+    b: &mut Budget,
+) -> Check<OriginalMemberReceipt> {
+    let root = proofs.original_domain.is_none();
+    if root {
+        let definition = scope(module, application.declaration, b)?.id;
+        proofs.original_domain = Some(LocalDomain::new(ScopeKey::Witness {
+            definition,
+            frame: active.fresh(b)?,
+        }));
+    }
+    let result = (|| {
+        let receiver = map_type(proofs, context, caller, receiver, true, b)?;
+        b.spend(
+            application
+                .arguments
+                .len()
+                .saturating_add(method_actuals.len()),
+        )?;
+        let mut arguments = vec![];
+        for a in &application.arguments {
+            arguments.push(map_actual(proofs, context, caller, a, true, b)?);
+        }
+        let application = CheckedApplication {
+            declaration: application.declaration,
+            arguments,
+        };
+        let mut method_arguments = vec![];
+        for a in method_actuals {
+            method_arguments.push(map_actual(proofs, context, caller, a, true, b)?);
+        }
+        let Provider {
+            trait_decl,
+            implementation,
+            trait_env,
+            impl_env,
+        } = provider(
+            proofs,
+            module,
+            context,
+            caller,
+            &receiver,
+            &application,
+            active,
+            b,
+        )?;
+        let selection = method_selection(module, trait_decl, implementation, member, b)?;
+        let expected = selection.expected;
+        let actual = selection.actual;
+        if method_arguments.len() != expected.parameters.len()
+            || method_arguments.len() != actual.parameters.len()
+        {
+            return Err(bad(
+                "selected original member omits its complete mixed method actuals",
+            ));
+        }
+        let parent = if selection.trait_default {
+            &trait_env
+        } else {
+            &impl_env
+        };
+        let mut expected_env = environment(
+            proofs,
+            module,
+            context,
+            &trait_env,
+            expected,
+            method_arguments.clone(),
+            &receiver,
+            &[],
+            active,
+            b,
+        )?;
+        let mut actual_env = environment(
+            proofs,
+            module,
+            context,
+            parent,
+            actual,
+            method_arguments,
+            &receiver,
+            &[],
+            active,
+            b,
+        )?;
+        let expected_owner = SemanticDynOwner::MethodSignature {
+            declaration: trait_decl.id,
+            member,
+        };
+        let actual_owner = SemanticDynOwner::MethodDefinition(selection.body.id);
+        let expected_signature = raw_method_signature(
+            proofs,
+            module,
+            context,
+            &expected_owner,
+            &selection.signature.signature,
+            expected,
+            &expected_env,
+            active,
+            b,
+        )?;
+        let actual_signature = raw_method_signature(
+            proofs,
+            module,
+            context,
+            &actual_owner,
+            &selection.body.signature,
+            actual,
+            &actual_env,
+            active,
+            b,
+        )?;
+        signature_equal(
+            context,
+            &trait_env,
+            &expected_signature,
+            &actual_signature,
+            expected_env.lexical[0].key,
+            actual_env.lexical[0].key,
+            b,
+        )?;
+        expected_env.invocations = expected_signature.invocation.clone();
+        actual_env.invocations = actual_signature.invocation.clone();
+        check_formals(proofs, module, context, &expected_env, expected, active, b)?;
+        check_formals(proofs, module, context, &actual_env, actual, active, b)?;
+        let expected_requirements = scoped_requirement_recipes(
+            module,
+            &expected_owner,
+            &selection.signature.requirements,
+            b,
+        )?;
+        let actual_requirements =
+            scoped_requirement_recipes(module, &actual_owner, &selection.body.requirements, b)?;
+        semantic_requirements(
+            proofs,
+            module,
+            context,
+            &expected_env,
+            &expected_requirements,
+            active,
+            b,
+            0,
+        )?;
+        semantic_requirements(
+            proofs,
+            module,
+            context,
+            &actual_env,
+            &actual_requirements,
+            active,
+            b,
+            0,
+        )?;
+        pending_method(proofs, trait_decl, implementation, &selection, b)?;
+        // Every existing pending body, Callable and Static request remains in
+        // this same Proofs session. Raw contracts travel with the exact body so
+        // the actual callsite can construct its memory/entry obligations.
+        let expected_signature = outside_signature(proofs, context, caller, expected_signature, b)?;
+        let actual_signature = outside_signature(proofs, context, caller, actual_signature, b)?;
+        let environment = outside_environment(proofs, context, &actual_env, b)?;
+        let parent = outside_environment(proofs, context, parent, b)?;
+        let mut arguments = vec![];
+        for a in &application.arguments {
+            arguments.push(map_actual(proofs, context, caller, a, false, b)?);
+        }
+        let application = CheckedApplication {
+            declaration: application.declaration,
+            arguments,
+        };
+        let declaration_actuals = parent
+            .lexical
+            .first()
+            .ok_or_else(|| bad("selected method has no original provider parent"))?
+            .actuals
+            .clone();
+        let method_actuals = environment
+            .lexical
+            .first()
+            .ok_or_else(|| bad("selected method has no exact original frame"))?
+            .actuals
+            .clone();
+        dynamic_metadata::recipe(&selection.signature.signature.contract, b)?;
+        dynamic_metadata::recipe(&selection.body.signature.contract, b)?;
+        for row in selection
+            .signature
+            .requirements
+            .iter()
+            .chain(&selection.body.requirements)
+        {
+            dynamic_metadata::recipe(row, b)?;
+        }
+        Ok(OriginalMemberReceipt {
+            receiver: map_type(proofs, context, caller, &receiver, false, b)?,
+            application,
+            member,
+            method_actuals,
+            implementation: implementation.id,
+            declaration_actuals,
+            definition: selection.body.id,
+            body: actual.id,
+            body_owner: if selection.trait_default {
+                trait_decl.id
+            } else {
+                implementation.id
+            },
+            body_member: selection.body.member,
+            trait_signature: expected.id,
+            source: selection.body.scope,
+            environment,
+            expected_signature,
+            actual_signature,
+            trait_contract: selection.signature.signature.contract.clone(),
+            body_contract: selection.body.signature.contract.clone(),
+            trait_requirements: selection.signature.requirements.clone(),
+            body_requirements: selection.body.requirements.clone(),
+        })
+    })();
+    if root {
+        proofs.original_domain = None;
+    }
+    result
 }
 
 fn signature_equal(
@@ -2153,7 +2697,7 @@ fn application_recipe(
     p: &DynSelfPattern,
     b: &mut Budget,
 ) -> Check<SemanticTraitRecipe> {
-    application(module, owner, p, b, 0)
+    application(module, &SemanticDynOwner::Declaration(owner), p, b, 0)
 }
 
 #[allow(clippy::too_many_arguments)]

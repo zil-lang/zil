@@ -33,6 +33,7 @@ mod heads;
 mod protocol;
 mod constructors;
 mod associated;
+mod trait_methods;
 mod raw_schemes;
 mod opaque;
 pub(super) mod intrinsics;

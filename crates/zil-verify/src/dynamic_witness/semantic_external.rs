@@ -37,14 +37,199 @@ pub(crate) fn original_requirement_recipes(
     associated::requirement_recipes(module, owner, rows, b)
 }
 
+/// An exact selection in one original provider instance. This is metadata and
+/// checked signature substitution, never an executable entry/memory authority.
+#[derive(Clone)]
+pub(crate) struct OriginalMemberReceipt {
+    pub(crate) receiver: CheckedType,
+    pub(crate) application: CheckedApplication,
+    pub(crate) member: u32,
+    pub(crate) method_actuals: Vec<CheckedActual>,
+    pub(crate) implementation: LifeDeclarationId,
+    pub(crate) declaration_actuals: Vec<CheckedActual>,
+    pub(crate) definition: DynDefinitionId,
+    pub(crate) body: SemanticDefinitionId,
+    pub(crate) body_owner: LifeDeclarationId,
+    pub(crate) body_member: u32,
+    pub(crate) trait_signature: SemanticDefinitionId,
+    pub(crate) source: DynDefinitionScope,
+    pub(crate) environment: EvalEnv,
+    pub(crate) expected_signature: CheckedSignature,
+    pub(crate) actual_signature: CheckedSignature,
+    pub(crate) trait_contract: DynContractRecipe,
+    pub(crate) body_contract: DynContractRecipe,
+    pub(crate) trait_requirements: Vec<DynObligation>,
+    pub(crate) body_requirements: Vec<DynObligation>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct OriginalMethodRelation {
+    pub(crate) trait_declaration: LifeDeclarationId,
+    pub(crate) implementation_declaration: LifeDeclarationId,
+    pub(crate) trait_signature: SemanticDefinitionId,
+    pub(crate) body: SemanticDefinitionId,
+    pub(crate) source: DynDefinitionScope,
+}
+
+fn charge_type(value: &CheckedType, b: &mut Budget) -> Check<()> {
+    dynamic_metadata::ty(&value.ty, b)?;
+    if value.classes.len() > b.limits.max_nodes
+        || value.origins.len() > b.limits.max_nodes
+        || value.statics.len() > b.limits.max_nodes
+    {
+        return Err(limit(
+            "checked original member value exceeds selected bound",
+        ));
+    }
+    b.spend(
+        value
+            .classes
+            .len()
+            .saturating_add(value.origins.len())
+            .saturating_add(value.life.slots.len())
+            .saturating_add(value.life.retained.len())
+            .saturating_add(value.life.nominal_arguments.len())
+            .saturating_add(value.statics.len()),
+    )?;
+    for row in &value.life.slots {
+        b.spend(row.path.len())?;
+    }
+    for row in &value.life.retained {
+        b.spend(row.path.len())?;
+    }
+    for row in &value.life.nominal_arguments {
+        b.spend(row.path.len())?;
+    }
+    for key in &value.classes {
+        charge_key(key, b)?;
+    }
+    for origin in &value.origins {
+        match origin {
+            IntrinsicOrigin::Existing { path, .. } => b.spend(path.len())?,
+            IntrinsicOrigin::DerivedClass { source } => charge_key(source, b)?,
+        }
+    }
+    for row in &value.statics {
+        match row {
+            StaticOccurrence::Direct { path, leaf, .. } => {
+                b.spend(path.len())?;
+                dynamic_metadata::ty(leaf, b)?;
+            }
+            StaticOccurrence::Logical { position, leaf, .. } => {
+                b.spend(position.path.len())?;
+                dynamic_metadata::ty(leaf, b)?;
+            }
+        }
+    }
+    Ok(())
+}
+fn charge_key(key: &ClassKey, b: &mut Budget) -> Check<()> {
+    b.spend(1)?;
+    if let ClassKey::Intrinsic { path, .. } | ClassKey::Outer { path, .. } = key {
+        b.spend(path.len())?;
+    }
+    Ok(())
+}
+fn charge_actual(value: &CheckedActual, b: &mut Budget) -> Check<()> {
+    match value {
+        CheckedActual::Type(value) => charge_type(value, b),
+        CheckedActual::Life(key) => charge_key(key, b),
+        CheckedActual::Const { carrier, value } => {
+            charge_type(carrier, b)?;
+            if let Constant::WideString(value) = value {
+                b.spend(value.len())?;
+            }
+            Ok(())
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct OriginalMemberKey {
+    receiver: CheckedType,
+    application: CheckedApplication,
+    member: u32,
+    method_actuals: Vec<CheckedActual>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn select_original_member(
+    proofs: &mut Proofs,
+    module: &TypedModule,
+    context: &semantic::CheckedContext,
+    environment: &EvalEnv,
+    receiver: &CheckedType,
+    application: &CheckedApplication,
+    member: u32,
+    method_actuals: &[CheckedActual],
+    active: &mut semantic::ActiveQueries,
+    b: &mut Budget,
+) -> Check<OriginalMemberReceipt> {
+    charge_type(receiver, b)?;
+    for actual in application.arguments.iter().chain(method_actuals) {
+        charge_actual(actual, b)?;
+    }
+    if proofs.active_members.len() >= b.limits.max_nodes
+        || method_actuals.len() > b.limits.max_nodes
+        || application.arguments.len() > b.limits.max_nodes
+    {
+        return Err(limit(
+            "original member selection domain exceeds selected bound",
+        ));
+    }
+    b.spend(
+        proofs
+            .active_members
+            .len()
+            .saturating_add(method_actuals.len())
+            .saturating_add(1),
+    )?;
+    let key = OriginalMemberKey {
+        receiver: receiver.clone(),
+        application: application.clone(),
+        member,
+        method_actuals: method_actuals.to_vec(),
+    };
+    if proofs.active_members.contains(&key) {
+        return Err(bad("complete original member selection forms a cycle"));
+    }
+    let token = active.fresh(b)?;
+    proofs.active_members.push(key);
+    let result = active.with_query(
+        semantic::DependencyKey {
+            kind: semantic::QueryKind::External,
+            token,
+        },
+        b,
+        |active, b| {
+            associated::select_member(
+                proofs,
+                module,
+                context,
+                environment,
+                receiver,
+                application,
+                member,
+                method_actuals,
+                active,
+                b,
+            )
+        },
+    );
+    proofs.active_members.pop();
+    result
+}
+
 #[derive(Default)]
 pub(crate) struct Proofs {
     pub(crate) callable_shapes: Vec<requests::CallableShapeRequest>,
     pub(crate) pending_statics: Vec<(StorageBase, StaticOccurrence)>,
     pub(crate) pending_original_methods: Vec<SemanticDefinitionId>,
+    pub(crate) pending_original_method_relations: Vec<OriginalMethodRelation>,
     active_original: Vec<ExternalRequest>,
     available_original: Vec<(ExternalRequest, ExternalValue)>,
     original_domain: Option<associated::LocalDomain>,
+    active_members: Vec<OriginalMemberKey>,
 }
 
 /// One request-local representation of already checked semantic identities.

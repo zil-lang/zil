@@ -206,20 +206,16 @@ pub(super) fn original_type(
     expected: &SemanticDynOwner,
     requested: SemanticDefinitionId,
     recipe: &SemanticTypeRecipe,
+    bounds: &[u32],
+    invocation: u32,
     b: &mut Budget,
 ) -> Check<()> {
     let definition = owner(module, expected, requested, b)?;
-    let invocation = match &definition.body {
-        SemanticDefinitionBody::Function { signature, .. }
-        | SemanticDefinitionBody::FunctionWithBody { signature, .. } => {
-            signature.invocation_lifetimes
-        }
-        _ => 0,
-    };
+    b.spend(bounds.len())?;
     let mut grammar = Grammar {
         module,
         definition,
-        bounds: vec![],
+        bounds: bounds.to_vec(),
         invocation,
     };
     grammar.ty(recipe, b, 0)

@@ -62,7 +62,7 @@ impl CheckedOriginal {
                 if targets.is_empty(){return Err(unsupported("original external declaration has no complete independently checked ABI",None));}
                 for target in targets {if let Some(source)=context.frozen_functions.get(&target.id){self.frozen_external(module,context,&prototype,source,active,b)?;continue;}let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=target.target else{return Err(bad("original external targets nonfunction"));};self.typed_external(module,context,&prototype,function,active,b)?;}
             },
-            SemanticOriginalFunctionBody::Declaration=>return Err(unsupported("abstract original member requires its exact trait declaration/member proof",None)),
+            SemanticOriginalFunctionBody::Declaration=>self.abstract_method(module,context,definition,&prototype,active,b)?,
         }
         self.check_opaque_result(module,context,id,&prototype.environment,active,b)?;
         if definition.kind==SemanticDefinitionKind::Closure {

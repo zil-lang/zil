@@ -268,6 +268,7 @@ impl FrozenContext<'_> {
         let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else{return Err(bad("CT wrapper has no complete original signature"));};
         let signature=context.evaluate_signature(module,signature,&wrapper_environment,&mut external,active,b)?;
         if !context.same_type(&caller_environment,&signature.result,&expected,b)?{return Err(bad("CT wrapper result differs from its original frozen caller/query type"));}
+        context.finish_external_methods(module,&mut external,active,b)?;
         if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty(){return Err(unsupported("CT frozen-context substitution leaves actual external obligations",None));}
         Ok(())
     }
