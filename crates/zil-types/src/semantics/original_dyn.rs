@@ -211,8 +211,9 @@ impl Check<'_, '_> {
             invocation: &invocation,
             shift: 0,
         };
-        template = substitute::signature(&template, &roles, self.limits, self.left)?;
+        template = substitute::signature_fresh(&template, &roles, self.limits, self.left)?;
         let receiver = template.parameters.remove(0);
+        self.same(&receiver.ty, &receiver_type)?;
         self.pay(
             arguments.len().saturating_add(definition.parameters.len()),
             depth,
