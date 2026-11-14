@@ -201,6 +201,7 @@ impl Check<'_, '_> {
 
     fn image_operands(
         &self,
+        instance: &SemanticInstance,
         value: &SemanticTypeValue,
         point: &Point<'_>,
         result: Option<ValueId>,
@@ -221,6 +222,16 @@ impl Check<'_, '_> {
                     }
                     SemanticOperand::Local(local) => {
                         point.local(*local, b)?;
+                    }
+                    SemanticOperand::Environment(_) | SemanticOperand::TypeArgument { .. }
+                        if matches!(expression, SemanticClassExpr::IntrinsicClass { .. }) =>
+                    {
+                        // This selector reads a complete checked logical type
+                        // in the real creator/formal scope; it is not a head
+                        // permission. The subject below is still matched to
+                        // its actual ReadCapture/SSA/initialized occupant, and
+                        // every creator separately proves its real captures.
+                        crate::semantic::value::class(instance, expression, self.inventory, b, 0)?;
                     }
                     _ => {
                         return Err(unknown(
@@ -361,7 +372,7 @@ impl Check<'_, '_> {
                     ));
                 }
 
-                self.image_operands(value, point, Some(*result), b)?;
+                self.image_operands(instance, value, point, Some(*result), b)?;
                 if self.captured_value(
                     instance,
                     value,
@@ -397,7 +408,7 @@ impl Check<'_, '_> {
                     ));
                 }
 
-                self.image_operands(expected, point, None, b)?;
+                self.image_operands(instance, expected, point, None, b)?;
                 if expected_type
                     != self.captured_value(
                         instance,
@@ -432,7 +443,7 @@ impl Check<'_, '_> {
                     ));
                 }
 
-                self.image_operands(expected, point, None, b)?;
+                self.image_operands(instance, expected, point, None, b)?;
                 if self.captured_value(
                     instance,
                     expected,
