@@ -83,7 +83,11 @@ impl<C: Catalog> Project<'_, C> {
                     .get(part.variant as usize)
                     .and_then(|(_, fields)| fields.get(part.index as usize)),
                 (PlaceProjection::ErrorArm(error_arm), Type::ErrorUnion { error, result }) => {
-                    Some(if *error_arm { error } else { result })
+                    Some(if *error_arm {
+                        error.as_ref()
+                    } else {
+                        result.as_ref()
+                    })
                 }
                 _ => None,
             }
