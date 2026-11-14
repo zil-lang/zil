@@ -8,7 +8,7 @@ pub(in crate::semantic) struct TraitCall {
     pub(in crate::semantic) member: u32,
     pub(in crate::semantic) method: SemanticDefinitionId,
     pub(in crate::semantic) receiver: Term,
-    pub(in crate::semantic) receiver_anchor: LocalAnchor,
+    pub(in crate::semantic) receiver_anchor: Option<LocalAnchor>,
     pub(in crate::semantic) arguments: Vec<Term>,
     pub(in crate::semantic) method_actuals: Vec<Term>,
     pub(in crate::semantic) parameters: Vec<Term>,
@@ -21,7 +21,7 @@ pub(in crate::semantic) struct TraitBoundary {
     pub(in crate::semantic) member: u32,
     pub(in crate::semantic) method: SemanticDefinitionId,
     pub(in crate::semantic) receiver: crate::semantic::value::Value,
-    pub(in crate::semantic) receiver_anchor: LocalAnchor,
+    pub(in crate::semantic) receiver_anchor: Option<LocalAnchor>,
     pub(in crate::semantic) arguments: Vec<crate::semantic::value::Argument>,
     pub(in crate::semantic) method_actuals: Vec<crate::semantic::value::Argument>,
     pub(in crate::semantic) parameters: Vec<crate::semantic::value::Value>,
@@ -104,6 +104,59 @@ impl Checked {
 }
 
 impl Solver<'_, '_> {
+    fn static_trait_receiver(
+        &mut self,
+        frame: &Frame,
+        object: &SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Term>> {
+        self.step(depth, b)?;
+        let Some(path) = sealed::path(object, b, depth + 1)? else {
+            return Ok(None);
+        };
+        if self.local(frame, path[0], b)?.is_some() {
+            return Ok(None);
+        }
+        let definition = self.inventory.definition(frame.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &definition.body else {
+            return Err(fail("original static method lacks its lexical namespace"));
+        };
+        let mut selected = None;
+        for binding in names {
+            b.spend(
+                binding
+                    .path
+                    .iter()
+                    .map(String::len)
+                    .sum::<usize>()
+                    .saturating_add(path.iter().map(|s| s.len()).sum::<usize>() + 1),
+                WORK,
+            )?;
+            if binding.namespace == SemanticOriginalNamespace::Value
+                && binding.path.len() == 1
+                && binding.path[0] == path[0]
+            {
+                return Ok(None);
+            }
+            if binding.namespace == SemanticOriginalNamespace::Type
+                && binding.path.len() == path.len()
+                && binding.path.iter().zip(&path).all(|(a, b)| a == b)
+                && selected.replace(&binding.value).is_some()
+            {
+                return Err(fail("original static method has competing type owners"));
+            }
+        }
+        match selected {
+            Some(SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(recipe))) => {
+                self.recipe(frame, recipe, b, depth + 1).map(Some)
+            }
+            // Concrete inherent and generic nominal applications require their
+            // own original provider selection, not a formal-trait premise.
+            _ => Ok(None),
+        }
+    }
+
     fn receiver_traits(
         &mut self,
         frame: &Frame,
@@ -190,12 +243,12 @@ impl Solver<'_, '_> {
                 "original trait method has no complete signature and body identity",
             ));
         };
-        if *receiver_parameter != Some(0)
-            || signature.parameters.is_empty()
+        if receiver_parameter.is_some_and(|ordinal| ordinal != 0)
+            || (*receiver_parameter == Some(0) && signature.parameters.is_empty())
             || signature.bound_lifetimes != 0
         {
             return Err(unknown(
-                "original associated/static or quantified member needs its complete invocation relation",
+                "original member needs its complete receiver or quantified invocation relation",
             ));
         }
         if !written.is_empty() && written.len() != original.parameters.len() {
@@ -314,20 +367,26 @@ impl Solver<'_, '_> {
         else {
             return Ok(None);
         };
-        let Some(place) = self.place(frame, object, false, b, depth + 1)? else {
-            return Ok(None);
-        };
-        if !place.path.is_empty() {
-            return Err(unknown(
-                "projected original trait receiver needs its complete physical head relation",
-            ));
-        }
-        let actual_receiver = self.type_root(place.selected, b)?;
-        let Kind::Address {
-            inner: receiver, ..
-        } = self.state.arena[actual_receiver]
-        else {
-            return Ok(None);
+        let place = self.place(frame, object, false, b, depth + 1)?;
+        let (receiver, actual_receiver, anchor) = if let Some(place) = &place {
+            if !place.path.is_empty() {
+                return Err(unknown(
+                    "projected original trait receiver needs its complete physical head relation",
+                ));
+            }
+            let actual = self.type_root(place.selected, b)?;
+            let Kind::Address { inner, .. } = self.state.arena[actual] else {
+                return Ok(None);
+            };
+            let anchor = place.anchor.ok_or_else(|| {
+                unknown("original trait receiver has no exact original place anchor")
+            })?;
+            (inner, Some(actual), Some(anchor))
+        } else {
+            let Some(receiver) = self.static_trait_receiver(frame, object, b, depth + 1)? else {
+                return Ok(None);
+            };
+            (receiver, None, None)
         };
         if let Some(owner) = owner {
             let expected = self.recipe(frame, owner, b, depth + 1)?;
@@ -355,7 +414,9 @@ impl Solver<'_, '_> {
         let Some((declaration, trait_actuals, member)) = selected else {
             return Ok(None);
         };
-        self.place(frame, object, true, b, depth + 1)?;
+        if place.is_some() {
+            self.place(frame, object, true, b, depth + 1)?;
+        }
         let method =
             trait_members::member_scope(self.program, declaration, member, self.inventory, b)?;
         let (method_actuals, parameters, result) = self.original_method_scheme(
@@ -368,48 +429,60 @@ impl Solver<'_, '_> {
             b,
             depth + 1,
         )?;
-        if parameters.len() != arguments.len().saturating_add(1) {
+        let definition = self.inventory.definition(method, b)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            receiver_parameter,
+            signature,
+            ..
+        } = &definition.body
+        else {
+            return Err(fail("original trait method lost its signature"));
+        };
+        if receiver_parameter.is_some() != anchor.is_some()
+            || parameters.len()
+                != arguments
+                    .len()
+                    .saturating_add(usize::from(anchor.is_some()))
+        {
             return Err(fail(
                 "original method argument count differs from its complete signature",
             ));
         }
         // Only the fresh call-local outer life is solved by this boundary.
         // Pointee identities are ordinary full type equations and stay rigid.
-        let adapted = match (
-            &self.state.arena[self.type_root(parameters[0], b)?],
-            &self.state.arena[actual_receiver],
-        ) {
-            (
-                Kind::Address { mutable: false, .. },
-                Kind::Address {
-                    mutable: true,
-                    life,
-                    inner,
-                },
-            ) => {
-                let (life, inner) = (*life, *inner);
-                self.term(
+        if let Some(actual_receiver) = actual_receiver {
+            let adapted = match (
+                &self.state.arena[self.type_root(parameters[0], b)?],
+                &self.state.arena[actual_receiver],
+            ) {
+                (
+                    Kind::Address { mutable: false, .. },
                     Kind::Address {
-                        mutable: false,
+                        mutable: true,
                         life,
                         inner,
                     },
-                    b,
-                )?
-            }
-            _ => actual_receiver,
-        };
-        self.unify(parameters[0], adapted, depth + 1, b)?;
-        for (argument, expected) in arguments.iter().zip(parameters.iter().skip(1)) {
+                ) => {
+                    let (life, inner) = (*life, *inner);
+                    self.term(
+                        Kind::Address {
+                            mutable: false,
+                            life,
+                            inner,
+                        },
+                        b,
+                    )?
+                }
+                _ => actual_receiver,
+            };
+            self.unify(parameters[0], adapted, depth + 1, b)?;
+        }
+        for (argument, expected) in arguments
+            .iter()
+            .zip(parameters.iter().skip(usize::from(anchor.is_some())))
+        {
             self.call_argument(frame, argument, *expected, b, depth + 1)?;
         }
-        let definition = self.inventory.definition(method, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else {
-            return Err(fail("original trait method lost its signature"));
-        };
-        let anchor = place
-            .anchor
-            .ok_or_else(|| unknown("original trait receiver has no exact original place anchor"))?;
         b.spend(
             trait_actuals
                 .len()

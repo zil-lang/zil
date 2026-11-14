@@ -170,14 +170,16 @@ impl Check<'_, '_> {
                 "actual trait method changes its original concrete entry, ABI or environment role",
             ));
         }
-        let head = *arguments
-            .first()
-            .ok_or_else(|| fail("actual trait call omits its receiver"))?;
-        let anchored = self.anchored_local(instance, function, boundary.receiver_anchor, b)?;
-        if self.receiver_local(function, head, b, 0)? != anchored {
-            return Err(fail(
-                "actual trait invocation takes another original receiver head",
-            ));
+        if let Some(anchor) = boundary.receiver_anchor {
+            let head = *arguments
+                .first()
+                .ok_or_else(|| fail("actual trait call omits its receiver"))?;
+            let anchored = self.anchored_local(instance, function, anchor, b)?;
+            if self.receiver_local(function, head, b, 0)? != anchored {
+                return Err(fail(
+                    "actual trait invocation takes another original receiver head",
+                ));
+            }
         }
         for ((argument, expected), parameter) in arguments
             .iter()

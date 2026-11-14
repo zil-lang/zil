@@ -2244,6 +2244,13 @@ impl Solver<'_, '_> {
                     member,
                     owner,
                 } => {
+                    if let Some(term) = self.enum_call(frame, value.id, value, &[], b, depth + 1)? {
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(value.id, term).is_some() {
+                            return Err(fail("original nullary constructor node is reused"));
+                        }
+                        return Ok(term);
+                    }
                     if let Some(term) =
                         self.copy_member(frame, object, member, owner, b, depth + 1)?
                     {

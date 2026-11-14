@@ -415,6 +415,28 @@ impl Check<'_, '_> {
                     &expected_type,
                     b,
                 )?;
+                if let Some(constructor) = self.original.enum_constructor(
+                    instance,
+                    site.recipe,
+                    self.program,
+                    self.inventory,
+                    b,
+                )? && constructor.value_member
+                {
+                    let SemanticOperand::Value(value) = subject else {
+                        return Err(fail("original enum member has no emitted SSA"));
+                    };
+                    let (_, _, actual) = self.defining(point.function, *value, b)?;
+                    if !constructor.payload.is_empty()
+                        || constructor.result.ty != expected_type
+                        || !matches!(&actual.kind, InstructionKind::MakeVariant { variant, fields }
+                            if *variant == constructor.variant && fields.is_empty())
+                    {
+                        return Err(fail(
+                            "actual enum member changes its original declaration, variant or payload",
+                        ));
+                    }
+                }
                 if let Some(bytes) =
                     self.original
                         .string_literal_at(instance, site.recipe, self.inventory, b)?

@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) struct Constructor {
     pub(super) value: Term,
+    pub(super) value_member: bool,
     pub(super) variant: u32,
     pub(super) arguments: Vec<Term>,
     pub(super) payload: Vec<Term>,
@@ -223,6 +224,20 @@ impl Solver<'_, '_> {
                 ));
             }
         };
+        // A type namespace also contains abstract Type formals. A static
+        // trait method on such a formal is not an enum constructor.
+        let Kind::Nominal { definition, .. } = &self.state.arena[self.type_root(value, b)?] else {
+            return Ok(None);
+        };
+        if !matches!(
+            self.inventory.definition(*definition, b)?.body,
+            SemanticDefinitionBody::Nominal {
+                kind: LifeNominalKind::Enum,
+                ..
+            }
+        ) {
+            return Ok(None);
+        }
         let (variant, payload) = self.enum_variant(value, member, b)?;
         if payload.len() != arguments.len() {
             return Err(fail(
@@ -249,6 +264,7 @@ impl Solver<'_, '_> {
                 (frame.definition, node),
                 Constructor {
                     value,
+                    value_member: node == callee.id,
                     variant,
                     arguments: actuals,
                     payload,
@@ -580,6 +596,7 @@ impl Solver<'_, '_> {
 
 pub(in crate::semantic) struct ActualConstructor {
     pub(in crate::semantic) result: crate::semantic::value::Value,
+    pub(in crate::semantic) value_member: bool,
     pub(in crate::semantic) variant: u32,
     pub(in crate::semantic) arguments: Vec<crate::semantic::value::Argument>,
     pub(in crate::semantic) payload: Vec<crate::semantic::value::Value>,
@@ -627,6 +644,7 @@ impl Checked {
         }
         Ok(Some(ActualConstructor {
             result,
+            value_member: constructor.value_member,
             variant: constructor.variant,
             arguments,
             payload,
