@@ -176,7 +176,7 @@ impl Solver<'_, '_> {
         }
     }
 
-    pub(super) fn original_provider(
+    pub(in crate::semantic::original) fn original_provider(
         &mut self,
         _caller: &Frame,
         receiver: Term,
