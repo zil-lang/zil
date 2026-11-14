@@ -102,6 +102,7 @@ struct Frame {
     result: Term,
     locals: Vec<Local>,
     inherited: usize,
+    captured: BTreeMap<usize, Term>,
     alive: bool,
     environment: Vec<Term>,
     expressions: BTreeMap<NodeId, Term>,
@@ -884,6 +885,7 @@ impl Solver<'_, '_> {
                 .saturating_add(frame.expressions.len())
                 .saturating_add(frame.bindings.len())
                 .saturating_add(frame.environment.len())
+                .saturating_add(frame.captured.len())
                 .saturating_add(self.state.frames.len()),
             WORK,
         )?;
@@ -913,6 +915,7 @@ impl Solver<'_, '_> {
                 result: frame.result,
                 locals,
                 inherited: frame.inherited,
+                captured: frame.captured.clone(),
                 alive: frame.alive,
                 environment: frame.environment.clone(),
                 expressions: frame.expressions.clone(),
@@ -1069,6 +1072,7 @@ impl Solver<'_, '_> {
             result: self.var(b)?,
             locals: Vec::new(),
             inherited: 0,
+            captured: BTreeMap::new(),
             alive: true,
             environment: Vec::new(),
             expressions: BTreeMap::new(),
@@ -1177,6 +1181,10 @@ impl Solver<'_, '_> {
                 let index = selected.ok_or_else(|| {
                     fail("original name is not in the complete lexical value context")
                 })?;
+                if index < frame.inherited {
+                    b.lookup(frame.captured.len(), WORK)?;
+                    frame.captured.insert(index, frame.locals[index].ty);
+                }
                 let local = &mut frame.locals[index];
                 if frame.alive {
                     if !local.initialized {
@@ -1520,6 +1528,23 @@ impl Solver<'_, '_> {
                     None
                 };
                 let (parameters, result) = if let Some(local) = local {
+                    if let CoreExprKind::Name(name) = &head.kind {
+                        b.spend(
+                            frame
+                                .locals
+                                .iter()
+                                .map(|local| local.name.len().saturating_add(name.len() + 1))
+                                .sum::<usize>(),
+                            WORK,
+                        )?;
+                        if let Some(index) =
+                            frame.locals.iter().rposition(|local| local.name == *name)
+                            && index < frame.inherited
+                        {
+                            b.lookup(frame.captured.len(), WORK)?;
+                            frame.captured.insert(index, local);
+                        }
+                    }
                     if !written.is_empty() {
                         return Err(unknown(
                             "original generic callable needs its complete method instantiation",
@@ -1803,6 +1828,21 @@ impl Solver<'_, '_> {
                 }
                 self.snapshot(frame, b)?;
                 let term = self.function(target, Some(&frame.locals), b, depth + 1)?;
+                let captured = &self
+                    .state
+                    .frames
+                    .get(&target)
+                    .ok_or_else(|| fail("original child capture footprint is absent"))?
+                    .captured;
+                b.spend(
+                    captured.len().saturating_add(frame.captured.len() + 1),
+                    WORK,
+                )?;
+                for (index, ty) in captured {
+                    if *index < frame.inherited {
+                        frame.captured.insert(*index, *ty);
+                    }
+                }
                 let root = self.root(term, b)?;
                 let Kind::Closure {
                     parameters: expected,
@@ -2010,6 +2050,10 @@ impl Solver<'_, '_> {
                         ));
                     }
                     let expected = local.ty;
+                    if index < frame.inherited {
+                        b.lookup(frame.captured.len(), WORK)?;
+                        frame.captured.insert(index, expected);
+                    }
                     if local.used {
                         Self::push(
                             &mut self.needs,
@@ -2196,6 +2240,7 @@ impl Solver<'_, '_> {
             result: self.var(b)?,
             locals: Vec::new(),
             inherited: 0,
+            captured: BTreeMap::new(),
             alive: true,
             environment: Vec::new(),
             expressions: BTreeMap::new(),
@@ -2339,6 +2384,52 @@ impl Solver<'_, '_> {
                 return Err(unknown(
                     "abstract original member needs its actual trait and implementation witness",
                 ));
+            }
+        }
+        if !frame.captured.is_empty() {
+            let (parent, creator) = self
+                .creators
+                .get(&id)
+                .copied()
+                .ok_or_else(|| fail("original captured use has no actual lexical creator"))?;
+            if definition.parent != Some(parent) {
+                return Err(fail("original captured use has another lexical parent"));
+            }
+            for (index, term) in &frame.captured {
+                let name = &frame
+                    .locals
+                    .get(*index)
+                    .ok_or_else(|| fail("original captured binder is absent"))?
+                    .name;
+                let mut selected = None;
+                for (ordinal, environment) in definition.environment.iter().enumerate() {
+                    b.spend(name.len().saturating_add(1), WORK)?;
+                    if let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source:
+                            SemanticOriginalTypeSource::NameAt {
+                                at: SemanticOriginalNode::Expression(node),
+                                name: actual,
+                            },
+                    }) = &environment.source
+                    {
+                        b.spend(actual.len(), WORK)?;
+                        if *node == creator && actual == name {
+                            if selected.replace(ordinal).is_some() {
+                                return Err(fail(
+                                    "original captured binder repeats its exact creator environment source",
+                                ));
+                            }
+                        }
+                    }
+                }
+                let ordinal = selected.ok_or_else(|| {
+                    fail("original captured name is absent from its complete creator environment")
+                })?;
+                let expected = *frame.environment.get(ordinal).ok_or_else(|| {
+                    fail("original captured source lacks its complete parent-domain type")
+                })?;
+                self.unify(*term, expected, depth + 1, b)?;
             }
         }
         if frame.alive && matches!(body, SemanticOriginalFunctionBody::Defined(_)) {
@@ -3247,11 +3338,25 @@ impl Solver<'_, '_> {
                 }
                 Ok(true)
             }
-            Kind::Closure { .. } => match predicate {
+            Kind::Closure { environment, .. } => match predicate {
                 Predicate::Copy | Predicate::StoreElement => Ok(false),
-                // All actually used captures are separately checked scalar
-                // values/borrowed scalar heads. This grants no head authority.
-                Predicate::Value | Predicate::SyncDrop => Ok(true),
+                Predicate::Value => Ok(true),
+                Predicate::SyncDrop => {
+                    for captured in environment {
+                        match &self.state.arena[self.type_root(*captured, b)?] {
+                            Kind::Life(_)
+                            | Kind::LifeVariable(_)
+                            | Kind::ConstRigid { .. }
+                            | Kind::ConstValue(_) => {}
+                            _ => {
+                                if !self.satisfies(*captured, Predicate::SyncDrop, b, depth + 1)? {
+                                    return Ok(false);
+                                }
+                            }
+                        }
+                    }
+                    Ok(true)
+                }
                 Predicate::Capability(_) => {
                     Err(fail("sealed capability dispatch lost its original kind"))
                 }

@@ -364,8 +364,7 @@ impl Check<'_, '_> {
                 let expected = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 if self.uses_full_value(&original_value.ty, b)?
-                    && crate::semantic::value::resolved(instance, value, self.inventory, b, 0)?
-                        != original_value
+                    && self.resolved(instance, value, b, 0)? != original_value
                 {
                     return Err(fail(
                         "actual semantic claim changes its complete original class value",
@@ -400,8 +399,7 @@ impl Check<'_, '_> {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 if self.uses_full_value(&original_value.ty, b)?
-                    && crate::semantic::value::resolved(instance, expected, self.inventory, b, 0)?
-                        != original_value
+                    && self.resolved(instance, expected, b, 0)? != original_value
                 {
                     return Err(fail(
                         "actual semantic claim changes its complete original class value",
@@ -435,8 +433,7 @@ impl Check<'_, '_> {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 if self.uses_full_value(&original_value.ty, b)?
-                    && crate::semantic::value::resolved(instance, expected, self.inventory, b, 0)?
-                        != original_value
+                    && self.resolved(instance, expected, b, 0)? != original_value
                 {
                     return Err(fail(
                         "actual semantic claim changes its complete original class value",
@@ -1041,13 +1038,7 @@ impl Check<'_, '_> {
                     self.image_heads(instance, expected, (block, instruction as usize, edge), b)?;
                 if let SemanticTypeValue::Resolved { ty, .. } = expected {
                     if self.uses_full_value(ty, b)? {
-                        let value = crate::semantic::value::resolved(
-                            instance,
-                            expected,
-                            self.inventory,
-                            b,
-                            0,
-                        )?;
+                        let value = self.resolved(instance, expected, b, 0)?;
                         b.lookup(declared_values.len(), WORK)?;
                         if declared_values.insert(local, value).is_some() {
                             return Err(unknown(

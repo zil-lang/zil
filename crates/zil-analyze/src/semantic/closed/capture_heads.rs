@@ -99,6 +99,20 @@ impl Check<'_, '_> {
         id: ClosureId,
         b: &mut Budget,
     ) -> CompileResult<Vec<u32>> {
+        {
+            let mut active = self.scope_queries.borrow_mut();
+            b.lookup(active.len(), WORK)?;
+            if !active.insert(id) {
+                return Err(fail(
+                    "actual environment scope query is cyclic without a completed original inventory",
+                ));
+            }
+        }
+        let result = self.capture_directory_inner(id, b);
+        self.scope_queries.borrow_mut().remove(&id);
+        result
+    }
+    fn capture_directory_inner(&self, id: ClosureId, b: &mut Budget) -> CompileResult<Vec<u32>> {
         if self.has_ghost_capture(id, b)? {
             return self.ghost_capture_directory(id, b);
         }

@@ -218,6 +218,20 @@ impl Solver<'_, '_> {
                         }
                     }
                 }
+                if kind == SemanticBuiltinTrait::ClosedEnvironment {
+                    let frame = self.state.frames.get(definition).ok_or_else(|| {
+                        fail("original closure scope has no checked signature frame")
+                    })?;
+                    for term in frame
+                        .parameters
+                        .iter()
+                        .chain(std::iter::once(&frame.result))
+                    {
+                        if !self.signature_closed(*term, *definition, b, depth + 1)? {
+                            return Ok(false);
+                        }
+                    }
+                }
                 if kind == SemanticBuiltinTrait::ThreadCallable {
                     self.execution_capability(*definition, false, b)?;
                 }
@@ -234,6 +248,73 @@ impl Solver<'_, '_> {
             )),
             Kind::CallResult { .. } => Err(fail(
                 "original capability failed to open its checked result role",
+            )),
+        }
+    }
+    fn signature_closed(
+        &self,
+        term: Term,
+        owner: SemanticDefinitionId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        match &self.state.arena[self.type_root(term, b)?] {
+            Kind::Atom(_) => Ok(true),
+            Kind::Rigid(_, _) => {
+                self.capability(term, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)
+            }
+            Kind::Life(Life::Invocation(actual, _)) | Kind::Life(Life::Implicit(actual, _)) => {
+                Ok(*actual == owner)
+            }
+            Kind::Life(_) | Kind::LifeVariable(_) => Ok(false),
+            Kind::ConstRigid { .. } | Kind::ConstValue(_) => Ok(true),
+            Kind::Address { life, inner, .. } | Kind::Desc { life, inner } => Ok(self
+                .signature_closed(*life, owner, b, depth + 1)?
+                && self.signature_closed(*inner, owner, b, depth + 1)?),
+            Kind::Array { element, .. } | Kind::Slice(element) | Kind::Wrapped(_, element) => {
+                self.signature_closed(*element, owner, b, depth + 1)
+            }
+            Kind::ErrorUnion { error, result } => {
+                Ok(self.signature_closed(*error, owner, b, depth + 1)?
+                    && self.signature_closed(*result, owner, b, depth + 1)?)
+            }
+            Kind::Tuple(fields) => {
+                for field in fields {
+                    if !self.signature_closed(*field, owner, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Kind::Nominal {
+                arguments, fields, ..
+            } => {
+                for field in arguments.iter().chain(fields) {
+                    if !self.signature_closed(*field, owner, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Kind::Code {
+                parameters, result, ..
+            } => {
+                for parameter in parameters.iter().chain(std::iter::once(result)) {
+                    if !self.signature_closed(*parameter, owner, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Kind::Closure { .. } => {
+                self.capability(term, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)
+            }
+            Kind::Infer(_) => Err(unknown(
+                "original closure signature free-class domain remains unresolved",
+            )),
+            Kind::CallResult { .. } => Err(fail(
+                "original signature domain failed to open its checked call result",
             )),
         }
     }

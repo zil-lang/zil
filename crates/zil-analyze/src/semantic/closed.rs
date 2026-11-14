@@ -5,10 +5,12 @@ use super::*;
 mod abstract_calls;
 mod borrows;
 mod callable_roles;
+mod capabilities;
 mod capture_heads;
 mod classes;
 mod operations;
 mod registration;
+mod resources;
 
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::unsupported(
@@ -28,6 +30,7 @@ struct Check<'a, 'i> {
     program: &'a SemanticModule,
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
+    scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
 }
 impl Check<'_, '_> {
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -74,6 +77,10 @@ impl Check<'_, '_> {
                     crate::dyn_metadata::ty(inner, b)?;
                     let owner = Type::Managed(inner.clone());
                     return crate::ownership_store::ordinary_owned(self.module, &owner, b);
+                }
+                Type::Registration { .. } | Type::AsyncRegistration { .. } => {
+                    crate::dyn_metadata::ty(inner, b)?;
+                    return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
                 }
                 _ => {
                     return Err(unknown(
@@ -473,6 +480,16 @@ impl Check<'_, '_> {
                     }
                 }
                 SemanticRequirementRecipe::Builtin { ty, trait_kind } => {
+                    if !matches!(
+                        trait_kind,
+                        SemanticBuiltinTrait::Copy
+                            | SemanticBuiltinTrait::Value
+                            | SemanticBuiltinTrait::SyncDrop
+                            | SemanticBuiltinTrait::StoreElement
+                    ) {
+                        self.capability_requirement(context, ty, *trait_kind, b)?;
+                        continue;
+                    }
                     let ty = self.ty(context, ty, b, 0)?;
                     let predicate = match trait_kind {
                         SemanticBuiltinTrait::Copy => original::Predicate::Copy,
@@ -646,13 +663,7 @@ impl Check<'_, '_> {
             {
                 match (formal, actual) {
                     (SemanticFormal::Type { requirements }, SemanticActual::Type(value)) => {
-                        let value = crate::semantic::value::resolved(
-                            instance,
-                            value,
-                            self.inventory,
-                            b,
-                            0,
-                        )?;
+                        let value = self.resolved(instance, value, b, 0)?;
                         self.actual_type(&value.ty, b)?;
                         self.requirements(instance, requirements, b)?;
                     }
@@ -667,8 +678,7 @@ impl Check<'_, '_> {
                     }
                     (SemanticFormal::Const { carrier }, SemanticActual::Const { ty, value }) => {
                         let expected = self.recipe_value(instance, carrier, b, 0)?;
-                        let actual =
-                            crate::semantic::value::resolved(instance, ty, self.inventory, b, 0)?;
+                        let actual = self.resolved(instance, ty, b, 0)?;
                         if expected != actual
                             || !actual.classes.is_empty()
                             || actual.ty != value.ty()
@@ -712,13 +722,7 @@ impl Check<'_, '_> {
                                 ));
                             };
                             if self.recipe_value(parent, source, b, 0)?
-                                != crate::semantic::value::resolved(
-                                    parent,
-                                    value,
-                                    self.inventory,
-                                    b,
-                                    0,
-                                )?
+                                != self.resolved(parent, value, b, 0)?
                             {
                                 return Err(fail(
                                     "actual environment differs from its original creator source",
@@ -825,6 +829,7 @@ pub(super) fn check(
         program,
         inventory,
         original,
+        scope_queries: std::cell::RefCell::new(BTreeSet::new()),
     };
     if !module.dyn_declarations.is_empty()
         || !module.dyn_interfaces.is_empty()
@@ -850,12 +855,13 @@ pub(super) fn check(
             continue;
         }
         checker.ordinary_type(&Type::Closure(closure.id), b)?;
-        if !checker.capture_directory(closure.id, b)?.is_empty()
-            || !closure.captures.iter().all(Type::is_b0_scalar)
-        {
+        if !checker.capture_directory(closure.id, b)?.is_empty() {
             return Err(fail(
                 "zero closure directory contains a nonzero or unknown actual capture",
             ));
+        }
+        for capture in &closure.captures {
+            checker.zero_data(capture, b, 0)?;
         }
         b.lookup(zero.len(), WORK)?;
         zero.insert(closure.id);

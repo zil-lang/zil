@@ -121,7 +121,7 @@ impl Check<'_, '_> {
                 else {
                     return Err(fail("original type value omits a complete Type actual"));
                 };
-                value::resolved(context, actual, self.inventory, b, depth + 1)
+                self.resolved(context, actual, b, depth + 1)
             }
             SemanticTypeRecipe::Environment { scope, ordinal } => {
                 let context = self.ancestor(instance, *scope, b)?;
@@ -148,7 +148,7 @@ impl Check<'_, '_> {
                 else {
                     return Err(fail("original environment type omits a sealed actual"));
                 };
-                value::resolved(parent, actual, self.inventory, b, depth + 1)
+                self.resolved(parent, actual, b, depth + 1)
             }
             SemanticTypeRecipe::Address {
                 mutable,
@@ -400,10 +400,9 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> CompileResult<Argument> {
         match actual {
-            SemanticActual::Type(actual) => Ok(Argument::Type(value::resolved(
+            SemanticActual::Type(actual) => Ok(Argument::Type(self.resolved(
                 instance,
                 actual,
-                self.inventory,
                 b,
                 depth + 1,
             )?)),
@@ -418,7 +417,7 @@ impl Check<'_, '_> {
                 ty: carrier,
                 value: constant,
             } => {
-                let carrier = value::resolved(instance, carrier, self.inventory, b, depth + 1)?;
+                let carrier = self.resolved(instance, carrier, b, depth + 1)?;
                 if !carrier.classes.is_empty() || constant.ty() != carrier.ty {
                     return Err(fail("semantic constant has another complete carrier"));
                 }
@@ -472,7 +471,7 @@ impl Check<'_, '_> {
                         "original constant has no exact actual at its full ordinal",
                     ));
                 };
-                let actual = value::resolved(context, ty, self.inventory, b, depth + 1)?;
+                let actual = self.resolved(context, ty, b, depth + 1)?;
                 if actual != original_carrier
                     || !actual.classes.is_empty()
                     || actual.ty != *carrier
@@ -707,7 +706,9 @@ impl Check<'_, '_> {
                 definition
                     .captures
                     .iter()
-                    .any(|ty| matches!(ty,Type::BorrowedStorage {life,..} if life.binder_count!=0))
+                    // This only selects the stronger complete source-environment
+                    // proof; it supplies no class count or memory permission.
+                    .any(|ty| !ty.is_b0_scalar()&&!matches!(ty,Type::Address {mutable:false,inner} if inner.is_b0_scalar()))
             }))
     }
     pub(super) fn defining<'a>(
@@ -884,7 +885,7 @@ impl Check<'_, '_> {
                     "ghost captured name changes its original environment kind",
                 ));
             };
-            let expected = value::resolved(parent, actual, self.inventory, b, 0)?;
+            let expected = self.resolved(parent, actual, b, 0)?;
             if !expected.life.slots.is_empty() || !expected.life.retained.is_empty() {
                 return Err(unknown(
                     "captured borrowed data needs its complete actual retained source transport",
@@ -1105,7 +1106,7 @@ impl Check<'_, '_> {
                         "actual reborrow changes its whole pointee or outer occurrence",
                     ));
                 }
-                let child = value::pointee(&parent, self.inventory, b)?;
+                let child = self.pointee(&parent, b)?;
                 let result = value::address(*mutable, Class::Reborrow(function.id, id), child, b)?;
                 // This distinct outer occurrence may adapt to its actual
                 // parent only within a proved call role; it is never Eq(parent).
@@ -1214,8 +1215,7 @@ impl Check<'_, '_> {
                     } = &site.action
                     {
                         if *subject == id {
-                            let value =
-                                value::resolved(instance, expected, self.inventory, b, depth + 1)?;
+                            let value = self.resolved(instance, expected, b, depth + 1)?;
                             if selected.as_ref().is_some_and(|old| old != &value) {
                                 return Err(fail(
                                     "borrow SSA has conflicting original class occurrences",
@@ -1767,7 +1767,7 @@ impl Check<'_, '_> {
         declaration: bool,
         b: &mut Budget,
     ) -> CompileResult<Value> {
-        let expected = value::resolved(instance, expected, self.inventory, b, 0)?;
+        let expected = self.resolved(instance, expected, b, 0)?;
         if declaration {
             return Ok(expected);
         }

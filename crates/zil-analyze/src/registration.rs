@@ -770,3 +770,27 @@ pub(crate) fn transfer_callback(
 ) -> CompileResult<()> {
     threaded::actual(module, id, budget, span)
 }
+
+/// Semantic requirements use the same independently reconstructed actual
+/// environment, provider and cleanup graph. A source premise is not a result.
+pub(crate) fn semantic_closed_environment(
+    module: &TypedModule,
+    closure: ClosureId,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    closed(module, closure, budget, Span::default(), false)
+}
+pub(crate) fn semantic_thread_callable(
+    module: &TypedModule,
+    closure: ClosureId,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    threaded::actual(module, closure, budget, Span::default())
+}
+pub(crate) fn semantic_resource_scope(
+    module: &TypedModule,
+    payload: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    definition(module, payload, budget, Span::default())
+}

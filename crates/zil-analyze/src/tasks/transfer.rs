@@ -384,3 +384,20 @@ fn external_input(t: &Type, b: &mut Budget, span: zil_base::Span) -> CompileResu
     }
     Ok(())
 }
+
+/// A complete semantic Type argument must transport both its actual data and
+/// every actual user cleanup dependency. This does not grant execution of F.
+pub(crate) fn semantic_value(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+    span: zil_base::Span,
+) -> CompileResult<()> {
+    let mut cleanup = Vec::new();
+    data(module, ty, budget, &mut cleanup, span)?;
+    budget.spend(cleanup.len(), "semantic Transfer cleanup roots")?;
+    for function in cleanup {
+        graph(module, function, false, budget)?;
+    }
+    Ok(())
+}

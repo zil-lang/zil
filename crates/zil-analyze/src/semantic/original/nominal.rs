@@ -10,6 +10,7 @@ fn frame(definition: SemanticDefinitionId, formals: Vec<Term>) -> Frame {
         result: 0,
         locals: Vec::new(),
         inherited: 0,
+        captured: BTreeMap::new(),
         alive: true,
         environment: Vec::new(),
         expressions: BTreeMap::new(),
