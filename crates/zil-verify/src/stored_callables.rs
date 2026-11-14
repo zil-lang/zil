@@ -328,6 +328,64 @@ fn borrowed_capture_input(ty: &Type) -> bool {
         || matches!(ty, Type::Address { inner, .. }
         if inner.is_address_pointee() || matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
 }
+
+// Logical lifetime classes do not make physically Copy inline data into a
+// borrowed leaf. Authenticate the complete qualified directory, then inspect
+// every physical child; the class/constructor and resource passes still prove
+// the capture's identity, transfer and actual entry. In particular this does
+// not erase a nominal phantom class or grant a root for it.
+pub(super) fn inline_qualified_capture(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !matches!(ty, Type::BorrowedStorage { .. }) {
+        return Ok(false);
+    }
+    let mut pending = vec![(ty, 0usize)];
+    while let Some((child, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth >= b.limits.max_call_depth.min(128) {
+            return Err(limit("inline qualified capture depth exceeded"));
+        }
+        match child {
+            Type::BorrowedStorage { storage, life } => {
+                // Nested retained classes can be logical, but borrowed slots
+                // require the independent target-bearing capture consumer.
+                if !life.slots.is_empty() {
+                    return Ok(false);
+                }
+                pending.push((storage.as_ref(), depth + 1));
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            Type::Array { element, .. } => pending.push((element.as_ref(), depth + 1)),
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([(error.as_ref(), depth + 1), (result.as_ref(), depth + 1)]);
+            }
+            ty if scalar(ty) => {}
+            // Owners, callable/opaque values, descriptions and addresses have
+            // their own actual source/cleanup consumers. None is scalar data.
+            _ => return Ok(false),
+        }
+    }
+    let _complete_domain = super::dynamic_witness::intrinsic_domain(module, ty, b)?;
+    Ok(true)
+}
 pub(super) fn captured_profile(
     module: &TypedModule,
     d: &ClosureDefinition,
@@ -341,7 +399,9 @@ pub(super) fn captured_profile(
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !borrowed_capture_input(ty) && !super::stored_flow::context_capture_type(module, ty, b)?
+        if !borrowed_capture_input(ty)
+            && !super::stored_flow::context_capture_type(module, ty, b)?
+            && !inline_qualified_capture(module, ty, b)?
         {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar parameters",
@@ -374,7 +434,8 @@ pub(super) fn captured_profile(
             || closed_owner
             || super::stored_flow::context_capture_type(module, ty, b)?
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
-            || matches!(ty, Type::Closure(child) if finite(module, *child)))
+            || matches!(ty, Type::Closure(child) if finite(module, *child))
+            || inline_qualified_capture(module, ty, b)?)
         {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
@@ -652,7 +713,11 @@ pub(super) fn types(
                 // Shape admission does not establish the incoming source.
                 // The whole-module invariant checks every actual write,
                 // including writes in entries which are never called.
-                if d.storage_life.is_some() && !scalar(t) && !constant_slot {
+                if d.storage_life.is_some()
+                    && !scalar(t)
+                    && !constant_slot
+                    && !inline_qualified_capture(module, t, b)?
+                {
                     return Err(unsupported(
                         "captured Fixed mutation is limited to inline scalar fields",
                         Some(i.span),

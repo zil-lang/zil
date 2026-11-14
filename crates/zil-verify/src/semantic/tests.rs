@@ -83,6 +83,31 @@ const COMPLETE_LOCAL:&[u8]=include_bytes!("fixtures/local-closure-complete-head.
 // phantom fixture. Its plan is untrusted; this exercises only this kernel.
 const COMPLETE_PHANTOM:&[u8]=include_bytes!("fixtures/phantom-closure-complete-creator.wire");
 #[test]
+fn qualified_copy_capture_admission_keeps_phantom_domain_and_rejects_physical_targets(){
+    let limits=Limits::default();
+    let(original,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();
+    for attack in 0..4{
+        let mut module=original.clone();
+        if attack!=0{
+            let capture=&mut module.closures[0].captures[0];
+            let Type::BorrowedStorage{storage,..}=capture else{panic!("genuine qualified phantom capture")};
+            let Type::Record{fields,..}=storage.as_mut()else{panic!("genuine nominal data")};
+            fields[0].1=match attack{1=>Type::Address{mutable:false,inner:Box::new(Type::I32)},2=>Type::Desc(Box::new(Type::I32)),3=>Type::Managed(Box::new(Type::I32)),_=>unreachable!()};
+        }
+        for wire in [false,true]{
+            let decoded;let candidate=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
+            let definition=&candidate.closures[0];let mut b=Budget::new(&limits);
+            assert_eq!(crate::stored_callables::inline_qualified_capture(candidate,&definition.captures[0],&mut b).unwrap(),attack==0,"attack {attack}, wire {wire}");
+            if attack==0{
+                assert!(matches!(&definition.captures[0],Type::BorrowedStorage{life,..}if life.binder_count==1));
+                crate::stored_callables::captured_profile(candidate,definition,&mut b).unwrap();
+                let relation=definition.storage_life.as_ref().unwrap();
+                crate::signature_life::closure_relation(candidate,&definition.parameters,&definition.captures,definition.kind,crate::stored_callables::life_result(definition),relation,None).unwrap();
+            }
+        }
+    }
+}
+#[test]
 fn nominal_pointee_and_outer_life_keep_distinct_intrinsics_with_equal_images(){
     let limits=Limits::default();let(module,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();
     let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
