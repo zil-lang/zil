@@ -9,6 +9,16 @@ pub(crate) struct MethodCall {
     pub self_type: SemanticTypeRecipe,
     pub application: Option<SemanticTraitRecipe>,
     pub signature: SemanticSignatureRecipe,
+    pub receiver_node: Option<NodeId>,
+    pub receiver_parameter: Option<u32>,
+    pub receiver_borrow: Option<SemanticTypeRecipe>,
+    pub receiver_place: Option<MethodReceiverPlace>,
+}
+#[derive(Clone)]
+pub(crate) struct MethodReceiverPlace {
+    pub owner: SemanticDefinitionId,
+    pub root: SemanticOriginalTypeSource,
+    pub fields: Vec<(SemanticDefinitionId, u32)>,
 }
 #[derive(Clone)]
 pub(crate) struct CallableCall {
@@ -571,13 +581,24 @@ impl Check<'_, '_> {
                             .parent
                             .ok_or_else(|| bad("original method has no lexical parent"))?,
                     )?;
-                    match self.solve_parent(owner, parent, &self_type, depth + 1) {
-                        Ok(_) => {
-                            if target.replace(candidate).is_some() {
+                    let applicable = match &parent.body {
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait {
+                            declaration,
+                        }) => self
+                            .trait_application(owner, &self_type, *declaration, depth + 1)
+                            .map(|_| ()),
+                        _ => self
+                            .solve_parent(owner, parent, &self_type, depth + 1)
+                            .map(|_| ()),
+                    };
+                    match applicable {
+                        Ok(()) => {
+                            if target.is_some_and(|old| old != candidate) {
                                 return Err(bad(
                                     "original receiver selects ambiguous method declarations",
                                 ));
                             }
+                            target = Some(candidate);
                         }
                         Err(diagnostic)
                             if diagnostic.category == zil_base::ResultCategory::ResourceLimit
@@ -666,8 +687,77 @@ impl Check<'_, '_> {
         if written.next().is_some() {
             return Err(bad("original method adds an undeclared argument"));
         }
+        let receiver_place = if receiver_parameter.is_some() {
+            self.method_receiver_place(owner, object, variables, depth + 1)?
+        } else {
+            None
+        };
+        let mut receiver_borrow = None;
+        let mut roles = Vec::new();
+        if let Some(ordinal) = receiver_parameter {
+            let parameter = signature
+                .parameters
+                .get(*ordinal as usize)
+                .ok_or_else(|| bad("method receiver ordinal exceeds its full signature"))?;
+            if let SemanticTypeRecipe::Address { mutable, .. } = &parameter.ty {
+                let value = self.place(owner, object, variables, depth + 1)?;
+                let value = self.observation_type(owner, &value, depth + 1)?;
+                if !matches!(value, SemanticTypeRecipe::Address { .. }) {
+                    if *mutable {
+                        self.writable(owner, object, variables, depth + 1)?;
+                    }
+                    let lifetime = match self.borrow_life(owner, object.id) {
+                        Ok(lifetime) => lifetime,
+                        Err(error) if error.category == zil_base::ResultCategory::Unsupported => {
+                            let Some(place) = receiver_place.as_ref() else {
+                                return Err(error);
+                            };
+                            let SemanticOriginalTypeSource::Parameter(ordinal) = &place.root else {
+                                return Err(error);
+                            };
+                            let root = self
+                                .proof
+                                .types
+                                .get(&(owner, Query::Parameter(*ordinal)))
+                                .ok_or_else(|| {
+                                bad("method field receiver has no original root parameter")
+                            })?;
+                            let SemanticTypeRecipe::Address {
+                                mutable: available,
+                                lifetime,
+                                ..
+                            } = root
+                            else {
+                                return Err(error);
+                            };
+                            if *mutable && !available {
+                                return Err(bad(
+                                    "method receiver borrows through a shared original root",
+                                ));
+                            }
+                            crate::dyn_metadata::semantic_operand_snapshot(
+                                lifetime,
+                                self.limits,
+                                self.left,
+                                1,
+                            )?;
+                            lifetime.clone()
+                        }
+                        Err(error) => return Err(error),
+                    };
+                    self.pay(2, depth)?;
+                    let borrowed = SemanticTypeRecipe::Address {
+                        mutable: *mutable,
+                        lifetime,
+                        inner: Box::new(value),
+                    };
+                    roles.push((object.id, copy_recipe(&borrowed, self.limits, self.left)?));
+                    receiver_borrow = Some(borrowed);
+                }
+            }
+        }
         let holes = vec![SemanticActualRecipe::Infer; definition.parameters.len()];
-        let (actuals, solved) = self.solve_signature(
+        let (actuals, solved) = self.solve_signature_roles(
             owner,
             callee,
             &operands,
@@ -677,6 +767,7 @@ impl Check<'_, '_> {
             variables,
             wanted,
             true,
+            &roles,
             depth + 1,
         )?;
         // Method requirements may reference both the method and parent frame.
@@ -726,6 +817,10 @@ impl Check<'_, '_> {
                 self_type,
                 application,
                 signature: solved.clone(),
+                receiver_node: receiver_parameter.map(|_| object.id),
+                receiver_parameter: *receiver_parameter,
+                receiver_borrow,
+                receiver_place,
             },
         );
         Ok(Some(solved.result))
@@ -925,7 +1020,17 @@ impl Check<'_, '_> {
                     "original concrete callable lacks the required invocation kind",
                 ));
             }
-            return self.compare_callable(&actual, wanted, depth + 1);
+            self.compare_callable(&actual, wanted, depth + 1)?;
+            if required == CallableKind::FnOnce
+                && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                && wanted.call_kind == CallKind::Direct
+                && !self.cleanup_capability(owner, &value, depth + 1)?
+            {
+                return Err(bad(
+                    "original Direct FnOnce adaptation lacks synchronous environment teardown",
+                ));
+            }
+            return Ok(());
         }
         for requirement in self.original_requirements(owner, depth + 1)? {
             if let SemanticRequirementRecipe::Callable {
@@ -935,7 +1040,15 @@ impl Check<'_, '_> {
             } = requirement
             {
                 if premise == value && compatible(kind, required) {
-                    return self.compare_callable(&signature, wanted, depth + 1);
+                    self.compare_callable(&signature, wanted, depth + 1)?;
+                    if required == CallableKind::FnOnce
+                        && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                        && wanted.call_kind == CallKind::Direct
+                        && !self.cleanup_capability(owner, &value, depth + 1)?
+                    {
+                        return Err(bad("original Direct FnOnce premise adaptation lacks synchronous environment teardown"));
+                    }
+                    return Ok(());
                 }
             }
         }

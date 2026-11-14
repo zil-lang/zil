@@ -231,6 +231,15 @@ fn clone_proof(
             spend(left, name.len(), 0, limits)?;
         }
     }
+    for method in source.method_calls.values() {
+        if let Some(receiver) = &method.receiver_borrow {
+            crate::dyn_metadata::semantic_operand_snapshot(receiver, limits, left, 1)?;
+        }
+        if let Some(place) = &method.receiver_place {
+            crate::dyn_metadata::semantic_operand_snapshot(&place.root, limits, left, 1)?;
+            spend(left, place.fields.len(), 0, limits)?;
+        }
+    }
     for signature in source.direct_calls.values() {
         crate::dyn_metadata::semantic_operand_snapshot(signature, limits, left, 1)?;
     }

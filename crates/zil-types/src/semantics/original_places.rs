@@ -271,3 +271,85 @@ impl Check<'_, '_> {
         Ok(head)
     }
 }
+
+impl Check<'_, '_> {
+    pub(super) fn method_receiver_place(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<Option<calls::MethodReceiverPlace>> {
+        self.pay(1, depth)?;
+        match &expression.kind {
+            CoreExprKind::Group(inner) => {
+                self.method_receiver_place(owner, inner, variables, depth + 1)
+            }
+            CoreExprKind::Name(name) => {
+                let binding = variables
+                    .get(name)
+                    .ok_or_else(|| bad("method receiver loses its original lexical binder"))?;
+                if binding.origin_owner != owner {
+                    return Ok(None);
+                }
+                self.pay(binding.origin.copy_work(), depth)?;
+                let root = match &binding.origin {
+                    Query::Parameter(ordinal) => SemanticOriginalTypeSource::Parameter(*ordinal),
+                    Query::Binding(node) => SemanticOriginalTypeSource::Binding(*node),
+                    Query::BindingProjection { statement, pattern } => {
+                        SemanticOriginalTypeSource::BindingProjection {
+                            statement: *statement,
+                            pattern: pattern.clone(),
+                        }
+                    }
+                    _ => return Ok(None),
+                };
+                Ok(Some(calls::MethodReceiverPlace {
+                    owner,
+                    root,
+                    fields: Vec::new(),
+                }))
+            }
+            CoreExprKind::Member { object, member, .. } => {
+                let Some(mut root) =
+                    self.method_receiver_place(owner, object, variables, depth + 1)?
+                else {
+                    return Ok(None);
+                };
+                let base = self.place(owner, object, variables, depth + 1)?;
+                let mut base = self.observation_type(owner, &base, depth + 1)?;
+                loop {
+                    self.pay(1, depth)?;
+                    match base {
+                        SemanticTypeRecipe::Address { inner, .. }
+                        | SemanticTypeRecipe::Desc { inner, .. }
+                        | SemanticTypeRecipe::Managed(inner) => base = *inner,
+                        _ => break,
+                    }
+                }
+                let SemanticTypeRecipe::Nominal { definition, .. } = base else {
+                    return Ok(None);
+                };
+                let declaration = self.definition(definition)?;
+                let SemanticDefinitionBody::Nominal {
+                    body: SemanticNominalBody::Product { fields },
+                    ..
+                } = &declaration.body
+                else {
+                    return Ok(None);
+                };
+                self.pay(fields.len().saturating_add(member.len()), depth)?;
+                let ordinal = fields
+                    .iter()
+                    .position(|field| field.name == *member)
+                    .ok_or_else(|| {
+                        bad("method receiver field is absent from its real original declaration")
+                    })?;
+                self.pay(root.fields.len().saturating_add(1), depth)?;
+                root.fields.push((definition, ordinal as u32));
+                Ok(Some(root))
+            }
+            _ => Ok(None),
+        }
+    }
+}

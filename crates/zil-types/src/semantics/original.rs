@@ -1934,6 +1934,34 @@ impl<'a> Check<'a, '_> {
         template_ready: bool,
         depth: usize,
     ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
+        self.solve_signature_roles(
+            owner,
+            callee,
+            arguments,
+            signature,
+            formals,
+            written_actuals,
+            variables,
+            wanted,
+            template_ready,
+            &[],
+            depth,
+        )
+    }
+    fn solve_signature_roles(
+        &mut self,
+        owner: SemanticDefinitionId,
+        callee: &SemanticOriginalExpr,
+        arguments: &[&SemanticOriginalExpr],
+        signature: &SemanticSignatureRecipe,
+        formals: &[SemanticFormal],
+        written_actuals: &[SemanticActualRecipe],
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        template_ready: bool,
+        roles: &[(NodeId, SemanticTypeRecipe)],
+        depth: usize,
+    ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
         self.pay(arguments.len().saturating_add(formals.len()), depth)?;
         if signature.parameters.len() != arguments.len() || written_actuals.len() != formals.len() {
             return Err(bad(
@@ -1970,13 +1998,17 @@ impl<'a> Check<'a, '_> {
             // Primitive context fixes unsuffixed literals without importing any
             // unsolved target inference variable into the caller's expression.
             let hint = matches!(parameter.ty, SemanticTypeRecipe::Atom(_)).then_some(&parameter.ty);
-            let actual = if matches!(&parameter.ty, SemanticTypeRecipe::Address { .. })
-                && matches!(&argument.kind, CoreExprKind::Name(_))
-            {
-                self.place(owner, argument, variables, depth + 1)?
-            } else {
-                self.expr(owner, argument, variables, hint, depth + 1)?
-            };
+            self.pay(roles.len(), depth)?;
+            let actual =
+                if let Some((_, role)) = roles.iter().find(|(node, _)| *node == argument.id) {
+                    copy_recipe(role, self.limits, self.left)?
+                } else if matches!(&parameter.ty, SemanticTypeRecipe::Address { .. })
+                    && matches!(&argument.kind, CoreExprKind::Name(_))
+                {
+                    self.place(owner, argument, variables, depth + 1)?
+                } else {
+                    self.expr(owner, argument, variables, hint, depth + 1)?
+                };
             if parameter.mode == PassingMode::Copy && !self.copy_type(owner, &actual, depth + 1)? {
                 return Err(bad(
                     "original Copy parameter lacks its caller whole-Type Copy premise",
