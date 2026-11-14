@@ -1,6 +1,8 @@
 //! Conditional protocol relations are proved from original operations. No
 //! runtime layout, instance specialization, or proposed Typed table is input.
 use super::*;
+#[path = "original_protocol_tasks.rs"]
+mod tasks;
 #[path = "original_type_cache.rs"]
 mod type_cache;
 pub(in crate::semantics) fn recipe_key(
@@ -35,6 +37,7 @@ enum Root {
     Parameter(SemanticDefinitionId, u32),
     Created(SemanticDefinitionId, NodeId),
     Capture(SemanticDefinitionId, u32),
+    Result(SemanticDefinitionId, NodeId, u32),
 }
 #[derive(Clone, PartialEq, Eq)]
 struct Outcome {
@@ -215,6 +218,8 @@ enum Control {
 }
 #[derive(Clone, PartialEq, Eq)]
 struct State {
+    owner: SemanticDefinitionId,
+    tasks: BTreeSet<Root>,
     reachable: bool,
     abrupt: Vec<State>,
     // Stacks preserve hidden lexical binders, including their stale Polls.
@@ -231,6 +236,7 @@ impl State {
                 self.temporaries.iter().fold(
                     self.roots
                         .len()
+                        .saturating_add(self.tasks.len())
                         .saturating_add(self.returned.work())
                         .saturating_add(1),
                     |w, v| w.saturating_add(v.work()),
@@ -322,6 +328,8 @@ struct Engine<'a, 'b> {
     method_costs: BTreeMap<&'static str, (usize, usize, usize)>,
     method_cost_total: usize,
     function_cost_total: usize,
+    task_exits: BTreeMap<SemanticDefinitionId, Vec<tasks::Exit>>,
+    task_exit_count: usize,
 }
 impl<'a> Engine<'a, '_> {
     fn record_cost(&mut self, name: &'static str, before: usize, children: usize) {
@@ -1356,6 +1364,15 @@ impl<'a> Engine<'a, '_> {
                         self.drop_value(value, state, depth + 1)?;
                     }
                 }
+                Value::Root(root, true, true, _) if state.tasks.contains(root) => {
+                    self.task_drop(*root, state, None, depth + 1)?
+                }
+                Value::Root(root, false, true, prior) if state.tasks.contains(root) => {
+                    let previous = prior.ok_or_else(|| {
+                        failure("original Task cleanup loses an unsealed earlier generation")
+                    })?;
+                    self.task_drop(*root, state, Some(previous), depth + 1)?
+                }
                 Value::Root(root, true, true, _) => {
                     if state.roots.get(root).copied() != Some(CLOSED) {
                         return Err(failure(
@@ -1609,6 +1626,11 @@ impl<'a> Engine<'a, '_> {
                 .get(&(owner, site))
                 .map(|c| c.kind.clone());
             if let Some(kind) = intrinsic {
+                if let Some(value) =
+                    self.task_call(owner, expression.id, site, &kind, values, state, depth + 1)?
+                {
+                    return Ok(value);
+                }
                 match kind {
                     IntrinsicKind::OwnedDyn => {
                         let [value] = values else {
@@ -1845,6 +1867,15 @@ impl<'a> Engine<'a, '_> {
             // Missing tables cannot promise absence of a mutation.
             for root in roots {
                 self.change(state, root, UNKNOWN, false, depth)?;
+            }
+            if let Some(site) = self.site(owner, node, depth + 1)? {
+                if let Some(target) = self.proof.call_targets.get(&(owner, site)).copied() {
+                    if let Some(value) =
+                        self.task_return_call(owner, node, target, values, state, depth + 1)?
+                    {
+                        return Ok(value);
+                    }
+                }
             }
             if self.query_async(owner, Query::Expression(node), depth)? {
                 let root = Root::Created(owner, node);
@@ -2525,6 +2556,8 @@ impl<'a> Engine<'a, '_> {
             self.charge_state(a, depth + 1)?;
             self.charge_state(b, depth + 1)?;
             *output = a.clone();
+            self.pay(b.tasks.len(), depth)?;
+            output.tasks.extend(b.tasks.iter().copied());
             for exit in &b.abrupt {
                 let exit = self.copy(exit, depth + 1)?;
                 self.offer(&mut output.abrupt, exit, depth + 1)?;
@@ -3842,6 +3875,8 @@ impl<'a> Engine<'a, '_> {
                 let inputs_before = *self.left;
                 let inputs_children = self.method_cost_total;
                 let mut state = State {
+                    owner,
+                    tasks: BTreeSet::new(),
                     reachable: true,
                     abrupt: Vec::new(),
                     names: BTreeMap::new(),
@@ -3882,7 +3917,18 @@ impl<'a> Engine<'a, '_> {
                     for (index, name) in names.into_iter().enumerate() {
                         let ty =
                             self.capture_type(parent, creator, &name, definition, depth + 1)?;
-                        let mut value = if self.async_head(parent, &ty, depth + 1)? {
+                        let mut value = if let Some(mut value) = self.task_input(
+                            parent,
+                            &ty,
+                            Root::Capture(owner, index as u32),
+                            &mut state,
+                            depth + 1,
+                        )? {
+                            if !moved {
+                                value = self.view(value, depth + 1)?;
+                            }
+                            value
+                        } else if self.async_head(parent, &ty, depth + 1)? {
                             let root = Root::Capture(owner, index as u32);
                             state.roots.insert(root, UNKNOWN);
                             Value::Root(
@@ -3929,6 +3975,17 @@ impl<'a> Engine<'a, '_> {
                                 "original cleanup parameter has no independent solved Gamma type",
                             )
                         })?;
+                    let value = if let Some(task) = self.task_input(
+                        owner,
+                        &ty,
+                        Root::Parameter(owner, index as u32),
+                        &mut state,
+                        depth + 1,
+                    )? {
+                        task
+                    } else {
+                        value
+                    };
                     let value = self.typed(owner, &ty, value, depth + 1)?;
                     state
                         .names
@@ -3976,6 +4033,7 @@ impl<'a> Engine<'a, '_> {
                         }
                     }
                     self.output(owner, &state, protocol_contracts, &inputs, depth + 1)?;
+                    self.task_record_exit(owner, &state, depth + 1)?;
                 }
             }
             self.active.remove(&owner);
@@ -4084,6 +4142,8 @@ pub(super) fn check(
             .collect(),
         method_cost_total: 0,
         function_cost_total: 0,
+        task_exits: BTreeMap::new(),
+        task_exit_count: 0,
     };
     let setup_before = *engine.left;
     engine.pay(

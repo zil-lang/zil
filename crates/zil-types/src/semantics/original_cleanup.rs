@@ -129,7 +129,51 @@ pub(super) fn error_arms(
         }
     })
 }
+pub(super) fn task_head(
+    program: &SemanticModule,
+    proof: &mut Proof,
+    owner: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<bool>> {
+    with_check(program, proof, owner, limits, left, |check| {
+        check.cleanup_task_head(owner, ty, 0)
+    })
+}
 impl Check<'_, '_> {
+    fn cleanup_task_head(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Option<bool>> {
+        self.pay(1, depth)?;
+        if let SemanticTypeRecipe::Opaque {
+            definition, hidden, ..
+        } = ty
+        {
+            return self.cleanup_task_head(*definition, hidden, depth + 1);
+        }
+        let ty = self.observation_type(owner, ty, depth + 1)?;
+        match &ty {
+            SemanticTypeRecipe::Task { .. } | SemanticTypeRecipe::Atom(Type::TaskI32) => {
+                Ok(Some(false))
+            }
+            SemanticTypeRecipe::Managed(inner) => Ok(self
+                .cleanup_task_head(owner, inner, depth + 1)?
+                .map(|_| true)),
+            SemanticTypeRecipe::Address { inner, .. } | SemanticTypeRecipe::Desc { inner, .. } => {
+                Ok(self
+                    .cleanup_task_head(owner, inner, depth + 1)?
+                    .map(|_| false))
+            }
+            SemanticTypeRecipe::Qualified { storage, .. } => {
+                self.cleanup_task_head(owner, storage, depth + 1)
+            }
+            _ => Ok(None),
+        }
+    }
     fn cleanup_category(
         &mut self,
         owner: SemanticDefinitionId,
