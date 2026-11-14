@@ -11,7 +11,7 @@ impl CheckedContext {
         for actual in &source.actuals{actuals.push(self.normalized_origin_actual(env,actual,b)?);}
         for actual in &source.environment{environment.push(self.normalized_origin_actual(env,actual,b)?);}
         for origin in &source.class_sources{sources.push(match origin{IntrinsicOrigin::DerivedClass{source}=>IntrinsicOrigin::DerivedClass{source:self.exact_class_representative(env,source,b)?},other=>self.normalized_origin(env,other,b)?});}
-        dynamic_metadata::recipe(&source.domain,b)?;
+        dynamic_metadata::life_shape(&source.domain,b)?;
         Ok(IntrinsicOrigin::Nominal{source:Rc::new(NominalOrigin{declaration:source.declaration,actuals,environment,domain:source.domain.clone(),class_sources:sources}),class})
     }
     fn normalized_origin_actual(&self,env:&EvalEnv,actual:&CheckedActual,b:&mut Budget)->Check<CheckedActual>{
@@ -62,7 +62,7 @@ impl CheckedContext {
         if sources.len()!=domain.binder_count as usize{return Err(bad("nominal intrinsic source directory is incomplete"));}
         for actual in actuals.iter().chain(sealed){charge_actual(actual,b)?;}
         for source in sources{charge_origin(source,b)?;}
-        dynamic_metadata::recipe(domain,b)?;
+        dynamic_metadata::life_shape(domain,b)?;
         let source=Rc::new(NominalOrigin{declaration,actuals:actuals.to_vec(),environment:sealed.to_vec(),domain:domain.clone(),class_sources:sources.to_vec()});
         b.spend(sources.len())?;
         Ok((0..domain.binder_count).map(|class|IntrinsicOrigin::Nominal{source:source.clone(),class}).collect())
@@ -75,7 +75,7 @@ impl CheckedContext {
         self.typed_origins_at(module,ty,life,classes,&mut Vec::new(),0,b)
     }
     fn typed_origins_at(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[ClassKey],active:&mut Vec<Type>,depth:usize,b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{
-        dynamic_metadata::ty(ty,b)?;dynamic_metadata::recipe(life,b)?;
+        dynamic_metadata::ty(ty,b)?;dynamic_metadata::life_shape(life,b)?;
         b.spend(active.len().saturating_add(1))?;
         if active.contains(ty){return Err(bad("typed nominal argument origin graph has a cycle"));}
         if depth>b.limits.max_call_depth.min(128){return Err(limit("typed nominal argument origin depth exceeded"));}
@@ -126,7 +126,7 @@ impl CheckedContext {
         let instance=rows.next().ok_or_else(||bad("nominal origin has no complete actual declaration/arguments"))?;
         if rows.next().is_some(){return Err(bad("nominal origin has ambiguous complete actual arguments"));}
         dynamic_metadata::ty(&instance.ty,b)?;b.spend(instance.arguments.len().saturating_add(1))?;
-        for actual in &instance.arguments{match actual{LifeNominalActual::Type(ty)=>dynamic_metadata::ty(ty,b)?,LifeNominalActual::QualifiedType{ty,life}=>{dynamic_metadata::ty(ty,b)?;dynamic_metadata::recipe(life,b)?;},LifeNominalActual::Const(value)=>dynamic_metadata::recipe(value,b)?,LifeNominalActual::Lifetime(_)=>{}}}
+        for actual in &instance.arguments{match actual{LifeNominalActual::Type(ty)=>dynamic_metadata::ty(ty,b)?,LifeNominalActual::QualifiedType{ty,life}=>{dynamic_metadata::ty(ty,b)?;dynamic_metadata::life_shape(life,b)?;},LifeNominalActual::Const(value)=>dynamic_metadata::constant(value,b)?,LifeNominalActual::Lifetime(_)=>{}}}
         let mut actuals=Vec::new();let mut sources=vec![None;classes.len()];
         for(ordinal,actual)in instance.arguments.iter().enumerate(){match actual{
             LifeNominalActual::Lifetime(class)=>{let key=classes.get(*class as usize).cloned().ok_or_else(||bad("nominal Life actual escapes its complete intrinsic domain"))?;sources[*class as usize]=Some(IntrinsicOrigin::DerivedClass{source:key.clone()});actuals.push(CheckedActual::Life(key));},
@@ -160,7 +160,7 @@ fn charge_graph(root:Work<'_>,b:&mut Budget)->Check<()>{
                 IntrinsicOrigin::Existing{path,..}=>b.spend(path.len())?,
                 IntrinsicOrigin::DerivedClass{source}=>charge_key(source,b)?,
                 IntrinsicOrigin::Nominal{source,..}=>{
-                    dynamic_metadata::recipe(&source.domain,b)?;
+                    dynamic_metadata::life_shape(&source.domain,b)?;
                     b.spend(source.actuals.len().saturating_add(source.environment.len()).saturating_add(source.class_sources.len()))?;
                     pending.extend(source.actuals.iter().chain(&source.environment).map(|actual|Work::Actual(actual,depth+1)));
                     pending.extend(source.class_sources.iter().map(|origin|Work::Origin(origin,depth+1)));
@@ -172,12 +172,12 @@ fn charge_graph(root:Work<'_>,b:&mut Budget)->Check<()>{
             match actual{
                 CheckedActual::Life(key)=>charge_key(key,b)?,
                 CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{
-                    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::recipe(&value.life,b)?;
+                    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
                     b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
                     for key in &value.classes{charge_key(key,b)?;}
                     pending.extend(value.origins.iter().map(|origin|Work::Origin(origin,depth+1)));
-                    for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::recipe(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
-                    if let CheckedActual::Const{value,..}=actual{dynamic_metadata::recipe(value,b)?;}
+                    for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
+                    if let CheckedActual::Const{value,..}=actual{dynamic_metadata::constant(value,b)?;}
                 },
             }
         },

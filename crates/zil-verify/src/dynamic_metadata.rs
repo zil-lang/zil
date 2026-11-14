@@ -187,7 +187,7 @@ pub(super) fn retained_shape(shape: &RetainedLifeShape, b: &mut Budget) -> Check
     Ok(())
 }
 
-fn position(position: &StoragePosition, b: &mut Budget) -> Check<()> {
+pub(super) fn position(position: &StoragePosition, b: &mut Budget) -> Check<()> {
     path(
         b,
         &mut 0usize,
@@ -666,6 +666,13 @@ impl DynRecipeVisitor for RecipeWork<'_> {
 }
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> Check<()> {
     value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
+}
+/// The same bounded primitive visitors used by complete recipe traversal.
+pub(super) fn life_shape(value:&StorageLifeShape,b:&mut Budget)->Check<()>{
+    DynRecipeVisitor::life(&mut RecipeWork{b,nodes:0},value,0)
+}
+pub(super) fn constant(value:&Constant,b:&mut Budget)->Check<()>{
+    DynRecipeVisitor::constant(&mut RecipeWork{b,nodes:0},value,0)
 }
 fn recipe_rows<T: DynRecipeMetadata>(
     values: &Option<Vec<T>>,
