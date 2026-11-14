@@ -36,7 +36,14 @@
       "independent_verify_required": true,
       "correction": "Entry bytes unchanged; imported State replacement API now declares the SyncDrop used by cancellation/overwrite. This is a new project revision.",
       "original_project_snapshot": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil",
-      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c"
+      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+      "project_sources": {
+        "examples/mainline/state-replacement/factory.zil": "56354be536c9f39998d3d82aa4fecef439b5e7557eec3ac65339f2cbade902da",
+        "examples/mainline/state-replacement/main.zil": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+        "examples/mainline/state-replacement/portable.zil": "1c0490e810d48af767d2a9604691739cb963f64cb952ddbdfe3c2877e328e755",
+        "examples/mainline/state-replacement/state.zil": "e387d3ffa376f9fda88dacdacab4ccdd3d04809811a34671b7ce5fdae424be55",
+        "examples/mainline/state-replacement/store_helpers.zil": "97d6c0ddffc974912ce6a361903e1967b89c7ca5622f3e933bc6a7de7319e145"
+      }
     },
     {
       "family": "dynamic-abstraction",
