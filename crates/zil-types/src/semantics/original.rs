@@ -193,6 +193,7 @@ pub(super) struct Proof {
     pub direct_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticSignatureRecipe>,
     pub effective_call_kind: BTreeMap<SemanticDefinitionId, CallKind>,
     pub borrowed_capture_heads: BTreeSet<SemanticDefinitionId>,
+    closed_opaque_domains: BTreeMap<SemanticDefinitionId, bool>,
     compile_time_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
@@ -5612,6 +5613,7 @@ fn check_requested(
     }
     check.finish_effects()?;
     check.associated_obligations(0)?;
+    check.cache_closed_opaque_domains()?;
     protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
     check.proof.into_owned()
 }

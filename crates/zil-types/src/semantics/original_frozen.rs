@@ -139,6 +139,7 @@ fn clone_proof(
             .saturating_add(source.borrow_roles.len())
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
+            .saturating_add(source.closed_opaque_domains.len())
             .saturating_add(source.protocol_complete.len())
             .saturating_add(source.cleanup_complete.len())
             .saturating_add(source.associated_complete.len())
@@ -494,6 +495,7 @@ pub(crate) fn check_with_frozen(
     }
     check.finish_effects()?;
     check.associated_obligations(0)?;
+    check.cache_closed_opaque_domains()?;
     protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
     check.proof.into_owned()
 }

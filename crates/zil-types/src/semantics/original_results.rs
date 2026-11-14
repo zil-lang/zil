@@ -290,40 +290,50 @@ impl Check<'_, '_> {
 }
 
 impl Proof {
-    pub(in crate::semantics) fn closed_opaque_result(
-        &self,
+    pub(in crate::semantics) fn closed_opaque_result<'a>(
+        &'a self,
         program: &SemanticModule,
         ty: &SemanticTypeRecipe,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<Option<(SemanticDefinitionId, SemanticTypeRecipe)>> {
+    ) -> R<Option<(SemanticDefinitionId, &'a SemanticTypeRecipe)>> {
         self.closed_opaque_result_inner(program, ty, limits, left, 0)
     }
-    fn closed_opaque_result_inner(
-        &self,
+    fn closed_opaque_result_inner<'a>(
+        &'a self,
         program: &SemanticModule,
         ty: &SemanticTypeRecipe,
         limits: &Limits,
         left: &mut usize,
         depth: usize,
-    ) -> R<Option<(SemanticDefinitionId, SemanticTypeRecipe)>> {
+    ) -> R<Option<(SemanticDefinitionId, &'a SemanticTypeRecipe)>> {
         let Some((definition, result)) = opaque_result(program, self, ty, limits, left, depth + 1)?
         else {
             return Ok(None);
         };
-        if !zero_original_domain(
-            program,
-            self,
-            definition,
-            result,
-            limits,
-            left,
-            depth + 1,
-            &mut Vec::new(),
-        )? {
-            return Ok(None);
-        }
-        Ok(Some((definition, copy_recipe(result, limits, left)?)))
+        *left = left
+            .checked_sub(self.closed_opaque_domains.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original opaque theorem lookup exceeded",
+                    None,
+                )
+            })?;
+        let closed = match self.closed_opaque_domains.get(&definition) {
+            Some(closed) => *closed,
+            None => zero_original_domain(
+                program,
+                self,
+                definition,
+                result,
+                limits,
+                left,
+                depth + 1,
+                &mut Vec::new(),
+            )?,
+        };
+        Ok(closed.then_some((definition, result)))
     }
 }
 
@@ -487,7 +497,7 @@ fn common_closed_sources(
             .call_targets
             .get(&(*owner, *site))
             .ok_or_else(|| bad("opaque source has no real original callee"))?;
-        let definition = original_definition(program, target, limits, left)?;
+        let definition = original_definition(program, proof, target, limits, left)?;
         if !definition.parameters.is_empty()
             || definition.parent.is_some()
             || !proof.complete.contains(&target)
@@ -521,13 +531,14 @@ fn common_closed_sources(
 }
 fn original_definition<'a>(
     program: &'a SemanticModule,
+    proof: &Proof,
     id: SemanticDefinitionId,
     limits: &Limits,
     left: &mut usize,
 ) -> R<&'a SemanticDefinition> {
     let _ = limits;
     *left = left
-        .checked_sub(program.definitions.len().saturating_add(1))
+        .checked_sub(proof.definition_positions.len().saturating_add(1).ilog2() as usize + 2)
         .ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Types,
@@ -535,14 +546,17 @@ fn original_definition<'a>(
                 None,
             )
         })?;
-    let mut rows = program.definitions.iter().filter(|row| row.id == id);
-    let row = rows
-        .next()
-        .ok_or_else(|| bad("closed original type has no definition"))?;
-    if rows.next().is_some() {
-        return Err(bad("closed original definition is ambiguous"));
-    }
-    Ok(row)
+    let position = proof
+        .definition_positions
+        .get(&id)
+        .ok_or_else(|| bad("closed original type has no definition in its immutable context"))?;
+    program
+        .definitions
+        .get(*position)
+        .filter(|row| row.id == id)
+        .ok_or_else(|| {
+            bad("closed original definition index changes its full declaration identity")
+        })
 }
 fn zero_original_domain(
     program: &SemanticModule,
@@ -580,7 +594,7 @@ fn zero_original_domain(
     result
 }
 fn opaque_result<'a>(
-    program: &'a SemanticModule,
+    program: &SemanticModule,
     proof: &'a Proof,
     ty: &SemanticTypeRecipe,
     limits: &Limits,
@@ -595,18 +609,21 @@ fn opaque_result<'a>(
     else {
         return Ok(None);
     };
-    let source = original_definition(program, *definition, limits, left)?;
+    let source = original_definition(program, proof, *definition, limits, left)?;
     if !arguments.is_empty()
         || !source.parameters.is_empty()
         || !source.environment.is_empty()
         || source.parent.is_some()
         || !proof.complete.contains(definition)
         || !matches!(
-            source.body,
+            &source.body,
             SemanticDefinitionBody::FunctionWithBody {
+                signature: SemanticSignatureRecipe {
+                    result: SemanticTypeRecipe::Opaque { definition: declared, arguments, .. }, ..
+                },
                 body: SemanticOriginalFunctionBody::Defined(_),
                 ..
-            }
+            } if declared == definition && arguments.is_empty()
         )
     {
         return Ok(None);
@@ -631,10 +648,20 @@ fn opaque_result<'a>(
         .types
         .get(&(*definition, Query::Result))
         .ok_or_else(|| bad("closed opaque omits its complete original all-return equation"))?;
-    let mut check =
-        super::nominal_where::borrowed_check(program, proof, *definition, limits, left)?;
-    let hidden = check.resolve(*definition, hidden, depth + 1)?;
-    check.same(&hidden, result)?;
+    // The exact defining-result query names this all-return equation without
+    // expanding and cloning its complete environment at every consumer.
+    if !matches!(
+        hidden.as_ref(),
+        SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Result,
+        }
+    ) {
+        let mut check =
+            super::nominal_where::borrowed_check(program, proof, *definition, limits, left)?;
+        let hidden = check.resolve(*definition, hidden, depth + 1)?;
+        check.same(&hidden, result)?;
+    }
     Ok(Some((*definition, result)))
 }
 fn zero_original_domain_inner(
@@ -672,7 +699,7 @@ fn zero_original_domain_inner(
         } => {
             let mut target = owner;
             for _ in 0..*hops {
-                target = original_definition(program, target, limits, left)?
+                target = original_definition(program, proof, target, limits, left)?
                     .parent
                     .ok_or_else(|| bad("closed query escapes its real lexical parent"))?;
             }
@@ -688,7 +715,7 @@ fn zero_original_domain_inner(
         } => {
             let mut target = owner;
             for _ in 0..*hops {
-                target = original_definition(program, target, limits, left)?
+                target = original_definition(program, proof, target, limits, left)?
                     .parent
                     .ok_or_else(|| bad("closed environment escapes its real lexical parent"))?;
             }
@@ -700,7 +727,24 @@ fn zero_original_domain_inner(
         }
         SemanticTypeRecipe::Opaque { .. } => {
             match opaque_result(program, proof, ty, limits, left, depth + 1)? {
-                Some((definition, result)) => recurse(definition, result, left, active)?,
+                Some((definition, result)) => {
+                    *left = left
+                        .checked_sub(
+                            proof.closed_opaque_domains.len().saturating_add(1).ilog2() as usize
+                                + 1,
+                        )
+                        .ok_or_else(|| {
+                            Diagnostic::limit(
+                                Phase::Types,
+                                "original nested opaque theorem lookup exceeded",
+                                None,
+                            )
+                        })?;
+                    match proof.closed_opaque_domains.get(&definition) {
+                        Some(closed) => *closed,
+                        None => recurse(definition, result, left, active)?,
+                    }
+                }
                 None => false,
             }
         }
@@ -709,7 +753,7 @@ fn zero_original_domain_inner(
             arguments,
             environment,
         } => {
-            let child = original_definition(program, *definition, limits, left)?;
+            let child = original_definition(program, proof, *definition, limits, left)?;
             if child.parent != Some(owner)
                 || !arguments.is_empty()
                 || !child.parameters.is_empty()
@@ -752,7 +796,7 @@ fn zero_original_domain_inner(
             definition,
             arguments,
         } => {
-            let source = original_definition(program, *definition, limits, left)?;
+            let source = original_definition(program, proof, *definition, limits, left)?;
             crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
             let mut all =
                 source.implicit_lifetimes.is_empty() && source.parameters.len() == arguments.len();
@@ -816,6 +860,51 @@ fn zero_original_domain_inner(
 }
 
 impl Check<'_, '_> {
+    pub(super) fn cache_closed_opaque_domains(&mut self) -> R<()> {
+        self.pay(self.program.definitions.len(), 0)?;
+        for definition in &self.program.definitions {
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+            else {
+                continue;
+            };
+            if !matches!(&signature.result, SemanticTypeRecipe::Opaque { definition: owner, .. } if *owner == definition.id)
+            {
+                continue;
+            }
+            self.pay(
+                self.proof
+                    .closed_opaque_domains
+                    .len()
+                    .saturating_add(1)
+                    .ilog2() as usize
+                    + 1,
+                0,
+            )?;
+            if self
+                .proof
+                .closed_opaque_domains
+                .contains_key(&definition.id)
+            {
+                continue;
+            }
+            let closed = self
+                .proof
+                .closed_opaque_result_inner(
+                    self.program,
+                    &signature.result,
+                    self.limits,
+                    self.left,
+                    0,
+                )?
+                .is_some();
+            self.pay(1, 0)?;
+            self.proof
+                .proof_mut()?
+                .closed_opaque_domains
+                .insert(definition.id, closed);
+        }
+        Ok(())
+    }
     /// Complete original result domain, independent of Mono or claimed class
     /// counts. The returned value always retains its real callee definition.
     pub(super) fn closed_opaque_result(
@@ -823,8 +912,19 @@ impl Check<'_, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<Option<(SemanticDefinitionId, SemanticTypeRecipe)>> {
-        self.proof
-            .closed_opaque_result_inner(self.program, ty, self.limits, self.left, depth + 1)
+        match self.proof.closed_opaque_result_inner(
+            self.program,
+            ty,
+            self.limits,
+            self.left,
+            depth + 1,
+        )? {
+            Some((definition, result)) => Ok(Some((
+                definition,
+                copy_recipe(result, self.limits, self.left)?,
+            ))),
+            None => Ok(None),
+        }
     }
     pub(super) fn original_zero_domain(
         &mut self,
