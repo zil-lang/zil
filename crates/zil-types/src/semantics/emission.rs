@@ -4,7 +4,7 @@
 use crate::*;
 use zil_base::{ModuleId, NodeId};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Origin {
     pub module: ModuleId,
     /// Real outer CoreFunction, also for a nested closure body. Synthetic
@@ -48,6 +48,9 @@ pub(crate) struct Ledger {
     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
     pub(super) original: super::original_context::Slot,
     pub frames: BTreeMap<FunctionId, Frame>,
+    /// Actual Core headers deliberately retained for a later callable/value
+    /// specialization. A missing frame by itself is never this fact.
+    pub templates: std::collections::BTreeSet<Origin>,
 }
 fn invalid(span: Span, message: &str) -> Diagnostic {
     error("E-SEMANTIC-EMISSION", span, message)
@@ -62,6 +65,17 @@ fn lookup_cost(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
 impl Ledger {
+    pub fn register_template(&mut self, origin: Origin, left: &mut usize, span: Span) -> R<()> {
+        pay(
+            left,
+            lookup_cost(self.templates.len()).saturating_add(1),
+            span,
+        )?;
+        if !self.templates.insert(origin) {
+            return Err(invalid(span, "one Core template was registered twice"));
+        }
+        Ok(())
+    }
     pub(crate) fn install_frozen(
         &mut self,
         source: std::rc::Rc<super::frozen_context::FrozenSource>,

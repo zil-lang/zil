@@ -4,6 +4,8 @@
 use super::emission::{Frame, Ledger, Origin, Point};
 use crate::*;
 use zil_base::NodeId;
+#[path = "emission_instances.rs"]
+mod instances;
 
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-EMISSION", Span::default(), message)
@@ -38,8 +40,8 @@ impl<'a> Lower<'a, '_> {
             .get(&id)
             .ok_or_else(|| bad("semantic target was not emitted with its actual Core owner"))
     }
-    fn target(&mut self, target: &SemanticFunctionTarget) -> R<FunctionId> {
-        let origin = match target {
+    fn origin(target: &SemanticFunctionTarget) -> R<Origin> {
+        Ok(match target {
             SemanticFunctionTarget::Core { module, function } => Origin {
                 module: *module,
                 creator: *function,
@@ -63,7 +65,10 @@ impl<'a> Lower<'a, '_> {
                     "Core target cannot claim a preselected Typed function identity",
                 ));
             }
-        };
+        })
+    }
+    fn target(&mut self, target: &SemanticFunctionTarget) -> R<FunctionId> {
+        let origin = Self::origin(target)?;
         pay(self.left, self.ledger.frames.len())?;
         let mut found = None;
         for (id, frame) in &self.ledger.frames {
@@ -79,6 +84,11 @@ impl<'a> Lower<'a, '_> {
             self.closure_for_entry(id)?;
         }
         Ok(id)
+    }
+    fn matches_target(&mut self, target: &SemanticFunctionTarget, actual: FunctionId) -> R<bool> {
+        let origin = Self::origin(target)?;
+        self.actual(actual)?;
+        Ok(self.frame(actual)?.origin == origin)
     }
     fn closure_for_entry(&mut self, id: FunctionId) -> R<ClosureId> {
         let frame = self.frame(id)?;
@@ -105,7 +115,7 @@ impl<'a> Lower<'a, '_> {
         self.actual(creator)?;
         Ok(closure)
     }
-    fn closure(&mut self, target: &SemanticClosureTarget) -> R<ClosureId> {
+    fn closure(&mut self, target: &SemanticClosureTarget, creator: FunctionId) -> R<ClosureId> {
         match target {
             SemanticClosureTarget::Core {
                 module,
@@ -113,13 +123,25 @@ impl<'a> Lower<'a, '_> {
                 expression,
                 occurrence,
             } => {
-                let id = self.target(&SemanticFunctionTarget::CoreClosure {
+                let origin = Self::origin(&SemanticFunctionTarget::CoreClosure {
                     module: *module,
                     creator: *creator,
                     expression: *expression,
                     occurrence: *occurrence,
                 })?;
-                self.closure_for_entry(id)
+                pay(self.left, self.ledger.frames.len())?;
+                let mut found = None;
+                for (id, frame) in &self.ledger.frames {
+                    if frame.origin == origin
+                        && frame.parent.is_some_and(|(parent, _)| parent == creator)
+                        && found.replace(*id).is_some()
+                    {
+                        return Err(bad("one actual creator has ambiguous closure entries"));
+                    }
+                }
+                self.closure_for_entry(
+                    found.ok_or_else(|| bad("closure has no actual entry in its exact creator"))?,
+                )
             }
             SemanticClosureTarget::Typed(_) => Err(bad(
                 "Core closure target cannot claim a preselected environment identity",
@@ -203,7 +225,7 @@ impl<'a> Lower<'a, '_> {
                     }
                     | InstructionKind::ForeignCall {
                         function: actual, ..
-                    } => self.target(target)? == *actual,
+                    } => self.matches_target(target, *actual)?,
                     _ => false,
                 },
                 SemanticSiteAction::CoreBodyCall => {
@@ -244,7 +266,7 @@ impl<'a> Lower<'a, '_> {
                     instruction.result.is_some() && instruction.result == row.value
                 }
                 SemanticSiteAction::Closure { closure, .. } => matches!(&instruction.kind,
-                    InstructionKind::MakeClosure { closure: actual, .. } if self.closure(closure)? == *actual),
+                    InstructionKind::MakeClosure { closure: actual, .. } if self.closure(closure, function)? == *actual),
                 SemanticSiteAction::DeclareLocal { .. } => {
                     return Err(bad(
                         "binding must relocate from its actual declaration receipt",
@@ -384,10 +406,19 @@ impl<'a> Lower<'a, '_> {
             }
         }
         if let SemanticSiteAction::Call { target, .. } = &mut site.action {
-            *target = SemanticFunctionTarget::Typed(self.target(target)?);
+            let actual = match self.instruction(function, point)?.kind {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::SuspendCall { function, .. }
+                | InstructionKind::ForeignCall { function, .. } => function,
+                _ => return Err(bad("static call receipt is not its actual direct call")),
+            };
+            if !self.matches_target(target, actual)? {
+                return Err(bad("static call changes its exact actual Core origin"));
+            }
+            *target = SemanticFunctionTarget::Typed(actual);
         }
         if let SemanticSiteAction::Closure { closure, .. } = &mut site.action {
-            *closure = SemanticClosureTarget::Typed(self.closure(closure)?);
+            *closure = SemanticClosureTarget::Typed(self.closure(closure, function)?);
         }
         site.at = SemanticSiteAddress::Typed {
             block: point.block,
@@ -451,23 +482,7 @@ pub(super) fn program(
         closures: &module.closures,
         left,
     };
-    let mut targets = BTreeMap::new();
-    pay(
-        lower.left,
-        program.instances.len().saturating_mul(2).saturating_add(1),
-    )?;
-    for instance in &mut program.instances {
-        if let SemanticInstanceTarget::Function(target) = &mut instance.target {
-            let id = lower.target(target)?;
-            pay(lower.left, search(targets.len()))?;
-            targets.insert(instance.id, id);
-            *target = SemanticFunctionTarget::Typed(id);
-        }
-        if let Some(environment) = &mut instance.environment {
-            environment.closure =
-                SemanticClosureTarget::Typed(lower.closure(&environment.closure)?);
-        }
-    }
+    let targets = instances::publish(program, &mut lower)?;
     pay(
         lower.left,
         program
@@ -601,28 +616,9 @@ pub(super) fn program(
             _ => {}
         }
     }
-    for instance in &program.instances {
-        if !matches!(instance.target, SemanticInstanceTarget::Function(_)) {
-            continue;
-        }
-        pay(lower.left, search(originals.len()))?;
-        let definition = originals
-            .get(&instance.definition)
-            .ok_or_else(|| bad("actual function has no original declaration"))?;
-        let (SemanticDefinitionBody::Function { sites, .. }
-        | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &definition.body
-        else {
-            return Err(bad(
-                "actual function target belongs to a nonfunction original",
-            ));
-        };
-        pay(lower.left, sites.len())?;
-        for site in sites {
-            pay(lower.left, search(seen.len()))?;
-            if !seen.contains(&(instance.id, site.id)) {
-                return Err(bad("actual function omits an original semantic body site"));
-            }
-        }
-    }
+    // Original sites include type-stage operations and unused template bodies.
+    // They remain immutable and universally checked. Only actual Core mint
+    // events in program.sites relocate to runtime SSA; every such event above
+    // must have a real receipt, and instances::publish covers every real frame.
     Ok(())
 }
