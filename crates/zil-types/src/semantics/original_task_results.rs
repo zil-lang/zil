@@ -31,7 +31,7 @@ pub(super) struct NameSource {
 }
 /// A control-flow state supplies every currently available original binder.
 /// A missing or unknown entry proves no source relation.
-pub(super) type SourceBindings = BTreeMap<Query, Option<Vec<TaskResultSource>>>;
+pub(in crate::semantics) type SourceBindings = BTreeMap<Query, Option<Vec<TaskResultSource>>>;
 pub(super) fn source_snapshot(
     values: &[TaskResultSource],
     limits: &Limits,
