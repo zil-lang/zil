@@ -584,6 +584,29 @@ impl Check<'_, '_> {
                             )?;
                             return Ok(());
                         }
+                        id @ (original::sealed::Intrinsic::MutexCreate
+                        | original::sealed::Intrinsic::MutexLock
+                        | original::sealed::Intrinsic::MutexValue
+                        | original::sealed::Intrinsic::ThreadScope) => {
+                            let output = self.mutex_operation(
+                                instance,
+                                site.recipe,
+                                id,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            self.result(
+                                instruction.ok_or_else(|| {
+                                    fail("actual synchronization operation has no instruction")
+                                })?,
+                                point.function,
+                                &output.ty,
+                            )?;
+                            return Ok(());
+                        }
                         id @ (original::sealed::Intrinsic::BytesNew
                         | original::sealed::Intrinsic::BytesReserve
                         | original::sealed::Intrinsic::BytesPush
@@ -1266,6 +1289,10 @@ impl Check<'_, '_> {
                         | InstructionKind::TaskRequestCancel { .. }
                         | InstructionKind::TaskPollClose { .. }
                         | InstructionKind::TaskFinishDestroy { .. }
+                        | InstructionKind::MutexCreate { .. }
+                        | InstructionKind::MutexLock { .. }
+                        | InstructionKind::MutexValue { .. }
+                        | InstructionKind::WithScopedThread { .. }
                         | InstructionKind::AsyncRegistrationRequestClose { .. }
                         | InstructionKind::AsyncRegistrationPollClose { .. }
                         | InstructionKind::AsyncRegistrationFinishDestroy { .. }

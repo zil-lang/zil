@@ -123,6 +123,14 @@ impl Check<'_, '_> {
             {
                 Ok(value::scalar(ty.clone()))
             }
+            SemanticTypeRecipe::Exact(exact)
+                if exact.ty == crate::generic_mutex::error_type()
+                    && empty(&exact.life)
+                    && exact.classes.is_empty() =>
+            {
+                crate::dyn_metadata::ty(&exact.ty, b)?;
+                Ok(value::scalar(exact.ty.clone()))
+            }
             SemanticTypeRecipe::Slice(element) => {
                 let element = self.recipe_value(instance, element, b, depth + 1)?;
                 if !element.classes.is_empty() {
@@ -875,7 +883,7 @@ impl Check<'_, '_> {
             || contract.bindings.iter().any(|row| {
                 !matches!(
                     row.position.base,
-                    StorageBase::Parameter(_) | StorageBase::Result
+                    StorageBase::Parameter(_) | StorageBase::Result | StorageBase::Capture(_)
                 )
             })
             || !contract.static_bindings.is_empty()
@@ -908,25 +916,25 @@ impl Check<'_, '_> {
         let mut directory = vec![None; contract.fixed_binder_count as usize];
         let mut mapped = BTreeSet::new();
         let mut used_rows = BTreeSet::new();
+        let mut used_slots = BTreeSet::new();
         for recipe in recipes {
-            let SemanticSiteRecipeKind::TypeUse {
-                expected:
-                    SemanticTypeRecipe::Environment {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        ordinal,
-                    },
-            } = &recipe.kind
+            let Some(ordinal) =
+                self.original
+                    .capture_recipe_ordinal(instance.definition, recipe, b)?
             else {
                 continue;
             };
-            let Some(SemanticActual::Type(actual)) = environment.actuals.get(*ordinal as usize)
+            let Some(SemanticActual::Type(actual)) = environment.actuals.get(ordinal as usize)
             else {
                 return Err(fail(
                     "ghost captured name changes its original environment kind",
                 ));
             };
             let expected = self.resolved(parent, actual, b, 0)?;
-            if !expected.life.slots.is_empty() || !expected.life.retained.is_empty() {
+            let weak_mutex = matches!(&expected.ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32));
+            if (!expected.life.slots.is_empty() && !weak_mutex)
+                || !expected.life.retained.is_empty()
+            {
                 return Err(unknown(
                     "captured borrowed data needs its complete actual retained source transport",
                 ));
@@ -980,13 +988,36 @@ impl Check<'_, '_> {
                 let mut fixed = BTreeSet::new();
                 for (child, class) in expected.classes.iter().enumerate() {
                     let mut selected = None;
+                    if weak_mutex {
+                        if expected.classes.len() != 1
+                            || expected.life.binder_count != 1
+                            || !expected.life.nominal_arguments.is_empty()
+                            || !matches!(expected.life.slots.as_slice(),[slot] if slot.path.is_empty() && slot.binder==0 && slot.mode==StoredBorrowMode::WritableDescription)
+                        {
+                            return Err(fail(
+                                "captured mutex description loses its complete outer weak occurrence",
+                            ));
+                        }
+                        for (row_index, row) in contract.bindings.iter().enumerate() {
+                            b.spend(row.position.path.len() + 1, WORK)?;
+                            if row.position.base == StorageBase::Capture(capture)
+                                && row.position.path.is_empty()
+                            {
+                                if selected.replace((row_index, row.binder)).is_some() {
+                                    return Err(fail(
+                                        "captured mutex repeats its actual outer occurrence",
+                                    ));
+                                }
+                            }
+                        }
+                    }
                     for (row_index, row) in contract.classes.iter().enumerate() {
                         b.spend(row.position.path.len() + 1, WORK)?;
                         if row.position.base == StorageBase::Capture(capture)
                             && row.position.path.is_empty()
                             && row.position.class == child as u32
                         {
-                            if selected.replace((row_index, row.binder)).is_some() {
+                            if weak_mutex || selected.replace((row_index, row.binder)).is_some() {
                                 return Err(fail(
                                     "capture class repeats its actual header occurrence",
                                 ));
@@ -1020,8 +1051,13 @@ impl Check<'_, '_> {
                         ));
                     }
                     *slot = Some(capture);
-                    b.lookup(used_rows.len(), WORK)?;
-                    used_rows.insert(row);
+                    if weak_mutex {
+                        b.lookup(used_slots.len(), WORK)?;
+                        used_slots.insert(row);
+                    } else {
+                        b.lookup(used_rows.len(), WORK)?;
+                        used_rows.insert(row);
+                    }
                 }
             }
         }
@@ -1034,16 +1070,23 @@ impl Check<'_, '_> {
             }
             if !ty.is_b0_scalar()
                 && !matches!(ty,Type::BorrowedStorage {life,..} if life.slots.is_empty())
+                && !matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32))
             {
                 self.zero_data(ty, b, 0)?;
             }
         }
-        if used_rows.len()
+        if used_slots.len()
             != contract
-                .classes
+                .bindings
                 .iter()
                 .filter(|row| matches!(row.position.base, StorageBase::Capture(_)))
                 .count()
+            || used_rows.len()
+                != contract
+                    .classes
+                    .iter()
+                    .filter(|row| matches!(row.position.base, StorageBase::Capture(_)))
+                    .count()
             || instance
                 .header_embedding
                 .iter()
@@ -1114,8 +1157,22 @@ impl Check<'_, '_> {
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
         }
+        if matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task {..}|Type::Mutex {..}))
+        {
+            self.zero_data(ty, b, depth + 1)?;
+            return Ok(value::scalar(ty.clone()));
+        }
         let (block, index, instruction) = self.defining(function, id, b)?;
         match &instruction.kind {
+            InstructionKind::DescribeLocal { .. } | InstructionKind::DescribeAddress { .. } => {
+                self.source_description(instance, function, id, b, depth + 1)
+            }
+            InstructionKind::MutexCreate { .. }
+            | InstructionKind::MutexLock { .. }
+            | InstructionKind::MutexValue { .. }
+            | InstructionKind::WithScopedThread { .. } => {
+                self.synchronization_result(instance, function, block, index, b)
+            }
             InstructionKind::CallClosureBorrowed { .. } => self
                 .abstract_operation(instance, function, block, index, b)?
                 .ok_or_else(|| {
@@ -1171,6 +1228,10 @@ impl Check<'_, '_> {
                 self.local_value(instance, function, *local, (block, index), b, depth + 1)
             }
             InstructionKind::ReadCapture { index: capture } => {
+                if matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32))
+                {
+                    return self.capture_whole_value(instance, function, *capture, b, depth + 1);
+                }
                 let closure = function
                     .environment
                     .and_then(|id| self.module.closures.get(id.0 as usize))
@@ -1888,6 +1949,7 @@ impl Check<'_, '_> {
         match ty {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
             Type::Address { .. } => Ok(true),
+            Type::MutexGuard { .. } => Ok(true),
             Type::Closure(id) => self.has_ghost_capture(*id, b),
             _ => Ok(false),
         }
@@ -1924,6 +1986,35 @@ impl Check<'_, '_> {
                 return Err(fail(
                     "ghost creator has another complete actual capture type",
                 ));
+            }
+            if matches!(&actual.ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32))
+            {
+                if actual.classes.len() != 1
+                    || !matches!(actual.life.slots.as_slice(),[slot] if slot.path.is_empty() && slot.binder==0 && slot.mode==StoredBorrowMode::WritableDescription)
+                {
+                    return Err(fail(
+                        "mutex creator loses the complete weak descriptor occurrence",
+                    ));
+                }
+                let mut row_count = 0;
+                for row in &contract.bindings {
+                    b.spend(row.position.path.len() + 1, WORK)?;
+                    if row.position.base != StorageBase::Capture(index as u32) {
+                        continue;
+                    }
+                    if !row.position.path.is_empty()
+                        || self.header_class(child, row.binder, b)? != actual.classes[0]
+                    {
+                        return Err(fail("mutex creator captures another actual head class"));
+                    }
+                    row_count += 1;
+                }
+                if row_count != 1 {
+                    return Err(fail(
+                        "mutex creator omits or repeats its actual captured head",
+                    ));
+                }
+                continue;
             }
             let mut count = 0usize;
             for row in &contract.classes {

@@ -4,6 +4,49 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Checked {
+    pub(super) fn description_source(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(LocalAnchor, Value, Value)>> {
+        let definition = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("original description has no complete body"));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site {
+                continue;
+            }
+            let SemanticOriginalNode::Expression(node) = link.node else {
+                continue;
+            };
+            b.lookup(self.descriptions.len(), WORK)?;
+            let Some(source) = self.descriptions.get(&(context.definition, node)) else {
+                continue;
+            };
+            b.lookup(self.frames.len(), WORK)?;
+            let frame = self
+                .frames
+                .get(&context.definition)
+                .ok_or_else(|| fail("original description lacks its checked lexical frame"))?;
+            b.lookup(frame.expressions.len(), WORK)?;
+            let result = *frame
+                .expressions
+                .get(&node)
+                .ok_or_else(|| fail("original description loses its adapted occurrence type"))?;
+            let input = self.value(source.inner, context, program, inventory, b, 0)?;
+            let result = self.value(result, context, program, inventory, b, 0)?;
+            if selected.replace((source.anchor, input, result)).is_some() {
+                return Err(fail("description has competing original source operations"));
+            }
+        }
+        Ok(selected)
+    }
     fn context<'a>(
         &self,
         owner: SemanticDefinitionId,
@@ -144,6 +187,42 @@ impl Checked {
         match &self.arena[self.root(term, b)?] {
             Kind::Atom(ty) => Ok(value::scalar(ty.clone())),
             Kind::Task(task) => self.task_value(task, context, program, inventory, b, depth + 1),
+            Kind::MutexGuard { payload, life } => {
+                b.spend(6, WORK)?;
+                let payload = self.value(*payload, context, program, inventory, b, depth + 1)?;
+                if !payload.classes.is_empty() || payload.ty != Type::I32 {
+                    return Err(unknown(
+                        "Mutex guard needs the complete protected payload and retained inventory",
+                    ));
+                }
+                let class = self.life_value(*life, context, inventory, b)?;
+                let payload = payload.ty;
+                let ty = Type::MutexGuard {
+                    payload: Box::new(payload.clone()),
+                    retained_life: RetainedLifeShape {
+                        binder_count: 1,
+                        ports: vec![RetainedBorrowPort {
+                            leaf: Type::Mutex {
+                                payload: Box::new(payload),
+                            },
+                            mode: StoredBorrowMode::SharedAddress,
+                            binder: 0,
+                        }],
+                        retained: Vec::new(),
+                        nominal_arguments: Vec::new(),
+                    },
+                };
+                Ok(Value {
+                    ty,
+                    life: StorageLifeShape {
+                        binder_count: 1,
+                        slots: Vec::new(),
+                        retained: Vec::new(),
+                        nominal_arguments: Vec::new(),
+                    },
+                    classes: vec![class],
+                })
+            }
             Kind::CallResult {
                 caller,
                 node,
@@ -455,6 +534,16 @@ impl Checked {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
+        // A genuinely scalar result has no hidden class to anchor. This is
+        // also the domain of an original CT call already evaluated by the
+        // separately checked frozen program. It grants no execution or value
+        // equation and cannot ground an opaque/phantom result.
+        if let Kind::Atom(ty) = &self.arena[self.root(hidden, b)?]
+            && ty.is_b0_scalar()
+        {
+            b.spend(1, WORK)?;
+            return Ok(value::scalar(ty.clone()));
+        }
         let context = self.context(caller, context, inventory, b)?;
         let source = inventory.definition(caller, b)?;
         let SemanticDefinitionBody::FunctionWithBody {

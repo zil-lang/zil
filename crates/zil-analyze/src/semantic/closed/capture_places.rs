@@ -24,7 +24,10 @@ impl Check<'_, '_> {
         let mut selected = None;
         for recipe in recipes {
             b.spend(1, WORK)?;
-            if !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { expected: SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal: actual } } if actual == ordinal)
+            if self
+                .original
+                .capture_recipe_ordinal(instance.definition, recipe, b)?
+                != Some(ordinal)
             {
                 continue;
             }
@@ -101,10 +104,25 @@ impl Check<'_, '_> {
             .get(index as usize)
             .ok_or_else(|| fail("actual whole capture ordinal is absent"))?;
         self.actual_type(ty, b)?;
+        self.capture_directory(closure.id, b)?;
+        let weak_mutex = matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32));
         let life = match ty {
             Type::BorrowedStorage { life, .. } => {
                 crate::dyn_metadata::shape(life, b)?;
                 life.clone()
+            }
+            _ if weak_mutex => {
+                b.spend(2, WORK)?;
+                StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![StorageLifeSlot {
+                        path: Vec::new(),
+                        mode: StoredBorrowMode::WritableDescription,
+                        binder: 0,
+                    }],
+                    retained: Vec::new(),
+                    nominal_arguments: Vec::new(),
+                }
             }
             _ => {
                 self.zero_data(ty, b, depth + 1)?;
@@ -118,12 +136,25 @@ impl Check<'_, '_> {
         let mut classes = Vec::new();
         for child in 0..life.binder_count {
             let mut selected = None;
+            if weak_mutex {
+                for row in &contract.bindings {
+                    b.spend(row.position.path.len() + 1, WORK)?;
+                    if row.position.base == StorageBase::Capture(index)
+                        && row.position.path.is_empty()
+                        && selected.replace(row.binder).is_some()
+                    {
+                        return Err(fail(
+                            "actual weak capture repeats its whole outer occurrence",
+                        ));
+                    }
+                }
+            }
             for row in &contract.classes {
                 b.spend(row.position.path.len() + 1, WORK)?;
                 if row.position.base == StorageBase::Capture(index)
                     && row.position.path.is_empty()
                     && row.position.class == child
-                    && selected.replace(row.binder).is_some()
+                    && (weak_mutex || selected.replace(row.binder).is_some())
                 {
                     return Err(fail(
                         "actual whole capture repeats an intrinsic class occurrence",

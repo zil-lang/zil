@@ -116,7 +116,7 @@ impl Check<'_, '_> {
         Ok(output.ty)
     }
 
-    fn task_head(
+    pub(super) fn task_head(
         &self,
         instance: &SemanticInstance,
         function: &TypedFunction,

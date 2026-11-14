@@ -11,6 +11,8 @@ mod capture_heads;
 mod capture_places;
 mod class_origins;
 mod classes;
+mod descriptions;
+mod mutex;
 mod operations;
 mod registration;
 mod registration_observe;
@@ -52,11 +54,15 @@ impl Check<'_, '_> {
         if depth > b.partial_depth {
             return Err(unknown("complete actual type exceeds its bounded depth"));
         }
-        if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
+        if ty.is_b0_scalar()
+            || *ty == Type::ForeignHandle
+            || *ty == crate::generic_mutex::error_type()
+        {
             return Ok(());
         }
         match ty {
             Type::Managed(inner) | Type::Desc(inner) => match inner.as_ref() {
+                Type::Mutex { payload } => return self.mutex_payload(payload, b),
                 Type::ByteBuffer => {
                     b.spend(self.module.resources.len(), WORK)?;
                     let mut count = 0;
@@ -104,6 +110,22 @@ impl Check<'_, '_> {
             },
             Type::Address { inner, .. } => {
                 return self.ordinary_type_at(inner, b, depth + 1);
+            }
+            Type::MutexGuard {
+                payload,
+                retained_life,
+            } => {
+                self.mutex_payload(payload, b)?;
+                if retained_life.binder_count != 1
+                    || !retained_life.retained.is_empty()
+                    || !retained_life.nominal_arguments.is_empty()
+                    || !matches!(retained_life.ports.as_slice(),[port] if port.leaf == (Type::Mutex {payload:payload.clone()}) && port.mode == StoredBorrowMode::SharedAddress && port.binder == 0)
+                {
+                    return Err(fail(
+                        "actual Mutex guard loses its complete canonical retained head",
+                    ));
+                }
+                return Ok(());
             }
             Type::Slice { element } => {
                 return self.ordinary_type_at(element, b, depth + 1);
@@ -822,6 +844,8 @@ impl Check<'_, '_> {
                     (&expected, parameter_recipe.mode),
                     (Type::Address { mutable: false, .. }, PassingMode::Borrow)
                         | (Type::Address { mutable: true, .. }, PassingMode::BorrowMut)
+                        | (Type::Managed(_), PassingMode::Give | PassingMode::Move)
+                        | (Type::Desc(_), PassingMode::Describe)
                 ) {
                     return Err(unknown(
                         "semantic parameter mode needs an independently checked resource relation",

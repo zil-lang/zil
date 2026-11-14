@@ -383,6 +383,11 @@ impl Solver<'_, '_> {
         let kind = self.state.arena[term].clone();
         match kind {
             Kind::Task(task) => self.task_instantiate(task, owner, actuals, b, depth + 1),
+            Kind::MutexGuard { payload, life } => {
+                let payload = self.instantiate(payload, owner, actuals, b, depth + 1)?;
+                let life = self.instantiate(life, owner, actuals, b, depth + 1)?;
+                self.term(Kind::MutexGuard { payload, life }, b)
+            }
             Kind::Rigid(target, ordinal) | Kind::Life(Life::Formal(target, ordinal))
                 if target == owner =>
             {

@@ -504,6 +504,19 @@ impl Solver<'_, '_> {
         let pair = (&self.state.arena[left], &self.state.arena[right]);
         Ok(match pair {
             (Kind::Atom(a), Kind::Atom(z)) => a == z,
+            (
+                Kind::MutexGuard {
+                    payload: a,
+                    life: al,
+                },
+                Kind::MutexGuard {
+                    payload: z,
+                    life: zl,
+                },
+            ) => {
+                self.same_original(*a, *z, b, depth + 1)?
+                    && self.same_original(*al, *zl, b, depth + 1)?
+            }
             (Kind::Task(a), Kind::Task(z)) => {
                 b.spend(a.work().saturating_add(z.work()), WORK)?;
                 if a.retained != z.retained {

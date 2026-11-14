@@ -12,7 +12,7 @@ fn bad(span: Span, message: &str) -> Vec<Diagnostic> {
     )]
 }
 
-fn error_type() -> Type {
+pub(crate) fn error_type() -> Type {
     Type::Enum {
         name: "@std.sync:v1:MutexCreateError".into(),
         variants: vec![("Allocation".into(), vec![])],

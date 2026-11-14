@@ -8,6 +8,37 @@ pub(super) struct CaptureState {
     exits: BTreeMap<SemanticDefinitionId, Vec<Vec<(bool, bool)>>>,
 }
 impl Solver<'_, '_> {
+    pub(super) fn record_environment_read(
+        &mut self,
+        frame: &Frame,
+        index: usize,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if index >= frame.inherited {
+            return Ok(());
+        }
+        let local = frame
+            .locals
+            .get(index)
+            .ok_or_else(|| fail("original environment read loses its lexical binding"))?;
+        let LocalAnchor::Environment(ordinal) = self.environment_anchor(frame, &local.name, b)?
+        else {
+            return Err(fail(
+                "original captured name resolves outside its environment",
+            ));
+        };
+        b.lookup(self.state.environment_reads.len(), WORK)?;
+        if let Some(old) = self
+            .state
+            .environment_reads
+            .insert((frame.definition, node), ordinal)
+            && old != ordinal
+        {
+            return Err(fail("one original name reads several environment bindings"));
+        }
+        Ok(())
+    }
     pub(super) fn owns_captures(
         &self,
         definition: SemanticDefinitionId,
@@ -178,5 +209,34 @@ impl Solver<'_, '_> {
             },
             b,
         )
+    }
+}
+
+impl Checked {
+    /// The original Γ selected this environment slot at the actual Name
+    /// operation. A local shadow never enters this map, even with equal Type.
+    pub(super) fn capture_recipe_ordinal(
+        &self,
+        definition: SemanticDefinitionId,
+        recipe: &SemanticSiteRecipe,
+        b: &mut Budget,
+    ) -> CompileResult<Option<u32>> {
+        let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
+            return Ok(None);
+        };
+        match expected {
+            SemanticTypeRecipe::Environment {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal,
+            } => Ok(Some(*ordinal)),
+            SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(node),
+            } => {
+                b.lookup(self.environment_reads.len(), WORK)?;
+                Ok(self.environment_reads.get(&(definition, *node)).copied())
+            }
+            _ => Ok(None),
+        }
     }
 }

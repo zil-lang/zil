@@ -37,15 +37,17 @@ impl Solver<'_, '_> {
             Kind::Atom(ty) => match kind {
                 SemanticBuiltinTrait::ClosedEnvironment
                 | SemanticBuiltinTrait::Transfer
-                | SemanticBuiltinTrait::Share => {
-                    Ok(ty.is_b0_scalar() || *ty == Type::ForeignHandle || *ty == Type::ByteBuffer)
-                }
+                | SemanticBuiltinTrait::Share => Ok(ty.is_b0_scalar()
+                    || *ty == Type::ForeignHandle
+                    || *ty == Type::ByteBuffer
+                    || *ty == crate::generic_mutex::error_type()),
                 SemanticBuiltinTrait::ThreadCallable | SemanticBuiltinTrait::Drop => Ok(false),
                 _ => Err(unknown(
                     "original sealed alias needs its independently specified capability relation",
                 )),
             },
             Kind::Desc { .. } | Kind::Address { .. } | Kind::Slice(_) => Ok(false),
+            Kind::MutexGuard { .. } => Ok(false),
             Kind::Task(task) => {
                 if kind != SemanticBuiltinTrait::ClosedEnvironment {
                     return Ok(false);
@@ -297,8 +299,12 @@ impl Solver<'_, '_> {
             }
             Kind::Life(_) | Kind::LifeVariable(_) => Ok(false),
             Kind::ConstRigid { .. } | Kind::ConstValue(_) => Ok(true),
-            Kind::Address { life, inner, .. } | Kind::Desc { life, inner } => Ok(self
-                .signature_closed(*life, owner, b, depth + 1)?
+            Kind::Address { life, inner, .. }
+            | Kind::Desc { life, inner }
+            | Kind::MutexGuard {
+                life,
+                payload: inner,
+            } => Ok(self.signature_closed(*life, owner, b, depth + 1)?
                 && self.signature_closed(*inner, owner, b, depth + 1)?),
             Kind::Array { element, .. } | Kind::Slice(element) | Kind::Wrapped(_, element) => {
                 self.signature_closed(*element, owner, b, depth + 1)

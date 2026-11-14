@@ -44,6 +44,11 @@ impl Solver<'_, '_> {
         b.spend(width, WORK)?;
         match self.state.arena[term].clone() {
             Kind::Task(task) => self.task_open_invocations(task, owner, actuals, b, depth + 1),
+            Kind::MutexGuard { payload, life } => {
+                let payload = self.open_invocations(payload, owner, actuals, b, depth + 1)?;
+                let life = self.open_invocations(life, owner, actuals, b, depth + 1)?;
+                self.term(Kind::MutexGuard { payload, life }, b)
+            }
             Kind::Life(Life::Invocation(target, ordinal)) if target == owner => {
                 actuals.get(ordinal as usize).copied().ok_or_else(|| {
                     fail("original call omits an Invocation occurrence in its own frame")
@@ -275,6 +280,56 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let expected_root = self.type_root(expected, b)?;
+        if let Kind::Desc { inner: payload, .. } = self.state.arena[expected_root]
+            && let Some(place) = self.place(frame, value, false, b, depth + 1)?
+            && let Kind::Wrapped(Wrapper::Managed, actual_payload) =
+                self.state.arena[self.type_root(place.selected, b)?]
+        {
+            // This one argument occurrence observes the owner as a weak
+            // description. The lexical variable itself stays an owning value.
+            self.unify(actual_payload, payload, depth + 1, b)?;
+            let place = self
+                .place(frame, value, true, b, depth + 1)?
+                .ok_or_else(|| fail("original description loses its owning place"))?;
+            let anchor = place.anchor.ok_or_else(|| {
+                unknown("original description needs its complete owning source anchor")
+            })?;
+            if !place.path.is_empty() {
+                return Err(unknown(
+                    "original projected implicit description needs its full original place relation",
+                ));
+            }
+            let row = self.borrow_occurrence(frame.definition, value.id, b)?;
+            let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+            let described = self.term(
+                Kind::Desc {
+                    life,
+                    inner: payload,
+                },
+                b,
+            )?;
+            b.lookup(self.state.descriptions.len(), WORK)?;
+            if self
+                .state
+                .descriptions
+                .insert(
+                    (frame.definition, value.id),
+                    Borrow {
+                        anchor,
+                        inner: place.selected,
+                        slice: None,
+                    },
+                )
+                .is_some()
+            {
+                return Err(fail(
+                    "original description occurrence has competing owning sources",
+                ));
+            }
+            b.lookup(frame.expressions.len(), WORK)?;
+            frame.expressions.insert(value.id, described);
+            return self.unify(described, expected, depth + 1, b);
+        }
         let actual = if matches!(self.state.arena[expected_root], Kind::Address { .. }) {
             self.borrowed_argument(frame, value, b, depth + 1)?
         } else {

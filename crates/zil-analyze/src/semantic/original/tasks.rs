@@ -364,7 +364,7 @@ impl Solver<'_, '_> {
         )
     }
 
-    fn task_worker(
+    pub(super) fn task_worker(
         &mut self,
         frame: &Frame,
         expression: &SemanticOriginalExpr,

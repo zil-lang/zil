@@ -301,7 +301,7 @@ impl Equations {
         Ok(())
     }
     fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<Ports> {
-        let outer = if matches!(ty, Type::Address { .. }) {
+        let outer = if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             Some(self.fresh(false, b)?)
         } else {
             None
@@ -342,7 +342,32 @@ impl Equations {
         }
         let mut keys = Vec::new();
         let mut direct = false;
-        if let Type::Closure(id) = ty {
+        let guard = match ty {
+            Type::MutexGuard { retained_life, .. } => Some(retained_life),
+            Type::Address { inner, .. } => {
+                if let Type::MutexGuard { retained_life, .. } = inner.as_ref() {
+                    Some(retained_life)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if let Some(life) = guard {
+            super::dyn_metadata::ty(ty, b)?;
+            direct = true;
+            for class in 0..life.binder_count {
+                b.spend(2, "actual guard intrinsic class occurrence")?;
+                keys.push((
+                    if outer.is_some() {
+                        vec![LifeTypeProjection::Pointee]
+                    } else {
+                        Vec::new()
+                    },
+                    class,
+                ));
+            }
+        } else if let Type::Closure(id) = ty {
             let count = module
                 .closures
                 .get(id.0 as usize)
@@ -1158,6 +1183,42 @@ fn check_with(
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
+                InstructionKind::DescribeLocal { .. } => {
+                    // A weak route has a real local epoch, but contributes no
+                    // owning reach or holding loan. Those ledgers stay separate.
+                    if let Some(head) = out.and_then(|ports| ports.outer) {
+                        e.address_origin(head, b)?;
+                    }
+                }
+                InstructionKind::DescribeAddress { address } => {
+                    if let (Some(head), Some(parent)) = (
+                        out.and_then(|ports| ports.outer),
+                        values[address.0 as usize].outer,
+                    ) {
+                        array_outer::transport(&mut e, head, parent, outer.as_ref(), b)?;
+                    }
+                }
+                InstructionKind::MutexLock { mutex } => {
+                    if let Some(out) = out {
+                        let [class] = out.classes.as_slice() else {
+                            return Err(bad(
+                                "actual Mutex guard loses its whole retained parent class",
+                            ));
+                        };
+                        let source = values[mutex.0 as usize]
+                            .outer
+                            .ok_or_else(|| bad("actual Mutex lock has no descriptor occurrence"))?;
+                        e.equal(*class, source, b)?;
+                    }
+                }
+                InstructionKind::MutexValue { guard } => {
+                    if let (Some(head), Some(parent)) = (
+                        out.and_then(|ports| ports.outer),
+                        values[guard.0 as usize].outer,
+                    ) {
+                        array_outer::transport(&mut e, head, parent, outer.as_ref(), b)?;
+                    }
+                }
                 InstructionKind::StaticUtf8 { .. } => {
                     // An actual literal grounds its address occurrence; a
                     // public Static upper alone never reaches this branch.

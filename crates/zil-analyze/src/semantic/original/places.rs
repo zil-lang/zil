@@ -75,6 +75,7 @@ impl Solver<'_, '_> {
                 }
                 let (term, anchor, used) = (local.ty, local.anchor, local.used);
                 if record {
+                    self.record_environment_read(frame, index, value.id, b)?;
                     if used {
                         Self::push(
                             &mut self.needs,

@@ -13,6 +13,7 @@ mod enums;
 mod invocations;
 mod loops;
 pub(super) mod mixed;
+mod mutex;
 pub(super) mod nominal;
 mod places;
 mod protocol;
@@ -81,6 +82,10 @@ enum Kind {
     },
     Slice(Term),
     Task(tasks::TaskType),
+    MutexGuard {
+        payload: Term,
+        life: Term,
+    },
     Desc {
         life: Term,
         inner: Term,
@@ -200,9 +205,11 @@ pub(super) struct Checked {
     trait_calls: BTreeMap<(SemanticDefinitionId, NodeId), traits::TraitCall>,
     task_templates: Vec<tasks::Template>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
+    descriptions: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
+    environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -262,7 +269,10 @@ impl Solver<'_, '_> {
         self.term(Kind::Infer(None), b)
     }
     fn atom(&mut self, ty: Type, b: &mut Budget) -> CompileResult<Term> {
-        if !ty.is_b0_scalar() && !matches!(ty, Type::ForeignHandle | Type::ByteBuffer) {
+        if !ty.is_b0_scalar()
+            && !matches!(ty, Type::ForeignHandle | Type::ByteBuffer)
+            && ty != crate::generic_mutex::error_type()
+        {
             return Err(unknown(
                 "original complete compound type requires its scoped nominal and lifetime proof",
             ));
@@ -358,7 +368,11 @@ impl Solver<'_, '_> {
                     return Ok(true);
                 }
             }
-            Kind::Desc { life, inner } => {
+            Kind::Desc { life, inner }
+            | Kind::MutexGuard {
+                life,
+                payload: inner,
+            } => {
                 if self.occurs(needle, *life, depth + 1, b)?
                     || self.occurs(needle, *inner, depth + 1, b)?
                 {
@@ -555,6 +569,19 @@ impl Solver<'_, '_> {
             }
             (Kind::Slice(a), Kind::Slice(z)) => self.unify(a, z, depth + 1, b),
             (Kind::Task(a), Kind::Task(z)) => self.task_unify(&a, &z, b, depth + 1),
+            (
+                Kind::MutexGuard {
+                    payload: a,
+                    life: al,
+                },
+                Kind::MutexGuard {
+                    payload: z,
+                    life: zl,
+                },
+            ) => {
+                self.unify(a, z, depth + 1, b)?;
+                self.unify(al, zl, depth + 1, b)
+            }
             (Kind::Atom(a), Kind::Atom(z)) if a == z => Ok(()),
             (Kind::Life(a), Kind::Life(z)) if a == z => Ok(()),
             (Kind::ConstValue(a), Kind::ConstValue(z)) if a == z => Ok(()),
@@ -829,7 +856,7 @@ impl Solver<'_, '_> {
                     .ok_or_else(|| fail("original environment type slot is absent"))
             }
             SemanticTypeRecipe::Exact(exact)
-                if exact.ty.is_b0_scalar()
+                if (exact.ty.is_b0_scalar() || exact.ty == crate::generic_mutex::error_type())
                     && exact.life.binder_count == 0
                     && exact.life.slots.is_empty()
                     && exact.life.retained.is_empty()
@@ -1300,6 +1327,7 @@ impl Solver<'_, '_> {
                         fail("original name is not in the complete lexical value context")
                     })?;
                     if index < frame.inherited {
+                        self.record_environment_read(frame, index, value.id, b)?;
                         b.lookup(frame.captured.len(), WORK)?;
                         frame.captured.insert(index, frame.locals[index].ty);
                     }
@@ -1929,6 +1957,29 @@ impl Solver<'_, '_> {
                                     .intrinsic_inputs
                                     .insert((frame.definition, value.id), vec![input]);
                                 (vec![input], self.atom(number.ty(), b)?)
+                            }
+                            sealed::Resolution::Intrinsic(
+                                id @ (sealed::Intrinsic::MutexCreate
+                                | sealed::Intrinsic::MutexLock
+                                | sealed::Intrinsic::MutexValue
+                                | sealed::Intrinsic::ThreadScope),
+                            ) => {
+                                let result = self.mutex_call(
+                                    frame,
+                                    value.id,
+                                    id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail(
+                                        "original synchronization call node is reused",
+                                    ));
+                                }
+                                return Ok(result);
                             }
                             sealed::Resolution::Intrinsic(
                                 id @ (sealed::Intrinsic::TaskCreate
@@ -2847,7 +2898,16 @@ impl Solver<'_, '_> {
             }
         }
         let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
-        self.unify(frame.result, result, depth + 1, b)?;
+        self.unify(frame.result, result, depth + 1, b)
+            .map_err(|mut errors| {
+                for error in &mut errors {
+                    error.notes.push(format!(
+                        "original definition module {} index {}, final result",
+                        id.module.0, id.index
+                    ));
+                }
+                errors
+            })?;
         if matches!(
             self.state.arena[self.root(frame.result, b)?],
             Kind::Slice(_)
@@ -3199,9 +3259,11 @@ pub(super) fn check(
             trait_calls: BTreeMap::new(),
             task_templates: Vec::new(),
             borrows: BTreeMap::new(),
+            descriptions: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
             patterns: BTreeMap::new(),
             names_at: BTreeMap::new(),
+            environment_reads: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -3279,8 +3341,24 @@ pub(super) fn check(
             ));
         }
     }
-    solver.original_provider_conformance(b)?;
-    solver.check_callables(b)?;
+    solver
+        .original_provider_conformance(b)
+        .map_err(|mut errors| {
+            for error in &mut errors {
+                error
+                    .notes
+                    .push("original provider method/associated conformance".into());
+            }
+            errors
+        })?;
+    solver.check_callables(b).map_err(|mut errors| {
+        for error in &mut errors {
+            error
+                .notes
+                .push("original complete Callable role obligations".into());
+        }
+        errors
+    })?;
     for literal in &solver.literals {
         let root = solver.type_root(literal.term, b)?;
         if matches!(solver.state.arena[root], Kind::Infer(None)) {
@@ -3357,6 +3435,7 @@ pub(super) fn check(
     effects.finish(&solver.state, inventory, b)?;
     protocol::check(&solver.state, inventory, b)?;
     solver.check_resume_capabilities(b)?;
+    solver.check_scoped_threads(b)?;
     b.spend(module.functions.len(), WORK)?;
     Ok(solver.state)
 }
@@ -3718,7 +3797,9 @@ impl Solver<'_, '_> {
             return self.capability(term, kind, b, depth + 1);
         }
         match &self.state.arena[term] {
-            Kind::Atom(ty) => Ok((ty.is_b0_scalar() || *ty == Type::ForeignHandle)
+            Kind::Atom(ty) => Ok((ty.is_b0_scalar()
+                || *ty == Type::ForeignHandle
+                || *ty == crate::generic_mutex::error_type())
                 && (!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit)),
             Kind::CallResult { hidden, .. } => self.satisfies(*hidden, predicate, b, depth + 1),
             Kind::Address { mutable, .. } => Ok(!matches!(predicate, Predicate::StoreElement)
@@ -3760,6 +3841,9 @@ impl Solver<'_, '_> {
                 self.satisfies(*element, predicate, b, depth + 1)
             }
             Kind::Desc { .. } => Ok(!matches!(predicate, Predicate::StoreElement)),
+            Kind::MutexGuard { .. } => {
+                Ok(matches!(predicate, Predicate::Value | Predicate::SyncDrop))
+            }
             Kind::Wrapped(Wrapper::Managed, payload) => match predicate {
                 Predicate::Copy | Predicate::StoreElement => Ok(false),
                 Predicate::Value => Ok(true),
@@ -3899,6 +3983,7 @@ impl Checked {
                 .ty),
             Kind::Array { .. }
             | Kind::Task(_)
+            | Kind::MutexGuard { .. }
             | Kind::Code { .. }
             | Kind::ErrorUnion { .. }
             | Kind::Desc { .. }

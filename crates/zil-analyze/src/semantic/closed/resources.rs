@@ -11,7 +11,10 @@ impl Check<'_, '_> {
                 "complete zero-domain capture graph exceeds its bounded depth",
             ));
         }
-        if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
+        if ty.is_b0_scalar()
+            || *ty == Type::ForeignHandle
+            || *ty == crate::generic_mutex::error_type()
+        {
             return Ok(());
         }
         match ty {
@@ -124,6 +127,7 @@ impl Check<'_, '_> {
             return Err(fail("actual resource scope has no complete owning carrier"));
         };
         match payload.as_ref() {
+            Type::Mutex { payload } => self.mutex_payload(payload, b),
             Type::Task { result, .. } => {
                 self.zero_data(result, b, depth + 1)?;
                 crate::tasks::semantic_resource_scope(
