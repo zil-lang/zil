@@ -105,7 +105,26 @@ impl Builder<'_, '_> {
         Ok(())
     }
     pub(super) fn resource_give(&mut self, operand: &CoreExpr, span: Span) -> R<(ValueId, Type)> {
+        let entered = self.closures.semantic_begin(self.function.id, operand)?;
+        let result = self.resource_give_inner(operand, span);
+        self.closures.semantic_end(
+            self.function.id,
+            operand.id,
+            entered,
+            result.as_ref().ok().map(|row| row.0),
+            self.current.map(|block| crate::semantics::emission::Point {
+                block,
+                instruction: self.function.blocks[block.0 as usize].instructions.len(),
+            }),
+            operand.span,
+        )?;
+        result
+    }
+    fn resource_give_inner(&mut self, operand: &CoreExpr, span: Span) -> R<(ValueId, Type)> {
         if let Some((local, index, ty)) = self.package_place(operand)? {
+            if let CoreExprKind::Member { object, .. } = &operand.kind {
+                self.semantic_local_place(object, local)?;
+            }
             if !matches!(ty, Type::Managed(_)) && !packages::product::owned_supported(&ty) {
                 return Err(error(
                     "E-GIVE-TYPE",

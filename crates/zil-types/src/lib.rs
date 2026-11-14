@@ -3946,6 +3946,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 (None, Type::Closure(id))
             }
         } else if let Some((index, ty)) = captured_once {
+            self.semantic_local_place(callee, existing_place.expect("selected named capture"))?;
             existing_place = None;
             (
                 Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
@@ -3954,6 +3955,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else if let Some(local) = existing_place
             && let Some(id) = self.closure_slots.get(&local).copied()
         {
+            self.semantic_local_place(callee, local)?;
             existing_place = None;
             let kind = self
                 .declared_state_kind(callee, None, id)?
@@ -3977,6 +3979,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 || (self.forwarding_modes && declared_capture.is_some())
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
+            self.semantic_local_place(callee, local)?;
             (None, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (value, ty) = self.expr(callee, None)?;

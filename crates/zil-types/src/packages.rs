@@ -336,6 +336,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let (index, id) = (index as u32, *id);
+        self.semantic_local_place(object, local)?;
         let kind = self.field_callable_kind(id, target)?;
         let value = if kind == CallableKind::FnOnce {
             self.value(
