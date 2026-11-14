@@ -2,6 +2,7 @@
 //! Every admitted instruction is replayed against its real operands and CFG.
 use super::*;
 use std::collections::VecDeque;
+mod intrinsics;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -172,6 +173,24 @@ impl CheckedContext {
                         let result=instruction.result.ok_or_else(||bad("actual reborrow has no SSA result"))?;
                         Some(self.reborrow_value(value_at(&values,*address)?,scope,result,*mutable,b)?)
                     }
+                    InstructionKind::DescribeLocal{local}=>{
+                        let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual description has no initialized owner"))?;
+                        if owner.ty!=Type::Managed(Box::new(Type::ByteBuffer))||!owner.classes.is_empty()||!owner.statics.is_empty(){return Err(unsupported("actual description requires its complete qualified owner domain",Some(instruction.span)));}
+                        crate::byte_buffers::check_carrier(module,&owner.ty,Some(instruction.span),b)?;
+                        let result=instruction.result.ok_or_else(||bad("actual description has no result"))?;
+                        let child=CheckedType{ty:Type::ByteBuffer,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+                        let mode=StoredBorrowMode::ReadOnlyDescription;
+                        let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
+                        Some(dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},&[child],active,b)?)
+                    }
+                    InstructionKind::DropManaged{local}=>{
+                        if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_ref){
+                            if value.ty!=Type::Managed(Box::new(Type::ByteBuffer))||!value.classes.is_empty()||!value.statics.is_empty(){return Err(unsupported("actual owner cleanup requires its complete qualified debt transfer",Some(instruction.span)));}
+                            crate::byte_buffers::check_carrier(module,&value.ty,Some(instruction.span),b)?;
+                        }
+                        state.locals[local.0 as usize]=None;None
+                    }
+                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)

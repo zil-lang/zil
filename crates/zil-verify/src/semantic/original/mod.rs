@@ -20,6 +20,8 @@ mod substitution;
 mod closure_sources;
 mod frozen;
 mod schemes;
+mod effects;
+pub(super) mod intrinsics;
 use usage::{Binder,Place,Uses};
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};
@@ -57,6 +59,8 @@ pub(super) struct CheckedOriginal {
     pattern_types:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Ty>,
     pattern_origin:Option<(NodeId,Vec<u32>)>,
     in_defer:BTreeMap<SemanticDefinitionId,usize>,
+    executing_effects:BTreeMap<SemanticDefinitionId,CallKind>,
+    intrinsic_calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),intrinsics::Use>,
 }
 impl CheckedOriginal {
     pub(super) fn check(module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<Self> {
@@ -75,6 +79,7 @@ impl CheckedOriginal {
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
         result.current=None;
         result.check_cleanups(module,context,active,b)?;
+        result.check_effects(b)?;
         Ok(result)
     }
     fn fresh(&mut self,b:&mut Budget)->Check<Ty>{b.spend(1)?;let id=self.next_inference;self.next_inference=id.checked_add(1).ok_or_else(||limit("original body inference identity exhausted"))?;Ok(Ty::Infer(id))}

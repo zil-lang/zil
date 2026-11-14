@@ -30,6 +30,9 @@ fn resolved(
 pub(super) mod dynamic;
 #[path = "materialize_nominal.rs"]
 mod nominal;
+#[path = "materialize_opaque.rs"]
+mod opaque;
+pub(super) use opaque::call_result_at;
 #[path = "materialize_shapes.rs"]
 mod shapes;
 struct Eval<'a, 'b> {
@@ -774,6 +777,11 @@ impl<'a> Eval<'a, '_> {
                 scope: selector,
                 source,
             } => {
+                if let Some(value) =
+                    self.original_result_boundary(scope, *selector, source, hint, depth + 1)?
+                {
+                    return Ok(value);
+                }
                 let recipe = self.original_type(scope, *selector, source, depth + 1)?;
                 return self.ty(scope, &recipe, hint, depth + 1);
             }
@@ -1506,6 +1514,11 @@ impl<'a> Eval<'a, '_> {
                 if arguments.len() != original.parameters.len() {
                     return Err(bad(
                         "opaque application omits original mixed actual positions",
+                    ));
+                }
+                if self.instance(scope)?.definition != *definition {
+                    return Err(unknown(
+                        "opaque hidden type requires its actual original call-result boundary",
                     ));
                 }
                 let value = self.ty(scope, hidden, hint, depth + 1)?;

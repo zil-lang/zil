@@ -44,6 +44,7 @@ impl CheckedOriginal {
             let ty=self.resolved(ty,b)?;
             Ok(match ty{
                 Ty::Atom(Type::ByteBuffer)=>true,
+                Ty::Managed(ref inner) if **inner==Ty::Atom(Type::ByteBuffer)=>true,
                 Ty::Address{..}|Ty::Desc{..}=>true,
                 Ty::Tuple(fields)=>{for field in fields{if !self.sync_drop(module,context,&field,env,active,b)?{return Ok(false);}}true},
                 Ty::Array(inner,_)=>self.sync_drop(module,context,&inner,env,active,b)?,

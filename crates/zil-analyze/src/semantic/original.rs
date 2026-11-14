@@ -3,8 +3,10 @@
 use super::*;
 use zil_base::NodeId;
 
+mod effects;
 mod mixed;
 pub(super) mod nominal;
+pub(super) mod sealed;
 mod values;
 use mixed::Life;
 
@@ -97,6 +99,7 @@ pub(super) struct Checked {
     arena: Vec<Kind>,
     frames: BTreeMap<SemanticDefinitionId, Frame>,
     calls: BTreeMap<(SemanticDefinitionId, NodeId), Call>,
+    intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
 }
 struct Solver<'a, 'i> {
@@ -743,51 +746,6 @@ impl Solver<'_, '_> {
         }
         found.ok_or_else(|| fail("original call or closure has no exact resolution site"))
     }
-    fn static_name(
-        &self,
-        caller: SemanticDefinitionId,
-        name: &str,
-        b: &mut Budget,
-    ) -> CompileResult<SemanticDefinitionId> {
-        let definition = self.inventory.definition(caller, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &definition.body else {
-            return Err(fail(
-                "original callee lookup has no complete name inventory",
-            ));
-        };
-        let mut found = None;
-        for binding in names {
-            b.spend(
-                binding
-                    .path
-                    .iter()
-                    .fold(name.len().saturating_add(1), |count, part| {
-                        count.saturating_add(part.len())
-                    }),
-                WORK,
-            )?;
-            if binding.namespace != SemanticOriginalNamespace::Value
-                || binding.path.len() != 1
-                || binding.path[0] != name
-            {
-                continue;
-            }
-            let SemanticOriginalNameValue::Definition(target) = &binding.value else {
-                return Err(unknown(
-                    "original callee is a symbolic value requiring its complete callable premise",
-                ));
-            };
-            self.inventory.definition(*target, b)?;
-            if found.replace(*target).is_some() {
-                return Err(fail(
-                    "original value name has multiple declaration bindings",
-                ));
-            }
-        }
-        found.ok_or_else(|| {
-            fail("original static callee is not in its actual lexical name inventory")
-        })
-    }
     fn scheme(
         &mut self,
         caller: &Frame,
@@ -1187,19 +1145,64 @@ impl Solver<'_, '_> {
                         );
                         (parameters, result)
                     } else {
-                        let target = self.static_name(frame.definition, name, b)?;
-                        let (actuals, parameters, result) =
-                            self.scheme(frame, target, written, b, depth + 1)?;
-                        b.spend(self.state.calls.len().saturating_add(actuals.len()), WORK)?;
-                        self.state.calls.insert(
-                            (frame.definition, value.id),
-                            Call {
-                                target,
-                                actuals,
-                                closure: false,
-                            },
-                        );
-                        (parameters, result)
+                        let resolution = sealed::resolve(
+                            self.inventory,
+                            frame.definition,
+                            &[name.as_str()],
+                            &BTreeSet::new(),
+                            b,
+                        )?;
+                        match resolution {
+                            sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskYield) => {
+                                if !written.is_empty() || !arguments.is_empty() {
+                                    return Err(fail(
+                                        "original task_yield has neither generic nor value arguments",
+                                    ));
+                                }
+                                b.lookup(self.state.intrinsics.len(), WORK)?;
+                                if self
+                                    .state
+                                    .intrinsics
+                                    .insert(
+                                        (frame.definition, value.id),
+                                        sealed::Intrinsic::TaskYield,
+                                    )
+                                    .is_some()
+                                {
+                                    return Err(fail(
+                                        "original core operation has competing scheme resolutions",
+                                    ));
+                                }
+                                (Vec::new(), self.atom(Type::Unit, b)?)
+                            }
+                            sealed::Resolution::Intrinsic(_) => {
+                                return Err(unknown(
+                                    "original core operation needs its complete parameter, mode and cleanup scheme",
+                                ));
+                            }
+                            sealed::Resolution::Definition(target) => {
+                                let (actuals, parameters, result) =
+                                    self.scheme(frame, target, written, b, depth + 1)?;
+                                b.spend(
+                                    self.state.calls.len().saturating_add(actuals.len()),
+                                    WORK,
+                                )?;
+                                self.state.calls.insert(
+                                    (frame.definition, value.id),
+                                    Call {
+                                        target,
+                                        actuals,
+                                        closure: false,
+                                    },
+                                );
+                                (parameters, result)
+                            }
+                            sealed::Resolution::Deferred => {
+                                return Err(unknown(
+                                    "original call has no complete lexical declaration or core scheme",
+                                ));
+                            }
+                        }
                     }
                 } else {
                     return Err(unknown(
@@ -1215,14 +1218,25 @@ impl Solver<'_, '_> {
                     let argument = self.expression(frame, argument, b, depth + 1)?;
                     self.unify(argument, parameter, depth + 1, b)?;
                 }
-                self.term(
-                    Kind::CallResult {
-                        caller: frame.definition,
-                        node: value.id,
-                        hidden: result,
-                    },
-                    b,
-                )?
+                b.lookup(self.state.intrinsics.len(), WORK)?;
+                if self
+                    .state
+                    .intrinsics
+                    .contains_key(&(frame.definition, value.id))
+                {
+                    // Unit has no hidden callee result domain. Its actual opcode
+                    // is bound separately at this exact original call site.
+                    result
+                } else {
+                    self.term(
+                        Kind::CallResult {
+                            caller: frame.definition,
+                            node: value.id,
+                            hidden: result,
+                        },
+                        b,
+                    )?
+                }
             }
             CoreExprKind::Record { ty, fields } => {
                 let term = self.recipe(frame, ty, b, depth + 1)?;
@@ -1926,6 +1940,7 @@ pub(super) fn check(
     inventory: &Inventory<'_>,
     b: &mut Budget,
 ) -> CompileResult<Checked> {
+    let effects = effects::collect(program, inventory, b)?;
     let mut indexes = BTreeMap::new();
     for definition in inventory.definitions.values() {
         if matches!(
@@ -1944,6 +1959,7 @@ pub(super) fn check(
             arena: Vec::new(),
             frames: BTreeMap::new(),
             calls: BTreeMap::new(),
+            intrinsics: BTreeMap::new(),
             names_at: BTreeMap::new(),
         },
         active: BTreeSet::new(),
@@ -2066,6 +2082,7 @@ pub(super) fn check(
             }));
         }
     }
+    effects.finish(&solver.state, inventory, b)?;
     b.spend(module.functions.len(), WORK)?;
     Ok(solver.state)
 }
@@ -2609,6 +2626,33 @@ impl Checked {
             _ => return Err(unknown("original projected binder or constant carrier needs its complete inference evidence")),
         }.ok_or_else(|| fail("original Type query selects no actual original node or binding"))?;
         self.value(term, context, program, inventory, b, 0)
+    }
+    pub(super) fn intrinsic(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<sealed::Intrinsic>> {
+        let definition = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("actual core operation has no original body"));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(node) = link.node else {
+                    return Err(fail("actual core operation selects a statement"));
+                };
+                if selected.replace(node).is_some() {
+                    return Err(fail("actual core operation has competing original anchors"));
+                }
+            }
+        }
+        let node = selected.ok_or_else(|| fail("actual core operation has no original anchor"))?;
+        b.lookup(self.intrinsics.len(), WORK)?;
+        Ok(self.intrinsics.get(&(context.definition, node)).copied())
     }
     pub(super) fn call(
         &self,

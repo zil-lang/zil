@@ -257,3 +257,50 @@ fn frozen_unused_original_scheme_cannot_hide_bad_kind_scope_carrier_or_bound_dep
         let error=frozen_schemes(&decoded,&limits).unwrap_err();assert_eq!(error.code,"E-VERIFY-SEMANTIC","wire attack {attack}: {error:?}");
     }
 }
+
+// The original functions below are deliberately uninstantiated. Their bodies
+// must be checked in the original universal domain, before actual execution or
+// a concrete caller can hide an effectful branch.
+fn original_effect_control(kind:CallKind,yields:bool,in_defer:bool)->(TypedModule,CandidatePlan){
+    let limits=Limits::default();let(mut module,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_IDENTITY,&limits).unwrap();
+    let mut definition=module.semantic.as_ref().unwrap().definitions[0].clone();
+    definition.id.index=950;definition.parent=None;definition.kind=SemanticDefinitionKind::Function;
+    definition.identity.declaration_path=vec!["original_effect_control".into()];definition.parameters.clear();definition.requirements.clear();definition.environment.clear();definition.implicit_lifetimes.clear();
+    let span=module.functions[0].blocks[0].instructions[0].span;
+    let expression=CoreExpr{id:zil_base::NodeId(952),span,kind:CoreExprKind::Call{callee:Box::new(CoreExpr{id:zil_base::NodeId(953),span,kind:CoreExprKind::Name("task_yield".into())}),arguments:vec![]}};
+    let call=CoreStatement{id:zil_base::NodeId(951),span,kind:CoreStatementKind::Expression(expression)};
+    let body=CoreBlock{span,statements:if !yields{vec![]}else if in_defer{vec![CoreStatement{id:zil_base::NodeId(954),span,kind:CoreStatementKind::Defer(CoreBlock{span,statements:vec![call]})}]}else{vec![call]}};
+    definition.body=SemanticDefinitionBody::FunctionWithBody{
+        signature:SemanticSignatureRecipe{bound_lifetimes:0,invocation_lifetimes:0,parameters:vec![],result:SemanticTypeRecipe::Atom(Type::Unit),result_mode:PassingMode::Move,call_kind:kind},
+        sites:if yields{vec![SemanticSiteRecipe{id:SemanticSiteId(950),occurrence_path:vec![950],kind:SemanticSiteRecipeKind::OriginalCall}]}else{vec![]},
+        parameters:vec![],receiver_parameter:None,
+        site_nodes:if yields{vec![SemanticOriginalSiteNode{site:SemanticSiteId(950),node:SemanticOriginalNode::Expression(zil_base::NodeId(952))}]}else{vec![]},
+        names:vec![],body:SemanticOriginalFunctionBody::Defined(body),
+    };
+    module.semantic.as_mut().unwrap().definitions.push(definition);(module,plan)
+}
+#[test]
+fn unused_original_effects_keep_fixed_conventions_and_include_deferred_execution(){
+    let limits=Limits::default();
+    for(kind,yields,in_defer,accept)in[(CallKind::Direct,false,false,true),(CallKind::Suspend,false,false,true),(CallKind::Suspend,true,false,true),(CallKind::Direct,true,false,false),(CallKind::Direct,true,true,false)]{
+        let(module,plan)=original_effect_control(kind,yields,in_defer);
+        for route in 0..2{
+            let decoded=if route==0{module.clone()}else{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0};
+            let result=check_program(&decoded,&mut Budget::new(&limits));
+            if accept{result.unwrap();}else{let error=result.unwrap_err();assert!(error.message.contains("original body may suspend beyond its fixed Direct"),"{error:?}");}
+        }
+    }
+}
+#[test]
+fn deleting_a_real_name_binding_cannot_promote_a_declaration_to_an_intrinsic(){
+    let limits=Limits::default();let(mut module,plan)=original_effect_control(CallKind::Suspend,true,false);
+    let program=module.semantic.as_mut().unwrap();
+    let mut shadow=program.definitions.last().unwrap().clone();shadow.id.index=960;shadow.identity.declaration_path=vec!["task_yield".into()];
+    let SemanticDefinitionBody::FunctionWithBody{signature,sites,site_nodes,body,..}=&mut shadow.body else{unreachable!()};
+    signature.call_kind=CallKind::Direct;sites.clear();site_nodes.clear();*body=SemanticOriginalFunctionBody::Defined(CoreBlock{statements:vec![],span:module.functions[0].blocks[0].instructions[0].span});
+    program.definitions.push(shadow);
+    for route in 0..2{
+        let decoded=if route==0{module.clone()}else{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0};
+        let error=check_program(&decoded,&mut Budget::new(&limits)).unwrap_err();assert!(error.message.contains("unresolved real declaration shadow"),"{error:?}");
+    }
+}

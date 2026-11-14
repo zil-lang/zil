@@ -2,6 +2,35 @@
 //! table cannot shadow an actual value binder or create a new where premise.
 use super::*;
 impl CheckedOriginal {
+    /// An imported/static member chain is a declaration path only when its
+    /// root is not an actual runtime value and the complete path has a real
+    /// Value binding. A module alias or a Type binding alone grants no call.
+    pub(super) fn static_call_type(&self,module:&TypedModule,context:&CheckedContext,base:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<Option<Ty>>{
+        let mut current=base;let mut tail=Vec::new();
+        loop{
+            b.spend(1)?;
+            match &current.kind{
+                CoreExprKind::Member{object,member,owner:None}=>{b.spend(member.len())?;tail.push(member.as_str());current=object;},
+                CoreExprKind::Group(inner)=>current=inner,
+                CoreExprKind::Name(name)=>{
+                    if tail.is_empty()||bindings.contains_key(name){return Ok(None);}
+                    let mut path=name.split("::").collect::<Vec<_>>();path.extend(tail.iter().rev().copied());
+                    let definition=context.definition(module,env.current()?,b)?;
+                    let SemanticDefinitionBody::FunctionWithBody{names,..}=&definition.body else{return Err(bad("static call lookup has no original body"));};
+                    b.spend(names.len().saturating_mul(path.len().saturating_add(1)))?;
+                    let mut selected=None;
+                    for row in names{if row.namespace==SemanticOriginalNamespace::Value&&row.path.iter().map(String::as_str).eq(path.iter().copied()){
+                        if selected.replace(&row.value).is_some(){return Err(bad("static call path has ambiguous original declaration bindings"));}
+                    }}
+                    let Some(SemanticOriginalNameValue::Definition(id))=selected else{return Ok(None);};
+                    let target=context.definition(module,*id,b)?;
+                    if !matches!(target.kind,SemanticDefinitionKind::Function|SemanticDefinitionKind::Method){return Err(bad("static call path selects a noncallable declaration"));}
+                    return Ok(Some(Ty::Function(*id)));
+                },
+                _=>return Ok(None),
+            }
+        }
+    }
     pub(super) fn original_type(&self,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Ty>{
         b.spend(1)?;
         let value=match source{

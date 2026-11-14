@@ -456,6 +456,33 @@ impl Check<'_, '_> {
                 }
             }
             (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {
+                if let Some(intrinsic) =
+                    self.original
+                        .intrinsic(instance, site.recipe, self.inventory, b)?
+                {
+                    match intrinsic {
+                        original::sealed::Intrinsic::TaskYield => {
+                            let instruction = instruction.ok_or_else(|| {
+                                fail("original task_yield has no actual instruction")
+                            })?;
+                            if !actuals.is_empty()
+                                || point.function.call_kind != CallKind::Suspend
+                                || !matches!(instruction.kind, InstructionKind::TaskYield)
+                            {
+                                return Err(fail(
+                                    "actual operation changes the original task_yield scheme or Suspend ABI",
+                                ));
+                            }
+                            self.result(instruction, point.function, &Type::Unit)?;
+                            return Ok(());
+                        }
+                        _ => {
+                            return Err(unknown(
+                                "actual core operation lacks its complete original scheme proof",
+                            ));
+                        }
+                    }
+                }
                 let (original, closure, expected_actuals) =
                     self.original
                         .call(instance, site.recipe, self.program, self.inventory, b)?;
@@ -894,6 +921,7 @@ impl Check<'_, '_> {
                     }
                     let requires = match instruction.kind {
                         InstructionKind::Call { .. } => Some(0),
+                        InstructionKind::TaskYield => Some(3),
                         InstructionKind::CallClosure { .. }
                         | InstructionKind::CallClosureOnce { .. }
                         | InstructionKind::CallClosureShared { .. }
@@ -912,7 +940,7 @@ impl Check<'_, '_> {
                     if let Some(kind) = requires {
                         let count = self.program.sites.iter().filter(|site| site.instance == instance.id
                             && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, .. } if actual == block.id && instruction as usize == index)
-                            && matches!((&site.action, kind), (SemanticSiteAction::Call { .. }, 0) | (SemanticSiteAction::CallableCall { .. }, 1) | (SemanticSiteAction::Closure { .. }, 2) | (SemanticSiteAction::BodyCall { .. }, 0 | 1))).count();
+                            && matches!((&site.action, kind), (SemanticSiteAction::Call { .. }, 0) | (SemanticSiteAction::CallableCall { .. }, 1) | (SemanticSiteAction::Closure { .. }, 2) | (SemanticSiteAction::BodyCall { .. }, 0 | 1 | 3))).count();
                         if count != 1 {
                             return Err(fail(
                                 "actual call or closure creation omits or duplicates its complete original recipe",

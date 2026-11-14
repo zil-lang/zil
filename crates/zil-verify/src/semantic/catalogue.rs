@@ -171,7 +171,7 @@ impl CheckedContext {
             }
             (SemanticSiteRecipeKind::OriginalCall,SemanticSiteAction::BodyCall{actuals})=>{
                 let row=actual.ok_or_else(||bad("original body Call selects a terminator"))?;
-                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}){return Err(bad("original body Call selects another actual operation"));}
+                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..})&&original::intrinsics::Intrinsic::actual(&row.kind).is_none(){return Err(bad("original body Call selects another actual operation"));}
                 for actual in actuals {raw_actual(actual,b)?;}
             }
             (SemanticSiteRecipeKind::CallableCall{..},SemanticSiteAction::CallableCall{callee})=>{

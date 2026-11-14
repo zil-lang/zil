@@ -379,6 +379,7 @@ impl<'a> Inventory<'a> {
                                 | InstructionKind::CallClosureOnce { .. }
                                 | InstructionKind::CallClosureShared { .. }
                                 | InstructionKind::CallClosureMut { .. }
+                                | InstructionKind::TaskYield
                         )
                     }) {
                         return Err(fail("original body call has no actual call opcode"));

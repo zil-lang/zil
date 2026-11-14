@@ -518,6 +518,18 @@ impl Solver<'_, '_> {
                     "original callable obligation needs its complete abstract callable premise proof",
                 ));
             };
+            let declaration = self.inventory.definition(definition, b)?;
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &declaration.body
+            else {
+                return Err(fail(
+                    "original callable has no complete declaration signature",
+                ));
+            };
+            if signature.call_kind != CallKind::Direct {
+                return Err(fail(
+                    "original callable does not satisfy its declared Direct ABI bound",
+                ));
+            }
             if parameters.len() != need.parameters.len()
                 || (need.kind == CallableKind::Fn && self.mutating_closures.contains(&definition))
             {
