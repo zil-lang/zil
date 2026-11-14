@@ -5214,7 +5214,15 @@ fn definition_positions(
     limits: &Limits,
     left: &mut usize,
 ) -> R<std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>> {
-    spend(left, program.definitions.len().saturating_add(1), 0, limits)?;
+    *left = left
+        .checked_sub(program.definitions.len().saturating_add(1))
+        .ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "original definition index work exceeded",
+                None,
+            )
+        })?;
     if program.definitions.len() > limits.max_nodes {
         return Err(Diagnostic::limit(
             Phase::Types,
@@ -5224,12 +5232,15 @@ fn definition_positions(
     }
     let mut index = BTreeMap::new();
     for (position, definition) in program.definitions.iter().enumerate() {
-        spend(
-            left,
-            index.len().saturating_add(1).ilog2() as usize + 2,
-            0,
-            limits,
-        )?;
+        *left = left
+            .checked_sub(index.len().saturating_add(1).ilog2() as usize + 2)
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original definition index work exceeded",
+                    None,
+                )
+            })?;
         if index.insert(definition.id, position).is_some() {
             return Err(bad("original definition index has duplicate identities"));
         }
