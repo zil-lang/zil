@@ -19,6 +19,7 @@ mod loops;
 pub(super) mod mixed;
 mod mutex;
 pub(super) mod nominal;
+mod pattern_places;
 mod place_writes;
 mod places;
 mod protocol;
@@ -140,6 +141,7 @@ pub(super) enum LocalAnchor {
     Parameter(u32),
     Binding(NodeId),
     Environment(u32),
+    Pattern(u32),
 }
 struct Borrow {
     anchor: LocalAnchor,
@@ -221,6 +223,7 @@ pub(super) struct Checked {
     descriptions: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
+    pattern_origins: Vec<pattern_places::PatternOrigin>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
     environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
     capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
@@ -2629,6 +2632,7 @@ impl Solver<'_, '_> {
                         statement.id,
                         pattern,
                         subject,
+                        initializer,
                         *mutable,
                         b,
                         depth + 1,
@@ -3640,6 +3644,7 @@ pub(super) fn check(
             descriptions: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
             patterns: BTreeMap::new(),
+            pattern_origins: Vec::new(),
             names_at: BTreeMap::new(),
             environment_reads: BTreeMap::new(),
             capture_origins: BTreeMap::new(),

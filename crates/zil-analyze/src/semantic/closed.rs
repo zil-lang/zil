@@ -17,6 +17,7 @@ mod dyn_tables;
 mod function_values;
 mod mutex;
 mod operations;
+mod pattern_places;
 mod protocol_values;
 mod registration;
 mod registration_observe;

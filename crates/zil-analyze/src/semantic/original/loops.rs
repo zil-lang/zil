@@ -98,12 +98,20 @@ impl Solver<'_, '_> {
         if let Some((statement, pattern)) = pattern {
             let subject =
                 subject.ok_or_else(|| fail("original pattern loop has no condition value"))?;
+            let source = self.pattern_subject(
+                frame,
+                condition.ok_or_else(|| fail("original pattern loop has no original subject"))?,
+                b,
+                depth + 1,
+            )?;
             self.pattern_bind(
                 frame,
                 statement,
                 &mut Vec::new(),
                 pattern,
                 subject,
+                &source,
+                &mut Vec::new(),
                 b,
                 depth + 1,
             )?;

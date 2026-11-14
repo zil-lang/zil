@@ -12,7 +12,27 @@ impl Check<'_, '_> {
         anchor: original::LocalAnchor,
         b: &mut Budget,
     ) -> CompileResult<LocalId> {
+        self.anchored_local_at(instance, function, anchor, b, 0)
+    }
+
+    pub(super) fn anchored_local_at(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        anchor: original::LocalAnchor,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<LocalId> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual pattern head ancestry exceeds its finite depth",
+            ));
+        }
         match anchor {
+            original::LocalAnchor::Pattern(index) => {
+                self.pattern_local(instance, function, index, b, depth + 1)
+            }
             original::LocalAnchor::Parameter(index) => function
                 .parameters
                 .get(index as usize)

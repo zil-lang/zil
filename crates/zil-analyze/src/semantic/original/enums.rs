@@ -16,6 +16,7 @@ impl Solver<'_, '_> {
         statement: NodeId,
         pattern: &SemanticOriginalPattern,
         subject: Term,
+        source: &SemanticOriginalExpr,
         mutable: bool,
         b: &mut Budget,
         depth: usize,
@@ -40,12 +41,15 @@ impl Solver<'_, '_> {
             }
         }
         let start = frame.locals.len();
+        let source = self.pattern_subject(frame, source, b, depth + 1)?;
         if !self.pattern_bind(
             frame,
             statement,
             &mut Vec::new(),
             pattern,
             subject,
+            &source,
+            &mut Vec::new(),
             b,
             depth + 1,
         )? {
@@ -287,6 +291,8 @@ impl Solver<'_, '_> {
         path: &mut Vec<u32>,
         pattern: &SemanticOriginalPattern,
         subject: Term,
+        source: &pattern_places::PatternSubject,
+        physical: &mut Vec<PlaceProjection>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<bool> {
@@ -300,6 +306,12 @@ impl Solver<'_, '_> {
         match &pattern.kind {
             CorePatternKind::Name(name) => {
                 self.bind(frame, name, subject, false, b)?;
+                let anchor = self.pattern_anchor(frame.definition, source, physical, b)?;
+                frame
+                    .locals
+                    .last_mut()
+                    .ok_or_else(|| fail("pattern binding lost its original local"))?
+                    .anchor = Some(anchor);
                 Ok(true)
             }
             CorePatternKind::Wildcard => {
@@ -335,8 +347,19 @@ impl Solver<'_, '_> {
                 let mut irrefutable = true;
                 for (index, (pattern, field)) in patterns.iter().zip(fields).enumerate() {
                     Self::push(path, index as u32, b)?;
-                    irrefutable &=
-                        self.pattern_bind(frame, statement, path, pattern, field, b, depth + 1)?;
+                    Self::push(physical, PlaceProjection::Field(index as u32), b)?;
+                    irrefutable &= self.pattern_bind(
+                        frame,
+                        statement,
+                        path,
+                        pattern,
+                        field,
+                        source,
+                        physical,
+                        b,
+                        depth + 1,
+                    )?;
+                    physical.pop();
                     path.pop();
                 }
                 Ok(irrefutable)
@@ -350,16 +373,20 @@ impl Solver<'_, '_> {
                     ));
                 };
                 Self::push(path, u32::from(*is_error), b)?;
+                Self::push(physical, PlaceProjection::ErrorArm(*is_error), b)?;
                 let result = self.pattern_bind(
                     frame,
                     statement,
                     path,
                     pattern,
                     if *is_error { error } else { result },
+                    source,
+                    physical,
                     b,
                     depth + 1,
                 );
                 path.pop();
+                physical.pop();
                 result
             }
             CorePatternKind::Constructor {
@@ -388,15 +415,33 @@ impl Solver<'_, '_> {
                         ));
                     }
                 }
-                let (_, payload) = self.enum_variant(subject, variant, b)?;
+                let (variant, payload) = self.enum_variant(subject, variant, b)?;
                 if fields.len() != payload.len() {
                     return Err(fail("original enum pattern changes its exact member arity"));
                 }
                 let mut irrefutable = true;
                 for (index, (pattern, field)) in fields.iter().zip(payload).enumerate() {
                     Self::push(path, index as u32, b)?;
-                    irrefutable &=
-                        self.pattern_bind(frame, statement, path, pattern, field, b, depth + 1)?;
+                    Self::push(
+                        physical,
+                        PlaceProjection::Variant(VariantProjection {
+                            variant,
+                            index: index as u32,
+                        }),
+                        b,
+                    )?;
+                    irrefutable &= self.pattern_bind(
+                        frame,
+                        statement,
+                        path,
+                        pattern,
+                        field,
+                        source,
+                        physical,
+                        b,
+                        depth + 1,
+                    )?;
+                    physical.pop();
                     path.pop();
                 }
                 // This is irrefutable *within this variant*, used only by the
@@ -433,6 +478,7 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let subject = self.expression(frame, value, b, depth + 1)?;
+        let source = self.pattern_subject(frame, value, b, depth + 1)?;
         let entered = frame.alive;
         let before = self.copy_locals(&frame.locals, b)?;
         let prefix = before.len();
@@ -442,6 +488,8 @@ impl Solver<'_, '_> {
             &mut Vec::new(),
             pattern,
             subject,
+            &source,
+            &mut Vec::new(),
             b,
             depth + 1,
         )?;
@@ -500,6 +548,7 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let subject = self.expression(frame, value, b, depth + 1)?;
+        let source = self.pattern_subject(frame, value, b, depth + 1)?;
         let original_alive = frame.alive;
         let base = self.copy_locals(&frame.locals, b)?;
         let base_len = base.len();
@@ -521,6 +570,8 @@ impl Solver<'_, '_> {
                 &mut path,
                 &arm.pattern,
                 subject,
+                &source,
+                &mut Vec::new(),
                 b,
                 depth + 1,
             )?;
