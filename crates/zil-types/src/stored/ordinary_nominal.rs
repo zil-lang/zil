@@ -904,6 +904,19 @@ pub(super) fn module(module: &TypedModule, limits: &Limits, left: &mut usize) ->
         active_closures: Vec::new(),
     };
     for row in &module.life_instances {
+        for actual in &row.arguments {
+            check.node(0)?;
+            if let LifeNominalActual::QualifiedType {
+                ty: ty @ Type::Address { inner, .. },
+                life,
+            } = actual
+            {
+                qualified_address_shape(ty, life, check.left, Span::default())?;
+                // This is a full current-module proof, including nominal and
+                // phantom dependencies. Outer bytes never imply inner N0.
+                check.ty(inner, 0)?;
+            }
+        }
         if !matches!(row.ty, Type::BorrowedStorage { .. }) {
             check.row(row, 0)?;
         }

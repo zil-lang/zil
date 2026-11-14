@@ -473,6 +473,10 @@ impl generics::products::Products {
                             zil_ir::LifeNominalActual::Type(ty) => {
                                 copy::ty(ty, &mut budget, span, 0)?
                             }
+                            zil_ir::LifeNominalActual::QualifiedType { ty, life } => {
+                                copy::ty(ty, &mut budget, span, 0)?;
+                                copy::storage(life, &mut budget, span)?;
+                            }
                             _ => budget.node(span, 0)?,
                         }
                         budget.lineage_push(&mut arguments, actual.clone(), span)?;

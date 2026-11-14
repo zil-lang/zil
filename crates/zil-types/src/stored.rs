@@ -119,8 +119,11 @@ pub(super) fn aggregate_instance<'a>(
         let mut arguments = Vec::new();
         let mut complete = true;
         for (argument, actual) in application.arguments.iter().zip(&instance.arguments) {
-            let (CoreAggregateArgument::Concrete(ty), LifeNominalActual::Type(expected)) =
-                (argument, actual)
+            let (
+                CoreAggregateArgument::Concrete(ty),
+                LifeNominalActual::Type(expected)
+                | LifeNominalActual::QualifiedType { ty: expected, .. },
+            ) = (argument, actual)
             else {
                 complete = false;
                 break;
@@ -843,7 +846,7 @@ pub(super) fn poll_address_payload(instance: &LifeNominalInstance, ty: &Type) ->
     instance.declaration.compiler
         && instance.declaration.module.0 == u32::MAX
         && instance.declaration.declaration.0 == 1
-        && matches!(instance.arguments.as_slice(),[LifeNominalActual::Type(actual)] if actual==ty)
+        && matches!(instance.arguments.as_slice(),[LifeNominalActual::Type(actual) | LifeNominalActual::QualifiedType { ty: actual, .. }] if actual==ty)
         && matches!(ty, Type::Address { mutable: false, .. })
 }
 
@@ -855,7 +858,7 @@ pub(super) fn option_address_payload(instance: &LifeNominalInstance, ty: &Type) 
     instance.declaration.compiler
         && instance.declaration.module.0 == u32::MAX
         && instance.declaration.declaration.0 == 0
-        && matches!(instance.arguments.as_slice(), [LifeNominalActual::Type(actual)] if actual == ty)
+        && matches!(instance.arguments.as_slice(), [LifeNominalActual::Type(actual) | LifeNominalActual::QualifiedType { ty: actual, .. }] if actual == ty)
         // Inventory already authenticated this exact actual and its complete
         // finite pointee. shared_address is a different dispatch: &carrier.
         && matches!(ty, Type::Address { mutable: false, .. })
@@ -1332,6 +1335,41 @@ pub(super) fn ordinary_zero_type(
     left: &mut usize,
 ) -> R<()> {
     ordinary_nominal::zero_type(module, ty, limits, left)
+}
+
+/// Structural outside occurrence only. The mandatory merged ordinary
+/// inventory separately reconstructs the complete pointee's zero domain.
+fn qualified_address_shape(
+    ty: &Type,
+    life: &StorageLifeShape,
+    left: &mut usize,
+    span: Span,
+) -> R<()> {
+    fee(left, 1, span)?;
+    let Type::Address { mutable, .. } = ty else {
+        return Err(error(
+            "E-STORED-IDENTITY",
+            span,
+            "qualified address actual has another root constructor",
+        ));
+    };
+    let mode = if *mutable {
+        StoredBorrowMode::ExclusiveAddress
+    } else {
+        StoredBorrowMode::SharedAddress
+    };
+    if life.binder_count != 1
+        || !life.retained.is_empty()
+        || !life.nominal_arguments.is_empty()
+        || !matches!(life.slots.as_slice(), [slot] if slot.path.is_empty() && slot.binder == 0 && slot.mode == mode)
+    {
+        return Err(error(
+            "E-STORED-IDENTITY",
+            span,
+            "qualified root Address changes its complete outer occurrence shape",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn canonical_nullary_enum(ty: &Type, limits: &Limits, left: &mut usize) -> R<bool> {

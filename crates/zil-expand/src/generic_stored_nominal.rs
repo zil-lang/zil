@@ -1415,8 +1415,12 @@ impl<'a> Engine<'a> {
                         )?;
                         keys.push(format!("{physical_key}[{class_key}]"));
                         parameters.push(LifeParameterKind::Type);
-                        stored_types::pay_type(&actual.ty, &mut self.budget, span, depth + 1)?;
-                        actuals.push(LifeNominalActual::Type(actual.ty.clone()));
+                        actuals.push(stored_types::nominal_actual(
+                            &actual,
+                            &mut self.budget,
+                            span,
+                            depth + 1,
+                        )?);
                         self.budget.ty(ty)?;
                         substitution.insert(formal.name.clone(), ty.clone());
                         self.budget.lineage_bytes(
@@ -2001,7 +2005,7 @@ impl<'a> Engine<'a> {
                 continue;
             }
             stored_types::pay_type(&produced.instance.ty, &mut self.budget, span, depth + 1)?;
-            if !matches!(produced.instance.arguments.as_slice(), [zil_ir::LifeNominalActual::Type(actual)] if actual == &wanted)
+            if !matches!(produced.instance.arguments.as_slice(), [zil_ir::LifeNominalActual::Type(actual) | zil_ir::LifeNominalActual::QualifiedType { ty: actual, .. }] if actual == &wanted)
             {
                 continue;
             }

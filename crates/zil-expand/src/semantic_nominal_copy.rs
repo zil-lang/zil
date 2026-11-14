@@ -14,7 +14,7 @@ fn rows<T>(count: usize, budget: &mut Budget<'_>, span: Span) -> Result<(), Diag
 fn text(value: &str, budget: &mut Budget<'_>, span: Span) -> Result<(), Diagnostic> {
     budget.lineage_bytes(value.len(), span)
 }
-fn storage(
+pub(super) fn storage(
     value: &StorageLifeShape,
     budget: &mut Budget<'_>,
     span: Span,

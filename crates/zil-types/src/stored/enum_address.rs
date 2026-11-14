@@ -59,7 +59,11 @@ pub(super) fn arguments(instance: &LifeNominalInstance, left: &mut usize, span: 
     let mut expected = 0usize;
     for (ordinal, argument) in instance.arguments.iter().enumerate() {
         fee(left, 1, span)?;
-        let LifeNominalActual::Type(actual @ Type::Address { mutable: false, .. }) = argument
+        let (LifeNominalActual::Type(actual @ Type::Address { mutable: false, .. })
+        | LifeNominalActual::QualifiedType {
+            ty: actual @ Type::Address { mutable: false, .. },
+            ..
+        }) = argument
         else {
             continue;
         };
@@ -279,8 +283,10 @@ pub(super) fn poll_instance(
 ) -> R<()> {
     let span = Span::default();
     fee(left, 96, span)?;
-    let (Type::BorrowedStorage { storage, life }, [LifeNominalActual::Type(actual)]) =
-        (&instance.ty, instance.arguments.as_slice())
+    let (
+        Type::BorrowedStorage { storage, life },
+        [LifeNominalActual::Type(actual) | LifeNominalActual::QualifiedType { ty: actual, .. }],
+    ) = (&instance.ty, instance.arguments.as_slice())
     else {
         return Err(error(
             "E-STORED-IDENTITY",

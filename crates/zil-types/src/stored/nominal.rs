@@ -98,7 +98,9 @@ fn walk(
     }
     if decl.id.compiler {
         for actual in &instance.arguments {
-            if let LifeNominalActual::Type(ty) = actual {
+            if let LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } =
+                actual
+            {
                 let work = inference::type_snapshot_work(
                     ty,
                     span,
@@ -108,6 +110,13 @@ fn walk(
                     },
                 )?;
                 fee(left, work, span)?;
+                if let LifeNominalActual::QualifiedType {
+                    ty: ty @ Type::Address { .. },
+                    life,
+                } = actual
+                {
+                    qualified_address_shape(ty, life, left, span)?;
+                }
             }
         }
         let work = inference::type_snapshot_work(
@@ -126,7 +135,7 @@ fn walk(
             span,
             phase == InventoryPhase::Core,
         )? || !matches!((instance.arguments.as_slice(), storage.as_ref()),
-                ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
+                ([LifeNominalActual::Type(actual) | LifeNominalActual::QualifiedType { ty: actual, .. }], Type::Enum { variants, .. })
                 if actual == &variants[1].1[0])
         {
             return Err(error(
@@ -155,7 +164,10 @@ fn walk(
                     binder: *class,
                 });
             }
-            (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (
+                LifeParameterKind::Type,
+                LifeNominalActual::Type(_) | LifeNominalActual::QualifiedType { .. },
+            ) => {}
             (LifeParameterKind::Const(ty), LifeNominalActual::Const(c))
                 if c.ty() == *ty
                     && matches!(
@@ -182,7 +194,8 @@ fn walk(
         }
     }
     for (ordinal, actual) in instance.arguments.iter().enumerate() {
-        let LifeNominalActual::Type(ty) = actual else {
+        let (LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. }) = actual
+        else {
             continue;
         };
         let work = inference::type_snapshot_work(
@@ -194,6 +207,13 @@ fn walk(
             },
         )?;
         fee(left, work, span)?;
+        if let LifeNominalActual::QualifiedType {
+            ty: ty @ Type::Address { .. },
+            life,
+        } = actual
+        {
+            qualified_address_shape(ty, life, left, span)?;
+        }
         if enum_address::candidate(&instance.ty)
             && matches!(ty, Type::Address { mutable: false, .. })
         {

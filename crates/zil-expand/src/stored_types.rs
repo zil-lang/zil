@@ -847,6 +847,46 @@ pub(super) struct QualifiedActual {
     pub(super) classes: Vec<LexicalLife>,
 }
 
+/// Preserve the complete root occurrence supplied by qualified_type_actual.
+/// That producer has already checked the pointee's closed stored profile;
+/// arbitrary raw Address types do not enter this formation path.
+pub(super) fn nominal_actual(
+    actual: &QualifiedActual,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<LifeNominalActual> {
+    pay_type(&actual.ty, budget, span, depth)?;
+    if let Type::Address { mutable, .. } = &actual.ty {
+        if actual.classes.len() != 1 {
+            return Err(invalid(
+                span,
+                "qualified root Address omits its complete source class",
+            ));
+        }
+        spend(budget, span, 2)?;
+        budget.lineage_bytes(std::mem::size_of::<StorageLifeSlot>(), span)?;
+        return Ok(LifeNominalActual::QualifiedType {
+            ty: actual.ty.clone(),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![StorageLifeSlot {
+                    path: Vec::new(),
+                    binder: 0,
+                    mode: if *mutable {
+                        StoredBorrowMode::ExclusiveAddress
+                    } else {
+                        StoredBorrowMode::SharedAddress
+                    },
+                }],
+                retained: Vec::new(),
+                nominal_arguments: Vec::new(),
+            },
+        });
+    }
+    Ok(LifeNominalActual::Type(actual.ty.clone()))
+}
+
 struct Shape<'a, 'l> {
     budget: &'a mut generics::Budget<'l>,
     formals: &'a [(String, LexicalLife)],
@@ -1370,7 +1410,10 @@ pub(super) fn instantiate_joint_with_fields(
     for (parameter, argument) in declaration.parameters.iter().zip(&arguments) {
         match (parameter, argument) {
             (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(_)) => life_count += 1,
-            (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (
+                LifeParameterKind::Type,
+                LifeNominalActual::Type(_) | LifeNominalActual::QualifiedType { .. },
+            ) => {}
             (LifeParameterKind::Const(domain), LifeNominalActual::Const(value))
                 if *domain == value.ty() => {}
             _ => {
@@ -1422,7 +1465,9 @@ pub(super) fn instantiate_joint_with_fields(
     // Nested rows retain their real declaration/ordinal and full TypeArgument path.
     let mut nested_nominal_arguments = Vec::new();
     for (ordinal, actual) in qualified {
-        let Some(LifeNominalActual::Type(ty)) = arguments.get(*ordinal) else {
+        let Some(LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. }) =
+            arguments.get(*ordinal)
+        else {
             return Err(invalid(
                 span,
                 "qualified Type actual ordinal is not a Type parameter",
@@ -1584,7 +1629,10 @@ pub(super) fn instantiate_enum_joint(
     for (formal, actual) in declaration.parameters.iter().zip(&arguments) {
         match (formal, actual) {
             (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(_)) => life_count += 1,
-            (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (
+                LifeParameterKind::Type,
+                LifeNominalActual::Type(_) | LifeNominalActual::QualifiedType { .. },
+            ) => {}
             (LifeParameterKind::Const(domain), LifeNominalActual::Const(value))
                 if *domain == value.ty() => {}
             _ => {
@@ -1624,7 +1672,9 @@ pub(super) fn instantiate_enum_joint(
     }
     let mut nested_arguments = Vec::new();
     for (ordinal, actual) in qualified {
-        let Some(LifeNominalActual::Type(ty)) = arguments.get(*ordinal) else {
+        let Some(LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. }) =
+            arguments.get(*ordinal)
+        else {
             return Err(invalid(span, "qualified enum Type actual ordinal differs"));
         };
         pay_type(ty, shape.budget, span, 0)?;
