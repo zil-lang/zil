@@ -296,6 +296,13 @@ pub(super) fn check_claim(
             }
         }
     }
+    if qualified_copy_environment {
+        // Schedule the complete returned-environment CFG consumer even when
+        // this independently inspected physical leaf directory is empty.
+        // Logical classes remain the class-flow kernel's separate obligation.
+        budget.returned_environment_sources = true;
+        budget.nested_callable_sources = true;
+    }
     // Every other empty external envelope keeps its existing input proof.
     // A header or a producer's restriction alone grants no authority here.
     budget.spend(f.parameters.len())?;

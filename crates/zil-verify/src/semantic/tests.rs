@@ -107,6 +107,8 @@ fn qualified_copy_capture_admission_keeps_phantom_domain_and_rejects_physical_ta
                 assert!(factory.storage_life.is_some());
                 assert!(factory.callable_return_contract.as_ref().unwrap().life.is_some());
                 crate::retained::check_claim(candidate,factory,&limits,&mut b).unwrap();
+                assert!(b.returned_environment_sources);
+                assert!(crate::stored_partition::mixed(candidate,&mut b).unwrap().is_none(),"all members of the genuine qualified factory/caller/entry component require the same complete stored proof");
             }
         }
     }

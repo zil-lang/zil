@@ -2,12 +2,25 @@
 //! This table is reconstructed from raw types and calls, never from a plan.
 use super::*;
 
-fn stored_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
+fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
     let mut pending = vec![ty];
     let mut found = false;
+    let mut closures_seen = std::collections::BTreeSet::new();
     while let Some(ty) = pending.pop() {
         budget.spend(1)?;
         match ty {
+            Type::Closure(id) => {
+                budget.spend(closures_seen.len().saturating_add(1))?;
+                if !closures_seen.insert(*id) { continue; }
+                let definition = closures::definition(module, *id, None)?;
+                // Work selection only. The complete relation, every actual
+                // creator/entry and its memory sources are checked elsewhere.
+                found |= definition.storage_life.is_some();
+                budget.spend(definition.captures.len().saturating_add(definition.parameters.len()).saturating_add(1))?;
+                pending.extend(&definition.captures);
+                pending.extend(&definition.parameters);
+                pending.push(&definition.result);
+            }
             Type::BorrowedStorage { storage, .. } => {
                 found = true;
                 pending.push(storage);
@@ -50,14 +63,13 @@ fn stored_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
     Ok(found)
 }
 
-fn forbidden_stored_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
+fn forbidden_stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         budget.spend(1)?;
         match ty {
             Type::Managed(_)
             | Type::Desc(_)
-            | Type::Closure(_)
             | Type::OwnedStore { .. }
             | Type::Registration { .. }
             | Type::AsyncRegistration { .. }
@@ -67,6 +79,13 @@ fn forbidden_stored_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
             | Type::FunctionPointer { .. }
             | Type::BorrowedFunctionPointer { .. }
             | Type::ForeignCallback { .. } => return Ok(true),
+            Type::Closure(id) => {
+                let definition=closures::definition(module,*id,None)?;
+                if !stored_callables::finite(module,*id) { return Ok(true); }
+                stored_callables::captured_profile(module,definition,budget)?;
+                // No payload or root is inferred here. The stored solver
+                // consumes this actual environment's full capture directory.
+            }
             Type::BorrowedStorage { storage, .. }
             | Type::Address { inner: storage, .. }
             | Type::Array {
@@ -124,7 +143,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(&f.values)
         {
-            stored |= stored_type(ty, budget)?;
+            stored |= stored_type(module, ty, budget)?;
         }
         mask.push(stored);
     }
@@ -141,10 +160,8 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
             ));
         };
         if *stored {
-            return Err(unsupported(
-                "mixed stored domain cannot contain a closure entry",
-                None,
-            ));
+            if !stored_callables::finite(module,definition.id) {return Err(unsupported("mixed stored closure has no complete actual entry consumer",None));}
+            stored_callables::captured_profile(module,definition,budget)?;
         }
     }
     budget.spend(module.dyn_vtables.len())?;
@@ -161,7 +178,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
     }
     for resource in &module.resources {
         budget.spend(1)?;
-        if stored_type(&resource.payload, budget)? {
+        if stored_type(module, &resource.payload, budget)? {
             return Err(unsupported(
                 "mixed stored domain cannot contain resource payload",
                 None,
@@ -181,12 +198,12 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
     // Ordinary Task/Registration/resource definitions remain checked globally.
     for (index, f) in module.functions.iter().enumerate() {
         if mask[index] {
-            let mut forbidden = f.environment.is_some();
+            let mut forbidden = false;
             for ty in std::iter::once(&f.return_type)
                 .chain(f.locals.iter().map(|l| &l.ty))
                 .chain(&f.values)
             {
-                forbidden |= forbidden_stored_type(ty, budget)?;
+                forbidden |= forbidden_stored_type(module, ty, budget)?;
             }
             if forbidden {
                 return Err(unsupported(
