@@ -218,6 +218,11 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
+        self.snapshot(
+            owner,
+            SemanticOriginalNode::Expression(operand.id),
+            variables,
+        )?;
         if let CoreExprKind::Member { object, member, .. } = &operand.kind {
             if let CoreExprKind::Name(name) = &object.kind {
                 if let Some(field) =
@@ -241,6 +246,10 @@ impl Check<'_, '_> {
                     }
                     self.pay(member.len().saturating_add(1), depth)?;
                     binding.taken_fields.insert(member.clone());
+                    let copy = copy_recipe(&field, self.limits, self.left)?;
+                    self.proof
+                        .types
+                        .insert((owner, Query::Expression(operand.id)), copy);
                     return Ok(field);
                 }
             }
@@ -268,6 +277,10 @@ impl Check<'_, '_> {
         }
         value.used = true;
         value.observed = true;
+        let copy = copy_recipe(&head, self.limits, self.left)?;
+        self.proof
+            .types
+            .insert((owner, Query::Expression(operand.id)), copy);
         Ok(head)
     }
 }

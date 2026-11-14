@@ -33,6 +33,7 @@ struct Apply<'a, 'b> {
     template_implicit: bool,
     scopes: Option<&'a BTreeMap<u32, u32>>,
     allow_root_invocation: bool,
+    forall: Option<(u32, u32)>,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -210,6 +211,27 @@ impl<'a> Apply<'a, '_> {
     }
     fn life(&mut self, life: &mut SemanticLifeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
+        if let (Some((count, offset)), SemanticLifeRecipe::Bound { depth, index }) =
+            (self.forall, &mut *life)
+        {
+            if *depth == self.bound_depth {
+                if *index >= count {
+                    return Err(bad(
+                        "original universal callable lifetime exceeds its binder",
+                    ));
+                }
+                *life = SemanticLifeRecipe::Environment {
+                    scope: SemanticScopeRef::Ancestor(u32::MAX),
+                    ordinal: offset.checked_add(*index).ok_or_else(|| {
+                        bad("original universal callable inference role overflows")
+                    })?,
+                };
+                return Ok(());
+            }
+            if *depth > self.bound_depth {
+                *depth -= 1;
+            }
+        }
         if self.template {
             match life {
                 SemanticLifeRecipe::Implicit { scope, .. }
@@ -328,6 +350,7 @@ impl<'a> Apply<'a, '_> {
             template_implicit: false,
             scopes: None,
             allow_root_invocation: true,
+            forall: None,
         }
         .ty(value, depth)
     }
@@ -360,6 +383,7 @@ impl<'a> Apply<'a, '_> {
             template_implicit: false,
             scopes: None,
             allow_root_invocation: true,
+            forall: None,
         }
         .life(value, depth)
     }
@@ -392,6 +416,7 @@ impl<'a> Apply<'a, '_> {
             template_implicit: false,
             scopes: None,
             allow_root_invocation: true,
+            forall: None,
         }
         .constant(value, depth)
     }
@@ -884,6 +909,7 @@ pub(crate) fn ty(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -912,6 +938,7 @@ pub(crate) fn signature(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -941,6 +968,7 @@ pub(crate) fn requirement(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -970,6 +998,7 @@ pub(crate) fn actual(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .actual(&mut value, 1)?;
     Ok(value)
@@ -1000,9 +1029,55 @@ pub(crate) fn signature_template(
         template_implicit: mark_implicit,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
+}
+/// Instantiate one independently declared universal lifetime frame for this
+/// invocation. Its roles are fresh solver variables, disjoint from the called
+/// signature's own Invocation roles; all nested Bound frames are preserved.
+pub(crate) fn universal_callable(
+    value: &SemanticSignatureRecipe,
+    lifetimes: u32,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    value
+        .invocation_lifetimes
+        .checked_add(lifetimes)
+        .ok_or_else(|| bad("original universal callable role count overflows"))?;
+    let empty = BTreeMap::new();
+    let substitution = Substitution {
+        frames: &[],
+        selves: &[],
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 0,
+    };
+    let mut result = value.clone();
+    Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
+        substitution: &substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
+        forall: Some((lifetimes, value.invocation_lifetimes)),
+    }
+    .signature(&mut result, 1)?;
+    Ok(result)
 }
 pub(crate) fn signature_fresh(
     value: &SemanticSignatureRecipe,
@@ -1028,6 +1103,7 @@ pub(crate) fn signature_fresh(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -1061,6 +1137,7 @@ pub(crate) fn ty_in_domains(
         template_implicit: false,
         scopes: Some(scopes),
         allow_root_invocation,
+        forall: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -1101,6 +1178,7 @@ pub(crate) fn requirement_replacing(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -1131,6 +1209,7 @@ pub(crate) fn requirement_in_domains(
         template_implicit: false,
         scopes: Some(scopes),
         allow_root_invocation,
+        forall: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -1169,6 +1248,7 @@ pub(crate) fn delayed_types(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .ty(&mut value, 1)?;
     Ok(delayed)
@@ -1206,6 +1286,7 @@ pub(crate) fn replace_delayed(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
+        forall: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)

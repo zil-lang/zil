@@ -1097,17 +1097,49 @@ impl Check<'_, '_> {
         let mut selected = self.concrete_callable(&value, depth + 1)?;
         if selected.is_none() {
             for requirement in self.original_requirements(owner, depth + 1)? {
-                if let SemanticRequirementRecipe::Callable {
-                    ty,
-                    kind,
-                    signature,
-                } = requirement
-                {
+                let candidates = match requirement {
+                    SemanticRequirementRecipe::Callable {
+                        ty,
+                        kind,
+                        signature,
+                    } => {
+                        self.pay(1, depth)?;
+                        vec![(ty, kind, *signature)]
+                    }
+                    SemanticRequirementRecipe::ForAll {
+                        lifetimes,
+                        requirements,
+                    } => {
+                        self.pay(requirements.len(), depth)?;
+                        let mut candidates = Vec::new();
+                        for requirement in requirements {
+                            if let SemanticRequirementRecipe::Callable {
+                                ty,
+                                kind,
+                                signature,
+                            } = requirement
+                            {
+                                if ty == value {
+                                    let signature = substitute::universal_callable(
+                                        &signature,
+                                        lifetimes,
+                                        self.limits,
+                                        self.left,
+                                    )?;
+                                    candidates.push((ty, kind, signature));
+                                }
+                            }
+                        }
+                        candidates
+                    }
+                    _ => Vec::new(),
+                };
+                for (ty, kind, signature) in candidates {
                     if ty == value {
                         if selected.is_some() {
                             return Err(pending("original callable has several complete roles and needs an explicit selection"));
                         }
-                        selected = Some((kind, *signature));
+                        selected = Some((kind, signature));
                     }
                 }
             }
