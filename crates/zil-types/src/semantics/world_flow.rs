@@ -365,6 +365,7 @@ impl Cfg {
                         ..
                     },
                     InstructionKind::MakeAggregate { .. }
+                    | InstructionKind::Constant(Constant::Unit)
                     | InstructionKind::MakeOwnedTuple { .. }
                     | InstructionKind::MakeOwnedArray { .. }
                     | InstructionKind::MakeErrorUnion { .. }

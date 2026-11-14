@@ -7,6 +7,109 @@ pub(super) enum Source {
     Static,
     Class(SemanticClassExpr),
 }
+
+/// An outer occurrence inside a sealed whole-Type environment is a projection
+/// of that Type's own complete domain. Its binder is read from the exact port,
+/// never from the environment ordinal or equality of outside images.
+pub(super) fn environment_outer(
+    world: &mut World<'_, '_>,
+    scope: SemanticInstanceId,
+    ordinal: u32,
+    path: &[LifeTypeProjection],
+    mode: StoredBorrowMode,
+) -> R<SemanticClassExpr> {
+    let instance = world.instance(scope)?;
+    let original = world.definition(instance.definition)?;
+    world.pay(
+        original
+            .environment
+            .len()
+            .saturating_add(path.len())
+            .saturating_add(1),
+    )?;
+    if !matches!(
+        original
+            .environment
+            .get(ordinal as usize)
+            .map(|row| &row.kind),
+        Some(SemanticFormal::Type { .. })
+    ) {
+        return Err(bad(
+            "outer environment occurrence does not select its original whole-Type slot",
+        ));
+    }
+    let recipe = SemanticActualRecipe::Type(SemanticTypeRecipe::Environment {
+        scope: SemanticScopeRef::Ancestor(0),
+        ordinal,
+    });
+    let SemanticActual::Type(mut value) = super::super::materialize::actual_at(
+        world.program,
+        world.module,
+        world.ledger,
+        scope,
+        &recipe,
+        world.limits,
+        world.left,
+    )?
+    else {
+        return Err(bad("outer environment occurrence changes its actual kind"));
+    };
+    if path.len() > world.limits.max_call_depth {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "environment outer projection depth exceeded",
+            None,
+        ));
+    }
+    for step in path {
+        value = match step {
+            LifeTypeProjection::Place(selector) => projection::place(world, &value, *selector)?,
+            LifeTypeProjection::Pointee => projection::pointee(world, &value)?,
+            _ => {
+                return Err(pending(
+                    "environment outer occurrence requires its complete selected physical projection",
+                ));
+            }
+        };
+    }
+    let SemanticTypeValue::Resolved { ty, life, classes } = value else {
+        return Err(bad("outer environment projection remains unresolved"));
+    };
+    if !matches!(
+        (stored::physical(&ty), mode),
+        (Type::Desc(_), StoredBorrowMode::WritableDescription)
+            | (
+                Type::Address { mutable: false, .. },
+                StoredBorrowMode::SharedAddress
+            )
+            | (
+                Type::Address { mutable: true, .. },
+                StoredBorrowMode::ExclusiveAddress
+            )
+    ) {
+        return Err(bad(
+            "outer environment projection changes its original physical view mode",
+        ));
+    }
+    world.pay(life.slots.len().saturating_add(classes.len()))?;
+    let mut ports = life
+        .slots
+        .iter()
+        .filter(|port| port.path.is_empty() && port.mode == mode);
+    let port = ports
+        .next()
+        .ok_or_else(|| bad("outer environment projection has no exact variable port"))?;
+    if ports.next().is_some() {
+        return Err(bad(
+            "outer environment projection has ambiguous variable ports",
+        ));
+    }
+    let image = classes
+        .get(port.binder as usize)
+        .ok_or_else(|| bad("outer environment port leaves its complete intrinsic domain"))?;
+    crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+    Ok(image.clone())
+}
 pub(super) fn snapshot_source(source: &Source, limits: &Limits, left: &mut usize) -> R<Source> {
     *left = left.checked_sub(1).ok_or_else(|| {
         Diagnostic::limit(

@@ -857,6 +857,11 @@ impl World<'_, '_> {
                 self.limits,
                 self.left,
             )?,
+            SemanticClassExpr::OuterOccurrence {
+                operand: SemanticOperand::Environment(ordinal),
+                path,
+                mode,
+            } => roles::environment_outer(self, scope, *ordinal, path, *mode)?,
             _ => image.clone(),
         })
     }
@@ -1034,6 +1039,51 @@ impl World<'_, '_> {
         }
         Ok(())
     }
+    fn construction_recipe(
+        &mut self,
+        original: &SemanticDefinition,
+        site: SemanticSiteId,
+        recipe: &SemanticTypeRecipe,
+    ) -> R<SemanticTypeRecipe> {
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+            crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+            return Ok(recipe.clone());
+        };
+        self.pay(site_nodes.len().saturating_add(1))?;
+        let mut nodes = site_nodes.iter().filter(|row| row.site == site);
+        let node = nodes.next().map(|row| row.node);
+        if nodes.next().is_some() {
+            return Err(bad("constructor has ambiguous original source occurrences"));
+        }
+        if let Some(SemanticOriginalNode::Expression(node)) = node {
+            let ledger = self.ledger;
+            let proof = ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .ok_or_else(|| bad("constructor has no checked original injection theorem"))?;
+            self.pay(proof.injections.len())?;
+            if let Some(injection) = proof.injections.get(&(original.id, node)) {
+                // The actual root is emitted before this expression's implicit
+                // ErrorUnion injection. Its payload is an original Gamma
+                // result, never reconstructed from the actual result type.
+                if !matches!(recipe,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(at)} if *at==node)
+                {
+                    return Err(bad(
+                        "constructor injection changes its exact original expression query",
+                    ));
+                }
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    &injection.payload,
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                return Ok(injection.payload.clone());
+            }
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+        Ok(recipe.clone())
+    }
     fn constructed_value(
         &mut self,
         instance: &SemanticInstance,
@@ -1062,7 +1112,8 @@ impl World<'_, '_> {
             else {
                 return Err(bad("constructor changes its original recipe kind"));
             };
-            let expected = self.ty(instance.id, recipe, ty)?;
+            let recipe = self.construction_recipe(original, site.recipe, recipe)?;
+            let expected = self.ty(instance.id, &recipe, ty)?;
             self.same(instance.id, claimed, &expected, implicit)?;
             selected = Some(expected);
         }
@@ -1098,9 +1149,10 @@ impl World<'_, '_> {
                 let SemanticSiteRecipeKind::Construct { result: recipe } = &recipe.kind else {
                     return Err(bad("constructor changes original recipe kind"));
                 };
-                let expected = self.ty(instance.id, recipe, &f.values[result.0 as usize])?;
+                let recipe = self.construction_recipe(original, site.recipe, recipe)?;
+                let expected = self.ty(instance.id, &recipe, &f.values[result.0 as usize])?;
                 self.same(instance.id, claimed, &expected, implicit)?;
-                let symbolic = self.symbolic(instance.id, recipe)?;
+                let symbolic = self.symbolic(instance.id, &recipe)?;
                 let symbolic = match &symbolic {
                     SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::Desc { inner, .. } => {
                         inner.as_ref()
@@ -1913,6 +1965,25 @@ impl World<'_, '_> {
                     intrinsic
                 } else {
                     match &instruction.kind {
+                        InstructionKind::Constant(Constant::Unit) => {
+                            let value = self.zero(&Type::Unit)?;
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("Unit literal has no actual SSA result"))?;
+                            if let Some(expected) = self.constructed_value(
+                                instance,
+                                original,
+                                &sites,
+                                block.id,
+                                index,
+                                result,
+                                &Type::Unit,
+                                &implicit,
+                            )? {
+                                self.same(instance.id, &value, &expected, &implicit)?;
+                            }
+                            Some(value)
+                        }
                         InstructionKind::FunctionRef { function }
                         | InstructionKind::ForeignFunctionRef { function } => {
                             let result = instruction
