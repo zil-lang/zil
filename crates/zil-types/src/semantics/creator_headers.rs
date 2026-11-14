@@ -1,7 +1,9 @@
-//! Ordinary header proposals from complete original P/R type expressions.
-//! Original images remain distinct from this call's actual substitutions.
+//! Ordinary header proposals from complete original P/R queries. Existing
+//! binder identities are preserved; caller images never determine a header.
 use super::emission::Ledger;
 use crate::*;
+#[path = "header_rows.rs"]
+pub(super) mod rows;
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-CREATOR-HEADER", Span::default(), message)
 }
@@ -11,20 +13,71 @@ fn pay(left: &mut usize, n: usize) -> R<()> {
     })?;
     Ok(())
 }
-fn binder(
-    images: &mut Vec<SemanticClassExpr>,
-    image: SemanticClassExpr,
+fn position_work(header: &StorageLifeContract) -> usize {
+    header
+        .bindings
+        .iter()
+        .fold(0usize, |n, row| {
+            n.saturating_add(row.position.path.len().saturating_add(1))
+        })
+        .saturating_add(header.classes.iter().fold(0usize, |n, row| {
+            n.saturating_add(row.position.path.len().saturating_add(1))
+        }))
+        .saturating_add(header.static_bindings.iter().fold(0usize, |n, row| {
+            n.saturating_add(row.path.len().saturating_add(1))
+        }))
+}
+fn insert(
+    mapping: &mut std::collections::BTreeMap<StorageBinder, SemanticClassExpr>,
+    binder: StorageBinder,
+    image: &SemanticClassExpr,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    pay(left, mapping.len().saturating_add(1))?;
+    crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+    if let Some(old) = mapping.get(&binder) {
+        crate::dyn_metadata::semantic_operand_snapshot(old, limits, left, 1)?;
+        if old != image {
+            return Err(bad(
+                "one incoming header binder has different original domain identities",
+            ));
+        }
+    } else {
+        mapping.insert(binder, image.clone());
+    }
+    Ok(())
+}
+fn choose(
+    mapping: &mut std::collections::BTreeMap<StorageBinder, SemanticClassExpr>,
+    image: &SemanticClassExpr,
+    count: &mut u32,
+    limits: &Limits,
     left: &mut usize,
 ) -> R<StorageBinder> {
-    pay(left, images.len().saturating_add(1))?;
-    let index = match images.iter().position(|old| old == &image) {
-        Some(index) => index,
-        None => {
-            images.push(image);
-            images.len() - 1
+    pay(left, mapping.len().saturating_add(1))?;
+    let mut selected = None;
+    let mut ambiguous = false;
+    for (binder, old) in mapping.iter() {
+        crate::dyn_metadata::semantic_operand_snapshot(old, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+        if old == image {
+            if selected.replace(*binder).is_some() {
+                ambiguous = true;
+            }
         }
-    };
-    Ok(StorageBinder::Invocation(index as u32))
+    }
+    if !ambiguous {
+        if let Some(binder) = selected {
+            return Ok(binder);
+        }
+    }
+    let binder = StorageBinder::Invocation(*count);
+    *count = count
+        .checked_add(1)
+        .ok_or_else(|| bad("ordinary header domain overflows"))?;
+    insert(mapping, binder, image, limits, left)?;
+    Ok(binder)
 }
 pub(super) fn populate(
     program: &mut SemanticModule,
@@ -53,182 +106,232 @@ pub(super) fn populate(
         let function = module
             .functions
             .iter()
-            .find(|f| f.id == id)
-            .ok_or_else(|| bad("creator target is absent"))?;
+            .find(|function| function.id == id)
+            .ok_or_else(|| bad("ordinary header target is absent"))?;
         let original = program
             .definitions
             .iter()
-            .find(|d| d.id == instance.definition)
-            .ok_or_else(|| bad("creator original is absent"))?;
+            .find(|definition| definition.id == instance.definition)
+            .ok_or_else(|| bad("ordinary header original is absent"))?;
         let (SemanticDefinitionBody::Function { signature, .. }
         | SemanticDefinitionBody::FunctionWithBody { signature, .. }) = &original.body
         else {
             continue;
         };
-        if signature.parameters.len() != function.parameters.len() {
-            return Err(bad("creator signature changes original arity"));
+        if function.parameters.len() != signature.parameters.len() {
+            return Err(bad("ordinary header changes original parameter arity"));
         }
-        let pure_nominal = |ty: &Type| matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty() && life.retained.is_empty());
-        let eligible = function.parameters.iter().all(|local| {
-            function.locals.get(local.0 as usize).is_some_and(|l| {
-                l.ty.is_b0_scalar()
-                    || pure_nominal(&l.ty)
-                    || matches!(&l.ty, Type::Address { inner, .. } if inner.is_b0_scalar())
-            })
-        }) && (function.return_type.is_b0_scalar()
-            || pure_nominal(&function.return_type)
-            || matches!(function.return_type, Type::Closure(_)));
-        if !eligible {
-            continue;
-        }
-        let mut images = Vec::new();
-        let mut proposed = StorageLifeContract {
-            fixed_binder_count: 0,
-            invocation_binder_count: 0,
-            bindings: Vec::new(),
-            static_bindings: Vec::new(),
-            classes: Vec::new(),
-        };
-        for (index, (parameter, recipe)) in function
-            .parameters
-            .iter()
-            .zip(&signature.parameters)
-            .enumerate()
-        {
-            let ty = &function.locals[parameter.0 as usize].ty;
-            let SemanticTypeValue::Resolved { life, classes, .. } = super::materialize::type_at(
+        let mut bindings = Vec::new();
+        let mut classes = Vec::new();
+        let mut statics = Vec::new();
+        pay(left, function.parameters.len().saturating_add(1))?;
+        for (ordinal, local) in function.parameters.iter().enumerate() {
+            let ty = &function
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad("ordinary header parameter local is absent"))?
+                .ty;
+            let recipe = SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
+            };
+            let value = super::materialize::type_at(
                 program,
                 module,
                 ledger,
                 instance.id,
-                &recipe.ty,
+                &recipe,
                 Some(ty),
                 limits,
                 left,
-            )?
-            else {
-                return Err(bad("creator input retains Core type"));
-            };
-            if let Type::Address { .. } = ty {
-                if life.binder_count != 1
-                    || classes.len() != 1
-                    || life.slots.len() != 1
-                    || !life.retained.is_empty()
-                    || !life.nominal_arguments.is_empty()
-                {
-                    return Err(bad(
-                        "creator scalar input has an incomplete actual outer occurrence",
-                    ));
-                }
-                let binding = binder(
-                    &mut images,
-                    classes
-                        .into_iter()
-                        .next()
-                        .ok_or_else(|| bad("creator input loses outer image"))?,
-                    left,
-                )?;
-                proposed.bindings.push(StorageLifeBinding {
-                    position: StoragePosition {
-                        base: StorageBase::Parameter(index as u32),
-                        path: Vec::new(),
-                    },
-                    binder: binding,
-                });
-            } else if matches!(ty, Type::BorrowedStorage { .. }) {
-                if life.binder_count as usize != classes.len() {
-                    return Err(bad("creator nominal input loses its complete domain"));
-                }
-                pay(left, classes.len())?;
-                for (class, image) in classes.into_iter().enumerate() {
-                    let binding = binder(&mut images, image, left)?;
-                    proposed.classes.push(SignatureLifeClassBinding {
-                        position: SignatureLifeClass {
-                            base: StorageBase::Parameter(index as u32),
-                            path: Vec::new(),
-                            class: class as u32,
-                        },
-                        binder: binding,
-                    });
-                }
-            } else if life.binder_count != 0 || !classes.is_empty() {
-                return Err(bad("scalar creator input invents a free class"));
-            }
-        }
-        if matches!(
-            function.return_type,
-            Type::Closure(_) | Type::BorrowedStorage { .. }
-        ) {
-            let SemanticTypeValue::Resolved { life, classes, .. } = super::materialize::type_at(
-                program,
-                module,
-                ledger,
-                instance.id,
-                &signature.result,
-                Some(&function.return_type),
+            )?;
+            rows::append(
+                &value,
+                StorageBase::Parameter(ordinal as u32),
+                &mut bindings,
+                &mut classes,
+                &mut statics,
                 limits,
                 left,
-            )?
-            else {
-                return Err(bad("creator result retains Core type"));
-            };
-            if life.binder_count as usize != classes.len() {
-                return Err(bad("creator result loses its complete persistent domain"));
-            }
-            pay(left, classes.len())?;
-            for (class, image) in classes.into_iter().enumerate() {
-                let binding = binder(&mut images, image, left)?;
-                proposed.classes.push(SignatureLifeClassBinding {
-                    position: SignatureLifeClass {
-                        base: StorageBase::Result,
-                        path: Vec::new(),
-                        class: class as u32,
-                    },
-                    binder: binding,
-                });
-            }
+            )?;
         }
-        if images.is_empty() {
-            continue;
-        }
-        proposed.invocation_binder_count = images.len() as u32;
+        let recipe = SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Result,
+        };
+        let value = super::materialize::type_at(
+            program,
+            module,
+            ledger,
+            instance.id,
+            &recipe,
+            Some(&function.return_type),
+            limits,
+            left,
+        )?;
+        rows::append(
+            &value,
+            StorageBase::Result,
+            &mut bindings,
+            &mut classes,
+            &mut statics,
+            limits,
+            left,
+        )?;
+        let mut mapping = std::collections::BTreeMap::new();
+        let mut proposed = StorageLifeContract {
+            fixed_binder_count: function
+                .storage_life
+                .as_ref()
+                .map_or(0, |header| header.fixed_binder_count),
+            invocation_binder_count: function
+                .storage_life
+                .as_ref()
+                .map_or(0, |header| header.invocation_binder_count),
+            bindings: Vec::new(),
+            static_bindings: statics,
+            classes: Vec::new(),
+        };
         if let Some(old) = &function.storage_life {
             pay(
                 left,
-                old.bindings
-                    .len()
-                    .saturating_mul(proposed.bindings.len())
-                    .saturating_add(old.classes.len().saturating_mul(proposed.classes.len())),
+                position_work(old).saturating_mul(
+                    bindings
+                        .len()
+                        .saturating_add(classes.len())
+                        .saturating_add(proposed.static_bindings.len())
+                        .saturating_add(1),
+                ),
             )?;
-            if old.fixed_binder_count != 0
-                || old.invocation_binder_count > proposed.invocation_binder_count
-                || !old.static_bindings.is_empty()
-                || old
-                    .bindings
+            for row in &old.bindings {
+                let mut matches = bindings
                     .iter()
-                    .any(|row| !proposed.bindings.contains(row))
-                || old
-                    .classes
+                    .filter(|(position, _)| position == &row.position);
+                let (_, image) = matches.next().ok_or_else(|| {
+                    bad("existing header adds a physical occurrence absent from original P/R")
+                })?;
+                if matches.next().is_some() {
+                    return Err(bad("ordinary original physical occurrence is ambiguous"));
+                }
+                insert(&mut mapping, row.binder, image, limits, left)?;
+            }
+            for row in &old.classes {
+                let mut matches = classes
                     .iter()
-                    .any(|row| !proposed.classes.contains(row))
-            {
-                return Err(bad(
-                    "existing creator header contradicts the complete original P/R images",
-                ));
+                    .filter(|(position, _)| position == &row.position);
+                let (_, image) = matches.next().ok_or_else(|| {
+                    bad("existing header adds an intrinsic occurrence absent from original P/R")
+                })?;
+                if matches.next().is_some() {
+                    return Err(bad("ordinary original intrinsic occurrence is ambiguous"));
+                }
+                insert(&mut mapping, row.binder, image, limits, left)?;
+            }
+            for position in &old.static_bindings {
+                if proposed
+                    .static_bindings
+                    .iter()
+                    .filter(|candidate| *candidate == position)
+                    .count()
+                    != 1
+                {
+                    return Err(bad(
+                        "existing header changes an original program-static occurrence",
+                    ));
+                }
+            }
+            for fixed in 0..old.fixed_binder_count {
+                if !mapping.contains_key(&StorageBinder::Fixed(fixed)) {
+                    return Err(bad(
+                        "existing Fixed binder has no complete original occurrence",
+                    ));
+                }
+            }
+            for invocation in 0..old.invocation_binder_count {
+                if !mapping.contains_key(&StorageBinder::Invocation(invocation)) {
+                    return Err(bad(
+                        "existing Invocation binder has no complete original occurrence",
+                    ));
+                }
             }
         }
-        let embedding = images
-            .into_iter()
-            .enumerate()
-            .map(|(i, actual)| SemanticHeaderBinding {
-                header: StorageBinder::Invocation(i as u32),
-                actual,
-            })
-            .collect::<Vec<_>>();
-        if !instance.header_embedding.is_empty() && instance.header_embedding != embedding {
-            return Err(bad(
-                "claimed creator embedding differs from its complete original P/R images",
-            ));
+        pay(left, bindings.len().saturating_add(classes.len()))?;
+        for (position, image) in bindings {
+            let existing = function
+                .storage_life
+                .as_ref()
+                .and_then(|old| old.bindings.iter().find(|row| row.position == position))
+                .map(|row| row.binder);
+            let binder = match existing {
+                Some(binder) => binder,
+                None => choose(
+                    &mut mapping,
+                    &image,
+                    &mut proposed.invocation_binder_count,
+                    limits,
+                    left,
+                )?,
+            };
+            proposed
+                .bindings
+                .push(StorageLifeBinding { position, binder });
+        }
+        for (position, image) in classes {
+            let existing = function
+                .storage_life
+                .as_ref()
+                .and_then(|old| old.classes.iter().find(|row| row.position == position))
+                .map(|row| row.binder);
+            let binder = match existing {
+                Some(binder) => binder,
+                None => choose(
+                    &mut mapping,
+                    &image,
+                    &mut proposed.invocation_binder_count,
+                    limits,
+                    left,
+                )?,
+            };
+            proposed
+                .classes
+                .push(SignatureLifeClassBinding { position, binder });
+        }
+        if function.storage_life.is_none()
+            && mapping.is_empty()
+            && proposed.static_bindings.is_empty()
+        {
+            continue;
+        }
+        pay(
+            left,
+            mapping
+                .len()
+                .saturating_add(instance.header_embedding.len())
+                .saturating_add(1),
+        )?;
+        let mut embedding = Vec::new();
+        for (header, actual) in mapping {
+            if match header {
+                StorageBinder::Fixed(index) => index >= proposed.fixed_binder_count,
+                StorageBinder::Invocation(index) => index >= proposed.invocation_binder_count,
+            } {
+                return Err(bad(
+                    "ordinary header binder exceeds its preserved complete domain",
+                ));
+            }
+            embedding.push(SemanticHeaderBinding { header, actual });
+        }
+        for claim in &instance.header_embedding {
+            crate::dyn_metadata::semantic_operand_snapshot(&claim.actual, limits, left, 1)?;
+            let mut rows = embedding.iter().filter(|row| row.header == claim.header);
+            let row = rows
+                .next()
+                .ok_or_else(|| bad("claimed header embedding adds an unknown original domain"))?;
+            if rows.next().is_some() || row.actual != claim.actual {
+                return Err(bad(
+                    "claimed header embedding differs from the original P/R identity",
+                ));
+            }
         }
         changes.push((instance.id, id, proposed, embedding));
     }
@@ -243,14 +346,14 @@ pub(super) fn populate(
         module
             .functions
             .iter_mut()
-            .find(|f| f.id == function)
-            .ok_or_else(|| bad("creator disappeared"))?
+            .find(|row| row.id == function)
+            .ok_or_else(|| bad("ordinary header target disappeared"))?
             .storage_life = Some(header);
         program
             .instances
             .iter_mut()
-            .find(|i| i.id == instance)
-            .ok_or_else(|| bad("creator scope disappeared"))?
+            .find(|row| row.id == instance)
+            .ok_or_else(|| bad("ordinary header scope disappeared"))?
             .header_embedding = embedding;
     }
     Ok(())

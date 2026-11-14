@@ -177,6 +177,15 @@ impl<'a> World<'a, '_> {
                 self.resolved(ty, empty(), Vec::new())
             }
             Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
+            Type::Task { .. } | Type::MutexGuard { .. } => {
+                let shape = projection::type_shape_at(self, ty, depth + 1)?;
+                if shape.binder_count != 0 {
+                    return Err(bad(
+                        "actual zero carrier retains a nonzero complete class domain",
+                    ));
+                }
+                self.resolved(ty, shape, Vec::new())
+            }
             Type::FunctionPointer { parameters, result } => {
                 for parameter in parameters {
                     self.zero_at(parameter, depth + 1)?;
@@ -471,59 +480,7 @@ impl<'a> World<'a, '_> {
         if f.storage_life.as_ref() != Some(header) {
             return Err(bad("entry and environment class directories disagree"));
         }
-        match ty {
-            Type::BorrowedStorage { life, .. } => {
-                self.pay(life.binder_count as usize + header.classes.len())?;
-                let mut images = Vec::new();
-                for class in 0..life.binder_count {
-                    let mut rows = header.classes.iter().filter(|r| {
-                        r.position.base == StorageBase::Capture(index)
-                            && r.position.path.is_empty()
-                            && r.position.class == class
-                    });
-                    let row = rows
-                        .next()
-                        .ok_or_else(|| bad("capture loses an intrinsic class"))?;
-                    if rows.next().is_some() {
-                        return Err(bad("capture repeats an intrinsic class"));
-                    }
-                    images.push(self.binding(instance, row.binder)?);
-                }
-                self.resolved(ty, life.clone(), images)
-            }
-            Type::Address { mutable, inner } if inner.is_b0_scalar() => {
-                self.pay(header.bindings.len())?;
-                let mut rows = header.bindings.iter().filter(|r| {
-                    r.position.base == StorageBase::Capture(index) && r.position.path.is_empty()
-                });
-                let row = rows
-                    .next()
-                    .ok_or_else(|| bad("capture loses its outer occurrence"))?;
-                if rows.next().is_some() {
-                    return Err(bad("capture repeats its outer occurrence"));
-                }
-                let image = self.binding(instance, row.binder)?;
-                self.resolved(
-                    ty,
-                    StorageLifeShape {
-                        binder_count: 1,
-                        slots: vec![StorageLifeSlot {
-                            path: Vec::new(),
-                            mode: if *mutable {
-                                StoredBorrowMode::ExclusiveAddress
-                            } else {
-                                StoredBorrowMode::SharedAddress
-                            },
-                            binder: 0,
-                        }],
-                        retained: Vec::new(),
-                        nominal_arguments: Vec::new(),
-                    },
-                    vec![image],
-                )
-            }
-            _ => self.zero(ty),
-        }
+        projection::capture(self, instance, index, ty, header)
     }
     fn address(
         &mut self,
@@ -639,60 +596,12 @@ impl<'a> World<'a, '_> {
         )
     }
     fn pointee(&mut self, value: &SemanticTypeValue) -> R<SemanticTypeValue> {
-        let SemanticTypeValue::Resolved {
-            ty: Type::Address { inner, .. } | Type::Desc(inner),
-            life,
-            classes,
-        } = value
-        else {
-            return Err(bad("pointee projection has no actual address"));
-        };
-        let shape = match inner.as_ref() {
-            Type::BorrowedStorage { life, .. } => life.clone(),
-            Type::MutexGuard { retained_life, .. } | Type::Task { retained_life, .. } => {
-                // The reaching parent is already a complete original value;
-                // all child classes must additionally have real parent maps.
-                StorageLifeShape {
-                    binder_count: retained_life.binder_count,
-                    ..empty()
-                }
-            }
-            Type::Closure(id) => {
-                let (definition, _) = self.child(*id)?;
-                let header = definition
-                    .storage_life
-                    .as_ref()
-                    .ok_or_else(|| pending("closure pointee has unknown complete domain"))?;
-                StorageLifeShape {
-                    binder_count: header.fixed_binder_count,
-                    ..empty()
-                }
-            }
-            _ => {
-                return self.zero(inner);
-            }
-        };
-        self.pay(shape.binder_count as usize + life.retained.len())?;
-        let mut images = Vec::new();
-        for class in 0..shape.binder_count {
-            let mut rows = life
-                .retained
-                .iter()
-                .filter(|r| r.path.as_slice() == [LifeTypeProjection::Pointee] && r.class == class);
-            let row = rows
-                .next()
-                .ok_or_else(|| bad("address loses a complete pointee class"))?;
-            if rows.next().is_some() {
-                return Err(bad("address repeats a pointee class"));
-            }
-            images.push(
-                classes
-                    .get(row.binder as usize)
-                    .ok_or_else(|| bad("address pointee image is outside its domain"))?
-                    .clone(),
-            );
+        if !matches!(Self::type_of(value)?, Type::Address { .. } | Type::Desc(_)) {
+            return Err(bad(
+                "pointee projection has no actual address or description",
+            ));
         }
-        self.resolved(inner, shape, images)
+        projection::pointee(self, value)
     }
     fn map_value(
         &mut self,
@@ -1449,81 +1358,15 @@ impl World<'_, '_> {
         classes_out: &mut Vec<(SignatureLifeClass, SemanticClassExpr)>,
         statics: &mut Vec<StoragePosition>,
     ) -> R<()> {
-        let SemanticTypeValue::Resolved { ty, life, classes } = value else {
-            return Err(bad("header retains an unresolved whole type"));
-        };
-        self.pay(
-            life.slots
-                .len()
-                .saturating_add(life.retained.len())
-                .saturating_add(classes.len()),
-        )?;
-        for slot in &life.slots {
-            self.pay(slot.path.len())?;
-            let image = classes
-                .get(slot.binder as usize)
-                .ok_or_else(|| bad("header slot exceeds complete class domain"))?;
-            bindings.push((
-                StoragePosition {
-                    base,
-                    path: slot
-                        .path
-                        .iter()
-                        .copied()
-                        .map(ContractProjection::Place)
-                        .collect(),
-                },
-                image.clone(),
-            ));
-        }
-        match ty {
-            Type::BorrowedStorage { .. }
-            | Type::Dyn { .. }
-            | Type::OwnedDyn { .. }
-            | Type::Closure(_)
-            | Type::MutexGuard { .. }
-            | Type::Task { .. } => {
-                for (class, image) in classes.iter().enumerate() {
-                    classes_out.push((
-                        SignatureLifeClass {
-                            base,
-                            path: Vec::new(),
-                            class: class as u32,
-                        },
-                        image.clone(),
-                    ));
-                }
-            }
-            Type::Address { .. } | Type::Desc { .. } => {
-                if !life.slots.iter().any(|slot| slot.path.is_empty()) {
-                    statics.push(StoragePosition {
-                        base,
-                        path: Vec::new(),
-                    });
-                }
-                for row in &life.retained {
-                    self.pay(row.path.len())?;
-                    let image = classes
-                        .get(row.binder as usize)
-                        .ok_or_else(|| bad("header child class exceeds complete domain"))?;
-                    classes_out.push((
-                        SignatureLifeClass {
-                            base,
-                            path: row.path.clone(),
-                            class: row.class,
-                        },
-                        image.clone(),
-                    ));
-                }
-            }
-            _ if life.binder_count == 0 && classes.is_empty() => {}
-            _ => {
-                return Err(pending(
-                    "header type requires its complete opaque class boundary",
-                ))
-            }
-        }
-        Ok(())
+        super::creator_headers::rows::append(
+            value,
+            base,
+            bindings,
+            classes_out,
+            statics,
+            self.limits,
+            self.left,
+        )
     }
     fn check_header(
         &mut self,
@@ -3065,10 +2908,10 @@ impl World<'_, '_> {
                         }
                         InstructionKind::DescribeLocal { local } => {
                             let value = self.local(&locals, *local)?;
-                            let Type::Managed(inner) = Self::type_of(&value)? else {
+                            if !matches!(Self::type_of(&value)?, Type::Managed(_)) {
                                 return Err(bad("description local is not its actual owner"));
-                            };
-                            let value = self.zero(inner)?;
+                            }
+                            let value = projection::pointee(self, &value)?;
                             let result = instruction
                                 .result
                                 .ok_or_else(|| bad("local description has no result"))?;
