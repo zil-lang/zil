@@ -2443,7 +2443,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                 self.constant(integer(text, expected, false, e.span)?, e.span)
             }
             CoreExprKind::Bool(v) => self.constant(Constant::Bool(*v), e.span),
-            CoreExprKind::Unit => self.constant(Constant::Unit, e.span),
+            CoreExprKind::Unit => Ok((
+                self.semantic_constructor_value(
+                    e,
+                    InstructionKind::Constant(Constant::Unit),
+                    Type::Unit,
+                )?,
+                Type::Unit,
+            )),
             CoreExprKind::Unary {
                 op: UnaryOp::Negate,
                 operand,

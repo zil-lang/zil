@@ -313,6 +313,33 @@ fn assignment_navigation(
     }
     Ok(false)
 }
+// A Name selected as the object of a projection has no independent whole-
+// value result. The terminal projection retains its own true value event.
+fn projection_navigation(
+    body: &mut SourceBody<'_>,
+    path: &[u32],
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<bool> {
+    let mut length = path.len();
+    while length > 0 {
+        let child = path[length - 1];
+        let Some(parent) = body.locate(&path[..length - 1], budget, span)? else {
+            return Ok(false);
+        };
+        match parent.node {
+            body_nodes::Node::Expression(expression) => match &expression.kind {
+                s::ExprKind::Group(_) if child == 0 => length -= 1,
+                s::ExprKind::Member { .. } | s::ExprKind::Index { .. } if child == 0 => {
+                    return Ok(true);
+                }
+                _ => return Ok(false),
+            },
+            _ => return Ok(false),
+        }
+    }
+    Ok(false)
+}
 fn implicit_observation(
     program: &mut program::Program,
     definition: SemanticDefinitionId,
@@ -395,6 +422,7 @@ fn operations(
         let observation = observation_operand(body, &original.path, budget, span)?;
         let projection_value = projection_value(body, &original.path, budget, span)?;
         let navigation = assignment_navigation(body, &original.path, budget, span)?;
+        let prefix = projection_navigation(body, &original.path, budget, span)?;
         let Some(located) = body.locate(&original.path, budget, span)? else {
             return Err(error(
                 span,
@@ -551,6 +579,22 @@ fn operations(
                                 SemanticEmissionRole::Ascription,
                             ))
                         }
+                        s::ExprKind::Record { base: Some(_), .. } => {
+                            // UpdateField produces a new value from an existing
+                            // nominal value; it is not a fresh literal owner.
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::TypeUse {
+                                    expected: expected.clone(),
+                                },
+                                Action::TypeUse(expected),
+                                SemanticEmissionRole::Ascription,
+                            ))
+                        }
                         s::ExprKind::Record { .. }
                         | s::ExprKind::Tuple(_)
                         | s::ExprKind::Array(_) => {
@@ -613,7 +657,13 @@ fn operations(
                 };
                 if let Some((kind, action, role)) = action {
                     if !runtime
-                        || (navigation && matches!(kind, SemanticSiteRecipeKind::TypeUse { .. }))
+                        || ((navigation
+                            || (prefix
+                                && matches!(
+                                    expression.kind,
+                                    s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
+                                )))
+                            && matches!(kind, SemanticSiteRecipeKind::TypeUse { .. }))
                     {
                         directory_site(
                             program,

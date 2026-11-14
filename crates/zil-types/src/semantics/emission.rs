@@ -521,7 +521,10 @@ impl Ledger {
                         .and_then(|block| block.instructions.get(construction.at.instruction)),
                         Some(Instruction { result: Some(value), kind, .. })
                             if *value == construction.value && matches!(kind,
-                                InstructionKind::MakeAggregate { .. }
+                                InstructionKind::Constant(Constant::Unit)
+                                | InstructionKind::MakeVariant { .. }
+                                | InstructionKind::MakeErrorUnion { .. }
+                                | InstructionKind::MakeAggregate { .. }
                                 | InstructionKind::MakeManaged { .. }
                                 | InstructionKind::MakePackage { .. }
                                 | InstructionKind::MakeOwnedTuple { .. }

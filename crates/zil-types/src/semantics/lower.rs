@@ -217,7 +217,10 @@ impl<'a> Lower<'a, '_> {
             if instruction.result != Some(construction.value)
                 || !matches!(
                     instruction.kind,
-                    InstructionKind::MakeAggregate { .. }
+                    InstructionKind::Constant(Constant::Unit)
+                        | InstructionKind::MakeVariant { .. }
+                        | InstructionKind::MakeErrorUnion { .. }
+                        | InstructionKind::MakeAggregate { .. }
                         | InstructionKind::MakeManaged { .. }
                         | InstructionKind::MakePackage { .. }
                         | InstructionKind::MakeOwnedTuple { .. }

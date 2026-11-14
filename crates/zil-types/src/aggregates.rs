@@ -3129,7 +3129,7 @@ impl<'a> Builder<'a, '_> {
         ))
     }
 
-    fn semantic_constructor_value(
+    pub(super) fn semantic_constructor_value(
         &mut self,
         expression: &CoreExpr,
         kind: InstructionKind,
