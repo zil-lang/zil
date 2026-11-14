@@ -10,6 +10,7 @@ pub(super) struct State {
     pub values: Vec<Option<SemanticTypeValue>>,
     pub declared: BTreeMap<LocalId, SemanticTypeValue>,
     pub implicit: BTreeMap<u32, SemanticClassExpr>,
+    pub vacant_captures: BTreeSet<(SemanticInstanceId, u32)>,
     pub stale_values: BTreeSet<ValueId>,
     pub stale_locals: BTreeSet<LocalId>,
     pub scopes: Vec<ScopeId>,
@@ -31,6 +32,7 @@ impl State {
                 .saturating_add(self.declared.len())
                 .saturating_add(self.implicit.len())
                 .saturating_add(self.stale_values.len())
+                .saturating_add(self.vacant_captures.len())
                 .saturating_add(self.stale_locals.len())
                 .saturating_add(self.scopes.len())
                 .saturating_add(self.unsafe_regions.len())
@@ -92,6 +94,7 @@ impl State {
             values,
             declared,
             implicit: self.implicit.clone(),
+            vacant_captures: self.vacant_captures.clone(),
             stale_values: self.stale_values.clone(),
             stale_locals: self.stale_locals.clone(),
             scopes: self.scopes.clone(),
@@ -114,6 +117,7 @@ impl State {
                 .saturating_add(self.implicit.len())
                 .saturating_add(self.stale_locals.len())
                 .saturating_add(self.stale_values.len())
+                .saturating_add(self.vacant_captures.len())
                 .saturating_add(self.scopes.len())
                 .saturating_add(self.unsafe_regions.len())
                 .saturating_add(self.owners.len())

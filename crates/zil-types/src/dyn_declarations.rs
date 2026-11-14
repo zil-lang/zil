@@ -33,12 +33,7 @@ pub(super) fn original_declaration(
         .dyn_scopes
         .iter()
         .filter(|row| row.owner == SemanticDynOwner::Declaration(declaration.id));
-    let scope = scopes.next().ok_or_else(|| {
-        unsupported(
-            Span::default(),
-            "original dyn declaration has no exact scope binding",
-        )
-    })?;
+    let binding = scopes.next();
     if scopes.next().is_some() {
         return Err(error(
             "E-DYN-DECLARATION",
@@ -46,24 +41,74 @@ pub(super) fn original_declaration(
             "original dyn declaration repeats its scope binding",
         ));
     }
-    let mut definitions = semantic
-        .definitions
-        .iter()
-        .filter(|row| row.id == scope.scope);
-    let original = definitions
-        .next()
-        .ok_or_else(|| unsupported(Span::default(), "original dyn declaration scope is absent"))?;
-    if definitions.next().is_some() {
-        return Err(error(
-            "E-DYN-DECLARATION",
-            Span::default(),
-            "original dyn scope definition is ambiguous",
-        ));
-    }
-    let kind = matches!((&original.body, declaration.kind),
-        (SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration: id }), DynDeclarationKind::Trait)
-        | (SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration: id, .. }), DynDeclarationKind::Impl)
-        | (SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl { declaration: id, .. }), DynDeclarationKind::Impl) if *id == declaration.id);
+    let original = if let Some(binding) = binding {
+        let mut definitions = semantic
+            .definitions
+            .iter()
+            .filter(|row| row.id == binding.scope);
+        let original = definitions.next().ok_or_else(|| {
+            unsupported(Span::default(), "original dyn declaration scope is absent")
+        })?;
+        if definitions.next().is_some() {
+            return Err(error(
+                "E-DYN-DECLARATION",
+                Span::default(),
+                "original dyn scope definition is ambiguous",
+            ));
+        }
+        original
+    } else {
+        // BuiltinImpl has no LifeDeclarationId field in the original scope.
+        // Only its complete immutable declaration identity can bridge the raw
+        // static directory. Missing runtime recipes remain missing below.
+        let mut selected = None;
+        for definition in &semantic.definitions {
+            if !matches!(
+                definition.body,
+                SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. })
+            ) {
+                continue;
+            }
+            directory_identity_work(&definition.identity, left)?;
+            if definition.identity == declaration.identity {
+                if selected.replace(definition).is_some() {
+                    return Err(error(
+                        "E-DYN-DECLARATION",
+                        Span::default(),
+                        "builtin original dyn scope identity is ambiguous",
+                    ));
+                }
+            }
+        }
+        selected.ok_or_else(|| {
+            unsupported(
+                Span::default(),
+                "original dyn declaration has no exact scope binding",
+            )
+        })?
+    };
+    let kind = match (&original.body, declaration.kind) {
+        (
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration: id }),
+            DynDeclarationKind::Trait,
+        )
+        | (
+            SemanticDefinitionBody::Scope(
+                SemanticScopeRecipe::TraitImpl {
+                    declaration: id, ..
+                }
+                | SemanticScopeRecipe::InherentImpl {
+                    declaration: id, ..
+                },
+            ),
+            DynDeclarationKind::Impl,
+        ) => *id == declaration.id,
+        (
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. }),
+            DynDeclarationKind::Impl,
+        ) => binding.is_none(),
+        _ => false,
+    };
     spend(
         left,
         original
@@ -249,9 +294,10 @@ pub(super) fn original_declaration(
                 has_definition = true;
             }
         }
-        if !found
-            || declaration.kind == DynDeclarationKind::Trait && !has_signature
-            || declaration.kind == DynDeclarationKind::Impl && !has_definition
+        if (declaration.method_signatures.is_some() || declaration.method_definitions.is_some())
+            && (!found
+                || declaration.kind == DynDeclarationKind::Trait && !has_signature
+                || declaration.kind == DynDeclarationKind::Impl && !has_definition)
         {
             return Err(unsupported(
                 Span::default(),

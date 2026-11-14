@@ -20,6 +20,8 @@ mod function_values;
 mod intrinsics;
 #[path = "world_methods.rs"]
 mod methods;
+#[path = "world_places.rs"]
+mod places;
 #[path = "world_projection.rs"]
 mod projection;
 #[path = "world_protocol.rs"]
@@ -61,6 +63,7 @@ struct World<'a, 'b> {
     ledger: &'a Ledger,
     limits: &'b Limits,
     left: &'b mut usize,
+    vacant_captures: std::collections::BTreeSet<(SemanticInstanceId, u32)>,
     stale_values: std::collections::BTreeSet<ValueId>,
     stale_locals: std::collections::BTreeSet<LocalId>,
     vacant: std::collections::BTreeSet<(LocalId, Vec<PlaceProjection>)>,
@@ -462,6 +465,13 @@ impl<'a> World<'a, '_> {
         Ok(row.actual.clone())
     }
     fn capture(&mut self, instance: &SemanticInstance, index: u32) -> R<SemanticTypeValue> {
+        self.pay(self.vacant_captures.len().saturating_add(1))?;
+        if self.vacant_captures.contains(&(instance.id, index)) {
+            return Err(bad("actual capture reads a transferred environment field"));
+        }
+        self.capture_initial(instance, index)
+    }
+    fn capture_initial(&mut self, instance: &SemanticInstance, index: u32) -> R<SemanticTypeValue> {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) =
             instance.target
         else {
@@ -1234,7 +1244,17 @@ impl World<'_, '_> {
                 selected = Some(expected);
             }
         }
-        selected.ok_or_else(|| bad("actual qualified constructor has no original constructor site"))
+        if selected.is_none() {
+            self.pay(128)?;
+        }
+        selected.ok_or_else(|| {
+            let mut error = bad("actual qualified constructor has no original constructor site");
+            error.notes.push(format!(
+                "actual constructor: function {:?} block {:?} instruction {} result {:?}",
+                f.id, block, index, result
+            ));
+            error
+        })
     }
     fn body_call(
         &mut self,
@@ -1703,6 +1723,7 @@ impl World<'_, '_> {
             values,
             declared,
             implicit,
+            vacant_captures: Default::default(),
             stale_values: Default::default(),
             stale_locals: Default::default(),
             scopes: Vec::new(),
@@ -1725,6 +1746,7 @@ impl World<'_, '_> {
                 mut values,
                 mut declared,
                 mut implicit,
+                vacant_captures,
                 stale_values,
                 stale_locals,
                 mut scopes,
@@ -1737,6 +1759,7 @@ impl World<'_, '_> {
                 value_roots,
                 local_roots,
             } = reaching[block_index][state_index].snapshot(self)?;
+            self.vacant_captures = vacant_captures;
             self.stale_values = stale_values;
             self.stale_locals = stale_locals;
             self.vacant = vacant;
@@ -1826,6 +1849,26 @@ impl World<'_, '_> {
                         propagated_roots.insert(arguments::Root {
                             local: *local,
                             path: path.clone(),
+                        });
+                    }
+                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                        self.pay(path.len().saturating_add(1))?;
+                        propagated_roots.insert(arguments::Root {
+                            local: *local,
+                            path: path
+                                .iter()
+                                .map(|index| PlaceProjection::Field(*index))
+                                .collect(),
+                        });
+                    }
+                    InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                        self.pay(path.len().saturating_add(1))?;
+                        propagated_roots.insert(arguments::Root {
+                            local: *local,
+                            path: path
+                                .iter()
+                                .map(|item| PlaceProjection::Variant(*item))
+                                .collect(),
                         });
                     }
                     InstructionKind::ReborrowAddress { address, .. }
@@ -1985,13 +2028,15 @@ impl World<'_, '_> {
                         InstructionKind::BorrowPackageField {
                             local,
                             index: field,
-                            ..
+                            mutable,
                         }
                         | InstructionKind::BorrowOwnedArrayElement {
                             local,
                             index: field,
-                            ..
+                            mutable,
                         } => {
+                            places::local_mutable(self, f, *local, *mutable)?;
+                            places::borrow_mode(ty, *mutable)?;
                             let value = self.projected_local(
                                 &locals,
                                 *local,
@@ -2007,7 +2052,21 @@ impl World<'_, '_> {
                                 &value,
                             )?)
                         }
-                        InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                        InstructionKind::BorrowPlaceLocal {
+                            local,
+                            path,
+                            mutable,
+                        } => {
+                            if path.is_empty() {
+                                return Err(bad("actual inline place borrow has no projection"));
+                            }
+                            places::local_mutable(self, f, *local, *mutable)?;
+                            if !matches!(ty,Some(Type::Address{mutable:actual,..}) if actual==mutable)
+                            {
+                                return Err(bad(
+                                    "actual inline place borrow changes its requested mode",
+                                ));
+                            }
                             let value = self.projected_local(&locals, *local, path)?;
                             let result = instruction
                                 .result
@@ -2016,6 +2075,168 @@ impl World<'_, '_> {
                             Some(self.address(
                                 ty.ok_or_else(|| bad("place borrow has no complete result type"))?,
                                 image,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::PlaceTagLocal { local, path } => {
+                            places::local_tag(self, &locals, *local, path, false)?;
+                            Some(self.zero(&Type::I32)?)
+                        }
+                        InstructionKind::VariantTagLocal { local, path } => {
+                            self.pay(path.len())?;
+                            let path = path
+                                .iter()
+                                .map(|item| PlaceProjection::Variant(*item))
+                                .collect::<Vec<_>>();
+                            places::local_tag(self, &locals, *local, &path, true)?;
+                            Some(self.zero(&Type::I32)?)
+                        }
+                        InstructionKind::PlaceTagAddress { address, path } => {
+                            let value = self.get(&values, *address)?;
+                            places::address_mutable(self, &value, false)?;
+                            let Type::Address { inner, .. } = Self::type_of(&value)? else {
+                                unreachable!()
+                            };
+                            places::tag_type(self, inner, path, false)?;
+                            Some(self.zero(&Type::I32)?)
+                        }
+                        InstructionKind::VariantTagAddress { address, path } => {
+                            self.pay(path.len())?;
+                            let path = path
+                                .iter()
+                                .map(|item| PlaceProjection::Variant(*item))
+                                .collect::<Vec<_>>();
+                            let value = self.get(&values, *address)?;
+                            places::address_mutable(self, &value, false)?;
+                            let Type::Address { inner, .. } = Self::type_of(&value)? else {
+                                unreachable!()
+                            };
+                            places::tag_type(self, inner, &path, true)?;
+                            Some(self.zero(&Type::I32)?)
+                        }
+                        InstructionKind::BorrowFieldLocal {
+                            local,
+                            path,
+                            mutable,
+                        } => {
+                            places::local_mutable(self, f, *local, *mutable)?;
+                            places::borrow_mode(ty, *mutable)?;
+                            self.pay(path.len())?;
+                            let path = path
+                                .iter()
+                                .map(|index| PlaceProjection::Field(*index))
+                                .collect::<Vec<_>>();
+                            if path.is_empty() {
+                                return Err(bad("inline field borrow has an empty actual path"));
+                            }
+                            let root = &f
+                                .locals
+                                .get(local.0 as usize)
+                                .ok_or_else(|| bad("inline field owner is absent"))?
+                                .ty;
+                            if !root.is_copy_value()
+                                || !matches!(
+                                    stored::physical(root),
+                                    Type::Tuple(_) | Type::Record { .. }
+                                )
+                            {
+                                return Err(bad(
+                                    "inline Copy field borrow changes its actual owner family",
+                                ));
+                            }
+                            let value = self.projected_local(&locals, *local, &path)?;
+                            let image = self.occurrence(
+                                f,
+                                instruction
+                                    .result
+                                    .ok_or_else(|| bad("inline field borrow has no result"))?,
+                            )?;
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("inline field borrow has no result type"))?,
+                                image,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::ReadVariantLocal { local, path }
+                        | InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                            self.pay(path.len())?;
+                            let path = path
+                                .iter()
+                                .map(|item| PlaceProjection::Variant(*item))
+                                .collect::<Vec<_>>();
+                            if path.is_empty() {
+                                return Err(bad(
+                                    "actual variant payload projection has an empty path",
+                                ));
+                            }
+                            let value = self.projected_local(&locals, *local, &path)?;
+                            if let InstructionKind::BorrowVariantLocal { mutable, .. } =
+                                instruction.kind
+                            {
+                                places::local_mutable(self, f, *local, mutable)?;
+                                places::borrow_mode(ty, mutable)?;
+                                let image = self.occurrence(
+                                    f,
+                                    instruction.result.ok_or_else(|| {
+                                        bad("variant payload borrow has no result")
+                                    })?,
+                                )?;
+                                Some(self.address(
+                                    ty.ok_or_else(|| bad("variant payload borrow has no type"))?,
+                                    image,
+                                    &value,
+                                )?)
+                            } else {
+                                if !Self::type_of(&value)?.is_copy_value() {
+                                    return Err(bad(
+                                        "actual variant read copies a non-Copy terminal",
+                                    ));
+                                }
+                                Some(value)
+                            }
+                        }
+                        InstructionKind::BorrowPlaceAddress {
+                            address,
+                            path,
+                            mutable,
+                        } => {
+                            if path.is_empty() {
+                                return Err(bad("actual addressed place borrow has no projection"));
+                            }
+                            let parent = self.get(&values, *address)?;
+                            places::address_mutable(self, &parent, *mutable)?;
+                            places::borrow_mode(ty, *mutable)?;
+                            let value = self.pointee(&parent)?;
+                            let value = places::path(self, &value, path)?;
+                            Some(self.address_projection(
+                                ty.ok_or_else(|| bad("addressed place borrow has no type"))?,
+                                &parent,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::BorrowVariantAddress {
+                            address,
+                            path,
+                            mutable,
+                        } => {
+                            if path.is_empty() {
+                                return Err(bad(
+                                    "actual addressed variant borrow has no projection",
+                                ));
+                            }
+                            self.pay(path.len())?;
+                            let path = path
+                                .iter()
+                                .map(|item| PlaceProjection::Variant(*item))
+                                .collect::<Vec<_>>();
+                            let parent = self.get(&values, *address)?;
+                            places::address_mutable(self, &parent, *mutable)?;
+                            places::borrow_mode(ty, *mutable)?;
+                            let value = self.pointee(&parent)?;
+                            let value = places::path(self, &value, &path)?;
+                            Some(self.address_projection(
+                                ty.ok_or_else(|| bad("addressed variant borrow has no type"))?,
+                                &parent,
                                 &value,
                             )?)
                         }
@@ -2091,9 +2312,129 @@ impl World<'_, '_> {
                             )?)
                         }
                         InstructionKind::ReadCapture { index } => {
-                            Some(self.capture(instance, *index)?)
+                            let value = self.capture(instance, *index)?;
+                            let output =
+                                ty.ok_or_else(|| bad("actual capture read has no result type"))?;
+                            match (Self::type_of(&value)?, output) {
+                                (source, target)
+                                    if source == target
+                                        && (source.is_copy_value()
+                                            || matches!(
+                                                source,
+                                                Type::Address { .. } | Type::Desc(_)
+                                            )) =>
+                                {
+                                    Some(value)
+                                }
+                                (
+                                    Type::Address {
+                                        mutable: true,
+                                        inner,
+                                    },
+                                    Type::Address {
+                                        mutable: false,
+                                        inner: target,
+                                    },
+                                ) if inner == target => {
+                                    let child = self.pointee(&value)?;
+                                    Some(self.address_projection(output, &value, &child)?)
+                                }
+                                _ => {
+                                    return Err(bad(
+                                        "actual capture read changes its complete Copy/view mode or moves an owning field",
+                                    ));
+                                }
+                            }
                         }
-                        InstructionKind::BorrowCapture { index, .. } => {
+                        InstructionKind::WriteCapture { index, value } => {
+                            let closure = f
+                                .environment
+                                .ok_or_else(|| bad("capture write has no active environment"))?;
+                            let (definition, child) = self.child(closure)?;
+                            if child.id != instance.id
+                                || !matches!(
+                                    definition.kind,
+                                    CallableKind::FnMut | CallableKind::FnOnce
+                                )
+                            {
+                                return Err(bad(
+                                    "actual capture write lacks an exclusive active environment",
+                                ));
+                            }
+                            let expected = self.capture_initial(instance, *index)?;
+                            self.pay(self.vacant_captures.len())?;
+                            if !self.vacant_captures.contains(&(instance.id, *index))
+                                && !Self::type_of(&expected)?.is_copy_value()
+                                && !matches!(
+                                    Self::type_of(&expected)?,
+                                    Type::Address { .. } | Type::Desc(_)
+                                )
+                            {
+                                return Err(bad(
+                                    "actual capture write overwrites an initialized owning field",
+                                ));
+                            }
+                            let value = self.get(&values, *value)?;
+                            self.same(instance.id, &value, &expected, &implicit)?;
+                            self.vacant_captures.remove(&(instance.id, *index));
+                            None
+                        }
+                        InstructionKind::TakeCapture { index } => {
+                            let closure = f
+                                .environment
+                                .ok_or_else(|| bad("capture transfer has no active environment"))?;
+                            let (definition, child) = self.child(closure)?;
+                            if child.id != instance.id
+                                || !matches!(
+                                    definition.kind,
+                                    CallableKind::FnOnce | CallableKind::FnMut
+                                )
+                            {
+                                return Err(bad(
+                                    "actual capture transfer has no exclusive owning environment",
+                                ));
+                            }
+                            let value = self.capture(instance, *index)?;
+                            self.pay(self.vacant_captures.len().saturating_add(1))?;
+                            self.vacant_captures.insert((instance.id, *index));
+                            Some(value)
+                        }
+                        InstructionKind::DescribeCapture { index } => {
+                            let value = self.capture(instance, *index)?;
+                            if !matches!(Self::type_of(&value)?, Type::Managed(_)) {
+                                return Err(bad("actual capture description has no owning field"));
+                            }
+                            let value = projection::pointee(self, &value)?;
+                            let image = self.occurrence(
+                                f,
+                                instruction
+                                    .result
+                                    .ok_or_else(|| bad("capture description has no result"))?,
+                            )?;
+                            Some(self.address(
+                                ty.ok_or_else(|| bad("capture description has no type"))?,
+                                image,
+                                &value,
+                            )?)
+                        }
+                        InstructionKind::BorrowCapture { index, mutable } => {
+                            let closure = f
+                                .environment
+                                .ok_or_else(|| bad("capture borrow has no active environment"))?;
+                            let (definition, child) = self.child(closure)?;
+                            if child.id != instance.id
+                                || *mutable && definition.kind == CallableKind::Fn
+                            {
+                                return Err(bad(
+                                    "actual mutable capture borrow has only a shared environment",
+                                ));
+                            }
+                            if !matches!(ty,Some(Type::Address{mutable:actual,..}) if actual==mutable)
+                            {
+                                return Err(bad(
+                                    "actual capture borrow changes its requested outer mode",
+                                ));
+                            }
                             let value = self.capture(instance, *index)?;
                             let result = instruction
                                 .result
@@ -2836,14 +3177,32 @@ impl World<'_, '_> {
                             }
                             None
                         }
-                        InstructionKind::UnpackTuple { local, fields } => {
+                        InstructionKind::UnpackTuple { local, fields }
+                        | InstructionKind::UnpackVariant { local, fields, .. } => {
                             let value = self.local(&locals, *local)?;
-                            let Type::Tuple(actual_fields) =
-                                stored::physical(Self::type_of(&value)?)
-                            else {
-                                return Err(bad(
-                                    "tuple unpack changes its complete actual constructor",
-                                ));
+                            let actual_fields = match (
+                                stored::physical(Self::type_of(&value)?),
+                                &instruction.kind,
+                            ) {
+                                (Type::Tuple(fields), InstructionKind::UnpackTuple { .. }) => {
+                                    fields
+                                }
+                                (
+                                    Type::Enum { variants, .. },
+                                    InstructionKind::UnpackVariant { variant, .. },
+                                ) => {
+                                    &variants
+                                        .get(*variant as usize)
+                                        .ok_or_else(|| {
+                                            bad("actual unpack selects an absent variant")
+                                        })?
+                                        .1
+                                }
+                                _ => {
+                                    return Err(bad(
+                                        "actual unpack changes its complete product/sum constructor",
+                                    ));
+                                }
                             };
                             if fields.len() != actual_fields.len() {
                                 return Err(bad("tuple unpack changes actual field arity"));
@@ -2854,7 +3213,26 @@ impl World<'_, '_> {
                                 if *target == *local || !targets.insert(*target) {
                                     return Err(bad("tuple unpack repeats an actual destination"));
                                 }
-                                let field = self.field_value(&value, index as u32)?;
+                                if locals.get(target.0 as usize).is_some_and(Option::is_some) {
+                                    return Err(bad(
+                                        "actual unpack overwrites an initialized destination",
+                                    ));
+                                }
+                                let field =
+                                    if let InstructionKind::UnpackVariant { variant, .. } =
+                                        instruction.kind
+                                    {
+                                        projection::place(
+                                            self,
+                                            &value,
+                                            PlaceProjection::Variant(VariantProjection {
+                                                variant,
+                                                index: index as u32,
+                                            }),
+                                        )?
+                                    } else {
+                                        self.field_value(&value, index as u32)?
+                                    };
                                 if Self::type_of(&field)?
                                     != &f
                                         .locals
@@ -3014,6 +3392,22 @@ impl World<'_, '_> {
                                 ty.ok_or_else(|| bad("local description has no type"))?,
                                 image,
                                 &value,
+                            )?)
+                        }
+                        InstructionKind::DescribeAddress { address } => {
+                            let parent = self.get(&values, *address)?;
+                            places::address_mutable(self, &parent, true)?;
+                            let owner = self.pointee(&parent)?;
+                            if !matches!(Self::type_of(&owner)?, Type::Managed(_)) {
+                                return Err(bad(
+                                    "actual addressed description has no owning carrier",
+                                ));
+                            }
+                            let child = self.pointee(&owner)?;
+                            Some(self.address_projection(
+                                ty.ok_or_else(|| bad("addressed description has no type"))?,
+                                &parent,
+                                &child,
                             )?)
                         }
                         InstructionKind::ReadDesc { desc, index: field } => {
@@ -3291,11 +3685,15 @@ impl World<'_, '_> {
             )?;
             let successors = match block.terminator {
                 Terminator::Return(Some(result)) => {
+                    places::capture_exit(self, instance, f)?;
                     let value = self.get(&values, result)?;
                     self.same(instance.id, &value, &expected_result, &implicit)?;
                     Vec::new()
                 }
-                Terminator::Return(None) if f.return_type == Type::Unit => Vec::new(),
+                Terminator::Return(None) if f.return_type == Type::Unit => {
+                    places::capture_exit(self, instance, f)?;
+                    Vec::new()
+                }
                 Terminator::Trap => Vec::new(),
                 Terminator::Jump(target) => vec![target],
                 Terminator::Branch {
@@ -3319,6 +3717,7 @@ impl World<'_, '_> {
                 values,
                 declared,
                 implicit,
+                vacant_captures: std::mem::take(&mut self.vacant_captures),
                 stale_values: std::mem::take(&mut self.stale_values),
                 stale_locals: std::mem::take(&mut self.stale_locals),
                 scopes,
@@ -3360,6 +3759,7 @@ pub(super) fn program(
         ledger,
         limits,
         left,
+        vacant_captures: Default::default(),
         stale_values: Default::default(),
         stale_locals: Default::default(),
         vacant: Default::default(),
