@@ -630,7 +630,9 @@ fn check_resolved_program_in_context(
     let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
     let deferred_closed = std::mem::take(&mut closure_state.deferred_closed);
     let semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
-    let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
+    let (closures, synthesized, mut remaining) = closure_state
+        .finish(&semantic_emission)
+        .map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     tasks::add_definition(&functions, &mut resources, &mut remaining, limits)

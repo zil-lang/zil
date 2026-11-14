@@ -1358,7 +1358,10 @@ impl State {
         self.work_left
     }
 
-    pub fn finish(mut self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
+    pub fn finish(
+        mut self,
+        ledger: &crate::semantics::emission::Ledger,
+    ) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
         self.finish_source_contexts()?;
         let mut remaining = self.work_left;
         let mut definitions = Vec::new();
@@ -1415,7 +1418,7 @@ impl State {
                     })?;
                     Ok(())
                 })?;
-                if self.semantic_emission.validate_formed_capture(
+                if ledger.validate_formed_capture(
                     pending.id,
                     &parameters,
                     &captures,
