@@ -140,6 +140,9 @@ fn clone_proof(
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
             .saturating_add(source.closed_opaque_domains.len())
+            .saturating_add(source.body_costs.len())
+            .saturating_add(source.task_returns.len())
+            .saturating_add(source.task_binding_sources.len())
             .saturating_add(source.protocol_complete.len())
             .saturating_add(source.cleanup_complete.len())
             .saturating_add(source.associated_complete.len())
@@ -226,6 +229,15 @@ fn clone_proof(
     }
     for origins in source.inferred_type_origins.values() {
         spend(left, origins.len(), 0, limits)?;
+    }
+    for returned in source.task_returns.values() {
+        crate::dyn_metadata::semantic_operand_snapshot(&returned.ty, limits, left, 1)?;
+        if let Some(values) = &returned.sources {
+            task_results::source_snapshot(values, limits, left)?;
+        }
+    }
+    for values in source.task_binding_sources.values().flatten() {
+        task_results::source_snapshot(values, limits, left)?;
     }
     for injection in source.injections.values() {
         crate::dyn_metadata::semantic_operand_snapshot(&injection.payload, limits, left, 1)?;

@@ -12,15 +12,23 @@ pub(crate) struct TaskWorkerScheme {
     pub result: SemanticTypeRecipe,
     pub actuals: Vec<SemanticActualRecipe>,
     pub caller_actuals: Vec<SemanticActual>,
+    pub result_sources: Vec<TaskReturnSources>,
 }
 impl super::super::emission::Ledger {
-    pub(crate) fn original_task_worker(
+    fn original_task_call(
         &self,
         function: FunctionId,
         expression: NodeId,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<Option<TaskWorkerScheme>> {
+    ) -> R<
+        Option<(
+            &super::super::original_context::OriginalContext,
+            &SemanticInstance,
+            SemanticSiteId,
+            &IntrinsicCall,
+        )>,
+    > {
         let Some(context) = self.original.context() else {
             return Ok(None);
         };
@@ -90,16 +98,61 @@ impl super::super::emission::Ledger {
             else {
                 continue;
             };
-            let IntrinsicKind::TaskCreate { worker, .. } = intrinsic.kind else {
+            if !matches!(
+                intrinsic.kind,
+                IntrinsicKind::TaskCreate { .. } | IntrinsicKind::TaskOperation(_)
+            ) {
                 continue;
-            };
-            if selected.replace((site.recipe, worker, intrinsic)).is_some() {
+            }
+            if selected.replace((site.recipe, intrinsic)).is_some() {
                 return Err(bad(
                     "Task producer source operation has ambiguous original worker schemes",
                 ));
             }
         }
-        let Some((call, worker, intrinsic)) = selected else {
+        let Some((call, intrinsic)) = selected else {
+            return Ok(None);
+        };
+        Ok(Some((context.as_ref(), instance, call, intrinsic)))
+    }
+    pub(crate) fn original_task_payload(
+        &self,
+        function: FunctionId,
+        expression: NodeId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<(SemanticInstanceId, TaskOp, SemanticTypeRecipe)>> {
+        let Some((context, instance, call, intrinsic)) =
+            self.original_task_call(function, expression, limits, left)?
+        else {
+            return Ok(None);
+        };
+        let IntrinsicKind::TaskOperation(op) = intrinsic.kind else {
+            return Ok(None);
+        };
+        let actual = context
+            .original
+            .call_actual(instance.definition, call, 0, limits, left)?;
+        let SemanticActualRecipe::Type(payload) = actual else {
+            return Err(bad(
+                "original Task operation payload changes its full Type slot",
+            ));
+        };
+        Ok(Some((instance.id, op, payload)))
+    }
+    pub(crate) fn original_task_worker(
+        &self,
+        function: FunctionId,
+        expression: NodeId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<TaskWorkerScheme>> {
+        let Some((context, instance, call, intrinsic)) =
+            self.original_task_call(function, expression, limits, left)?
+        else {
+            return Ok(None);
+        };
+        let IntrinsicKind::TaskCreate { worker, .. } = intrinsic.kind else {
             return Ok(None);
         };
         if !context.original.complete.contains(&worker) {
@@ -139,6 +192,12 @@ impl super::super::emission::Ledger {
             result: intrinsic.result.clone(),
             actuals: actuals.clone(),
             caller_actuals: instance.actuals.clone(),
+            result_sources: context.original.task_result_sources(
+                &context.semantic,
+                worker,
+                limits,
+                left,
+            )?,
         }))
     }
 }

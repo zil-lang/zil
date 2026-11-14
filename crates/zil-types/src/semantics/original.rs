@@ -44,7 +44,10 @@ mod store;
 pub(super) mod substitute;
 #[path = "original_task_bridge.rs"]
 mod task_bridge;
+#[path = "original_task_results.rs"]
+mod task_results;
 pub(super) use nominal_where::{NominalRequest, NominalWhere};
+pub(crate) use task_results::{TaskResultSource, TaskReturnSources};
 #[path = "original_value_predicate.rs"]
 mod value_predicate;
 #[path = "original_values.rs"]
@@ -180,6 +183,11 @@ pub(super) struct Proof {
     pub closure_move: BTreeMap<SemanticDefinitionId, bool>,
     pub injections: BTreeMap<(SemanticDefinitionId, NodeId), Injection>,
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
+    // Request-local cost diagnostics; these fields supply no semantic fact.
+    pub(super) body_costs: BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+    body_cost_total: usize,
+    task_returns: BTreeMap<(SemanticDefinitionId, NodeId), task_results::ReturnValue>,
+    task_binding_sources: BTreeMap<(SemanticDefinitionId, NodeId), Option<Vec<TaskResultSource>>>,
     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
     pub complete: BTreeSet<SemanticDefinitionId>,
     pub protocol_complete: BTreeSet<SemanticDefinitionId>,
@@ -4581,6 +4589,15 @@ impl<'a> Check<'a, '_> {
                         .types
                         .insert((owner, Query::Binding(statement.id)), copy);
                     if let Some(initializer) = initializer {
+                        if !*mutable {
+                            self.record_task_binding(
+                                owner,
+                                statement.id,
+                                initializer,
+                                variables,
+                                depth + 1,
+                            )?;
+                        }
                         self.alias_result_origin(
                             owner,
                             Query::Binding(statement.id),
@@ -4609,6 +4626,7 @@ impl<'a> Check<'a, '_> {
                     )?;
                 }
                 CoreStatementKind::Return(Some(value)) => {
+                    let value_node = value;
                     let target = self.resolve(owner, result, depth + 1).ok();
                     let value = self.expr(owner, value, variables, target.as_ref(), depth + 1)?;
                     self.ensure_escape(owner, &value, depth + 1)?;
@@ -4645,6 +4663,14 @@ impl<'a> Check<'a, '_> {
                     } else {
                         self.same(&value, &expected)?;
                     }
+                    self.record_task_return(
+                        owner,
+                        statement.id,
+                        value_node,
+                        &value,
+                        variables,
+                        depth + 1,
+                    )?;
                     self.capture_exit(owner, variables, depth + 1)?;
                     live = false;
                 }
@@ -5278,6 +5304,34 @@ impl<'a> Check<'a, '_> {
     }
 
     fn function(
+        &mut self,
+        definition: &'a SemanticDefinition,
+        parent: Option<BTreeMap<String, Binding>>,
+    ) -> R<()> {
+        let tracing = matches!(self.proof, ProofAccess::Owned(_));
+        if tracing {
+            self.pay(
+                self.proof.body_costs.len().saturating_add(1).ilog2() as usize
+                    + std::mem::size_of::<(SemanticDefinitionId, (usize, usize, usize))>(),
+                0,
+            )?;
+        }
+        let before = *self.left;
+        let children = self.proof.body_cost_total;
+        let result = self.function_inner(definition, parent);
+        let inclusive = before.saturating_sub(*self.left);
+        if let ProofAccess::Owned(proof) = &mut self.proof {
+            let exclusive =
+                inclusive.saturating_sub(proof.body_cost_total.saturating_sub(children));
+            proof.body_cost_total = proof.body_cost_total.saturating_add(exclusive);
+            let row = proof.body_costs.entry(definition.id).or_default();
+            row.0 = row.0.saturating_add(1);
+            row.1 = row.1.saturating_add(inclusive);
+            row.2 = row.2.saturating_add(exclusive);
+        }
+        result
+    }
+    fn function_inner(
         &mut self,
         definition: &'a SemanticDefinition,
         parent: Option<BTreeMap<String, Binding>>,
