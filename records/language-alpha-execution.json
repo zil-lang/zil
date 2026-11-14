@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T09:26:24.319291+00:00",
+  "updated_at_utc": "2026-11-14T10:12:56.880839+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,25 +9,17 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "f85dbb12c7d8bea847fa2e101c8718f4d7fce0cf",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-emission-complete-build",
+    "candidate": "ab531913571867465d088592f2fe34c2711f27ca",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-shared-original-capture-environment",
     "accepted": false,
+    "scope": "Exact source/check and existing four small native sources; full regressions not run in this feedback candidate",
     "cli_build": 0,
-    "workspace_alltargets": 0,
-    "source_lib": {
-      "passed": 152,
-      "failed": 0
-    },
-    "types_probe": {
-      "passed": 2,
-      "failed": 0
-    },
     "foundation_positives": {
       "passed": 0,
       "total": 13
     },
     "intended_negatives": {
-      "passed": 2,
+      "passed": 3,
       "total": 4
     },
     "native_small_sources": {
@@ -44,7 +36,7 @@
             "phase": "analyze",
             "category": "SafeReject",
             "code": "E-ANALYZE-IR",
-            "message": "semantic program: original result role has no actual call",
+            "message": "semantic program: original emission recipe has no actual operation",
             "span": null,
             "notes": []
           }
@@ -53,18 +45,14 @@
       {
         "group": "positive_cases",
         "family": "patterns",
-        "status": "SafeReject",
+        "status": "Unsupported",
         "diagnostics": [
           {
-            "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-MATERIALIZE",
-            "message": "ErrorUnion recipe changes its actual result constructor",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original resource nominal needs its actual Drop definition and cleanup proof",
+            "span": null,
             "notes": []
           }
         ]
@@ -90,10 +78,10 @@
         "status": "Unsupported",
         "diagnostics": [
           {
-            "phase": "types",
+            "phase": "analyze",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "invocation type needs its complete actual header embedding",
+            "message": "original resource nominal needs its actual Drop definition and cleanup proof",
             "span": null,
             "notes": []
           }
@@ -102,19 +90,19 @@
       {
         "group": "positive_cases",
         "family": "ownership",
-        "status": "SafeReject",
+        "status": "ResourceLimit",
         "diagnostics": [
           {
             "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-EMISSION",
-            "message": "semantic source expression NodeId(33) in FunctionId(12) was not actually emitted",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
-            "notes": []
+            "category": "ResourceLimit",
+            "code": "E-RESOURCE-LIMIT",
+            "message": "dyn metadata snapshot budget exceeded",
+            "span": null,
+            "notes": [
+              "original operation owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(373), span Span { file: FileId(0), start: 2655, end: 2677 }, kind Discriminant(16)",
+              "original statement owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, node NodeId(372), span Span { file: FileId(0), start: 2640, end: 2678 }, operation Discriminant(0)",
+              "original checked function SemanticDefinitionId { module: ModuleId(0), index: 4 }"
+            ]
           }
         ]
       },
@@ -126,14 +114,16 @@
           {
             "phase": "types",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-MATERIALIZE",
-            "message": "Dyn method specialization changes Self or complete actuals",
+            "code": "E-SEMANTIC-WORLD",
+            "message": "dynamic receiver borrow has no complete original occurrence seal",
             "span": {
               "file": 0,
               "start": 0,
               "end": 0
             },
-            "notes": []
+            "notes": [
+              "original SemanticDefinitionId { module: ModuleId(0), index: 11 }; actual function FunctionId(6), block BlockId(0), instruction 2, local LocalId(0), result ValueId(0)"
+            ]
           }
         ]
       },
@@ -143,18 +133,12 @@
         "status": "SafeReject",
         "diagnostics": [
           {
-            "phase": "types",
+            "phase": "analyze",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-ORIGINAL",
-            "message": "original type query has no derived symbolic solution",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
-            "notes": [
-              "original query: current SemanticDefinitionId { module: ModuleId(0), index: 4 }, owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, Expression 4"
-            ]
+            "code": "E-ANALYZE-IR",
+            "message": "stored target proof: zero nominal compiler declaration has no authentic consumer",
+            "span": null,
+            "notes": []
           }
         ]
       },
@@ -167,11 +151,9 @@
             "phase": "analyze",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "original core operation needs its complete parameter, mode and cleanup scheme",
+            "message": "original compound assignment needs its exact initialized place projection",
             "span": null,
-            "notes": [
-              "original definition module 0 index 0, expression 1"
-            ]
+            "notes": []
           }
         ]
       },
@@ -184,7 +166,7 @@
             "phase": "types",
             "category": "SafeReject",
             "code": "E-SEMANTIC-WORLD",
-            "message": "actual call has ambiguous original callee worlds",
+            "message": "class CFG has ambiguous original instances",
             "span": {
               "file": 0,
               "start": 0,
@@ -203,16 +185,14 @@
             "phase": "types",
             "category": "SafeReject",
             "code": "E-SEMANTIC-ORIGINAL",
-            "message": "original address changes a rigid lifetime anchor",
+            "message": "original fresh inference has incompatible rigid actuals",
             "span": {
               "file": 0,
               "start": 0,
               "end": 0
             },
             "notes": [
-              "original type heads: actual Address, wanted Address",
-              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 12 }, expression NodeId(24)",
-              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 11 }, expression NodeId(119)"
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(2), index: 9 }, expression NodeId(1)"
             ]
           }
         ]
@@ -225,8 +205,8 @@
           {
             "phase": "types",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-MATERIALIZE",
-            "message": "ErrorUnion recipe changes its actual result constructor",
+            "code": "E-SEMANTIC-EMISSION",
+            "message": "semantic source expression NodeId(52) in FunctionId(6) was not actually emitted",
             "span": {
               "file": 0,
               "start": 0,
@@ -245,14 +225,11 @@
             "phase": "types",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "original callable requires its declared complete role premise",
-            "span": {
-              "file": 1,
-              "start": 7045,
-              "end": 7060
-            },
+            "message": "original type query has no finite defining equation",
+            "span": null,
             "notes": [
-              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 27 }, expression NodeId(7)"
+              "original equation owner SemanticDefinitionId { module: ModuleId(1), index: 43 }: query Associated(LifeDeclarationId { module: ModuleId(1), declaration: NodeId(11), compiler: false };member=0;receiver=Formal(SemanticFormalRef { scope: Ancestor(1), ordinal: 1 });args=1), other Associated(LifeDeclarationId { module: ModuleId(1), declaration: NodeId(10), compiler: false };member=0;receiver=Nominal(SemanticDefinitionId { module: ModuleId(1), index: 17 };args=2);args=0)",
+              "original type heads: actual Other, wanted Other"
             ]
           }
         ]
@@ -260,14 +237,18 @@
       {
         "group": "positive_cases",
         "family": "project-workflow",
-        "status": "Unsupported",
+        "status": "SafeReject",
         "diagnostics": [
           {
             "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "whole closure type has an unknown actual domain",
-            "span": null,
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-WORLD",
+            "message": "one implicit captured head has no unique real capture input",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
             "notes": []
           }
         ]
@@ -275,53 +256,33 @@
       {
         "group": "negative_cases",
         "family": "ownership-original",
-        "status": "SafeReject",
+        "status": "ResourceLimit",
         "diagnostics": [
           {
             "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-EMISSION",
-            "message": "semantic source expression NodeId(33) in FunctionId(12) was not actually emitted",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
-            "notes": []
-          }
-        ]
-      },
-      {
-        "group": "negative_cases",
-        "family": "ownership-unused",
-        "status": "SafeReject",
-        "diagnostics": [
-          {
-            "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-MATERIALIZE",
-            "message": "ErrorUnion recipe changes its actual result constructor",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
-            "notes": []
+            "category": "ResourceLimit",
+            "code": "E-RESOURCE-LIMIT",
+            "message": "dyn metadata snapshot budget exceeded",
+            "span": null,
+            "notes": [
+              "original statement owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, node NodeId(372), span Span { file: FileId(0), start: 2640, end: 2678 }, operation Discriminant(0)",
+              "original checked function SemanticDefinitionId { module: ModuleId(0), index: 4 }"
+            ]
           }
         ]
       }
     ]
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "d059a4a0b",
-  "current_candidate_under_validation": null,
+  "latest_ready_source": "e915353bc",
+  "current_candidate_under_validation": "e915353bc",
   "wip_backup": {
-    "archive_commit": "549876cdbb924f270127201977aa068ba2bb0f3c",
-    "previous_archive": "38de856da623862dbde8361295335e0b357f5b00",
-    "source_base": "f85dbb12c7d8bea847fa2e101c8718f4d7fce0cf",
-    "prefix": "language/20261114T092323Z-active-wip",
-    "changed_files": 29,
-    "artifacts": 8,
+    "archive_commit": "a6e90846c80f651111ec6eba179990b1b13f1d07",
+    "previous_archive": "e92c2a87500cf594738996415e8c231ca27c65dd",
+    "source_base": "f452266fef4e95ec88f9e85ed7e5104fad2d8b8c",
+    "prefix": "language/20261114T094952Z-active-wip",
+    "changed_files": 10,
+    "artifacts": 9,
     "remote_manifest_and_patch_readback_equal": true,
     "state": "WIP, not functional acceptance"
   },
@@ -337,5 +298,12 @@
     "Plain generic Product canonical fallback still lacks shared complete symbolic/QualifiedType solver; existing13 contain one owner=None concrete application only; do not claim full generic repeat resolution from current fix",
     "Capture TypeUse Expression representation must be consumed independently by A/V original lexical Name and actual capture checks",
     "All-exit cleanup and actual call-world requester receipts are still active WIP"
-  ]
+  ],
+  "last_full_component_regression": "f85dbb12c: alltargets0, Source152/0, Typesprobe2/0; not reused as current runtime acceptance",
+  "task_stage_review": [
+    "Private inference PendingTask keeps exact worker/call/input Terms until actual closure/worker domain formed; cannot become Typed/Wire/runtime pending",
+    "Task domain identity is original scope/Life formal/whole Type-domain class index; actual worker header is a bridge, not authority to merge caller images. Preserve F.N2 and outer versus intrinsic pointee classes.",
+    "All input/result child-index maps must be complete and common with failure owner context; no unknown closure N0"
+  ],
+  "native_acceptance_tools_archive": "language/20261114T094952Z-active-wip/supporting-tools"
 }
