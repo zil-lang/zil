@@ -9,6 +9,7 @@ mod closed_values;
 mod operations;
 mod products;
 mod aggregate_values;
+mod call_borrows;
 mod trait_members;
 mod worlds;
 mod task_operations;
@@ -650,7 +651,7 @@ impl CheckedContext {
         substitute(&mut signature.result,&invocation,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
-            if !self.compatible(environment,value_at(values,*argument)?,expected,b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
+            if !self.call_argument(module,caller,*argument,values,expected,environment,b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
         }
         if actual_function.return_type!=signature.result.ty {return Err(bad("actual Call specialization result whole type differs"));}
         Ok(if signature.result.ty==Type::Unit {None}else{Some(signature.result)})
