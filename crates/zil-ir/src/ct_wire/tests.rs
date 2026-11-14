@@ -47,29 +47,37 @@ fn original_protocols_survive_reification_wire_lifting_and_bind_content_identity
     macro_rules! meter {
         () => {
             type Error = ();
-            fn node(&mut self, _: usize) -> Result<(), ()> {
+            fn node(&mut self, _: usize) -> std::result::Result<(), ()> {
                 Ok(())
             }
-            fn rows(&mut self, _: usize, _: usize, _: usize) -> Result<(), ()> {
+            fn rows(&mut self, _: usize, _: usize, _: usize) -> std::result::Result<(), ()> {
                 Ok(())
             }
-            fn text(&mut self, value: &str, _: usize) -> Result<String, ()> {
+            fn text(&mut self, value: &str, _: usize) -> std::result::Result<String, ()> {
                 Ok(value.to_owned())
             }
-            fn constant(&mut self, value: &Constant, _: usize) -> Result<Constant, ()> {
+            fn constant(
+                &mut self,
+                value: &Constant,
+                _: usize,
+            ) -> std::result::Result<Constant, ()> {
                 Ok(value.clone())
             }
         };
     }
     impl CtDynamicReifier for NoTypes {
         meter!();
-        fn store_type(&mut self, _: CtDynamicTypeNode, _: usize) -> Result<CtDynamicTypeId, ()> {
+        fn store_type(
+            &mut self,
+            _: CtDynamicTypeNode,
+            _: usize,
+        ) -> std::result::Result<CtDynamicTypeId, ()> {
             unreachable!()
         }
     }
     impl CtDynamicLifter for NoTypes {
         meter!();
-        fn load_type(&mut self, _: CtDynamicTypeId, _: usize) -> Result<Type, ()> {
+        fn load_type(&mut self, _: CtDynamicTypeId, _: usize) -> std::result::Result<Type, ()> {
             unreachable!()
         }
     }
@@ -129,15 +137,23 @@ fn original_protocols_survive_reification_wire_lifting_and_bind_content_identity
         dyn_scopes: vec![],
     };
     let mut raw = program();
-    raw.dynamic_catalogue.semantic =
-        Some(reify_semantic_module(&original, &mut NoTypes, 0).unwrap());
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue {
+        semantic: Some(reify_semantic_module(&original, &mut NoTypes, 0).unwrap()),
+        ..CtDynamicCatalogue::default()
+    });
     let limits = Limits::default();
     let bytes = encode_program(&raw, &limits).unwrap();
     let decoded = decode_program(&bytes, &limits).unwrap();
     assert_eq!(decoded, raw);
     assert_eq!(
         lift_semantic_module(
-            decoded.dynamic_catalogue.semantic.as_ref().unwrap(),
+            decoded
+                .dynamic_catalogue
+                .as_ref()
+                .unwrap()
+                .semantic
+                .as_ref()
+                .unwrap(),
             &mut NoTypes,
             0
         )
@@ -147,7 +163,15 @@ fn original_protocols_survive_reification_wire_lifting_and_bind_content_identity
     let fingerprint = program_fingerprint(&raw, &limits).unwrap();
     let CtSemanticDefinitionBody::FunctionWithBody {
         protocol_contracts, ..
-    } = &mut raw.dynamic_catalogue.semantic.as_mut().unwrap().definitions[0].body
+    } = &mut raw
+        .dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .semantic
+        .as_mut()
+        .unwrap()
+        .definitions[0]
+        .body
     else {
         unreachable!()
     };
