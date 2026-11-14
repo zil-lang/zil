@@ -237,7 +237,34 @@ impl<'a> Check<'a, '_> {
         ty: &Type,
         depth: usize,
     ) -> R<Vec<u32>> {
-        let count = self.domain(ty, depth + 1)?;
+        // A separately qualified whole actual owns its complete intrinsic
+        // domain. Erased Address/Desc bytes cannot reconstruct that domain.
+        // The exact original caller application is checked below, including
+        // the whole qualification, before this row is accepted.
+        let count = match owner.arguments.get(ordinal as usize) {
+            Some(LifeNominalActual::QualifiedType { ty: actual, life }) => {
+                self.same(ty, actual)?;
+                self.shape_work(life)?;
+                if let Type::BorrowedStorage { life: embedded, .. } = actual {
+                    self.shape_work(embedded)?;
+                    if embedded != life {
+                        return Err(bad(
+                            "whole Type actual changes its embedded intrinsic qualification",
+                        ));
+                    }
+                }
+                life.binder_count
+            }
+            Some(LifeNominalActual::Type(actual)) => {
+                self.same(ty, actual)?;
+                self.domain(ty, depth + 1)?
+            }
+            _ => {
+                return Err(bad(
+                    "whole Type class projection selects another full actual kind",
+                ));
+            }
+        };
         self.pay(count as usize)?;
         let mut images = Vec::new();
         for class in 0..count {
@@ -834,7 +861,21 @@ impl<'a> Check<'a, '_> {
         definition: &SemanticDefinition,
         depth: usize,
     ) -> R<()> {
-        if definition.requirements.is_empty() && definition.parameters.iter().all(|formal| !matches!(formal, SemanticFormal::Type { requirements } if !requirements.is_empty())) { return Ok(()); }
+        let has_obligations = !definition.requirements.is_empty()
+            || definition.parameters.iter().any(|formal| {
+                matches!(formal,
+                SemanticFormal::Type { requirements } if !requirements.is_empty())
+            });
+        // Separate Type qualifications are untrusted input too. Reconstruct
+        // their whole original argument in every matching source application;
+        // the catalogue's claimed N/slots never authenticate themselves.
+        let has_qualified_actual = owner
+            .arguments
+            .iter()
+            .any(|actual| matches!(actual, LifeNominalActual::QualifiedType { .. }));
+        if !has_obligations && !has_qualified_actual {
+            return Ok(());
+        }
         if !self.requests.contains_key(&definition.id) {
             let requests = self
                 .where_session
