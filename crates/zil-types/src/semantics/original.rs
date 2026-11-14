@@ -596,6 +596,32 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<bool> {
         self.pay(1, depth)?;
+        // A declared Copy obligation is about a complete original type. It is
+        // equally meaningful for an associated projection or a nominal type;
+        // it is not restricted to a bare Type formal's syntax.
+        for requirement in self.original_requirements(owner, depth + 1)? {
+            let premise = match &requirement {
+                SemanticRequirementRecipe::Structural {
+                    ty,
+                    bound: DynStructuralBound::Copy,
+                }
+                | SemanticRequirementRecipe::Builtin {
+                    ty,
+                    trait_kind: SemanticBuiltinTrait::Copy,
+                } => Some(ty),
+                _ => None,
+            };
+            if let Some(premise) = premise {
+                if self.premise_type_equal(owner, ty, premise, depth + 1)? {
+                    return Ok(true);
+                }
+            }
+        }
+        for equivalent in self.equal_types(owner, ty, depth + 1)? {
+            if self.copy_type(owner, &equivalent, depth + 1)? {
+                return Ok(true);
+            }
+        }
         Ok(match ty {
             SemanticTypeRecipe::Atom(ty) => ty.is_copy_value(),
             SemanticTypeRecipe::Address { mutable: false, .. } => true,
@@ -5076,6 +5102,56 @@ fn check_requested(
 }
 
 impl Proof {
+    /// The producer of an implicit ErrorUnion injection constructs its payload;
+    /// later observations of the same expression retain the complete union.
+    /// This accessor is used only after matching the actual construction receipt
+    /// to this exact original expression, never to select an arm from a hint.
+    pub(super) fn constructor_type_recipe(
+        &self,
+        program: &SemanticModule,
+        current: SemanticDefinitionId,
+        owner: SemanticDefinitionId,
+        source: &SemanticOriginalTypeSource,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<SemanticTypeRecipe> {
+        let ordinary = self.type_recipe(program, current, owner, source, limits, left)?;
+        let SemanticOriginalTypeSource::Expression(node) = source else {
+            return Ok(ordinary);
+        };
+        let Some(injection) = self.injections.get(&(owner, *node)) else {
+            return Ok(ordinary);
+        };
+        let whole = self
+            .types
+            .get(&(owner, Query::Expression(*node)))
+            .ok_or_else(|| bad("original constructor injection loses its expression equation"))?;
+        let SemanticTypeRecipe::ErrorUnion { error, result } = whole else {
+            return Err(bad(
+                "original constructor injection has no complete ErrorUnion theorem",
+            ));
+        };
+        let (selected, other) = if injection.is_error {
+            (error.as_ref(), result.as_ref())
+        } else {
+            (result.as_ref(), error.as_ref())
+        };
+        crate::dyn_metadata::semantic_operand_snapshot(whole, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&injection.payload, limits, left, 1)?;
+        if selected != &injection.payload || other == &injection.payload {
+            return Err(bad(
+                "original constructor injection changes its uniquely proved payload arm",
+            ));
+        }
+        if owner != current && !matches!(injection.payload, SemanticTypeRecipe::Atom(_)) {
+            // A captured whole union is not a capture of its payload. Reusing
+            // its Environment slot here would silently change that slot's type.
+            return Err(pending(
+                "original constructor payload crosses an unproved lexical environment boundary",
+            ));
+        }
+        Ok(injection.payload.clone())
+    }
     pub(super) fn type_recipe(
         &self,
         program: &SemanticModule,
