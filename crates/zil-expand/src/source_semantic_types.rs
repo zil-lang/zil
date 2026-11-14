@@ -1039,6 +1039,7 @@ impl Builder<'_, '_, '_, '_> {
                         SemanticDefinitionKind::Function
                     },
                     SemanticDefinitionBody::FunctionWithBody {
+                        protocol_contracts: self.original_protocol_contracts(function)?,
                         names: self.original_names()?,
                         signature: SemanticSignatureRecipe {
                             bound_lifetimes: 0,
