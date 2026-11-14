@@ -2615,6 +2615,20 @@ impl<'a> Check<'a, '_> {
                 return Ok(result);
             }
         }
+        if matches!(
+            &expression.kind,
+            CoreExprKind::Member { .. }
+                | CoreExprKind::TypeApply { .. }
+                | CoreExprKind::GenericApply { .. }
+        ) {
+            if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
+                if matches!(site.kind, SemanticSiteRecipeKind::Construct { .. }) {
+                    return Err(bad(
+                        "original bare Construct lacks its exact enum declaration and zero-field variant theorem",
+                    ));
+                }
+            }
+        }
         if let Some(result) = self.fn_value(owner, expression, variables, wanted, depth + 1)? {
             let copy = copy_recipe(&result, self.limits, self.left)?;
             self.proof

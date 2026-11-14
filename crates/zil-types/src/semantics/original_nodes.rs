@@ -8,6 +8,7 @@ pub(super) enum Kind {
     Call,
     Closure,
     Construct,
+    ConstructorCandidate,
     Expression,
 }
 fn fail(message: &str) -> Diagnostic {
@@ -71,6 +72,12 @@ impl super::original_walk::Context for Index<'_> {
             | CoreExprKind::RecordUpdate { .. }
             | CoreExprKind::Tuple(_)
             | CoreExprKind::Array(_) => Kind::Construct,
+            CoreExprKind::Member { .. } => Kind::ConstructorCandidate,
+            CoreExprKind::TypeApply { callee, .. } | CoreExprKind::GenericApply { callee, .. }
+                if matches!(callee.kind, CoreExprKind::Member { .. }) =>
+            {
+                Kind::ConstructorCandidate
+            }
             _ => Kind::Expression,
         };
         self.insert(id, kind)
@@ -185,7 +192,14 @@ pub(super) fn definition(
             | SemanticSiteRecipeKind::OriginalCall => !statement && kind == Kind::Call,
             SemanticSiteRecipeKind::Closure { .. } => !statement && kind == Kind::Closure,
             SemanticSiteRecipeKind::Construct { .. } => {
-                !statement && matches!(kind, Kind::Construct | Kind::Call)
+                // This is only the node grammar gate. Original Gamma must
+                // independently produce the exact nominal/variant receipt
+                // for a bare member constructor before it can complete.
+                !statement
+                    && matches!(
+                        kind,
+                        Kind::Construct | Kind::Call | Kind::ConstructorCandidate
+                    )
             }
             SemanticSiteRecipeKind::TypeUse { .. } => {
                 !statement && !matches!(kind, Kind::Statement | Kind::Binding)
