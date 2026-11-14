@@ -11,7 +11,7 @@ impl Checked {
         program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<Option<(LocalAnchor, Value, Value)>> {
+    ) -> CompileResult<Option<descriptions::Source>> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("original description has no complete body"));
@@ -29,19 +29,15 @@ impl Checked {
             let Some(source) = self.descriptions.get(&(context.definition, node)) else {
                 continue;
             };
-            b.lookup(self.frames.len(), WORK)?;
-            let frame = self
-                .frames
-                .get(&context.definition)
-                .ok_or_else(|| fail("original description lacks its checked lexical frame"))?;
-            b.lookup(frame.expressions.len(), WORK)?;
-            let result = *frame
-                .expressions
-                .get(&node)
-                .ok_or_else(|| fail("original description loses its adapted occurrence type"))?;
-            let input = self.value(source.inner, context, program, inventory, b, 0)?;
-            let result = self.value(result, context, program, inventory, b, 0)?;
-            if selected.replace((source.anchor, input, result)).is_some() {
+            b.spend(source.path.len(), WORK)?;
+            let source = descriptions::Source {
+                anchor: source.anchor,
+                root: self.value(source.root, context, program, inventory, b, 0)?,
+                source: self.value(source.source, context, program, inventory, b, 0)?,
+                output: self.value(source.output, context, program, inventory, b, 0)?,
+                path: source.path.clone(),
+            };
+            if selected.replace(source).is_some() {
                 return Err(fail("description has competing original source operations"));
             }
         }

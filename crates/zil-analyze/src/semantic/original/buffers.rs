@@ -80,6 +80,14 @@ impl Solver<'_, '_> {
                 b.lookup(self.mutating_closures.len(), WORK)?;
                 self.mutating_closures.insert(frame.definition);
             }
+            let selected = self.type_root(place.selected, b)?;
+            let owner = match self.state.arena[selected] {
+                Kind::Address { inner, .. } => self.type_root(inner, b)?,
+                _ => selected,
+            };
+            if matches!(self.state.arena[owner], Kind::Wrapped(Wrapper::Managed, _)) {
+                self.describe_argument(frame, &arguments[0], &place, owner, b, depth + 1)?;
+            }
             Self::push(&mut inputs, place.root, b)?;
             Self::push(&mut inputs, place.selected, b)?;
             b.lookup(self.state.intrinsic_anchors.len(), WORK)?;

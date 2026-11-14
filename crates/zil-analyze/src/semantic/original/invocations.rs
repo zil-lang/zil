@@ -296,40 +296,9 @@ impl Solver<'_, '_> {
             let anchor = place.anchor.ok_or_else(|| {
                 unknown("original description needs its complete owning source anchor")
             })?;
-            if !place.path.is_empty() {
-                return Err(unknown(
-                    "original projected implicit description needs its full original place relation",
-                ));
-            }
-            let row = self.borrow_occurrence(frame.definition, value.id, b)?;
-            let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
-            let described = self.term(
-                Kind::Desc {
-                    life,
-                    inner: payload,
-                },
-                b,
-            )?;
-            b.lookup(self.state.descriptions.len(), WORK)?;
-            if self
-                .state
-                .descriptions
-                .insert(
-                    (frame.definition, value.id),
-                    Borrow {
-                        anchor,
-                        inner: place.selected,
-                        slice: None,
-                    },
-                )
-                .is_some()
-            {
-                return Err(fail(
-                    "original description occurrence has competing owning sources",
-                ));
-            }
-            b.lookup(frame.expressions.len(), WORK)?;
-            frame.expressions.insert(value.id, described);
+            let _ = anchor;
+            let described =
+                self.describe_argument(frame, value, &place, place.selected, b, depth + 1)?;
             return self.unify(described, expected, depth + 1, b);
         }
         let actual = if matches!(self.state.arena[expected_root], Kind::Address { .. }) {

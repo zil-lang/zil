@@ -130,6 +130,12 @@ impl Solver<'_, '_> {
                     "original Store operation selects another resource family",
                 ));
             };
+            if matches!(
+                self.state.arena[selected],
+                Kind::Wrapped(Wrapper::Managed, _)
+            ) {
+                self.describe_argument(frame, &arguments[0], &place, selected, b, depth + 1)?;
+            }
             Self::push(&mut inputs, place.root, b)?;
             Self::push(&mut inputs, place.selected, b)?;
             b.lookup(self.state.intrinsic_anchors.len(), WORK)?;

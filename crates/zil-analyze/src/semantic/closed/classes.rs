@@ -1625,6 +1625,33 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> CompileResult<Value> {
         b.spend(1, WORK)?;
+        let ty = &function
+            .locals
+            .get(local.0 as usize)
+            .filter(|item| item.id == local)
+            .ok_or_else(|| fail("semantic class query selects no actual local type"))?
+            .ty;
+        if ty.is_b0_scalar()
+            || matches!(
+                ty,
+                Type::Managed(_)
+                    | Type::Record { .. }
+                    | Type::Package { .. }
+                    | Type::Tuple(_)
+                    | Type::Array { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+                    | Type::FunctionPointer { .. }
+                    | Type::ForeignCallback { .. }
+            )
+        {
+            // A zero-class fact does not depend on which loop iteration last
+            // initialized the occupant. Actual initialization and resources
+            // are still checked at every consuming operation.
+            self.zero_data(ty, b, 0)?;
+            crate::dyn_metadata::ty(ty, b)?;
+            return Ok(value::scalar(ty.clone()));
+        }
         if depth > b.partial_depth {
             return Err(unknown(
                 "semantic local class transport exceeds its finite CFG depth",

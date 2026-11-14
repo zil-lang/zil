@@ -17,7 +17,7 @@ impl Check<'_, '_> {
                 "implicit description source exceeds its finite depth",
             ));
         }
-        let (block, index, instruction) = self.defining(function, id, b)?;
+        self.defining(function, id, b)?;
         let mut selected = None;
         for site in &self.program.sites {
             b.spend(1, WORK)?;
@@ -26,7 +26,7 @@ impl Check<'_, '_> {
             {
                 continue;
             }
-            let Some((anchor, source, expected)) = self.original.description_source(
+            let Some(original) = self.original.description_source(
                 instance,
                 site.recipe,
                 self.program,
@@ -36,47 +36,32 @@ impl Check<'_, '_> {
             else {
                 continue;
             };
-            let local = self.anchored_local(instance, function, anchor, b)?;
-            let actual = match instruction.kind {
-                InstructionKind::DescribeLocal { local: actual } if actual == local => {
-                    self.local_value(instance, function, local, (block, index), b, depth + 1)?
-                }
-                InstructionKind::DescribeAddress { address } => {
-                    operations::available_before(
-                        function,
-                        (block, index, SemanticSiteEdge::Before),
-                        address,
-                        b,
-                    )?;
-                    let (_, _, actual, _) = self.borrow_root(function, address, b, depth + 1)?;
-                    if actual != local {
-                        return Err(fail(
-                            "implicit description borrows another original owning head",
-                        ));
-                    }
-                    let value = self.ssa_value(instance, function, address, b, depth + 1)?;
-                    self.pointee(&value, b)?
-                }
-                _ => {
-                    return Err(fail(
-                        "implicit description selects another actual owning slot or opcode",
-                    ));
-                }
-            };
+            let source = &original.source;
+            let expected = original.output;
             let Type::Managed(payload) = &source.ty else {
                 return Err(fail(
                     "implicit description source is not an original owning value",
                 ));
             };
-            if actual != source
-                || expected.ty != Type::Desc(payload.clone())
+            self.sealed_resource_place(
+                instance,
+                function,
+                id,
+                original.anchor,
+                &original.root,
+                source,
+                &original.path,
+                payload,
+                b,
+            )?;
+            if expected.ty != Type::Desc(payload.clone())
                 || function.values.get(id.0 as usize) != Some(&expected.ty)
                 || expected.life.slots.len() != 1
                 || !expected.life.slots[0].path.is_empty()
                 || expected.life.slots[0].mode != StoredBorrowMode::WritableDescription
             {
                 return Err(fail(
-                    "implicit description changes its complete original owner or weak occurrence",
+                    "implicit description changes its full original weak argument role",
                 ));
             }
             let SemanticSiteAddress::Typed {

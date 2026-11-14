@@ -9,6 +9,7 @@ mod buffers;
 mod capabilities;
 mod captures;
 mod constructors;
+mod descriptions;
 mod dyn_owned;
 mod dyn_types;
 mod dyn_values;
@@ -221,7 +222,7 @@ pub(super) struct Checked {
     trait_calls: BTreeMap<(SemanticDefinitionId, NodeId), traits::TraitCall>,
     task_templates: Vec<tasks::Template>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
-    descriptions: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
+    descriptions: BTreeMap<(SemanticDefinitionId, NodeId), descriptions::Description>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
     pattern_origins: Vec<pattern_places::PatternOrigin>,
