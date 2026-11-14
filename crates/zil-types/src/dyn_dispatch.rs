@@ -1589,6 +1589,7 @@ impl Builder<'_, '_> {
                         "exclusive dyn method needs a mutable owner local",
                     ));
                 }
+                self.semantic_local_place(callee, local)?;
                 let ty = Type::Address {
                     mutable: slot.receiver.mutable,
                     inner: Box::new(Type::Dyn { interface }),

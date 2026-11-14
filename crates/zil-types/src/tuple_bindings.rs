@@ -51,6 +51,7 @@ fn validate(pattern: &CorePattern, remaining: &mut usize, depth_limit: usize) ->
 impl Builder<'_, '_> {
     pub(super) fn tuple_binding(
         &mut self,
+        statement: zil_base::NodeId,
         pattern: &CorePattern,
         mutable: bool,
         expected: Option<&Type>,
@@ -103,7 +104,7 @@ impl Builder<'_, '_> {
         if reference_patterns::has_reference(pattern) {
             return self.reference_binding(pattern, mutable, expected, initializer);
         }
-        let (value, ty) = self.expr(initializer, expected)?;
+        let (mut value, ty) = self.expr(initializer, expected)?;
         if let Some(expected) = expected {
             self.same(&ty, expected, initializer.span)?;
         }
@@ -121,6 +122,12 @@ impl Builder<'_, '_> {
             }
             let parent = self.temp(ty.clone(), initializer.span)?;
             self.store(parent, value, initializer.span)?;
+            self.closures.semantic_declaration(
+                self.function.id,
+                statement,
+                parent,
+                initializer.span,
+            )?;
             return self.owned_tuple_pattern(pattern, parent, storage, mutable);
         }
         // This checks the complete value, including discarded fields, exact arity
@@ -138,7 +145,38 @@ impl Builder<'_, '_> {
                 .snapshot(work.saturating_mul(3), initializer.span)?;
             let parent = self.temp(ty.clone(), initializer.span)?;
             self.store(parent, value, initializer.span)?;
+            self.closures.semantic_declaration(
+                self.function.id,
+                statement,
+                parent,
+                initializer.span,
+            )?;
             return self.owned_tuple_pattern(pattern, parent, &ty, mutable);
+        }
+        // A destructuring declaration has a whole Tuple constraint as well as
+        // its leaf binders. Keep that exact initializer in a real temporary,
+        // rather than inventing a whole local from one same-shaped leaf.
+        if self
+            .closures
+            .semantic_emission
+            .frames
+            .contains_key(&self.function.id)
+        {
+            self.closures.snapshot_type(&ty, 2, 0, initializer.span)?;
+            let parent = self.temp(ty.clone(), initializer.span)?;
+            self.store(parent, value, initializer.span)?;
+            self.closures.semantic_declaration(
+                self.function.id,
+                statement,
+                parent,
+                initializer.span,
+            )?;
+            let kind = if ty.is_copy_value() {
+                InstructionKind::Load(parent)
+            } else {
+                InstructionKind::TakeLocal { local: parent }
+            };
+            value = self.value(kind, ty.clone(), initializer.span)?;
         }
         let mut bindings = Vec::new();
         let impossible = self.block_id()?;

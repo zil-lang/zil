@@ -456,6 +456,43 @@ impl Builder<'_, '_> {
             ty,
         ))
     }
+    pub(super) fn semantic_local_place(&mut self, expression: &CoreExpr, local: LocalId) -> R<()> {
+        if self.closures.semantic_emission.frames.is_empty() {
+            return Ok(());
+        }
+        let lookup = |count: usize| count.saturating_add(1).ilog2() as usize + 1;
+        self.closures.snapshot(
+            lookup(self.stored_copy_captures.len())
+                .saturating_add(lookup(self.closure_captures.len()))
+                .saturating_add(lookup(self.borrowed_captures.len())),
+            expression.span,
+        )?;
+        let Some(block) = self.current else {
+            return Ok(());
+        };
+        let place = self
+            .stored_copy_captures
+            .get(&local)
+            .copied()
+            .or_else(|| self.closure_captures.get(&local).map(|row| row.0))
+            .map(SemanticOperand::Capture)
+            .or_else(|| {
+                (!self.borrowed_captures.contains_key(&local))
+                    .then_some(SemanticOperand::Local(local))
+            });
+        if let Some(place) = place {
+            self.closures.semantic_place(
+                self.function.id,
+                expression,
+                place,
+                crate::semantics::emission::Point {
+                    block,
+                    instruction: self.function.blocks[block.0 as usize].instructions.len(),
+                },
+            )?;
+        }
+        Ok(())
+    }
     /// Locate a write target before evaluating its RHS. Projections retain the
     /// same authority; only an explicit ReborrowAddress creates a child window.
     pub(super) fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
@@ -464,31 +501,7 @@ impl Builder<'_, '_> {
                 let local = self.lookup(name).ok_or_else(|| {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
-                if let Some(block) = self.current {
-                    let place = self
-                        .stored_copy_captures
-                        .get(&local)
-                        .copied()
-                        .or_else(|| self.closure_captures.get(&local).map(|row| row.0))
-                        .map(SemanticOperand::Capture)
-                        .or_else(|| {
-                            (!self.borrowed_captures.contains_key(&local))
-                                .then_some(SemanticOperand::Local(local))
-                        });
-                    if let Some(place) = place {
-                        self.closures.semantic_place(
-                            self.function.id,
-                            e,
-                            place,
-                            crate::semantics::emission::Point {
-                                block,
-                                instruction: self.function.blocks[block.0 as usize]
-                                    .instructions
-                                    .len(),
-                            },
-                        )?;
-                    }
-                }
+                self.semantic_local_place(e, local)?;
                 let actual = &self.function.locals[local.0 as usize].ty;
                 let pure_array = !mutable
                     && matches!(actual, Type::Array { .. })

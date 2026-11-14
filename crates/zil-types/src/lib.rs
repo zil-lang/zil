@@ -1640,6 +1640,16 @@ impl<'a, 'c> Builder<'a, 'c> {
         })();
         self.resource_temp_floor = previous;
         if result.is_ok()
+            && let CoreStatementKind::Assign { target, .. } = &s.kind
+            && let CoreExprKind::Name(name) = &target.kind
+            && let Some(local) = self.lookup(name)
+        {
+            // A plain local target has no evaluation effects. Its type-use
+            // witness is the real post-store occupant, including the first
+            // assignment of a declared but previously uninitialized local.
+            self.semantic_local_place(target, local)?;
+        }
+        if result.is_ok()
             && !self.closures.semantic_emission.frames.is_empty()
             && let CoreStatementKind::Binding { name, .. } = &s.kind
         {
@@ -1683,7 +1693,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 ty,
                 initializer,
             } => {
-                self.tuple_binding(pattern, *mutable, ty.as_ref(), initializer)?;
+                self.tuple_binding(s.id, pattern, *mutable, ty.as_ref(), initializer)?;
             }
             CoreStatementKind::Defer(body) => self.register_defer(body, s.span)?,
             CoreStatementKind::Binding {
