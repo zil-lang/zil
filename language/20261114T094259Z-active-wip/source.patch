@@ -1,0 +1,274 @@
+diff --git a/crates/zil-types/src/semantics/original.rs b/crates/zil-types/src/semantics/original.rs
+index 7a83aae36..31c7489cc 100644
+--- a/crates/zil-types/src/semantics/original.rs
++++ b/crates/zil-types/src/semantics/original.rs
+@@ -161,6 +161,7 @@ pub(super) struct Injection {
+ }
+ #[derive(Clone, Default)]
+ pub(super) struct Proof {
++    pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
+     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
+     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+     pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
+@@ -294,11 +295,20 @@ impl<'a> Check<'a, '_> {
+         Ok(())
+     }
+     fn definition(&mut self, id: SemanticDefinitionId) -> R<&'a SemanticDefinition> {
+-        self.pay(self.program.definitions.len(), 0)?;
+-        self.program
+-            .definitions
+-            .iter()
+-            .find(|d| d.id == id)
++        self.pay(
++            self.proof
++                .definition_positions
++                .len()
++                .saturating_add(1)
++                .ilog2() as usize
++                + 2,
++            0,
++        )?;
++        self.proof
++            .definition_positions
++            .get(&id)
++            .and_then(|index| self.program.definitions.get(*index))
++            .filter(|definition| definition.id == id)
+             .ok_or_else(|| bad("symbolic type references an absent original definition"))
+     }
+     fn same(&mut self, a: &SemanticTypeRecipe, b: &SemanticTypeRecipe) -> R<()> {
+@@ -355,9 +365,62 @@ impl<'a> Check<'a, '_> {
+                 if self.premise_type_equal(owner, query, other, 1)? {
+                     return Ok(());
+                 }
+-                return Err(pending(
+-                    "original type query has no finite defining equation",
++                self.pay(768, 0)?;
++                let mut diagnostic = pending("original type query has no finite defining equation");
++                fn label(ty: &SemanticTypeRecipe) -> String {
++                    match ty {
++                        SemanticTypeRecipe::AssociatedType {
++                            receiver,
++                            application,
++                            member,
++                        } => {
++                            let receiver = match receiver.as_ref() {
++                                SemanticTypeRecipe::Formal(reference) => {
++                                    format!("Formal({reference:?})")
++                                }
++                                SemanticTypeRecipe::SelfType { scope } => {
++                                    format!("Self({scope:?})")
++                                }
++                                SemanticTypeRecipe::Nominal {
++                                    definition,
++                                    arguments,
++                                } => format!("Nominal({definition:?};args={})", arguments.len()),
++                                other => type_head(other).to_owned(),
++                            };
++                            format!(
++                                "Associated({:?};member={member};receiver={receiver};args={})",
++                                application.declaration,
++                                application.arguments.len()
++                            )
++                        }
++                        SemanticTypeRecipe::Environment { scope, ordinal } => {
++                            format!("Environment({scope:?};slot={ordinal})")
++                        }
++                        SemanticTypeRecipe::OriginalType { scope, source } => {
++                            let source = match source {
++                                SemanticOriginalTypeSource::Expression(node) => {
++                                    format!("Expression({node:?})")
++                                }
++                                SemanticOriginalTypeSource::Binding(node) => {
++                                    format!("Binding({node:?})")
++                                }
++                                SemanticOriginalTypeSource::Parameter(ordinal) => {
++                                    format!("Parameter({ordinal})")
++                                }
++                                SemanticOriginalTypeSource::Result => "Result".into(),
++                                _ => "StructuredOriginalQuery".into(),
++                            };
++                            format!("Original({scope:?};{source})")
++                        }
++                        other => type_head(other).to_owned(),
++                    }
++                }
++                diagnostic.notes.push(format!(
++                    "original equation owner {owner:?}: query {}, other {}",
++                    label(query),
++                    label(other)
+                 ));
++                return Err(diagnostic);
+             }
+             if reverse {
+                 self.same(other, &resolved)
+@@ -2288,12 +2351,24 @@ impl<'a> Check<'a, '_> {
+         self.pay(formals.len(), depth)?;
+         let mut result: Vec<Option<SemanticActualRecipe>> = vec![None; formals.len()];
+         if let CoreExprKind::GenericApply { arguments, .. } = &callee.kind {
+-            if arguments.len() != formals.len() {
+-                return Err(pending(
+-                    "written mixed arguments need complete original arity/inference positions",
++            let explicit_life = arguments
++                .iter()
++                .any(|argument| matches!(argument, CoreGenericArgument::Lifetime(_)));
++            self.pay(formals.len().saturating_add(arguments.len()), depth)?;
++            let positions = formals
++                .iter()
++                .enumerate()
++                .filter_map(|(index, formal)| {
++                    (explicit_life || !matches!(formal, SemanticFormal::Lifetime)).then_some(index)
++                })
++                .collect::<Vec<_>>();
++            if arguments.len() != positions.len() {
++                return Err(bad(
++                    "written mixed arguments omit a Type/Const position or an explicit lifetime position",
+                 ));
+             }
+-            for (index, (argument, formal)) in arguments.iter().zip(formals).enumerate() {
++            for (argument, index) in arguments.iter().zip(positions) {
++                let formal = &formals[index];
+                 result[index] = Some(match (argument, formal) {
+                     (CoreGenericArgument::Type(ty), SemanticFormal::Type { .. }) => {
+                         SemanticActualRecipe::Type(self.resolve(owner, ty, depth + 1)?)
+@@ -2344,7 +2419,7 @@ impl<'a> Check<'a, '_> {
+                             } else if matches!(formal, SemanticFormal::Type { .. }) {
+                                 arguments.push(SemanticActualRecipe::Type(
+                                     SemanticTypeRecipe::Formal(SemanticFormalRef {
+-                                        scope: SemanticScopeRef::Ancestor(0),
++                                        scope: SemanticScopeRef::Ancestor(u32::MAX),
+                                         ordinal: ordinal as u32,
+                                     }),
+                                 ));
+@@ -2385,16 +2460,27 @@ impl<'a> Check<'a, '_> {
+                 });
+             }
+         } else if let CoreExprKind::TypeApply { type_arguments, .. } = &callee.kind {
+-            if type_arguments.len() != formals.len()
++            let count = formals
++                .iter()
++                .filter(|formal| matches!(formal, SemanticFormal::Type { .. }))
++                .count();
++            if type_arguments.len() != count
+                 || formals
+                     .iter()
+-                    .any(|f| !matches!(f, SemanticFormal::Type { .. }))
++                    .any(|f| matches!(f, SemanticFormal::Const { .. }))
+             {
+                 return Err(bad(
+                     "type-only application omits original mixed argument positions",
+                 ));
+             }
+-            for (slot, ty) in result.iter_mut().zip(type_arguments) {
++            let mut arguments = type_arguments.iter();
++            for (formal, slot) in formals.iter().zip(&mut result) {
++                if matches!(formal, SemanticFormal::Lifetime) {
++                    continue;
++                }
++                let ty = arguments.next().ok_or_else(|| {
++                    bad("written Type application loses an original Type position")
++                })?;
+                 *slot = Some(SemanticActualRecipe::Type(self.resolve(
+                     owner,
+                     ty,
+@@ -5122,6 +5208,33 @@ pub(super) fn check_at_with_declarations(
+ ) -> R<Proof> {
+     check_requested(program, declarations, Some((owner, node)), limits, left)
+ }
++fn definition_positions(
++    program: &SemanticModule,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>> {
++    spend(left, program.definitions.len().saturating_add(1), 0, limits)?;
++    if program.definitions.len() > limits.max_nodes {
++        return Err(Diagnostic::limit(
++            Phase::Types,
++            "original definition index count exceeded",
++            None,
++        ));
++    }
++    let mut index = BTreeMap::new();
++    for (position, definition) in program.definitions.iter().enumerate() {
++        spend(
++            left,
++            index.len().saturating_add(1).ilog2() as usize + 2,
++            0,
++            limits,
++        )?;
++        if index.insert(definition.id, position).is_some() {
++            return Err(bad("original definition index has duplicate identities"));
++        }
++    }
++    Ok(std::rc::Rc::new(index))
++}
+ fn check_requested(
+     program: &SemanticModule,
+     declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
+@@ -5129,11 +5242,13 @@ fn check_requested(
+     limits: &Limits,
+     left: &mut usize,
+ ) -> R<Proof> {
++    let definition_positions = definition_positions(program, limits, left)?;
+     let mut check = Check {
+         program,
+         limits,
+         left,
+         proof: Proof {
++            definition_positions,
+             declarations,
+             ..Proof::default()
+         },
+diff --git a/crates/zil-types/src/semantics/original_context.rs b/crates/zil-types/src/semantics/original_context.rs
+index 3efc8bdb2..ffa11b732 100644
+--- a/crates/zil-types/src/semantics/original_context.rs
++++ b/crates/zil-types/src/semantics/original_context.rs
+@@ -219,7 +219,7 @@ pub(crate) struct OriginalContext {
+     pub(super) declarations: Rc<Vec<Declaration>>,
+     pub(super) original: super::original::Proof,
+     parts: Vec<Part>,
+-    definitions: BTreeMap<SemanticDefinitionId, usize>,
++    definitions: Rc<BTreeMap<SemanticDefinitionId, usize>>,
+     instances: BTreeMap<SemanticInstanceId, usize>,
+     frozen: Option<Rc<super::frozen_context::FrozenSource>>,
+ }
+@@ -235,7 +235,7 @@ impl OriginalContext {
+                 "checked original proof differs from its immutable declaration input",
+             ));
+         }
+-        let mut definitions = BTreeMap::new();
++        let definitions = proof.definition_positions.clone();
+         let mut instances = BTreeMap::new();
+         pay(
+             left,
+@@ -248,10 +248,17 @@ impl OriginalContext {
+         )?;
+         for (index, definition) in input.semantic.definitions.iter().enumerate() {
+             pay(left, search(definitions.len()))?;
+-            if definitions.insert(definition.id, index).is_some() {
+-                return Err(bad("checked original context has duplicate definitions"));
++            if definitions.get(&definition.id) != Some(&index) {
++                return Err(bad(
++                    "checked original context differs from its proved definition index",
++                ));
+             }
+         }
++        if definitions.len() != input.semantic.definitions.len() {
++            return Err(bad(
++                "checked original context changes its complete definition inventory",
++            ));
++        }
+         for (index, instance) in input.semantic.instances.iter().enumerate() {
+             pay(left, search(instances.len()))?;
+             if instances.insert(instance.id, index).is_some() {
+diff --git a/crates/zil-types/src/semantics/original_frozen.rs b/crates/zil-types/src/semantics/original_frozen.rs
+index e37a99958..6b4374748 100644
+--- a/crates/zil-types/src/semantics/original_frozen.rs
++++ b/crates/zil-types/src/semantics/original_frozen.rs
+@@ -436,6 +436,7 @@ pub(crate) fn check_with_frozen(
+     }
+     let mut proof = clone_proof(&source.original, program, limits, left)?;
+     proof.declarations = declarations;
++    proof.definition_positions = definition_positions(program, limits, left)?;
+     let mut check = Check {
+         program,
+         limits,

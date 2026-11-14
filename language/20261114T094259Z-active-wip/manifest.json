@@ -1,0 +1,15 @@
+{
+  "source_base": "530318f08d0090c9774bf74d35c47be8b89200df",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T094259Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-types/src/semantics/original.rs": "6c2d6b72594a1258cc7c7d58a3af40e3c0b2c49608c45207e84cce72af34a22c",
+    "crates/zil-types/src/semantics/original_context.rs": "296de5a7c30dbd63f99e4855947d4299fdc58b4fce19527c2ed374f798e05458",
+    "crates/zil-types/src/semantics/original_frozen.rs": "3d2ca49bf405b9098af0c649ac4b372a1953bcf2772ef6a5f4a7f38a689b1c89"
+  },
+  "artifacts": {
+    "source.patch": "ccb8826bec2323766176abf3fbd791becc6cdf472452a57c6fb8aa2960acbf17"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
