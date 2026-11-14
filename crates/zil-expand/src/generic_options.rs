@@ -7,6 +7,8 @@ pub(super) const TASK_POLL: &str = "$stdTaskPoll343";
 pub(crate) const TASK_CREATE_ERROR: &str = "$stdTaskCreateError343";
 pub(super) const TASK_THREAD_SCOPE: &str = "$stdTaskThreadScope";
 pub(crate) const TASK_POLL_STATE: &str = "$stdTaskPollState343";
+pub(crate) const TASK_CREATE_FAILURE_RECORD: &str = "$stdTaskCreateFailureRecord343";
+pub(crate) const TASK_CREATE_FAILURE_PACKAGE: &str = "$stdTaskCreateFailurePackage343";
 
 pub(crate) fn storage_identity(
     item: &Item,
@@ -14,6 +16,9 @@ pub(crate) fn storage_identity(
     budget: &mut Budget<'_>,
 ) -> R<(zil_ir::LifeDeclarationId, zil_ir::LifeDeclarationIdentity)> {
     if origin.role.is_none() {
+        if let ItemKind::Aggregate(value) = &item.kind {
+            return failure_storage_identity(item, value, origin, budget);
+        }
         let ItemKind::Enum(value) = &item.kind else {
             return Err(error(
                 item.span,
@@ -175,6 +180,133 @@ pub(crate) fn storage_identity(
             generation_path: Vec::new(),
         },
     ))
+}
+
+fn failure_storage_identity(
+    item: &Item,
+    value: &Aggregate,
+    origin: origins::Origin,
+    budget: &mut Budget<'_>,
+) -> R<(zil_ir::LifeDeclarationId, zil_ir::LifeDeclarationIdentity)> {
+    budget.item(item)?;
+    let (id, kind, label) = match value.name.as_str() {
+        TASK_CREATE_FAILURE_RECORD => (
+            zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD,
+            zil_syntax::ast::AggregateKind::Struct,
+            "record",
+        ),
+        TASK_CREATE_FAILURE_PACKAGE => (
+            zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE,
+            zil_syntax::ast::AggregateKind::Package,
+            "package",
+        ),
+        _ => {
+            return Err(error(
+                item.span,
+                "compiler product has no registered original family",
+            ));
+        }
+    };
+    let valid_formals = value.generics.len() == 2
+        && value.generics.iter().all(|formal| {
+            !formal.name.is_empty()
+                && matches!(&formal.kind,GenericParamKind::Type(bounds) if bounds.is_empty())
+        })
+        && value.generics[0].name != value.generics[1].name;
+    let valid_fields = if let [reason, inputs] = value.fields.as_slice() {
+        reason.name == "reason"
+            && inputs.name == "inputs"
+            && [reason, inputs].into_iter().all(|field| {
+                field.public
+                    && !field.manages
+                    && field.attributes.is_empty()
+                    && field.default.is_none()
+            })
+            && matches!(&reason.ty.kind,TypeKind::Named {path,args} if path.as_slice()==[TASK_CREATE_ERROR]&&args.is_empty())
+            && valid_formals
+            && matches!(&inputs.ty.kind,TypeKind::Named {path,args} if path.as_slice()==[value.generics[0].name.as_str()]&&args.is_empty())
+    } else {
+        false
+    };
+    if !origin.compiler
+        || !origin.declaration.compiler
+        || origin.role.is_some()
+        || origin.member.is_some()
+        || item.public
+        || !item.attributes.is_empty()
+        || value.kind != kind
+        || !valid_formals
+        || !valid_fields
+        || !value.methods.is_empty()
+    {
+        return Err(error(
+            item.span,
+            "compiler task failure product differs from its complete canonical original",
+        ));
+    }
+    budget.lineage_bytes(
+        std::mem::size_of::<zil_ir::LifeDeclarationIdentity>()
+            + 4 * std::mem::size_of::<String>()
+            + 64,
+        item.span,
+    )?;
+    Ok((
+        id,
+        zil_ir::LifeDeclarationIdentity {
+            package: "@zil.builtin".into(),
+            module_path: vec!["task".into()],
+            declaration_path: vec![label.into(), "TaskCreateFailure".into()],
+            generation_path: Vec::new(),
+        },
+    ))
+}
+
+/// The two physical carrier kinds are genuine compiler originals. ResultTask
+/// is an intentionally unused full Type formal: its persistent domain is not
+/// erased merely because allocation failure stores only the input tuple.
+fn task_failure_declarations(span: Span) -> Vec<Item> {
+    [
+        (
+            TASK_CREATE_FAILURE_RECORD,
+            zil_syntax::ast::AggregateKind::Struct,
+        ),
+        (
+            TASK_CREATE_FAILURE_PACKAGE,
+            zil_syntax::ast::AggregateKind::Package,
+        ),
+    ]
+    .into_iter()
+    .map(|(name, kind)| Item {
+        public: false,
+        attributes: Vec::new(),
+        span,
+        kind: ItemKind::Aggregate(Aggregate {
+            name: name.into(),
+            kind,
+            generics: ["Inputs", "ResultTask"]
+                .into_iter()
+                .map(|name| GenericParam {
+                    name: name.into(),
+                    kind: GenericParamKind::Type(Vec::new()),
+                    span,
+                })
+                .collect(),
+            fields: [("reason", TASK_CREATE_ERROR), ("inputs", "Inputs")]
+                .into_iter()
+                .map(|(name, ty)| Field {
+                    name: name.into(),
+                    ty: named(ty, span),
+                    default: None,
+                    public: true,
+                    manages: false,
+                    attributes: Vec::new(),
+                    span,
+                })
+                .collect(),
+            methods: Vec::new(),
+        }),
+    })
+    .collect()
 }
 
 fn task_declaration(name: &str) -> Option<&'static str> {
@@ -413,6 +545,11 @@ pub(super) fn prepare_recorded<'a>(
             task_aliases(module, span, &mut normal.budget, task_threads).map_err(|e| vec![e])?;
         for (role, item) in task_declarations(span)
             .into_iter()
+            .chain(
+                task_failure_declarations(span)
+                    .into_iter()
+                    .map(|item| (None, item)),
+            )
             .chain(aliases.into_iter().map(|item| (None, item)))
         {
             normal.budget.item(&item).map_err(|e| vec![e])?;
@@ -436,8 +573,8 @@ pub(super) fn prepare_recorded<'a>(
 
 /// The actual compiler-distributed prefix, before specializing its templates.
 /// A role comes from Prepared's insertion ledger, never a parsed spelling.
-/// Closed standard enums and aliases remain present in `item`; only Option
-/// and Poll have canonical stored-family IDs supplied by this producer.
+/// Closed standard enums, task failure products and aliases remain present in
+/// `item`; canonical stored-family IDs are authenticated against that actual AST.
 pub(crate) struct CompilerSemanticDeclaration {
     pub(crate) item: Item,
     pub(crate) origin: origins::Origin,
@@ -514,7 +651,8 @@ pub(crate) fn compiler_semantic_declarations(
         } else {
             None
         };
-        let registered_closed = matches!(&item.kind, ItemKind::Enum(value) if matches!(value.name.as_str(), TASK_CREATE_ERROR | TASK_POLL_STATE));
+        let registered_closed = matches!(&item.kind, ItemKind::Enum(value) if matches!(value.name.as_str(), TASK_CREATE_ERROR | TASK_POLL_STATE))
+            || matches!(&item.kind,ItemKind::Aggregate(value) if matches!(value.name.as_str(),TASK_CREATE_FAILURE_RECORD|TASK_CREATE_FAILURE_PACKAGE));
         let (life_declaration, identity) = if origin.role.is_some() || registered_closed {
             let (id, identity) =
                 storage_identity(&item, origin, &mut budget).map_err(|error| vec![error])?;
