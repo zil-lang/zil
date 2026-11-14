@@ -90,6 +90,22 @@ impl Builder<'_, '_, '_, '_> {
         }
         self.ty(ty, &mut occurrence, depth, false)
     }
+    fn body_local_annotation(
+        &mut self,
+        ty: &s::TypeRef,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        // Only this initialized binding root can defer the resource category
+        // to its checked initializer. Nested components retain their ordinary
+        // categories; explicit Ref/Desc and complete Type formals stay intact.
+        let mut occurrence = Vec::new();
+        self.push(&mut occurrence, 40, ty.span)?;
+        for field in path.iter().copied() {
+            self.push(&mut occurrence, field, ty.span)?;
+        }
+        self.ty(ty, &mut occurrence, depth, true)
+    }
     pub(super) fn original_body(&mut self, body: &s::FunctionBody) -> R<OriginalBodyOutput> {
         let mut mint = Mint {
             next: 0,
@@ -266,7 +282,7 @@ impl Builder<'_, '_, '_, '_> {
             } => {
                 let ty = ty
                     .as_ref()
-                    .map(|ty| self.body_type(ty, path, depth + 1))
+                    .map(|ty| self.body_local_annotation(ty, path, depth + 1))
                     .transpose()?;
                 let pattern = self.body_pattern(pattern, path, depth + 1)?;
                 let value = self.body_child_expr(value, 0, mint, path, depth + 1)?;
@@ -1144,5 +1160,116 @@ fn body_delimiter(delimiter: s::Delimiter) -> CoreSyntaxDelimiter {
         s::Delimiter::Parenthesis => CoreSyntaxDelimiter::Parenthesis,
         s::Delimiter::Bracket => CoreSyntaxDelimiter::Bracket,
         s::Delimiter::Brace => CoreSyntaxDelimiter::Brace,
+    }
+}
+
+#[cfg(test)]
+mod resource_annotation_tests {
+    use super::*;
+    use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
+    use std::collections::BTreeMap;
+    use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn resource_categories_are_selected_at_the_original_occurrence() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(3),
+            "resource-categories.zil",
+            "resource R{value:i32}fn sample<T>(x:R,shared:&R,exclusive:&mut R,slot:&Ref<R>,generic:&T,give owned:R,t:T)->R contract{result(create)}{let owner:R=R{value:1}let view:R=x let explicit:Ref<R>=x let whole:T=t let pair:(R,R)=(x,x) return R{value:2}}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut remaining = limits.clone();
+        let inventory =
+            collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+                .unwrap();
+        let definition = inventory.modules[0]
+            .1
+            .definitions
+            .iter()
+            .find(|definition| {
+                definition
+                    .identity
+                    .declaration_path
+                    .last()
+                    .is_some_and(|name| name == "sample")
+            })
+            .unwrap();
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature, body, ..
+        } = &definition.body
+        else {
+            panic!("source function lost its original body")
+        };
+        assert!(
+            matches!(&signature.parameters[0].ty, SemanticTypeRecipe::Desc { inner, .. }
+            if matches!(inner.as_ref(), SemanticTypeRecipe::Nominal { .. }))
+        );
+        for index in [1, 2] {
+            assert!(
+                matches!(&signature.parameters[index].ty, SemanticTypeRecipe::Address { inner, .. }
+                if matches!(inner.as_ref(), SemanticTypeRecipe::Managed(payload)
+                    if matches!(payload.as_ref(), SemanticTypeRecipe::Nominal { .. })))
+            );
+        }
+        assert!(
+            matches!(&signature.parameters[3].ty, SemanticTypeRecipe::Address { inner, .. }
+            if matches!(inner.as_ref(), SemanticTypeRecipe::Desc { inner, .. }
+                if matches!(inner.as_ref(), SemanticTypeRecipe::Nominal { .. })))
+        );
+        assert!(
+            matches!(&signature.parameters[4].ty, SemanticTypeRecipe::Address { inner, .. }
+            if matches!(inner.as_ref(), SemanticTypeRecipe::Formal(_)))
+        );
+        assert!(matches!(
+            signature.parameters[5].ty,
+            SemanticTypeRecipe::Managed(_)
+        ));
+        assert!(matches!(signature.result, SemanticTypeRecipe::Managed(_)));
+        for forbidden in [vec![1, 5], vec![2]] {
+            assert!(
+                !definition
+                    .implicit_lifetimes
+                    .iter()
+                    .any(|row| row.occurrence_path == forbidden)
+            );
+        }
+        let SemanticOriginalFunctionBody::Defined(block) = body else {
+            panic!("source body lost its binding annotations")
+        };
+        let annotations: Vec<_> = block
+            .statements
+            .iter()
+            .filter_map(|statement| match &statement.kind {
+                CoreStatementKind::Binding { ty, .. } => ty.as_ref(),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(annotations.len(), 5);
+        for index in [0, 1] {
+            assert!(matches!(
+                annotations[index],
+                SemanticTypeRecipe::Nominal { .. }
+            ));
+        }
+        assert!(
+            matches!(annotations[2], SemanticTypeRecipe::Desc { inner, .. }
+            if matches!(inner.as_ref(), SemanticTypeRecipe::Nominal { .. }))
+        );
+        assert!(matches!(annotations[3], SemanticTypeRecipe::Formal(_)));
+        assert!(matches!(annotations[4], SemanticTypeRecipe::Tuple(fields)
+            if fields.len() == 2 && fields.iter().all(|field| matches!(field, SemanticTypeRecipe::Desc { .. }))));
     }
 }

@@ -3925,36 +3925,68 @@ impl<'a> Check<'a, '_> {
                         .as_ref()
                         .map(|ty| self.resolve(owner, ty, depth + 1))
                         .transpose()?;
-                    let annotation = if let (Some(annotation), Some(initializer)) =
-                        (annotation.as_ref(), initializer.as_ref())
-                    {
-                        let annotation = copy_recipe(annotation, self.limits, self.left)?;
-                        if self.initializer_owns(owner, initializer, variables, depth + 1)? {
-                            Some(self.mode_type(
-                                owner,
-                                PassingMode::Create,
-                                annotation,
-                                depth + 1,
-                            )?)
-                        } else {
-                            Some(annotation)
+                    // A raw resource at an initialized local annotation root
+                    // constrains only the family. The initializer still proves
+                    // its owning/description category and its entire life domain.
+                    let family = match annotation.as_ref() {
+                        Some(annotation) => self.resource_head(owner, annotation, depth + 1)?,
+                        None => false,
+                    };
+                    let hint = if family {
+                        match (annotation.as_ref(), initializer.as_ref()) {
+                            (Some(annotation), Some(initializer))
+                                if self.initializer_owns(
+                                    owner,
+                                    initializer,
+                                    variables,
+                                    depth + 1,
+                                )? =>
+                            {
+                                self.pay(1, depth)?;
+                                Some(SemanticTypeRecipe::Managed(Box::new(copy_recipe(
+                                    annotation,
+                                    self.limits,
+                                    self.left,
+                                )?)))
+                            }
+                            _ => None,
                         }
                     } else {
                         annotation
+                            .as_ref()
+                            .map(|ty| copy_recipe(ty, self.limits, self.left))
+                            .transpose()?
                     };
                     let actual = initializer
                         .as_ref()
-                        .map(|value| {
-                            self.expr(owner, value, variables, annotation.as_ref(), depth + 1)
-                        })
+                        .map(|value| self.expr(owner, value, variables, hint.as_ref(), depth + 1))
                         .transpose()?;
-                    if let (Some(a), Some(b)) = (&annotation, &actual) {
-                        self.same(a, b)?;
-                    }
-                    let value = annotation.or(actual).ok_or_else(|| {
-                        bad("original uninitialized binding has no declared symbolic type")
-                    })?;
-                    let value = if *mutable && ty.is_none() {
+                    let value = if family {
+                        let actual = actual.as_ref().ok_or_else(|| {
+                            bad("resource-family binding has no initializing category")
+                        })?;
+                        let actual = self.observation_type(owner, actual, depth + 1)?;
+                        let payload = match &actual {
+                            SemanticTypeRecipe::Managed(inner)
+                            | SemanticTypeRecipe::Desc { inner, .. } => inner.as_ref(),
+                            _ => return Err(bad(
+                                "original resource-family initializer has no proved owning or description category",
+                            )),
+                        };
+                        let annotation = annotation.as_ref().ok_or_else(|| {
+                            bad("resource-family binding lost its original annotation")
+                        })?;
+                        self.same(annotation, payload)?;
+                        actual
+                    } else {
+                        if let (Some(a), Some(b)) = (&annotation, &actual) {
+                            self.same(a, b)?;
+                        }
+                        annotation.or(actual).ok_or_else(|| {
+                            bad("original uninitialized binding has no declared symbolic type")
+                        })?
+                    };
+                    let value = if *mutable && (ty.is_none() || family) {
                         if let Some(initializer) = initializer {
                             self.introduce_role(
                                 owner,

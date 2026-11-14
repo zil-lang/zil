@@ -68,7 +68,7 @@ impl Check<'_, '_> {
                     Ok(matches!(
                         signature.result_mode,
                         PassingMode::Create | PassingMode::Give
-                    ))
+                    ) || matches!(&signature.result, SemanticTypeRecipe::Managed(_)))
                 } else {
                     Ok(path.len() == 1 && matches!(path[0].as_str(), "store_new" | "bytes_new"))
                 }
