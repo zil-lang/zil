@@ -1031,7 +1031,14 @@ impl Builder<'_, '_, '_, '_> {
             s::ExprKind::Record { ty, base, fields } => {
                 let ty = if let Some(ty) = ty {
                     let ty = super::plan::type_expression(ty, self.budget)?;
-                    Some(self.body_type(&ty, path, depth + 1)?)
+                    // A fresh literal names the resource payload it creates.
+                    // Explicit Ref/Desc and nested modes remain written Types;
+                    // an update instead retains its ordinary existing value.
+                    Some(if base.is_none() {
+                        self.body_local_annotation(&ty, path, depth + 1)?
+                    } else {
+                        self.body_type(&ty, path, depth + 1)?
+                    })
                 } else {
                     None
                 };
