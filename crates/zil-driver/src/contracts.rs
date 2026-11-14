@@ -11,7 +11,7 @@ pub(super) fn publish(
     interfaces: &mut [ScalarInterface],
 ) -> CompileResult<()> {
     for interface in interfaces {
-        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-7\0".to_vec();
+        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-8\0".to_vec();
         bytes.extend_from_slice(&interface.signature_fingerprint.0);
         let mut results = Vec::with_capacity(interface.exports.len());
         let mut callables = Vec::new();
@@ -31,8 +31,8 @@ pub(super) fn publish(
                 .get(export.function.0 as usize)
                 .ok_or_else(fail)?;
             if function.environment.is_some()
-                || verified.is_suspend(export.function)
                 || function.return_type != export.result
+                || function.storage_life != export.storage_life
                 || function.reference_return_bound != export.reference_return_bound
                 || function.retained_return_sources != export.retained_return_sources
                 || function.result_mode != export.result_mode
@@ -45,6 +45,17 @@ pub(super) fn publish(
             {
                 return Err(fail());
             }
+            // The interface names a verified function, including its actual
+            // execution ABI. Ordinary Suspend exports use its SABI machine;
+            // they do not become Direct native entry points here.
+            bytes.push(match function.call_kind {
+                zil_ir::CallKind::Direct => 0,
+                zil_ir::CallKind::Suspend => 1,
+            });
+            bytes.push(match function.resume_bound {
+                zil_ir::TaskResumeBound::Local => 0,
+                zil_ir::TaskResumeBound::Transfer => 1,
+            });
             if let Some(contract) = verified.callable_contract(export.function) {
                 bytes.push(1);
                 bytes.extend_from_slice(&callable_contract_fingerprint(contract).0);

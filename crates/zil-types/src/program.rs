@@ -544,16 +544,18 @@ fn check_resolved_program_in_context(
                 root_functions.push(export.clone());
             }
             if signature.public {
-                if tasks::suspends(&typed) {
-                    if !signature.scalar_thread_worker()
-                        || signature.parameters.as_slice() != [Type::I32]
-                    {
-                        return Err(vec![error(
-                            "E-TASK-WORKER",
-                            f.span,
-                            "public scalar task requires exact ordinary fn(i32)->i32",
-                        )]);
-                    }
+                // ABI1 is the legacy scalar Task interface. Public visibility
+                // alone does not turn an arbitrary Suspend function into that
+                // worker profile; ordinary exports retain their actual CFG ABI.
+                if tasks::suspends(&typed)
+                    && signature.scalar_thread_worker()
+                    && signature.parameters.as_slice() == [Type::I32]
+                    && matches!(
+                        export.parameters[0].0,
+                        PassingMode::Infer | PassingMode::Copy
+                    )
+                    && matches!(export.result_mode, PassingMode::Infer | PassingMode::Copy)
+                {
                     closure_state
                         .snapshot(f.name.len().saturating_add(1), f.span)
                         .map_err(|e| vec![e])?;
@@ -766,7 +768,7 @@ fn interface_fingerprint(
                 )]
             })?;
     }
-    let mut bytes = b"ZIL-SCALAR-INTERFACE-3\0".to_vec();
+    let mut bytes = b"ZIL-SCALAR-INTERFACE-4\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
     for export in exports {
@@ -791,6 +793,15 @@ fn interface_fingerprint(
         })?;
         bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
         bytes.extend_from_slice(export.name.as_bytes());
+        let function = &functions[export.function.0 as usize];
+        bytes.push(match function.call_kind {
+            CallKind::Direct => 0,
+            CallKind::Suspend => 1,
+        });
+        bytes.push(match function.resume_bound {
+            TaskResumeBound::Local => 0,
+            TaskResumeBound::Transfer => 1,
+        });
         bytes.extend_from_slice(&(export.parameters.len() as u64).to_le_bytes());
         for (mode, ty) in &export.parameters {
             bytes.push(match mode {
