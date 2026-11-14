@@ -242,6 +242,57 @@ pub(crate) fn populate(
         }
         for site in &program.sites {
             let function = eval.function(site.instance)?;
+            if matches!(
+                site.action,
+                SemanticSiteAction::CoreBodyCall
+                    | SemanticSiteAction::BodyCall { .. }
+                    | SemanticSiteAction::Call { .. }
+                    | SemanticSiteAction::CallableCall { .. }
+            ) {
+                let SemanticSiteAddress::Typed {
+                    block, instruction, ..
+                } = site.at
+                else {
+                    return Err(bad("pending call result has no actual emitted boundary"));
+                };
+                eval.fee(function.blocks.len())?;
+                let operation = function
+                    .blocks
+                    .iter()
+                    .find(|body| body.id == block)
+                    .and_then(|body| body.instructions.get(instruction as usize))
+                    .ok_or_else(|| bad("pending call result leaves its actual instruction"))?;
+                let Some(result) = operation.result else {
+                    continue;
+                };
+                let hint = function
+                    .values
+                    .get(result.0 as usize)
+                    .ok_or_else(|| bad("pending call result has no actual whole type"))?;
+                let owner = eval.instance(site.instance)?.definition;
+                let original = eval.definition(owner)?;
+                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body
+                else {
+                    continue;
+                };
+                eval.fee(site_nodes.len())?;
+                let mut nodes = site_nodes.iter().filter(|node| node.site == site.recipe);
+                let node = nodes
+                    .next()
+                    .ok_or_else(|| bad("pending call has no exact original source node"))?;
+                if nodes.next().is_some() {
+                    return Err(bad("pending call has multiple original source nodes"));
+                }
+                let SemanticOriginalNode::Expression(node) = node.node else {
+                    return Err(bad("pending call source is not an original expression"));
+                };
+                let recipe = SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(node),
+                };
+                eval.deferred_nominal(site.instance, &recipe, hint, 0, &mut pending)?;
+                continue;
+            }
             let (value, hint) = match &site.action {
                 SemanticSiteAction::Construct {
                     result: SemanticOperand::Value(result),
@@ -249,6 +300,17 @@ pub(crate) fn populate(
                 } => (value, function.values.get(result.0 as usize)),
                 SemanticSiteAction::DeclareLocal {
                     local: SemanticLocalTarget::Typed(local),
+                    expected,
+                } => (
+                    expected,
+                    function.locals.get(local.0 as usize).map(|local| &local.ty),
+                ),
+                SemanticSiteAction::TypeUse {
+                    subject: SemanticOperand::Value(value),
+                    expected,
+                } => (expected, function.values.get(value.0 as usize)),
+                SemanticSiteAction::TypeUse {
+                    subject: SemanticOperand::Local(local),
                     expected,
                 } => (
                     expected,

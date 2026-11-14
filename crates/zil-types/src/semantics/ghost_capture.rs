@@ -14,7 +14,7 @@ fn pay(left: &mut usize, n: usize) -> R<()> {
 }
 /// Recover the actual whole capture occupying a TypeUse's value or local at
 /// that exact emitted boundary. Equal types do not establish this lineage.
-fn capture_at(
+pub(super) fn capture_at(
     function: &TypedFunction,
     subject: &SemanticOperand,
     at: &SemanticSiteAddress,

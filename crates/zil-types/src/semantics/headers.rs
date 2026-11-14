@@ -2,6 +2,9 @@
 //! equality of concrete types. Publication still requires the whole body proof.
 use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
+#[path = "header_captures.rs"]
+mod captures;
+pub(super) use captures::populate as capture_domains;
 
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-HEADER", Span::default(), message)

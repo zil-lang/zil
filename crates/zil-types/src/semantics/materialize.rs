@@ -1586,9 +1586,11 @@ impl<'a> Eval<'a, '_> {
             inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
             inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
             if ty != hint {
-                return Err(bad(
-                    "original type recipe differs from its actual emitted complete type",
-                ));
+                return Err(bad(&format!(
+                    "original type recipe differs from its actual emitted complete type: instance {scope:?}, expected {}, actual {}",
+                    ty.name(),
+                    hint.name()
+                )));
             }
         }
         Ok(value)

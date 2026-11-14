@@ -780,9 +780,18 @@ impl<'a> Check<'a, '_> {
                         selected = Some(row);
                     }
                 }
-                let row = selected.ok_or_else(|| {
-                    unknown("nominal child has no complete original catalogue entry")
-                })?;
+                let Some(row) = selected else {
+                    let name = match physical(ty) {
+                        Type::Record { name, .. }
+                        | Type::Package { name, .. }
+                        | Type::Enum { name, .. } => name.as_str(),
+                        _ => "qualified compound",
+                    };
+                    fee(self.left, name.len(), Span::default())?;
+                    return Err(unknown(&format!(
+                        "nominal child has no complete original catalogue entry: {name}"
+                    )));
+                };
                 self.row(row, depth + 1)
             }
             // Missing opaque, callable, address, declaration or phantom
