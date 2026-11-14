@@ -38,6 +38,7 @@ impl CheckedOriginal {
                 },
                 _=>(self.expression(module,context,expression,env,bindings,None,active,b)?,None),
             };
+            if let Some(place)=&result.1{place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(2usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;self.value_places.insert((env.current()?,expression.id),place.clone());}
             self.expressions.insert((env.current()?,expression.id),result.0.clone());Ok(result)
         })
     }

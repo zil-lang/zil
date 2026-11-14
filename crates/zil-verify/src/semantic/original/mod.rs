@@ -66,6 +66,7 @@ pub(super) struct CheckedOriginal {
     cleanups:Vec<cleanup::Cleanup>,
     creator_moves:BTreeMap<SemanticDefinitionId,bool>,
     value_bindings:BTreeMap<(SemanticDefinitionId,NodeId),Binder>,
+    value_places:BTreeMap<(SemanticDefinitionId,NodeId),Place>,
     names_at:BTreeMap<(SemanticDefinitionId,bool,NodeId,String),Ty>,
     pattern_types:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Ty>,
     pattern_bindings:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Binder>,

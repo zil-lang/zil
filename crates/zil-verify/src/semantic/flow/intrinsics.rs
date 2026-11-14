@@ -3,6 +3,10 @@
 //! semantic facts never replace the ordinary resource/loan/epoch kernels.
 use super::*;
 use original::intrinsics::{BufferSource,Intrinsic};
+#[path="owner_sources.rs"]
+mod owner_sources;
+#[path="owner_fields.rs"]
+mod owner_fields;
 
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
@@ -53,7 +57,21 @@ impl CheckedContext {
         Ok(Some(expected))
     }
     pub(super) fn intrinsic_buffer_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,source:BufferSource,b:&mut Budget)->Check<()> {
-        let local=match source{
+        if let BufferSource::Place{definition,node}=source{return self.projected_buffer_source(module,caller,f,value,definition,node,b);}
+        let local=self.buffer_source_local(module,caller,f,source,b)?;
+        let mut value=value;let mut seen=std::collections::BTreeSet::new();
+        loop{b.spend(1)?;if !seen.insert(value){return Err(bad("operational owner reborrow has a producer cycle"));}
+            let mut producer=None;
+            for block in &f.blocks{b.spend(block.instructions.len())?;for row in &block.instructions{if row.result==Some(value)&&producer.replace(row).is_some(){return Err(bad("intrinsic buffer has several actual SSA definitions"));}}}
+            match &producer.ok_or_else(||bad("intrinsic buffer has no defining instruction"))?.kind{
+                InstructionKind::DescribeLocal{local:actual}|InstructionKind::Load(actual)|InstructionKind::TakeLocal{local:actual}|InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual} if *actual==local=>return Ok(()),
+                InstructionKind::ReborrowAddress{address,..}=>value=*address,
+                _=>return Err(bad("intrinsic descriptor selects another original buffer value")),
+            }
+        }
+    }
+    pub(super) fn buffer_source_local(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,source:BufferSource,b:&mut Budget)->Check<LocalId>{
+        Ok(match source{
             BufferSource::Parameter{definition,ordinal}=>{
                 if definition!=caller.definition{return Err(bad("intrinsic description uses another original parameter scope"));}
                 *f.parameters.get(ordinal as usize).ok_or_else(||bad("intrinsic parameter ordinal is absent"))?
@@ -74,16 +92,7 @@ impl CheckedContext {
                 }
                 local.ok_or_else(||bad("intrinsic original buffer has no exact actual local declaration"))?
             },
-        };
-        let mut value=value;let mut seen=std::collections::BTreeSet::new();
-        loop{b.spend(1)?;if !seen.insert(value){return Err(bad("operational owner reborrow has a producer cycle"));}
-            let mut producer=None;
-            for block in &f.blocks{b.spend(block.instructions.len())?;for row in &block.instructions{if row.result==Some(value)&&producer.replace(row).is_some(){return Err(bad("intrinsic buffer has several actual SSA definitions"));}}}
-            match &producer.ok_or_else(||bad("intrinsic buffer has no defining instruction"))?.kind{
-                InstructionKind::DescribeLocal{local:actual}|InstructionKind::Load(actual)|InstructionKind::TakeLocal{local:actual}|InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual} if *actual==local=>return Ok(()),
-                InstructionKind::ReborrowAddress{address,..}=>value=*address,
-                _=>return Err(bad("intrinsic descriptor selects another original buffer value")),
-            }
-        }
+            BufferSource::Place{..}=>return Err(bad("projected buffer source was reduced to an unqualified local")),
+        })
     }
 }

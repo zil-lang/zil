@@ -2,6 +2,17 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn buffer_place(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(intrinsics::BufferRoot,Vec<String>)>{
+        b.spend(1)?;let place=self.value_places.get(&(definition,node)).ok_or_else(||bad("original buffer observation has no complete checked Place"))?;
+        b.spend(place.fields.iter().fold(2usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;
+        let root=match &place.binder{Binder::Local{definition:owner,node,..}if *owner==definition=>intrinsics::BufferRoot::Local{node:*node},Binder::Parameter{definition:owner,ordinal}if *owner==definition=>intrinsics::BufferRoot::Parameter{ordinal:*ordinal},Binder::Capture{definition:owner,..}if *owner==definition=>intrinsics::BufferRoot::Capture,_=>return Err(bad("original buffer observation uses another source scope or unsupported pattern root"))};
+        Ok((root,place.fields.clone()))
+    }
+    pub(in crate::semantic) fn buffer_capture_matches(&self,definition:SemanticDefinitionId,place:NodeId,read:NodeId,b:&mut Budget)->Check<bool>{
+        b.spend(2)?;let place=self.value_places.get(&(definition,place)).ok_or_else(||bad("original buffer source Place is absent"))?;
+        if !matches!(&place.binder,Binder::Capture{definition:owner,..}if *owner==definition){return Ok(false);}
+        place.binder.charge_clone(b)?;Ok(self.value_bindings.get(&(definition,read))==Some(&place.binder))
+    }
     pub(in crate::semantic) fn capture_read_source(&self,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
         b.spend(1)?;let Some(Binder::Capture{definition,source})=self.value_bindings.get(&(child,node)) else{return Err(bad("actual capture read has no original sealed free binder"));};
         if *definition!=child{return Err(bad("actual capture read selects another original child"));}

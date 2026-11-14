@@ -10,6 +10,9 @@ pub(super) enum Binder {
 }
 #[derive(Clone,Debug,PartialEq,Eq,PartialOrd,Ord)]
 pub(super) struct Place {pub(super) binder:Binder,pub(super) fields:Vec<String>}
+impl Binder{
+    pub(super) fn charge_clone(&self,b:&mut Budget)->Check<()>{let mut binder=self;loop{b.spend(1)?;match binder{Self::Capture{source,..}=>binder=source,Self::Local{name,..}=>return b.spend(name.len()),_=>return Ok(())}}}
+}
 #[derive(Clone,Default)]
 pub(super) struct Uses {pub(super) moved:BTreeSet<Place>,pub(super) definite:BTreeSet<Place>}
 impl Uses {

@@ -13,7 +13,9 @@ impl Numeric {
     fn from_type(ty:&Type)->Option<Self>{[Self::I8,Self::I16,Self::I32,Self::I64,Self::Isize,Self::U8,Self::U16,Self::U32,Self::U64,Self::Usize,Self::F32,Self::F64].into_iter().find(|value|value.ty()==*ty)}
 }
 #[derive(Clone,Copy,PartialEq,Eq)]
-pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32}}
+pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32},Place{definition:SemanticDefinitionId,node:NodeId}}
+#[derive(Clone,Copy)]
+pub(in crate::semantic) enum BufferRoot {Local{node:NodeId},Parameter{ordinal:u32},Capture}
 #[derive(Clone,Copy)]
 pub(in crate::semantic) struct Use {pub(in crate::semantic) kind:Intrinsic,pub(in crate::semantic) buffer:Option<BufferSource>,pub(in crate::semantic) worker:Option<SemanticDefinitionId>,pub(in crate::semantic) providers:Option<[SemanticDefinitionId;3]>}
 impl Intrinsic {
@@ -73,7 +75,8 @@ impl CheckedOriginal {
         let source=match &place{
             Some(Place{binder:Binder::Local{definition,node,..},fields}) if fields.is_empty()=>BufferSource::Local{definition:*definition,node:*node},
             Some(Place{binder:Binder::Parameter{definition,ordinal},fields}) if fields.is_empty()=>BufferSource::Parameter{definition:*definition,ordinal:*ordinal},
-            _=>return Err(unsupported("byte intrinsic needs its complete original projected/captured buffer identity",None)),
+            Some(_)=>BufferSource::Place{definition:env.current()?,node:arguments[0].id},
+            None=>return Err(unsupported("byte intrinsic needs its complete original projected/captured buffer identity",None)),
         };
         if let Some(place)=place{self.read_original(module,context,&place,&buffer,env,false,active,b)?;}
         if arity==2{let expected=Ty::Atom(if intrinsic==Intrinsic::BytesPush{Type::U8}else{Type::I64});let value=self.expression(module,context,&arguments[1],env,bindings,Some(&expected),active,b)?;self.unify(&value,&expected,b)?;}
