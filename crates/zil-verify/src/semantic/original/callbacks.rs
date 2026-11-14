@@ -19,6 +19,10 @@ impl CheckedOriginal{
         if !self.checked.contains(&target)&&!self.active.contains(&target){self.definition(module,context,target,active,b)?;}
         let environment=self.environment(module,context,target,active,b)?;
         let prototype=self.signature(module,context,signature,&environment,active,b)?;
+        // The resulting C code type cannot carry a target precondition. Prove
+        // every original requirement in the creator's Γ even for an unused
+        // reference; the target's own declaration premises cannot supply it.
+        for requirement in &definition.requirements{self.obligation(module,context,requirement,&environment,env,active,b)?;}
         for parameter in &prototype.parameters{if !original_c_scalar(&self.resolved(parameter,b)?){return Err(bad("c_callback original parameter is outside the numeric C ABI"));}}
         let result=self.resolved(&prototype.result,b)?;
         if result!=Ty::Atom(Type::Unit)&&!original_c_scalar(&result){return Err(bad("c_callback original result is outside the numeric C ABI"));}
