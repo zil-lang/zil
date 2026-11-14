@@ -29,7 +29,7 @@ impl CheckedOriginal {
             }Ok(true)
         })();self.current=previous;result
     }
-    fn thread_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+    pub(super) fn thread_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|Ok(match self.resolved(ty,b)?{
             Ty::Atom(ty)=>ty.is_b0_scalar(),Ty::SealedError(_)=>true,
             Ty::Managed(inner)|Ty::Desc{inner,..} if *inner==Ty::Atom(Type::ByteBuffer)=>true,

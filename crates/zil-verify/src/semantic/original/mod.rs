@@ -27,6 +27,7 @@ mod effects;
 mod carriers;
 mod capabilities;
 mod thread_graph;
+mod scoped_threads;
 mod resources;
 mod sealed;
 mod invocation;
@@ -99,6 +100,8 @@ pub(super) struct CheckedOriginal {
     creation_returns:Vec<Binder>,
     executing_effects:BTreeMap<SemanticDefinitionId,CallKind>,
     intrinsic_calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),intrinsics::Use>,
+    scoped_threads:BTreeMap<(SemanticDefinitionId,SemanticSiteId),(SemanticDefinitionId,NodeId,NodeId)>,
+    scoped_thread_workers:Vec<(SemanticDefinitionId,Ty,Env)>,
 }
 impl CheckedOriginal {
     pub(super) fn check(module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<Self> {
@@ -117,6 +120,7 @@ impl CheckedOriginal {
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
         for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
         result.check_original_applications(module,context,active,b)?;
+        result.check_scoped_thread_workers(module,context,active,b)?;
         result.check_trait_witnesses(module,context,active,b)?;
         result.current=None;
 

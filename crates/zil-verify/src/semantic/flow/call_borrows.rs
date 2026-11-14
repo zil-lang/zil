@@ -3,6 +3,29 @@
 //! caller's original lifetime actual/result image.
 use super::*;
 impl CheckedContext {
+    pub(super) fn instantiate_call_heads(&self,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()>{
+        if arguments.len()!=signature.parameters.len(){return Err(bad("Call head substitution changes its actual arity"));}
+        let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
+        for(index,((expected,_),actual))in signature.parameters.iter().zip(arguments).enumerate(){
+            for slot in &expected.life.slots{
+                b.spend(1)?;if !slot.path.is_empty(){continue;}
+                let source=expected.classes.get(slot.binder as usize).ok_or_else(||bad("Call parameter head class is absent"))?;
+                let fresh=signature.invocation.contains(source)||matches!(source,ClassKey::Implicit{scope,..}if *scope==key)
+                    ||matches!(source,ClassKey::Outer{scope,operand:OperandKey::Parameter(ordinal),path,mode}if *scope==key&&*ordinal==index as u32&&path.is_empty()&&*mode==slot.mode);
+                if !fresh{continue;}
+                let mut slots=actual.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==slot.mode);
+                let actual_slot=slots.next().ok_or_else(||unsupported("Call fresh input head needs its complete actual static/borrow role",None))?;
+                if slots.next().is_some(){return Err(bad("Call argument has duplicate head occurrences"));}
+                let image=actual.classes.get(actual_slot.binder as usize).ok_or_else(||bad("Call actual head class is absent"))?;
+                b.spend(invocation.len())?;
+                if let Some((_,previous))=invocation.iter().find(|(key,_)|key==source){if !self.same(environment,previous,image,b)?{return Err(bad("Call violates a repeated original invocation relation"));}}
+                else{invocation.push((source.clone(),image.clone()));}
+            }
+        }
+        let mut boundary=trait_members::Boundary::default();for(source,image)in invocation{boundary.class(self,environment,&source,&image,b)?;}
+        for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
+        signature.result=boundary.project_type(self,environment,&signature.result,b)?;Ok(())
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call_argument(&self,module:&TypedModule,caller:&SemanticInstance,argument:ValueId,values:&[Option<CheckedType>],expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<bool>{
         let actual=value_at(values,argument)?;

@@ -487,10 +487,7 @@ impl CheckedOriginal {
                 }
             }
             Intrinsic::ThreadScope => {
-                return Err(unsupported(
-                    "scoped thread requires its complete original worker/body/manager role proof",
-                    None,
-                ));
+                self.scoped_thread(module,context,site,arguments,env,bindings,active,b)?
             }
             _ => return Err(bad("operation entered another closed scheme")),
         };

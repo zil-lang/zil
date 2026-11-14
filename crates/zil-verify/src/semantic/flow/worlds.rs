@@ -58,7 +58,7 @@ impl CheckedContext {
     // Construct the complete callee domain while original Life formals are
     // still rigid. Only then apply this occurrence's outside images. Rebuilding
     // P<A,B> after A and B both map to a would lose its original N2 boundary.
-    pub(super) fn world_signature(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,worlds:Vec<CallWorld>,caller:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
+    pub(super) fn world_signature(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,worlds:Vec<CallWorld>,caller:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
         let mut selected:Option<CheckedSignature>=None;
         for mut world in worlds{
             let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;

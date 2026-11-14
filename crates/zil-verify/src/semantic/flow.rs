@@ -14,6 +14,7 @@ mod trait_members;
 mod worlds;
 mod task_operations;
 mod callbacks;
+mod scoped_threads;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -233,7 +234,7 @@ impl CheckedContext {
                         if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?}
                         else{let source=&value_at(&values,*value)?.ty;if (!source.is_integer()&&!source.is_float())||(!target.is_integer()&&!target.is_float()){return Err(bad("numeric operation has a nonnumeric endpoint"));}Some(atomic(target,b)?)}
                     }
-                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}|InstructionKind::WithScopedThread{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)
@@ -656,24 +657,9 @@ impl CheckedContext {
         let SemanticDefinitionBody::FunctionWithBody{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
         let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
-        let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
-        for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
-            let actual=value_at(values,*argument)?;
-            for slot in &expected.life.slots {
-                if !slot.path.is_empty() {continue;}
-                let expected_key=expected.classes.get(slot.binder as usize).ok_or_else(||bad("Call parameter class is absent"))?;
-                let fresh=signature.invocation.contains(expected_key)||matches!(expected_key,ClassKey::Implicit{scope,..} if *scope==key);
-                if !fresh {continue;}
-                let Some(actual_slot)=actual.life.slots.iter().find(|row|row.path==slot.path&&row.mode==slot.mode) else {return Err(unsupported("Call fresh Invocation requires complete actual static/borrow role instantiation",None));};
-                let actual_key=actual.classes.get(actual_slot.binder as usize).ok_or_else(||bad("actual Call argument class is absent"))?;
-                if let Some((_,previous))=invocation.iter().find(|(key,_)|key==expected_key) {if !self.same(environment,previous,actual_key,b)? {return Err(bad("actual Call violates a repeated original invocation relation"));}}
-                else {invocation.push((expected_key.clone(),actual_key.clone()));}
-            }
-        }
-        let mut invocation_boundary=trait_members::Boundary::default();
-        for(source,image)in &invocation{invocation_boundary.class(self,environment,source,image,b)?;}
-        for(parameter,_)in &mut signature.parameters{*parameter=invocation_boundary.project_type(self,environment,parameter,b)?;}
-        signature.result=invocation_boundary.project_type(self,environment,&signature.result,b)?;
+        b.spend(arguments.len())?;
+        let inputs=arguments.iter().map(|argument|value_at(values,*argument)).collect::<Check<Vec<_>>>()?;
+        self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
             if !self.call_argument(module,caller,*argument,values,expected,environment,b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
