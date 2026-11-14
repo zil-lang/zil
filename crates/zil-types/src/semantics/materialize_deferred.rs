@@ -6,7 +6,7 @@ use super::*;
 use std::collections::BTreeMap;
 
 struct Pending<'a> {
-    known: BTreeMap<String, Vec<&'a Type>>,
+    known: BTreeMap<zil_base::Fingerprint, Vec<&'a Type>>,
     rows: Vec<LifeNominalInstance>,
 }
 
@@ -50,7 +50,8 @@ impl Eval<'_, '_> {
                 inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
                 let key = hint.fingerprint();
                 self.fee(
-                    key.len()
+                    key.0
+                        .len()
                         .saturating_add(pending.known.len().saturating_add(1).ilog2() as usize + 1),
                 )?;
                 if let Some(types) = pending.known.get(&key) {
@@ -194,6 +195,7 @@ pub(crate) fn populate(
         inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
         let key = row.ty.fingerprint();
         let work = key
+            .0
             .len()
             .saturating_add(pending.known.len().saturating_add(1).ilog2() as usize + 1);
         *left = left.checked_sub(work).ok_or_else(|| {
