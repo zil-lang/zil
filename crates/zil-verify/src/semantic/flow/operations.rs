@@ -17,28 +17,6 @@ impl CheckedContext {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<CheckedType> {
-        if matches!(
-            instruction.kind,
-            InstructionKind::TaskCreate { .. }
-                | InstructionKind::TaskCreateOwned { .. }
-                | InstructionKind::TaskValid { .. }
-                | InstructionKind::TaskPoll { .. }
-                | InstructionKind::TaskRequestCancel { .. }
-                | InstructionKind::TaskPollClose { .. }
-                | InstructionKind::TaskFinishDestroy { .. }
-        ) {
-            return self.actual_task_operation(
-                module,
-                caller,
-                f,
-                instruction,
-                use_,
-                values,
-                environment,
-                active,
-                b,
-            );
-        }
         let span = Some(instruction.span);
         let raw = match &instruction.kind {
             InstructionKind::OwnedStoreNew { .. }

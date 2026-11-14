@@ -329,7 +329,7 @@ impl CheckedOriginal {
             | Intrinsic::TaskRequest
             | Intrinsic::TaskPollClose
             | Intrinsic::TaskFinish => self.task_operation(
-                module, context, kind, arguments, env, bindings, &mut use_, active, b,
+                module, context, kind, site, arguments, env, bindings, &mut use_, active, b,
             )?,
             Intrinsic::AsyncStart => {
                 self.operation_arity(arguments, 4)?;

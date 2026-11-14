@@ -10,6 +10,7 @@ impl CheckedOriginal {
         module: &TypedModule,
         context: &CheckedContext,
         kind: Intrinsic,
+        site: SemanticSiteId,
         arguments: &[SemanticOriginalExpr],
         env: &Env,
         bindings: &BTreeMap<String, Binding>,
@@ -21,46 +22,12 @@ impl CheckedOriginal {
             if arguments.is_empty() {
                 return Err(bad("Task creation omits its original worker"));
             }
-            let worker = self.expression(
-                module,
-                context,
-                &arguments[0],
-                env,
-                bindings,
-                None,
-                active,
-                b,
-            )?;
-            let Ty::Function(worker) = worker else {
-                return Err(bad(
-                    "Task worker is not its exact original static definition",
-                ));
-            };
-            let prototype = self.operation_function(module, context, worker, active, b)?;
+            let (worker, worker_environment, worker_actuals, mut prototype) =
+                self.task_worker(module, context, &arguments[0], env, bindings, active, b)?;
             self.operation_arity(&arguments[1..], prototype.parameters.len())?;
             if !matches!(prototype.call_kind, CallKind::Direct | CallKind::Suspend) {
                 return Err(bad("Task worker has another complete call convention"));
             }
-            self.structural_obligation(
-                module,
-                context,
-                &prototype.result,
-                DynStructuralBound::Value,
-                env,
-                active,
-                b,
-            )?;
-            // Cancellation and an unobserved result must settle the complete
-            // result. A concrete Copy sample cannot establish abstract cleanup.
-            self.structural_obligation(
-                module,
-                context,
-                &prototype.result,
-                DynStructuralBound::SyncDrop,
-                env,
-                active,
-                b,
-            )?;
             let mut retained = Retained::default();
             let mut inputs = Vec::new();
             b.spend(prototype.parameters.len())?;
@@ -70,10 +37,12 @@ impl CheckedOriginal {
                 .zip(&prototype.modes)
                 .enumerate()
             {
+                let parameter =
+                    self.normalize_original_type(module, context, parameter, env, active, b)?;
                 let actual = self.argument(
-                    module, context, argument, parameter, *mode, env, bindings, active, b,
+                    module, context, argument, &parameter, *mode, env, bindings, active, b,
                 )?;
-                self.unify(&actual, parameter, b)?;
+                self.unify(&actual, &parameter, b)?;
                 let actual = self.resolved(&actual, b)?;
                 self.structural_obligation(
                     module,
@@ -117,6 +86,28 @@ impl CheckedOriginal {
                 }
                 inputs.push(actual);
             }
+            prototype.result =
+                self.normalize_original_type(module, context, &prototype.result, env, active, b)?;
+            self.structural_obligation(
+                module,
+                context,
+                &prototype.result,
+                DynStructuralBound::Value,
+                env,
+                active,
+                b,
+            )?;
+            // Cancellation and an unobserved result must settle the complete
+            // result. A concrete Copy sample cannot establish abstract cleanup.
+            self.structural_obligation(
+                module,
+                context,
+                &prototype.result,
+                DynStructuralBound::SyncDrop,
+                env,
+                active,
+                b,
+            )?;
             if !self.task_zero_domain(module, context, &prototype.result, env, active, b, 0)? {
                 retained.retained.push(RetainedPart::All {
                     path: vec![LifeTypeProjection::Result],
@@ -126,6 +117,35 @@ impl CheckedOriginal {
                     }],
                 });
             }
+            let worker_definition = context.definition(module, worker, b)?;
+            for requirement in &worker_definition.requirements {
+                self.obligation(
+                    module,
+                    context,
+                    requirement,
+                    &worker_environment,
+                    env,
+                    active,
+                    b,
+                )?;
+            }
+            for formal in &worker_definition.parameters {
+                if let SemanticFormal::Type { requirements } = formal {
+                    for requirement in requirements {
+                        self.obligation(
+                            module,
+                            context,
+                            requirement,
+                            &worker_environment,
+                            env,
+                            active,
+                            b,
+                        )?;
+                    }
+                }
+            }
+            self.calls.insert((env.current()?, site), worker_actuals);
+            self.call_targets.insert((env.current()?, site), worker);
             use_.worker = Some(worker);
             let task = Ty::Managed(Box::new(Ty::Carrier {
                 kind: CarrierKind::Task,
@@ -209,6 +229,193 @@ impl CheckedOriginal {
             Intrinsic::TaskPollClose => self.poll_type(module, Ty::Atom(Type::Unit), b)?,
             Intrinsic::TaskRequest | Intrinsic::TaskFinish => Ty::Atom(Type::Unit),
             _ => return Err(bad("Task scheme received another intrinsic role")),
+        })
+    }
+
+    /// A worker is instantiated as a value; its body is not executed in the
+    /// constructor's effect context. All source where clauses remain caller
+    /// obligations after complete argument inference.
+    #[allow(clippy::too_many_arguments)]
+    fn task_worker(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        expression: &SemanticOriginalExpr,
+        caller: &Env,
+        bindings: &BTreeMap<String, Binding>,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<(SemanticDefinitionId, Env, Vec<Arg>, Prototype)> {
+        let (base, types, mixed) = match &expression.kind {
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => (callee.as_ref(), Some(type_arguments.as_slice()), None),
+            CoreExprKind::GenericApply { callee, arguments } => {
+                (callee.as_ref(), None, Some(arguments.as_slice()))
+            }
+            _ => (expression, None, None),
+        };
+        let worker = self.expression(module, context, base, caller, bindings, None, active, b)?;
+        let Ty::Function(worker) = self.resolved(&worker, b)? else {
+            return Err(bad(
+                "Task worker is not its exact original static definition",
+            ));
+        };
+        let definition = context.definition(module, worker, b)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature,
+            body: SemanticOriginalFunctionBody::Defined(_),
+            ..
+        } = &definition.body
+        else {
+            return Err(bad(
+                "Task worker is not a complete original executable definition",
+            ));
+        };
+        if !definition.environment.is_empty() {
+            return Err(bad(
+                "static Task worker cannot manufacture a sealed closure environment",
+            ));
+        }
+        let written = types.map_or_else(
+            || mixed.map_or(0, <[CoreGenericArgument<SemanticTypeRecipe>]>::len),
+            <[SemanticTypeRecipe]>::len,
+        );
+        if written > definition.parameters.len() {
+            return Err(bad("Task worker has excess full-ordinal actuals"));
+        }
+        let mut selected = self.environment(module, context, worker, active, b)?;
+        let mut arguments = Vec::new();
+        for (ordinal, formal) in definition.parameters.iter().enumerate() {
+            b.spend(1)?;
+            let value = if let Some(ty) = types.and_then(|types| types.get(ordinal)) {
+                Some(Arg::Type(self.ty(module, context, ty, caller, active, b)?))
+            } else {
+                match mixed.and_then(|mixed| mixed.get(ordinal)) {
+                    Some(CoreGenericArgument::Type(ty)) => {
+                        Some(Arg::Type(self.ty(module, context, ty, caller, active, b)?))
+                    }
+                    Some(CoreGenericArgument::Lifetime(name)) => {
+                        let named = self
+                            .named(
+                                module,
+                                context,
+                                caller.current()?,
+                                name,
+                                SemanticOriginalNamespace::Lifetime,
+                                b,
+                            )?
+                            .ok_or_else(|| {
+                                bad("Task worker Life actual lacks its true lexical binding")
+                            })?;
+                        let SemanticOriginalNameValue::Recipe(
+                            recipe @ SemanticActualRecipe::Life(_),
+                        ) = named
+                        else {
+                            return Err(bad("Task worker Life actual selects another kind"));
+                        };
+                        Some(self.actual(module, context, recipe, caller, active, b)?)
+                    }
+                    Some(CoreGenericArgument::Const(expression)) => {
+                        let SemanticFormal::Const { carrier } = formal else {
+                            return Err(bad(
+                                "Task worker Const actual selects another full-ordinal kind",
+                            ));
+                        };
+                        let carrier = self.ty(module, context, carrier, &selected, active, b)?;
+                        Some(Arg::Const(self.task_constant(
+                            module, context, expression, &carrier, caller, active, b,
+                        )?))
+                    }
+                    None => None,
+                }
+            };
+            let value = match (value, formal) {
+                (Some(value), _) => value,
+                (None, SemanticFormal::Type { .. }) => Arg::Type(self.fresh(b)?),
+                (None, SemanticFormal::Lifetime) => Arg::Life(self.fresh_life(b)?),
+                (None, SemanticFormal::Const { .. }) => {
+                    return Err(bad("Task worker Const actual is not explicitly determined"));
+                }
+            };
+            if !matches!(
+                (formal, &value),
+                (SemanticFormal::Type { .. }, Arg::Type(_))
+                    | (SemanticFormal::Lifetime, Arg::Life(_))
+                    | (SemanticFormal::Const { .. }, Arg::Const(_))
+            ) {
+                return Err(bad("Task worker changes its full-ordinal argument kind"));
+            }
+            if let (SemanticFormal::Const { carrier }, Arg::Const(value)) = (formal, &value) {
+                let carrier = self.ty(module, context, carrier, &selected, active, b)?;
+                self.unify(&carrier, &value.carrier, b)?;
+            }
+            selected.lexical[0].actuals[ordinal] = value.clone();
+            arguments.push(value);
+        }
+        let prototype =
+            self.call_signature(module, context, worker, signature, &selected, active, b)?;
+        Ok((worker, selected, arguments, prototype))
+    }
+    fn task_constant(
+        &mut self,
+        module: &TypedModule,
+        context: &CheckedContext,
+        expression: &SemanticOriginalExpr,
+        carrier: &Ty,
+        env: &Env,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<Const> {
+        b.spend(1)?;
+        let value = match &expression.kind {
+            CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
+                return self.task_constant(module, context, value, carrier, env, active, b);
+            }
+            CoreExprKind::Name(name) => {
+                let Arg::Const(value) = self.bound_name(module, context, name, env, active, b)?
+                else {
+                    return Err(bad("Task worker Const name has another lexical kind"));
+                };
+                self.unify(&value.carrier, carrier, b)?;
+                return Ok(value);
+            }
+            CoreExprKind::Literal(value) => {
+                self.unify(&Ty::Atom(value.ty()), carrier, b)?;
+                ConstValue::Value(value.clone())
+            }
+            CoreExprKind::Bool(value) => {
+                self.unify(&Ty::Atom(Type::Bool), carrier, b)?;
+                ConstValue::Value(Constant::Bool(*value))
+            }
+            CoreExprKind::Integer(text) | CoreExprKind::Float(text) => {
+                let recipe = if matches!(expression.kind, CoreExprKind::Integer(_)) {
+                    SemanticConstRecipe::IntegerLiteral(text.clone())
+                } else {
+                    SemanticConstRecipe::FloatLiteral(text.clone())
+                };
+                return self.constant(module, context, &recipe, carrier, env, active, b);
+            }
+            CoreExprKind::Unary { op, operand } => ConstValue::Unary(
+                *op,
+                Box::new(self.task_constant(module, context, operand, carrier, env, active, b)?),
+            ),
+            CoreExprKind::Binary { op, left, right } => ConstValue::Binary(
+                *op,
+                Box::new(self.task_constant(module, context, left, carrier, env, active, b)?),
+                Box::new(self.task_constant(module, context, right, carrier, env, active, b)?),
+            ),
+            _ => {
+                return Err(unsupported(
+                    "Task worker Const argument needs a complete original scalar expression",
+                    Some(expression.span),
+                ));
+            }
+        };
+        Ok(Const {
+            carrier: Box::new(carrier.clone()),
+            value,
         })
     }
 
