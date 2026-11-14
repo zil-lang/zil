@@ -101,7 +101,7 @@ fn decl(out: &mut Vec<u8>, v: u32) {
     out.push(0);
 }
 fn independent_bytes(m: &TypedModule) -> Vec<u8> {
-    let mut out = b"ZIL-TYPED-MODULE-V49\0".to_vec();
+    let mut out = b"ZIL-TYPED-MODULE-V50\0".to_vec();
     small(&mut out, SCHEMA_VERSION);
     small(&mut out, 0);
     out.extend_from_slice(&[0; 32]);
