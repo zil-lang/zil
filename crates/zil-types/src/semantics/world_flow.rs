@@ -25,6 +25,7 @@ pub(super) struct State {
 }
 impl State {
     pub fn snapshot(&self, world: &mut World<'_, '_>) -> R<Self> {
+        let before = *world.left;
         world.pay(
             self.locals
                 .len()
@@ -89,7 +90,7 @@ impl State {
         for (local, roots) in &self.local_roots {
             local_roots.insert(*local, arguments::copy_roots(world, roots)?);
         }
-        Ok(Self {
+        let state = Self {
             locals,
             values,
             declared,
@@ -106,7 +107,12 @@ impl State {
             reborrows,
             value_roots,
             local_roots,
-        })
+        };
+        world.snapshots = world.snapshots.saturating_add(1);
+        world.snapshot_work = world
+            .snapshot_work
+            .saturating_add(before.saturating_sub(*world.left));
+        Ok(state)
     }
     fn charge_compare(&self, world: &mut World<'_, '_>) -> R<()> {
         world.pay(
@@ -572,8 +578,15 @@ impl Cfg {
             .value_role_sources
             .retain(|id, _| state.values[id.0 as usize].is_some());
         for old in &reaching[index] {
-            state.charge_compare(world)?;
-            old.charge_compare(world)?;
+            world.comparisons = world.comparisons.saturating_add(1);
+            let before = *world.left;
+            let checked = state
+                .charge_compare(world)
+                .and_then(|_| old.charge_compare(world));
+            world.compare_work = world
+                .compare_work
+                .saturating_add(before.saturating_sub(*world.left));
+            checked?;
             if old == &state {
                 return Ok(());
             }

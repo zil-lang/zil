@@ -15,16 +15,21 @@ struct Entry {
 pub(super) struct Table {
     buckets: BTreeMap<Key, Vec<Entry>>,
     entries: usize,
+    pub hits: usize,
+    pub misses: usize,
+    pub lookup_work: usize,
+    pub evaluation_work: usize,
 }
 impl Table {
     pub(super) fn lookup(
-        &self,
+        &mut self,
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
         hint: &Type,
         limits: &Limits,
         left: &mut usize,
     ) -> R<(Key, Option<SemanticTypeValue>)> {
+        let before = *left;
         let recipe_key = super::super::original::protocol::recipe_key(recipe, limits, left)?;
         inference::charge_type_snapshot(hint, Span::default(), limits, left, 2)?;
         let key = (scope, recipe_key, hint.fingerprint());
@@ -38,10 +43,18 @@ impl Table {
                 inference::charge_type_snapshot(hint, Span::default(), limits, left, 1)?;
                 if entry.recipe == *recipe && entry.hint == *hint {
                     crate::dyn_metadata::semantic_operand_snapshot(&entry.value, limits, left, 1)?;
+                    self.hits = self.hits.saturating_add(1);
+                    self.lookup_work = self
+                        .lookup_work
+                        .saturating_add(before.saturating_sub(*left));
                     return Ok((key, Some(entry.value.clone())));
                 }
             }
         }
+        self.misses = self.misses.saturating_add(1);
+        self.lookup_work = self
+            .lookup_work
+            .saturating_add(before.saturating_sub(*left));
         Ok((key, None))
     }
     pub(super) fn insert(

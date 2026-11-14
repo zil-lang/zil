@@ -84,6 +84,10 @@ struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     types: types::Table,
+    snapshots: usize,
+    snapshot_work: usize,
+    comparisons: usize,
+    compare_work: usize,
 }
 impl<'a> World<'a, '_> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -340,6 +344,7 @@ impl<'a> World<'a, '_> {
         if let Some(value) = cached {
             return Ok(value);
         }
+        let before = *self.left;
         let value = super::materialize::type_at(
             self.program,
             self.module,
@@ -349,7 +354,12 @@ impl<'a> World<'a, '_> {
             Some(hint),
             self.limits,
             self.left,
-        )?;
+        );
+        self.types.evaluation_work = self
+            .types
+            .evaluation_work
+            .saturating_add(before.saturating_sub(*self.left));
+        let value = value?;
         self.types
             .insert(key, recipe, hint, &value, self.limits, self.left)?;
         Ok(value)
@@ -3913,6 +3923,7 @@ pub(super) fn program(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    let entered = *left;
     let index = index::Index::new(program, module, ledger, limits, left)?;
     let mut world = World {
         program,
@@ -3933,6 +3944,10 @@ pub(super) fn program(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
+        snapshots: 0,
+        snapshot_work: 0,
+        comparisons: 0,
+        compare_work: 0,
     };
     world.pay(
         program
@@ -4108,7 +4123,11 @@ pub(super) fn program(
                     world.equal(actual, &expected)?;
                 }
             }
-            world.run(instance)?;
+            let before = *world.left;
+            if let Err(mut diagnostic) = world.run(instance) {
+                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work));
+                return Err(diagnostic);
+            }
         }
     }
     let mut constructed = std::collections::BTreeSet::new();
