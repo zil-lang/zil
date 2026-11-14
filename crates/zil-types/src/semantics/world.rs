@@ -88,6 +88,13 @@ struct World<'a, 'b> {
     snapshot_work: usize,
     comparisons: usize,
     compare_work: usize,
+    current_point: Option<(
+        SemanticInstanceId,
+        FunctionId,
+        BlockId,
+        usize,
+        std::mem::Discriminant<InstructionKind>,
+    )>,
 }
 impl<'a> World<'a, '_> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -1903,6 +1910,14 @@ impl World<'_, '_> {
             self.local_roots = local_roots;
             let block = &f.blocks[block_index];
             for (index, instruction) in block.instructions.iter().enumerate() {
+                self.pay(1)?;
+                self.current_point = Some((
+                    instance.id,
+                    f.id,
+                    block.id,
+                    index,
+                    std::mem::discriminant(&instruction.kind),
+                ));
                 self.constraints(
                     instance,
                     original,
@@ -3954,6 +3969,7 @@ pub(super) fn program(
         snapshot_work: 0,
         comparisons: 0,
         compare_work: 0,
+        current_point: None,
     };
     world.pay(
         program

@@ -254,7 +254,7 @@ pub(super) fn pointee(
         _ => {
             return Err(bad(
                 "carrier projection has no actual address, description or owner",
-            ))
+            ));
         }
     };
     let shape = type_shape(world, inner)?;
@@ -296,8 +296,19 @@ pub(super) fn place(
             })
         }
         _ => None,
-    }
-    .ok_or_else(|| bad("actual projection is outside its complete product or sum"))?;
+    };
+    let field = match field {
+        Some(field) => field,
+        None => {
+            crate::dyn_metadata::semantic_operand_snapshot(ty, world.limits, world.left, 1)?;
+            let mut error = bad("actual projection is outside its complete product or sum");
+            error.notes.push(format!(
+                "actual projection point {:?}; selector {selector:?}; parent complete type {ty:?}",
+                world.current_point
+            ));
+            return Err(error);
+        }
+    };
     let prefix = if matches!(stored::physical(ty), Type::Array { .. }) {
         LifeTypeProjection::Element
     } else {

@@ -103,7 +103,7 @@ pub(super) fn evaluate(
         return Ok(None);
     };
     world.pay(call.parameters.len())?;
-    identity(world, instance, &call, instruction, ty)?;
+    identity(world, instance, &call, instruction, ty, implicit)?;
     let actual_effect = if let IntrinsicKind::DynCall { call_kind, .. } = &call.kind {
         *call_kind
     } else if matches!(
@@ -160,7 +160,7 @@ pub(super) fn evaluate(
             _ => {
                 return Err(bad(
                     "sealed worker receipt belongs to another actual opcode",
-                ))
+                ));
             }
         };
         let callee = function_instance(world, function, definition)?;
@@ -228,6 +228,9 @@ pub(super) fn operand_work(instruction: &InstructionKind) -> usize {
 }
 pub(super) fn operand_ids(kind: &IntrinsicKind, instruction: &InstructionKind) -> R<Vec<ValueId>> {
     Ok(match (kind, instruction) {
+        (IntrinsicKind::ForeignCallback { .. }, InstructionKind::ForeignFunctionRef { .. }) => {
+            Vec::new()
+        }
         (
             IntrinsicKind::DynCall { .. },
             InstructionKind::CallDynSlot {
@@ -379,7 +382,7 @@ pub(super) fn operand_ids(kind: &IntrinsicKind, instruction: &InstructionKind) -
         _ => {
             return Err(bad(
                 "actual opcode differs from its complete original sealed scheme",
-            ))
+            ));
         }
     })
 }
@@ -406,8 +409,59 @@ fn identity(
     call: &IntrinsicCall,
     instruction: &InstructionKind,
     ty: Option<&Type>,
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     match (&call.kind, instruction) {
+        (
+            IntrinsicKind::ForeignCallback { target },
+            InstructionKind::ForeignFunctionRef { function },
+        ) => {
+            let SemanticTypeRecipe::Code {
+                kind: SemanticCodeKind::ForeignCallback,
+                signature,
+            } = &call.result
+            else {
+                return Err(bad(
+                    "callback formation loses its complete original C signature",
+                ));
+            };
+            let actual = world.function(*function)?;
+            if actual.foreign.is_some()
+                || actual.environment.is_some()
+                || actual.call_kind != CallKind::Direct
+                || !actual.protocol_contracts.is_empty()
+                || !matches!(ty, Some(Type::ForeignCallback { parameters, result }) if crate::foreign::callback_signature(parameters, result))
+            {
+                return Err(bad(
+                    "callback formation changes the actual ordinary target or finite C ABI",
+                ));
+            }
+            world.pay(world.program.instances.len())?;
+            let mut count = 0usize;
+            for callee in &world.program.instances {
+                if !matches!(callee.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == *function)
+                {
+                    continue;
+                }
+                if callee.definition != *target
+                    || callee.parent.is_some()
+                    || !callee.actuals.is_empty()
+                    || callee.environment.is_some()
+                {
+                    return Err(bad(
+                        "callback formation changes its exact original target or captures a specialization environment",
+                    ));
+                }
+                methods::sealed_worker(world, instance, callee, actual, signature, &[], implicit)?;
+                count += 1;
+            }
+            if count == 0 {
+                return Err(bad(
+                    "callback target has no authentic original executable instance",
+                ));
+            }
+        }
+
         (
             IntrinsicKind::OwnedDyn,
             InstructionKind::MakeDynOwned {

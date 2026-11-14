@@ -1514,6 +1514,14 @@ impl<'a> Engine<'a, '_> {
                         .saturating_add(self.proof.intrinsics.len()),
                     depth,
                 )?;
+                if site
+                    .and_then(|site| self.proof.intrinsics.get(&(owner, site)))
+                    .is_some_and(|call| matches!(call.kind, IntrinsicKind::ForeignCallback { .. }))
+                {
+                    // The original scheme already authenticated the symbol. It
+                    // is a code address formation, with no runtime operand.
+                    return Ok(Value::Plain);
+                }
                 let once = site
                     .and_then(|site| self.proof.callable_calls.get(&(owner, site)))
                     .is_some_and(|call| call.kind == CallableKind::FnOnce);

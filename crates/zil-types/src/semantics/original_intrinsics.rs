@@ -1,5 +1,7 @@
 //! Complete sealed language schemes, independently matched to real opcodes.
 use super::*;
+#[path = "original_callbacks.rs"]
+mod callbacks;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum IntrinsicKind {
     DynCall {
@@ -26,6 +28,9 @@ pub(crate) enum IntrinsicKind {
     },
     RegistrationOperation(RegistrationOp),
     OwnedDyn,
+    ForeignCallback {
+        target: SemanticDefinitionId,
+    },
     NominalConstructor {
         definition: SemanticDefinitionId,
         variant: u32,
@@ -102,6 +107,11 @@ impl Check<'_, '_> {
         let CoreExprKind::Call { callee, arguments } = &expression.kind else {
             unreachable!()
         };
+        if matches!(&callee.kind, CoreExprKind::Name(name) if name == "c_callback") {
+            return self
+                .callback_intrinsic(owner, site, expression, variables, wanted, depth + 1)
+                .map(Some);
+        }
         let path = self.declaration_path(callee, variables, depth + 1)?;
         if let Some(path) = &path {
             if self.declaration_target(owner, path, depth + 1)?.is_some() {
@@ -494,7 +504,8 @@ impl Check<'_, '_> {
                 }
                 SemanticTypeRecipe::Atom(target.clone())
             }
-            IntrinsicKind::ThreadScope { .. }
+            IntrinsicKind::ForeignCallback { .. }
+            | IntrinsicKind::ThreadScope { .. }
             | IntrinsicKind::TaskCreate { .. }
             | IntrinsicKind::DynCall { .. }
             | IntrinsicKind::TaskYield
@@ -795,128 +806,111 @@ impl Check<'_, '_> {
             depth + 1,
         )
     }
-    fn empty_task_shape(
+    fn task_shape(
         &mut self,
         parameters: &[SemanticParameterRecipe],
         result: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<SemanticRetainedShapeRecipe> {
+        let owner = self
+            .contexts
+            .last()
+            .copied()
+            .ok_or_else(|| bad("Task scheme has no original caller domain"))?;
+        self.pay(parameters.len().saturating_add(4), depth)?;
+        // The result must already have a complete original dependency bound.
+        // Closed includes a quantified caller premise, never an observed N=0.
+        let mut bounded = self.sealed_capability(
+            owner,
+            result,
+            SemanticBuiltinTrait::ClosedEnvironment,
+            depth + 1,
+        )? == Some(true);
+        if !bounded {
+            for parameter in parameters {
+                if self.premise_type_equal(owner, result, &parameter.ty, depth + 1)? {
+                    bounded = true;
+                    break;
+                }
+                // Permission weakening preserves the same whole pointee domain;
+                // an outlives edge alone never equates two phantom/inner classes.
+                if let (
+                    SemanticTypeRecipe::Address {
+                        mutable: false,
+                        lifetime: result_life,
+                        inner: result_inner,
+                    },
+                    SemanticTypeRecipe::Address {
+                        lifetime: input_life,
+                        inner: input_inner,
+                        ..
+                    },
+                ) = (result, &parameter.ty)
+                {
+                    if result_life == input_life
+                        && self.premise_type_equal(owner, result_inner, input_inner, depth + 1)?
+                    {
+                        bounded = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if !bounded {
+            return Err(pending(
+                "Task result requires its complete original input-domain inclusion theorem",
+            ));
+        }
         let mut shape = SemanticRetainedShapeRecipe {
             domain: SemanticClassSequenceRecipe { parts: Vec::new() },
             ports: Vec::new(),
             retained: Vec::new(),
             nominal: Vec::new(),
         };
-        self.pay(parameters.len().saturating_add(4), depth)?;
-        for parameter in parameters {
-            if !matches!(parameter.ty, SemanticTypeRecipe::Address { .. })
-                && self.sealed_capability(
-                    self.contexts
-                        .last()
-                        .copied()
-                        .ok_or_else(|| bad("Task scheme omits original caller"))?,
-                    &parameter.ty,
-                    SemanticBuiltinTrait::ClosedEnvironment,
-                    depth + 1,
-                )? != Some(true)
-            {
-                return Err(pending(
-                    "Task input requires its complete original retained input class graph",
-                ));
-            }
-            if let SemanticTypeRecipe::Address { inner, .. } = &parameter.ty {
-                if self.sealed_capability(
-                    self.contexts
-                        .last()
-                        .copied()
-                        .ok_or_else(|| bad("Task scheme omits original caller"))?,
-                    inner,
-                    SemanticBuiltinTrait::ClosedEnvironment,
-                    depth + 1,
-                )? != Some(true)
-                {
-                    return Err(pending(
-                        "Task borrowed input requires its complete nested original class graph",
-                    ));
-                }
-            }
-            if let SemanticTypeRecipe::Address {
-                mutable,
-                lifetime: SemanticOuterLifeRecipe::Class(lifetime),
-                ..
-            } = &parameter.ty
-            {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    lifetime,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                if !shape
-                    .domain
-                    .parts
-                    .iter()
-                    .any(|part| matches!(part,SemanticClassSequencePart::One(old)if old==lifetime))
-                {
-                    shape
-                        .domain
-                        .parts
-                        .push(SemanticClassSequencePart::One(lifetime.clone()));
-                }
-                let leaf = copy_recipe(&parameter.ty, self.limits, self.left)?;
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    lifetime,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                shape.ports.push(SemanticPortPart::One {
-                    leaf: Box::new(leaf),
-                    mode: if *mutable {
-                        StoredBorrowMode::ExclusiveAddress
-                    } else {
-                        StoredBorrowMode::SharedAddress
-                    },
-                    class: lifetime.clone(),
-                });
-            }
-        }
-        if let SemanticTypeRecipe::Address {
-            mutable: false,
-            lifetime: SemanticOuterLifeRecipe::Class(lifetime),
-            ..
-        } = result
-        {
-            if !shape
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            let ordinal =
+                u32::try_from(ordinal).map_err(|_| bad("Task parameter ordinal overflows"))?;
+            let path = vec![LifeTypeProjection::Parameter(ordinal)];
+            let classes = SemanticClassSequenceRecipe {
+                parts: vec![SemanticClassSequencePart::AllClasses {
+                    ty: Box::new(copy_recipe(&parameter.ty, self.limits, self.left)?),
+                    path: Vec::new(),
+                }],
+            };
+            // Every input occurrence has its own ordered whole-domain segment.
+            // Equal outside images neither merge segments nor erase intrinsic N.
+            shape
                 .domain
                 .parts
-                .iter()
-                .any(|part| matches!(part,SemanticClassSequencePart::One(old)if old==lifetime))
-            {
-                return Err(bad(
-                    "original Task borrowed result has no exact real input lifetime role",
-                ));
-            }
-            crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
-            shape.retained.push(SemanticRetainedPart::One {
-                path: vec![LifeTypeProjection::Result],
-                child_class: 0,
-                parent: lifetime.clone(),
+                .push(SemanticClassSequencePart::AllClasses {
+                    ty: Box::new(copy_recipe(&parameter.ty, self.limits, self.left)?),
+                    path: Vec::new(),
+                });
+            crate::dyn_metadata::semantic_operand_snapshot(&classes, self.limits, self.left, 2)?;
+            shape.ports.push(SemanticPortPart::FromType {
+                ty: Box::new(copy_recipe(&parameter.ty, self.limits, self.left)?),
+                classes: classes.clone(),
             });
-        } else if self.sealed_capability(
-            self.contexts
-                .last()
-                .copied()
-                .ok_or_else(|| bad("Task scheme has no original caller context"))?,
-            result,
-            SemanticBuiltinTrait::ClosedEnvironment,
-            depth + 1,
-        )? != Some(true)
-        {
-            return Err(pending(
-                "Task result requires its complete symbolic retained Result class graph",
-            ));
+            shape.retained.push(SemanticRetainedPart::All {
+                path: path.clone(),
+                parents: classes.clone(),
+            });
+            shape.nominal.push(SemanticNominalPart::FromType {
+                path,
+                ty: Box::new(copy_recipe(&parameter.ty, self.limits, self.left)?),
+                classes,
+            });
+            self.pay(5, depth)?;
         }
+        shape.retained.push(SemanticRetainedPart::All {
+            path: vec![LifeTypeProjection::Result],
+            parents: SemanticClassSequenceRecipe {
+                parts: vec![SemanticClassSequencePart::AllClasses {
+                    ty: Box::new(copy_recipe(result, self.limits, self.left)?),
+                    path: Vec::new(),
+                }],
+            },
+        });
         Ok(shape)
     }
     fn task_failure(
@@ -935,7 +929,11 @@ impl Check<'_, '_> {
         }
         crate::dyn_metadata::semantic_operand_snapshot(shape, self.limits, self.left, 1)?;
         let mut context = shape.clone();
-        context.retained.clear();
+        context.retained.retain(|part| match part {
+            SemanticRetainedPart::One { path, .. } | SemanticRetainedPart::All { path, .. } => {
+                path.as_slice() != [LifeTypeProjection::Result]
+            }
+        });
         self.compiler_carrier(
             if owns {
                 zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE
@@ -1157,7 +1155,7 @@ impl Check<'_, '_> {
             let result = if name == "task_await" {
                 copy_recipe(&payload, self.limits, self.left)?
             } else {
-                let shape = self.empty_task_shape(&signature.parameters, &payload, depth + 1)?;
+                let shape = self.task_shape(&signature.parameters, &payload, depth + 1)?;
                 let error = if name == "task_create_owned" {
                     self.task_failure(owner, &signature.parameters, &shape, depth + 1)?
                 } else {
