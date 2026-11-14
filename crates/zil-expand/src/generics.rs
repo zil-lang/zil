@@ -2852,16 +2852,21 @@ impl<'a> Engine<'a> {
             ExprKind::Unary {
                 op: op @ (UnaryOp::Borrow | UnaryOp::BorrowMut),
                 operand,
-            } => Ok(self
-                .value_hint(operand, env, depth + 1, default_integer)?
-                .map(|inner| TypeRef {
+            } => {
+                let Some(mut inner) = self.value_hint(operand, env, depth + 1, default_integer)?
+                else {
+                    return Ok(None);
+                };
+                self.preserve_resource_reference(&mut inner)?;
+                Ok(Some(TypeRef {
                     span: e.span,
                     kind: TypeKind::Reference {
                         mutable: *op == UnaryOp::BorrowMut,
                         lifetime: None,
                         inner: Box::new(inner),
                     },
-                })),
+                }))
+            }
             ExprKind::Unary { operand, .. } => {
                 self.value_hint(operand, env, depth + 1, default_integer)
             }

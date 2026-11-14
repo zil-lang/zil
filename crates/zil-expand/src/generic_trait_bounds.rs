@@ -825,14 +825,18 @@ impl<'a> Index<'a> {
                     "Value and SyncDrop are reserved type-binder names",
                 ));
             }
-            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
-                continue;
-            }
+            let retained_callable =
+                retained.is_some_and(|roles| roles.contains_generic(&parameter.name));
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             let mut names = Vec::new();
             for bound in bounds {
+                // Callable roles consume their signature/capture qualifiers,
+                // but synchronous cleanup is a separate explicit premise.
+                if retained_callable && !callable::sync_drop_bound(bound) {
+                    continue;
+                }
                 if copy::is_bound(bound) {
                     budget.ty(bound)?;
                     prepay_shadow(parameters, copy::BOUND, bound.span, budget)?;
@@ -893,12 +897,13 @@ impl<'a> Index<'a> {
                         budget.text(&parameter.name, parameter.span)?;
                         if let GenericParamKind::Type(bounds) = &parameter.kind {
                             variables.insert(parameter.name.clone());
-                            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name))
-                            {
-                                continue;
-                            }
+                            let retained_callable = retained
+                                .is_some_and(|roles| roles.contains_generic(&parameter.name));
                             let mut supplied = Vec::new();
                             for bound in bounds {
+                                if retained_callable && !callable::sync_drop_bound(bound) {
+                                    continue;
+                                }
                                 budget.ty(bound)?;
                                 if copy::is_bound(bound) {
                                     supplied.push(Bound::Copy);
@@ -1032,13 +1037,15 @@ impl<'a> Index<'a> {
         source: Option<&Function>,
     ) -> R<()> {
         for parameter in parameters {
-            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
-                continue;
-            }
+            let retained_callable =
+                retained.is_some_and(|roles| roles.contains_generic(&parameter.name));
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             for bound in bounds {
+                if retained_callable && !callable::sync_drop_bound(bound) {
+                    continue;
+                }
                 if copy::is_bound(bound) {
                     let actual = found
                         .get(&parameter.name)

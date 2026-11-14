@@ -79,14 +79,17 @@ impl Engine<'_> {
             };
             let ty = self.expr_expected(operand, env, hint, depth + 1)?;
             match (*op, ty) {
-                (UnaryOp::Borrow | UnaryOp::BorrowMut, Some(inner)) => Some(TypeRef {
-                    span: e.span,
-                    kind: TypeKind::Reference {
-                        mutable: *op == UnaryOp::BorrowMut,
-                        lifetime: None,
-                        inner: Box::new(inner),
-                    },
-                }),
+                (UnaryOp::Borrow | UnaryOp::BorrowMut, Some(mut inner)) => {
+                    self.preserve_resource_reference(&mut inner)?;
+                    Some(TypeRef {
+                        span: e.span,
+                        kind: TypeKind::Reference {
+                            mutable: *op == UnaryOp::BorrowMut,
+                            lifetime: None,
+                            inner: Box::new(inner),
+                        },
+                    })
+                }
                 (
                     UnaryOp::Dereference,
                     Some(TypeRef {

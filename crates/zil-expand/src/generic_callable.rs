@@ -339,8 +339,24 @@ pub(crate) fn registration_environment(ty: &TypeRef) -> Option<&TypeRef> {
 }
 pub(crate) fn borrowed_registration(ty: &TypeRef, name: &str) -> bool {
     matches!(&grouped(ty).kind, TypeKind::Reference { mutable: true, inner, .. }
-        if matches!(&grouped(inner).kind, TypeKind::Named { path, .. } if path.as_slice() == ["AsyncRegistration"])
-        && registration_environment(inner).is_some_and(|t| parameter_mode(t, name) == Some(None)))
+        if registration_owner(inner).is_some_and(|payload|
+            matches!(&grouped(payload).kind, TypeKind::Named { path, .. } if path.as_slice() == ["AsyncRegistration"])
+            && registration_environment(payload).is_some_and(|t| parameter_mode(t, name) == Some(None))))
+}
+// Header normalization keeps an explicit resource head distinct from a
+// descriptor slot. Only the exact owning shell is transparent to this syntax
+// classifier; Desc/Ref and nested wrappers never become registration owners.
+fn registration_owner(ty: &TypeRef) -> Option<&TypeRef> {
+    let ty = grouped(ty);
+    if let TypeKind::Named { path, args } = &ty.kind
+        && matches!(path.as_slice(), [name] if name == "Managed" || name == crate::receivers::REFERENCE_OWNER)
+    {
+        let [GenericArg::Type(payload)] = args.as_slice() else {
+            return None;
+        };
+        return Some(payload);
+    }
+    Some(ty)
 }
 pub(crate) fn owned_registration(ty: &TypeRef, name: &str) -> bool {
     matches!(&grouped(ty).kind,TypeKind::Named{path,..} if path.as_slice()==["AsyncRegistration"])
@@ -354,6 +370,9 @@ fn transfer_bound(ty: &TypeRef) -> bool {
 }
 fn thread_callable_bound(ty: &TypeRef) -> bool {
     matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["ThreadCallable"] && args.is_empty())
+}
+pub(crate) fn sync_drop_bound(ty: &TypeRef) -> bool {
+    matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["SyncDrop"] && args.is_empty())
 }
 
 pub(crate) fn template(
@@ -686,16 +705,23 @@ fn template_with_state(
             return Err(error(parameter.span, "duplicate ThreadCallable bound"));
         }
         let thread_callable = thread_callable == 1;
+        hrtb::pay(remaining, bounds.len(), parameter.span)?;
+        if bounds.iter().filter(|bound| sync_drop_bound(bound)).count() > 1 {
+            return Err(error(parameter.span, "duplicate SyncDrop bound"));
+        }
         let callable_bounds = bounds
             .iter()
             .filter(|bound| {
-                !closed_bound(bound) && !transfer_bound(bound) && !thread_callable_bound(bound)
+                !closed_bound(bound)
+                    && !transfer_bound(bound)
+                    && !thread_callable_bound(bound)
+                    && !sync_drop_bound(bound)
             })
             .collect::<Vec<_>>();
         let [callable_bound] = callable_bounds.as_slice() else {
             return Err(unsupported(
                 parameter.span,
-                "one callable bound with optional ClosedEnvironment, Transfer and ThreadCallable is implemented",
+                "one callable bound with optional ClosedEnvironment, Transfer, ThreadCallable and SyncDrop is implemented",
             ));
         };
         let TypeKind::Named { path, args } = &bound_inner(callable_bound).kind else {
@@ -915,6 +941,7 @@ fn template_with_state(
                         !closed_bound(bound)
                             && !transfer_bound(bound)
                             && !thread_callable_bound(bound)
+                            && !sync_drop_bound(bound)
                     })
                     .unwrap() as u32,
                 generic_name: parameter.name.clone(),
