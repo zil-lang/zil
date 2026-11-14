@@ -1663,14 +1663,14 @@ impl<'a> Engine<'a, '_> {
                         "original protocol ErrorUnion exits require their complete conditional table correlation",
                     ));
                 }
-                let mut pending = vec![value];
+                let mut payloads = vec![value];
                 let mut normal = Vec::new();
-                while let Some(value) = pending.pop() {
+                while let Some(value) = payloads.pop() {
                     self.pay(value.work().saturating_add(1), depth)?;
                     match value {
                         Value::Choice(values) => {
                             self.pay(values.len(), depth)?;
-                            pending.extend(values);
+                            payloads.extend(values);
                         }
                         Value::Error {
                             is_error: true,
