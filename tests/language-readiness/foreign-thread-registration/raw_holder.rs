@@ -200,7 +200,7 @@ fn threaded_fnmut_preserves_writes_and_drains_every_raw_holder() {
     let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
     for (lane, text) in [
         ("concrete", include_str!("threaded.zil")),
-        ("generic", include_str!("threaded-generic.zil")),
+        ("generic", include_str!("threaded-generic-sync-drop.zil")),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -553,7 +553,7 @@ fn threaded_callback_kernel_budget_debits_are_finite_and_not_renewed() {
 
 #[test]
 fn thread_callable_is_an_independent_checked_premise_in_source_core_and_ct() {
-    let original = include_str!("threaded-generic.zil");
+    let original = include_str!("threaded-generic-sync-drop.zil");
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
     for bounds in [
