@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T12:40:07.629914+00:00",
+  "updated_at_utc": "2026-11-14T13:35:10.028366+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,8 +9,8 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-nominal-directory-and-source-domains",
+    "candidate": "33aff46219f40f3c51fe3098791f83c16c00d89f",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-patterns-nominal-fields-and-task-factories",
     "accepted": false,
     "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
     "cli_build": 0,
@@ -26,8 +26,8 @@
       "passed": 12,
       "total": 16
     },
-    "source_lib": {
-      "passed": 152,
+    "verify_semantic": {
+      "passed": 16,
       "failed": 0,
       "ignored": 0
     },
@@ -41,30 +41,24 @@
             "phase": "analyze",
             "category": "SafeReject",
             "code": "E-ANALYZE-IR",
-            "message": "semantic program: original name is not in the complete lexical value context",
+            "message": "missing entry block",
             "span": null,
-            "notes": [
-              "original definition module 0 index 12, expression 13",
-              "original definition module 0 index 12, expression 12",
-              "original definition module 0 index 12, expression 8"
-            ]
+            "notes": []
           }
         ]
       },
       {
         "group": "positive_cases",
         "family": "generic-libraries",
-        "status": "SafeReject",
+        "status": "Unsupported",
         "diagnostics": [
           {
             "phase": "analyze",
-            "category": "SafeReject",
-            "code": "E-ANALYZE-IR",
-            "message": "semantic program: original variant operation requires a nominal enum subject",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "nominal StoreElement needs complete actual layout qualification",
             "span": null,
-            "notes": [
-              "original definition module 3 index 1, expression 1"
-            ]
+            "notes": []
           }
         ]
       },
@@ -77,7 +71,7 @@
             "phase": "analyze",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "semantic value requires its exact actual class/role transport",
+            "message": "capture local origin exceeds its actual CFG depth",
             "span": null,
             "notes": []
           }
@@ -99,7 +93,8 @@
               "end": 0
             },
             "notes": [
-              "complete type snapshot at crates/zil-types/src/stored/ordinary_nominal.rs:52: copies 2, nodes visited 11, work consumed 274, caller remaining 5, type constructor Discriminant(34)"
+              "complete type snapshot at crates/zil-types/src/stored/ordinary_nominal.rs:197: copies 2, nodes visited 10, work consumed 214, caller remaining 26, type constructor Discriminant(34)",
+              "request ordinary-domain costs: phase deferred nominals; current type Discriminant(34); directory rows 7; contexts/phases Stats { phases: {\"deferred nominals\": PhaseStats { contexts: 1, zero_calls: 92, index_builds: 1, hashed_types: 7, complete_comparisons: 64, work: 29261, first_allowance: 198122 }} }"
             ]
           }
         ]
@@ -124,13 +119,13 @@
       {
         "group": "positive_cases",
         "family": "async-ownership",
-        "status": "Unsupported",
+        "status": "SafeReject",
         "diagnostics": [
           {
             "phase": "analyze",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "semantic value transport exceeds its finite actual SSA depth",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "semantic program: original actual does not establish Value",
             "span": null,
             "notes": []
           }
@@ -160,7 +155,7 @@
             "phase": "analyze",
             "category": "SafeReject",
             "code": "E-ANALYZE-IR",
-            "message": "semantic program: original protocol Poll has another complete canonical declaration or payload",
+            "message": "semantic program: original actual does not establish Value",
             "span": null,
             "notes": []
           }
@@ -169,15 +164,22 @@
       {
         "group": "positive_cases",
         "family": "owning-collections",
-        "status": "Unsupported",
+        "status": "SafeReject",
         "diagnostics": [
           {
             "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "nominal field has no complete parent class projection",
-            "span": null,
-            "notes": []
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-WORLD",
+            "message": "actual call opcode changes the callee's fixed original ABI convention",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "actual world work: entry allowance 967341, failing instance SemanticInstanceId { module: ModuleId(0), index: 5 }/definition SemanticDefinitionId { module: ModuleId(0), index: 11 } began 896558, consumed 103908, remaining 792650; type cache hits 28, misses 52, lookup work 12429, evaluation work 19466; state snapshots 5 work 737, comparisons 0 work 0",
+              "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(0), index: 5 }); definition Some(SemanticDefinitionId { module: ModuleId(0), index: 11 }); entry allowance 967341; consumed 174691; remaining 792650"
+            ]
           }
         ]
       },
@@ -190,11 +192,10 @@
             "phase": "analyze",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "original operation needs its complete symbolic type, place, stage or cleanup interpretation",
+            "message": "original explicit enum actuals require their full mixed substitution",
             "span": null,
             "notes": [
-              "original definition module 0 index 3, expression 25",
-              "original definition module 0 index 3, expression 20"
+              "original definition module 1 index 7, expression 10"
             ]
           }
         ]
@@ -207,47 +208,49 @@
           {
             "phase": "types",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-MATERIALIZE",
-            "message": "ErrorUnion recipe changes its actual result constructor: instance SemanticInstanceId { module: ModuleId(1), index: 10 }, definition SemanticDefinitionId { module: ModuleId(1), index: 47 }, actual Package",
+            "code": "E-SEMANTIC-WORLD",
+            "message": "actual whole type or rigid original classes disagree",
             "span": {
               "file": 0,
               "start": 0,
               "end": 0
             },
-            "notes": []
+            "notes": [
+              "actual world work: entry allowance 3994533, failing instance SemanticInstanceId { module: ModuleId(1), index: 7 }/definition SemanticDefinitionId { module: ModuleId(1), index: 39 } began 3420977, consumed 9781, remaining 3411196; type cache hits 60, misses 127, lookup work 58398, evaluation work 78741; state snapshots 58 work 170477, comparisons 11 work 5978",
+              "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(1), index: 7 }); definition Some(SemanticDefinitionId { module: ModuleId(1), index: 39 }); entry allowance 3994533; consumed 583337; remaining 3411196"
+            ]
           }
         ]
       },
       {
         "group": "positive_cases",
         "family": "project-workflow",
-        "status": "Unsupported",
+        "status": "SafeReject",
         "diagnostics": [
           {
             "phase": "analyze",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original compound assignment needs its exact initialized place projection",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "semantic program: original operation does not typecheck under its rigid declaration",
             "span": null,
             "notes": [
-              "original definition module 0 index 4, expression 11"
+              "left nominal 2:0; right atom Unit"
             ]
           }
         ]
       }
-    ],
-    "full_regressions": "Source lib152/0; alltargets b8870 separate predecessor; not full acceptance"
+    ]
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
-  "current_candidate_under_validation": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
+  "latest_ready_source": "1c8e4048aab0f996b156e988b077addf2ae3b128",
+  "current_candidate_under_validation": "1c8e4048a",
   "wip_backup": {
-    "archive_commit": "9360384a8143bffb8c73150f91c79e683401f8a4",
-    "previous_archive": "cd022f4459cc69ce0065d22c3daac89d17848d15",
-    "source_base": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
-    "prefix": "language/20261114T123824Z-active-wip",
-    "changed_files": 30,
-    "artifacts": 13,
+    "archive_commit": "fc5b05c7ae6cd6afe2c2e6609cabdb2535a94507",
+    "previous_archive": "de2063df35cc289f59a45dc1b0848f140c174f49",
+    "source_base": "33aff46219f40f3c51fe3098791f83c16c00d89f",
+    "prefix": "language/20261114T132834Z-active-wip",
+    "changed_files": 3,
+    "artifacts": 8,
     "remote_manifest_and_patch_readback_equal": true,
     "state": "WIP, not functional acceptance"
   },
@@ -264,7 +267,7 @@
     "Capture TypeUse Expression representation must be consumed independently by A/V original lexical Name and actual capture checks",
     "All-exit cleanup and actual call-world requester receipts are still active WIP"
   ],
-  "last_full_component_regression": "47e38f625 Source152/0/0; b88721e42 workspace alltargets0; 22ea2a166 materialize domain3/0. Each exact candidate separate; not whole-language acceptance.",
+  "last_full_component_regression": "726a77c32 Source153/0/0; 33aff4621 Verifysemantic16/0/0; b88721e42 workspace alltargets0 is historical; current 1c8e4048a alltargets running.",
   "task_stage_review": [
     "Private inference PendingTask keeps exact worker/call/input Terms until actual closure/worker domain formed; cannot become Typed/Wire/runtime pending",
     "Task domain identity is original scope/Life formal/whole Type-domain class index; actual worker header is a bridge, not authority to merge caller images. Preserve F.N2 and outer versus intrinsic pointee classes.",
@@ -302,6 +305,13 @@
       "c_abi_companion": "Fail in Analyze original call scheme def0,12 Expr69/67/66; Types original CCallback consumer now passed. Original source/C provider retained."
     }
   },
-  "latest_runtime_acceptance_summary": "NOT ACCEPTED: 1/13 source/check (scalars) and 4/4 intended SyncDrop negatives. ActualDirectory complete context evaluation compiled; Task actual generation and other original/actual consumer families still under construction. Same-candidate scalar native/C ABI running.",
-  "remaining_alpha_claims": "No complete Alpha, no new PR/merge/release; keep original uninstantiated definitions, independent kernels, default budgets, full native/C/CT/project and restoration acceptance."
+  "latest_runtime_acceptance_summary": "NOT ACCEPTED: 1/13 foundation source/check and 4/4 intended SyncDrop negatives. Complete Task actual emission, captured P/C/R, actual returns, Source injection role fragments, nominal field substitution and child-body rebasing compiled. 16 Verify semantic tests pass, but real phantom factory still fails a later input-admission profile; small native12/16. Whole source families still blocked in Types/Analyze, native/C/CT/project acceptance remains required.",
+  "remaining_alpha_claims": "No complete Alpha, no new PR/merge/release; keep original uninstantiated definitions, independent kernels, default budgets, full native/C/CT/project and restoration acceptance.",
+  "active_open_work": [
+    "Types complete request cost attribution before deferred nominals; World fixed ABI and whole-type equations",
+    "Analyze all actual class/capture dataflow, sealed-call schemes, enum mixed actuals and complete nominal/layout bounds",
+    "Source second closure Task inference and complete task structural visitors",
+    "Original Gamma hidden Task return family and original Result-to-input full-domain relations",
+    "Verify complete callable factory, rigid callee/result domain and member bridges; Task raw/source flow continuation must be resumed after slot allocation"
+  ]
 }

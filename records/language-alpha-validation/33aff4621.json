@@ -1,0 +1,233 @@
+{
+  "candidate": "33aff46219f40f3c51fe3098791f83c16c00d89f",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-patterns-nominal-fields-and-task-factories",
+  "accepted": false,
+  "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
+  "cli_build": 0,
+  "foundation_positives": {
+    "passed": 1,
+    "total": 13
+  },
+  "intended_negatives": {
+    "passed": 4,
+    "total": 4
+  },
+  "native_small_sources": {
+    "passed": 12,
+    "total": 16
+  },
+  "verify_semantic": {
+    "passed": 16,
+    "failed": 0,
+    "ignored": 0
+  },
+  "failures": [
+    {
+      "group": "positive_cases",
+      "family": "patterns",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "missing entry block",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "generic-libraries",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "nominal StoreElement needs complete actual layout qualification",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "closures",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture local origin exceeds its actual CFG depth",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "ownership",
+      "status": "ResourceLimit",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "source closure constraint work budget exceeded",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "complete type snapshot at crates/zil-types/src/stored/ordinary_nominal.rs:197: copies 2, nodes visited 10, work consumed 214, caller remaining 26, type constructor Discriminant(34)",
+            "request ordinary-domain costs: phase deferred nominals; current type Discriminant(34); directory rows 7; contexts/phases Stats { phases: {\"deferred nominals\": PhaseStats { contexts: 1, zero_calls: 92, index_builds: 1, hashed_types: 7, complete_comparisons: 64, work: 29261, first_allowance: 198122 }} }"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "dynamic-abstraction",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original call has no complete lexical declaration or core scheme",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 11, expression 1"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "async-ownership",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original actual does not establish Value",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "threads",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture class image needs its actual emitted value or initialized occupant",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "foreign-lifecycle",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original actual does not establish Value",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "owning-collections",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual call opcode changes the callee's fixed original ABI convention",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "actual world work: entry allowance 967341, failing instance SemanticInstanceId { module: ModuleId(0), index: 5 }/definition SemanticDefinitionId { module: ModuleId(0), index: 11 } began 896558, consumed 103908, remaining 792650; type cache hits 28, misses 52, lookup work 12429, evaluation work 19466; state snapshots 5 work 737, comparisons 0 work 0",
+            "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(0), index: 5 }); definition Some(SemanticDefinitionId { module: ModuleId(0), index: 11 }); entry allowance 967341; consumed 174691; remaining 792650"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "buffered-io",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original explicit enum actuals require their full mixed substitution",
+          "span": null,
+          "notes": [
+            "original definition module 1 index 7, expression 10"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "iteration",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual whole type or rigid original classes disagree",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "actual world work: entry allowance 3994533, failing instance SemanticInstanceId { module: ModuleId(1), index: 7 }/definition SemanticDefinitionId { module: ModuleId(1), index: 39 } began 3420977, consumed 9781, remaining 3411196; type cache hits 60, misses 127, lookup work 58398, evaluation work 78741; state snapshots 58 work 170477, comparisons 11 work 5978",
+            "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(1), index: 7 }); definition Some(SemanticDefinitionId { module: ModuleId(1), index: 39 }); entry allowance 3994533; consumed 583337; remaining 3411196"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "project-workflow",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original operation does not typecheck under its rigid declaration",
+          "span": null,
+          "notes": [
+            "left nominal 2:0; right atom Unit"
+          ]
+        }
+      ]
+    }
+  ]
+}
