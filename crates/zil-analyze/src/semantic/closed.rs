@@ -11,6 +11,7 @@ mod classes;
 mod operations;
 mod registration;
 mod resources;
+mod slices;
 
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::unsupported(

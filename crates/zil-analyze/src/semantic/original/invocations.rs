@@ -204,6 +204,10 @@ impl Solver<'_, '_> {
             &value.kind
         {
             let term = self.borrowed_argument(frame, inner, b, depth + 1)?;
+            if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
+                let expected = self.recipe(frame, ty, b, depth + 1)?;
+                self.unify(term, expected, depth + 1, b)?;
+            }
             b.lookup(frame.expressions.len(), WORK)?;
             if frame.expressions.insert(value.id, term).is_some() {
                 return Err(fail("original reborrowed argument node is reused"));

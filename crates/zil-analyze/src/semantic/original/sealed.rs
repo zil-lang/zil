@@ -6,6 +6,7 @@ use super::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::semantic) enum Intrinsic {
     NumericConvert(Number),
+    SliceLength,
     TaskYield,
     TaskCreate,
     TaskPoll,

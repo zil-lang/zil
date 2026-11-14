@@ -59,7 +59,7 @@ impl Solver<'_, '_> {
         }
         self.expression(frame, value, b, depth + 1)
     }
-    fn registration_anchor(
+    pub(super) fn registration_anchor(
         &self,
         frame: &Frame,
         value: &SemanticOriginalExpr,

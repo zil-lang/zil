@@ -569,6 +569,18 @@ impl Check<'_, '_> {
                             )?;
                             return Ok(());
                         }
+                        original::sealed::Intrinsic::SliceLength => {
+                            self.slice_length_operation(
+                                instance,
+                                site.recipe,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            return Ok(());
+                        }
                         original::sealed::Intrinsic::NumericConvert(number) => {
                             let instruction = instruction.ok_or_else(|| {
                                 fail("original conversion has no actual instruction")

@@ -455,6 +455,15 @@ impl Pending {
                 }
                 continue;
             }
+            b.lookup(checked.intrinsics.len(), WORK)?;
+            if let Some(id) = checked.intrinsics.get(&(owner, node)) {
+                if caller.call_kind == CallKind::Direct && id.call_kind() == CallKind::Suspend {
+                    return Err(fail(
+                        "original Direct body invokes a Suspend core operation",
+                    ));
+                }
+                continue;
+            }
             b.lookup(checked.enum_constructors.len(), WORK)?;
             if checked.enum_constructors.contains_key(&(owner, node)) {
                 continue;

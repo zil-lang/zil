@@ -9,12 +9,14 @@ mod constructors;
 mod effects;
 mod enums;
 mod invocations;
+mod loops;
 pub(super) mod mixed;
 pub(super) mod nominal;
 mod protocol;
 mod registration;
 mod roles;
 pub(super) mod sealed;
+mod slices;
 mod values;
 use constructors::Wrapper;
 use mixed::Life;
@@ -170,6 +172,7 @@ struct Solver<'a, 'i> {
     mutating_closures: BTreeSet<SemanticDefinitionId>,
     role_frames: Vec<roles::RoleFrame>,
     next_role: u32,
+    loops: Vec<loops::LoopFrame>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -1227,27 +1230,7 @@ impl Solver<'_, '_> {
                 self.term(Kind::Array { element, length }, b)?
             }
             CoreExprKind::Index { object, index } => {
-                let object = self.expression(frame, object, b, depth + 1)?;
-                let index = self.expression(frame, index, b, depth + 1)?;
-                Self::push(&mut self.integers, index, b)?;
-                Self::push(&mut self.numeric, index, b)?;
-                let root = self.root(object, b)?;
-                let Kind::Array { element, .. } = self.state.arena[root] else {
-                    return Err(unknown(
-                        "original index requires its complete array or borrowed-slice place",
-                    ));
-                };
-                // This path copies an element. Owned/non-Copy element moves
-                // need their separate partial-initialization responsibility.
-                Self::push(
-                    &mut self.needs,
-                    Need {
-                        term: object,
-                        predicate: Predicate::Copy,
-                    },
-                    b,
-                )?;
-                element
+                self.index_read(frame, object, index, b, depth + 1)?
             }
             CoreExprKind::Tuple(fields) => {
                 if fields.is_empty() {
@@ -1479,6 +1462,15 @@ impl Solver<'_, '_> {
                         | SemanticSiteRecipeKind::CallableCall { .. }
                 ) {
                     return Err(fail("original call is linked to another operation kind"));
+                }
+                if let Some(term) =
+                    self.slice_call(frame, value.id, callee, arguments, b, depth + 1)?
+                {
+                    b.lookup(frame.expressions.len(), WORK)?;
+                    if frame.expressions.insert(value.id, term).is_some() {
+                        return Err(fail("original slice operation node is reused"));
+                    }
+                    return Ok(term);
                 }
                 if let Some(term) =
                     self.enum_call(frame, value.id, callee, arguments, b, depth + 1)?
@@ -2066,7 +2058,24 @@ impl Solver<'_, '_> {
                 CoreStatementKind::Match { value, arms } => {
                     self.match_statement(frame, statement.id, value, arms, b, depth + 1)?;
                 }
+                CoreStatementKind::While { condition, body } => {
+                    self.loop_statement(frame, Some(condition), body, b, depth + 1)?;
+                }
+                CoreStatementKind::Loop(body) => {
+                    self.loop_statement(frame, None, body, b, depth + 1)?;
+                }
+                CoreStatementKind::Break | CoreStatementKind::Continue => {
+                    self.loop_jump(
+                        frame,
+                        matches!(&statement.kind, CoreStatementKind::Break),
+                        b,
+                    )?;
+                }
                 CoreStatementKind::CompoundAssign { target, op, value } => {
+                    if matches!(target.kind, CoreExprKind::Index { .. }) {
+                        self.index_compound(frame, target, *op, value, b, depth + 1)?;
+                        continue;
+                    }
                     let CoreExprKind::Name(name) = &target.kind else {
                         return Err(unknown(
                             "original compound assignment needs its exact initialized place projection",
@@ -2602,6 +2611,12 @@ fn normalize_block(
                     normalize_block(&mut arm.body, b, depth + 1)?;
                 }
             }
+            CoreStatementKind::While { condition, body } => {
+                normalize_expr(condition, b, depth + 1)?;
+                normalize_block(body, b, depth + 1)?;
+            }
+            CoreStatementKind::Loop(body) => normalize_block(body, b, depth + 1)?,
+            CoreStatementKind::Break | CoreStatementKind::Continue => {}
             CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                 normalize_block(body, b, depth + 1)?
             }
@@ -2699,6 +2714,12 @@ pub(super) fn normalize_expr(
         CoreExprKind::Index { object, index } => {
             normalize_expr(object, b, depth + 1)?;
             normalize_expr(index, b, depth + 1)?;
+        }
+        CoreExprKind::Slice { object, start, end } => {
+            normalize_expr(object, b, depth + 1)?;
+            for bound in [start, end].into_iter().flatten() {
+                normalize_expr(bound, b, depth + 1)?;
+            }
         }
         CoreExprKind::NumericConvert { value, .. } | CoreExprKind::IntegerConvert { value, .. } => {
             normalize_expr(value, b, depth + 1)?
@@ -2828,6 +2849,7 @@ pub(super) fn check(
         mutating_closures: BTreeSet::new(),
         role_frames: Vec::new(),
         next_role: 0,
+        loops: Vec::new(),
     };
     for definition in &program.definitions {
         b.spend(1, WORK)?;
