@@ -17,17 +17,27 @@ fn pay(left: &mut usize, count: usize) -> R<()> {
 /// Read-only source facts. Source targets remain Core and are never emitted
 /// or reclassified as lexical Scope targets. Runtime lookups use E's ledger.
 struct SourceSymbols {
-    semantic: SemanticModule,
-    original: super::original::Proof,
+    context: std::rc::Rc<super::original_context::OriginalContext>,
     owner: SemanticInstanceId,
 }
+impl std::ops::Deref for SourceSymbols {
+    type Target = super::original_context::OriginalContext;
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
 pub(crate) struct FrozenSource {
-    pub(super) semantic: SemanticModule,
-    pub(super) original: super::original::Proof,
+    context: std::rc::Rc<super::original_context::OriginalContext>,
     pub(super) owner: SemanticInstanceId,
     pub(super) query: CtQueryOrigin,
     pub(super) wrapper_instance: SemanticInstanceId,
     pub(super) wrapper_definition: SemanticDefinitionId,
+}
+impl std::ops::Deref for FrozenSource {
+    type Target = super::original_context::OriginalContext;
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
 }
 fn source_interface(
     source: &CoreProgram,
@@ -55,34 +65,13 @@ fn source_interface(
     pay(left, source.modules.len().saturating_add(1))?;
     let modules: Vec<_> = source.modules.iter().map(|row| &row.core).collect();
     super::well_formed::originals(&modules, limits, left)?;
-    let mut program = SemanticModule {
-        definitions: Vec::new(),
-        instances: Vec::new(),
-        sites: Vec::new(),
-        dyn_scopes: Vec::new(),
-    };
-    for module in &modules {
-        let Some(original) = &module.semantic else {
-            return Err(pending(
-                "frozen source module lacks its complete original semantic program",
-            ));
-        };
-        crate::dyn_metadata::semantic_snapshot(original, limits, left, 1)?;
-        pay(
-            left,
-            original
-                .definitions
-                .len()
-                .saturating_add(original.instances.len())
-                .saturating_add(original.sites.len())
-                .saturating_add(original.dyn_scopes.len()),
-        )?;
-        let copy = original.clone();
-        program.definitions.extend(copy.definitions);
-        program.instances.extend(copy.instances);
-        program.sites.extend(copy.sites);
-        program.dyn_scopes.extend(copy.dyn_scopes);
+    if modules.iter().any(|module| module.semantic.is_none()) {
+        return Err(pending(
+            "frozen source module lacks its complete original semantic program",
+        ));
     }
+    let input = super::original_context::Input::collect(&modules, limits, left)?;
+    let program = &input.semantic;
     // Includes unused definitions, unselected branches, original mixed-formal
     // rigidity, and original where premises. No E Type or caller Mono actual
     // can change this proof's inputs.
@@ -120,13 +109,8 @@ fn source_interface(
         .iter()
         .find(|row| row.id == instance.definition)
         .ok_or_else(|| bad("frozen query instance lost its original declaration"))?;
-    let proof = super::original::check_at(
-        &program,
-        definition.id,
-        binding.query.original,
-        limits,
-        left,
-    )?;
+    let proof =
+        super::original::check_at(program, definition.id, binding.query.original, limits, left)?;
     if !proof.complete.contains(&definition.id) {
         return Err(bad(
             "frozen query owner has no complete original body proof",
@@ -178,11 +162,8 @@ fn source_interface(
         ));
     }
     let owner = instance.id;
-    Ok(SourceSymbols {
-        semantic: program,
-        original: proof,
-        owner,
-    })
+    let context = super::original_context::OriginalContext::checked(input, proof, None, left)?;
+    Ok(SourceSymbols { context, owner })
 }
 fn wrapper_relation(
     executable: &CoreProgram,
@@ -267,26 +248,8 @@ fn wrapper_relation(
         wrapper.ok_or_else(|| bad("selected executable omits its semantic wrapper instance"))?;
     let definition = definition
         .ok_or_else(|| bad("selected executable omits its generated wrapper original body"))?;
-    pay(
-        left,
-        frozen
-            .semantic
-            .instances
-            .len()
-            .saturating_add(frozen.semantic.definitions.len()),
-    )?;
-    let parent = frozen
-        .semantic
-        .instances
-        .iter()
-        .find(|row| row.id == frozen.owner)
-        .ok_or_else(|| bad("frozen parent instance disappeared"))?;
-    let parent_definition = frozen
-        .semantic
-        .definitions
-        .iter()
-        .find(|row| row.id == parent.definition)
-        .ok_or_else(|| bad("frozen parent definition disappeared"))?;
+    let parent = frozen.context.instance(frozen.owner, left)?;
+    let parent_definition = frozen.context.definition(parent.definition, left)?;
     if wrapper.parent != Some(parent.id)
         || definition.parent != Some(parent.definition)
         || definition.kind != SemanticDefinitionKind::Function
@@ -377,8 +340,7 @@ pub(crate) fn check(
             .map_err(|error| vec![error])?;
     pay(&mut left, 1).map_err(|error| vec![error])?;
     let frozen = FrozenSource {
-        semantic: frozen.semantic,
-        original: frozen.original,
+        context: frozen.context,
         owner: frozen.owner,
         query: binding.query.clone(),
         wrapper_instance,

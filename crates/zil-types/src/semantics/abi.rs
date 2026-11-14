@@ -27,6 +27,11 @@ pub(crate) fn prepare(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    if ledger.original.context().is_some() {
+        return Err(bad(
+            "original ABI context was prepared twice in one Types request",
+        ));
+    }
     if cores.iter().all(|core| core.semantic.is_none()) {
         return Ok(());
     }
@@ -50,46 +55,22 @@ pub(crate) fn prepare(
             });
         }
     }
-    let mut program = SemanticModule {
-        definitions: Vec::new(),
-        instances: Vec::new(),
-        sites: Vec::new(),
-        dyn_scopes: Vec::new(),
-    };
-    for core in cores {
-        let Some(source) = &core.semantic else {
-            continue;
-        };
-        crate::dyn_metadata::semantic_snapshot(source, limits, left, 1)?;
-        let copy = source.clone();
-        program.definitions.extend(copy.definitions);
-        program.instances.extend(copy.instances);
-        program.sites.extend(copy.sites);
-        program.dyn_scopes.extend(copy.dyn_scopes);
-    }
+    let mut input = super::original_context::Input::collect(cores, limits, left)?;
     if let Some(source) = ledger.frozen.as_deref() {
-        crate::dyn_metadata::semantic_snapshot(&source.semantic, limits, left, 1)?;
-        for definition in &source.semantic.definitions {
-            pay(left, program.definitions.len().saturating_add(1))?;
-            if let Some(actual) = program
-                .definitions
-                .iter()
-                .find(|row| row.id == definition.id)
-            {
-                crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
-                if actual != definition {
-                    return Err(bad("E ABI selection changes an immutable S declaration"));
-                }
-            } else {
-                program.definitions.push(definition.clone());
-            }
-        }
+        input.include_frozen(source, limits, left)?;
     }
     let proof = if let Some(source) = ledger.frozen.as_deref() {
-        super::original::check_with_frozen(&program, source, limits, left)?
+        super::original::check_with_frozen(&input.semantic, source, limits, left)?
     } else {
-        super::original::check(&program, limits, left)?
+        super::original::check(&input.semantic, limits, left)?
     };
+    let context = super::original_context::OriginalContext::checked(
+        input,
+        proof,
+        ledger.frozen.clone(),
+        left,
+    )?;
+    let program = &context.semantic;
     let mut choices = Choices::new();
     for instance in &program.instances {
         let key = match &instance.target {
@@ -105,7 +86,9 @@ pub(crate) fn prepare(
             SemanticInstanceTarget::Scope => continue,
             _ => return Err(bad("original ABI selection lacks a real Core origin")),
         };
-        let kind = proof.fixed_call_kind(&program, instance.definition, limits, left)?;
+        let kind = context
+            .original
+            .fixed_call_kind(program, instance.definition, limits, left)?;
         pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
         if choices.insert(key, kind).is_some_and(|prior| prior != kind) {
             return Err(bad(
@@ -115,7 +98,7 @@ pub(crate) fn prepare(
     }
     ledger.abi_origins = origins;
     ledger.fixed_abis = Some(choices);
-    *ledger.original.borrow_mut() = Some(proof);
+    ledger.original.install(context)?;
     Ok(())
 }
 pub(crate) fn selected(

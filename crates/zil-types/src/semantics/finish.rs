@@ -11,74 +11,25 @@ pub(crate) fn program(
     left: &mut usize,
 ) -> R<Option<SemanticModule>> {
     if cores.iter().all(|core| core.semantic.is_none()) {
+        if ledger.original.context().is_some() {
+            return Err(error(
+                "E-SEMANTIC-CONTEXT",
+                Span::default(),
+                "checked original Some input was erased before publication",
+            ));
+        }
         stored::ordinary_inventory(module, limits, left)?;
         return Ok(None);
     }
-    let mut result = SemanticModule {
-        definitions: Vec::new(),
-        instances: Vec::new(),
-        sites: Vec::new(),
-        dyn_scopes: Vec::new(),
-    };
-    for core in cores {
-        let Some(program) = &core.semantic else {
-            continue;
-        };
-        crate::dyn_metadata::semantic_snapshot(program, limits, left, 1)?;
-        // Reserve the vector moves separately from the recursive snapshot.
-        let rows = program
-            .definitions
-            .len()
-            .saturating_add(program.instances.len())
-            .saturating_add(program.sites.len())
-            .saturating_add(program.dyn_scopes.len());
-        *left = left
-            .checked_sub(rows.saturating_mul(2).saturating_add(1))
-            .ok_or_else(|| {
-                Diagnostic::limit(Phase::Types, "semantic program merge work exceeded", None)
-            })?;
-        let copy = program.clone();
-        result.definitions.extend(copy.definitions);
-        result.instances.extend(copy.instances);
-        result.sites.extend(copy.sites);
-        result.dyn_scopes.extend(copy.dyn_scopes);
-    }
-    if let Some(source) = ledger.frozen.as_deref() {
-        crate::dyn_metadata::semantic_snapshot(&source.semantic, limits, left, 1)?;
-        for definition in &source.semantic.definitions {
-            *left = left
-                .checked_sub(result.definitions.len().saturating_add(1))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Types,
-                        "frozen original definition merge exceeded",
-                        None,
-                    )
-                })?;
-            if let Some(actual) = result
-                .definitions
-                .iter()
-                .find(|row| row.id == definition.id)
-            {
-                crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
-                if actual != definition {
-                    return Err(error(
-                        "E-CT-FROZEN-TYPES",
-                        Span::default(),
-                        "E changes an immutable S original definition",
-                    ));
-                }
-            } else {
-                result.definitions.push(definition.clone());
-            }
-        }
-    }
-    let original = if let Some(source) = ledger.frozen.as_deref() {
-        super::original::check_with_frozen(&result, source, limits, left)?
-    } else {
-        super::original::check(&result, limits, left)?
-    };
-    *ledger.original.borrow_mut() = Some(original);
+    let context = ledger.original.context().ok_or_else(|| {
+        error(
+            "E-SEMANTIC-CONTEXT",
+            Span::default(),
+            "semantic publication has no checked original context",
+        )
+    })?;
+    context.verify_inputs(cores, ledger.frozen.as_ref(), limits, left)?;
+    let mut result = context.publication_copy(limits, left)?;
     super::lower::program(&mut result, module, ledger, left)?;
     #[cfg(test)]
     {
@@ -101,5 +52,6 @@ pub(crate) fn program(
     #[cfg(test)]
     super::source_probe::record(module, &result, limits, left)?;
     super::proof::program(&result, module, ledger, &headers, limits, left)?;
+    context.verify_definitions(&result, limits, left)?;
     Ok(Some(result))
 }
