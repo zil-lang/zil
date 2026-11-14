@@ -112,15 +112,25 @@ impl CheckedContext {
         if actual.life.retained.len()!=expected.life.retained.len()||actual.life.nominal_arguments.len()!=expected.life.nominal_arguments.len() {return Ok(false);}
         for (a,c) in actual.life.retained.iter().zip(&expected.life.retained) {
             if a.path!=c.path||a.class!=c.class {return Ok(false);}
+            if !self.same_origin(environment,actual.origins.get(a.binder as usize).ok_or_else(||bad("actual child origin is absent"))?,expected.origins.get(c.binder as usize).ok_or_else(||bad("expected child origin is absent"))?,b)? {return Ok(false);}
             let a=actual.classes.get(a.binder as usize).ok_or_else(||bad("actual child class is absent"))?;
             let c=expected.classes.get(c.binder as usize).ok_or_else(||bad("expected child class is absent"))?;
             if !self.same(environment,a,c,b)? {return Ok(false);}
         }
         for (a,c) in actual.life.nominal_arguments.iter().zip(&expected.life.nominal_arguments) {
             if a.path!=c.path||a.declaration!=c.declaration||a.argument!=c.argument {return Ok(false);}
+            if !self.same_origin(environment,actual.origins.get(a.binder as usize).ok_or_else(||bad("actual nominal origin is absent"))?,expected.origins.get(c.binder as usize).ok_or_else(||bad("expected nominal origin is absent"))?,b)? {return Ok(false);}
             let a=actual.classes.get(a.binder as usize).ok_or_else(||bad("actual nominal class is absent"))?;
             let c=expected.classes.get(c.binder as usize).ok_or_else(||bad("expected nominal class is absent"))?;
             if !self.same(environment,a,c,b)? {return Ok(false);}
+        }
+        b.spend(actual.life.slots.len().saturating_add(expected.life.slots.len()))?;
+        let actual_children=actual.life.slots.iter().filter(|slot|!slot.path.is_empty()).collect::<Vec<_>>();
+        let expected_children=expected.life.slots.iter().filter(|slot|!slot.path.is_empty()).collect::<Vec<_>>();
+        if actual_children.len()!=expected_children.len(){return Ok(false);}
+        for(a,c)in actual_children.iter().zip(&expected_children){
+            if a.path!=c.path||a.mode!=c.mode{return Ok(false);}
+            if !self.same(environment,actual.classes.get(a.binder as usize).ok_or_else(||bad("actual nested borrow class is absent"))?,expected.classes.get(c.binder as usize).ok_or_else(||bad("expected nested borrow class is absent"))?,b)?||!self.same_origin(environment,actual.origins.get(a.binder as usize).ok_or_else(||bad("actual nested borrow origin is absent"))?,expected.origins.get(c.binder as usize).ok_or_else(||bad("expected nested borrow origin is absent"))?,b)?{return Ok(false);}
         }
         let a=actual.life.slots.iter().find(|row|row.path.is_empty());
         let c=expected.life.slots.iter().find(|row|row.path.is_empty());
@@ -628,11 +638,11 @@ impl CheckedContext {
         lexical.insert(0,LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:None});
         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
-        self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
+        let worlds=self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
         self.evaluate_requirements(module,&target_definition.requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;
         for formal in &target_definition.parameters {if let SemanticFormal::Type{requirements}=formal {self.evaluate_requirements(module,requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;}}
         let SemanticDefinitionBody::FunctionWithBody{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
-        let mut signature=self.evaluate_signature(module,signature,&call_environment,external,active,b)?;
+        let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
         let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
         for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
@@ -648,8 +658,10 @@ impl CheckedContext {
                 else {invocation.push((expected_key.clone(),actual_key.clone()));}
             }
         }
-        for (parameter,_) in &mut signature.parameters {substitute(parameter,&invocation,b)?;}
-        substitute(&mut signature.result,&invocation,b)?;
+        let mut invocation_boundary=trait_members::Boundary::default();
+        for(source,image)in &invocation{invocation_boundary.class(self,environment,source,image,b)?;}
+        for(parameter,_)in &mut signature.parameters{*parameter=invocation_boundary.project_type(self,environment,parameter,b)?;}
+        signature.result=invocation_boundary.project_type(self,environment,&signature.result,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
             if !self.call_argument(module,caller,*argument,values,expected,environment,b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
@@ -744,11 +756,3 @@ impl CheckedContext {
 }
 fn value_at(values:&[Option<CheckedType>],id:ValueId)->Check<&CheckedType> {values.get(id.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual SSA use has no independent semantic definition"))}
 fn atomic(ty:&Type,b:&mut Budget)->Check<CheckedType> {b.spend(1)?;if !ty.is_b0_scalar() {return Err(bad("actual scalar instruction contains a borrowed/opaque semantic carrier"));}Ok(CheckedType{ty:ty.clone(),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]})}
-
-fn substitute(value:&mut CheckedType,map:&[(ClassKey,ClassKey)],b:&mut Budget)->Check<()> {
-    b.spend(value.classes.len().saturating_mul(map.len().saturating_add(1)))?;
-    for key in &mut value.classes {if let Some((_,replacement))=map.iter().find(|(source,_)|source==key) {*key=replacement.clone();}}
-    // Intrinsic origins remain the exact original occurrences. Only their
-    // outside class images are instantiated; no N2 domain is compressed.
-    Ok(())
-}

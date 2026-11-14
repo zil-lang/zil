@@ -4,12 +4,17 @@
 //! independent function pass as well.
 use super::*;
 
+pub(super) struct CallWorld {
+    environment: EvalEnv,
+    boundary: trait_members::Boundary,
+}
+
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn call_worlds(&self,module:&TypedModule,function:FunctionId,definition:SemanticDefinitionId,expected:&EvalEnv,caller:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(super) fn call_worlds(&self,module:&TypedModule,function:FunctionId,definition:SemanticDefinitionId,expected:&EvalEnv,caller:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<CallWorld>> {
         let program=module.semantic.as_ref().ok_or_else(||bad("actual Call lacks its original instance directory"))?;
         b.spend(program.instances.len())?;
-        let mut matched=false;
+        let mut matched=Vec::new();
         for instance in program.instances.iter().filter(|row|row.definition==definition&&matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==function)) {
             // An actual lexical ancestor is an identity, not a same-typed
             // substitute. Witness frames name independently selected impl
@@ -39,13 +44,40 @@ impl CheckedContext {
             if !shape{continue;}
             let mut boundary=trait_members::Boundary::default();
             for(a,z)in actual.lexical.iter().zip(&expected.lexical){
+                boundary.scope(a.key,z.key,b)?;
                 for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){boundary.actual(self,caller,a,z,b)?;}
                 if let(Some(a),Some(z))=(&a.self_type,&z.self_type){boundary.value(self,caller,a,z,b)?;}
             }
-            matched=true;
+            b.spend(1)?;
+            matched.push(CallWorld{environment:actual,boundary});
         }
-        if !matched{return Err(bad("actual Call has no complete source instance in its exact lexical world"));}
-        Ok(())
+        if matched.is_empty(){return Err(bad("actual Call has no complete source instance in its exact lexical world"));}
+        Ok(matched)
+    }
+
+    // Construct the complete callee domain while original Life formals are
+    // still rigid. Only then apply this occurrence's outside images. Rebuilding
+    // P<A,B> after A and B both map to a would lose its original N2 boundary.
+    pub(super) fn world_signature(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,worlds:Vec<CallWorld>,caller:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
+        let mut selected:Option<CheckedSignature>=None;
+        for mut world in worlds{
+            let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;
+            self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
+            for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;}}
+            let mut signature=self.evaluate_signature(module,recipe,&world.environment,external,active,b)?;
+            for(parameter,_)in &mut signature.parameters{*parameter=world.boundary.project_type(self,caller,parameter,b)?;}
+            signature.result=world.boundary.project_type(self,caller,&signature.result,b)?;
+            if let Some(expected)=&selected{
+                if signature.bound.len()!=expected.bound.len()||signature.invocation.len()!=expected.invocation.len()||signature.call_kind!=expected.call_kind||signature.result_mode!=expected.result_mode||signature.parameters.len()!=expected.parameters.len(){return Err(bad("compatible Call worlds disagree on their complete original signature"));}
+                let mut alpha=trait_members::Boundary::default();
+                for(a,z)in signature.bound.iter().zip(&expected.bound).chain(signature.invocation.iter().zip(&expected.invocation)){alpha.class(self,caller,a,z,b)?;}
+                for(parameter,_)in &mut signature.parameters{*parameter=alpha.project_type(self,caller,parameter,b)?;}
+                signature.result=alpha.project_type(self,caller,&signature.result,b)?;
+                for((actual,mode),(expected,expected_mode))in signature.parameters.iter().zip(&expected.parameters){if mode!=expected_mode||!self.same_type(caller,actual,expected,b)?{return Err(unsupported("compatible Call worlds retain distinct original parameter domains",None));}}
+                if !self.same_type(caller,&signature.result,&expected.result,b)?{return Err(unsupported("compatible Call worlds retain distinct original result domains",None));}
+            }else{selected=Some(signature);}
+        }
+        selected.ok_or_else(||bad("Call signature has no independently selected original world"))
     }
 }
 fn same_value_shape(a:&CheckedType,z:&CheckedType)->bool {

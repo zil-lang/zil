@@ -43,9 +43,58 @@ impl CheckedContext {
 }
 
 #[derive(Default)]
-pub(super) struct Boundary{classes:Vec<(ClassKey,ClassKey)>,origins:Vec<(IntrinsicOrigin,IntrinsicOrigin)>}
+pub(super) struct Boundary{classes:Vec<(ClassKey,ClassKey)>,origins:Vec<(IntrinsicOrigin,IntrinsicOrigin)>,scopes:Vec<(ScopeKey,ScopeKey)>}
 impl Boundary{
-    fn class(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&ClassKey,expected:&ClassKey,b:&mut Budget)->Check<()>{
+    pub(super) fn scope(&mut self,actual:ScopeKey,expected:ScopeKey,b:&mut Budget)->Check<()>{
+        b.spend(self.scopes.len().saturating_add(1))?;
+        if let Some((_,known))=self.scopes.iter().find(|(key,_)|*key==actual){if *known!=expected{return Err(bad("Call world changes one original lexical scope image"));}}else{self.scopes.push((actual,expected));}Ok(())
+    }
+    fn image(&self,key:&ClassKey,b:&mut Budget)->Check<ClassKey>{
+        b.spend(self.classes.len().saturating_add(self.scopes.len()).saturating_add(1))?;
+        if let Some((_,image))=self.classes.iter().find(|(source,_)|source==key){return Ok(image.clone());}
+        // An inferred outer occurrence belongs to this fresh call frame. Its
+        // correspondence is a role substitution, never global equality.
+        if let ClassKey::Implicit{scope,ordinal}=key{if let Some((_,image))=self.scopes.iter().find(|(source,_)|source==scope){return Ok(ClassKey::Implicit{scope:*image,ordinal:*ordinal});}}
+        Ok(key.clone())
+    }
+    pub(super) fn project_type(&mut self,context:&CheckedContext,env:&EvalEnv,value:&CheckedType,b:&mut Budget)->Check<CheckedType>{
+        charge_value(value,b)?;
+        let mut output=value.clone();
+        for(key,source)in output.classes.iter_mut().zip(&value.classes){*key=self.image(source,b)?;}
+        for(origin,source)in output.origins.iter_mut().zip(&value.origins){*origin=self.project_origin(context,env,source,0,b)?;}
+        Ok(output)
+    }
+    fn project_origin(&self,context:&CheckedContext,env:&EvalEnv,origin:&IntrinsicOrigin,depth:usize,b:&mut Budget)->Check<IntrinsicOrigin>{
+        if depth>b.limits.max_call_depth.min(128){return Err(limit("Call boundary intrinsic origin depth exceeded"));}
+        super::super::nominal_origins::charge_origin(origin,b)?;
+        b.spend(self.origins.len())?;
+        for(source,image)in &self.origins{super::super::nominal_origins::charge_origin(source,b)?;if source==origin{return context.canonical_origin(image,b);}}
+        Ok(match origin{
+            IntrinsicOrigin::DerivedClass{source}=>IntrinsicOrigin::DerivedClass{source:self.image(source,b)?},
+            IntrinsicOrigin::Existing{..}=>context.canonical_origin(origin,b)?,
+            IntrinsicOrigin::Nominal{source,class}=>{
+                let mut actuals=Vec::new();let mut environment=Vec::new();let mut class_sources=Vec::new();
+                for actual in &source.actuals{actuals.push(self.project_actual(context,env,actual,depth+1,b)?);}
+                for actual in &source.environment{environment.push(self.project_actual(context,env,actual,depth+1,b)?);}
+                for origin in &source.class_sources{class_sources.push(self.project_origin(context,env,origin,depth+1,b)?);}
+                dynamic_metadata::life_shape(&source.domain,b)?;
+                IntrinsicOrigin::Nominal{source:std::rc::Rc::new(NominalOrigin{declaration:source.declaration,actuals,environment,domain:source.domain.clone(),class_sources}),class:*class}
+            },
+        })
+    }
+    fn project_actual(&self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedActual,depth:usize,b:&mut Budget)->Check<CheckedActual>{
+        if depth>b.limits.max_call_depth.min(128){return Err(limit("Call boundary actual origin depth exceeded"));}
+        Ok(match actual{
+            CheckedActual::Life(key)=>CheckedActual::Life(self.image(key,b)?),
+            CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{
+                charge_value(value,b)?;
+                let mut output=value.clone();for key in &mut output.classes{*key=self.image(key,b)?;}
+                for(origin,source)in output.origins.iter_mut().zip(&value.origins){*origin=self.project_origin(context,env,source,depth+1,b)?;}
+                match actual{CheckedActual::Type(_)=>CheckedActual::Type(output),CheckedActual::Const{value,..}=>{dynamic_metadata::constant(value,b)?;CheckedActual::Const{carrier:output,value:value.clone()}},_=>unreachable!()}
+            },
+        })
+    }
+    pub(super) fn class(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&ClassKey,expected:&ClassKey,b:&mut Budget)->Check<()>{
         b.spend(self.classes.len().saturating_add(1))?;
         if let Some((_,known))=self.classes.iter().find(|(known,_)|known==actual){if !context.same(env,known,expected,b)?{return Err(bad("one member body class has inconsistent call-boundary images"));}}
         else{self.classes.push((actual.clone(),expected.clone()));}Ok(())
@@ -66,5 +115,45 @@ impl Boundary{
     }
     pub(super) fn actual(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedActual,expected:&CheckedActual,b:&mut Budget)->Check<()>{
         match(actual,expected){(CheckedActual::Type(a),CheckedActual::Type(z))=>self.value(context,env,a,z,b),(CheckedActual::Life(a),CheckedActual::Life(z))=>self.class(context,env,a,z,b),(CheckedActual::Const{carrier:a,value:av},CheckedActual::Const{carrier:z,value:zv})if av==zv=>self.value(context,env,a,z,b),_=>Err(bad("member call boundary changes its ordered actual kind or constant value"))}
+    }
+}
+
+fn charge_value(value:&CheckedType,b:&mut Budget)->Check<()>{
+    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
+    b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
+    for key in &value.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
+    for origin in &value.origins{super::super::nominal_origins::charge_origin(origin,b)?;}
+    for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    #[test]
+    fn outside_call_images_preserve_whole_nominal_and_outer_domains(){
+        let limits=Limits::default();
+        let bytes=include_bytes!("../fixtures/phantom-closure-complete-creator.wire");
+        let(module,_)=zil_ir::wire::decode_module_candidate(bytes,&limits).unwrap();
+        let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let program=module.semantic.as_ref().unwrap();
+        let child=program.instances.iter().find(|row|row.environment.is_some()).unwrap();
+        let parent=program.instances.iter().find(|row|Some(row.id)==child.parent).unwrap();
+        let scope=ScopeKey::Instance(parent.id);let a=ClassKey::Formal{scope,ordinal:0};
+        let env=EvalEnv{lexical:vec![LexicalFrame{definition:parent.definition,key:scope,actuals:vec![CheckedActual::Life(a.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let ty=&module.life_instances[0].ty;let Type::BorrowedStorage{life,..}=ty else{panic!("real nominal domain")};
+        let nominal=context.checked_value(&module,ty,life,vec![a.clone()],&mut b).unwrap();
+        let mut active=ActiveQueries::new();
+        let address=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(a.clone())},&[nominal],&mut active,&mut b).unwrap();
+        let image=ClassKey::Invocation{frame:active.fresh(&mut b).unwrap(),index:0};
+        let mut boundary=Boundary::default();boundary.class(&context,&env,&a,&image,&mut b).unwrap();
+        let projected=boundary.project_type(&context,&env,&address,&mut b).unwrap();
+        assert_eq!(projected.ty,address.ty);assert_eq!(projected.life,address.life);assert_eq!(projected.life.binder_count,2);
+        assert_eq!(projected.classes,vec![image.clone(),image]);
+        assert!(!context.same_origin(&env,&projected.origins[0],&projected.origins[1],&mut b).unwrap());
+        assert!(!context.same(&env,&a,&projected.classes[0],&mut b).unwrap(),"private boundary must not add a global equality");
+        assert!(context.compatible(&env,&projected,&projected,&mut b).unwrap());
+        let mut permuted=projected.clone();permuted.origins.swap(0,1);
+        assert!(!context.compatible(&env,&projected,&permuted,&mut b).unwrap(),"outer adaptation cannot permute a pointee intrinsic with the same outside image");
     }
 }
