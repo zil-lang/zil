@@ -224,6 +224,22 @@ fn lower_view_with_budget(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
+        // Preserve the complete verified qualified Type while reusing its
+        // ordinary inline layout. Phantom classes are metadata, and neither
+        // their presence nor an empty physical slot inventory grants Copy,
+        // an address, a loan or resource cleanup. This walk excludes every
+        // target-bearing and owning leaf and charges the whole actual tree.
+        let plain_result =
+            verified.uses_stored_borrows() && sum_budget.pure_composite(&closure.result, 0)?;
+        let mut plain_parameters = verified.uses_stored_borrows();
+        if plain_parameters {
+            for ty in &closure.parameters {
+                if !sum_budget.pure_composite(ty, 0)? {
+                    plain_parameters = false;
+                    break;
+                }
+            }
+        }
         let mut complete_captures = true;
         for ty in &closure.captures {
             let legacy_capture = {
@@ -246,7 +262,13 @@ fn lower_view_with_budget(
                     || (package_capture_type(ty, &module.resources)
                         && !package_array_fields(ty))
             };
-            if !legacy_capture && !sum_budget.inline_store_capture(ty, &module.resources)? {
+            let plain_capture = !legacy_capture
+                && verified.uses_stored_borrows()
+                && sum_budget.pure_composite(ty, 0)?;
+            if !legacy_capture
+                && !plain_capture
+                && !sum_budget.inline_store_capture(ty, &module.resources)?
+            {
                 complete_captures = false;
                 break;
             }
@@ -254,13 +276,13 @@ fn lower_view_with_budget(
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || verified_address_result || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || verified_address_result || plain_result || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
                     if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !complete_captures
-            || !closure.parameters.iter().all(|ty| {
+            || !plain_parameters && !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
                     || (captured_fixed_signature && qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
