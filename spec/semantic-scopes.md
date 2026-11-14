@@ -95,6 +95,8 @@ Self 是原名义 Self，按其发生位置和真实 impl scope 解释；不能�
 
 Head 地址和描述槽地址都必须来自真正被借 place；描述槽不能借类型注解升级为 owner 位置。统一类别不开放所有操作 profile，未完成的组合仍明确拒绝。Head 地址不授整头 Copy、任意写入、移动、销毁或 Thread 能力；其存续期、父 loan、完整内在 N、phantom、retained、状态和实际清理责任保持独立检查。
 
+仅局部初始化绑定的根注解允许以真实 raw 资源 recipe 保留未选模式的资源族约束，供 direct placement 使用；它不是无 wrapper 的运行时资源值。原 initializer 的已解完整类型与声明模式决定该绑定为 Managed 或 Desc，不能从实际 Typed hint、首个分支或仅“是一次 Call”决定。显式 Ref/Desc 保留描述类别，显式 Managed 必须得到真实完整拥有结果；普通完整 Type formal T 不重新选类别。只透明处理该根的 Group，不递归剥除 Tuple/ErrorUnion 等内部成员的 Desc；无 initializer 不以将来赋值猜模式。确定后绑定类别固定，后续赋值不切换。发布的 binding type、query 和 Typed 均须已消解为明确类型，并保持原 initializer 的完整生命域、来源及绑定身份。显式 ascription 先核完整类别，不能像 Group 一样穿透它重新取得内部工厂的拥有模式；显式描述借自临时工厂且无合法保活位置时拒绝。
+
 不可信输入在分配、克隆、哈希和缓存前支付完整节点、字节、深度与工作费用。冷、热、失败重试和重新请求均遵守实际请求预算；结构运输与语义解释分别收费，不能把运输费用测试当成 Analyze/Verify 语义预算证明。
 
 显式 dyn `Context`/`Ctx` 使用 `SemanticDynContextRecipe::Shape` 保存完整原 retained shape；`Closed` 保留省略形式的空输入上界，`Type` 只从真实 whole 类型提取 Context。Shape 不伪造成一个拥有值或空 BS<Unit>，也不授予物理 port、根、loan 或能力。类域、全部 ports/retained/nominal 项及其 scope/kind 由各消费者独立检查；未知不等于空 Context。
