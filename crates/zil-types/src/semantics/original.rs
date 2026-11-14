@@ -38,6 +38,45 @@ fn copy_recipe(
     crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1)?;
     Ok(ty.clone())
 }
+fn type_head(ty: &SemanticTypeRecipe) -> &'static str {
+    match ty {
+        SemanticTypeRecipe::Atom(ty) => match ty {
+            Type::Unit => "Unit",
+            Type::Bool => "Bool",
+            Type::I8 => "i8",
+            Type::I16 => "i16",
+            Type::I32 => "i32",
+            Type::I64 => "i64",
+            Type::Isize => "isize",
+            Type::U8 => "u8",
+            Type::U16 => "u16",
+            Type::U32 => "u32",
+            Type::U64 => "u64",
+            Type::Usize => "usize",
+            Type::F32 => "f32",
+            Type::F64 => "f64",
+            Type::ByteBuffer => "ByteBuffer",
+            _ => "Atom",
+        },
+        SemanticTypeRecipe::Formal(_) => "Formal",
+        SemanticTypeRecipe::SelfType { .. } => "SelfType",
+        SemanticTypeRecipe::Environment { .. } => "Environment",
+        SemanticTypeRecipe::OriginalType { .. } => "OriginalType",
+        SemanticTypeRecipe::Nominal { .. } => "Nominal",
+        SemanticTypeRecipe::Opaque { .. } => "Opaque",
+        SemanticTypeRecipe::Managed(_) => "Managed",
+        SemanticTypeRecipe::Desc { .. } => "Desc",
+        SemanticTypeRecipe::Address { .. } => "Address",
+        SemanticTypeRecipe::Code { .. } => "Code",
+        SemanticTypeRecipe::Closure { .. } => "Closure",
+        SemanticTypeRecipe::ErrorUnion { .. } => "ErrorUnion",
+        SemanticTypeRecipe::Array { .. } => "Array",
+        SemanticTypeRecipe::Slice(_) => "Slice",
+        SemanticTypeRecipe::Tuple(_) => "Tuple",
+        SemanticTypeRecipe::Task { .. } => "Task",
+        _ => "Other",
+    }
+}
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Query {
     Expression(NodeId),
@@ -214,6 +253,28 @@ impl<'a> Check<'a, '_> {
             .ok_or_else(|| bad("symbolic type references an absent original definition"))
     }
     fn same(&mut self, a: &SemanticTypeRecipe, b: &SemanticTypeRecipe) -> R<()> {
+        let result = self.same_inner(a, b);
+        match result {
+            Ok(()) => Ok(()),
+            Err(mut diagnostic) => {
+                self.pay(diagnostic.notes.len(), 0)?;
+                if !diagnostic
+                    .notes
+                    .iter()
+                    .any(|note| note.starts_with("original type heads:"))
+                {
+                    self.pay(256, 0)?;
+                    diagnostic.notes.push(format!(
+                        "original type heads: actual {}, wanted {}",
+                        type_head(a),
+                        type_head(b)
+                    ));
+                }
+                Err(diagnostic)
+            }
+        }
+    }
+    fn same_inner(&mut self, a: &SemanticTypeRecipe, b: &SemanticTypeRecipe) -> R<()> {
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
         if a == b {
@@ -1588,10 +1649,10 @@ impl<'a> Check<'a, '_> {
         let mut signature = signature.clone();
         for parameter in &mut signature.parameters {
             let ty = copy_recipe(&parameter.ty, self.limits, self.left)?;
-            parameter.ty = self.mode_type(parameter.mode, ty, depth + 1)?;
+            parameter.ty = self.mode_type(owner, parameter.mode, ty, depth + 1)?;
         }
         let result_type = copy_recipe(&signature.result, self.limits, self.left)?;
-        signature.result = self.mode_type(signature.result_mode, result_type, depth + 1)?;
+        signature.result = self.mode_type(owner, signature.result_mode, result_type, depth + 1)?;
         let signature = if template_ready {
             signature
         } else {
@@ -1994,6 +2055,25 @@ impl<'a> Check<'a, '_> {
         }
         Ok(result)
     }
+    fn contextual_integer(&mut self, expression: &SemanticOriginalExpr, depth: usize) -> R<bool> {
+        self.pay(1, depth)?;
+        match &expression.kind {
+            CoreExprKind::Integer(text) => {
+                self.pay(text.len(), depth)?;
+                Ok(![
+                    "i8", "i16", "i32", "i64", "isize", "u8", "u16", "u32", "u64", "usize",
+                ]
+                .iter()
+                .any(|suffix| text.ends_with(suffix)))
+            }
+            CoreExprKind::Group(inner)
+            | CoreExprKind::Unary {
+                op: UnaryOp::Negate,
+                operand: inner,
+            } => self.contextual_integer(inner, depth + 1),
+            _ => Ok(false),
+        }
+    }
     fn expr(
         &mut self,
         owner: SemanticDefinitionId,
@@ -2217,13 +2297,7 @@ impl<'a> Check<'a, '_> {
                     _ => return Err(bad("original slice does not select an array or slice")),
                 };
                 for index in start.iter().chain(end.iter()) {
-                    let ty = self.expr(
-                        owner,
-                        index,
-                        variables,
-                        Some(&SemanticTypeRecipe::Atom(Type::I64)),
-                        depth + 1,
-                    )?;
+                    let ty = self.expr(owner, index, variables, None, depth + 1)?;
                     if !matches!(ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer()) {
                         return Err(bad("original slice bound is not an integer"));
                     }
@@ -2279,12 +2353,17 @@ impl<'a> Check<'a, '_> {
                         "original give transfers an unavailable or borrowed value",
                     ));
                 }
-                if !matches!(value.ty, SemanticTypeRecipe::Managed(_)) {
+                let source = copy_recipe(&value.ty, self.limits, self.left)?;
+                let head = self.observation_type(owner, &source, depth + 1)?;
+                let SemanticTypeRecipe::Managed(resource) = &head else {
                     return Err(bad("original give requires an owning resource head"));
+                };
+                if !self.resource_head(owner, resource, depth + 1)? {
+                    return Err(bad("original give payload is not a declared resource head"));
                 }
                 value.used = true;
                 value.observed = true;
-                copy_recipe(&value.ty, self.limits, self.left)?
+                head
             }
             CoreExprKind::Ascribed { ty, value } => {
                 let expected = self.resolve(owner, ty, depth + 1)?;
@@ -2376,8 +2455,46 @@ impl<'a> Check<'a, '_> {
                 value
             }
             CoreExprKind::Binary { op, left, right } => {
-                let left = self.expr(owner, left, variables, wanted, depth + 1)?;
-                let right = self.expr(owner, right, variables, Some(&left), depth + 1)?;
+                let boolean = matches!(op, BinaryOp::And | BinaryOp::Or);
+                let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
+                let comparison = equality
+                    || matches!(
+                        op,
+                        BinaryOp::Less
+                            | BinaryOp::LessEqual
+                            | BinaryOp::Greater
+                            | BinaryOp::GreaterEqual
+                    );
+                // A comparison's Bool result is not its operand context. Only
+                // arithmetic forwards its numeric result context; logical
+                // operators impose their own Bool operand scheme.
+                let bool_type = SemanticTypeRecipe::Atom(Type::Bool);
+                let operand_wanted = if boolean {
+                    Some(&bool_type)
+                } else if comparison {
+                    None
+                } else {
+                    wanted.filter(|ty| matches!(ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float()))
+                };
+                // An untyped literal has no effects. Delaying it permits the
+                // other operand's independent type to supply its numeric
+                // context without evaluating or consuming that operand twice.
+                let (left, right) = if operand_wanted.is_none()
+                    && self.contextual_integer(left, depth + 1)?
+                    && !self.contextual_integer(right, depth + 1)?
+                {
+                    let right_ty = self.expr(owner, right, variables, None, depth + 1)?;
+                    let right_type = self.logical(owner, &right_ty, depth + 1)?;
+                    let left_ty =
+                        self.expr(owner, left, variables, Some(&right_type), depth + 1)?;
+                    (left_ty, right_ty)
+                } else {
+                    let left_ty = self.expr(owner, left, variables, operand_wanted, depth + 1)?;
+                    let left_type = self.logical(owner, &left_ty, depth + 1)?;
+                    let right_ty =
+                        self.expr(owner, right, variables, Some(&left_type), depth + 1)?;
+                    (left_ty, right_ty)
+                };
                 let left = self.logical(owner, &left, depth + 1)?;
                 let right = self.logical(owner, &right, depth + 1)?;
                 self.same(&left, &right)?;
@@ -2386,29 +2503,36 @@ impl<'a> Check<'a, '_> {
                         "original generic operation lacks a primitive type equality premise",
                     ));
                 };
-                let boolean = matches!(op, BinaryOp::And | BinaryOp::Or);
-                if boolean && ty != Type::Bool || !boolean && !ty.is_integer() && !ty.is_float() {
+                let integer_only = matches!(
+                    op,
+                    BinaryOp::BitAnd
+                        | BinaryOp::BitOr
+                        | BinaryOp::BitXor
+                        | BinaryOp::ShiftLeft
+                        | BinaryOp::ShiftRight
+                        | BinaryOp::AddWrapping
+                        | BinaryOp::SubtractWrapping
+                        | BinaryOp::MultiplyWrapping
+                );
+                let valid = if boolean {
+                    ty == Type::Bool
+                } else if equality {
+                    ty == Type::Bool || ty.is_integer() || ty.is_float()
+                } else if integer_only {
+                    ty.is_integer()
+                } else {
+                    ty.is_integer() || ty.is_float()
+                };
+                if !valid {
                     return Err(bad(
                         "original binary operator has incompatible primitive endpoint",
                     ));
                 }
-                SemanticTypeRecipe::Atom(
-                    if boolean
-                        || matches!(
-                            op,
-                            BinaryOp::Equal
-                                | BinaryOp::NotEqual
-                                | BinaryOp::Less
-                                | BinaryOp::LessEqual
-                                | BinaryOp::Greater
-                                | BinaryOp::GreaterEqual
-                        )
-                    {
-                        Type::Bool
-                    } else {
-                        ty
-                    },
-                )
+                SemanticTypeRecipe::Atom(if boolean || comparison {
+                    Type::Bool
+                } else {
+                    ty
+                })
             }
             CoreExprKind::ReceiverMember(member) => {
                 let definition = self.definition(owner)?;
@@ -3030,13 +3154,7 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
-        let index_ty = self.expr(
-            owner,
-            index,
-            variables,
-            Some(&SemanticTypeRecipe::Atom(Type::I64)),
-            depth + 1,
-        )?;
+        let index_ty = self.expr(owner, index, variables, None, depth + 1)?;
         let SemanticTypeRecipe::Atom(index_ty) = index_ty else {
             return Err(bad("original index is not a primitive integer"));
         };
@@ -3498,7 +3616,12 @@ impl<'a> Check<'a, '_> {
                     {
                         let annotation = copy_recipe(annotation, self.limits, self.left)?;
                         if self.initializer_owns(owner, initializer, variables, depth + 1)? {
-                            Some(self.mode_type(PassingMode::Create, annotation, depth + 1)?)
+                            Some(self.mode_type(
+                                owner,
+                                PassingMode::Create,
+                                annotation,
+                                depth + 1,
+                            )?)
                         } else {
                             Some(annotation)
                         }
@@ -4200,10 +4323,10 @@ impl<'a> Check<'a, '_> {
         for (index, (binder, parameter)) in parameters.iter().zip(&signature.parameters).enumerate()
         {
             let ty = self.resolve(definition.id, &parameter.ty, 0)?;
-            let ty = self.mode_type(parameter.mode, ty, 0)?;
+            let ty = self.mode_type(definition.id, parameter.mode, ty, 0)?;
             if let Some(annotation) = &binder.ty {
                 let annotation = self.resolve(definition.id, annotation, 0)?;
-                let annotation = self.mode_type(binder.mode, annotation, 0)?;
+                let annotation = self.mode_type(definition.id, binder.mode, annotation, 0)?;
                 self.same(&ty, &annotation)?;
             }
             let copy = copy_recipe(&ty, self.limits, self.left)?;
@@ -4228,7 +4351,7 @@ impl<'a> Check<'a, '_> {
             );
         }
         let result = copy_recipe(&signature.result, self.limits, self.left)?;
-        let result = self.mode_type(signature.result_mode, result, 0)?;
+        let result = self.mode_type(definition.id, signature.result_mode, result, 0)?;
         let outer_loops = std::mem::take(&mut self.loops);
         let outer_stage = std::mem::replace(&mut self.stage_depth, 0);
         let outer_cleanup = std::mem::replace(&mut self.cleanup_depth, 0);

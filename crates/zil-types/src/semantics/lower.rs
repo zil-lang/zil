@@ -183,6 +183,7 @@ impl<'a> Lower<'a, '_> {
         function: FunctionId,
         node: NodeId,
         action: &mut SemanticSiteAction,
+        intrinsic: Option<&super::original::IntrinsicKind>,
     ) -> R<Point> {
         let row = self.expression(function, node)?;
         let mut found = None;
@@ -205,18 +206,28 @@ impl<'a> Lower<'a, '_> {
                     } => self.target(target)? == *actual,
                     _ => false,
                 },
-                SemanticSiteAction::CoreBodyCall => matches!(
-                    instruction.kind,
-                    InstructionKind::Call { .. }
-                        | InstructionKind::ForeignCall { .. }
-                        | InstructionKind::SuspendCall { .. }
-                        | InstructionKind::CallIndirect { .. }
-                        | InstructionKind::CallClosure { .. }
-                        | InstructionKind::CallClosureOnce { .. }
-                        | InstructionKind::CallClosureShared { .. }
-                        | InstructionKind::CallClosureMut { .. }
-                        | InstructionKind::CallClosureBorrowed { .. }
-                ),
+                SemanticSiteAction::CoreBodyCall => {
+                    if let Some(intrinsic) = intrinsic {
+                        super::world::intrinsic_operation_matches(
+                            intrinsic,
+                            &instruction.kind,
+                            self.left,
+                        )?
+                    } else {
+                        matches!(
+                            instruction.kind,
+                            InstructionKind::Call { .. }
+                                | InstructionKind::ForeignCall { .. }
+                                | InstructionKind::SuspendCall { .. }
+                                | InstructionKind::CallIndirect { .. }
+                                | InstructionKind::CallClosure { .. }
+                                | InstructionKind::CallClosureOnce { .. }
+                                | InstructionKind::CallClosureShared { .. }
+                                | InstructionKind::CallClosureMut { .. }
+                                | InstructionKind::CallClosureBorrowed { .. }
+                        )
+                    }
+                }
                 SemanticSiteAction::BodyCall { .. } => {
                     return Err(bad("Core input claims already materialized body call"));
                 }
@@ -246,7 +257,12 @@ impl<'a> Lower<'a, '_> {
         }
         found.ok_or_else(|| bad("semantic site does not name its actual emitted operation"))
     }
-    fn site(&mut self, function: FunctionId, site: &mut SemanticSite) -> R<()> {
+    fn site(
+        &mut self,
+        function: FunctionId,
+        site: &mut SemanticSite,
+        intrinsic: Option<&super::original::IntrinsicKind>,
+    ) -> R<()> {
         let SemanticSiteAddress::Core {
             expression,
             occurrence: 0,
@@ -303,7 +319,7 @@ impl<'a> Lower<'a, '_> {
             *local = SemanticLocalTarget::Typed(declaration.local);
             declaration.at
         } else {
-            self.point_for(function, expression, &mut site.action)?
+            self.point_for(function, expression, &mut site.action, intrinsic)?
         };
         match &mut site.action {
             SemanticSiteAction::Construct { result, .. }
@@ -516,7 +532,20 @@ pub(super) fn program(
         let function = *targets
             .get(&site.instance)
             .ok_or_else(|| bad("semantic executable site has no actual function instance"))?;
-        lower.site(function, site)?;
+        // A sealed intrinsic is selected only by this checked original
+        // definition/site pair. The whole scheme and actual argument/result
+        // domains are still checked by World after relocation.
+        let proof = ledger.original.borrow();
+        let intrinsic = if let Some(proof) = proof.as_ref() {
+            pay(lower.left, search(proof.intrinsics.len()))?;
+            proof
+                .intrinsics
+                .get(&(definition.id, site.recipe))
+                .map(|call| &call.kind)
+        } else {
+            None
+        };
+        lower.site(function, site, intrinsic)?;
         match (&original.kind, &site.action) {
             (
                 SemanticSiteRecipeKind::Call {

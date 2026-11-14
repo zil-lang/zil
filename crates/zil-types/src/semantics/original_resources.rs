@@ -1,6 +1,34 @@
 //! Original nominal/resource construction before actual opcode matching.
 use super::*;
 impl Check<'_, '_> {
+    /// Recognize a language resource head from its original constructor.
+    /// This answers only the ownership-carrier question: no shape, lifetime,
+    /// cleanup, Transfer or ClosedEnvironment theorem follows from it.
+    pub(super) fn resource_head(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        let ty = self.observation_type(owner, ty, depth + 1)?;
+        Ok(match ty {
+            SemanticTypeRecipe::Atom(Type::ByteBuffer)
+            | SemanticTypeRecipe::OwnedStore(_)
+            | SemanticTypeRecipe::Mutex(_)
+            | SemanticTypeRecipe::Task { .. }
+            | SemanticTypeRecipe::Registration(_)
+            | SemanticTypeRecipe::AsyncRegistration(_) => true,
+            SemanticTypeRecipe::Nominal { definition, .. } => matches!(
+                self.definition(definition)?.body,
+                SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Resource,
+                    ..
+                }
+            ),
+            _ => false,
+        })
+    }
     pub(super) fn record_constructor(
         &mut self,
         owner: SemanticDefinitionId,

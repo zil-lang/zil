@@ -18,6 +18,25 @@ mod methods;
 mod projection;
 #[path = "world_roles.rs"]
 mod roles;
+/// Relocation may identify a sealed opcode only by its independently checked
+/// original scheme. This authenticates operation correspondence, not W/classes.
+pub(super) fn intrinsic_operation_matches(
+    kind: &super::original::IntrinsicKind,
+    instruction: &InstructionKind,
+    left: &mut usize,
+) -> R<bool> {
+    let count = match instruction {
+        InstructionKind::MakeVariant { fields, .. } => fields.len(),
+        InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreateOwned { arguments, .. }
+        | InstructionKind::SuspendCall { arguments, .. } => arguments.len(),
+        _ => 8,
+    };
+    *left = left.checked_sub(count.saturating_add(1)).ok_or_else(|| {
+        Diagnostic::limit(Phase::Types, "sealed opcode relocation work exceeded", None)
+    })?;
+    Ok(intrinsics::operand_ids(kind, instruction).is_ok())
+}
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-WORLD", Span::default(), message)
 }

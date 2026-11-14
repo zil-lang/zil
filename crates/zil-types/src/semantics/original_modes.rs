@@ -4,6 +4,7 @@ use super::*;
 impl Check<'_, '_> {
     pub(super) fn mode_type(
         &mut self,
+        owner: SemanticDefinitionId,
         mode: PassingMode,
         mut ty: SemanticTypeRecipe,
         depth: usize,
@@ -15,10 +16,23 @@ impl Check<'_, '_> {
                 SemanticTypeRecipe::ErrorUnion { error, result } if mode == PassingMode::Create => {
                     ty = SemanticTypeRecipe::ErrorUnion {
                         error,
-                        result: Box::new(self.mode_type(mode, *result, depth + 1)?),
+                        result: Box::new(self.mode_type(owner, mode, *result, depth + 1)?),
                     };
                 }
                 _ => {}
+            }
+        }
+        if matches!(mode, PassingMode::Borrow | PassingMode::BorrowMut) {
+            if let SemanticTypeRecipe::Address { inner, .. } = &mut ty {
+                if let SemanticTypeRecipe::Desc {
+                    inner: resource, ..
+                } = inner.as_ref()
+                {
+                    if self.resource_head(owner, resource, depth + 1)? {
+                        let resource = copy_recipe(resource, self.limits, self.left)?;
+                        *inner = Box::new(SemanticTypeRecipe::Managed(Box::new(resource)));
+                    }
+                }
             }
         }
         Ok(ty)

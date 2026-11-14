@@ -820,9 +820,14 @@ impl Check<'_, '_> {
             || actual.call_kind != wanted.call_kind
             || actual.result_mode != wanted.result_mode
         {
-            return Err(bad(
-                "original callable changes its complete scoped call scheme",
+            self.pay(384, depth)?;
+            let mut diagnostic = bad("original callable changes its complete scoped call scheme");
+            diagnostic.notes.push(format!(
+                "original callable scheme: actual P={} Bound={} Invocation={} ABI={:?} resultMode={:?}; wanted P={} Bound={} Invocation={} ABI={:?} resultMode={:?}",
+                actual.parameters.len(), actual.bound_lifetimes, actual.invocation_lifetimes, actual.call_kind, actual.result_mode,
+                wanted.parameters.len(), wanted.bound_lifetimes, wanted.invocation_lifetimes, wanted.call_kind, wanted.result_mode
             ));
+            return Err(diagnostic);
         }
         let actual = self.inference_template(actual, &[], true, depth + 1)?;
         let mut implicit = BTreeMap::new();
