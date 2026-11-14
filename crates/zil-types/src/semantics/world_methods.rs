@@ -1,6 +1,8 @@
 //! Actual method boundaries consume the independently checked original provider
 //! theorem. Concrete receiver images never prove generic conformance.
 use super::*;
+#[path = "world_invocation.rs"]
+mod invocation;
 fn recipe_type(
     world: &mut World<'_, '_>,
     scope: SemanticInstanceId,
@@ -535,8 +537,8 @@ fn invocation_inputs(
     header: &StorageLifeContract,
     parameters: &[SemanticTypeValue],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<Vec<(SemanticClassExpr, SemanticClassExpr)>> {
-    let mut mapping: Vec<(SemanticClassExpr, SemanticClassExpr)> = Vec::new();
+) -> R<invocation::Inputs> {
+    let mut mapping = invocation::Inputs::default();
     world.pay(header.bindings.len().saturating_add(header.classes.len()))?;
     for row in &header.bindings {
         let StorageBase::Parameter(index) = row.position.base else {
@@ -567,6 +569,15 @@ fn invocation_inputs(
         let slot = if let Some(slot) = slots.next() {
             slot
         } else {
+            if invocation::static_input(
+                world,
+                &mut mapping,
+                &source,
+                &parameters[index as usize],
+                &row.position,
+            )? {
+                continue;
+            }
             crate::dyn_metadata::semantic_operand_snapshot(
                 &parameters[index as usize],
                 world.limits,
@@ -585,7 +596,17 @@ fn invocation_inputs(
         let actual = classes
             .get(slot.binder as usize)
             .ok_or_else(|| bad("invocation argument class exceeds its complete domain"))?;
-        insert_invocation(world, instance, &mut mapping, source, actual, implicit)?;
+        if mapping.statics.contains(&source) {
+            return Err(bad("one anonymous input changes its static lifetime image"));
+        }
+        insert_invocation(
+            world,
+            instance,
+            &mut mapping.classes,
+            source,
+            actual,
+            implicit,
+        )?;
     }
     for row in &header.classes {
         let StorageBase::Parameter(index) = row.position.base else {
@@ -633,7 +654,17 @@ fn invocation_inputs(
                 .get(part.binder as usize)
                 .ok_or_else(|| bad("invocation nested class exceeds complete argument N"))?
         };
-        insert_invocation(world, instance, &mut mapping, source, actual, implicit)?;
+        if mapping.statics.contains(&source) {
+            return Err(bad("static outer role is also an intrinsic class input"));
+        }
+        insert_invocation(
+            world,
+            instance,
+            &mut mapping.classes,
+            source,
+            actual,
+            implicit,
+        )?;
     }
     Ok(mapping)
 }
@@ -819,7 +850,8 @@ pub(super) fn callable(
             .ok_or_else(|| bad("callable entry parameter local is absent"))?
             .ty;
         let target = world.parameter_value(child.id, ordinal, ty)?;
-        let target = world.map_call_value(
+        let target = invocation::map(
+            world,
             &target,
             &[],
             Some((header, child, closure_value)),
@@ -835,7 +867,8 @@ pub(super) fn callable(
         &function.return_type,
     )?;
     let target = world.result_value(child.id, &function.return_type)?;
-    let target = world.map_call_value(
+    let target = invocation::map(
+        world,
         &target,
         &[],
         Some((header, child, closure_value)),
@@ -943,7 +976,7 @@ pub(super) fn direct(
             Some(header) => {
                 invocation_inputs(world, instance, callee, header, &parameters, implicit)?
             }
-            None => Vec::new(),
+            None => invocation::Inputs::default(),
         };
         for (ordinal, (((parameter, expected), target_parameter), local)) in signature
             .parameters
@@ -962,7 +995,7 @@ pub(super) fn direct(
                 .ok_or_else(|| bad("direct entry parameter local is absent"))?
                 .ty;
             let target = world.parameter_value(callee.id, ordinal, ty)?;
-            let target = world.map_call_value(&target, actuals, None, &invocation)?;
+            let target = invocation::map(world, &target, actuals, None, &invocation)?;
             world.same(instance.id, &target, expected, implicit)?;
         }
         let expected = call_result(
@@ -973,7 +1006,7 @@ pub(super) fn direct(
             &function.return_type,
         )?;
         let target = world.result_value(callee.id, &function.return_type)?;
-        let target = world.map_call_value(&target, actuals, None, &invocation)?;
+        let target = invocation::map(world, &target, actuals, None, &invocation)?;
         world.same(instance.id, &target, &expected, implicit)?;
         selected = Some(expected);
     }
@@ -1042,7 +1075,7 @@ pub(super) fn sealed_worker(
     }
     let invocation = match &function.storage_life {
         Some(header) => invocation_inputs(world, caller, callee, header, &parameters, implicit)?,
-        None => Vec::new(),
+        None => invocation::Inputs::default(),
     };
     for (ordinal, (expected, local)) in parameters.iter().zip(&function.parameters).enumerate() {
         let ty = &function
@@ -1051,11 +1084,11 @@ pub(super) fn sealed_worker(
             .ok_or_else(|| bad("sealed worker parameter local is absent"))?
             .ty;
         let target = world.parameter_value(callee.id, ordinal, ty)?;
-        let target = world.map_call_value(&target, &actuals, None, &invocation)?;
+        let target = invocation::map(world, &target, &actuals, None, &invocation)?;
         world.same(caller.id, &target, expected, implicit)?;
     }
     let expected = world.ty(caller.id, &signature.result, &function.return_type)?;
     let target = world.result_value(callee.id, &function.return_type)?;
-    let target = world.map_call_value(&target, &actuals, None, &invocation)?;
+    let target = invocation::map(world, &target, &actuals, None, &invocation)?;
     world.same(caller.id, &target, &expected, implicit)
 }
