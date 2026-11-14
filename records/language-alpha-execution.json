@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T11:37:02.204387+00:00",
+  "updated_at_utc": "2026-11-14T12:26:36.335553+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,51 +9,36 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "ab531913571867465d088592f2fe34c2711f27ca",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-shared-original-capture-environment",
+    "candidate": "22ea2a1667fcfebc62c4f2c8b3f96de9d6ad26f2",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-original-context-and-domain-integration",
     "accepted": false,
-    "scope": "Exact source/check and existing four small native sources; full regressions not run in this feedback candidate",
+    "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
     "cli_build": 0,
     "foundation_positives": {
-      "passed": 0,
+      "passed": 1,
       "total": 13
     },
     "intended_negatives": {
-      "passed": 3,
+      "passed": 4,
       "total": 4
-    },
-    "native_small_sources": {
-      "passed": 12,
-      "total": 16
     },
     "failures": [
       {
         "group": "positive_cases",
-        "family": "scalars",
+        "family": "patterns",
         "status": "SafeReject",
         "diagnostics": [
           {
             "phase": "analyze",
             "category": "SafeReject",
             "code": "E-ANALYZE-IR",
-            "message": "semantic program: original emission recipe has no actual operation",
+            "message": "semantic program: original name is not in the complete lexical value context",
             "span": null,
-            "notes": []
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "patterns",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "analyze",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original resource nominal needs its actual Drop definition and cleanup proof",
-            "span": null,
-            "notes": []
+            "notes": [
+              "original definition module 0 index 12, expression 13",
+              "original definition module 0 index 12, expression 12",
+              "original definition module 0 index 12, expression 8"
+            ]
           }
         ]
       },
@@ -66,9 +51,11 @@
             "phase": "analyze",
             "category": "SafeReject",
             "code": "E-ANALYZE-IR",
-            "message": "semantic program: original operation does not typecheck under its rigid declaration",
+            "message": "semantic program: original variant operation requires a nominal enum subject",
             "span": null,
-            "notes": []
+            "notes": [
+              "original definition module 3 index 1, expression 1"
+            ]
           }
         ]
       },
@@ -81,7 +68,7 @@
             "phase": "analyze",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "original resource nominal needs its actual Drop definition and cleanup proof",
+            "message": "semantic value requires its exact actual class/role transport",
             "span": null,
             "notes": []
           }
@@ -96,33 +83,29 @@
             "phase": "types",
             "category": "ResourceLimit",
             "code": "E-RESOURCE-LIMIT",
-            "message": "dyn metadata snapshot budget exceeded",
-            "span": null,
-            "notes": [
-              "original operation owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(373), span Span { file: FileId(0), start: 2655, end: 2677 }, kind Discriminant(16)",
-              "original statement owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, node NodeId(372), span Span { file: FileId(0), start: 2640, end: 2678 }, operation Discriminant(0)",
-              "original checked function SemanticDefinitionId { module: ModuleId(0), index: 4 }"
-            ]
+            "message": "source closure constraint work budget exceeded",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
           }
         ]
       },
       {
         "group": "positive_cases",
         "family": "dynamic-abstraction",
-        "status": "SafeReject",
+        "status": "Unsupported",
         "diagnostics": [
           {
-            "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-WORLD",
-            "message": "dynamic receiver borrow has no complete original occurrence seal",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original call has no complete lexical declaration or core scheme",
+            "span": null,
             "notes": [
-              "original SemanticDefinitionId { module: ModuleId(0), index: 11 }; actual function FunctionId(6), block BlockId(0), instruction 2, local LocalId(0), result ValueId(0)"
+              "original definition module 0 index 11, expression 1"
             ]
           }
         ]
@@ -130,13 +113,13 @@
       {
         "group": "positive_cases",
         "family": "async-ownership",
-        "status": "SafeReject",
+        "status": "Unsupported",
         "diagnostics": [
           {
             "phase": "analyze",
-            "category": "SafeReject",
-            "code": "E-ANALYZE-IR",
-            "message": "stored target proof: zero nominal compiler declaration has no authentic consumer",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "semantic value transport exceeds its finite actual SSA depth",
             "span": null,
             "notes": []
           }
@@ -151,7 +134,7 @@
             "phase": "analyze",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "original compound assignment needs its exact initialized place projection",
+            "message": "capture class image needs its actual emitted value or initialized occupant",
             "span": null,
             "notes": []
           }
@@ -163,15 +146,11 @@
         "status": "SafeReject",
         "diagnostics": [
           {
-            "phase": "types",
+            "phase": "analyze",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-WORLD",
-            "message": "class CFG has ambiguous original instances",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
+            "code": "E-ANALYZE-IR",
+            "message": "semantic program: original protocol Poll has another complete canonical declaration or payload",
+            "span": null,
             "notes": []
           }
         ]
@@ -179,20 +158,16 @@
       {
         "group": "positive_cases",
         "family": "owning-collections",
-        "status": "SafeReject",
+        "status": "Unsupported",
         "diagnostics": [
           {
             "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-ORIGINAL",
-            "message": "original fresh inference has incompatible rigid actuals",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "nominal field requires a complete opaque/callable domain directory",
+            "span": null,
             "notes": [
-              "original Gamma: definition SemanticDefinitionId { module: ModuleId(2), index: 9 }, expression NodeId(1)"
+              "complete actual nominal child type: Address { mutable: false, inner: Package { name: \"@module0:$module0_Value\", fields: [(\"bytes\", Managed(ByteBuffer)), (\"id\", I64)] } }"
             ]
           }
         ]
@@ -200,50 +175,31 @@
       {
         "group": "positive_cases",
         "family": "buffered-io",
-        "status": "SafeReject",
+        "status": "Unsupported",
         "diagnostics": [
           {
-            "phase": "types",
-            "category": "SafeReject",
-            "code": "E-SEMANTIC-EMISSION",
-            "message": "semantic source expression NodeId(52) in FunctionId(6) was not actually emitted",
-            "span": {
-              "file": 0,
-              "start": 0,
-              "end": 0
-            },
-            "notes": []
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original operation needs its complete symbolic type, place, stage or cleanup interpretation",
+            "span": null,
+            "notes": [
+              "original definition module 0 index 3, expression 25",
+              "original definition module 0 index 3, expression 20"
+            ]
           }
         ]
       },
       {
         "group": "positive_cases",
         "family": "iteration",
-        "status": "Unsupported",
-        "diagnostics": [
-          {
-            "phase": "types",
-            "category": "Unsupported",
-            "code": "E-UNSUPPORTED",
-            "message": "original type query has no finite defining equation",
-            "span": null,
-            "notes": [
-              "original equation owner SemanticDefinitionId { module: ModuleId(1), index: 43 }: query Associated(LifeDeclarationId { module: ModuleId(1), declaration: NodeId(11), compiler: false };member=0;receiver=Formal(SemanticFormalRef { scope: Ancestor(1), ordinal: 1 });args=1), other Associated(LifeDeclarationId { module: ModuleId(1), declaration: NodeId(10), compiler: false };member=0;receiver=Nominal(SemanticDefinitionId { module: ModuleId(1), index: 17 };args=2);args=0)",
-              "original type heads: actual Other, wanted Other"
-            ]
-          }
-        ]
-      },
-      {
-        "group": "positive_cases",
-        "family": "project-workflow",
         "status": "SafeReject",
         "diagnostics": [
           {
             "phase": "types",
             "category": "SafeReject",
-            "code": "E-SEMANTIC-WORLD",
-            "message": "one implicit captured head has no unique real capture input",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "ErrorUnion recipe changes its actual result constructor: instance SemanticInstanceId { module: ModuleId(1), index: 10 }, definition SemanticDefinitionId { module: ModuleId(1), index: 47 }, actual Package",
             "span": {
               "file": 0,
               "start": 0,
@@ -254,35 +210,39 @@
         ]
       },
       {
-        "group": "negative_cases",
-        "family": "ownership-original",
-        "status": "ResourceLimit",
+        "group": "positive_cases",
+        "family": "project-workflow",
+        "status": "Unsupported",
         "diagnostics": [
           {
-            "phase": "types",
-            "category": "ResourceLimit",
-            "code": "E-RESOURCE-LIMIT",
-            "message": "dyn metadata snapshot budget exceeded",
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original compound assignment needs its exact initialized place projection",
             "span": null,
             "notes": [
-              "original statement owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, node NodeId(372), span Span { file: FileId(0), start: 2640, end: 2678 }, operation Discriminant(0)",
-              "original checked function SemanticDefinitionId { module: ModuleId(0), index: 4 }"
+              "original definition module 0 index 4, expression 11"
             ]
           }
         ]
       }
-    ]
+    ],
+    "native_small_sources": {
+      "passed": 12,
+      "total": 16
+    },
+    "full_regressions": "not run in this feedback candidate"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "f871fbb63",
-  "current_candidate_under_validation": "f871fbb63",
+  "latest_ready_source": "70c7edcd51dff8bd26dcf7708ccd9a8ea84ae340",
+  "current_candidate_under_validation": "22ea2a1667fcfebc62c4f2c8b3f96de9d6ad26f2",
   "wip_backup": {
-    "archive_commit": "e2e49b02c77466d2b9a2e1d04e557f5ee2add3b5",
-    "previous_archive": "8dbeb1f3eee4261fb7d6b55abd98cf34c2122dca",
-    "source_base": "ccbd117316096f072b3bfd9697e70b5f892632dc",
-    "prefix": "language/20261114T110253Z-active-wip",
-    "changed_files": 45,
-    "artifacts": 18,
+    "archive_commit": "cd022f4459cc69ce0065d22c3daac89d17848d15",
+    "previous_archive": "908e7f11bfbffa4e959890350490615b76515169",
+    "source_base": "b81b57590f991286195c693108f51ff8c525e281",
+    "prefix": "language/20261114T122408Z-active-wip",
+    "changed_files": 19,
+    "artifacts": 9,
     "remote_manifest_and_patch_readback_equal": true,
     "state": "WIP, not functional acceptance"
   },
@@ -337,6 +297,6 @@
       "c_abi_companion": "Fail in Expand callback-expression profile; first type-formation profile fixed, next old narrow callback-expression gate remains. Original source/C provider retained."
     }
   },
-  "latest_runtime_acceptance_summary": "NOT ACCEPTED: first scalar family has real Source/Types/Analyze/Verify success and four native configurations, but C ABI companion still fails in source callback expression classification. Four intended original-obligation negatives now pass in default budget.",
+  "latest_runtime_acceptance_summary": "NOT ACCEPTED: 1/13 source/check (scalars) and 4/4 intended SyncDrop negatives. ActualDirectory complete context evaluation compiled; Task actual generation and other original/actual consumer families still under construction. Same-candidate scalar native/C ABI running.",
   "remaining_alpha_claims": "No complete Alpha, no new PR/merge/release; keep original uninstantiated definitions, independent kernels, default budgets, full native/C/CT/project and restoration acceptance."
 }

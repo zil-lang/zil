@@ -1,0 +1,225 @@
+{
+  "candidate": "22ea2a1667fcfebc62c4f2c8b3f96de9d6ad26f2",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-original-context-and-domain-integration",
+  "accepted": false,
+  "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
+  "cli_build": 0,
+  "foundation_positives": {
+    "passed": 1,
+    "total": 13
+  },
+  "intended_negatives": {
+    "passed": 4,
+    "total": 4
+  },
+  "failures": [
+    {
+      "group": "positive_cases",
+      "family": "patterns",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original name is not in the complete lexical value context",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 12, expression 13",
+            "original definition module 0 index 12, expression 12",
+            "original definition module 0 index 12, expression 8"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "generic-libraries",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original variant operation requires a nominal enum subject",
+          "span": null,
+          "notes": [
+            "original definition module 3 index 1, expression 1"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "closures",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "semantic value requires its exact actual class/role transport",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "ownership",
+      "status": "ResourceLimit",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "source closure constraint work budget exceeded",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "dynamic-abstraction",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original call has no complete lexical declaration or core scheme",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 11, expression 1"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "async-ownership",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "semantic value transport exceeds its finite actual SSA depth",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "threads",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture class image needs its actual emitted value or initialized occupant",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "foreign-lifecycle",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original protocol Poll has another complete canonical declaration or payload",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "owning-collections",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "nominal field requires a complete opaque/callable domain directory",
+          "span": null,
+          "notes": [
+            "complete actual nominal child type: Address { mutable: false, inner: Package { name: \"@module0:$module0_Value\", fields: [(\"bytes\", Managed(ByteBuffer)), (\"id\", I64)] } }"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "buffered-io",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original operation needs its complete symbolic type, place, stage or cleanup interpretation",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 3, expression 25",
+            "original definition module 0 index 3, expression 20"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "iteration",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "ErrorUnion recipe changes its actual result constructor: instance SemanticInstanceId { module: ModuleId(1), index: 10 }, definition SemanticDefinitionId { module: ModuleId(1), index: 47 }, actual Package",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "project-workflow",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original compound assignment needs its exact initialized place projection",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 4, expression 11"
+          ]
+        }
+      ]
+    }
+  ],
+  "native_small_sources": {
+    "passed": 12,
+    "total": 16
+  },
+  "full_regressions": "not run in this feedback candidate"
+}
