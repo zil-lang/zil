@@ -1,0 +1,12 @@
+{
+  "schema": "zil.remote-publication.v1",
+  "verified_at_utc": "2026-11-14T04:03:11.392312+00:00",
+  "repository": "https://github.com/zil-lang/zil",
+  "branch": "research/full-push-native",
+  "verified_commit": "9b0a8b6e29c49673c234cca5704430d5e4455e0e",
+  "remote_readback": "9b0a8b6e29c49673c234cca5704430d5e4455e0e\trefs/heads/research/full-push-native",
+  "checkpoint_readback_sha256": "cb2c2e17a3148beae07cae6632448e0456ac50ec8128a3bc08f02453654b4e68",
+  "source_commit": "b6e019894986b43a1bf1a81cf549a0850d66b9b4",
+  "evidence_included": true,
+  "scope": "Git push completed and branch SHA plus checkpoint blob read back; full archive fresh restore verified locally, no claim of downloading all remote archive parts."
+}

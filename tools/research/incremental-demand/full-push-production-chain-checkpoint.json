@@ -1567,7 +1567,7 @@
   ],
   "custody": {
     "local_archive": "tools/research/incremental-demand/evidence/full-chain-20261114",
-    "remote_status": "pending; GitHub write authentication unavailable",
+    "remote_status": "pushed and verified by branch SHA and checkpoint blob readback",
     "LLVM_rebuilt": false,
     "source_archive_exclusion": "Only prior historical raw evidence directory tools/research/incremental-demand/evidence excluded from embedded source tarballs to avoid duplicate225MB; full Git listings retained. Complete Git delta bundle retains actual source/evidence commits.",
     "archive_manifest_sha256": "eea79ca218821bd53302727064ce69d9ebb6462a7b8e240911c6b9d95b649787",
@@ -1578,7 +1578,9 @@
     "logical_bytes": 3150124982,
     "fresh_local_restore_verified": true,
     "fresh_restore_receipt_sha256": "8844ed1574772be465159901e54d6419fda802e9dc90154120e8497fa323cd77",
-    "fresh_restore_root": "/workspace/zil-full-chain-12-evidence-verified"
+    "fresh_restore_root": "/workspace/zil-full-chain-12-evidence-verified",
+    "remote_commit": "9b0a8b6e29c49673c234cca5704430d5e4455e0e",
+    "publication_receipt": "tools/research/incremental-demand/full-push-publication-receipt.json"
   },
   "Rust_leading_cells": 18
 }

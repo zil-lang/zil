@@ -42,4 +42,4 @@ Rust1.99.1/LLVM23.1.1; ZIL LLVM23.1.4, original stock2bf vs SDK18 785 actual map
 
 全局ReactiveGraph传播及更广程序/特性的全面稳定Rust领先父门仍开放。未合main，研究默认关闭。
 
-完整原始证据由分片archive+manifest保留并新目录恢复验证；GitHub写入认证仍不可用，不能把本地归档冒称已收到的远端备份。嵌入源码tar只排除上一轮非源码raw证据目录以免重复，完整Git树清单和delta bundle保留原提交。
+完整原始证据由分片archive+manifest保留并新目录恢复验证；源码及完整证据已推送并核对远端 `9b0a8b6e29c49673c234cca5704430d5e4455e0e`，checkpoint blob 已读回一致，见 [publication receipt](full-push-publication-receipt.json)；归档内认证待办描述保留为历史状态。嵌入源码tar只排除上一轮非源码raw证据目录以免重复，完整Git树清单和delta bundle保留原提交。
