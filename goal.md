@@ -22,6 +22,8 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
+2026-11-15（Asia/Shanghai）用户要求停止施工并由 root 本人审核，不使用子代理审查。全部实施与审查代理及构建已停止；最新完整候选243c05a73仍正向1/13、预期负例4/4，Alpha未接受。源码fd028ceb3与全部活动WIP已同步/固定归档90d7881b并读回校验。具体算法不一致、完整消费者遗漏、调度问题及已更新执行约束见[亲自审核](records/language-alpha-personal-workflow-audit-20261115.md)；仅文档与现场保全，不自动恢复施工。
+
 2026-11-13 用户进一步明确：局部切片过多，立即整合为大功能分支，终态施工且不承担历史兼容。当前统一源码入口为 `task/language-alpha`（共同树 `/workspace/zil-public-integration`，由原公共集成分支承接，包含已接受 main9170）；Source/CT、Types、两独立核、FullW、Task 在不相交模块中并行，root 单写 Git/公共表示与统一候选测试。旧10条活动源码分支已全部迁移、固定归档于archive@4df26352并退役，旧树exact detach/raw保留；当前唯一语言施工入口为Alpha，不再旧分支开发。近期交付为核心功能 Alpha；1.0 的完整泛化及产品性能目标保留而不混算。
 
 验收单位是同版本真实 Source→Types→Analyze→独立 Verify→原生与失败清理。Alpha尚未接受，2026-11-14 最新完整候选 `b88721e42` 已构建CLI并检查13份正向工程，仍为 **1/13**（标量）；独立Verify真实非零，4份保留原定义的负向工程均在预期SyncDrop义务处正确拒绝。`22ea2a166` 同版本标量双后端O0/O2四配置成功，C ABI companion已过Types但卡Analyze原调用scheme；不能把标量子项算整族完成。完整原类型域求值层已首次集成编译，三项实际域组合测试3/0；小型原生链12/16，phantom尚未过独立V。Source Task实际生成、完整名义/闭包域、原词法/variant/协议、两核实际消费者与CT/C/工程验收仍在同一功能分支施工。已READY组立即精确保存，所有活动WIP于固定archive `cd022f445` 保全并读回校验；不将保全视为验收。最新断点、运行收据及未测边界见[Alpha执行记录](records/language-alpha-execution.json)。
