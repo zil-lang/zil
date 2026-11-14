@@ -4,7 +4,7 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Intrinsic {
+pub(in crate::semantic) enum Intrinsic {
     TaskYield,
     TaskCreate,
     TaskPoll,

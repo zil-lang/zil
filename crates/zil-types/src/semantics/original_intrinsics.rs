@@ -2,6 +2,15 @@
 use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum IntrinsicKind {
+    DynCall {
+        declaration: SemanticDefinitionId,
+        parent: SemanticDefinitionId,
+        member: u32,
+        receiver_mode: PassingMode,
+        parameter_modes: Vec<PassingMode>,
+        result_mode: PassingMode,
+        call_kind: CallKind,
+    },
     TaskCreate {
         worker: SemanticDefinitionId,
         owned: bool,
@@ -485,6 +494,7 @@ impl Check<'_, '_> {
             }
             IntrinsicKind::ThreadScope { .. }
             | IntrinsicKind::TaskCreate { .. }
+            | IntrinsicKind::DynCall { .. }
             | IntrinsicKind::TaskYield
             | IntrinsicKind::TaskOperation(_)
             | IntrinsicKind::RegistrationStart { .. }
@@ -573,17 +583,13 @@ impl Check<'_, '_> {
         }
         self.proof.calls.insert((owner, site), actuals);
         let result = copy_recipe(result, self.limits, self.left)?;
-        let effect = if matches!(
-            kind,
+        let effect = match &kind {
+            IntrinsicKind::DynCall { call_kind, .. } => *call_kind,
             IntrinsicKind::TaskYield
-                | IntrinsicKind::TaskCreate {
-                    await_result: true,
-                    ..
-                }
-        ) {
-            CallKind::Suspend
-        } else {
-            CallKind::Direct
+            | IntrinsicKind::TaskCreate {
+                await_result: true, ..
+            } => CallKind::Suspend,
+            _ => CallKind::Direct,
         };
         self.proof.intrinsics.insert(
             (owner, site),

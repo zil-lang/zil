@@ -20,6 +20,28 @@ fn recipe_type(
         _ => Err(bad("method original type materializes another actual kind")),
     }
 }
+fn call_result(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    site: &SemanticSite,
+    recipe: &SemanticTypeRecipe,
+    hint: &Type,
+) -> R<SemanticTypeValue> {
+    if matches!(recipe, SemanticTypeRecipe::Opaque { .. }) {
+        super::super::materialize::call_result_at(
+            world.program,
+            world.module,
+            world.ledger,
+            instance.id,
+            site.recipe,
+            hint,
+            world.limits,
+            world.left,
+        )
+    } else {
+        world.ty(instance.id, recipe, hint)
+    }
+}
 fn parent_class(
     world: &mut World<'_, '_>,
     image: &SemanticClassExpr,
@@ -423,7 +445,13 @@ pub(super) fn evaluate(
                 implicit,
             )?;
         }
-        selected = Some(world.ty(instance.id, &signature.result, &function.return_type)?);
+        selected = Some(call_result(
+            world,
+            instance,
+            site,
+            &signature.result,
+            &function.return_type,
+        )?);
     }
     Ok(selected)
 }
@@ -704,7 +732,13 @@ pub(super) fn callable(
         )?;
         world.same(instance.id, &target, expected, implicit)?;
     }
-    let expected = world.ty(instance.id, &signature.result, &function.return_type)?;
+    let expected = call_result(
+        world,
+        instance,
+        site,
+        &signature.result,
+        &function.return_type,
+    )?;
     let target = world.result_value(child.id, &function.return_type)?;
     let target = world.map_call_value(
         &target,
@@ -836,7 +870,13 @@ pub(super) fn direct(
             let target = world.map_call_value(&target, actuals, None, &invocation)?;
             world.same(instance.id, &target, expected, implicit)?;
         }
-        let expected = world.ty(instance.id, &signature.result, &function.return_type)?;
+        let expected = call_result(
+            world,
+            instance,
+            site,
+            &signature.result,
+            &function.return_type,
+        )?;
         let target = world.result_value(callee.id, &function.return_type)?;
         let target = world.map_call_value(&target, actuals, None, &invocation)?;
         world.same(instance.id, &target, &expected, implicit)?;

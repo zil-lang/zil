@@ -234,7 +234,7 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
             | InstructionKind::CallClosureBorrowed { arguments, .. }
             | InstructionKind::CallClosureShared { arguments, .. }
             | InstructionKind::CallClosureMut { arguments, .. } => arguments.len(),
-            _ => 8,
+            _ => super::intrinsics::operand_work(&actual.kind),
         };
         world.pay(argument_cost)?;
         let actual_arguments = if let Some(callee) = callee {

@@ -856,3 +856,208 @@ pub(crate) fn owned_provider(
     }
     Ok(())
 }
+
+/// Authenticate the selected slot against its complete original declaration
+/// directory. Caller arguments and all class images are proved by World.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn call_slot(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    interface_id: DynInterfaceId,
+    slot_ordinal: u32,
+    parent: SemanticDefinitionId,
+    method: SemanticDefinitionId,
+    member: u32,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    provider_fee(
+        left,
+        module
+            .dyn_interfaces
+            .len()
+            .saturating_add(module.dyn_declarations.len()),
+    )?;
+    let mut interfaces = module
+        .dyn_interfaces
+        .iter()
+        .filter(|row| row.id == interface_id);
+    let interface = interfaces
+        .next()
+        .ok_or_else(|| bad("Dyn call has no actual interface directory"))?;
+    if interfaces.next().is_some() {
+        return Err(bad("Dyn call actual interface repeats"));
+    }
+    crate::dyn_metadata::semantic_operand_snapshot(interface, limits, left, 1)?;
+    let slot = interface
+        .slots
+        .get(slot_ordinal as usize)
+        .ok_or_else(|| bad("Dyn call has no actual selected slot"))?;
+    let mut declarations = module
+        .dyn_declarations
+        .iter()
+        .filter(|row| row.id == slot.member.application.declaration);
+    let declaration = declarations
+        .next()
+        .ok_or_else(|| bad("Dyn call has no original trait declaration"))?;
+    if declarations.next().is_some() || declaration.kind != DynDeclarationKind::Trait {
+        return Err(bad("Dyn call trait declaration repeats or changes kind"));
+    }
+    crate::dyn_metadata::semantic_operand_snapshot(declaration, limits, left, 1)?;
+    let parent_scope = exact_scope(program, SemanticDynOwner::Declaration(declaration.id), left)?;
+    if parent_scope.id != parent
+        || parent_scope.identity != declaration.identity
+        || !matches!(parent_scope.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration:id}) if id==declaration.id)
+    {
+        return Err(bad("Dyn slot changes its complete original trait scope"));
+    }
+    if slot.member.application != interface.application {
+        return Err(bad(
+            "Dyn selected root member changes the complete trait application",
+        ));
+    }
+    if declaration.direct_supertraits.is_none()
+        || declaration.requirements.is_none()
+        || declaration.associated_definitions.is_none()
+    {
+        return Err(unknown(
+            "Dyn call requires its complete original supertrait, where and associated directory",
+        ));
+    }
+    if declaration.parameters.len() != parent_scope.parameters.len() {
+        return Err(bad("Dyn original trait loses complete mixed formal kinds"));
+    }
+    provider_fee(left, declaration.parameters.len())?;
+    for (kind, formal) in declaration.parameters.iter().zip(&parent_scope.parameters) {
+        let matched = match (kind, formal) {
+            (LifeParameterKind::Type, SemanticFormal::Type { .. })
+            | (LifeParameterKind::Lifetime, SemanticFormal::Lifetime) => true,
+            (
+                LifeParameterKind::Const(actual),
+                SemanticFormal::Const {
+                    carrier: SemanticTypeRecipe::Atom(expected),
+                },
+            ) => actual == expected,
+            _ => false,
+        };
+        if !matched {
+            return Err(bad(
+                "Dyn original trait changes a mixed kind or Const carrier",
+            ));
+        }
+    }
+    if slot.member.ordinal != member {
+        return Err(bad("Dyn slot selects another original member"));
+    }
+    let original = exact_scope(
+        program,
+        SemanticDynOwner::MethodSignature {
+            declaration: declaration.id,
+            member,
+        },
+        left,
+    )?;
+    if original.id != method
+        || original.parent != Some(parent)
+        || original.kind != SemanticDefinitionKind::Method
+    {
+        return Err(bad("Dyn slot method is outside its original trait scope"));
+    }
+    let Some(directory_member) = declaration.members.get(member as usize) else {
+        return Err(bad("Dyn call original member ordinal is absent"));
+    };
+    let DynMemberKind::Method(kinds) = &directory_member.kind else {
+        return Err(bad("Dyn call selects a nonmethod original member"));
+    };
+    provider_fee(
+        left,
+        kinds
+            .len()
+            .saturating_add(original.parameters.len())
+            .saturating_add(original.identity.declaration_path.len())
+            .saturating_add(parent_scope.identity.declaration_path.len()),
+    )?;
+    let prefix = &parent_scope.identity.declaration_path;
+    let path = &original.identity.declaration_path;
+    if !path.starts_with(prefix)
+        || path.len() != prefix.len() + 3
+        || path[prefix.len()] != "member"
+        || path[prefix.len() + 1].parse::<u32>().ok() != Some(member)
+        || path.last() != Some(&directory_member.name)
+        || original.identity.package != parent_scope.identity.package
+        || original.identity.module_path != parent_scope.identity.module_path
+        || original.identity.generation_path != parent_scope.identity.generation_path
+        || kinds.len() != original.parameters.len()
+        || slot.actuals.len() != kinds.len()
+    {
+        return Err(bad(
+            "Dyn slot loses its complete original member identity or mixed scheme",
+        ));
+    }
+    for (kind, formal) in kinds.iter().zip(&original.parameters) {
+        let matched = match (kind, formal) {
+            (LifeParameterKind::Type, SemanticFormal::Type { .. })
+            | (LifeParameterKind::Lifetime, SemanticFormal::Lifetime) => true,
+            (
+                LifeParameterKind::Const(actual),
+                SemanticFormal::Const {
+                    carrier: SemanticTypeRecipe::Atom(expected),
+                },
+            ) => actual == expected,
+            _ => false,
+        };
+        if !matched {
+            return Err(bad(
+                "Dyn slot changes an original generic kind or Const carrier",
+            ));
+        }
+    }
+    let signatures = declaration
+        .method_signatures
+        .as_ref()
+        .ok_or_else(|| unknown("Dyn call omits its original method signature directory"))?;
+    provider_fee(left, signatures.len())?;
+    let mut signatures = signatures
+        .iter()
+        .filter(|signature| signature.member == member);
+    let signature = signatures
+        .next()
+        .ok_or_else(|| bad("Dyn call original method signature is absent"))?;
+    if signatures.next().is_some() {
+        return Err(bad("Dyn call original method signature repeats"));
+    }
+    exact_signature_recipe(&signature.signature, original, left)?;
+    exact_contract_recipe(&signature.signature.contract, &slot.contract)?;
+    let original_signature = original_signature(original)?;
+    if slot.parameter_modes.len() != slot.parameters.len()
+        || original_signature.parameters.len() != slot.parameters.len().saturating_add(1)
+        || slot.result_mode != original_signature.result_mode
+        || slot.call_kind != original_signature.call_kind
+        || slot.receiver.mode != original_signature.parameters[0].mode
+    {
+        return Err(bad(
+            "Dyn slot changes its complete original signature modes or effect",
+        ));
+    }
+    for (parameter, mode) in original_signature
+        .parameters
+        .iter()
+        .skip(1)
+        .zip(&slot.parameter_modes)
+    {
+        if parameter.mode != *mode {
+            return Err(bad("Dyn slot changes an original parameter mode"));
+        }
+    }
+    let proof = ledger.original.borrow();
+    let proof = proof
+        .as_ref()
+        .ok_or_else(|| bad("Dyn slot has no checked original Gamma"))?;
+    if !proof.complete.contains(&method) {
+        return Err(bad(
+            "Dyn slot method has no complete original body or declaration proof",
+        ));
+    }
+    Ok(())
+}

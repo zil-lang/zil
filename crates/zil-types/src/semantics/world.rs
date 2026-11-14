@@ -8,6 +8,8 @@ use std::collections::BTreeMap;
 mod arguments;
 #[path = "world_capture.rs"]
 mod capture;
+#[path = "world_dyn.rs"]
+mod dynamic;
 #[path = "world_flow.rs"]
 mod flow;
 #[path = "world_intrinsics.rs"]
@@ -25,13 +27,7 @@ pub(super) fn intrinsic_operation_matches(
     instruction: &InstructionKind,
     left: &mut usize,
 ) -> R<bool> {
-    let count = match instruction {
-        InstructionKind::MakeVariant { fields, .. } => fields.len(),
-        InstructionKind::TaskCreate { arguments, .. }
-        | InstructionKind::TaskCreateOwned { arguments, .. }
-        | InstructionKind::SuspendCall { arguments, .. } => arguments.len(),
-        _ => 8,
-    };
+    let count = intrinsics::operand_work(instruction);
     *left = left.checked_sub(count.saturating_add(1)).ok_or_else(|| {
         Diagnostic::limit(Phase::Types, "sealed opcode relocation work exceeded", None)
     })?;
@@ -1432,6 +1428,8 @@ impl World<'_, '_> {
         }
         match ty {
             Type::BorrowedStorage { .. }
+            | Type::Dyn { .. }
+            | Type::OwnedDyn { .. }
             | Type::Closure(_)
             | Type::MutexGuard { .. }
             | Type::Task { .. } => {
@@ -1904,6 +1902,7 @@ impl World<'_, '_> {
                         }
                     }
                     InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowDynOwned { local, .. }
                     | InstructionKind::BorrowLocalMut { local }
                     | InstructionKind::DescribeLocal { local } => {
                         self.pay(1)?;
@@ -2079,6 +2078,22 @@ impl World<'_, '_> {
                                 ty.ok_or_else(|| bad("place borrow has no complete result type"))?,
                                 image,
                                 &value,
+                            )?)
+                        }
+                        InstructionKind::BorrowDynOwned { local, mutable } => {
+                            let source = self.local(&locals, *local)?;
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("dynamic borrow has no actual SSA result"))?;
+                            let image = self.occurrence(f, result)?;
+                            Some(dynamic::borrow(
+                                self,
+                                f,
+                                *local,
+                                *mutable,
+                                ty.ok_or_else(|| bad("dynamic borrow has no actual type"))?,
+                                image,
+                                &source,
                             )?)
                         }
                         InstructionKind::BorrowLocal { local }

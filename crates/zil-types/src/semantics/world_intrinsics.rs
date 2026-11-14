@@ -76,6 +76,12 @@ pub(super) fn evaluate(
             crate::dyn_metadata::semantic_operand_snapshot(parameter, world.limits, world.left, 1)?;
         }
         crate::dyn_metadata::semantic_operand_snapshot(&call.result, world.limits, world.left, 1)?;
+        if let IntrinsicKind::DynCall {
+            parameter_modes, ..
+        } = &call.kind
+        {
+            world.pay(parameter_modes.len())?;
+        }
         if let IntrinsicKind::RegistrationStart { providers, .. } = &call.kind {
             world.pay(providers.len())?;
         }
@@ -98,7 +104,9 @@ pub(super) fn evaluate(
     };
     world.pay(call.parameters.len())?;
     identity(world, instance, &call, instruction, ty)?;
-    let actual_effect = if matches!(
+    let actual_effect = if let IntrinsicKind::DynCall { call_kind, .. } = &call.kind {
+        *call_kind
+    } else if matches!(
         instruction,
         InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }
     ) {
@@ -111,19 +119,22 @@ pub(super) fn evaluate(
             "actual sealed opcode changes its independently proved original effect",
         ));
     }
-    world.pay(call.parameters.len().saturating_add(8))?;
+    world.pay(operand_work(instruction))?;
     let operands = operand_ids(&call.kind, instruction)?;
     if operands.len() != call.parameters.len() {
         return Err(bad(
             "sealed intrinsic omits an original receiver or argument",
         ));
     }
+    world.pay(call.parameters.len())?;
+    let mut parameters = Vec::new();
     for (ordinal, (operand, parameter)) in operands.iter().zip(&call.parameters).enumerate() {
         let actual = world.get(values, *operand)?;
         let expected = world.ty(instance.id, parameter, World::type_of(&actual)?)?;
         arguments::satisfy(
             world, instance, None, site, ordinal, *operand, &actual, &expected, locals, implicit,
         )?;
+        parameters.push(expected);
     }
     if let Some((signature, actuals)) = &call.worker_scheme {
         let (function, definition) = match (&call.kind, instruction) {
@@ -160,6 +171,18 @@ pub(super) fn evaluate(
     }
     let ty = ty.ok_or_else(|| bad("sealed intrinsic omits its actual result type"))?;
     let result = world.ty(instance.id, &call.result, ty)?;
+    if matches!(&call.kind, IntrinsicKind::DynCall { .. }) {
+        dynamic::call(
+            world,
+            instance,
+            &call,
+            site,
+            instruction,
+            &parameters,
+            &result,
+            implicit,
+        )?;
+    }
     if let SemanticSiteAction::Construct {
         result: subject,
         value: claimed,
@@ -193,8 +216,29 @@ pub(super) fn evaluate(
     Ok(Some(result))
 }
 
+pub(super) fn operand_work(instruction: &InstructionKind) -> usize {
+    match instruction {
+        InstructionKind::MakeVariant { fields, .. } => fields.len().saturating_add(1),
+        InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreateOwned { arguments, .. }
+        | InstructionKind::SuspendCall { arguments, .. } => arguments.len().saturating_add(1),
+        InstructionKind::CallDynSlot { arguments, .. } => arguments.len().saturating_add(2),
+        _ => 8,
+    }
+}
 pub(super) fn operand_ids(kind: &IntrinsicKind, instruction: &InstructionKind) -> R<Vec<ValueId>> {
     Ok(match (kind, instruction) {
+        (
+            IntrinsicKind::DynCall { .. },
+            InstructionKind::CallDynSlot {
+                callee, arguments, ..
+            },
+        ) => {
+            let mut operands = Vec::with_capacity(arguments.len().saturating_add(1));
+            operands.push(*callee);
+            operands.extend_from_slice(arguments);
+            operands
+        }
         (
             IntrinsicKind::NominalConstructor {
                 variant: expected, ..
