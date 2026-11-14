@@ -1876,10 +1876,22 @@ mod source_tests {
             .unwrap();
         assert_eq!(
             instance.arguments,
-            vec![LifeNominalActual::Type(Type::Address {
-                mutable: false,
-                inner: Box::new(Type::I64),
-            })]
+            vec![LifeNominalActual::QualifiedType {
+                ty: Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I64),
+                },
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![StorageLifeSlot {
+                        path: vec![],
+                        binder: 0,
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+            }]
         );
         let Type::BorrowedStorage { life, .. } = &instance.ty else {
             panic!("{instance:?}")
@@ -1910,10 +1922,22 @@ mod source_tests {
             .unwrap();
         assert_eq!(
             instance.arguments,
-            vec![LifeNominalActual::Type(Type::Address {
-                mutable: false,
-                inner: Box::new(Type::I64),
-            })]
+            vec![LifeNominalActual::QualifiedType {
+                ty: Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I64),
+                },
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![StorageLifeSlot {
+                        path: vec![],
+                        binder: 0,
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+            }]
         );
         let Type::BorrowedStorage { life, .. } = &instance.ty else {
             panic!("{instance:?}")
