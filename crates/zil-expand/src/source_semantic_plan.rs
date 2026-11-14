@@ -214,30 +214,44 @@ fn directory_site(
     )?;
     budget.lineage_push(site_nodes, SemanticOriginalSiteNode { site, node }, span)
 }
-// A function-valued projection/application is one value occurrence. Its
-// module/member/type-application prefixes and assignment destinations are
-// not additional FunctionRef results or invented value reads.
+// Only a projection used as a value owns a value Ascription. Prefixes and
+// places used to form an address have no separate field-value SSA result.
+// Names retain their independent actual Local/Parameter/Capture receipts;
+// this classification is used only for projected value observations.
 fn projection_value(
     body: &mut SourceBody<'_>,
     path: &[u32],
     budget: &mut Budget<'_>,
     span: Span,
 ) -> R<bool> {
-    if path.is_empty() {
-        return Ok(true);
-    }
-    let child = *path.last().expect("nonempty path");
-    let Some(parent) = body.locate(&path[..path.len() - 1], budget, span)? else {
-        return Ok(true);
-    };
-    Ok(match parent.node {
-        body_nodes::Node::Statement(statement) => {
-            !matches!(&statement.kind,s::StmtKind::Assign {..} if child==0)
+    let mut length = path.len();
+    while length > 0 {
+        let child = path[length - 1];
+        let Some(parent) = body.locate(&path[..length - 1], budget, span)? else {
+            return Ok(true);
+        };
+        match parent.node {
+            body_nodes::Node::Statement(statement) => {
+                return Ok(!matches!(&statement.kind,s::StmtKind::Assign {..} if child==0));
+            }
+            body_nodes::Node::Expression(expression) => match &expression.kind {
+                s::ExprKind::Group(_) if child == 0 => length -= 1,
+                s::ExprKind::Call { .. }
+                | s::ExprKind::TypeApply { .. }
+                | s::ExprKind::Member { .. }
+                | s::ExprKind::Index { .. }
+                | s::ExprKind::Unary {
+                    op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
+                    ..
+                } if child == 0 => return Ok(false),
+                // The index expression is still evaluated as a value even
+                // when the indexed object is a borrowed or assigned place.
+                _ => return Ok(true),
+            },
+            body_nodes::Node::NonRuntime => return Ok(false),
         }
-        body_nodes::Node::Expression(expression) => !matches!(&expression.kind,
-            s::ExprKind::Call {..}|s::ExprKind::TypeApply {..}|s::ExprKind::Member {..} if child==0),
-        body_nodes::Node::NonRuntime => false,
-    })
+    }
+    Ok(true)
 }
 fn observation_operand(
     body: &mut SourceBody<'_>,
@@ -818,5 +832,68 @@ mod tests {
             }
         }
         assert_eq!(projections, 1);
+    }
+
+    #[test]
+    fn borrowed_projection_places_do_not_invent_field_value_events() {
+        let (mut syntax, program) = prepare(
+            "struct Cell{n:i32}struct Holder{left:Cell;table:[Cell;2];index:i32}fn examine(value:&mut Holder){let first=&value.left;let second=&mut (value.left);let third=&value.table[value.index];let fourth=&mut ((value.table[0]));let read=value.left.n;(value.left).n=read;return ()}",
+        );
+        let definition = program.modules[0]
+            .1
+            .definitions
+            .iter()
+            .find(|row| row.id.index == 2)
+            .unwrap();
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else {
+            panic!()
+        };
+        let s::ItemKind::Function(function) = &mut syntax[0].items[2].kind else {
+            panic!()
+        };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut body = SourceBody::Function(&mut function.body);
+        let mut borrow_sites = 0;
+        let mut observed_fields = Vec::new();
+        let mut observed_names = 0;
+        for site in sites {
+            if !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) {
+                continue;
+            }
+            let located = body
+                .locate(&site.occurrence_path[1..], &mut budget, function.span)
+                .unwrap()
+                .unwrap();
+            let body_nodes::Node::Expression(expression) = located.node else {
+                continue;
+            };
+            match &expression.kind {
+                s::ExprKind::Unary {
+                    op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
+                    ..
+                } => {
+                    borrow_sites += 1;
+                    assert!(expression.semantic.raw_index().is_some());
+                    assert!(
+                        definition
+                            .implicit_lifetimes
+                            .iter()
+                            .any(|implicit| implicit.occurrence_path == site.occurrence_path)
+                    );
+                }
+                s::ExprKind::Member {
+                    member: s::MemberName::Name(name),
+                    ..
+                } => observed_fields.push(name.clone()),
+                s::ExprKind::Name(name) if name == "value" => observed_names += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(borrow_sites, 4);
+        // The true index operand and ordinary field read still emit values.
+        // Neither grouped borrow places nor the assignment destination do.
+        assert_eq!(observed_fields, ["index", "n"]);
+        assert!(observed_names > 0);
     }
 }
