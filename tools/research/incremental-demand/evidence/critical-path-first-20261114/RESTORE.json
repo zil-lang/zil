@@ -1,0 +1,35 @@
+{
+  "schema": "zil.current-machine-emission-recovery.v1",
+  "compiled_source": "5a1434573ecd2ce8aa233e6841e9181ff3d9fd9d",
+  "compiled_tree": "5fa75d9baeee63e30c6e6f9cfb38f4b0c4c0409d",
+  "binary_sha256": "54815d6064473ec9cde849f8fc2b8573abeb9de0a0e2e5d724142d08c94a32fa",
+  "additional_gate_source": "76993726b2e986ccd49b50c6424748d335056aeb",
+  "baseline_source": "9170bb4210554392e36eb7528596612596ebef80",
+  "tool_source": "ad81486b976634e71bf1c61544d0fd28a783fbae",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "662a03e9eb0371b8f5bc398e4322ee19f7360379c8671d453d27d4cbce2d80dc",
+  "archive_sha256": "9032b903354252ac4ccc57803cd52147744efdb3a51109ad40ae1766cbf9c97f",
+  "archive_bytes": 1047090662,
+  "parts": 42,
+  "regular_files": 40560,
+  "logical_bytes": 4353188686,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "candidate_binary_relative_to_restored_payload": "out/binaries/5a1434573ecd2ce8aa233e6841e9181ff3d9fd9d/zil",
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/critical-path-first-20261114",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "dependencies": {
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "prior_accepted": "https://github.com/zil-lang/zil/blob/4b3a99b873b433501fb9c24184b1348023316b11/tools/research/incremental-demand/evidence/current-large-project-20261114/RESTORE.json"
+  },
+  "scope": "Initial closed current-module emission and shared epoch metadata: all first failures, raw probes, frozen gates18-22 and complete wave04 five successful windows plus native1000 full-ELF failure; original5105 capacity. Source5a metrics never attributed to769. SDK18/native-link dependency separate; no universal Rust or main-merge claim.",
+  "LLVM_rebuilt": false,
+  "main_merge": false,
+  "recovery_limit": "Preserved evidence and compiled binaries, not a complete installation. Reconstruct or explicitly rebind absolute runtime paths; use separately pinned SDK18/native-link and frozen Rust tools."
+}

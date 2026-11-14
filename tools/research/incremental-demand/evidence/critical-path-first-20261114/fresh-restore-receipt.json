@@ -1,0 +1,16 @@
+{
+  "archive_bytes": 1047090662,
+  "files": 40560,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 42,
+  "raw_bytes": 4353188686,
+  "restore_dir": "/workspace/zil-recovery/critical-path-first-fresh-01",
+  "scope": "Initial closed current-module emission and shared epoch metadata: all first failures, raw probes, frozen gates18-22 and complete wave04 five successful windows plus native1000 full-ELF failure; original5105 capacity. Source5a metrics never attributed to769. SDK18/native-link dependency separate; no universal Rust or main-merge claim.",
+  "sha256": "9032b903354252ac4ccc57803cd52147744efdb3a51109ad40ae1766cbf9c97f",
+  "source_commits": {
+    "extended": "76993726b2e986ccd49b50c6424748d335056aeb",
+    "first": "5a1434573ecd2ce8aa233e6841e9181ff3d9fd9d",
+    "tools": "ad81486b976634e71bf1c61544d0fd28a783fbae"
+  },
+  "status": "verified"
+}
