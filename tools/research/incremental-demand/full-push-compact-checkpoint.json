@@ -1,145 +1,189 @@
 {
-  "schema": "zil.compiler-pain-continuation.v1",
+  "schema": "zil.compiler-pain-continuation.v2",
   "construction_branch": "research/full-push-native",
-  "latest_pushed_source_parent": "1de00f63f80cf4534ec995dc51e106005b270ddb",
-  "working_delta": "Evidence, reviews and continuation metadata only; no compiler source changes.",
-  "last_fully_accepted_research_compiler_source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
-  "new_production_source": "e005777aa63d8a3031a9024eaa12af5376d6904c",
-  "new_production_status": "Accepted current Source admission fusion and actual-LIR optional capture selection, composed unchanged receipts and current targeted repairs; current strict/fmt/release pass. Full original5105 Source→Types→Analyze→independentVerify→native capacity succeeds. Global/universal Rust objective remains open.",
-  "stock_candidate": {
-    "source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
-    "binary_sha256": "7826460c9609fc558ac7aac461cfa329ca8f809d11df6e480de30df9881abb6d",
-    "workspace": {
-      "passed": 6122,
-      "failed": 0,
-      "ignored": 0,
-      "targets": 433
-    },
-    "reference_tests": 73,
-    "strict": true,
-    "fmt": true,
-    "release": true,
-    "controlled_window_status": "check/O2 each102rows34pairs full gate pass, only2blocks",
-    "workflow_seconds": {
-      "check": {
-        "main": 11.7371,
-        "candidate": 11.8946,
-        "Rust": 8.0758
-      },
-      "O2": {
-        "main": 32.3104,
-        "candidate": 31.3406,
-        "Rust": 25.8004
-      }
-    },
-    "negative": "Native1000 full-ELF hard gate fails in current stock window;425 unchanged833.34ms/main553.15/Rust32.52 and repeated-private regressions retained. No main merge."
-  },
-  "baseline_source": "9170bb4210554392e36eb7528596612596ebef80",
-  "controlled_baseline_binary_sha256": "08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0",
-  "weighted_coverage_report": "tools/research/incremental-demand/current-large-project-reviews-20261114/large-project-current-weighted-coverage.md",
-  "raw_evidence_restore": "tools/research/incremental-demand/evidence/current-large-project-20261114/RESTORE.json",
-  "raw_evidence": {
-    "archive_bytes": 1256214534,
-    "parts": 50,
-    "files": 38370,
-    "raw_bytes": 5872518806,
-    "fresh_verified": true,
-    "current_complete_windows": 7,
-    "current_failed_windows": 2,
-    "current_actual_rows": 864,
-    "failed_windows": [
-      "research native1000:3/246 rows;fullELF mismatch;comparisons empty",
-      "stock native1000:3/102 rows;fullELF mismatch;comparisons empty"
-    ],
-    "prior_archive_preserved_at": "1de00f63f80cf4534ec995dc51e106005b270ddb"
-  },
-  "priority": [
-    "Actual default-budget large-project capacity blockers",
-    "Absolute seconds saved in cold/broad large builds and real edit sequences weighted by observed frequency",
-    "Physical/logical user cache peak and growth over edits",
-    "Millisecond no-op ratio as a regression control"
+  "compiled_source": "789f879f249c7f45a5c84ce062be30f9c0985740",
+  "compiled_tree": "03f09679035b2b43f3c9803d6cdc438065c56cb5",
+  "binary_sha256": "e9bcf50ceb40a3f5e86b9e5abd4793a4302e9e92b279917b1f4da7b49d693274",
+  "status": "Current-module closed-body emission, bounded optional alpha cost selection and shared persistent epoch metadata implemented and accepted in stated finite scopes. Native cold/broad Rust lead, native1000 complete-ELF quality, industrial coverage and main merge remain open.",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "baseline_binary_sha256": "08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0",
+  "tool_source": "ad81486b976634e71bf1c61544d0fd28a783fbae",
+  "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+  "LLVM_rebuilt": false,
+  "implementation": [
+    "Full current preflight/Builder/default<O2>/before-after LLVM Verify precede optional current-module closed integer machine-body reuse. Original optimized module never mutates; speculative machine generation uses another clone. Full symbols/layout are reconstructed and LLVM reassembles them through same-subtarget private naked/nounwind carrier; no retained LLVM owner or cross-CGU/request authority.",
+    "Complete canonical printed function plus actual typed attributes authorize reuse; optional alpha uses a separate print-only clone. ABI/BB/instruction shape and bounded streamed local-name profiles only select worthwhile attempts. Hash collisions may miss optimization, never authorize body equality. Source/default budgets are unchanged.",
+    "Shared metadata chunks reassemble the exact original envelope before original bounded decoder/body/current binding/Verify. Immutable content blocks, atomic final root, history restart, corruption/missing/symlink/cancellation/namespace failures remain checked; no GC or budget relaxation."
   ],
-  "coverage_limit": "Synthetic 100-module projects and bounded chain/diamond, not industrial Rust workspace/generic/proc-macro/async success; no minute-scale pain-resolution claim. No invented industrial workload weights.",
-  "unmodified_requirements": [
-    "default numeric limits",
-    "independent current Verify",
-    "complete O2",
-    "full original input/import closure",
-    "full ELF gate for formal native windows",
-    "research flags off by default"
-  ],
-  "main_merge": false,
-  "historical_98fa_results": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.json",
-  "next": [
-    "Prioritize large native cold/broad absolute seconds (2500cold candidate2.821s/Rust1.390s remains negative), and repeated edit growth (1000check8.64MiB/Rust3.09MiB).",
-    "Resolve real machine .text/complete-ELF gate failures without relabeling negative windows, preserve current independentVerify/defaultlimits/fullO2.",
-    "Expand beyond synthetic scalar100-module projects to supported representative large software; industrial generic/macro/async workspace coverage remains open.",
-    "Main candidate remains concrete and reviewed at integrate/scalar-codegen30c; do not merge until required quality and weighted regression conditions close."
-  ],
-  "compiled_source": "1de00f63f80cf4534ec995dc51e106005b270ddb",
-  "compiled_tree": "850ff626b6e9cc227d29b2cbe823fa769df52c8c",
-  "binary_sha256": "4d040bb3dea0d3ca8b4ec06e38d47c359289a74c54ab3069b7bc90fd9f0fa5f7",
   "gates": {
-    "source257": "Actually run at f7, reused by exact production/test-equivalence review for5517/1de.",
-    "driver_composed214": {
-      "unchanged_f7_successes": 207,
-      "repaired_old_failures": 6,
-      "new_raw_fee_anchor": 1,
-      "current_selected_executions": 9,
-      "overlap_previous_successes": 2,
-      "full_driver_rerun_claimed": false
+    "api_composed99": {
+      "prior_actual_successes": 97,
+      "prior_source": "fca282b2103846ec1fa82099b2616b520b932002",
+      "prior_window": "critical-path-wave19-fca282b21038",
+      "current_actual_selection": 15,
+      "current_window": "critical-path-wave23-789f879f249c",
+      "overlap": 13,
+      "repaired_or_new_unique": 2,
+      "whole99_rerun_claimed": false
     },
-    "Source_native9": "Actually passed5517; source-equivalent reuse at1de.",
-    "explicit_native_publication1": "Actually passed5517 with installed profile; original missing-env infrastructure failure retained.",
-    "native_API86_backend273": "Unchanged backend/API production and SDK18 permit reuse from accepted8ce; not rerun at1de.",
-    "clippy_fmt_release": "Actually passed exact1de, host CARGO_INCREMENTAL=0; benchmark controls separately O2/CGU16/jobs1.",
-    "source_review": "Precise e005/5517/1de independent reviews accepted, including actual removed fees, unchanged1280temporary peak and test-only alias."
+    "backend273_driver219_Source_native9_publication1": "Actually passed d71ce38e556b2a8e5cfb7b235ad54f8ccd787ef3 wave20; unchanged consumer/transaction/configuration source composed with current API emission runtime tests and real Source06 windows. Not rerun at789. Exact independent review accepts this bounded reuse, not a proof of every optional CFG shape.",
+    "current_native_contracts": "Actual nonzero full ordinary object equality; distinct symbols; small9reused/norm0, long>64postO2inst9reused/norm12, original IR unchanged; mixed liveglobal/externalcall/.eh_frame/.rela.text; after-ASM cancellation and successful retry.",
+    "strict_fmt_release": "Actual exact789 wave23 all valid. Current profile CARGO_INCREMENTAL=0; frozen host debug/strip settings are distinct from benchmark CGU16/O2/jobs1.",
+    "Source257": "Prior exact source-equivalent admission/Analyze/Verify receipts remain referenced at4b; no current rerun claim."
+  },
+  "current_windows": {
+    "wave04": {
+      "source": "5a1434573ecd2ce8aa233e6841e9181ff3d9fd9d",
+      "valid": 5,
+      "failed": 1,
+      "rows": 657,
+      "report": "critical-path-reviews-20261114/critical-path-wave04-weighted-coverage.md"
+    },
+    "wave05": {
+      "source": "76993726b2e986ccd49b50c6424748d335056aeb",
+      "valid": 3,
+      "failed": 1,
+      "rows": 309,
+      "report": "critical-path-reviews-20261114/critical-path-wave05-weighted-coverage.md"
+    },
+    "wave06": {
+      "source": "789f879f249c7f45a5c84ce062be30f9c0985740",
+      "valid": 1,
+      "failed": 1,
+      "rows": 105,
+      "report": "critical-path-reviews-20261114/critical-path-wave06-weighted-coverage.md"
+    },
+    "total_recorded_rows": 1071,
+    "scope": "Each window only actual main/that candidate/Rust, CGU16/O2/jobs1; check separate; two blocks. Failed native1000 comparisons remain empty. Different-source/window timings are never a causal speedup ratio."
+  },
+  "current789_large2500_O2": {
+    "requests": 17,
+    "rows": 102,
+    "complete_ELF_gate": true,
+    "workflow_seconds": {
+      "main": 10.621686824,
+      "candidate": 7.2310193505,
+      "Rust": 7.905952018
+    },
+    "cold_seconds": {
+      "main": 2.300508537,
+      "candidate": 2.354360824,
+      "Rust": 1.4262493655
+    },
+    "broad_seconds": {
+      "main": 2.1986795195,
+      "candidate": 1.802049276,
+      "Rust": 1.238193847
+    },
+    "physical_boundary_peak_MiB": {
+      "main": 26.906,
+      "candidate": 12.504,
+      "Rust": 42.508
+    },
+    "eight_private_edit_growth_MiB": {
+      "main": 14.875,
+      "candidate": 1.094,
+      "Rust": 11.527
+    },
+    "actual_reuse": {
+      "cold_per_block": 2092,
+      "events_per_block": 5516,
+      "fallback_units": 0,
+      "cold_normalized_functions": 0,
+      "whole_workflow_normalized_functions_per_block": 10
+    },
+    "negative": "Cold remains0.928s and broad0.564s slower than Rust; whole workflow gain is finite and depends on the recorded edit frequency."
+  },
+  "unchanged_metadata_check_evidence": {
+    "measured_source": "5a1434573ecd2ce8aa233e6841e9181ff3d9fd9d",
+    "current_source_relabelled": false,
+    "scenario": "1000 declarations,32 private edits,41 complete requests",
+    "workflow_seconds": {
+      "main": 6.986,
+      "candidate": 2.569,
+      "Rust": 7.34
+    },
+    "physical_boundary_peak_MiB": {
+      "main": 53.738,
+      "candidate": 8.145,
+      "Rust": 12.16
+    },
+    "private_edit_growth_MiB": {
+      "main": 46.625,
+      "candidate": 2.752,
+      "Rust": 3.09
+    },
+    "historical_1de_growth_MiB": 8.64,
+    "note": "Actual5a measurement of the same unchanged metadata codec; check04 keeps its own source. Compiler own targets/SDK/evidence/restore scratch excluded from user disk; all peaks are sampled request boundaries with global inode deduplication, not transient peaks."
   },
   "original5105_capacity": {
+    "current_source": "789f879f249c7f45a5c84ce062be30f9c0985740",
     "source_files": 102,
     "source_bytes": 843875,
     "declarations": 5105,
     "all_original_file_hashes_unchanged": true,
-    "candidate_check_cold_warm": "Success; current Verify1 each",
-    "candidate_O2_cold_warm": "Success; current Verify1 each, observedCGU16/jobs1,12native each",
-    "Rust": "Historical equivalent check receipt explicitly reused; newO2cold/warm12native each",
-    "main": "Four requests Expand ResourceLimit/Verify0; never counted as successful comparison",
-    "independent_runtime_review": "accepted; source/build/binary binding, original bytes and48combined native outcomes checked",
-    "formal_performance_ratio": null
+    "candidate_check_cold_warm": "Success/currentVerify1 each",
+    "candidate_O2_cold_warm": "Success/currentVerify1 each",
+    "candidate_native_outcomes": 24,
+    "Rust_native_outcomes": 24,
+    "main": "All four requests Expand ResourceLimit/Verify0; not successful comparisons",
+    "formal_performance_ratio": null,
+    "raw": "out/runs/large-project-original5105-current-06-789f879f249c",
+    "diagnostic_only_cold_seconds": 10.171565616,
+    "diagnostic_only_codegen_seconds": 8.629790539,
+    "diagnostic_only_object_seconds": 7.83995393,
+    "priority": "Largest observed absolute compiler cost in this batch; capacity receipt is not a matched performance window."
   },
-  "current_research_workflows_seconds": {
-    "large2500_check": {
-      "main": 2.8108,
-      "candidate": 1.6421,
-      "Rust": 4.0353
-    },
-    "large2500_O2": {
-      "main": 11.4361,
-      "candidate": 8.5718,
-      "Rust": 7.8329
-    },
-    "large1000_32edits_check": {
-      "main": 7.001,
-      "candidate": 2.491,
-      "Rust": 5.146
-    }
+  "negative_and_limits": [
+    "Wave05 alpha expansion added ZERO actual reuse events versus04; source789 adds cheap selection instead of claiming an extra MC gain. Current2500 coldnorm0 but later requests norm10/block. Current failed1000 coldnorm38/reused0 remains diagnostic only.",
+    "All three new native1000 windows fail full ELF on the retained ordinary early-scalar codegen difference; no timing/disk advantages emitted. Original two1de/30c failures remain. Eight changed functions/1584 .text bytes traced; six-input functional success is not runtime quality acceptance.",
+    "Wave05 wide8.360/Rust8.206 and diamond8.508/Rust8.350 seconds are negative; do not hide them behind06.",
+    "Synthetic100-module scalar programs and capacity5105, not industrial workspace/generic/proc-macro/async coverage, no minute-scale pain-resolution claim. Current API long fixture has one BB; no claim every optional>4BB shape has been copied in real Source.",
+    "Two-block windows, OS caches not flushed, differentLLVM ZIL23.1.4/Rust23.1.1 and resident-vs-fresh-process boundaries remain explicit. No stable/universal superiority."
+  ],
+  "stock_main_candidate": {
+    "source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
+    "status": "Hold;6122 workspace/reference73/strict/fmt/release passed previously, but native1000 ELF failure and warm performance regressions remain. No main merge."
   },
-  "current_disk_physical_peak_MiB": {
-    "large2500_O2": {
-      "main": 26.91,
-      "candidate": 16.37,
-      "Rust": 42.51
+  "priority": [
+    "Absolute saved seconds times actual recorded frequency and default-budget large-project capacity",
+    "Whole user cache physical growth and peak over many edits",
+    "Remaining5105 cold object7.84s diagnostic, then native2500 cold/broad gaps",
+    "Millisecond no-op ratios only as regression controls"
+  ],
+  "next": [
+    "Use the existing explicit late-closed-executable contract as the next bounded experiment on original5105 first: no generated-symbol external exports, current cross-CGU/address-escape/entry/foreign checks, fullO2 followed only by zero-use internalization/globaldce. Do not change partition or prune original source/A/V. Current emission reuse and late-closed modes are mutually exclusive; do not add their separate gains.",
+    "Freeze a separately named nonidentical-code quality window under existing runtime-quality policy; preserve old full-ELF failures. Check deletion roots, remaining ABI/CFG/relocations/unwind/address identity and independent oracles plus balanced sustained runtime/stack/code-size quality. Existingthreshold precedent is not automatic acceptance of a newcorpus.",
+    "Extend to supported representative large real software and cross-crate/build-script/generic/async pain coverage; unsupported scenes stay open. Main candidate remains Hold until quality and weighted regressions close."
+  ],
+  "recovery": {
+    "first": "evidence/critical-path-first-20261114/RESTORE.json",
+    "final": "evidence/critical-path-final-20261114/RESTORE.json",
+    "first_archive": {
+      "bytes": 1047090662,
+      "files": 40560,
+      "raw_bytes": 4353188686,
+      "sha256": "9032b903354252ac4ccc57803cd52147744efdb3a51109ad40ae1766cbf9c97f",
+      "fresh_verified": true
     },
-    "large1000_check": {
-      "main": 53.74,
-      "candidate": 13.62,
-      "Rust": 12.16
+    "final_archive": {
+      "bytes": 1045814087,
+      "files": 47618,
+      "raw_bytes": 4368816197,
+      "sha256": "80e02128e7436eab246387666bed433564a7278f76e32d554d29c4ac8c12f920",
+      "fresh_verified": true
     },
-    "large1000_32edit_growth": {
-      "main": 46.62,
-      "candidate": 8.64,
-      "Rust": 3.09
-    },
-    "scope": "Actual request-boundary maxima of per-arm summed unique-inode categories, not sum(categorymax). User artifact/cache roots only, not transient peak/SDK/compiler own target/evidence."
-  }
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json"
+  },
+  "previous_accepted": {
+    "source": "1de00f63f80cf4534ec995dc51e106005b270ddb",
+    "delivery": "4b3a99b873b433501fb9c24184b1348023316b11"
+  },
+  "historical_formal_98fa": {
+    "source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
+    "delivery": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
+    "numbers_relabelled_to_021997_or_current": false
+  },
+  "research_defaults_enabled": false,
+  "main_merge": false
 }

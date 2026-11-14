@@ -1,0 +1,11 @@
+{
+  "time": "2026-11-14T08:33:42.249975+00:00",
+  "action": "retire completed stock compiler construction cache only for fresh recovery verification space",
+  "path": "/workspace/zil-target-compiler-integration",
+  "immutable_stock_binary": "/workspace/zil-push-main/out/binaries/30c0009ff94b3476c15f4afe2ba5d067f7f78cbb/zil",
+  "sha256": "7826460c9609fc558ac7aac461cfa329ca8f809d11df6e480de30df9881abb6d",
+  "source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
+  "source_binaries_SDK_original_evidence_and_current_research_build_cache_unchanged": true,
+  "LLVM_rebuilt": false,
+  "product_disk_improvement": false
+}

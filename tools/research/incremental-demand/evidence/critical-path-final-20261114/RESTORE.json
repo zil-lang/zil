@@ -1,0 +1,38 @@
+{
+  "schema": "zil.cost-screened-machine-emission-recovery.v1",
+  "compiled_source": "789f879f249c7f45a5c84ce062be30f9c0985740",
+  "compiled_tree": "03f09679035b2b43f3c9803d6cdc438065c56cb5",
+  "binary_sha256": "e9bcf50ceb40a3f5e86b9e5abd4793a4302e9e92b279917b1f4da7b49d693274",
+  "alpha_source": "76993726b2e986ccd49b50c6424748d335056aeb",
+  "alpha_binary_sha256": "49231ac119ce5aa9cdf352a05e1c485cfdfb5950fa63959081f0e564e8eb0cfb",
+  "baseline_source": "9170bb4210554392e36eb7528596612596ebef80",
+  "tool_source": "ad81486b976634e71bf1c61544d0fd28a783fbae",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "173952912beb1a922c0bda52adab706a1cc34c437a14a42c9fe5b0732d1e945f",
+  "archive_sha256": "80e02128e7436eab246387666bed433564a7278f76e32d554d29c4ac8c12f920",
+  "archive_bytes": 1045814087,
+  "parts": 42,
+  "regular_files": 47618,
+  "logical_bytes": 4368816197,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "candidate_binary_relative_to_restored_payload": "out/binaries/789f879f249c7f45a5c84ce062be30f9c0985740/zil",
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/critical-path-final-20261114",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "dependencies": {
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "first_current_windows": "https://github.com/zil-lang/zil/blob/ddaf74b7a646680c7302f7e4289366a5ed171653/tools/research/incremental-demand/evidence/critical-path-first-20261114/RESTORE.json",
+    "prior_accepted": "https://github.com/zil-lang/zil/blob/4b3a99b873b433501fb9c24184b1348023316b11/tools/research/incremental-demand/evidence/current-large-project-20261114/RESTORE.json"
+  },
+  "scope": "Complete alpha-domain wave05 three successful native graph workflows plus native1000 ELF failure, final cost-screened wave06 successful2500 and native1000 failure, original5105 capacity at both exact sources, current gate23, binaries and raw negative counts. All default budgets/currentVerify/fullO2 retained; no full-universal Rust or main-merge claim; SDK18/native-link restored separately.",
+  "LLVM_rebuilt": false,
+  "main_merge": false,
+  "fresh_restore_scratch_retired": true,
+  "recovery_limit": "Evidence/binaries only, not complete installation; reconstruct absolute paths and pinned SDK/native-link/Rust tools. Scratch removed after full fresh verification; all original raw evidence and complete verified archive remain."
+}

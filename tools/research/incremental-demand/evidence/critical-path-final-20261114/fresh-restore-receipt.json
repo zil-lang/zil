@@ -1,0 +1,16 @@
+{
+  "archive_bytes": 1045814087,
+  "files": 47618,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 42,
+  "raw_bytes": 4368816197,
+  "restore_dir": "/workspace/zil-recovery/critical-path-final-fresh-01",
+  "scope": "Complete alpha-domain wave05 three successful native graph workflows plus native1000 ELF failure, final cost-screened wave06 successful2500 and native1000 failure, original5105 capacity at both exact sources, current gate23, binaries and raw negative counts. All default budgets/currentVerify/fullO2 retained; no full-universal Rust or main-merge claim; SDK18/native-link restored separately.",
+  "sha256": "80e02128e7436eab246387666bed433564a7278f76e32d554d29c4ac8c12f920",
+  "source_commits": {
+    "alpha": "76993726b2e986ccd49b50c6424748d335056aeb",
+    "current": "789f879f249c7f45a5c84ce062be30f9c0985740",
+    "tools": "ad81486b976634e71bf1c61544d0fd28a783fbae"
+  },
+  "status": "verified"
+}

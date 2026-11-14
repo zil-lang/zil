@@ -247,3 +247,51 @@ wave22目录`out/runs/critical-path-wave22-76993726b2e9`绑定相同v18 DSO、LL
 建议保留769的完整功能实现/native反例与fullELF成功证据作为研究能力；不因该负例删除通用大体能力，也不将其宣传为当前2500优化收益。自动选择宜保留小叶廉价路径，昂贵print-clone/alpha/wide仅在**当前CGU**出现低成本重复候选时进入：先取alpha不变的typed签名、BB/指令数及必要opcode/常量结构摘要分桶，没有同桶pair就跳过该扩展；摘要只控制是否值得尝试，永不替代完整规范化key、typed attrs和原ASM门授权。发生碰撞只会多付尝试成本，最终仍精确key确认；即便选择保守miss也必须完整ordinary生产。小叶已有重复时不能让无重复大体强制承担全部扩域打印；是否付完整clone成本要有实际候选依据。不要按模块编号、mod13或本例名称特判，更不要把“全程序13种形状”当同CGU预计收益。
 
 本批无需跨CGU复用或改变partition来制造命中；两者会引入独立机器上下文/布局/增量失效问题，不是现有证据要求的必要修复。完整更广功能链目标继续保留；后续若研究自动选择，按同输入独立对照证明净秒数，新增质量域保留完整ELF硬门，1000旧失败不改。
+
+
+## 最终 filtered 源码 789f879f 精确独审
+
+固定 `789f879f249c7f45a5c84ce062be30f9c0985740`，tree `03f09679035b2b43f3c9803d6cdc438065c56cb5`；父提交为证据归档ddaf74b7a646680c7302f7e4289366a5ed171653。相对直接父提交确实只改lib.rs与native/emission.rs；相对769另含证据归档，不能把整个祖先差异称为仅两文件。检查时HEAD相符、工作树干净。归档远端/恢复完整性本节未重新验证，仅审生产增量及已有运行收据。
+
+SHA256：emission.rs=`c0979daaea4f2d29f3df88a42d33a2f7a95d50170a451cd71a1b2e91e1b3de70`；lib.rs=`2dbb61d1dd22596faa2113d437e4aebdb1c62822c6c673bb9024e1596936ed4b`。
+
+结论：**有限源码范围接受，未发现阻断性授权/FFI/owner/key/fallback问题；不要求本批再扩设计。** 这次修复将是否支付alpha成本与完整body复用授权分开，保留已实现的大体能力；是否真正减少real2500选择成本仍由06证据决定。
+
+1. emission.rs:116 Shape是精确BTreeMap键，字段为return宽度、实际param数与有序宽度、BB数和inst数，未作哈希。宽度仅1/8/16/32/64、参数<=8、BB<=128、inst<=512；固定8元素类型缓冲在读取前限制count，仅遍历实际参数。u8/u16赋值不截断已接受范围，inst在513处拒绝，未接近溢出。原linkage/visibility/DLL/callconv及primitive限制未减。
+2. :419先完成全module候选及ShapeGroup计数，再进行profile判断，最后按整桶different_names统一选original或print clone；不会先给一部分函数生成raw key、随后才改变同桶策略。unique shape不读名称profile；首次遇到不同profile后跳过该桶余下hash，最终整个桶统一规范化。跨桶相同完整规范化文本必有相同签名/BB/inst结构，不能借此绕过精确key。
+3. :361 profile按参数、BB、指令实际顺序流式读取，包括空名字，每项加category与usize长度。checked_add将名字字节和全部delimiter都计入16KiB，在hash.write/from_raw_parts之前拒绝超限；非空null也拒绝。LLVMGetValueName2返回的借用只在原Module存活且未变时读取，不跨修改保存。profile无需UTF-8解释。16KiB限制适用于实际执行的profile读取；已决定规范化的桶后续成员不会继续profile，不应把它描述为每个候选都已扫描名称预算。
+4. DefaultHasher只比较名字profile是否相异，没有成为body key、跨请求凭据或发布条件。相同名字序列产生相同profile；不同序列若碰撞，可能少做alpha而转原完整打印key，至多丢失本可获得的复用。完整LLVM text+typed原函数属性+严格ASM仍是唯一后继授权，因此此具体实现的“碰撞只会miss、不导致错误复用”成立。Shape较粗、相同结构但实际不同body仍可触发无效alpha，这是选择精度/成本边界，不是哈希错误授权。
+5. Candidate裸function handle只指向调用者原Module，definitions索引来自同一完整扫描，向量不删除/重排；三阶段内原Module不变。print clone仅在首个different_names桶时创建，clear_local_names后计normalized_functions；它在select返回前RAII销毁，Selection仅String。codegen仍从原optimized Module另建独立speculative clone；没有新FFI声明、全局对象或跨CGU authority。
+6. lib.rs新增usize counter有Default=0，to_json占位符与字段顺序对应，后端已有stats.to_json直接传输该新字段，无新cache key/策略/验证能力。计数表示实际清名操作：即使随后key超限/属性拒绝/整次selection miss，已付规范化仍保留计数；normalized>0不等于成功复用，必须结合reused和fallback。norm=0的成功路径不创建print clone，但仍有结构扫描、重复shape的profile以及原函数打印，不能称选择成本为零。
+7. profile错误/限额等None在任何machine试验之前整次回ordinary，原Module没有改动；各阶段已付成本纳入selection_ns及总emit。ASM、carrier、typed attrs、范围处理、CodeGenPrepare隔离、failure cleanup和取消后不发布均未改。selection仍不在每函数内检查取消，延迟响应边界与上节相同；没有引入把取消转换成成功的路径。
+
+实读wave23 `out/runs/critical-path-wave23-789f879f249c/emission.json`与log：15过/0败/0忽略、84 filtered out，固定相同v18 DSO且LLVM_rebuilt=false；日志SHA256=`6dfc2f2cc7143df8de2201c27e0421c4eab384fa697d4cb154ecba666791557e`。小叶测试新增normalized=0；长体测试新增normalized=12，原9reused/3distinct/nonfallback/完整ordinary object相等/原IR不变断言均保留并执行。混合CFI/global/external与after-ASM取消重试测试同轮通过。未增加独立hash碰撞或profile边界native用例；上述碰撞和checked长度判断在本节为源码论证，不冒充执行实证。
+
+截至本次读取，strict/fmt/release与06 wide、candidate5105 capacity06尚无本节已读取的完成收据。它们完成后分别绑定789和实际binary更新，不用15个API测试代替完整Source或默认容量验收。旧backend273/driver219/Source9/publication1继续仅作为源码未改消费者/事务合同的组合收据，新增profile逻辑由本轮emission覆盖；06仍负责实际norm/reused、完整ELF和性能观察。04/05所有结果及“扩域无新增命中”负例原样保留，本审没有运行compiler/LLVM/build/tests或修改生产/Git。
+
+
+## 下一条关键路径：纯 executable 的 post-O2 内部化与 GlobalDCE（只读方向）
+
+**可行，且当前789已存在保守完整入口，下一阶段应优先验证该入口，而不是新造跨CGU或partition方案。** 普通函数在`crates/zil-backend-llvm/src/emit.rs:1898`统一以External定义，O2内联后仍要为这些可见定义生成独立机器体。现有`--late-closed-executable`正是在完整原O2之后删除已无用户且无外部合同的定义；区别于更早改变linkage/内联决策的`--closed-executable`，首轮选late路径更容易隔离实际节省及机器质量。
+
+**实际合同与入口：**
+
+- `crates/zil-syntax/src/ast.rs:18`的Item.public与`crates/zil-ir/src/program.rs:18/48`的模块/ScalarInterface exports表达源码可访问接口；`crates/zil-types/src/lib.rs:958`检查跨模块private访问。`crates/zil-ir/src/lib.rs:1619`的TypedFunction没有public/native-export字段，只有id、foreign、environment等。故不能在现有LIR端凭“非foreign”或生成名推导source-private，更不能将pub直接等同ELF动态导出。
+- 当前明确授权来自`crates/zil-cli/src/main.rs:23/331`的late-closed帮助及选项校验：Linux LLVM API完整O2 executable、无生成ZIL符号外部导出合同；`crates/zil-backend-llvm/src/build.rs:338`继续检查entry和互斥条件。以这个完整链接产物合同进入，不需要新传source-public字段。若未来要自动作用于普通build/库/嵌入宿主，必须显式携带真实native ABI/export roots，现有TypedFunction不足；这不是本批待修项。dlsym/插件/外部对象按生成名调用不属于该closed合同，不能默默支持后又删符号。
+- 保留C main wrapper与实际选定entry关系，见`emit.rs:1457`；foreign声明及ABI不在候选集。pub但仅被当前可执行程序使用的函数可以在明确closed合同下成为候选，但真实跨CGU调用仍须保留可链接定义；不能按pub/private一刀切。
+
+**现有链如何满足“不改分区、不裁输入”：**
+
+`build.rs:672`在原partition后调用`crates/zil-backend-llvm/src/late_closed.rs:12`，只考虑当前LIR实际非foreign且无closure environment的生成定义；`:28`建立唯一owner，重复定义使全计划拒绝；`:46`扫描所有unit的函数引用（含available_externally imports），跨CGU引用排除；所有非直接callee操作数及global initializer中的函数地址也排除。即使某个地址用户随后被O2消除，仍保守保留。模型遍历入口是`crates/zil-llvm-api/src/model.rs:133/525/624`，覆盖嵌套常量/GEP/PHI/call参数等符号使用。
+
+`crates/zil-llvm-api/src/late_closed.rs:15`将候选绑定完整当前machine Module；`native.rs:539`核对计划。原builder/preflight、完整default<O2>及前后Verify照常，`:773`才调用late_closed_native::apply。`:2390`附近要求候选post-O2仍为普通External定义且LLVMGetFirstUse为空，再拒绝COMDAT/visibility/DLL/prefix/prologue/personality/GC等特殊上下文；模块asm/alias/ifunc及metadata亦保守拒绝。`:2429`内部化后仅跑globaldce，再Verify和取消检查。无用户检查包括llvm.used/compiler.used、常量/ctor/dtor等LLVM use roots；未知域保留，不以生成名作为授权。remaining-users的递归/互相引用死组当前不会被清除，这是首轮保守范围而非承诺通用whole-program DCE。
+
+原`machine_cgu.rs:726`早内部化路径也在partition之后，但可能改变完整O2的内联/优化选择；本建议不同时启用它。`zil-driver/src/session.rs:1365`当前使late-closed与emission_reuse互斥，因此下一批首先比较独立完整路径，不能把两条链的各自收益相加。对象cache在`object_cache.rs:198/260`已隔离late policy并绑定当前候选集；原发布事务保持。
+
+**收益与阻断点：** late DCE有机会免除当前已内联helper及未用定义的独立机器生产，也免除它们的ASM运输、MC组装、object/符号体积；跨CGU aggregate仍保留。2500的2300 helper/100 unused是待逐函数审计的候选规模，实际删除数必须读eligible/removed/remaining-users/module-refusal，不能由函数数直接宣称全删。相对目前2092次MC复用，2300helper中仍需生产的canonical只有208，不能再把2092次已省工作重复计收益；此外可能免掉100个unused体及全部被删体的运输成本。Rust raw105个T/t只是归因线索，不是目标计数或质量证明。
+
+该路径仍完整构造/检查原machine IR并运行O2，**不直接省掉用户报告的machineIR245ms**；主要针对backend object约1.4s中的剩余机器生产与组装，而非76ms linker。当前metadata拒绝可能使整个unit无收益、plan/扫描/GlobalDCE也收费，必须看实际cost_ns和总请求秒数。没有当前large2500该模式运行收据，本节不预测具体速度。
+
+**独立非字节相同质量闭环（下一批，不替换旧门）：** 用新具名closed-executable实验策略、固定源码/DSO/target/16unit/默认预算/完整Source→A→独立V→preflight→fullO2，单独记录旧完整ELF对照仍不相等；旧1000及04/05/06质量门、首败和结论绝不改。为每个removed symbol保留pre-O2无跨单元/无地址逃逸证据和post-O2 zero-use证据；核实际entry/export/foreign、relocation、unwind、live global及地址身份合同。先用保留函数指令/CFG/ABI及符号化relocation差异定位是否超出纯删除/布局变化，再以独立语言oracle核完整程序结果和trap/effect行为；本2500读取单字节的fixture可覆盖256首字节+EOF全部可达输入，而一般函数还需相关整数边界/overflow/trap、跨CGU及callback/address-escape最近反例，不能拿少量输出等价当完整语义证明。性能另看预先约定的原生运行时间/代码体积/栈和编译耗时分布，不能仅因fullO2就称运行质量无退步，也不把字节不同本身称语义错误。已有`native/late_closed_tests.rs:134`只为有限fixture提供删除后保留body相等的测试入口，其注释不作为大型新质量门已验收证据。
+
+本次没有实现/构建/采样/分区或符号特判修改。另实读789 wave23 emission/strict/fmt/release与completion全部通过，release binary SHA256=`e9bcf50ceb40a3f5e86b9e5abd4793a4302e9e92b279917b1f4da7b49d693274`；此更新仅闭合本批收据，不把上述下一方向纳入789交付或宣称06已完成。

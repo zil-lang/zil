@@ -1,0 +1,8 @@
+{
+  "time": "2026-11-14T08:35:21.994100+00:00",
+  "path": "/workspace/zil-recovery/critical-path-final-fresh-01",
+  "verified_archive_sha256": "80e02128e7436eab246387666bed433564a7278f76e32d554d29c4ac8c12f920",
+  "original_raw_and_complete_archive_preserved": true,
+  "purpose": "free redundant verification copy before Git archive publication",
+  "product_disk_improvement": false
+}
