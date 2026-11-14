@@ -24,7 +24,7 @@ pub(super) fn operation(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&m
             type_work(actual,&b.limits.clone(),b)?;
             if actual!=&expected{return Err(err("static C reference differs from its exact actual target signature"));}Ok(true)
         },
-        InstructionKind::ForeignCall{function,arguments}=>{
+        InstructionKind::ForeignCall{function,arguments,..}=>{
             let target=module.functions.get(function.0 as usize).ok_or_else(||err("stored foreign actual target is absent"))?;
             if !declaration(module,target,b)?{return Err(err("stored foreign call has no complete ordinary C declaration"));}
             let expected=crate::foreign::check_call(module,f,*function,arguments,Some(i.span),b)?;
