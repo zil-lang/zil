@@ -720,7 +720,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     old[8..12].copy_from_slice(&38u32.to_le_bytes());
     assert!(wire::decode_module_candidate(&old, &Limits::default()).is_err());
     use ct_artifact::*;
-    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 9);
+    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 10);
     let value = CtValue::Type(CtTypeRef {
         scoped_catalogue: None,
         ambient_classes: Vec::new(),
