@@ -134,6 +134,8 @@ fn clone_proof(
         source
             .types
             .len()
+            .saturating_add(source.view_bounds.len())
+            .saturating_add(source.borrow_roles.len())
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
             .saturating_add(source.protocol_complete.len())
@@ -224,6 +226,26 @@ fn clone_proof(
     }
     for injection in source.injections.values() {
         crate::dyn_metadata::semantic_operand_snapshot(&injection.payload, limits, left, 1)?;
+    }
+    for ((_, query), bound) in &source.view_bounds {
+        spend(
+            left,
+            query.copy_work().saturating_add(bound.steps.len()),
+            0,
+            limits,
+        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(&bound.lifetime, limits, left, 1)?;
+    }
+    for role in source.borrow_roles.values() {
+        spend(left, role.steps.len(), 0, limits)?;
+        for lifetime in [
+            &role.source_lifetime,
+            &role.target_lifetime,
+            &role.occurrence_lifetime,
+        ] {
+            crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(&role.inner, limits, left, 1)?;
     }
     for names in source.capture_names.values() {
         spend(left, names.len(), 0, limits)?;
@@ -408,7 +430,9 @@ pub(crate) fn check_with_frozen(
     crate::dyn_metadata::semantic_operand_snapshot(&expected, limits, left, 1)?;
     crate::dyn_metadata::semantic_operand_snapshot(&actual, limits, left, 1)?;
     if expected != actual {
-        return Err(bad("generated wrapper body differs from the selected original query after true parent relocation"));
+        return Err(bad(
+            "generated wrapper body differs from the selected original query after true parent relocation",
+        ));
     }
     let mut proof = clone_proof(&source.original, program, limits, left)?;
     proof.declarations = declarations;

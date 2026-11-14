@@ -276,7 +276,7 @@ impl Check<'_, '_> {
                 _ => {
                     return Err(bad(
                         "original provider changes a complete mixed formal kind",
-                    ))
+                    ));
                 }
             }
         }
@@ -446,7 +446,9 @@ impl Check<'_, '_> {
             if let SemanticRequirementRecipe::Trait { ty, application } = requirement {
                 if &ty == self_type && application.declaration == declaration {
                     if selected.as_ref().is_some_and(|old| old != &application) {
-                        return Err(pending("original method has several distinct trait applications and needs an explicit qualification"));
+                        return Err(pending(
+                            "original method has several distinct trait applications and needs an explicit qualification",
+                        ));
                     }
                     selected = Some(application);
                 }
@@ -604,7 +606,7 @@ impl Check<'_, '_> {
                             if diagnostic.category == zil_base::ResultCategory::ResourceLimit
                                 || diagnostic.category == zil_base::ResultCategory::Unsupported =>
                         {
-                            return Err(diagnostic)
+                            return Err(diagnostic);
                         }
                         Err(_) => {}
                     }
@@ -939,6 +941,10 @@ impl Check<'_, '_> {
                 actual.parameters.len(), actual.bound_lifetimes, actual.invocation_lifetimes, actual.call_kind, actual.result_mode,
                 wanted.parameters.len(), wanted.bound_lifetimes, wanted.invocation_lifetimes, wanted.call_kind, wanted.result_mode
             ));
+            diagnostic.notes.push(format!(
+                "original callable owner: {:?}",
+                self.contexts.last()
+            ));
             return Err(diagnostic);
         }
         let actual = self.inference_template(actual, &[], true, depth + 1)?;
@@ -1046,7 +1052,9 @@ impl Check<'_, '_> {
                         && wanted.call_kind == CallKind::Direct
                         && !self.cleanup_capability(owner, &value, depth + 1)?
                     {
-                        return Err(bad("original Direct FnOnce premise adaptation lacks synchronous environment teardown"));
+                        return Err(bad(
+                            "original Direct FnOnce premise adaptation lacks synchronous environment teardown",
+                        ));
                     }
                     return Ok(());
                 }
@@ -1085,7 +1093,7 @@ impl Check<'_, '_> {
                 if diagnostic.category == zil_base::ResultCategory::ResourceLimit
                     || diagnostic.category == zil_base::ResultCategory::Unsupported =>
             {
-                return Err(diagnostic)
+                return Err(diagnostic);
             }
             Err(_) => return Ok(None),
         };
@@ -1137,7 +1145,9 @@ impl Check<'_, '_> {
                 for (ty, kind, signature) in candidates {
                     if ty == value {
                         if selected.is_some() {
-                            return Err(pending("original callable has several complete roles and needs an explicit selection"));
+                            return Err(pending(
+                                "original callable has several complete roles and needs an explicit selection",
+                            ));
                         }
                         selected = Some((kind, signature));
                     }
@@ -1361,7 +1371,7 @@ impl Check<'_, '_> {
                     if diagnostic.category == zil_base::ResultCategory::ResourceLimit
                         || diagnostic.category == zil_base::ResultCategory::Unsupported =>
                 {
-                    return Err(diagnostic)
+                    return Err(diagnostic);
                 }
                 Err(_) => {}
             }

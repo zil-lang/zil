@@ -40,8 +40,11 @@ pub(super) mod substitute;
 mod value_predicate;
 #[path = "original_values.rs"]
 mod values;
+#[path = "original_views.rs"]
+mod views;
 pub(super) use calls::{CallableCall, MethodCall};
 pub(super) use values::FunctionValue;
+pub(super) use views::{BorrowRole, ViewBorrowStep, ViewBorrowStepKind};
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
 }
@@ -158,6 +161,8 @@ pub(super) struct Injection {
 }
 #[derive(Clone, Default)]
 pub(super) struct Proof {
+    view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
+    pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     pub associated_complete: BTreeSet<LifeDeclarationId>,
     pub capture_names: BTreeMap<SemanticDefinitionId, Vec<String>>,
@@ -1381,7 +1386,9 @@ impl<'a> Check<'a, '_> {
             };
             if resolved != occurrence.ty {
                 if occurrence.bound_depth != 0 || occurrence.invocation_depth != 0 {
-                    return Err(pending("associated/query normalization requires its complete nested quantifier occurrence context"));
+                    return Err(pending(
+                        "associated/query normalization requires its complete nested quantifier occurrence context",
+                    ));
                 }
                 self.pay(1, depth)?;
                 equations.push((occurrence, resolved));
@@ -1618,7 +1625,7 @@ impl<'a> Check<'a, '_> {
                 _ => {
                     return Err(bad(
                         "original fresh inference has incompatible rigid actuals",
-                    ))
+                    ));
                 }
             }
         } else {
@@ -2023,7 +2030,33 @@ impl<'a> Check<'a, '_> {
         for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
             // Primitive context fixes unsuffixed literals without importing any
             // unsolved target inference variable into the caller's expression.
-            let hint = matches!(parameter.ty, SemanticTypeRecipe::Atom(_)).then_some(&parameter.ty);
+            self.pay(solutions.len(), depth)?;
+            for actual in solutions.iter().flatten() {
+                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+            }
+            let complete_actuals = solutions.iter().cloned().collect::<Option<Vec<_>>>();
+            let complete_parameter = if let Some(actuals) = &complete_actuals {
+                let frames = [(u32::MAX, actuals.as_slice())];
+                let empty = BTreeMap::new();
+                Some(substitute::ty(
+                    &parameter.ty,
+                    &substitute::Substitution {
+                        frames: &frames,
+                        selves: &[],
+                        environments: &[],
+                        implicit: &empty,
+                        invocation: &empty,
+                        shift: 0,
+                    },
+                    self.limits,
+                    self.left,
+                )?)
+            } else {
+                None
+            };
+            let hint = complete_parameter.as_ref().or_else(|| {
+                matches!(parameter.ty, SemanticTypeRecipe::Atom(_)).then_some(&parameter.ty)
+            });
             self.pay(roles.len(), depth)?;
             let actual =
                 if let Some((_, role)) = roles.iter().find(|(node, _)| *node == argument.id) {
@@ -2463,7 +2496,9 @@ impl<'a> Check<'a, '_> {
                     let is_error = &actual == error.as_ref();
                     let is_result = &actual == result.as_ref();
                     if is_error == is_result {
-                        return Err(bad("original implicit error injection is ambiguous or changes its payload type"));
+                        return Err(bad(
+                            "original implicit error injection is ambiguous or changes its payload type",
+                        ));
                     }
                     let payload = copy_recipe(&actual, self.limits, self.left)?;
                     self.pay(1, depth)?;
@@ -2714,6 +2749,41 @@ impl<'a> Check<'a, '_> {
                 } else {
                     inner
                 };
+                let occurrence = self.borrow_life(owner, expression.id)?;
+                let lifetime = if let Some(SemanticTypeRecipe::Address {
+                    lifetime,
+                    inner: expected,
+                    ..
+                }) = wanted
+                {
+                    if matches!(
+                        lifetime,
+                        SemanticOuterLifeRecipe::Class(
+                            SemanticLifeRecipe::Implicit {
+                                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                                ..
+                            } | SemanticLifeRecipe::Environment {
+                                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                                ..
+                            }
+                        )
+                    ) {
+                        occurrence
+                    } else {
+                        self.same(&inner, expected)?;
+                        self.contextual_borrow_role(
+                            owner,
+                            expression,
+                            operand,
+                            &inner,
+                            &occurrence,
+                            lifetime,
+                            depth + 1,
+                        )?
+                    }
+                } else {
+                    occurrence
+                };
                 SemanticTypeRecipe::Address {
                     mutable: matches!(
                         expression.kind,
@@ -2722,7 +2792,7 @@ impl<'a> Check<'a, '_> {
                             ..
                         }
                     ),
-                    lifetime: self.borrow_life(owner, expression.id)?,
+                    lifetime,
                     inner: Box::new(inner),
                 }
             }
@@ -3479,7 +3549,7 @@ impl<'a> Check<'a, '_> {
                 match &object_ty {
                     SemanticTypeRecipe::Address { mutable: true, .. } => {}
                     SemanticTypeRecipe::Address { mutable: false, .. } => {
-                        return Err(bad("original field write uses a shared address"))
+                        return Err(bad("original field write uses a shared address"));
                     }
                     _ => {
                         self.writable(owner, object, variables, depth + 1)?;
@@ -3492,7 +3562,7 @@ impl<'a> Check<'a, '_> {
                 match &object_ty {
                     SemanticTypeRecipe::Address { mutable: true, .. } => {}
                     SemanticTypeRecipe::Address { mutable: false, .. } => {
-                        return Err(bad("original slice write uses a shared address"))
+                        return Err(bad("original slice write uses a shared address"));
                     }
                     _ => {
                         self.writable(owner, object, variables, depth + 1)?;
@@ -3505,7 +3575,7 @@ impl<'a> Check<'a, '_> {
                 match &object_ty {
                     SemanticTypeRecipe::Address { mutable: true, .. } => {}
                     SemanticTypeRecipe::Address { mutable: false, .. } => {
-                        return Err(bad("original index write uses a shared address"))
+                        return Err(bad("original index write uses a shared address"));
                     }
                     _ => {
                         self.writable(owner, object, variables, depth + 1)?;
@@ -3967,10 +4037,14 @@ impl<'a> Check<'a, '_> {
                     .iter()
                     .any(|field| !before.taken_fields.contains(field))
                 {
-                    return Err(bad("original loop back edge consumes a package field needed by another iteration"));
+                    return Err(bad(
+                        "original loop back edge consumes a package field needed by another iteration",
+                    ));
                 }
                 if !before.used && after.used || before.initialized && !after.initialized {
-                    return Err(bad("original loop back edge consumes an affine value needed by another iteration"));
+                    return Err(bad(
+                        "original loop back edge consumes an affine value needed by another iteration",
+                    ));
                 }
             }
         }
@@ -4114,9 +4188,11 @@ impl<'a> Check<'a, '_> {
                         let payload = match &actual {
                             SemanticTypeRecipe::Managed(inner)
                             | SemanticTypeRecipe::Desc { inner, .. } => inner.as_ref(),
-                            _ => return Err(bad(
-                                "original resource-family initializer has no proved owning or description category",
-                            )),
+                            _ => {
+                                return Err(bad(
+                                    "original resource-family initializer has no proved owning or description category",
+                                ));
+                            }
                         };
                         let annotation = annotation.as_ref().ok_or_else(|| {
                             bad("resource-family binding lost its original annotation")
@@ -4623,7 +4699,9 @@ impl<'a> Check<'a, '_> {
                             let (SemanticTypeRecipe::Array { element, .. }
                             | SemanticTypeRecipe::Slice(element)) = *inner
                             else {
-                                return Err(pending("original iteration requires its complete iterator protocol scheme"));
+                                return Err(pending(
+                                    "original iteration requires its complete iterator protocol scheme",
+                                ));
                             };
                             SemanticTypeRecipe::Address {
                                 mutable,
@@ -4634,7 +4712,7 @@ impl<'a> Check<'a, '_> {
                         _ => {
                             return Err(pending(
                                 "original iteration requires its complete iterator protocol scheme",
-                            ))
+                            ));
                         }
                     };
                     let mut iteration = self.clone_variables(variables)?;
@@ -4664,7 +4742,9 @@ impl<'a> Check<'a, '_> {
                 CoreStatementKind::CompileTime(_)
                 | CoreStatementKind::Yield(_)
                 | CoreStatementKind::Unsupported(_) => {
-                    return Err(pending("original staged or resumable statement requires its executable stage scheme"));
+                    return Err(pending(
+                        "original staged or resumable statement requires its executable stage scheme",
+                    ));
                 }
             }
             if !was_live {

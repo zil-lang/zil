@@ -189,6 +189,7 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<()> {
         self.pay(source.copy_work().saturating_add(target.copy_work()), depth)?;
+        self.alias_view_bound(owner, &target, source, depth + 1)?;
         let Some(origin) = self
             .proof
             .call_result_origins
@@ -220,6 +221,7 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<()> {
         self.pay(1, depth)?;
+        self.view_bound(owner, expression, variables, depth + 1)?;
         if let CoreExprKind::Call { callee, .. } = &expression.kind {
             if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
                 self.pay(1, depth)?;
@@ -436,7 +438,9 @@ fn common_closed_sources(
             || definition.parent.is_some()
             || !proof.complete.contains(&target)
         {
-            return Err(pending("common opaque contexts require an independent full generic/ancestor result theorem"));
+            return Err(pending(
+                "common opaque contexts require an independent full generic/ancestor result theorem",
+            ));
         }
         let ty = proof
             .types
