@@ -32,6 +32,53 @@ fn compatible(actual: CallableKind, required: CallableKind) -> bool {
     )
 }
 impl Check<'_, '_> {
+    pub(super) fn inference_template(
+        &mut self,
+        signature: &SemanticSignatureRecipe,
+        formals: &[SemanticFormal],
+        mark_implicit: bool,
+        depth: usize,
+    ) -> R<SemanticSignatureRecipe> {
+        self.pay(formals.len(), depth)?;
+        let mut placeholders = Vec::new();
+        for (ordinal, formal) in formals.iter().enumerate() {
+            let reference = SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                ordinal: ordinal as u32,
+            };
+            placeholders.push(match formal {
+                SemanticFormal::Type { .. } => {
+                    SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                }
+                SemanticFormal::Lifetime => {
+                    SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                }
+                SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
+                    carrier: copy_recipe(carrier, self.limits, self.left)?,
+                    value: SemanticConstRecipe::Formal(reference),
+                },
+            });
+        }
+        let frames = [(0, placeholders.as_slice())];
+        let selected_frames: &[(u32, &[SemanticActualRecipe])] =
+            if formals.is_empty() { &[] } else { &frames };
+        let empty = BTreeMap::new();
+        let substitution = substitute::Substitution {
+            frames: selected_frames,
+            selves: &[],
+            environments: &[],
+            implicit: &empty,
+            invocation: &empty,
+            shift: 0,
+        };
+        substitute::signature_template(
+            signature,
+            &substitution,
+            mark_implicit,
+            self.limits,
+            self.left,
+        )
+    }
     fn method_name<'d>(
         &mut self,
         definition: &'d SemanticDefinition,
@@ -144,29 +191,7 @@ impl Check<'_, '_> {
                 SemanticActualRecipe::Type(ty) => {
                     SemanticActualRecipe::Type(substitute::ty(ty, &shift, self.limits, self.left)?)
                 }
-                _ => {
-                    // Reuse the full mixed visitor through a nominal wrapper;
-                    // it preserves const carriers and every lifetime anchor.
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        argument,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    self.pay(2, depth)?;
-                    let holder = SemanticTypeRecipe::Nominal {
-                        definition: parent.id,
-                        arguments: vec![argument.clone()],
-                    };
-                    let SemanticTypeRecipe::Nominal { mut arguments, .. } =
-                        substitute::ty(&holder, &shift, self.limits, self.left)?
-                    else {
-                        unreachable!()
-                    };
-                    arguments
-                        .pop()
-                        .ok_or_else(|| bad("original parent argument disappeared"))?
-                }
+                _ => substitute::actual(argument, &shift, self.limits, self.left)?,
             };
             parent_arguments.push(shifted);
         }
@@ -404,7 +429,7 @@ impl Check<'_, '_> {
             bad("original caller lacks the declared trait premise for its static member")
         })
     }
-    fn solve_parent(
+    pub(super) fn solve_parent(
         &mut self,
         owner: SemanticDefinitionId,
         parent: &SemanticDefinition,
@@ -430,8 +455,19 @@ impl Check<'_, '_> {
         };
         self.pay(parent.parameters.len(), depth)?;
         let mut solutions = vec![None; parent.parameters.len()];
+        let template_signature = SemanticSignatureRecipe {
+            bound_lifetimes: 0,
+            invocation_lifetimes: 0,
+            parameters: Vec::new(),
+            result: copy_recipe(template, self.limits, self.left)?,
+            result_mode: PassingMode::Infer,
+            call_kind: CallKind::Direct,
+        };
+        let template = self
+            .inference_template(&template_signature, &parent.parameters, false, depth + 1)?
+            .result;
         self.unify(
-            template,
+            &template,
             self_type,
             &parent.parameters,
             &mut solutions,
@@ -587,7 +623,9 @@ impl Check<'_, '_> {
             shift: 0,
         };
         let signature =
-            substitute::signature(signature, &parent_substitution, self.limits, self.left)?;
+            self.inference_template(signature, &definition.parameters, true, depth + 1)?;
+        let signature =
+            substitute::signature(&signature, &parent_substitution, self.limits, self.left)?;
         self.pay(
             signature
                 .parameters
@@ -621,6 +659,7 @@ impl Check<'_, '_> {
             &holes,
             variables,
             wanted,
+            true,
             depth + 1,
         )?;
         // Method requirements may reference both the method and parent frame.
@@ -681,7 +720,32 @@ impl Check<'_, '_> {
     ) -> R<Option<(CallableKind, SemanticSignatureRecipe)>> {
         self.pay(1, depth)?;
         match value {
-            SemanticTypeRecipe::Opaque { hidden, .. } => self.concrete_callable(hidden, depth + 1),
+            SemanticTypeRecipe::Opaque {
+                definition,
+                arguments,
+                hidden,
+            } => {
+                let declaration = self.definition(*definition)?;
+                if declaration.parameters.len() != arguments.len() {
+                    return Err(bad(
+                        "original opaque callable omits full explicit arguments",
+                    ));
+                }
+                let frames = [(0, arguments.as_slice())];
+                let empty = BTreeMap::new();
+                let substitution = substitute::Substitution {
+                    frames: if arguments.is_empty() { &[] } else { &frames },
+                    selves: &[],
+                    environments: &[],
+                    implicit: &empty,
+                    invocation: &empty,
+                    shift: 0,
+                };
+                // Enter the opaque definition's sealed body domain deliberately;
+                // ordinary substitution never traverses this boundary itself.
+                let hidden = substitute::ty(hidden, &substitution, self.limits, self.left)?;
+                self.concrete_callable(&hidden, depth + 1)
+            }
             SemanticTypeRecipe::Closure {
                 definition,
                 arguments,
@@ -760,6 +824,7 @@ impl Check<'_, '_> {
                 "original callable changes its complete scoped call scheme",
             ));
         }
+        let actual = self.inference_template(actual, &[], true, depth + 1)?;
         let mut implicit = BTreeMap::new();
         let mut invocation = BTreeMap::new();
         for (a, b) in actual.parameters.iter().zip(&wanted.parameters) {
@@ -786,7 +851,8 @@ impl Check<'_, '_> {
             invocation: &invocation,
             shift: 0,
         };
-        let result = substitute::ty(&actual.result, &substitution, self.limits, self.left)?;
+        let result =
+            substitute::signature_fresh(&actual, &substitution, self.limits, self.left)?.result;
         self.callable_result(&result, &wanted.result, depth + 1)
     }
     fn callable_result(
@@ -936,6 +1002,7 @@ impl Check<'_, '_> {
         }
         self.pay(arguments.len(), depth)?;
         let arguments: Vec<_> = arguments.iter().collect();
+        let signature = self.inference_template(&signature, &[], false, depth + 1)?;
         let (actuals, signature) = self.solve_signature(
             owner,
             callee,
@@ -945,6 +1012,7 @@ impl Check<'_, '_> {
             &[],
             variables,
             wanted,
+            true,
             depth + 1,
         )?;
         if !actuals.is_empty() {
@@ -1013,8 +1081,59 @@ impl Check<'_, '_> {
             let mut implicit = BTreeMap::new();
             let mut invocation = BTreeMap::new();
             let candidate = (|| {
+                self.pay(
+                    trait_application
+                        .arguments
+                        .len()
+                        .saturating_add(provider.parameters.len()),
+                    depth,
+                )?;
+                let mut placeholders = Vec::new();
+                for (ordinal, formal) in provider.parameters.iter().enumerate() {
+                    let reference = SemanticFormalRef {
+                        scope: SemanticScopeRef::Ancestor(u32::MAX),
+                        ordinal: ordinal as u32,
+                    };
+                    placeholders.push(match formal {
+                        SemanticFormal::Type { .. } => {
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                        }
+                        SemanticFormal::Lifetime => {
+                            SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                        }
+                        SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
+                            carrier: copy_recipe(carrier, self.limits, self.left)?,
+                            value: SemanticConstRecipe::Formal(reference),
+                        },
+                    });
+                }
+                let frames = [(0, placeholders.as_slice())];
+                let empty = BTreeMap::new();
+                let substitution = substitute::Substitution {
+                    frames: if placeholders.is_empty() {
+                        &[]
+                    } else {
+                        &frames
+                    },
+                    selves: &[],
+                    environments: &[],
+                    implicit: &empty,
+                    invocation: &empty,
+                    shift: 0,
+                };
+                let template_type =
+                    substitute::ty(self_type, &substitution, self.limits, self.left)?;
+                let mut template_arguments = Vec::new();
+                for actual in &trait_application.arguments {
+                    template_arguments.push(substitute::actual(
+                        actual,
+                        &substitution,
+                        self.limits,
+                        self.left,
+                    )?);
+                }
                 self.unify(
-                    self_type,
+                    &template_type,
                     ty,
                     &provider.parameters,
                     &mut solutions,
@@ -1022,11 +1141,7 @@ impl Check<'_, '_> {
                     &mut invocation,
                     depth + 1,
                 )?;
-                for (template, actual) in trait_application
-                    .arguments
-                    .iter()
-                    .zip(&application.arguments)
-                {
+                for (template, actual) in template_arguments.iter().zip(&application.arguments) {
                     self.unify_actual(
                         template,
                         actual,
@@ -1115,10 +1230,15 @@ impl Check<'_, '_> {
                     && exact.classes.is_empty()
                     && crate::dynamic_store::supported_element(&exact.ty))
             }
-            SemanticTypeRecipe::Managed(payload) => Ok(matches!(
-                payload.as_ref(),
-                SemanticTypeRecipe::Atom(Type::ByteBuffer)
-            )),
+            SemanticTypeRecipe::Managed(payload) => {
+                if let Some(accepted) = self.resource_store_element(owner, payload, depth + 1)? {
+                    return Ok(accepted);
+                }
+                Ok(matches!(
+                    payload.as_ref(),
+                    SemanticTypeRecipe::Atom(Type::ByteBuffer)
+                ))
+            }
             SemanticTypeRecipe::Array { element, length } => {
                 let nonzero = !matches!(
                     length.as_ref(),

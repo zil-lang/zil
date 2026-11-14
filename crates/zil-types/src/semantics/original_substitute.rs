@@ -20,6 +20,9 @@ struct Apply<'a, 'b> {
     bound_delta: u32,
     bound_cutoff: u32,
     invocation_depth: u32,
+    fresh_roles: bool,
+    template: bool,
+    template_implicit: bool,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -86,6 +89,19 @@ impl<'a> Apply<'a, '_> {
         Ok(())
     }
     fn role(&self, life: &SemanticLifeRecipe) -> Option<&'a SemanticOuterLifeRecipe> {
+        if self.fresh_roles {
+            return match life {
+                SemanticLifeRecipe::Implicit {
+                    scope: SemanticScopeRef::Ancestor(u32::MAX),
+                    ordinal,
+                } => self.substitution.implicit.get(ordinal),
+                SemanticLifeRecipe::Environment {
+                    scope: SemanticScopeRef::Ancestor(u32::MAX),
+                    ordinal,
+                } => self.substitution.invocation.get(ordinal),
+                _ => None,
+            };
+        }
         match life {
             SemanticLifeRecipe::Implicit {
                 scope: SemanticScopeRef::Ancestor(0),
@@ -119,6 +135,24 @@ impl<'a> Apply<'a, '_> {
     }
     fn life(&mut self, life: &mut SemanticLifeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
+        if self.template {
+            match life {
+                SemanticLifeRecipe::Implicit { scope, .. }
+                    if self.template_implicit && *scope == SemanticScopeRef::Ancestor(0) =>
+                {
+                    *scope = SemanticScopeRef::Ancestor(u32::MAX);
+                    return Ok(());
+                }
+                SemanticLifeRecipe::Invocation(ordinal) if self.invocation_depth == 0 => {
+                    *life = SemanticLifeRecipe::Environment {
+                        scope: SemanticScopeRef::Ancestor(u32::MAX),
+                        ordinal: *ordinal,
+                    };
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
         if let Some(replacement) = self.role(life) {
             let SemanticOuterLifeRecipe::Class(replacement) = replacement else {
                 return Err(bad(
@@ -200,6 +234,9 @@ impl<'a> Apply<'a, '_> {
             bound_delta: self.bound_depth,
             bound_cutoff: 0,
             invocation_depth: 0,
+            fresh_roles: false,
+            template: false,
+            template_implicit: false,
         }
         .ty(value, depth)
     }
@@ -224,6 +261,9 @@ impl<'a> Apply<'a, '_> {
             bound_delta: self.bound_depth,
             bound_cutoff: 0,
             invocation_depth: 0,
+            fresh_roles: false,
+            template: false,
+            template_implicit: false,
         }
         .life(value, depth)
     }
@@ -248,6 +288,9 @@ impl<'a> Apply<'a, '_> {
             bound_delta: self.bound_depth,
             bound_cutoff: 0,
             invocation_depth: 0,
+            fresh_roles: false,
+            template: false,
+            template_implicit: false,
         }
         .constant(value, depth)
     }
@@ -644,7 +687,9 @@ impl<'a> Apply<'a, '_> {
                 for actual in arguments {
                     self.actual(actual, depth + 1)?;
                 }
-                self.ty(hidden, depth + 1)?;
+                // `hidden` belongs to `definition`, not to the caller frame.
+                // Its body and local result roles are sealed independently.
+                let _ = hidden;
             }
             SemanticTypeRecipe::Dyn { interface, .. } => {
                 self.application(&mut interface.application, depth + 1)?;
@@ -689,6 +734,9 @@ pub(crate) fn ty(
         bound_delta: 0,
         bound_cutoff: 0,
         invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -709,6 +757,9 @@ pub(crate) fn signature(
         bound_delta: 0,
         bound_cutoff: 0,
         invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -730,7 +781,82 @@ pub(crate) fn requirement(
         bound_delta: 0,
         bound_cutoff: 0,
         invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
     }
     .requirement(&mut value, 1)?;
+    Ok(value)
+}
+
+pub(crate) fn actual(
+    value: &SemanticActualRecipe,
+    substitution: &Substitution<'_>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticActualRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    Apply {
+        substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+    }
+    .actual(&mut value, 1)?;
+    Ok(value)
+}
+
+pub(crate) fn signature_template(
+    value: &SemanticSignatureRecipe,
+    substitution: &Substitution<'_>,
+    mark_implicit: bool,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    Apply {
+        substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: true,
+        template_implicit: mark_implicit,
+    }
+    .signature(&mut value, 1)?;
+    Ok(value)
+}
+pub(crate) fn signature_fresh(
+    value: &SemanticSignatureRecipe,
+    substitution: &Substitution<'_>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    Apply {
+        substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: true,
+        template: false,
+        template_implicit: false,
+    }
+    .signature(&mut value, 1)?;
     Ok(value)
 }

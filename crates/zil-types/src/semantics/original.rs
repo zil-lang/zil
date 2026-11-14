@@ -5,6 +5,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_base::NodeId;
 #[path = "original_calls.rs"]
 mod calls;
+#[path = "original_effects.rs"]
+mod effects;
+#[path = "original_frozen.rs"]
+mod frozen;
+pub(super) use frozen::check_with_frozen;
+#[path = "original_intrinsics.rs"]
+mod intrinsics;
+#[path = "original_modes.rs"]
+mod modes;
+#[path = "original_resources.rs"]
+mod resources;
+pub(super) use intrinsics::{IntrinsicCall, IntrinsicKind, RegistrationOp, TaskOp};
 #[path = "original_roles.rs"]
 mod roles;
 #[path = "original_store.rs"]
@@ -82,7 +94,7 @@ impl From<SemanticOriginalTypeSource> for Query {
         }
     }
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct Proof {
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
@@ -94,51 +106,16 @@ pub(super) struct Proof {
     pub callable_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), CallableCall>,
     pub providers: BTreeMap<SemanticDefinitionId, SemanticDefinitionId>,
     pub direct_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticSignatureRecipe>,
+    pub effective_call_kind: BTreeMap<SemanticDefinitionId, CallKind>,
+    compile_time_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
+    cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
     pub scope_calls: BTreeMap<
         (SemanticDefinitionId, SemanticSiteId, SemanticDefinitionId),
         Vec<SemanticActualRecipe>,
     >,
     environments: BTreeMap<(SemanticDefinitionId, u32), (SemanticDefinitionId, SemanticTypeRecipe)>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum IntrinsicKind {
-    MutexCreate,
-    MutexLock,
-    MutexValue,
-    MutexUnlock,
-    StoreNew,
-    StoreReserve,
-    StorePush,
-    StorePop,
-    StoreLen,
-    StoreCapacity,
-    StoreBorrow {
-        mutable: bool,
-    },
-    BytesNew,
-    BytesReserve,
-    BytesTruncate,
-    BytesPush,
-    BytesLen,
-    BytesCapacity,
-    BytesBorrow {
-        mutable: bool,
-    },
-    Length,
-    Numeric {
-        target: Type,
-    },
-    ThreadScope {
-        worker: SemanticDefinitionId,
-        body: SemanticDefinitionId,
-    },
-}
-#[derive(Clone)]
-pub(super) struct IntrinsicCall {
-    pub kind: IntrinsicKind,
-    pub parameters: Vec<SemanticTypeRecipe>,
-    pub result: SemanticTypeRecipe,
+    frozen_environments: BTreeMap<(SemanticDefinitionId, bool, NodeId), BTreeMap<String, Binding>>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LocalRoleKind {
@@ -203,6 +180,9 @@ struct Check<'a, 'b> {
     trait_active: Vec<(SemanticTypeRecipe, SemanticTraitRecipe)>,
     contexts: Vec<SemanticDefinitionId>,
     predicate_active: Vec<(SemanticDefinitionId, u8, SemanticTypeRecipe)>,
+    stage_depth: usize,
+    cleanup_depth: usize,
+    requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
 }
 #[derive(Default)]
 struct LoopFrame {
@@ -798,10 +778,7 @@ impl<'a> Check<'a, '_> {
         }
         super::instantiate::ty(ty, &actuals, self.limits, self.left)
     }
-    fn clone_variables(
-        &mut self,
-        variables: &BTreeMap<String, Binding>,
-    ) -> R<BTreeMap<String, Binding>> {
+    fn charge_variables(&mut self, variables: &BTreeMap<String, Binding>) -> R<()> {
         self.pay(variables.len(), 0)?;
         for (name, value) in variables {
             self.pay(name.len(), 0)?;
@@ -817,6 +794,13 @@ impl<'a> Check<'a, '_> {
                 current = value.shadowed.as_deref();
             }
         }
+        Ok(())
+    }
+    fn clone_variables(
+        &mut self,
+        variables: &BTreeMap<String, Binding>,
+    ) -> R<BTreeMap<String, Binding>> {
+        self.charge_variables(variables)?;
         Ok(variables.clone())
     }
     fn snapshot(
@@ -825,6 +809,23 @@ impl<'a> Check<'a, '_> {
         at: SemanticOriginalNode,
         variables: &BTreeMap<String, Binding>,
     ) -> R<()> {
+        if self.requested_snapshot == Some((owner, at)) {
+            let (expression, node) = match at {
+                SemanticOriginalNode::Expression(node) => (true, node),
+                SemanticOriginalNode::Statement(node) => (false, node),
+            };
+            if !self
+                .proof
+                .frozen_environments
+                .contains_key(&(owner, expression, node))
+            {
+                let snapshot = self.clone_variables(variables)?;
+                self.pay(1, 0)?;
+                self.proof
+                    .frozen_environments
+                    .insert((owner, expression, node), snapshot);
+            }
+        }
         self.pay(self.program.definitions.len(), 0)?;
         for child in &self.program.definitions {
             if child.parent != Some(owner) {
@@ -1254,12 +1255,13 @@ impl<'a> Check<'a, '_> {
         self.pay(1, depth)?;
         let role = match template {
             SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
-                scope: SemanticScopeRef::Ancestor(0),
+                scope: SemanticScopeRef::Ancestor(u32::MAX),
                 ordinal,
             }) => Some((false, *ordinal)),
-            SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(ordinal)) => {
-                Some((true, *ordinal))
-            }
+            SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Environment {
+                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                ordinal,
+            }) => Some((true, *ordinal)),
             _ => None,
         };
         if let Some((is_invocation, ordinal)) = role {
@@ -1278,7 +1280,7 @@ impl<'a> Check<'a, '_> {
         }
         if let (
             SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(SemanticFormalRef {
-                scope: SemanticScopeRef::Ancestor(0),
+                scope: SemanticScopeRef::Ancestor(u32::MAX),
                 ordinal,
             })),
             SemanticOuterLifeRecipe::Class(actual),
@@ -1354,7 +1356,7 @@ impl<'a> Check<'a, '_> {
             ) => {
                 self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?;
                 if let SemanticConstRecipe::Formal(SemanticFormalRef {
-                    scope: SemanticScopeRef::Ancestor(0),
+                    scope: SemanticScopeRef::Ancestor(u32::MAX),
                     ordinal,
                 }) = av
                 {
@@ -1396,7 +1398,7 @@ impl<'a> Check<'a, '_> {
         match (template, actual) {
             (
                 SemanticTypeRecipe::Formal(SemanticFormalRef {
-                    scope: SemanticScopeRef::Ancestor(0),
+                    scope: SemanticScopeRef::Ancestor(u32::MAX),
                     ordinal,
                 }),
                 _,
@@ -1512,7 +1514,7 @@ impl<'a> Check<'a, '_> {
             ) => {
                 self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?;
                 if let SemanticConstRecipe::Formal(SemanticFormalRef {
-                    scope: SemanticScopeRef::Ancestor(0),
+                    scope: SemanticScopeRef::Ancestor(u32::MAX),
                     ordinal,
                 }) = al.as_ref()
                 {
@@ -1571,6 +1573,7 @@ impl<'a> Check<'a, '_> {
         written_actuals: &[SemanticActualRecipe],
         variables: &mut BTreeMap<String, Binding>,
         wanted: Option<&SemanticTypeRecipe>,
+        template_ready: bool,
         depth: usize,
     ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
         self.pay(arguments.len().saturating_add(formals.len()), depth)?;
@@ -1579,6 +1582,20 @@ impl<'a> Check<'a, '_> {
                 "original call omits complete parameters or mixed actuals",
             ));
         }
+        crate::dyn_metadata::semantic_operand_snapshot(signature, self.limits, self.left, 1)?;
+        let mut signature = signature.clone();
+        for parameter in &mut signature.parameters {
+            let ty = copy_recipe(&parameter.ty, self.limits, self.left)?;
+            parameter.ty = self.mode_type(parameter.mode, ty, depth + 1)?;
+        }
+        let result_type = copy_recipe(&signature.result, self.limits, self.left)?;
+        signature.result = self.mode_type(signature.result_mode, result_type, depth + 1)?;
+        let signature = if template_ready {
+            signature
+        } else {
+            self.inference_template(&signature, formals, true, depth + 1)?
+        };
+        let signature = &signature;
         let mut solutions = self.written(owner, callee, formals, variables, depth + 1)?;
         for (slot, actual) in solutions.iter_mut().zip(written_actuals) {
             if !matches!(actual, SemanticActualRecipe::Infer) {
@@ -1635,7 +1652,7 @@ impl<'a> Check<'a, '_> {
             .ok_or_else(|| {
                 pending("original call's fresh mixed inference variables are not fully determined")
             })?;
-        let frames = [(0, actuals.as_slice())];
+        let frames = [(u32::MAX, actuals.as_slice())];
         let substitution = substitute::Substitution {
             frames: &frames,
             selves: &[],
@@ -1644,7 +1661,8 @@ impl<'a> Check<'a, '_> {
             invocation: &invocation,
             shift: 0,
         };
-        let signature = substitute::signature(signature, &substitution, self.limits, self.left)?;
+        let signature =
+            substitute::signature_fresh(signature, &substitution, self.limits, self.left)?;
         Ok((actuals, signature))
     }
     fn ordinary_value(
@@ -1721,6 +1739,15 @@ impl<'a> Check<'a, '_> {
             .any(|premise| premise == requirement)
         {
             return Ok(());
+        }
+        if let SemanticRequirementRecipe::Builtin { ty, trait_kind } = requirement {
+            if let Some(satisfied) = self.sealed_capability(owner, ty, *trait_kind, depth + 1)? {
+                return if satisfied {
+                    Ok(())
+                } else {
+                    Err(bad("original caller lacks the complete sealed capability"))
+                };
+            }
         }
         match requirement {
             SemanticRequirementRecipe::Structural {
@@ -1973,6 +2000,31 @@ impl<'a> Check<'a, '_> {
         wanted: Option<&SemanticTypeRecipe>,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
+        let result = self.expr_inner(owner, expression, variables, wanted, depth);
+        result.map_err(|mut diagnostic| {
+            // Error context is also bounded; budget exhaustion never triggers
+            // an uncharged formatting walk over attacker-supplied source text.
+            if let Some(left) = self.left.checked_sub(192) {
+                *self.left = left;
+                diagnostic.notes.push(format!(
+                    "original Gamma: definition {:?}, expression {:?}",
+                    owner, expression.id
+                ));
+                if diagnostic.span.is_none() {
+                    diagnostic.span = Some(expression.span);
+                }
+            }
+            diagnostic
+        })
+    }
+    fn expr_inner(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
         self.snapshot(
             owner,
@@ -2017,6 +2069,20 @@ impl<'a> Check<'a, '_> {
                     .types
                     .insert((owner, Query::Expression(expression.id)), copy);
                 return Ok(value);
+            }
+        }
+        if matches!(
+            &expression.kind,
+            CoreExprKind::Member { .. } | CoreExprKind::Call { .. }
+        ) {
+            if let Some(result) =
+                self.enum_constructor(owner, expression, variables, wanted, depth + 1)?
+            {
+                let copy = copy_recipe(&result, self.limits, self.left)?;
+                self.proof
+                    .types
+                    .insert((owner, Query::Expression(expression.id)), copy);
+                return Ok(result);
             }
         }
         let result = match &expression.kind {
@@ -2075,8 +2141,13 @@ impl<'a> Check<'a, '_> {
                 }
             }
             CoreExprKind::CompileTime(value) => {
-                // Original typing grants no CT stage closure or execution right.
-                self.expr(owner, value, variables, wanted, depth + 1)?
+                self.stage_depth = self
+                    .stage_depth
+                    .checked_add(1)
+                    .ok_or_else(|| bad("original stage nesting overflows"))?;
+                let result = self.expr(owner, value, variables, wanted, depth + 1);
+                self.stage_depth -= 1;
+                result?
             }
             CoreExprKind::Group(value) => self.expr(owner, value, variables, wanted, depth + 1)?,
             CoreExprKind::String(spelling) => {
@@ -2261,6 +2332,27 @@ impl<'a> Check<'a, '_> {
                 }
                 *inner
             }
+            CoreExprKind::Unary {
+                op: UnaryOp::Negate,
+                operand,
+            } if matches!(&operand.kind, CoreExprKind::Integer(_)) => {
+                let CoreExprKind::Integer(text) = &operand.kind else {
+                    unreachable!()
+                };
+                let expected = wanted.and_then(|ty| match ty {
+                    SemanticTypeRecipe::Atom(ty) => Some(ty),
+                    _ => None,
+                });
+                let ty =
+                    SemanticTypeRecipe::Atom(integer(text, expected, true, expression.span)?.ty());
+                // The magnitude is checked as part of this signed literal,
+                // never admitted as a standalone positive narrow integer.
+                let copy = copy_recipe(&ty, self.limits, self.left)?;
+                self.proof
+                    .types
+                    .insert((owner, Query::Expression(operand.id)), copy);
+                ty
+            }
             CoreExprKind::Unary { op, operand } => {
                 let value = self.expr(owner, operand, variables, wanted, depth + 1)?;
                 let SemanticTypeRecipe::Atom(ty) = &value else {
@@ -2356,44 +2448,7 @@ impl<'a> Check<'a, '_> {
                 field
             }
             CoreExprKind::Record { ty, fields } => {
-                let ty = self.resolve(owner, ty, depth + 1)?;
-                let SemanticTypeRecipe::Nominal {
-                    definition,
-                    arguments,
-                } = &ty
-                else {
-                    return Err(bad(
-                        "original record constructor has no nominal declaration",
-                    ));
-                };
-                let original = self.definition(*definition)?;
-                let SemanticDefinitionBody::Nominal {
-                    body:
-                        SemanticNominalBody::Product {
-                            fields: declarations,
-                        },
-                    ..
-                } = &original.body
-                else {
-                    return Err(bad(
-                        "original record constructor changes its declaration kind",
-                    ));
-                };
-                if fields.len() != declarations.len() {
-                    return Err(bad("original record constructor omits or adds fields"));
-                }
-                for ((name, value), field) in fields.iter().zip(declarations) {
-                    if name != &field.name {
-                        return Err(bad(
-                            "original record constructor changes field identity/order",
-                        ));
-                    }
-                    let expected =
-                        super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
-                    let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
-                    self.same(&actual, &expected)?;
-                }
-                ty
+                self.record_constructor(owner, ty, fields, variables, wanted, depth + 1)?
             }
             CoreExprKind::Closure {
                 move_capture,
@@ -2530,6 +2585,9 @@ impl<'a> Check<'a, '_> {
                     environment: sealed_environment,
                 }
             }
+            CoreExprKind::Tuple(fields) if fields.is_empty() => {
+                SemanticTypeRecipe::Atom(Type::Unit)
+            }
             CoreExprKind::Tuple(fields) => {
                 let mut types = Vec::new();
                 for field in fields {
@@ -2567,6 +2625,16 @@ impl<'a> Check<'a, '_> {
                     .ok_or_else(|| {
                         pending("original call has no resolved original target recipe")
                     })?;
+                self.pay(
+                    usize::from(self.stage_depth > 0) + usize::from(self.cleanup_depth > 0),
+                    depth,
+                )?;
+                if self.stage_depth > 0 {
+                    self.proof.compile_time_calls.insert((owner, site.id));
+                }
+                if self.cleanup_depth > 0 {
+                    self.proof.cleanup_calls.insert((owner, site.id));
+                }
                 if matches!(
                     site.kind,
                     SemanticSiteRecipeKind::OriginalCall
@@ -2714,6 +2782,7 @@ impl<'a> Check<'a, '_> {
                     &actuals,
                     variables,
                     wanted,
+                    false,
                     depth + 1,
                 )?;
                 self.call_requirements(owner, definition, &actuals, depth + 1)?;
@@ -2757,460 +2826,6 @@ impl<'a> Check<'a, '_> {
             .types
             .insert((owner, Query::Expression(expression.id)), copy);
         Ok(result)
-    }
-    fn intrinsic(
-        &mut self,
-        owner: SemanticDefinitionId,
-        site: SemanticSiteId,
-        expression: &SemanticOriginalExpr,
-        variables: &mut BTreeMap<String, Binding>,
-        wanted: Option<&SemanticTypeRecipe>,
-        depth: usize,
-    ) -> R<Option<SemanticTypeRecipe>> {
-        self.pay(1, depth)?;
-        let CoreExprKind::Call { callee, arguments } = &expression.kind else {
-            unreachable!()
-        };
-        let path = self.declaration_path(callee, variables, depth + 1)?;
-        if let Some(path) = &path {
-            if self.declaration_target(owner, path, depth + 1)?.is_some() {
-                return Ok(None);
-            }
-        }
-        if let Some(result) =
-            self.store_intrinsic(owner, site, expression, variables, wanted, depth + 1)?
-        {
-            return Ok(Some(result));
-        }
-        let mut base = callee.as_ref();
-        while let CoreExprKind::GenericApply { callee, .. }
-        | CoreExprKind::TypeApply { callee, .. } = &base.kind
-        {
-            self.pay(1, depth)?;
-            base = callee;
-        }
-        // A builtin is selected only after exact lexical/declaration resolution;
-        // a matching spelling hidden by a local remains an ordinary callable.
-        let numeric = |name: &str| match name {
-            "i8" => Some(Type::I8),
-            "i16" => Some(Type::I16),
-            "i32" => Some(Type::I32),
-            "i64" => Some(Type::I64),
-            "isize" => Some(Type::Isize),
-            "u8" => Some(Type::U8),
-            "u16" => Some(Type::U16),
-            "u32" => Some(Type::U32),
-            "u64" => Some(Type::U64),
-            "usize" => Some(Type::Usize),
-            "f32" => Some(Type::F32),
-            "f64" => Some(Type::F64),
-            _ => None,
-        };
-        let (kind, arity, receiver) = match (&base.kind, &path) {
-            (CoreExprKind::Name(name), Some(path)) if path.len() == 1 => match name.as_str() {
-                "mutex_create" => (IntrinsicKind::MutexCreate, 1, None),
-                "mutex_lock" => (IntrinsicKind::MutexLock, 1, None),
-                "mutex_value" => (IntrinsicKind::MutexValue, 1, None),
-                "mutex_unlock" => (IntrinsicKind::MutexUnlock, 1, None),
-                "bytes_new" => (IntrinsicKind::BytesNew, 0, None),
-                "bytes_reserve" => (IntrinsicKind::BytesReserve, 2, None),
-                "bytes_truncate" => (IntrinsicKind::BytesTruncate, 2, None),
-                "bytes_push" => (IntrinsicKind::BytesPush, 2, None),
-                "bytes_len" => (IntrinsicKind::BytesLen, 1, None),
-                "bytes_capacity" => (IntrinsicKind::BytesCapacity, 1, None),
-                "bytes_view" => (IntrinsicKind::BytesBorrow { mutable: false }, 1, None),
-                "bytes_view_mut" => (IntrinsicKind::BytesBorrow { mutable: true }, 1, None),
-                "thread_scope" => {
-                    if arguments.len() != 3 {
-                        return Err(bad(
-                            "original thread_scope changes its three-operand scheme",
-                        ));
-                    }
-                    let worker_path = self
-                        .declaration_path(&arguments[0], variables, depth + 1)?
-                        .ok_or_else(|| {
-                            bad("original thread worker is not a lexical static declaration")
-                        })?;
-                    let worker = self
-                        .declaration_target(owner, &worker_path, depth + 1)?
-                        .ok_or_else(|| bad("original thread worker has no real declaration"))?;
-                    let worker_definition = self.definition(worker)?;
-                    if !worker_definition.parameters.is_empty()
-                        || worker_definition.kind != SemanticDefinitionKind::Function
-                    {
-                        return Err(bad(
-                            "original thread worker must have a concrete ordinary declaration",
-                        ));
-                    }
-                    if !self.proof.complete.contains(&worker) && !self.active.contains(&worker) {
-                        self.function(worker_definition, None)?;
-                    }
-                    let SemanticDefinitionBody::FunctionWithBody {
-                        signature,
-                        body: SemanticOriginalFunctionBody::Defined(_),
-                        ..
-                    } = &worker_definition.body
-                    else {
-                        return Err(bad("original thread worker must have a real language body"));
-                    };
-                    if signature.parameters.len() != 1 || signature.call_kind != CallKind::Direct {
-                        return Err(bad(
-                            "original thread worker has an incompatible call scheme",
-                        ));
-                    }
-                    self.same(&signature.result, &SemanticTypeRecipe::Atom(Type::I32))?;
-                    let payload = self.expr(
-                        owner,
-                        &arguments[1],
-                        variables,
-                        Some(&signature.parameters[0].ty),
-                        depth + 1,
-                    )?;
-                    self.same(&payload, &signature.parameters[0].ty)?;
-                    let body_ty = self.expr(owner, &arguments[2], variables, None, depth + 1)?;
-                    let SemanticTypeRecipe::Closure {
-                        definition: body, ..
-                    } = &body_ty
-                    else {
-                        return Err(bad("original thread body is not a concrete closure"));
-                    };
-                    let body_definition = self.definition(*body)?;
-                    let SemanticDefinitionBody::FunctionWithBody {
-                        signature: body_signature,
-                        ..
-                    } = &body_definition.body
-                    else {
-                        return Err(bad("original thread body omits its complete scheme"));
-                    };
-                    if !body_signature.parameters.is_empty() {
-                        return Err(bad("original thread body requires a zero-argument scheme"));
-                    }
-                    let body_result = self.resolve(*body, &body_signature.result, depth + 1)?;
-                    self.same(&body_result, &SemanticTypeRecipe::Atom(Type::I32))?;
-                    let result = SemanticTypeRecipe::Tuple(vec![
-                        SemanticTypeRecipe::Atom(Type::Bool),
-                        SemanticTypeRecipe::Atom(Type::I32),
-                        SemanticTypeRecipe::Atom(Type::I32),
-                    ]);
-                    let kind = IntrinsicKind::ThreadScope {
-                        worker,
-                        body: *body,
-                    };
-                    self.record_intrinsic(
-                        owner,
-                        site,
-                        kind,
-                        vec![payload, body_ty],
-                        &result,
-                        wanted,
-                        depth + 1,
-                    )?;
-                    return Ok(Some(result));
-                }
-                name => match numeric(name) {
-                    Some(target) => (IntrinsicKind::Numeric { target }, 1, None),
-                    None => return Ok(None),
-                },
-            },
-            (CoreExprKind::Member { object, member, .. }, None) if member == "len" => {
-                let receiver = self.place(owner, object, variables, depth + 1)?;
-                let mut receiver = self.observation_type(owner, &receiver, depth + 1)?;
-                while let SemanticTypeRecipe::Address { inner, .. } = receiver {
-                    self.pay(1, depth)?;
-                    receiver = *inner;
-                }
-                if !matches!(
-                    receiver,
-                    SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_)
-                ) {
-                    return Ok(None);
-                }
-                (IntrinsicKind::Length, 0, Some(object.as_ref()))
-            }
-            _ => return Ok(None),
-        };
-        if base.id != callee.id {
-            return Err(bad(
-                "original sealed intrinsic has no written generic argument scheme",
-            ));
-        }
-        if arguments.len() != arity {
-            return Err(bad("original intrinsic changes its declared operand arity"));
-        }
-        self.pay(arguments.len().saturating_add(8), depth)?;
-        let mut parameters = Vec::new();
-        if let Some(receiver) = receiver {
-            parameters.push(self.place(owner, receiver, variables, depth + 1)?);
-        }
-        for (ordinal, argument) in arguments.iter().enumerate() {
-            let expected = match (&kind, ordinal) {
-                (IntrinsicKind::BytesReserve | IntrinsicKind::BytesTruncate, 1) => {
-                    Some(SemanticTypeRecipe::Atom(Type::I64))
-                }
-                (IntrinsicKind::BytesPush, 1) => Some(SemanticTypeRecipe::Atom(Type::U8)),
-                _ => None,
-            };
-            parameters.push(self.expr(owner, argument, variables, expected.as_ref(), depth + 1)?);
-        }
-        let result = match &kind {
-            IntrinsicKind::MutexCreate => {
-                let payload = copy_recipe(&parameters[0], self.limits, self.left)?;
-                if !self.ordinary_value(owner, &payload, depth + 1)? {
-                    return Err(bad(
-                        "original mutex payload lacks its complete ordinary Value premise",
-                    ));
-                }
-                SemanticTypeRecipe::ErrorUnion {
-                    error: Box::new(SemanticTypeRecipe::Exact(Box::new(
-                        SemanticExactTypeRecipe {
-                            ty: crate::generic_mutex::create_error(),
-                            life: StorageLifeShape {
-                                binder_count: 0,
-                                slots: Vec::new(),
-                                retained: Vec::new(),
-                                nominal_arguments: Vec::new(),
-                            },
-                            classes: Vec::new(),
-                        },
-                    ))),
-                    result: Box::new(SemanticTypeRecipe::Managed(Box::new(
-                        SemanticTypeRecipe::Mutex(Box::new(payload)),
-                    ))),
-                }
-            }
-            IntrinsicKind::MutexLock => {
-                let SemanticTypeRecipe::Desc {
-                    lifetime: SemanticOuterLifeRecipe::Class(lifetime),
-                    inner,
-                } = &parameters[0]
-                else {
-                    return Err(bad(
-                        "original mutex lock requires a real scoped head descriptor",
-                    ));
-                };
-                let SemanticTypeRecipe::Mutex(payload) = inner.as_ref() else {
-                    return Err(bad("original mutex lock changes the sealed head kind"));
-                };
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    lifetime,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    lifetime,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                SemanticTypeRecipe::MutexGuard {
-                    payload: Box::new(copy_recipe(payload, self.limits, self.left)?),
-                    retained: Box::new(SemanticRetainedShapeRecipe {
-                        domain: SemanticClassSequenceRecipe {
-                            parts: vec![SemanticClassSequencePart::One(lifetime.clone())],
-                        },
-                        ports: vec![SemanticPortPart::One {
-                            leaf: Box::new(copy_recipe(inner, self.limits, self.left)?),
-                            mode: StoredBorrowMode::SharedAddress,
-                            class: lifetime.clone(),
-                        }],
-                        retained: Vec::new(),
-                        nominal: Vec::new(),
-                    }),
-                }
-            }
-            IntrinsicKind::MutexValue => {
-                let SemanticTypeRecipe::Address {
-                    mutable: true,
-                    lifetime,
-                    inner,
-                } = &parameters[0]
-                else {
-                    return Err(bad(
-                        "original mutex value requires an exclusive guard borrow",
-                    ));
-                };
-                let SemanticTypeRecipe::MutexGuard { payload, .. } = inner.as_ref() else {
-                    return Err(bad("original mutex value changes its sealed guard kind"));
-                };
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    lifetime,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                SemanticTypeRecipe::Address {
-                    mutable: true,
-                    lifetime: lifetime.clone(),
-                    inner: Box::new(copy_recipe(payload, self.limits, self.left)?),
-                }
-            }
-            IntrinsicKind::MutexUnlock => {
-                if !matches!(&parameters[0], SemanticTypeRecipe::MutexGuard { .. }) {
-                    return Err(bad("original mutex unlock must consume a real guard"));
-                }
-                SemanticTypeRecipe::Atom(Type::Unit)
-            }
-            IntrinsicKind::BytesNew => {
-                SemanticTypeRecipe::Managed(Box::new(SemanticTypeRecipe::Atom(Type::ByteBuffer)))
-            }
-            IntrinsicKind::BytesReserve
-            | IntrinsicKind::BytesTruncate
-            | IntrinsicKind::BytesPush
-            | IntrinsicKind::BytesLen
-            | IntrinsicKind::BytesCapacity
-            | IntrinsicKind::BytesBorrow { .. } => {
-                let SemanticTypeRecipe::Desc { lifetime, inner } = &parameters[0] else {
-                    return Err(bad("original bytes operation requires a scoped descriptor"));
-                };
-                self.same(inner, &SemanticTypeRecipe::Atom(Type::ByteBuffer))?;
-                if parameters.len() == 2 {
-                    self.same(
-                        &parameters[1],
-                        &SemanticTypeRecipe::Atom(if kind == IntrinsicKind::BytesPush {
-                            Type::U8
-                        } else {
-                            Type::I64
-                        }),
-                    )?;
-                }
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    lifetime,
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                match &kind {
-                    IntrinsicKind::BytesLen | IntrinsicKind::BytesCapacity => {
-                        SemanticTypeRecipe::Atom(Type::I64)
-                    }
-                    IntrinsicKind::BytesBorrow { mutable } => SemanticTypeRecipe::Address {
-                        mutable: *mutable,
-                        lifetime: lifetime.clone(),
-                        inner: Box::new(SemanticTypeRecipe::Slice(Box::new(
-                            SemanticTypeRecipe::Atom(Type::U8),
-                        ))),
-                    },
-                    _ => SemanticTypeRecipe::Atom(Type::Bool),
-                }
-            }
-            IntrinsicKind::Length => {
-                let mut value = &parameters[0];
-                while let SemanticTypeRecipe::Address { inner, .. } = value {
-                    self.pay(1, depth)?;
-                    value = inner;
-                }
-                if !matches!(
-                    value,
-                    SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_)
-                ) {
-                    return Err(bad(
-                        "original len receiver is not an array or borrowed slice",
-                    ));
-                }
-                SemanticTypeRecipe::Atom(Type::I64)
-            }
-            IntrinsicKind::Numeric { target } => {
-                if !matches!(&parameters[0], SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float())
-                {
-                    return Err(bad(
-                        "original numeric intrinsic requires a primitive numeric input",
-                    ));
-                }
-                SemanticTypeRecipe::Atom(target.clone())
-            }
-            IntrinsicKind::ThreadScope { .. }
-            | IntrinsicKind::StoreNew
-            | IntrinsicKind::StoreReserve
-            | IntrinsicKind::StorePush
-            | IntrinsicKind::StorePop
-            | IntrinsicKind::StoreLen
-            | IntrinsicKind::StoreCapacity
-            | IntrinsicKind::StoreBorrow { .. } => unreachable!(),
-        };
-        self.record_intrinsic(owner, site, kind, parameters, &result, wanted, depth + 1)?;
-        Ok(Some(result))
-    }
-    fn record_intrinsic(
-        &mut self,
-        owner: SemanticDefinitionId,
-        site: SemanticSiteId,
-        kind: IntrinsicKind,
-        parameters: Vec<SemanticTypeRecipe>,
-        result: &SemanticTypeRecipe,
-        wanted: Option<&SemanticTypeRecipe>,
-        depth: usize,
-    ) -> R<()> {
-        self.pay(2, depth)?;
-        if let Some(wanted) = wanted {
-            self.same(result, wanted)?;
-        }
-        self.pay(2, depth)?;
-        let mut actuals = Vec::new();
-        match &kind {
-            IntrinsicKind::MutexCreate => actuals.push(SemanticActualRecipe::Type(copy_recipe(
-                &parameters[0],
-                self.limits,
-                self.left,
-            )?)),
-            IntrinsicKind::MutexLock => {
-                let SemanticTypeRecipe::Desc { inner, .. } = &parameters[0] else {
-                    unreachable!()
-                };
-                let SemanticTypeRecipe::Mutex(payload) = inner.as_ref() else {
-                    unreachable!()
-                };
-                actuals.push(SemanticActualRecipe::Type(copy_recipe(
-                    payload,
-                    self.limits,
-                    self.left,
-                )?));
-            }
-            IntrinsicKind::MutexValue => {
-                let SemanticTypeRecipe::Address { inner, .. } = &parameters[0] else {
-                    unreachable!()
-                };
-                let SemanticTypeRecipe::MutexGuard { payload, .. } = inner.as_ref() else {
-                    unreachable!()
-                };
-                actuals.push(SemanticActualRecipe::Type(copy_recipe(
-                    payload,
-                    self.limits,
-                    self.left,
-                )?));
-            }
-            IntrinsicKind::MutexUnlock => {
-                let SemanticTypeRecipe::MutexGuard { payload, .. } = &parameters[0] else {
-                    unreachable!()
-                };
-                actuals.push(SemanticActualRecipe::Type(copy_recipe(
-                    payload,
-                    self.limits,
-                    self.left,
-                )?));
-            }
-            IntrinsicKind::ThreadScope { .. } => {
-                for parameter in &parameters {
-                    actuals.push(SemanticActualRecipe::Type(copy_recipe(
-                        parameter,
-                        self.limits,
-                        self.left,
-                    )?));
-                }
-            }
-            _ => {}
-        }
-        self.proof.calls.insert((owner, site), actuals);
-        let result = copy_recipe(result, self.limits, self.left)?;
-        self.proof.intrinsics.insert(
-            (owner, site),
-            IntrinsicCall {
-                kind,
-                parameters,
-                result,
-            },
-        );
-        Ok(())
     }
     fn insert_binding(
         &mut self,
@@ -3450,6 +3065,9 @@ impl<'a> Check<'a, '_> {
                 )?;
             }
             CorePatternKind::Wildcard => {}
+            CorePatternKind::Tuple(patterns) if patterns.is_empty() => {
+                self.same(ty, &SemanticTypeRecipe::Atom(Type::Unit))?;
+            }
             CorePatternKind::Tuple(patterns) => {
                 let ty = self.logical(owner, ty, depth + 1)?;
                 let SemanticTypeRecipe::Tuple(fields) = ty else {
@@ -3837,6 +3455,18 @@ impl<'a> Check<'a, '_> {
                         .as_ref()
                         .map(|ty| self.resolve(owner, ty, depth + 1))
                         .transpose()?;
+                    let annotation = if let (Some(annotation), Some(initializer)) =
+                        (annotation.as_ref(), initializer.as_ref())
+                    {
+                        let annotation = copy_recipe(annotation, self.limits, self.left)?;
+                        if self.initializer_owns(owner, initializer, variables, depth + 1)? {
+                            Some(self.mode_type(PassingMode::Create, annotation, depth + 1)?)
+                        } else {
+                            Some(annotation)
+                        }
+                    } else {
+                        annotation
+                    };
                     let actual = initializer
                         .as_ref()
                         .map(|value| {
@@ -3987,6 +3617,10 @@ impl<'a> Check<'a, '_> {
                     // its affine transfers also prevents another transfer before exit.
                     let mut cleanup = self.clone_variables(variables)?;
                     let outer_loops = std::mem::take(&mut self.loops);
+                    self.cleanup_depth = self
+                        .cleanup_depth
+                        .checked_add(1)
+                        .ok_or_else(|| bad("original cleanup nesting overflows"))?;
                     let cleanup_result = self.block(
                         owner,
                         body,
@@ -3995,6 +3629,7 @@ impl<'a> Check<'a, '_> {
                         depth + 1,
                     );
                     self.loops = outer_loops;
+                    self.cleanup_depth -= 1;
                     if !cleanup_result? {
                         return Err(bad(
                             "original deferred cleanup escapes its own exit boundary",
@@ -4527,8 +4162,10 @@ impl<'a> Check<'a, '_> {
         for (index, (binder, parameter)) in parameters.iter().zip(&signature.parameters).enumerate()
         {
             let ty = self.resolve(definition.id, &parameter.ty, 0)?;
+            let ty = self.mode_type(parameter.mode, ty, 0)?;
             if let Some(annotation) = &binder.ty {
                 let annotation = self.resolve(definition.id, annotation, 0)?;
+                let annotation = self.mode_type(binder.mode, annotation, 0)?;
                 self.same(&ty, &annotation)?;
             }
             let copy = copy_recipe(&ty, self.limits, self.left)?;
@@ -4553,7 +4190,10 @@ impl<'a> Check<'a, '_> {
             );
         }
         let result = copy_recipe(&signature.result, self.limits, self.left)?;
+        let result = self.mode_type(signature.result_mode, result, 0)?;
         let outer_loops = std::mem::take(&mut self.loops);
+        let outer_stage = std::mem::replace(&mut self.stage_depth, 0);
+        let outer_cleanup = std::mem::replace(&mut self.cleanup_depth, 0);
         match body {
             SemanticOriginalFunctionBody::Defined(body) => {
                 self.block(definition.id, body, &mut variables, &result, 0)?;
@@ -4576,6 +4216,8 @@ impl<'a> Check<'a, '_> {
             }
         }
         self.loops = outer_loops;
+        self.stage_depth = outer_stage;
+        self.cleanup_depth = outer_cleanup;
         self.pay(variables.len(), 0)?;
         let mut names = Vec::new();
         let mut kind = CallableKind::Fn;
@@ -4643,6 +4285,23 @@ impl<'a> Check<'a, '_> {
     }
 }
 pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize) -> R<Proof> {
+    check_requested(program, None, limits, left)
+}
+pub(super) fn check_at(
+    program: &SemanticModule,
+    owner: SemanticDefinitionId,
+    node: SemanticOriginalNode,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Proof> {
+    check_requested(program, Some((owner, node)), limits, left)
+}
+fn check_requested(
+    program: &SemanticModule,
+    requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Proof> {
     let mut check = Check {
         program,
         limits,
@@ -4654,6 +4313,9 @@ pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize)
         trait_active: Vec::new(),
         contexts: Vec::new(),
         predicate_active: Vec::new(),
+        stage_depth: 0,
+        cleanup_depth: 0,
+        requested_snapshot,
     };
     for definition in &program.definitions {
         if matches!(
@@ -4678,6 +4340,7 @@ pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize)
             ));
         }
     }
+    check.finish_effects()?;
     Ok(check.proof)
 }
 
@@ -4733,6 +4396,41 @@ impl Proof {
         }
         crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
         Ok(value.clone())
+    }
+    pub(super) fn fixed_call_kind(
+        &self,
+        program: &SemanticModule,
+        definition: SemanticDefinitionId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<CallKind> {
+        *left = left
+            .checked_sub(program.definitions.len().saturating_add(1))
+            .ok_or_else(|| {
+                Diagnostic::limit(Phase::Types, "original fixed ABI lookup exceeded", None)
+            })?;
+        if !self.complete.contains(&definition) {
+            return Err(bad(
+                "fixed ABI requested before complete original body typing",
+            ));
+        }
+        let original = program
+            .definitions
+            .iter()
+            .find(|original| original.id == definition)
+            .ok_or_else(|| bad("fixed ABI original definition is absent"))?;
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else {
+            return Err(bad("fixed ABI owner is not original code"));
+        };
+        let body = self
+            .effective_call_kind
+            .get(&definition)
+            .ok_or_else(|| bad("fixed ABI requested before independent original effect proof"))?;
+        if signature.call_kind == CallKind::Direct && *body == CallKind::Suspend {
+            return Err(bad("original body exceeds its fixed Direct convention"));
+        }
+        let _ = limits;
+        Ok(signature.call_kind)
     }
     pub(super) fn provider_signature(
         &self,

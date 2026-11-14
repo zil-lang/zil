@@ -4,6 +4,15 @@ use crate::*;
 pub(super) trait Context {
     fn node(&mut self, depth: usize) -> R<()>;
     fn ty(&mut self, value: &mut SemanticTypeRecipe, depth: usize) -> R<()>;
+    fn expression_id(&mut self, _id: &mut zil_base::NodeId, _depth: usize) -> R<()> {
+        Ok(())
+    }
+    fn statement_id(&mut self, _id: &mut zil_base::NodeId, _depth: usize) -> R<()> {
+        Ok(())
+    }
+    fn span(&mut self, _span: &mut Span, _depth: usize) -> R<()> {
+        Ok(())
+    }
     fn descend_closure(&self) -> bool {
         true
     }
@@ -26,6 +35,7 @@ pub(super) trait Context {
 }
 fn pattern(value: &mut SemanticOriginalPattern, cx: &mut impl Context, depth: usize) -> R<()> {
     cx.node(depth)?;
+    cx.span(&mut value.span, depth)?;
     match &mut value.kind {
         CorePatternKind::Tuple(fields) => {
             for field in fields {
@@ -70,6 +80,7 @@ pub(super) fn block(
     depth: usize,
 ) -> R<()> {
     cx.node(depth)?;
+    cx.span(&mut value.span, depth)?;
     for value in &mut value.statements {
         visit_statement(value, cx, depth + 1)?;
     }
@@ -80,6 +91,8 @@ fn visit_statement(
     cx: &mut impl Context,
     depth: usize,
 ) -> R<()> {
+    cx.statement_id(&mut statement.id, depth + 1)?;
+    cx.span(&mut statement.span, depth + 1)?;
     cx.statement(statement.id, &statement.kind, depth + 1)?;
     match &mut statement.kind {
         CoreStatementKind::Binding {
@@ -196,6 +209,8 @@ fn visit_statement(
     Ok(())
 }
 fn expression(value: &mut SemanticOriginalExpr, cx: &mut impl Context, depth: usize) -> R<()> {
+    cx.expression_id(&mut value.id, depth)?;
+    cx.span(&mut value.span, depth)?;
     cx.expression(value.id, &value.kind, depth)?;
     match &mut value.kind {
         CoreExprKind::MakeDynBorrow { source, .. } | CoreExprKind::MakeDynOwned { source, .. } => {
