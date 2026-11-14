@@ -1,0 +1,43 @@
+{
+  "source_base": "b0537cc2f8c355fb83e3e0ec24950167957fe365",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T161023Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-types/src/semantics/original_cleanup.rs": "2b5e5f78745ebf647c429f60444b1b4605a916e0f320926a7fec7f40871c65f1",
+    "crates/zil-types/src/semantics/original_protocol.rs": "897f2ffe3d28fa4e042a09a60f1315bd47cfaccf29ee4bd1fd01c35883942fff",
+    "crates/zil-types/src/semantics/original_protocol_tasks.rs": "989df270d6187308614af7c42253f48d5df8ac84dfa221377b2fb48d51139b2b",
+    "crates/zil-verify/src/semantic/flow.rs": "aff62f5907d2dd15fd9131cb3e61cd313ba1242ab4c1914f822cacfa9202bbf5",
+    "crates/zil-verify/src/semantic/flow/call_borrows.rs": "f8aef98f8687d3c9f1f93616628bde616e3ce3ccb06e7713b98fa744e442b465",
+    "crates/zil-verify/src/semantic/flow/intrinsics.rs": "5bf6ba08722a96322816218d75256e211bd4c5aabfecd642135a015f31a3aecd",
+    "crates/zil-verify/src/semantic/flow/scoped_threads.rs": "29b8f12ea0d899372d4006c245f8612fa69c3da2051d1b3c90c632a17d662df6",
+    "crates/zil-verify/src/semantic/flow/worlds.rs": "175bb48a4ced4e7a10d8ab178710088ca7dc23b3dfa697837ea2cbf7a61c3149",
+    "crates/zil-verify/src/semantic/original/mod.rs": "2baee5b934c22d41a2657c8a8ae12c09429ae83516396eda328375b2ea337a7a",
+    "crates/zil-verify/src/semantic/original/operations.rs": "2020fd4d3ac7b5f1d5b416952f790c2a677b3c0911a52b0e38d2189cb35815f8",
+    "crates/zil-verify/src/semantic/original/scoped_threads.rs": "33d5dadda519adae80f5061ab3e08499d8cd92b0a6057b074bff629c029ef58a",
+    "crates/zil-verify/src/semantic/task_domains.rs": "15285cab0d6a6628174fbb3988eb1e1c5a28409c8ca205b0e74ee781b4e3ce97",
+    "crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "e3939f04210f3fc0f34b825870a94debe60b569488b1519f6b3f0eec3cf7e186",
+    "crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d98c8d429e3901b08794959cf3a8f4af11a82ca2195a778d26e0e5acab1fde1a",
+    "crates/zil-verify/src/stored_flow/task_address/results.rs": "3f9eefe627a658c1259d76501ce916caa1ab9bf298f5e1d3046744c3648f1d73",
+    "crates/zil-verify/src/tasks.rs": "4b8a717bb6b34c28f66d11b060e9cf1aaf4174d28be42a56db3ab73bb37a2f2c",
+    "crates/zil-verify/src/tasks/frame_shape.rs": "aa19035fbd50ca92228d3395333592e6cffe9e07536eb8bb7bb25da2e15f1ee1",
+    "crates/zil-verify/src/tasks/owned.rs": "b6b2c877559de3545bc0ee2d62db4a4f0d4097a5879c6e1217d592a12e4a302c"
+  },
+  "artifacts": {
+    "source.patch": "43dd86f07c22f49d2a7db66f2c200ba49d3e95380d6862bdc14d22d278cb0bd1",
+    "untracked/crates/zil-types/src/semantics/original_protocol_tasks.rs": "989df270d6187308614af7c42253f48d5df8ac84dfa221377b2fb48d51139b2b",
+    "untracked/crates/zil-verify/src/semantic/flow/scoped_threads.rs": "29b8f12ea0d899372d4006c245f8612fa69c3da2051d1b3c90c632a17d662df6",
+    "untracked/crates/zil-verify/src/semantic/original/scoped_threads.rs": "33d5dadda519adae80f5061ab3e08499d8cd92b0a6057b074bff629c029ef58a",
+    "untracked/crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d98c8d429e3901b08794959cf3a8f4af11a82ca2195a778d26e0e5acab1fde1a",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/results.rs": "3f9eefe627a658c1259d76501ce916caa1ab9bf298f5e1d3046744c3648f1d73",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "61d16fe88003befb533104778396f774164072088ba88e25fcdd9d677ce47c14"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
