@@ -16,6 +16,7 @@ mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
+mod foreign_calls;
 
 pub(crate) fn logical_dyn_capture_leaf(
     module: &TypedModule,
@@ -388,7 +389,9 @@ fn package_return_candidates(
     b: &mut Budget,
 ) -> Check<BTreeMap<ValueId, u32>> {
     let mut result = BTreeMap::new();
-    if f.call_kind != CallKind::Direct || f.environment.is_some() {
+    if (f.call_kind != CallKind::Direct && !crate::tasks::ordinary_sabi_body(f, b)?)
+        || f.environment.is_some()
+    {
         return Ok(result);
     }
     b.spend(f.blocks.len())?;
@@ -1256,6 +1259,11 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
                 }
                 stack.push((result, depth + 1));
             }
+            Type::ForeignCallback { parameters, result } => {
+                b.spend(parameters.len().saturating_add(1))?;
+                stack.extend(parameters.iter().map(|ty| (ty, depth + 1)));
+                stack.push((result, depth + 1));
+            }
             _ => {}
         }
     }
@@ -1671,6 +1679,7 @@ pub(super) fn qualifications(
                     && !(b.task_sources() && task_address::owner_instruction(f, &i.kind));
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
+                    && !foreign_calls::operation(module, f, i, b)?
                     && !returned_environment::borrowed_child(module, f, i, b)?
                     && !compound::operation(f, i, b)?
                     && !anonymous_tuple::operation(f, i, b)?
@@ -1687,7 +1696,8 @@ pub(super) fn qualifications(
                     && byte_queries::query(&i.kind).is_none()
                     && !(b.task_sources() && task_address::operation(&i.kind))
                     && !failure_unpack(f, i, b)?
-                    && !(b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
+                    && !(b.task_sources()
+                        && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
                     && !crate::tasks::input_scope::registration_operation(f, i, b)?
                     && !failure_tuple_drop(f, i, b)?
                     && !(b.masked_stored_tasks()
@@ -2183,7 +2193,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     };
     crate::signature_life::charge(c, b)?;
     b.spend(f.parameters.len())?;
-    if f.reference_return_bound.is_some() || f.foreign.is_some() {
+    if f.reference_return_bound.is_some()
+        || f.foreign.is_some() && !foreign_calls::declaration(module, f, b)?
+    {
         return Err(err("stored signature contradicts another active profile"));
     }
     let mut parameters = Vec::with_capacity(f.parameters.len());
@@ -3985,16 +3997,8 @@ static_dependency: StaticProvenance::NotStatic,
             if matches!(vt(f,*callee)?,Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(super::stored_callables::task_result)) => {
             out=task_address::invoke(module,f,i,values,summaries,state,b)?;
         }
-        InstructionKind::ForeignCall { function, .. } => {
-            let declaration = module
-                .functions
-                .get(function.0 as usize)
-                .ok_or_else(|| err("foreign scalar entry is absent"))?;
-            if !super::stored_callables::scalar_foreign(declaration, b)? {
-                return Err(err(
-                    "stored foreign call requires an actual scalar-only declaration",
-                ));
-            }
+        InstructionKind::ForeignCall { .. } | InstructionKind::ForeignFunctionRef { .. } => {
+            foreign_calls::operation(module, f, i, b)?;
         }
         InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
         InstructionKind::Call {
@@ -5379,6 +5383,15 @@ fn windows(
             )?;
             (|| -> Check<()> {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
+                foreign_calls::accesses(
+                    module,
+                    f,
+                    i,
+                    &solution.values,
+                    &mut checks,
+                    requirements,
+                    b,
+                )?;
                 if replacements::heads(b) {
                     let head = dynamic_store::access(&i.kind)
                         .or_else(|| byte_buffers::access(&i.kind))
@@ -6860,11 +6873,12 @@ fn check_with_mask(
             ));
         }
         if (f.foreign.is_some()
-            && !super::stored_callables::scalar_foreign(f, b)?
+            && !foreign_calls::declaration(module, f, b)?
             && !crate::tasks::input_scope::provider(module, f, b)?)
             || f.callable_return_contract.is_some() && !b.returned_environment_sources
             || f.call_kind != CallKind::Direct
                 && !(b.task_sources() && f.call_kind == CallKind::Suspend)
+                && !crate::tasks::ordinary_sabi_body(f, b)?
         {
             return Err(unsupported(
                 "stored profile requires ordinary direct function bodies",
@@ -6894,7 +6908,8 @@ fn check_with_mask(
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
-            let neutral_owner = b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?;
+            let neutral_owner =
+                b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?;
             if !module.resources.is_empty()
                 && !mixed_package
                 && !(b.task_sources() && task_address::shape(ty))

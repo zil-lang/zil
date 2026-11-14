@@ -21,6 +21,7 @@ mod substitution;
 mod closure_sources;
 mod frozen;
 mod external_abi;
+mod formations;
 mod schemes;
 mod effects;
 mod carriers;
@@ -115,6 +116,7 @@ impl CheckedOriginal {
         let obligations=std::mem::take(&mut result.copy_obligations);
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
         for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
+        result.check_original_applications(module,context,active,b)?;
         result.check_trait_witnesses(module,context,active,b)?;
         result.current=None;
 

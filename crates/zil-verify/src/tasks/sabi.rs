@@ -5,6 +5,7 @@ use super::*;
 pub(super) struct Schedule {
     pub(super) frame: Vec<bool>,
     pub(super) direct_edges: Vec<(FunctionId, FunctionId)>,
+    pub(super) non_suspending: BTreeSet<FunctionId>,
 }
 
 pub(super) fn schedule(module: &TypedModule, b: &mut Budget) -> Check<Schedule> {
@@ -171,6 +172,16 @@ pub(super) fn schedule(module: &TypedModule, b: &mut Budget) -> Check<Schedule> 
             break;
         }
     }
+    // Capture the complete actual dependency result before constructor/frame
+    // admission adds entry-local obligations. This schedules the ordinary
+    // memory solver; it is neither a Task frame proof nor an entry authority.
+    let mut non_suspending = BTreeSet::new();
+    for function in &module.functions {
+        b.spend(non_suspending.len().saturating_add(1))?;
+        if function.call_kind == CallKind::Suspend && !frame[function.id.0 as usize] {
+            non_suspending.insert(function.id);
+        }
+    }
     // A constructor target needs PC0 admission even if its actual body never
     // yields. That obligation belongs to this entry, not to ordinary Direct
     // callers of the same body.
@@ -181,6 +192,7 @@ pub(super) fn schedule(module: &TypedModule, b: &mut Budget) -> Check<Schedule> 
     Ok(Schedule {
         frame,
         direct_edges: edges,
+        non_suspending,
     })
 }
 fn bad(message: &str, span: Option<Span>) -> Diagnostic {

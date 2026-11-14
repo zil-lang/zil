@@ -77,8 +77,14 @@ fn forbidden_stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
             | Type::Task { .. }
             | Type::ByteBuffer
             | Type::FunctionPointer { .. }
-            | Type::BorrowedFunctionPointer { .. }
-            | Type::ForeignCallback { .. } => return Ok(true),
+            | Type::BorrowedFunctionPointer { .. } => return Ok(true),
+            Type::ForeignCallback { parameters, result } => {
+                budget.spend(parameters.len().saturating_add(1))?;
+                native_values::target(&module.target, None)?;
+                native_values::callback_signature(parameters, result, None)?;
+                // Work admission only; the real ForeignFunctionRef target,
+                // C call and stored permissions are independent consumers.
+            }
             Type::Closure(id) => {
                 let definition=closures::definition(module,*id,None)?;
                 if !stored_callables::finite(module,*id) { return Ok(true); }

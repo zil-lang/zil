@@ -141,6 +141,17 @@ impl CheckedOriginal {
                         _=>return Err(bad("original nominal application changes a full formal kind")),
                     }}
                     for requirement in &declaration.requirements{self.obligation(module,context,requirement,&target,caller,active,b)?;}
+                    if let SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Enum,body:SemanticNominalBody::Enum{variants},..}=&declaration.body {
+                        // A direct formal payload is a conditional declaration
+                        // scheme. Each complete application, including an
+                        // unused function's signature, proves all variants in
+                        // the original caller Γ; no particular variant or
+                        // concrete specialization supplies that premise.
+                        for variant in variants {for field in &variant.fields {
+                            let value=self.ty(module,context,field,&target,active,b)?;
+                            self.structural_obligation(module,context,&value,DynStructuralBound::Value,caller,active,b)?;
+                        }}
+                    }
                 }
                 Ty::Opaque(owner,arguments)=>{let hidden=self.opaque_hidden(module,context,*owner,arguments,active,b)?;self.scheme_term(module,context,&hidden,caller,active,b)?;},
                 Ty::Projection{receiver,declaration,arguments,member}=>{self.scheme_term(module,context,receiver,caller,active,b)?;let _=self.associated_type(module,context,receiver,*declaration,arguments,*member,caller,active,b)?;},

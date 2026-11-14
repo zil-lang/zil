@@ -1024,6 +1024,17 @@ fn profile(
         }
     }
 }
+/// Structural work selection only. The ordinary solver still proves the
+/// actual body, retained roots, loans, writes, return sources and cleanups.
+/// A positive answer supplies no Direct entry for the public Suspend ABI.
+pub(super) fn ordinary_sabi_body(f: &TypedFunction, budget: &mut Budget) -> Check<bool> {
+    budget.spend(budget.sabi_non_suspending.len().saturating_add(1))?;
+    Ok(f.call_kind == CallKind::Suspend
+        && f.foreign.is_none()
+        && f.environment.is_none()
+        && budget.sabi_non_suspending.contains(&f.id))
+}
+
 pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     if !budget.tasks {
         return Ok(());
@@ -1182,6 +1193,7 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
             }
         }
     }
+    budget.sabi_non_suspending = schedule.non_suspending;
     Ok(())
 }
 
