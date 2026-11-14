@@ -13,6 +13,7 @@ mod capture_places;
 mod class_origins;
 mod classes;
 mod descriptions;
+mod dyn_tables;
 mod function_values;
 mod mutex;
 mod operations;
@@ -961,11 +962,7 @@ pub(super) fn check(
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         trait_queries: std::cell::RefCell::new(Vec::new()),
     };
-    if !module.dyn_interfaces.is_empty() || !module.dyn_vtables.is_empty() {
-        return Err(unknown(
-            "runtime Dyn interfaces and tables need their complete independently interpreted slot and witness bridge",
-        ));
-    }
+    checker.dyn_tables(b)?;
     checker.instances(b)?;
     checker.sites(b)?;
     checker.constructor_class_sources(b)?;
@@ -1020,6 +1017,15 @@ pub(super) fn check(
         // a complete original declaration as an executable interface table.
         b.lookup(b.semantic_declarations_proven.len(), WORK)?;
         b.semantic_declarations_proven.insert(declaration.id);
+    }
+    // No partial table or witness graph is visible to a later kernel. The
+    // complete original table bridge, every function world and all actual
+    // semantic operations above succeeded before these exact IDs are sealed.
+    for table in &module.dyn_vtables {
+        b.lookup(b.semantic_dyn_tables_proven.len(), WORK)?;
+        if !b.semantic_dyn_tables_proven.insert(table.id) {
+            return Err(fail("completed dynamic table identity is repeated"));
+        }
     }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
     // No semantic context manufactures a target, loan, epoch or effect.
