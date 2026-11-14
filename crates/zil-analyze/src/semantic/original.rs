@@ -29,6 +29,7 @@ pub(super) mod sealed;
 pub(super) mod slice_borrows;
 mod slices;
 mod stores;
+pub(super) mod strings;
 mod tasks;
 mod trait_members;
 mod traits;
@@ -224,6 +225,7 @@ pub(super) struct Checked {
     capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
+    string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -860,6 +862,20 @@ impl Solver<'_, '_> {
                 self.task_type(frame, result, retained, b, depth + 1)
             }
             SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: SemanticOuterLifeRecipe::Static,
+                inner,
+            } => {
+                let inner = self.recipe(frame, inner, b, depth + 1)?;
+                if !matches!(self.state.arena[self.type_root(inner,b)?],Kind::Slice(element) if matches!(self.state.arena[self.type_root(element,b)?],Kind::Atom(Type::U8)))
+                {
+                    return Err(unknown(
+                        "original static reference needs its complete inner type and occurrence inventory",
+                    ));
+                }
+                self.term(Kind::Atom(strings::byte_type()), b)
+            }
+            SemanticTypeRecipe::Address {
                 mutable,
                 lifetime: SemanticOuterLifeRecipe::Class(life),
                 inner,
@@ -1363,7 +1379,10 @@ impl Solver<'_, '_> {
         self.receiving
             .pop()
             .ok_or_else(|| fail("original receiving context lost its lexical stack"))?;
-        result
+        match result {
+            Ok(actual) if self.static_byte_role(actual, expected, b, depth + 1)? => Ok(expected),
+            other => other,
+        }
     }
     fn expression(
         &mut self,
@@ -1394,6 +1413,7 @@ impl Solver<'_, '_> {
                     self.atom(value.ty(), b)?
                 }
                 CoreExprKind::Bool(_) => self.atom(Type::Bool, b)?,
+                CoreExprKind::String(text) => self.string_literal(frame, value.id, text, b)?,
                 CoreExprKind::Unit => self.atom(Type::Unit, b)?,
                 CoreExprKind::Name(name) => {
                     let mut selected = None;
@@ -2170,6 +2190,7 @@ impl Solver<'_, '_> {
                     for (argument, parameter) in arguments.iter().zip(parameters) {
                         self.call_argument(frame, argument, parameter, b, depth + 1)?;
                     }
+                    self.static_call_roles(frame, value.id, arguments, result, b, depth + 1)?;
                     self.finish_abstract_call(frame.definition, value.id, b)?;
                     b.lookup(self.state.intrinsics.len(), WORK)?;
                     if self
@@ -3610,6 +3631,7 @@ pub(super) fn check(
             capture_origins: BTreeMap::new(),
             function_values: BTreeMap::new(),
             code_calls: BTreeMap::new(),
+            string_literals: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -4164,9 +4186,12 @@ impl Solver<'_, '_> {
             Kind::Atom(ty) => Ok((ty.is_b0_scalar()
                 || *ty == Type::ForeignHandle
                 || *ty == crate::generic_mutex::error_type()
-                || crate::dyn_dispatch::is_create_error(ty))
+                || crate::dyn_dispatch::is_create_error(ty)
+                || strings::is_byte_type(ty))
                 && (!matches!(predicate, Predicate::StoreElement)
-                    || (*ty != Type::Unit && !crate::dyn_dispatch::is_create_error(ty)))),
+                    || (*ty != Type::Unit
+                        && !crate::dyn_dispatch::is_create_error(ty)
+                        && !strings::is_byte_type(ty)))),
             Kind::CallResult { hidden, .. } => self.satisfies(*hidden, predicate, b, depth + 1),
             Kind::Address { mutable, .. } => Ok(!matches!(predicate, Predicate::StoreElement)
                 && (!matches!(predicate, Predicate::Copy) || !*mutable)),

@@ -742,6 +742,12 @@ pub(super) fn resolved(
         ));
     }
     match ty {
+        Type::Address { .. }
+            if super::original::strings::is_byte_type(ty)
+                && life.binder_count == 0
+                && life.slots.is_empty()
+                && life.retained.is_empty()
+                && life.nominal_arguments.is_empty() => {}
         Type::BorrowedStorage { life: actual, .. } if actual == life => {}
         Type::BorrowedStorage { .. } => {
             return Err(fail(

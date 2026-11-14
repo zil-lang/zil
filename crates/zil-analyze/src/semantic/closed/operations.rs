@@ -415,6 +415,26 @@ impl Check<'_, '_> {
                     &expected_type,
                     b,
                 )?;
+                if let Some(bytes) =
+                    self.original
+                        .string_literal_at(instance, site.recipe, self.inventory, b)?
+                {
+                    let SemanticOperand::Value(value) = subject else {
+                        return Err(fail("original string literal has no emitted SSA"));
+                    };
+                    let (_, _, literal) = self.defining(point.function, *value, b)?;
+                    let InstructionKind::StaticUtf8 { bytes: actual } = &literal.kind else {
+                        return Err(fail(
+                            "original string literal is replaced by another actual operation",
+                        ));
+                    };
+                    b.spend(bytes.len().saturating_add(actual.len() + 1), WORK)?;
+                    if actual.as_slice() != bytes {
+                        return Err(fail(
+                            "actual UTF8 bytes differ from the complete original literal",
+                        ));
+                    }
+                }
                 if expected_type
                     != self.captured_value(
                         instance,

@@ -189,6 +189,22 @@ impl Check<'_, '_> {
                 self.resolved(parent, actual, b, depth + 1)
             }
             SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: SemanticOuterLifeRecipe::Static,
+                inner,
+            } => {
+                let child = self.recipe_value(instance, inner, b, depth + 1)?;
+                if !empty(&child.life)
+                    || !child.classes.is_empty()
+                    || !matches!(child.ty,Type::Slice{element} if element.as_ref()==&Type::U8)
+                {
+                    return Err(unknown(
+                        "original static address needs its complete inner occurrence proof",
+                    ));
+                }
+                Ok(value::scalar(original::strings::byte_type()))
+            }
+            SemanticTypeRecipe::Address {
                 mutable,
                 lifetime: SemanticOuterLifeRecipe::Class(life),
                 inner,
@@ -1228,6 +1244,15 @@ impl Check<'_, '_> {
         }
         let (block, index, instruction) = self.defining(function, id, b)?;
         match &instruction.kind {
+            InstructionKind::StaticUtf8 { bytes } => {
+                b.spend(bytes.len().saturating_add(1), WORK)?;
+                if !original::strings::is_byte_type(ty) {
+                    return Err(fail(
+                        "actual UTF8 literal changes its complete immutable byte-view type",
+                    ));
+                }
+                Ok(value::scalar(ty.clone()))
+            }
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }

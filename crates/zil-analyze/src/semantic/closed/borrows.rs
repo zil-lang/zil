@@ -166,6 +166,16 @@ impl Check<'_, '_> {
         if !matches!(actual.ty, Type::Address { .. }) {
             return Ok(actual == expected);
         }
+        if original::strings::is_byte_type(&actual.ty)
+            && empty(&actual.life)
+            && actual.classes.is_empty()
+            && expected.life.binder_count == 1
+            && expected.life.retained.is_empty()
+            && expected.life.nominal_arguments.is_empty()
+            && matches!(expected.life.slots.as_slice(),[slot] if slot.path.is_empty() && slot.binder==0 && slot.mode==StoredBorrowMode::SharedAddress)
+        {
+            return Ok(true);
+        }
         if value::pointee(actual, self.inventory, b)?
             != value::pointee(expected, self.inventory, b)?
         {

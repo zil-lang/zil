@@ -338,6 +338,9 @@ impl Solver<'_, '_> {
             self.expression_expected(frame, value, expected, b, depth + 1)?
         };
         let actual_root = self.type_root(actual, b)?;
+        if self.static_byte_role(actual, expected, b, depth + 1)? {
+            return Ok(());
+        }
         let actual = match (
             &self.state.arena[expected_root],
             &self.state.arena[actual_root],

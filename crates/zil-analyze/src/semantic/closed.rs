@@ -226,6 +226,7 @@ impl Check<'_, '_> {
             return Err(fail("semantic value omits a complete class occurrence"));
         }
         match ty {
+            Type::Address { .. } if original::strings::is_byte_type(ty) && empty(life) => {}
             Type::BorrowedStorage {
                 life: intrinsic, ..
             } if intrinsic == life => {}
