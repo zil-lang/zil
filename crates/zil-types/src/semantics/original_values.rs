@@ -87,7 +87,7 @@ impl Check<'_, '_> {
             let ty = self.resolve(target, &parameter.ty, depth + 1)?;
             parameter.ty = self.mode_type(target, parameter.mode, ty, depth + 1)?;
         }
-        let result = self.resolve(target, &signature.result, depth + 1)?;
+        let result = self.effective_result(target, &signature.result, depth + 1)?;
         signature.result = self.mode_type(target, signature.result_mode, result, depth + 1)?;
         let kind = if foreign {
             SemanticCodeKind::ForeignCallback

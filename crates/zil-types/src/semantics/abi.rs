@@ -96,6 +96,10 @@ pub(crate) fn prepare(
     };
     pay(left, proof.body_costs.len().saturating_mul(4))?;
     stats.borrow_mut().record_original_bodies(&proof.body_costs);
+    pay(left, proof.stage_costs.len().saturating_mul(2))?;
+    stats
+        .borrow_mut()
+        .record_original_stages(&proof.stage_costs);
     let context =
         stored::OrdinaryStats::step(&stats, "abi: seal original context", left, |left| {
             super::original_context::OriginalContext::checked(

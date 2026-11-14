@@ -1143,11 +1143,15 @@ impl Check<'_, '_> {
                 .into_iter()
                 .map(|actual| actual.unwrap_or(SemanticActualRecipe::Infer))
                 .collect::<Vec<_>>();
+            crate::dyn_metadata::semantic_operand_snapshot(signature, self.limits, self.left, 1)?;
+            let mut worker_signature = signature.clone();
+            worker_signature.result =
+                self.effective_result(worker, &signature.result, depth + 1)?;
             let (actuals, signature) = self.solve_signature(
                 owner,
                 worker_expression,
                 &operands,
-                signature,
+                &worker_signature,
                 &definition.parameters,
                 &holes,
                 variables,

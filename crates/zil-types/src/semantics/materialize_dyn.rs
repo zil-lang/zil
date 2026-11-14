@@ -1,6 +1,9 @@
 //! Materialize an original Dyn type against an actual, complete interface.
 //! The table is a candidate for an exact type, never authority for a provider.
 use super::*;
+#[path = "dyn_registry.rs"]
+mod registry;
+pub(crate) use registry::relocate;
 
 impl Eval<'_, '_, '_> {
     fn dyn_class(
@@ -781,8 +784,7 @@ pub(crate) fn owned_provider(
             .get(&entry.function)
             .ok_or_else(|| bad("Dyn method has no actual emitter frame"))?;
         let mut specializations = definition.instances.iter().filter(|row| {
-            matches!(row.function, DynFunctionTarget::Core { module, source }
-                if module == frame.origin.module && source == frame.origin.creator)
+            matches!(row.function, DynFunctionTarget::Typed(function) if function == entry.function)
         });
         let specialization = specializations
             .next()
