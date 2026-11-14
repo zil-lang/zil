@@ -42,20 +42,31 @@ impl Solver<'_, '_> {
                     self.recipe(frame, element, b, depth + 1)?
                 }
                 [] => {
-                    let result = self.type_root(frame.result, b)?;
-                    let Kind::Wrapped(Wrapper::Managed, payload) = self.state.arena[result] else {
-                        return Err(unknown(
-                            "original inferred Store element needs its receiving declaration context",
-                        ));
-                    };
-                    let Kind::Wrapped(Wrapper::Store, element) =
-                        self.state.arena[self.type_root(payload, b)?]
-                    else {
-                        return Err(fail(
-                            "original inferred Store result changes its resource family",
-                        ));
-                    };
-                    element
+                    let receiving = self.receiving.last().copied();
+                    let mut selected = None;
+                    if let Some(receiving) = receiving {
+                        let mut root = self.type_root(receiving, b)?;
+                        for _ in depth..=b.partial_depth {
+                            b.spend(1, WORK)?;
+                            root = match self.state.arena[root] {
+                                Kind::Wrapped(Wrapper::Managed, inner)
+                                | Kind::Desc { inner, .. } => self.type_root(inner, b)?,
+                                Kind::ErrorUnion { result, .. } => self.type_root(result, b)?,
+                                Kind::Wrapped(Wrapper::Store, element) => {
+                                    selected = Some(element);
+                                    break;
+                                }
+                                _ => break,
+                            };
+                        }
+                    }
+                    // Infer from subsequent original uses if there is no
+                    // receiving type. StoreElement remains a pending proof;
+                    // an unconstrained variable never becomes Known0.
+                    match selected {
+                        Some(element) => element,
+                        None => self.var(b)?,
+                    }
                 }
                 _ => {
                     return Err(fail(

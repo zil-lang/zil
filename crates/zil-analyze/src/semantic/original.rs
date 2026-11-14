@@ -244,6 +244,7 @@ struct Solver<'a, 'i> {
     loops: Vec<loops::LoopFrame>,
     trait_state: traits::State,
     capture_state: captures::CaptureState,
+    receiving: Vec<Term>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -1348,6 +1349,21 @@ impl Solver<'_, '_> {
             .ok_or_else(|| fail("original static call lost its local signature frame"))?;
         let result = answer?;
         Ok((frame.formals, frame.parameters, result))
+    }
+    pub(super) fn expression_expected(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        expected: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        Self::push(&mut self.receiving, expected, b)?;
+        let result = self.expression(frame, value, b, depth);
+        self.receiving
+            .pop()
+            .ok_or_else(|| fail("original receiving context lost its lexical stack"))?;
+        result
     }
     fn expression(
         &mut self,
@@ -2525,7 +2541,13 @@ impl Solver<'_, '_> {
                         }
                     }
                     if let Some(value) = initializer {
-                        let value = self.expression(frame, value, b, depth + 1)?;
+                        let value = self.expression_expected(
+                            frame,
+                            value,
+                            family.unwrap_or(local),
+                            b,
+                            depth + 1,
+                        )?;
                         if let Some(family) = family {
                             let payload = match self.state.arena[self.type_root(value, b)?] {
                                 Kind::Wrapped(Wrapper::Managed, payload)
@@ -2597,8 +2619,11 @@ impl Solver<'_, '_> {
                     }
                 }
                 CoreStatementKind::Return(value) => {
+                    let receiving = frame.result;
                     let value = match value {
-                        Some(value) => self.expression(frame, value, b, depth + 1)?,
+                        Some(value) => {
+                            self.expression_expected(frame, value, receiving, b, depth + 1)?
+                        }
                         None => self.atom(Type::Unit, b)?,
                     };
                     let expected = self.type_root(frame.result, b)?;
@@ -2878,7 +2903,7 @@ impl Solver<'_, '_> {
                         self.mutating_closures.insert(frame.definition);
                     }
                     let expected = frame.locals[index].ty;
-                    let value = self.expression(frame, value, b, depth + 1)?;
+                    let value = self.expression_expected(frame, value, expected, b, depth + 1)?;
                     self.unify(value, expected, depth + 1, b)?;
                     b.lookup(frame.expressions.len(), WORK)?;
                     if frame.expressions.insert(target.id, expected).is_some() {
@@ -3600,6 +3625,7 @@ pub(super) fn check(
         loops: Vec::new(),
         trait_state: traits::State::default(),
         capture_state: captures::CaptureState::default(),
+        receiving: Vec::new(),
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {

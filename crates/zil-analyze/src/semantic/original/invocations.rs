@@ -335,7 +335,7 @@ impl Solver<'_, '_> {
         let actual = if matches!(self.state.arena[expected_root], Kind::Address { .. }) {
             self.borrowed_argument(frame, value, b, depth + 1)?
         } else {
-            self.expression(frame, value, b, depth + 1)?
+            self.expression_expected(frame, value, expected, b, depth + 1)?
         };
         let actual_root = self.type_root(actual, b)?;
         let actual = match (

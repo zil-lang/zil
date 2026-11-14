@@ -191,7 +191,7 @@ impl Solver<'_, '_> {
             let index = selected.ok_or_else(|| {
                 fail("original record field is absent from its nominal declaration")
             })?;
-            let actual = self.expression(context, value, b, depth + 1)?;
+            let actual = self.expression_expected(context, value, fields[index], b, depth + 1)?;
             self.unify(actual, fields[index], depth + 1, b)?;
             if !complete {
                 Self::push(
