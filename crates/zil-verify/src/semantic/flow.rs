@@ -7,6 +7,7 @@ mod capture_values;
 mod closed_values;
 mod operations;
 mod products;
+mod trait_members;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -121,7 +122,7 @@ impl CheckedContext {
             _=>Ok(false),
         }
     }
-    fn function(&self,module:&TypedModule,instance:&SemanticInstance,function:FunctionId,signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    fn function(&self,module:&TypedModule,instance:&SemanticInstance,function:FunctionId,signature:&CheckedSignature,environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
         let original_definition=self.definition(module,instance.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,foreign,resume_bound,..}=&original_definition.body else{return Err(bad("actual protocol bridge lacks its original body"));};
@@ -554,11 +555,13 @@ impl CheckedContext {
         for (argument,expected) in arguments.iter().zip(&definition.parameters){let actual=value_at(values,*argument)?;if actual.ty!=*expected{return Err(bad("actual callable argument has a different complete type"));}if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("actual CallableCall requires complete per-role borrowed/qualified arguments",None));}self.closed_value(module,expected,b)?;}
         if definition.result==Type::Unit{Ok(None)}else{Ok(Some(self.closed_value(module,&definition.result,b)?))}
     }
-    fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
+    fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("semantic caller has no original body"));};
         let site_recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Call has no original recipe"))?;
         if !matches!(site_recipe.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall){return Err(bad("actual Call has another original operation role"));}
+        let member=self.original.borrow().as_ref().ok_or_else(||bad("original member Call has no independent symbolic proof"))?.trait_call_recipes(module,caller.definition,site.recipe,environment,b)?;
+        if let Some(member)=member{return self.actual_trait_member(module,site,callee,arguments,values,environment,member,external,active,b);}
         let (resolved_target,actuals)=self.original.borrow().as_ref().ok_or_else(||bad("original body Call has no independent symbolic proof"))?.call_recipes(module,caller.definition,site.recipe,environment,b)?;
         let target=&resolved_target;
         let target_definition=self.definition(module,*target,b)?;

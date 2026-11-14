@@ -3,6 +3,8 @@
 use super::*;
 mod providers;
 mod normalize;
+mod bounds;
+mod witnesses;
 
 pub(super) fn has_projection(ty:&Ty,b:&mut Budget)->Check<bool>{
     let mut pending=vec![ty];
@@ -102,7 +104,7 @@ impl CheckedOriginal{
             _=>Ok(false),
         }
     }
-    fn same_arguments_readonly(&self,left:&[Arg],right:&[Arg],b:&mut Budget)->Check<bool>{
+    pub(super) fn same_arguments_readonly(&self,left:&[Arg],right:&[Arg],b:&mut Budget)->Check<bool>{
         b.spend(left.len().saturating_add(right.len()))?;if left.len()!=right.len(){return Ok(false);}
         for(a,c)in left.iter().zip(right){let equal=match(a,c){(Arg::Type(a),Arg::Type(c))=>self.same(a,c,b)?,(Arg::Life(a),Arg::Life(c))=>self.same_life(a,c,b)?,(Arg::Const(a),Arg::Const(c))=>self.same(&a.carrier,&c.carrier,b)?&&a.value==c.value,_=>false};if !equal{return Ok(false);}}Ok(true)
     }

@@ -62,6 +62,7 @@ impl CheckedOriginal {
                 }
             }
             self.raw_source_schemes(module,context,active,b)?;
+            self.check_trait_witnesses(module,context,active,b)?;
             Ok(())
         })();
         self.current=previous;

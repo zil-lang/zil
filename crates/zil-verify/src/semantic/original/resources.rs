@@ -32,7 +32,8 @@ impl CheckedOriginal {
         }
         if let Some(scope)=selected{
             let methods=program.definitions.iter().filter(|row|row.parent==Some(scope)&&row.kind==SemanticDefinitionKind::Method).collect::<Vec<_>>();b.spend(program.definitions.len())?;
-            if methods.len()!=1||!self.checked.contains(&methods[0].id){return Err(bad("resource Drop lacks its unique universally checked original entry"));}
+            if methods.len()!=1{return Err(bad("resource Drop lacks its unique original entry"));}
+            if !self.checked.contains(&methods[0].id){self.definition(module,context,methods[0].id,active,b)?;}
             let prototype=self.prototypes.get(&methods[0].id).ok_or_else(||bad("original Drop has no complete prototype"))?;
             if prototype.parameters.len()!=1||prototype.result!=Ty::Atom(Type::Unit)||prototype.call_kind!=CallKind::Direct{return Err(bad("resource Drop has another original effect or signature"));}
             if !matches!(&prototype.parameters[0],Ty::Desc{inner,..} if **inner==payload){return Err(bad("resource Drop receives something other than its exact Self description"));}

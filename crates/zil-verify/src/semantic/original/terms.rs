@@ -25,7 +25,7 @@ pub(super) enum Ty {
     Infer(u64),
 }
 #[derive(Clone,Debug,PartialEq,Eq,PartialOrd,Ord)]
-pub(super) enum Life {Formal(SemanticDefinitionId,u32),Implicit(SemanticDefinitionId,u32),Bound(FrameToken,u32),Invocation(FrameToken,u32),Infer(u64),Head(SemanticDefinitionId,u32),Local(SemanticDefinitionId,NodeId),Static}
+pub(super) enum Life {Formal(SemanticDefinitionId,u32),Implicit(SemanticDefinitionId,u32),Bound(FrameToken,u32),Invocation(FrameToken,u32),Infer(u64),Head(SemanticDefinitionId,u32),Local(SemanticDefinitionId,NodeId),ReceiverRole(SemanticDefinitionId,NodeId,StoredBorrowMode),Static}
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub(super) enum Arg {Type(Ty),Const(Const),Life(Life)}
 #[derive(Clone,Debug,PartialEq,Eq)]

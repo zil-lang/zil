@@ -5,6 +5,24 @@ use super::*;
 
 pub(super) struct Provider { pub owner:SemanticDefinitionId, pub declaration:LifeDeclarationId, pub environment:Env }
 impl CheckedOriginal {
+    pub(in crate::semantic::original) fn original_receiver_applications(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,name:&str,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<(LifeDeclarationId,Vec<Arg>)>>{
+        let programme=module.semantic.as_ref().ok_or_else(||bad("original concrete method lookup lacks its programme"))?;
+        let mut applications=Vec::new();
+        for definition in &programme.definitions{
+            let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl{self_type,trait_application,..})=&definition.body else{continue;};
+            b.spend(module.dyn_declarations.len().saturating_add(1))?;
+            let Some(trait_decl)=module.dyn_declarations.iter().find(|row|row.id==trait_application.declaration)else{return Err(bad("original concrete method trait is absent"));};
+            if !trait_decl.members.iter().any(|member|member.name==name&&matches!(member.kind,DynMemberKind::Method(_))){continue;}
+            let mut selected=self.environment(module,context,definition.id,active,b)?;
+            let pattern=self.ty(module,context,self_type,&selected,active,b)?;let mut bindings=BTreeMap::new();
+            if !self.match_original_type(&pattern,receiver,definition.id,&mut bindings,0,b)?{continue;}
+            let mut actuals=Vec::new();let mut complete=true;for ordinal in 0..definition.parameters.len(){if let Some(value)=bindings.remove(&(ordinal as u32)){actuals.push(value);}else{complete=false;break;}}
+            if !complete{continue;}selected.lexical[0].actuals=actuals;
+            let mut arguments=Vec::new();for recipe in &trait_application.arguments{arguments.push(self.actual(module,context,recipe,&selected,active,b)?);}
+            if self.original_provider(module,context,receiver,trait_application.declaration,&arguments,caller,active,b)?.is_some(){applications.push((trait_application.declaration,arguments));}
+        }
+        Ok(applications)
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn original_provider(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,declaration:LifeDeclarationId,arguments:&[Arg],caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Provider>> {
         let programme=module.semantic.as_ref().ok_or_else(||bad("original impl selection lacks its programme"))?;

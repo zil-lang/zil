@@ -23,6 +23,7 @@ impl CheckedOriginal {
             return Ok(result);
         }
         let static_type=self.static_call_type(module,context,base,env,bindings,b)?;
+        if static_type.is_none(){if let Some(result)=self.trait_member_call(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
         if static_type.is_none(){if let Some(result)=self.variant_constructor(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
         self.callable_nodes.insert((env.current()?,call.id),base.id);
         let(callee_type,callee_place)=match static_type{Some(ty)=>(ty,None),None=>self.place(module,context,base,env,bindings,active,b)?};if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,false,active,b)?;}
@@ -108,6 +109,7 @@ impl CheckedOriginal {
                 if !callable_accepts(actual.callable_kind,*kind){return Err(unsupported("original Callable source capability is not independently established",None));}
                 if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}for(actual,wanted)in actual.parameters.iter().zip(&wanted.parameters){if !self.same(actual,wanted,b)?{return Err(bad("original Callable requirement parameters lack their original relation"));}}if !self.same(&actual.result,&wanted.result,b)?{return Err(bad("original Callable requirement result lacks its original relation"));}Ok(())
             },
+            SemanticRequirementRecipe::Trait{ty,application}=>{let receiver=self.ty(module,context,ty,target,active,b)?;let mut arguments=Vec::new();for argument in &application.arguments{arguments.push(self.actual(module,context,argument,target,active,b)?);}self.original_trait_obligation(module,context,&receiver,application.declaration,&arguments,caller,active,b)},
             SemanticRequirementRecipe::Structural{ty,bound}=>{let ty=self.ty(module,context,ty,target,active,b)?;self.structural_obligation(module,context,&ty,*bound,caller,active,b)},
             SemanticRequirementRecipe::Builtin{ty,trait_kind}=>{let ty=self.ty(module,context,ty,target,active,b)?;let bound=match trait_kind{SemanticBuiltinTrait::Copy=>DynStructuralBound::Copy,SemanticBuiltinTrait::Value=>DynStructuralBound::Value,SemanticBuiltinTrait::SyncDrop=>DynStructuralBound::SyncDrop,SemanticBuiltinTrait::StoreElement=>DynStructuralBound::StoreElement,_=>return self.builtin_obligation(module,context,&ty,*trait_kind,caller,active,b)};self.structural_obligation(module,context,&ty,bound,caller,active,b)},
             _=>Err(unsupported("original requirement has no complete symbolic caller proof",None)),

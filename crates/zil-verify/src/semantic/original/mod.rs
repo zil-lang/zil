@@ -34,6 +34,8 @@ mod protocol;
 mod constructors;
 mod associated;
 mod trait_methods;
+mod trait_calls;
+pub(in crate::semantic) use trait_calls::TraitCallRecipes;
 mod raw_schemes;
 mod opaque;
 pub(super) mod intrinsics;
@@ -51,8 +53,10 @@ pub(super) struct CheckedOriginal {
     results:BTreeMap<SemanticDefinitionId,Ty>,
     calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),Vec<Arg>>,
     call_targets:BTreeMap<(SemanticDefinitionId,SemanticSiteId),SemanticDefinitionId>,
+    trait_calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),trait_calls::TraitCall>,
     constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
     projection_terms:Vec<(Ty,LifeDeclarationId,Vec<Arg>,u32,Ty)>,
+    trait_witnesses:Vec<(LifeDeclarationId,LifeDeclarationId)>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
@@ -104,6 +108,7 @@ impl CheckedOriginal {
         let obligations=std::mem::take(&mut result.copy_obligations);
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
         for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
+        result.check_trait_witnesses(module,context,active,b)?;
         result.current=None;
         result.check_cleanups(module,context,active,b)?;
         result.check_effects(b)?;

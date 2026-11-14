@@ -46,6 +46,7 @@ impl CheckedOriginal {
                 }
             }
         }
+        if self.associated_structural_premise(module,context,&ty,bound,env,active,b)?{return Ok(true);}
         for (index, frame) in env.lexical.iter().enumerate() {
             let definition = context.definition(module, frame.definition, b)?;
             // Each requirement is interpreted where it was declared. Keep all
@@ -131,7 +132,7 @@ impl CheckedOriginal {
     }
 }
 
-fn entails(established: DynStructuralBound, requested: DynStructuralBound) -> bool {
+pub(super) fn entails(established: DynStructuralBound, requested: DynStructuralBound) -> bool {
     established == requested
         || matches!((established, requested),
             (DynStructuralBound::Copy | DynStructuralBound::StoreElement,
