@@ -101,6 +101,12 @@ impl<'a> Eval<'a, '_, '_> {
         Err(bad("materialized operand has no real semantic instance"))
     }
     fn definition(&mut self, id: SemanticDefinitionId) -> R<&'a SemanticDefinition> {
+        // Definitions are the immutable original declarations, not emitted
+        // instance claims. Reuse this request's exact checked directory; the
+        // publication boundary separately verifies all copied definitions.
+        if let Some(context) = self.ledger.original.context() {
+            return context.definition(id, self.left);
+        }
         self.fee(self.input.definitions.len())?;
         if let Some(row) = self.input.definitions.iter().find(|row| row.id == id) {
             return Ok(row);
