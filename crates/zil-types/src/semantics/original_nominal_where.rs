@@ -268,7 +268,7 @@ impl Proof {
                     source: target,
                     use_definition: caller,
                     arguments,
-                    parent_call: Some(site),
+                    parent_call: self.method_calls.contains_key(&key).then_some(site),
                 },
                 limits,
                 check.left,
