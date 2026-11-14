@@ -812,7 +812,6 @@ pub fn build_view_with_cancellation_and_session(
                 }),
             )?,
             native_profile.clone()?,
-            plan.units.clone(),
         ))
     });
     let previous_final = session
@@ -834,22 +833,16 @@ pub fn build_view_with_cancellation_and_session(
     let parent = fs::canonicalize(parent)
         .map_err(|error| io_error("resolve output directory", parent, error))?;
     let final_executable = parent.join(name);
-    let staging = Staging::create(&parent)
-        .map_err(|error| io_error("create build staging directory", &parent, error))?;
-    let ir_path = staging.0.join("module.ll");
-    let executable_path = staging.0.join("program");
-    let object_path = staging.0.join("module.obj");
     // A complete current machine value can terminate propagation before object
     // materialization. Current Verify/LIR binding above and checker-owned machine
     // authorization below remain mandatory; no old validator is imported.
-    if let (Some((configuration, profile, units)), Some(previous)) =
-        (&final_candidate, &previous_final)
-        && previous.matches(configuration, profile, units)
+    if let (Some((configuration, profile)), Some(previous)) = (&final_candidate, &previous_final)
+        && previous.matches(configuration, profile, &plan.units)
     {
         check_cancelled(cancelled)?;
         let authorization_started = std::time::Instant::now();
         let (preflights, reused) = crate::final_product::authorize(
-            units,
+            &plan.units,
             &session
                 .as_ref()
                 .expect("candidate requires session")
@@ -857,12 +850,18 @@ pub fn build_view_with_cancellation_and_session(
         )
         .map_err(api_error)?;
         timings.object_ns += crate::object_cache::elapsed_ns(authorization_started);
-        let product = std::sync::Arc::new(previous.refreshed(units.clone(), llvm.clone()));
+        let product = previous.refreshed(std::borrow::Cow::Borrowed(&plan.units), llvm.clone());
         let token = product.token(options.published_paths.as_ref());
         let retained = token.retained_paths().is_some();
         let (executable, llvm_ir) = if let Some((executable, llvm_ir)) = token.retained_paths() {
             (executable.to_path_buf(), llvm_ir.to_path_buf())
         } else {
+            // A retained current publication needs no backend-private files.
+            // Only the actual restoration path allocates its staging owner.
+            let staging = Staging::create(&parent)
+                .map_err(|error| io_error("create build staging directory", &parent, error))?;
+            let ir_path = staging.0.join("module.ll");
+            let executable_path = staging.0.join("program");
             let restore_started = std::time::Instant::now();
             token.restore(&executable_path, &ir_path).map_err(|error| {
                 io_error("restore current final artifacts", &executable_path, error)
@@ -892,7 +891,7 @@ pub fn build_view_with_cancellation_and_session(
             reused_program: true,
             retained_files: retained,
             before_codegen: true,
-            current_preflight_checked_units: Some(units.len() - reused),
+            current_preflight_checked_units: Some(plan.units.len() - reused),
             current_preflight_reused_units: Some(reused),
             profile_id: profile.id.to_hex(),
         });
@@ -908,6 +907,15 @@ pub fn build_view_with_cancellation_and_session(
             artifact_reuse: Some(token),
         });
     }
+    // Keep the diagnostic unit snapshot only on the path that will consume
+    // the partition for codegen. Exact final hits borrowed plan.units above.
+    let final_candidate = final_candidate
+        .map(|(configuration, profile)| (configuration, profile, plan.units.clone()));
+    let staging = Staging::create(&parent)
+        .map_err(|error| io_error("create build staging directory", &parent, error))?;
+    let ir_path = staging.0.join("module.ll");
+    let executable_path = staging.0.join("program");
+    let object_path = staging.0.join("module.obj");
     let diagnostic_started = std::time::Instant::now();
     llvm.write(&ir_path)
         .map_err(|error| io_error("write LLVM IR", &ir_path, error))?;
@@ -1265,7 +1273,7 @@ pub fn build_view_with_cancellation_and_session(
             .zip(object_value)
             .and_then(|((configuration, profile, units), value)| {
                 if let Some(previous) = &same_final_objects {
-                    Some(std::sync::Arc::new(previous.refreshed(units, llvm)))
+                    Some(previous.refreshed(std::borrow::Cow::Owned(units), llvm))
                 } else {
                     crate::final_product::Product::capture(
                         configuration,

@@ -225,6 +225,67 @@ fn resident_final_values_retain_restore_and_reject_current_invalid_source() {
     );
     same_owned_files(&case, &program, &diagnostic, executable_mode);
 
+    // Changing only placement keeps the machine program, but the current
+    // verified fingerprint must replace the diagnostic and its file lease.
+    let left = case.0.join("left.zil");
+    let source = fs::read_to_string(&left).unwrap();
+    fs::write(&left, format!("// current placement\n{source}")).unwrap();
+    let relocated = case.compile(&mut session, &options, "current-placement-diagnostic");
+    successful(&relocated, 42);
+    reused(&relocated, false, &profile_id);
+    let current_diagnostic = fs::read(&llvm).unwrap();
+    assert_ne!(current_diagnostic, diagnostic);
+    let diagnostic = current_diagnostic;
+    same_owned_files(&case, &program, &diagnostic, executable_mode);
+    let current_stamps = (stamp(&executable), stamp(&llvm));
+    let relocated_noop = case.compile(&mut session, &options, "current-placement-noop");
+    successful(&relocated_noop, 42);
+    reused(&relocated_noop, true, &profile_id);
+    assert_eq!((stamp(&executable), stamp(&llvm)), current_stamps);
+
+    // A valid retained value does not authorize a different destination's
+    // directory entries. Materialize both owned members at that destination.
+    let alternate = CompileOptions {
+        output: Some(case.0.join("alternate/program")),
+        ..options.clone()
+    };
+    let moved = case.compile(&mut session, &alternate, "different-publication-path");
+    successful(&moved, 42);
+    reused(&moved, false, &profile_id);
+    assert_eq!(fs::read(&moved.artifacts["executable"]).unwrap(), program);
+    assert_eq!(fs::read(&moved.artifacts["llvm"]).unwrap(), diagnostic);
+    assert_eq!((stamp(&executable), stamp(&llvm)), current_stamps);
+    let restored_destination = case.compile(&mut session, &options, "original-publication-path");
+    successful(&restored_destination, 42);
+    reused(&restored_destination, false, &profile_id);
+    same_owned_files(&case, &program, &diagnostic, executable_mode);
+
+    // Cancellation after the backend's retained result cannot publish success
+    // or replace the previous successful session. Recovery binds it anew.
+    let cancelled_options = CompileOptions {
+        cancellation: Default::default(),
+        ..options.clone()
+    };
+    let token = cancelled_options.cancellation.clone();
+    let before_cancel = (stamp(&executable), stamp(&llvm));
+    let mut cancelled_at_link = false;
+    let cancelled =
+        session.compile_project_with_observer(&case.project(), &cancelled_options, &mut |event| {
+            if event.phase == Phase::Link {
+                cancelled_at_link = true;
+                token.cancel();
+            }
+        });
+    assert!(cancelled_at_link);
+    assert_eq!(cancelled.status, ResultCategory::Cancelled);
+    assert_eq!(cancelled.verification_runs, 1);
+    assert!(!cancelled.artifacts.contains_key("executable"));
+    assert_eq!((stamp(&executable), stamp(&llvm)), before_cancel);
+    let after_cancel = case.compile(&mut session, &options, "retained-cancellation-recovery");
+    successful(&after_cancel, 42);
+    reused(&after_cancel, true, &profile_id);
+    assert_eq!((stamp(&executable), stamp(&llvm)), before_cancel);
+
     for (label, path, remove) in [
         ("missing-executable", &executable, true),
         ("overwritten-executable", &executable, false),

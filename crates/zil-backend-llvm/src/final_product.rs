@@ -2,6 +2,7 @@
 //! must first bind current verified LIR and authorize each current machine unit.
 use crate::incremental::DiagnosticText;
 use crate::{BuildArtifact, BuildOptions};
+use std::borrow::Cow;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -100,9 +101,9 @@ impl Published {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Product {
-    configuration: Configuration,
+    configuration: Arc<Configuration>,
     profile: Arc<crate::native_link::Profile>,
-    units: Vec<Module>,
+    units: Arc<Vec<Module>>,
     object_value: Fingerprint,
     program: Arc<Vec<u8>>,
     #[cfg(unix)]
@@ -117,7 +118,7 @@ impl Product {
         profile: &crate::native_link::Profile,
         units: &[Module],
     ) -> bool {
-        &self.configuration == config
+        self.configuration.as_ref() == config
             && self.profile.id == profile.id
             && self.units.len() == units.len()
             && self
@@ -133,7 +134,7 @@ impl Product {
         profile: &crate::native_link::Profile,
         object_value: Fingerprint,
     ) -> bool {
-        &self.configuration == config
+        self.configuration.as_ref() == config
             && self.profile.id == profile.id
             && self.object_value == object_value
             && self.profile.current_manifest()
@@ -155,9 +156,9 @@ impl Product {
             return Err(io::Error::other("final program changed during capture"));
         }
         Ok(Self {
-            configuration,
+            configuration: Arc::new(configuration),
             profile,
-            units,
+            units: Arc::new(units),
             object_value,
             program: Arc::new(program),
             #[cfg(unix)]
@@ -166,14 +167,38 @@ impl Product {
             published: None,
         })
     }
-    pub(crate) fn refreshed(&self, units: Vec<Module>, diagnostic: DiagnosticText) -> Self {
-        let mut next = self.clone();
-        next.units = units;
-        if next.diagnostic != diagnostic {
-            next.published = None;
+    pub(crate) fn refreshed(
+        self: &Arc<Self>,
+        units: Cow<'_, [Module]>,
+        diagnostic: DiagnosticText,
+    ) -> Arc<Self> {
+        // This is exact value retention AFTER the caller's current machine
+        // authorization. Include diagnostic fingerprints here, even though
+        // they are deliberately excluded by matches()/the machine checker.
+        let same_units = self.units.as_slice() == units.as_ref();
+        let same_diagnostic = self.diagnostic == diagnostic;
+        if same_units && same_diagnostic {
+            return self.clone();
         }
-        next.diagnostic = diagnostic;
-        next
+        Arc::new(Self {
+            configuration: self.configuration.clone(),
+            profile: self.profile.clone(),
+            units: if same_units {
+                self.units.clone()
+            } else {
+                Arc::new(units.into_owned())
+            },
+            object_value: self.object_value,
+            program: self.program.clone(),
+            #[cfg(unix)]
+            mode: self.mode,
+            diagnostic,
+            published: if same_diagnostic {
+                self.published.clone()
+            } else {
+                None
+            },
+        })
     }
     pub(crate) fn restore_program(&self, path: &Path) -> io::Result<()> {
         if !self.profile.current_manifest() {
@@ -202,7 +227,7 @@ impl Product {
             retained,
         }
     }
-    fn record_published(&self, executable: &Path, llvm_ir: &Path) -> Option<Self> {
+    fn record_published(self: &Arc<Self>, executable: &Path, llvm_ir: &Path) -> Option<Arc<Self>> {
         if !self.profile.current_manifest() {
             return None;
         }
@@ -252,14 +277,14 @@ impl Product {
         {
             return None;
         }
-        let mut next = self.clone();
+        let mut next = self.as_ref().clone();
         next.published = Some(Published {
             executable: executable.into(),
             llvm_ir: llvm_ir.into(),
             program_stamp,
             diagnostic_stamp,
         });
-        Some(next)
+        Some(Arc::new(next))
     }
 }
 struct CompareWriter {
@@ -328,7 +353,6 @@ impl crate::BackendSession {
             self.final_product = reuse
                 .product
                 .record_published(&artifact.executable, &artifact.llvm_ir)
-                .map(Arc::new)
                 .or_else(|| Some(reuse.product.clone()));
         }
     }
@@ -402,19 +426,198 @@ pub(crate) fn authorize(
 ) -> Result<(Vec<Arc<crate::incremental::PreflightProduct>>, usize), zil_llvm_api::Error> {
     let mut products = Vec::with_capacity(units.len());
     let mut reused = 0;
-    for module in units {
+    for (index, module) in units.iter().enumerate() {
+        // Position is just a cheap candidate selector. Even its full value
+        // match confers no authority: the current checker below must accept.
+        // Partition reordering retains the original exact-value fallback.
+        let matches = |old: &&Arc<crate::incremental::PreflightProduct>| {
+            old.module.triple == module.triple && old.module.items == module.items
+        };
         let old = previous
-            .iter()
-            .find(|old| old.module.triple == module.triple && old.module.items == module.items);
+            .get(index)
+            .filter(matches)
+            .or_else(|| previous.iter().find(matches));
         let (receipt, hit) = zil_llvm_api::validate_module_with_receipt(
             module,
             old.map(|old| old.receipt.as_ref()),
         )?;
         reused += usize::from(hit);
-        products.push(Arc::new(crate::incremental::PreflightProduct {
-            module: module.clone(),
-            receipt: Arc::new(receipt),
-        }));
+        products.push(
+            if let Some(old) = old.filter(|old| hit && old.module == *module) {
+                // The call above freshly matched the sealed proof to CURRENT
+                // inputs. Only a completely unchanged container (including its
+                // diagnostic fingerprint) can retain its old allocation as well.
+                old.clone()
+            } else {
+                Arc::new(crate::incremental::PreflightProduct {
+                    module: module.clone(),
+                    receipt: Arc::new(receipt),
+                })
+            },
+        );
     }
     Ok((products, reused))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_llvm_api::model::{Arg, Block, Function, Inst, Item, Linkage, Op, Signature, Ty, Val};
+
+    fn module(value: i128) -> Module {
+        Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "diagnostic-original".into(),
+            items: vec![Item::Function(Function {
+                name: "value".into(),
+                linkage: Linkage::External,
+                signature: Signature::new(Ty::Int(32), Vec::new()),
+                attrs: Vec::new(),
+                blocks: Some(
+                    vec![Block {
+                        name: "entry".into(),
+                        instructions: vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(value)))),
+                        )],
+                    }]
+                    .into(),
+                ),
+            })]
+            .into(),
+        }
+    }
+
+    #[test]
+    fn current_preflight_keeps_exact_owners_and_rebinds_changed_or_reordered_values() {
+        let units = vec![module(1), module(2)];
+        let (old, reused) = authorize(&units, &[]).unwrap();
+        assert_eq!(reused, 0);
+        // Independently allocated equal items are values, not stale identity
+        // grants: the current checker still has to match its sealed proof.
+        let rebuilt = vec![module(1), module(2)];
+        assert!(!rebuilt[0].items.ptr_eq(&units[0].items));
+        let (same, reused) = authorize(&rebuilt, &old).unwrap();
+        assert_eq!(reused, 2);
+        assert!(same.iter().zip(&old).all(|(a, b)| Arc::ptr_eq(a, b)));
+        let (duplicates, _) = authorize(&[module(1), module(1)], &[]).unwrap();
+        let (same, reused) = authorize(&[module(1), module(1)], &duplicates).unwrap();
+        assert_eq!(reused, 2);
+        assert!(
+            Arc::ptr_eq(&same[1], &duplicates[1]),
+            "prefer the exact same slot"
+        );
+        let (reordered, reused) = authorize(&[module(2), module(1)], &old).unwrap();
+        assert_eq!(reused, 2);
+        assert!(Arc::ptr_eq(&reordered[0], &old[1]));
+        assert!(Arc::ptr_eq(&reordered[1], &old[0]));
+        let mut diagnostic = module(1);
+        diagnostic.fingerprint = "current-diagnostic".into();
+        let (changed, reused) = authorize(std::slice::from_ref(&diagnostic), &old).unwrap();
+        assert_eq!(reused, 1);
+        assert!(!Arc::ptr_eq(&changed[0], &old[0]));
+        assert_eq!(changed[0].module, diagnostic);
+        let mut triple = module(1);
+        triple.triple = "x86_64-pc-windows-msvc".into();
+        let (changed, reused) = authorize(std::slice::from_ref(&triple), &old).unwrap();
+        assert_eq!(reused, 0);
+        assert_eq!(changed[0].module, triple);
+        assert_eq!(authorize(&[module(3)], &old).unwrap().1, 0);
+
+        let mut invalid = module(1);
+        let Item::Function(function) = &mut invalid.items[0] else {
+            panic!("function fixture")
+        };
+        function.blocks.as_mut().unwrap()[0].instructions[0].op = Op::Return(None);
+        let expected = zil_llvm_api::validate_module(&invalid).unwrap_err();
+        assert_eq!(
+            authorize(std::slice::from_ref(&invalid), &old).unwrap_err(),
+            expected
+        );
+        // Even an exact caller-side module snapshot paired with an unrelated
+        // genuine receipt must fail in the checker, not skip authorization.
+        let counterfeit = Arc::new(crate::incremental::PreflightProduct {
+            module: invalid.clone(),
+            receipt: old[0].receipt.clone(),
+        });
+        assert_eq!(authorize(&[invalid], &[counterfeit]).unwrap_err(), expected);
+        assert_eq!(authorize(&units, &old).unwrap().1, 2);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires ZIL_TEST_NATIVE_LINK_PROFILE; value/publication checks, no native execution"]
+    fn shared_final_value_refreshes_diagnostic_and_declines_stale_publication_lease() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        struct Dir(PathBuf);
+        impl Drop for Dir {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let dir = Dir(std::env::temp_dir().join(format!(
+            "zil-final-value-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        )));
+        fs::create_dir(&dir.0).unwrap();
+        let exe = dir.0.join("program");
+        let ir = dir.0.join("program.ll");
+        let profile = Arc::new(
+            crate::native_link::Profile::load(Path::new(
+                &std::env::var_os("ZIL_TEST_NATIVE_LINK_PROFILE")
+                    .expect("explicit installed profile required"),
+            ))
+            .unwrap(),
+        );
+        let configuration = Configuration::new(
+            &BuildOptions::new(exe.clone()),
+            Fingerprint::of(b"namespace"),
+            false,
+            None,
+        )
+        .unwrap();
+        let diagnostic = DiagnosticText::from(
+            "; ZIL verified LLVM module\n; verified-fingerprint: original\nretained body\n"
+                .to_owned(),
+        );
+        let units = vec![module(1), module(2)];
+        fs::write(&exe, b"retained program value").unwrap();
+        diagnostic.write(&ir).unwrap();
+        let original = Arc::new(
+            Product::capture(
+                configuration,
+                profile,
+                units.clone(),
+                Fingerprint::of(b"objects"),
+                &exe,
+                diagnostic.clone(),
+            )
+            .unwrap(),
+        );
+        let published = original.record_published(&exe, &ir).unwrap();
+        assert!(Arc::ptr_eq(&original.units, &published.units));
+        let current = published.record_published(&exe, &ir).unwrap();
+        assert!(Arc::ptr_eq(&current, &published));
+        let unchanged = current.refreshed(Cow::Borrowed(&units), diagnostic.clone());
+        assert!(Arc::ptr_eq(&unchanged, &current));
+        let paths = (exe.clone(), ir.clone());
+        assert!(unchanged.token(Some(&paths)).current_for(&exe, &ir));
+        let moved = current.refreshed(Cow::Borrowed(&units), diagnostic.current("changed"));
+        assert!(Arc::ptr_eq(&moved.program, &current.program));
+        assert!(Arc::ptr_eq(&moved.configuration, &current.configuration));
+        assert!(Arc::ptr_eq(&moved.units, &current.units));
+        assert!(moved.published.is_none());
+        assert!(
+            moved.record_published(&exe, &ir).is_none(),
+            "old diagnostic cannot receive a current lease"
+        );
+        moved.diagnostic.write(&ir).unwrap();
+        let moved = moved.record_published(&exe, &ir).unwrap();
+        assert!(moved.token(Some(&paths)).current_for(&exe, &ir));
+        fs::write(&exe, b"changed program value").unwrap();
+        assert!(moved.record_published(&exe, &ir).is_none());
+        assert!(!moved.token(Some(&paths)).current_for(&exe, &ir));
+    }
 }
