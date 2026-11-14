@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-14T06:20:15.150558+00:00",
+  "updated_at_utc": "2026-11-14T06:39:42.703605+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Alpha not ready. Latest0a212 builds/alltargets0, Source147/0; foundation0/13 audited positives and2/4 intended negatives. Native8/16 after early closure query regression; precise fixbefcb94c2 saved pending next coherent validation. CT immutable definition duplicate gate now passes, next independent CT V failure is unknown complete header. Complete actual nominal/capture producer64341743d saved; Source original associated declarations absent without dyn syntax confirmed by Astra and full producer/consumer being implemented.",
+  "status": "Alpha not ready. Latestb61e8c4bc: CLI/alltargets0, Typesprobe2/2, Source151/0, native12/16 (3 old sources; phantom still Analyze stored-callback transport). Audited foundation0/13 positives,2/4 intended negative rejections. Complete Source original trait/impl catalogs now produced without dyn syntax; private original associated input/solver and static-declaration versus runtime-interface consumers pending. Original field/assignment and caller/callee nominal-domain fixes passed next stages, but complete native and failure cleanup not established.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -229,7 +229,7 @@
     "decision": "Source owner and Analyze helper coordinate independent write sets to complete ordinary Source model; do not rewrite consumers or erase Some."
   },
   "shared_snapshot_rule": "Owners pause declared hot files at complete logic checkpoint; Root immediately stages exact owner paths and acknowledges before next batch. Candidate uses staged complete batches; never git-add the entire actively edited tree.",
-  "latest_remote_source": "9c8d46b2bf067081453e97331f900685d4e69e3d",
+  "latest_remote_source": "b61e8c4bce2ed0268d5b5339c208c7bff93c321d",
   "original_body_architecture": {
     "advice_model": "Astra; public IR/spec/Source only, no opposite kernel algorithms",
     "decision": "Preserve original operations, explicit/inferred actual obligations and actual emission identities; do not duplicate typeof in Source or infer original validity from concrete instances.",
@@ -1985,14 +1985,14 @@
     "Prioritize compiler build and actual13-positive/4-negative feature checks plus native consumers before all-target regression compilation, retaining exact immutable snapshots and the single heavy-build lock."
   ],
   "latest_integrated_validation": {
-    "candidate": "0a212bc38ca0b0fd2d7759eebacbc087fd558f43",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-foundation-source-ct-flow",
+    "candidate": "b61e8c4bce2ed0268d5b5339c208c7bff93c321d",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-literal-callee-capture",
     "workspace_alltargets_exit": 0,
-    "types_probe_exit": 101,
-    "source_lib_passed": 147,
+    "types_probe_exit": 0,
+    "source_lib_passed": 151,
     "source_lib_failed": 0,
-    "native_successes": 8,
-    "native_blocked": 8,
+    "native_successes": 12,
+    "native_blocked": 4,
     "audited_foundation_positives": {
       "passed": 0,
       "total": 13
@@ -2004,9 +2004,9 @@
     "accepted": false
   },
   "path_review": "records/language-alpha-path-review.json",
-  "latest_receipt": "records/language-alpha-validation/0a212bc38.json",
+  "latest_receipt": "records/language-alpha-validation/b61e8c4bc.json",
   "current_candidate_under_validation": null,
-  "latest_completed_candidate": "0a212bc38ca0b0fd2d7759eebacbc087fd558f43",
+  "latest_completed_candidate": "b61e8c4bce2ed0268d5b5339c208c7bff93c321d",
   "protocol_review": "records/language-alpha-protocol-review.json",
   "resource_category_review": "records/language-alpha-resource-category-review.json",
   "later_component_validation": [
