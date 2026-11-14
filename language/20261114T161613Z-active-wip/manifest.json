@@ -1,0 +1,38 @@
+{
+  "source_base": "5da91878d8f49d5be229b8fda5d9bb31c4222916",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T161613Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-analyze/src/stored_flow/mutex.rs": "24ff11efccd7dd34340681803ca978defafaa6212ce62b87fc1fdeb9633a1596",
+    "crates/zil-types/src/lib.rs": "5df587995c4d52683b9211f2bc52b42eb8cb9fdca0d3c405048e0a87fc551e6c",
+    "crates/zil-types/src/program.rs": "6d949b227fa38fcf0936e7756507cdd4c95e29ff5b2d3ee038e5e2fff9ab41f4",
+    "crates/zil-types/src/semantics/emission.rs": "9a08872336900798dd703bcefcd48e85fccb492267c395fdd9fe08d3ab90a41d",
+    "crates/zil-types/src/semantics/materialize.rs": "0a57fd266bc862d374d5cfd2021277f086273267af9b9341b249253ae26f6315",
+    "crates/zil-types/src/semantics/materialize_emitter.rs": "9c7cf8ffeaa6a8a361976941eec2008676b5260a94bf7396d9cd7914ced43ec2",
+    "crates/zil-types/src/tasks.rs": "9b59681dbf09673ef358efbf23eee69fef3b86ed138902325f1f1171d383308f",
+    "crates/zil-types/src/tasks/poll.rs": "8f8d8c23f4c12e7cad7b6fe229ee611edb740dbf0e0593e61fa06311e97f2e6a",
+    "crates/zil-verify/src/semantic/task_domains.rs": "571419278c417f8fb7d7e503bd309a02412e13cba568ea60b60ae734d461ae10",
+    "crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "ecbc8dbcc9a0a3be3345ab2326ca7d29fe49da508fe1810b1a65572ed666c190",
+    "crates/zil-verify/src/stored_flow/task_address/inputs.rs": "41dfa3f40b3c7149e5fd8ad7639baa7a0163e4d3a82d29721af046f002af9a90",
+    "crates/zil-verify/src/stored_flow/task_address/results.rs": "4929b75513cf24a0f1dcc1058aad15576b251812e43ff8c35937c852b0bb6f78",
+    "crates/zil-verify/src/tasks.rs": "9df8f59a3b64a4d3c8812b746b17921450db6bb3ccbf3b713a2bc95cb81aadef",
+    "crates/zil-verify/src/tasks/frame_shape.rs": "aa19035fbd50ca92228d3395333592e6cffe9e07536eb8bb7bb25da2e15f1ee1",
+    "crates/zil-verify/src/tasks/owned.rs": "b6b2c877559de3545bc0ee2d62db4a4f0d4097a5879c6e1217d592a12e4a302c"
+  },
+  "artifacts": {
+    "source.patch": "2017ad80af34211b6424223271e18655c6bb47604c7fa98002a306c5f3f4afbc",
+    "untracked/crates/zil-types/src/tasks/poll.rs": "8f8d8c23f4c12e7cad7b6fe229ee611edb740dbf0e0593e61fa06311e97f2e6a",
+    "untracked/crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/inputs.rs": "41dfa3f40b3c7149e5fd8ad7639baa7a0163e4d3a82d29721af046f002af9a90",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/results.rs": "4929b75513cf24a0f1dcc1058aad15576b251812e43ff8c35937c852b0bb6f78",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "61d16fe88003befb533104778396f774164072088ba88e25fcdd9d677ce47c14"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}

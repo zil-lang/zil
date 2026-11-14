@@ -1,0 +1,1600 @@
+diff --git a/crates/zil-analyze/src/stored_flow/mutex.rs b/crates/zil-analyze/src/stored_flow/mutex.rs
+index 3850278ec..0b7de1d5e 100644
+--- a/crates/zil-analyze/src/stored_flow/mutex.rs
++++ b/crates/zil-analyze/src/stored_flow/mutex.rs
+@@ -154,6 +154,117 @@ fn thread_scope(
+     Ok(true)
+ }
+ 
++fn closed_copy(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
++    fee(b, 1)?;
++    if depth > b.partial_depth {
++        return Err(failure(
++            "Mutex payload exceeds its complete finite type depth",
++        ));
++    }
++    if ty.is_b0_scalar() {
++        return Ok(true);
++    }
++    match ty {
++        Type::Tuple(fields) => {
++            for child in fields {
++                if !closed_copy(child, b, depth + 1)? {
++                    return Ok(false);
++                }
++            }
++            Ok(true)
++        }
++        Type::Record { fields, .. } => {
++            for (_, child) in fields {
++                if !closed_copy(child, b, depth + 1)? {
++                    return Ok(false);
++                }
++            }
++            Ok(true)
++        }
++        Type::Enum { variants, .. } => {
++            for (_, fields) in variants {
++                for child in fields {
++                    if !closed_copy(child, b, depth + 1)? {
++                        return Ok(false);
++                    }
++                }
++            }
++            Ok(true)
++        }
++        Type::Array { element, .. } => closed_copy(element, b, depth + 1),
++        Type::ErrorUnion { error, result } => {
++            Ok(closed_copy(error, b, depth + 1)? && closed_copy(result, b, depth + 1)?)
++        }
++        Type::BorrowedStorage { storage, life }
++            if life.binder_count == 0
++                && life.slots.is_empty()
++                && life.retained.is_empty()
++                && life.nominal_arguments.is_empty() =>
++        {
++            closed_copy(storage, b, depth + 1)
++        }
++        _ => Ok(false),
++    }
++}
++fn require_payload(ty: &Type, b: &mut Budget) -> CompileResult<()> {
++    b.type_work(ty, false, "Mutex complete closed Copy payload")?;
++    if !closed_copy(ty, b, 0)? {
++        return Err(vec![Diagnostic::unsupported(
++            Phase::Analyze,
++            "Mutex payload needs its complete owning, borrowed or opaque storage and cleanup transport",
++            None,
++        )]);
++    }
++    Ok(())
++}
++fn family_payload(ty: &Type) -> Option<&Type> {
++    match ty {
++        Type::Mutex { payload } | Type::MutexGuard { payload, .. } => Some(payload),
++        Type::Desc(inner) | Type::Managed(inner) | Type::Address { inner, .. } => {
++            family_payload(inner)
++        }
++        Type::ErrorUnion { error, result }
++            if error.as_ref() == &crate::generic_mutex::error_type() =>
++        {
++            family_payload(result)
++        }
++        _ => None,
++    }
++}
++fn actual_payload<'a>(
++    module: &'a TypedModule,
++    f: &'a TypedFunction,
++    i: &Instruction,
++) -> CompileResult<&'a Type> {
++    let ty = match &i.kind {
++        InstructionKind::MutexCreate { value } => return value_type(f, *value),
++        InstructionKind::MutexLock { mutex }
++        | InstructionKind::MutexValue { guard: mutex }
++        | InstructionKind::MutexUnlock { guard: mutex }
++        | InstructionKind::DescribeAddress { address: mutex }
++        | InstructionKind::ErrorTag { value: mutex }
++        | InstructionKind::ReadErrorUnion { value: mutex, .. }
++        | InstructionKind::TakeErrorUnion { value: mutex, .. } => value_type(f, *mutex)?,
++        InstructionKind::DescribeLocal { local }
++        | InstructionKind::DropMutexGuard { local }
++        | InstructionKind::PlaceTagLocal { local, .. }
++        | InstructionKind::TakeVariantField { local, .. }
++        | InstructionKind::BorrowPlaceLocal { local, .. }
++        | InstructionKind::DropErrorUnion { local } => union_local(f, *local)?,
++        InstructionKind::DescribeCapture { index } => f
++            .environment
++            .and_then(|id| module.closures.get(id.0 as usize))
++            .and_then(|row| row.captures.get(*index as usize))
++            .ok_or_else(|| failure("Mutex capture payload is absent"))?,
++        InstructionKind::WithScopedThread { argument, .. } => value_type(f, *argument)?,
++        _ => value_type(
++            f,
++            i.result
++                .ok_or_else(|| failure("Mutex operation omits its complete actual family"))?,
++        )?,
++    };
++    family_payload(ty).ok_or_else(|| failure("Mutex operation selects no complete actual payload"))
++}
+ fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+     let Type::MutexGuard {
+         payload,
+@@ -164,7 +275,7 @@ fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+         return Ok(false);
+     };
+     b.type_work(ty, false, "complete Mutex guard identity")?;
+-    if payload.as_ref() != &Type::I32 {
++    if !closed_copy(payload, b, 0)? {
+         return Err(vec![Diagnostic::unsupported(
+             Phase::Analyze,
+             "Mutex stored payload needs its complete non-scalar storage and cleanup transport",
+@@ -183,7 +294,7 @@ fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+     if retained_life.binder_count != 1
+         || !retained_life.retained.is_empty()
+         || !retained_life.nominal_arguments.is_empty()
+-        || !matches!(retained_life.ports.as_slice(),[port] if port.leaf==(Type::Mutex{payload:Box::new(Type::I32)}) && port.mode==StoredBorrowMode::SharedAddress && port.binder==0)
++        || !matches!(retained_life.ports.as_slice(),[port] if port.leaf==(Type::Mutex{payload:payload.clone()}) && port.mode==StoredBorrowMode::SharedAddress && port.binder==0)
+     {
+         return Err(failure(
+             "Mutex guard changes its complete sealed retained manager domain",
+@@ -192,7 +303,7 @@ fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+     Ok(true)
+ }
+ fn manager(ty: &Type) -> bool {
+-    matches!(ty,Type::Mutex{payload} if payload.as_ref()==&Type::I32)
++    matches!(ty, Type::Mutex { .. })
+ }
+ fn owner(ty: &Type) -> bool {
+     matches!(ty,Type::Managed(payload) if manager(payload))
+@@ -231,12 +342,13 @@ fn guard_head(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+         _ => Ok(false),
+     }
+ }
+-fn resource(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
++fn resource(module: &TypedModule, child: &Type, b: &mut Budget) -> CompileResult<()> {
++    require_payload(child, b)?;
+     let payload = Type::Mutex {
+-        payload: Box::new(Type::I32),
++        payload: Box::new(child.clone()),
+     };
+     b.type_work(&payload, false, "Mutex sealed resource identity")?;
+-    let name = format!("@builtin:Mutex<{}>", Type::I32.fingerprint());
++    let name = format!("@builtin:Mutex<{}>", child.fingerprint());
+     fee(b, name.len().saturating_add(module.resources.len()))?;
+     let mut found = 0usize;
+     for actual in &module.resources {
+@@ -272,7 +384,11 @@ pub(super) fn admitted(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compi
+         || matches!(ty,Type::Address{inner,..} if owner(inner))
+         || create_union(ty);
+     if selected {
+-        resource(module, b)?;
++        resource(
++            module,
++            family_payload(ty).ok_or_else(|| failure("Mutex type omits its complete payload"))?,
++            b,
++        )?;
+     }
+     Ok(selected)
+ }
+@@ -284,13 +400,20 @@ pub(super) fn instruction(
+ ) -> CompileResult<bool> {
+     fee(b, 1)?;
+     let output = i.result.map(|id| value_type(f, id)).transpose()?;
+-    let guard_ty = || Type::MutexGuard {
+-        payload: Box::new(Type::I32),
++    // Reserve complete operand copies before constructing expected nested
++    // Guard/Mutex/union types. An unrelated opcode has no Mutex family; every
++    // selected branch below still requires this exact operand query to work.
++    if let Ok(payload) = actual_payload(module, f, i) {
++        require_payload(payload, b)?;
++        b.type_work(payload, false, "Mutex complete expected-type construction")?;
++    }
++    let guard_ty = |payload: &Type| Type::MutexGuard {
++        payload: Box::new(payload.clone()),
+         retained_life: RetainedLifeShape {
+             binder_count: 1,
+             ports: vec![RetainedBorrowPort {
+                 leaf: Type::Mutex {
+-                    payload: Box::new(Type::I32),
++                    payload: Box::new(payload.clone()),
+                 },
+                 mode: StoredBorrowMode::SharedAddress,
+                 binder: 0,
+@@ -371,15 +494,12 @@ pub(super) fn instruction(
+             Some(Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]))
+         }
+         InstructionKind::MutexCreate { value } => {
+-            if value_type(f, *value)? != &Type::I32 {
+-                return Err(failure(
+-                    "Mutex construction lacks its complete supported actual payload",
+-                ));
+-            }
++            let payload = value_type(f, *value)?;
++            require_payload(payload, b)?;
+             Some(Type::ErrorUnion {
+                 error: Box::new(crate::generic_mutex::error_type()),
+                 result: Box::new(Type::Managed(Box::new(Type::Mutex {
+-                    payload: Box::new(Type::I32),
++                    payload: Box::new(payload.clone()),
+                 }))),
+             })
+         }
+@@ -389,7 +509,7 @@ pub(super) fn instruction(
+                     "Mutex lock requires its exact actual weak manager descriptor",
+                 ));
+             }
+-            Some(guard_ty())
++            Some(guard_ty(actual_payload(module, f, i)?))
+         }
+         InstructionKind::MutexValue { guard: head } => {
+             if !matches!(value_type(f,*head)?,Type::Address{mutable:true,inner} if guard(inner,b)?)
+@@ -400,7 +520,7 @@ pub(super) fn instruction(
+             }
+             Some(Type::Address {
+                 mutable: true,
+-                inner: Box::new(Type::I32),
++                inner: Box::new(actual_payload(module, f, i)?.clone()),
+             })
+         }
+         InstructionKind::MutexUnlock { guard: head } => {
+@@ -429,7 +549,7 @@ pub(super) fn instruction(
+                 .is_some_and(|row| owner(&row.ty)) =>
+         {
+             Some(Type::Desc(Box::new(Type::Mutex {
+-                payload: Box::new(Type::I32),
++                payload: Box::new(actual_payload(module, f, i)?.clone()),
+             })))
+         }
+         InstructionKind::DescribeCapture { index }
+@@ -439,12 +559,12 @@ pub(super) fn instruction(
+                 .is_some_and(owner) =>
+         {
+             Some(Type::Desc(Box::new(Type::Mutex {
+-                payload: Box::new(Type::I32),
++                payload: Box::new(actual_payload(module, f, i)?.clone()),
+             })))
+         }
+         InstructionKind::DescribeAddress { address } if matches!(value_type(f,*address)?,Type::Address{inner,..} if owner(inner)) => {
+             Some(Type::Desc(Box::new(Type::Mutex {
+-                payload: Box::new(Type::I32),
++                payload: Box::new(actual_payload(module, f, i)?.clone()),
+             })))
+         }
+         InstructionKind::Load(local)
+@@ -458,7 +578,7 @@ pub(super) fn instruction(
+         }
+         _ => return Ok(false),
+     };
+-    resource(module, b)?;
++    resource(module, actual_payload(module, f, i)?, b)?;
+     if matches!(
+         i.kind,
+         InstructionKind::MutexCreate { .. }
+@@ -522,7 +642,7 @@ fn complete(permission: &Permission, text: &str, b: &mut Budget) -> CompileResul
+     Ok(())
+ }
+ fn allocation_value(value: &Value, b: &mut Budget) -> CompileResult<()> {
+-    // The exact I32 allocation carrier has no embedded address, opaque class
++    // The exact closed Copy allocation carrier has no embedded address, opaque class
+     // or environment. This checks the actual transfer fact as well as its
+     // type; unknown/nonempty rows cannot disappear under an error-tag test.
+     fee(
+@@ -564,11 +684,19 @@ pub(super) fn seed(
+     b: &mut Budget,
+ ) -> CompileResult<()> {
+     if description(ty) {
+-        resource(module, b)?;
++        resource(
++            module,
++            family_payload(ty).ok_or_else(|| failure("Mutex seed omits its complete payload"))?,
++            b,
++        )?;
+         fee(b, 1)?;
+         out.store_description.targets.insert(target(base));
+     } else if guard(ty, b)? || guard_head(ty, b)? {
+-        resource(module, b)?;
++        resource(
++            module,
++            family_payload(ty).ok_or_else(|| failure("Mutex seed omits its complete payload"))?,
++            b,
++        )?;
+         let mut source = Permission::default();
+         fee(b, 1)?;
+         source.targets.insert(target(base));
+diff --git a/crates/zil-types/src/lib.rs b/crates/zil-types/src/lib.rs
+index 6762e91fa..caa4f6b9a 100644
+--- a/crates/zil-types/src/lib.rs
++++ b/crates/zil-types/src/lib.rs
+@@ -821,6 +821,8 @@ pub fn check(
+     };
+     mark_cost("single: resource and output metadata", remaining);
+     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
++    tasks::append_poll_inventory(&mut module, &semantic_emission, limits, &mut remaining)
++        .map_err(|e| vec![e])?;
+     retained::populate_local_static_results(&mut module, &mut remaining, limits)
+         .map_err(|e| vec![e])?;
+     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+diff --git a/crates/zil-types/src/program.rs b/crates/zil-types/src/program.rs
+index 1ce8b8d41..c03cb36a0 100644
+--- a/crates/zil-types/src/program.rs
++++ b/crates/zil-types/src/program.rs
+@@ -702,6 +702,8 @@ fn check_resolved_program_in_context(
+     };
+     mark_cost("program: resource and output metadata", remaining);
+     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
++    tasks::append_poll_inventory(&mut module, &semantic_emission, limits, &mut remaining)
++        .map_err(|e| vec![e])?;
+     retained::populate_local_static_results(&mut module, &mut remaining, limits)
+         .map_err(|e| vec![e])?;
+     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+diff --git a/crates/zil-types/src/semantics/emission.rs b/crates/zil-types/src/semantics/emission.rs
+index ba831c1f7..43a2a6483 100644
+--- a/crates/zil-types/src/semantics/emission.rs
++++ b/crates/zil-types/src/semantics/emission.rs
+@@ -59,6 +59,8 @@ pub(crate) struct Ledger {
+     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
+     pub(super) original: super::original_context::Slot,
+     pub frames: BTreeMap<FunctionId, Frame>,
++    /// Full nominal proposals attached only to genuine TaskPoll results.
++    pub(crate) formed_polls: BTreeMap<(FunctionId, ValueId), LifeNominalInstance>,
+     /// Bound only by relocation of the exact source request and emitted call.
+     pub(super) instance_requests: std::cell::RefCell<
+         BTreeMap<SemanticInstanceId, (SemanticInstanceId, SemanticSiteId, FunctionId)>,
+diff --git a/crates/zil-types/src/semantics/materialize.rs b/crates/zil-types/src/semantics/materialize.rs
+index cdcb75a52..3bd413955 100644
+--- a/crates/zil-types/src/semantics/materialize.rs
++++ b/crates/zil-types/src/semantics/materialize.rs
+@@ -50,7 +50,7 @@ mod shapes;
+ mod task_domains;
+ #[path = "materialize_task_results.rs"]
+ mod task_results;
+-pub(crate) use emitter::{PreparedTask, prepare_task};
++pub(crate) use emitter::{PreparedPoll, PreparedTask, prepare_poll, prepare_task};
+ #[path = "materialize_view.rs"]
+ mod view;
+ pub(super) use view::ActualDirectory;
+diff --git a/crates/zil-types/src/semantics/materialize_emitter.rs b/crates/zil-types/src/semantics/materialize_emitter.rs
+index 01b601dd6..8b3d0748d 100644
+--- a/crates/zil-types/src/semantics/materialize_emitter.rs
++++ b/crates/zil-types/src/semantics/materialize_emitter.rs
+@@ -242,49 +242,26 @@ fn install_callable_actuals(
+ }
+ 
+ #[allow(clippy::too_many_arguments)]
+-pub(crate) fn prepare_task(
+-    state: &closures::State,
+-    caller: crate::FunctionRef<'_>,
+-    prior: &[crate::FunctionRef<'_>],
+-    life_instances: &[LifeNominalInstance],
+-    declarations: &[DynDeclaration],
+-    interfaces: &[DynInterface],
+-    worker: FunctionId,
+-    parameters: &[Type],
+-    result: &Type,
++type FormedHeaders = Vec<(
++    ClosureId,
++    StorageLifeContract,
++    Vec<SemanticHeaderBinding>,
++    Vec<(StorageBase, SemanticTypeValue)>,
++)>;
++#[allow(clippy::too_many_arguments)]
++fn emitter_directory<'m>(
++    state: &'m closures::State,
++    caller: crate::FunctionRef<'m>,
++    prior: &[crate::FunctionRef<'m>],
++    life_instances: &'m [LifeNominalInstance],
++    declarations: &'m [DynDeclaration],
++    interfaces: &'m [DynInterface],
++    program: &SemanticModule,
++    caller_instance: SemanticInstanceId,
+     limits: &Limits,
+     left: &mut usize,
+-) -> R<Option<PreparedTask>> {
++) -> R<(ActualDirectory<'m>, FormedHeaders)> {
+     let ledger = &state.semantic_emission;
+-    let Some(context) = ledger.original.context() else {
+-        return Ok(None);
+-    };
+-    let expression = ledger
+-        .active_expression(caller.id, left, caller.span)?
+-        .ok_or_else(|| bad("Task worker preparation has no real active Core call"))?;
+-    let scheme = ledger
+-        .original_task_worker(caller.id, expression, limits, left)?
+-        .ok_or_else(|| {
+-            unknown("Task worker preparation awaits its exact checked original call scheme")
+-        })?;
+-    fee(
+-        left,
+-        ledger
+-            .frames
+-            .len()
+-            .saturating_add(context.semantic.instances.len()),
+-    )?;
+-    let actual_worker = ledger
+-        .frames
+-        .get(&worker)
+-        .ok_or_else(|| bad("Task worker has no real emitter origin"))?;
+-    if !context.semantic.instances.iter().any(|row| {
+-        row.definition == scheme.worker && origin_matches(&row.target, actual_worker.origin)
+-    }) {
+-        return Err(bad(
+-            "Task preparation changes its exact original worker target",
+-        ));
+-    }
+     let mut functions = Vec::new();
+     fee(
+         left,
+@@ -325,10 +302,10 @@ pub(crate) fn prepare_task(
+     )?;
+     bind_instance(
+         &mut directory,
+-        &context.semantic,
++        program,
+         ledger,
+         caller.id,
+-        Some(scheme.instance),
++        Some(caller_instance),
+         limits,
+         left,
+     )?
+@@ -336,7 +313,7 @@ pub(crate) fn prepare_task(
+     for function in prior {
+         bind_instance(
+             &mut directory,
+-            &context.semantic,
++            program,
+             ledger,
+             function.id,
+             None,
+@@ -352,7 +329,7 @@ pub(crate) fn prepare_task(
+     {
+         bind_instance(
+             &mut directory,
+-            &context.semantic,
++            program,
+             ledger,
+             definition.1,
+             None,
+@@ -412,7 +389,7 @@ pub(crate) fn prepare_task(
+         }
+         row.header_embedding = embedding.clone();
+     }
+-    install_callable_actuals(&mut directory, &context.semantic, state, limits, left)?;
++    install_callable_actuals(&mut directory, program, state, limits, left)?;
+     let mut headers = Vec::new();
+     // Actual capture dependencies form a finite creation graph. Revisit only
+     // when a previous complete directory was formed; missing dependencies are
+@@ -435,14 +412,7 @@ pub(crate) fn prepare_task(
+                 continue;
+             };
+             let Some((header, embedding, values)) = super::super::headers::form_emitted_header(
+-                &context.semantic,
+-                &directory,
+-                ledger,
+-                instance,
+-                closure,
+-                function,
+-                limits,
+-                left,
++                program, &directory, ledger, instance, closure, function, limits, left,
+             )?
+             else {
+                 continue;
+@@ -467,11 +437,69 @@ pub(crate) fn prepare_task(
+             headers.push((closure, header, embedding, values));
+             progress = true;
+         }
+-        install_callable_actuals(&mut directory, &context.semantic, state, limits, left)?;
++        install_callable_actuals(&mut directory, program, state, limits, left)?;
+         if !progress {
+             break;
+         }
+     }
++    Ok((directory, headers))
++}
++
++pub(crate) fn prepare_task(
++    state: &closures::State,
++    caller: crate::FunctionRef<'_>,
++    prior: &[crate::FunctionRef<'_>],
++    life_instances: &[LifeNominalInstance],
++    declarations: &[DynDeclaration],
++    interfaces: &[DynInterface],
++    worker: FunctionId,
++    parameters: &[Type],
++    result: &Type,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<Option<PreparedTask>> {
++    let ledger = &state.semantic_emission;
++    let Some(context) = ledger.original.context() else {
++        return Ok(None);
++    };
++    let expression = ledger
++        .active_expression(caller.id, left, caller.span)?
++        .ok_or_else(|| bad("Task worker preparation has no real active Core call"))?;
++    let scheme = ledger
++        .original_task_worker(caller.id, expression, limits, left)?
++        .ok_or_else(|| {
++            unknown("Task worker preparation awaits its exact checked original call scheme")
++        })?;
++    fee(
++        left,
++        ledger
++            .frames
++            .len()
++            .saturating_add(context.semantic.instances.len()),
++    )?;
++    let actual_worker = ledger
++        .frames
++        .get(&worker)
++        .ok_or_else(|| bad("Task worker has no real emitter origin"))?;
++    if !context.semantic.instances.iter().any(|row| {
++        row.definition == scheme.worker && origin_matches(&row.target, actual_worker.origin)
++    }) {
++        return Err(bad(
++            "Task preparation changes its exact original worker target",
++        ));
++    }
++    let (directory, headers) = emitter_directory(
++        state,
++        caller,
++        prior,
++        life_instances,
++        declarations,
++        interfaces,
++        &context.semantic,
++        scheme.instance,
++        limits,
++        left,
++    )?;
+     let mut eval = Eval {
+         input: &context.semantic,
+         module: &directory,
+@@ -674,3 +702,160 @@ impl Eval<'_, '_, '_> {
+         ))
+     }
+ }
++
++pub(crate) struct PreparedPoll {
++    pub instance: LifeNominalInstance,
++    pub headers: FormedHeaders,
++}
++#[allow(clippy::too_many_arguments)]
++pub(crate) fn prepare_poll(
++    state: &closures::State,
++    caller: crate::FunctionRef<'_>,
++    prior: &[crate::FunctionRef<'_>],
++    life_instances: &[LifeNominalInstance],
++    declarations: &[DynDeclaration],
++    interfaces: &[DynInterface],
++    name: &str,
++    task: &Type,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<Option<PreparedPoll>> {
++    use super::super::original::TaskOp;
++    let ledger = &state.semantic_emission;
++    let Some(context) = ledger.original.context() else {
++        return Ok(None);
++    };
++    let expression = ledger
++        .active_expression(caller.id, left, caller.span)?
++        .ok_or_else(|| bad("Task poll has no real active source call"))?;
++    let (scope, op, recipe) = ledger
++        .original_task_payload(caller.id, expression, limits, left)?
++        .ok_or_else(|| unknown("Task poll awaits its exact original payload scheme"))?;
++    let close = match (name, op) {
++        ("task_poll", TaskOp::Poll) => false,
++        ("task_poll_close", TaskOp::PollClose) => true,
++        _ => return Err(bad("actual Task poll changes the exact original operation")),
++    };
++    let Type::Task { result, .. } = task else {
++        return Err(bad("Task poll lost its actual full carrier"));
++    };
++    let (directory, headers) = emitter_directory(
++        state,
++        caller,
++        prior,
++        life_instances,
++        declarations,
++        interfaces,
++        &context.semantic,
++        scope,
++        limits,
++        left,
++    )?;
++    let mut eval = Eval {
++        input: &context.semantic,
++        module: &directory,
++        ledger,
++        limits,
++        left,
++        active: BTreeSet::new(),
++    };
++    let mut child = eval.type_domain(scope, &recipe, Some(result), 0)?;
++    if close {
++        child = eval.type_domain(
++            scope,
++            &SemanticTypeRecipe::Atom(Type::Unit),
++            Some(&Type::Unit),
++            0,
++        )?;
++    }
++    // The declared Poll<T> payload is a whole-Type formal boundary. Every
++    // intrinsic child index survives, including classes with equal images.
++    // The nominal TypeArgument map below preserves the entire formal domain.
++    // Physical ordinary wrappers keep their real retained paths; an opaque
++    // qualified child has its own whole boundary in the shared composer.
++    child.frozen = false;
++    let SemanticTypeValue::Resolved {
++        ty: payload,
++        life: payload_life,
++        ..
++    } = &child.value
++    else {
++        unreachable!()
++    };
++    inference::charge_type_snapshot(payload, caller.span, limits, eval.left, 3)?;
++    let payload = payload.clone();
++    let payload_life = eval.copy_shape(payload_life)?;
++    let SemanticTypeValue::Resolved { life: mut life, .. } = eval.compose_tuple(vec![child])?.value
++    else {
++        unreachable!()
++    };
++    let variant = PlaceProjection::Variant(VariantProjection {
++        variant: 1,
++        index: 0,
++    });
++    for slot in &mut life.slots {
++        match slot.path.first_mut() {
++            Some(head @ PlaceProjection::Field(0)) => *head = variant.clone(),
++            _ => {
++                return Err(bad(
++                    "Poll field composition changes its actual payload path",
++                ));
++            }
++        }
++    }
++    for row in &mut life.retained {
++        match row.path.first_mut() {
++            Some(LifeTypeProjection::Place(head @ PlaceProjection::Field(0))) => {
++                *head = variant.clone()
++            }
++            _ => return Err(bad("Poll child domain changes its declared Ready position")),
++        }
++    }
++    for row in &mut life.nominal_arguments {
++        match row.path.first_mut() {
++            Some(LifeTypeProjection::Place(head @ PlaceProjection::Field(0))) => {
++                *head = variant.clone()
++            }
++            _ => {
++                return Err(bad(
++                    "Poll nominal child changes its declared Ready position",
++                ));
++            }
++        }
++    }
++    eval.fee(life.binder_count as usize)?;
++    for class in 0..life.binder_count {
++        life.retained.push(StorageRetainedBinding {
++            path: vec![LifeTypeProjection::TypeArgument(0)],
++            class,
++            binder: class,
++        });
++    }
++    let storage = Type::Enum {
++        name: crate::tasks::poll_name(&payload),
++        variants: vec![
++            ("Pending".into(), Vec::new()),
++            ("Ready".into(), vec![payload.clone()]),
++        ],
++    };
++    let ty = if life.binder_count == 0 {
++        storage
++    } else {
++        Type::BorrowedStorage {
++            storage: Box::new(storage),
++            life,
++        }
++    };
++    inference::charge_type_snapshot(&ty, caller.span, limits, eval.left, 3)?;
++    // The separate root occurrence directory belongs to the actual argument,
++    // even when its erased physical type is Address or Desc.
++    let instance = LifeNominalInstance {
++        declaration: zil_ir::builtin_life::POLL,
++        ty,
++        arguments: vec![LifeNominalActual::QualifiedType {
++            ty: payload,
++            life: payload_life,
++        }],
++    };
++    Ok(Some(PreparedPoll { instance, headers }))
++}
+diff --git a/crates/zil-types/src/tasks.rs b/crates/zil-types/src/tasks.rs
+index cb60dba78..76767db01 100644
+--- a/crates/zil-types/src/tasks.rs
++++ b/crates/zil-types/src/tasks.rs
+@@ -2,7 +2,9 @@
+ use super::*;
+ pub(crate) mod context_ports;
+ pub(super) mod failure;
++mod poll;
+ pub(super) use failure::append_inventory as append_failure_inventory;
++pub(super) use poll::append_inventory as append_poll_inventory;
+ pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
+     zil_ir::RetainedLifeShape {
+         binder_count: 0,
+@@ -654,41 +656,84 @@ impl Builder<'_, '_> {
+         self.closures.snapshot(before - left, span)?;
+         let mut prepared = prepared?;
+         if let Some(prepared) = &mut prepared {
+-            for (id, header, embedding, values) in std::mem::take(&mut prepared.headers) {
+-                let pending = self
+-                    .closures
+-                    .pending
+-                    .iter_mut()
+-                    .find(|pending| pending.id == id)
+-                    .ok_or_else(|| {
+-                        unsupported(
+-                            span,
+-                            "actual Task closure header lost its real pending entry",
+-                        )
+-                    })?;
+-                let entry = pending.typed.as_mut().ok_or_else(|| {
+-                    unsupported(span, "actual Task closure header has no real typed entry")
+-                })?;
+-                if entry
+-                    .storage_life
+-                    .as_ref()
+-                    .is_some_and(|previous| previous != &header)
+-                {
+-                    return Err(error(
+-                        "E-TASK-CONTEXT",
+-                        span,
+-                        "actual Task closure header changes its existing directory",
+-                    ));
+-                }
+-                entry.storage_life = Some(header.clone());
+-                self.closures
+-                    .semantic_emission
+-                    .record_formed_header(id, header, embedding, values)?;
+-            }
++            self.install_task_headers(std::mem::take(&mut prepared.headers), span)?;
+         }
+         Ok(prepared)
+     }
+ 
++    fn install_task_headers(
++        &mut self,
++        headers: Vec<(
++            ClosureId,
++            StorageLifeContract,
++            Vec<SemanticHeaderBinding>,
++            Vec<(StorageBase, SemanticTypeValue)>,
++        )>,
++        span: Span,
++    ) -> R<()> {
++        for (id, header, embedding, values) in headers {
++            let pending = self
++                .closures
++                .pending
++                .iter_mut()
++                .find(|pending| pending.id == id)
++                .ok_or_else(|| {
++                    unsupported(
++                        span,
++                        "actual Task closure header lost its real pending entry",
++                    )
++                })?;
++            let entry = pending.typed.as_mut().ok_or_else(|| {
++                unsupported(span, "actual Task closure header has no real typed entry")
++            })?;
++            if entry
++                .storage_life
++                .as_ref()
++                .is_some_and(|previous| previous != &header)
++            {
++                return Err(error(
++                    "E-TASK-CONTEXT",
++                    span,
++                    "actual Task closure header changes its existing directory",
++                ));
++            }
++            entry.storage_life = Some(header.clone());
++            self.closures
++                .semantic_emission
++                .record_formed_header(id, header, embedding, values)?;
++        }
++        Ok(())
++    }
++    fn actual_poll(
++        &mut self,
++        name: &str,
++        task: &Type,
++        span: Span,
++    ) -> R<Option<semantics::materialize::PreparedPoll>> {
++        if !matches!(name, "task_poll" | "task_poll_close") {
++            return Ok(None);
++        }
++        let before = self.closures.remaining_work();
++        let mut left = before;
++        let result = semantics::materialize::prepare_poll(
++            self.closures,
++            self.function.view(),
++            &self.actual_functions,
++            self.life_instances,
++            self.dyn_declarations,
++            self.dyn_interfaces,
++            name,
++            task,
++            self.limits,
++            &mut left,
++        );
++        self.closures.snapshot(before - left, span)?;
++        let mut result = result?;
++        if let Some(prepared) = &mut result {
++            self.install_task_headers(std::mem::take(&mut prepared.headers), span)?;
++        }
++        Ok(result)
++    }
+     pub(super) fn task_call(
+         &mut self,
+         name: &str,
+@@ -856,7 +901,15 @@ impl Builder<'_, '_> {
+             self.closures.snapshot(before - remaining, span)?;
+             if let Some(task) = looked? {
+                 let parameter = parameter_for(name, &task);
+-                let ty = result_for(name, &task);
++                let poll = self.actual_poll(name, &task, span)?;
++                let ty = match &poll {
++                    Some(poll) if name == "task_poll" => Type::ErrorUnion {
++                        error: Box::new(poll_state()),
++                        result: Box::new(poll.instance.ty.clone()),
++                    },
++                    Some(poll) => poll.instance.ty.clone(),
++                    None => result_for(name, &task),
++                };
+                 let (task, t) = self.argument_expr(&arguments[0], &parameter)?;
+                 self.same(&t, &parameter, arguments[0].span)?;
+                 let kind = match name {
+@@ -871,6 +924,21 @@ impl Builder<'_, '_> {
+                     self.same(&ty, wanted, span)?;
+                 }
+                 let v = self.value(kind, ty.clone(), span)?;
++                if let Some(poll) = poll {
++                    if self
++                        .closures
++                        .semantic_emission
++                        .formed_polls
++                        .insert((self.function.id, v), poll.instance)
++                        .is_some()
++                    {
++                        return Err(error(
++                            "E-TASK-POLL",
++                            span,
++                            "real Task poll result has duplicate formation receipts",
++                        ));
++                    }
++                }
+                 return Ok((v, ty));
+             }
+         }
+diff --git a/crates/zil-verify/src/semantic/task_domains.rs b/crates/zil-verify/src/semantic/task_domains.rs
+index 2cb0748d2..0024f9642 100644
+--- a/crates/zil-verify/src/semantic/task_domains.rs
++++ b/crates/zil-verify/src/semantic/task_domains.rs
+@@ -1,6 +1,8 @@
+ //! Request-local Task frame metadata and outstanding constructor obligations.
+ //! Metadata is not WF, a worker entry, a root, a loan, or a Closed fact.
+ use super::*;
++#[path = "task_domains/ports.rs"]
++mod ports;
+ 
+ #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(crate) struct FrameKey {
+@@ -802,156 +804,12 @@ pub(crate) fn raw_input_ports(
+     life: &StorageLifeShape,
+     b: &mut Budget,
+ ) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
+-    let mut result = Vec::new();
+-    for slot in &life.slots {
+-        b.spend(slot.path.len().saturating_add(1))?;
+-        let path = slot
+-            .path
+-            .iter()
+-            .copied()
+-            .map(LifeTypeProjection::Place)
+-            .collect::<Vec<_>>();
+-        let leaf = lifetimes::select(ty, &path, b)?;
+-        dynamic_metadata::ty(leaf, b)?;
+-        result.push((
+-            leaf.clone(),
+-            slot.mode,
+-            slot.binder,
+-            slot.path
+-                .iter()
+-                .copied()
+-                .map(ContractProjection::Place)
+-                .collect(),
+-        ));
+-    }
+-    let mut payload = ty;
+-    let mut prefix = Vec::new();
+-    loop {
+-        match payload {
+-            Type::BorrowedStorage { storage, .. } => payload = storage,
+-            Type::Managed(inner) => {
+-                payload = inner;
+-                prefix.push(LifeTypeProjection::Pointee);
+-            }
+-            _ => break,
+-        }
+-    }
+-    let opaque = match payload {
+-        Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
+-            Some(retained_life)
+-        }
+-        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+-            b.spend(module.dyn_interfaces.len())?;
+-            Some(
+-                &module
+-                    .dyn_interfaces
+-                    .iter()
+-                    .find(|row| row.id == *interface)
+-                    .ok_or_else(|| bad("Task input opaque interface is absent"))?
+-                    .retained_life,
+-            )
+-        }
+-        _ => None,
+-    };
+-    if let Some(shape) = opaque {
+-        dynamic_metadata::retained_shape(shape, b)?;
+-        for (index, port) in shape.ports.iter().enumerate() {
+-            let class = if prefix.is_empty() {
+-                port.binder
+-            } else {
+-                let mut rows = life
+-                    .retained
+-                    .iter()
+-                    .filter(|row| row.path == prefix && row.class == port.binder);
+-                let row = rows
+-                    .next()
+-                    .ok_or_else(|| bad("Task opaque input loses its complete child map"))?;
+-                if rows.next().is_some() {
+-                    return Err(bad("Task opaque child class mapping duplicated"));
+-                }
+-                row.binder
+-            };
+-            result.push((
+-                port.leaf.clone(),
+-                port.mode,
+-                class,
+-                vec![ContractProjection::RetainedPort(index as u32)],
+-            ));
+-        }
+-    }
+-    if let Type::Closure(id) = payload {
+-        b.spend(module.closures.len())?;
+-        let mut definitions = module.closures.iter().filter(|row| row.id == *id);
+-        let closure = definitions
+-            .next()
+-            .ok_or_else(|| bad("Task closure input has no exact capture inventory"))?;
+-        if definitions.next().is_some() {
+-            return Err(bad("Task closure input has duplicate original identity"));
+-        }
+-        let header = closure
+-            .storage_life
+-            .as_ref()
+-            .ok_or_else(|| bad("Task closure complete capture domain is Unknown"))?;
+-        signature_life::charge(header, b)?;
+-        for binding in &header.bindings {
+-            let StorageBase::Capture(ordinal) = binding.position.base else {
+-                continue;
+-            };
+-            let StorageBinder::Fixed(class) = binding.binder else {
+-                return Err(bad(
+-                    "Task closure capture port escapes its persistent domain",
+-                ));
+-            };
+-            if class >= header.fixed_binder_count {
+-                return Err(bad(
+-                    "Task closure capture port exceeds its full fixed domain",
+-                ));
+-            }
+-            let capture = closure
+-                .captures
+-                .get(ordinal as usize)
+-                .ok_or_else(|| bad("Task closure port selects a missing actual capture"))?;
+-            let leaf = contract_leaf(module, capture, &binding.position.path, b)?;
+-            let mode = match &leaf {
+-                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+-                Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+-                Type::Desc(_) => StoredBorrowMode::ReadOnlyDescription,
+-                _ => {
+-                    return Err(bad(
+-                        "Task closure port does not select a complete borrowed leaf",
+-                    ));
+-                }
+-            };
+-            let class = if prefix.is_empty() {
+-                class
+-            } else {
+-                let mut rows = life
+-                    .retained
+-                    .iter()
+-                    .filter(|row| row.path == prefix && row.class == class);
+-                let row = rows.next().ok_or_else(|| {
+-                    bad("Task closure input loses its exact complete child-domain map")
+-                })?;
+-                if rows.next().is_some() {
+-                    return Err(bad("Task closure child domain map is duplicated"));
+-                }
+-                row.binder
+-            };
+-            b.spend(binding.position.path.len().saturating_add(1))?;
+-            if result.len() >= b.limits.max_nodes {
+-                return Err(limit("Task complete capture-port inventory exceeded"));
+-            }
+-            let mut path = vec![ContractProjection::Capture(ordinal)];
+-            path.extend_from_slice(&binding.position.path);
+-            result.push((leaf, mode, class, path));
+-        }
+-    }
+-    Ok(result)
++    ports::expand(module, ty, life, b)
+ }
+ 
+ /// Select only a declared logical/physical borrow occurrence. This never
+ /// computes a GEP or proves that the selected actual root remains live.
+-fn contract_leaf(
++pub(crate) fn contract_leaf(
+     module: &TypedModule,
+     root: &Type,
+     path: &[ContractProjection],
+@@ -965,7 +823,14 @@ fn contract_leaf(
+         }
+         match projection {
+             ContractProjection::Place(field) => {
+-                current = lifetimes::select(current, &[LifeTypeProjection::Place(*field)], b)?
++                current = match (current, field) {
++                    (Type::Array { element, length }, PlaceProjection::Field(index))
++                        if index < length =>
++                    {
++                        element
++                    }
++                    _ => lifetimes::select(current, &[LifeTypeProjection::Place(*field)], b)?,
++                }
+             }
+             ContractProjection::Capture(ordinal) => {
+                 let Type::Closure(id) = current else {
+@@ -1380,45 +1245,122 @@ pub(crate) fn task_metadata_domain(module: &TypedModule, ty: &Type, b: &mut Budg
+         return Err(bad("Task domain cursor selects another type"));
+     };
+     dynamic_metadata::retained_shape(retained_life, b)?;
+-    if retained_life.binder_count == 0
+-        && retained_life.ports.is_empty()
+-        && retained_life.retained.is_empty()
+-        && retained_life.nominal_arguments.is_empty()
+-    {
+-        let (count, _) = dynamic_witness::intrinsic_domain(module, result, b)?;
+-        if count == 0 {
+-            return Ok(0);
+-        }
+-        return Err(bad(
+-            "zero Task context omits a nonzero complete result domain",
+-        ));
+-    }
+-    let mut found = false;
+-    let workers = workers(module, b)?;
+-    for worker in workers {
+-        for frame in metadata_candidates(worker, b)? {
+-            if frame.result_type == **result && frame.shape == *retained_life {
+-                found = true;
+-            }
+-            if **result == Type::Unit {
+-                let mut context = frame.shape.clone();
+-                context
+-                    .retained
+-                    .retain(|row| row.path != [LifeTypeProjection::Result]);
+-                if context == *retained_life {
+-                    found = true;
+-                }
++    crate::tasks::require_closed_context(ty, None)?;
++    // An incoming Task carries an untrusted joint-domain declaration. Do not
++    // select a local worker by result type: complete actual constructors and
++    // original source worlds are checked at their own exact sites.
++    let mut inputs = BTreeMap::<u32, Vec<u32>>::new();
++    let mut grounded = BTreeSet::new();
++    for row in &retained_life.retained {
++        b.spend(
++            inputs
++                .len()
++                .saturating_add(grounded.len())
++                .saturating_add(1),
++        )?;
++        if let [LifeTypeProjection::Parameter(parameter)] = row.path.as_slice() {
++            let map = inputs.entry(*parameter).or_default();
++            b.spend(map.len().saturating_add(1))?;
++            if row.class as usize != map.len() || map.contains(&row.binder) {
++                return Err(bad(
++                    "Task input full-class map is incomplete or noninjective",
++                ));
+             }
++            map.push(row.binder);
++            grounded.insert(row.binder);
+         }
+     }
+-    if !found {
+-        return Err(bad(
+-            "Task type has no complete source frame metadata; WF remains pending",
+-        ));
++    if grounded.len() != retained_life.binder_count as usize {
++        return Err(bad("Task joint domain contains an ungrounded input class"));
+     }
++    for row in &retained_life.nominal_arguments {
++        let Some(LifeTypeProjection::Parameter(parameter)) = row.path.first() else {
++            return Err(bad(
++                "Task phantom occurrence has no original parameter selector",
++            ));
++        };
++        b.spend(inputs.len().saturating_add(row.path.len()))?;
++        if !inputs
++            .get(parameter)
++            .is_some_and(|map| map.contains(&row.binder))
++        {
++            return Err(bad(
++                "Task phantom occurrence escapes its complete input map",
++            ));
++        }
++    }
++    result_life(module, ty, b)?;
+     Ok(retained_life.binder_count)
+ }
+ 
++/// The result domain is interpreted from the whole R constructor, independently
++/// of every local worker and outside header image. The claimed child map must
++/// preserve all intrinsic classes, including phantom classes.
++pub(crate) fn result_life(
++    module: &TypedModule,
++    task: &Type,
++    b: &mut Budget,
++) -> Check<StorageLifeShape> {
++    let Type::Task {
++        result,
++        retained_life,
++    } = task
++    else {
++        return Err(bad("Task result domain selects another type"));
++    };
++    let life = crate::tasks::frame_shape::declared_life(module, result, b)?;
++    charge_life(&life, b)?;
++    b.spend(retained_life.retained.len())?;
++    let mut next = 0u32;
++    let mut injective = BTreeSet::new();
++    for row in &retained_life.retained {
++        if row.path != [LifeTypeProjection::Result] {
++            continue;
++        }
++        b.spend(injective.len().saturating_add(1))?;
++        if row.class != next
++            || row.binder >= retained_life.binder_count
++            || !injective.insert(row.binder)
++        {
++            return Err(bad(
++                "Task result full-class map is incomplete or noninjective",
++            ));
++        }
++        next = next
++            .checked_add(1)
++            .ok_or_else(|| limit("Task result class count overflow"))?;
++    }
++    if next != life.binder_count {
++        return Err(bad("Task result map omits or invents a complete R class"));
++    }
++    for (leaf, mode, class, _) in raw_input_ports(module, result, &life, b)? {
++        b.spend(
++            retained_life
++                .retained
++                .len()
++                .saturating_add(retained_life.ports.len()),
++        )?;
++        let parent = retained_life
++            .retained
++            .iter()
++            .find(|row| row.path == [LifeTypeProjection::Result] && row.class == class)
++            .ok_or_else(|| bad("Task result borrow omits its complete class map"))?
++            .binder;
++        let mut present = false;
++        for port in &retained_life.ports {
++            dynamic_metadata::ty(&port.leaf, b)?;
++            dynamic_metadata::ty(&leaf, b)?;
++            present |= port.binder == parent && port.mode == mode && port.leaf == leaf;
++        }
++        if !present {
++            return Err(bad(
++                "Task result borrow has no matching complete retained input-port upper",
++            ));
++        }
++    }
++    Ok(life)
++}
++
+ pub(crate) fn record_raw_constructor(
+     function: &TypedFunction,
+     instruction: &Instruction,
+diff --git a/crates/zil-verify/src/stored_flow/task_address.rs b/crates/zil-verify/src/stored_flow/task_address.rs
+index f4ce719fc..634eb8c2a 100644
+--- a/crates/zil-verify/src/stored_flow/task_address.rs
++++ b/crates/zil-verify/src/stored_flow/task_address.rs
+@@ -1,6 +1,8 @@
+ //! Independent external Task-result permission reconstruction.
+ use super::*;
+ mod carriers;
++mod inputs;
++mod results;
+ 
+ pub(super) fn port_relation(
+     module: &TypedModule,
+@@ -701,65 +703,40 @@ pub(super) fn transfer(
+                 let StorageBase::Parameter(index) = row.source.base else {
+                     return Err(err("Task port source is not a parameter"));
+                 };
+-                if row.port != ordinal as u32 || !row.source.path.is_empty() {
+-                    return Err(err("Task input has noncanonical port selector"));
++                if row.port != ordinal as u32 {
++                    return Err(err("Task input has a noncanonical retained port ordinal"));
+                 }
+                 let input = *arguments
+                     .get(index as usize)
+                     .ok_or_else(|| err("Task input is absent"))?;
+-                let actual = vt(f, input)?;
+-                type_work(actual, &b.limits.clone(), b)?;
++                let actual = inputs::leaf(module, vt(f, input)?, &row.source.path, b)?;
++                type_work(&actual, &b.limits.clone(), b)?;
+                 type_work(&port.leaf, &b.limits.clone(), b)?;
+-                if actual != &port.leaf {
+-                    return Err(err("Task port differs from actual complete argument type"));
++                if actual != port.leaf {
++                    return Err(err(
++                        "Task retained port differs from its exact complete input occurrence",
++                    ));
+                 }
+-                let permission = &get(input)?.address;
+-                all_inputs &= !permission.sources.is_empty();
++                let permission =
++                    inputs::permission(module, f, input, &row.source.path, values, state, b)?;
++                all_inputs &= !permission.sources.is_empty()
++                    || inputs::inactive(f, input, &row.source.path, values, b)?;
+                 insert(
+                     &mut out,
+                     &port_path(&[PlaceProjection::ErrorArm(false)], ordinal as u32),
+-                    permission,
++                    &permission,
+                     b,
+                 )?;
+             }
+-            out.creation_complete = Some(all_inputs);
+-            if matches!(target.return_type, Type::Address { mutable: false, .. }) {
+-                super::super::tasks::charge_result_selection(vt(f, produced)?, b)?;
+-                b.spend(port_bindings.len())?;
+-                let mut allowed = Vec::new();
+-                for row in port_bindings {
+-                    if super::super::tasks::result_port(vt(f, produced)?, row.port) {
+-                        allowed.push(row.source.base);
+-                    }
+-                }
+-                let summary = &summaries[target.id.0 as usize];
+-                let mut present = false;
+-                for (path, sources) in &summary.result {
+-                    if path.is_empty() {
+-                        present |= !sources.is_empty();
+-                        for source in sources {
+-                            b.spend(
+-                                source
+-                                    .leaf
+-                                    .len()
+-                                    .saturating_add(allowed.len())
+-                                    .saturating_add(source.inline.len())
+-                                    .saturating_add(1),
+-                            )?;
+-                            if !allowed.iter().any(|base| matches!(base, StorageBase::Parameter(index) if source.base == HoldRoot::Parameter(*index)))
+-                                || source.retained_port.is_some()
+-                                || !source.leaf.is_empty()
+-                                || !source.inline.is_empty()
+-                            {
+-                                return Err(err(
+-                                    "Task Ready source differs from its actual retained input",
+-                                ));
+-                            }
+-                        }
+-                    }
+-                }
+-                out.creation_complete = Some(all_inputs && present && summary.complete);
+-            }
++            let returns = results::check_worker(
++                module,
++                target,
++                vt(f, produced)?,
++                port_bindings,
++                &summaries[target.id.0 as usize],
++                b,
++            )?;
++            out.creation_complete = Some(all_inputs && returns);
+         }
+         InstructionKind::PlaceTagLocal { local, path }
+             if shape(&f.locals[local.0 as usize].ty) && path.is_empty() => {}
+@@ -796,32 +773,7 @@ pub(super) fn transfer(
+             state.locals[local.0 as usize] = Payload::default();
+         }
+         InstructionKind::TaskPoll { task } if shape(vt(f, *task)?) => {
+-            if task_type(vt(f, *task)?)
+-                .is_some_and(|(result, _)| matches!(result, Type::Address { mutable: false, .. }))
+-            {
+-                let (_, context) = task_type(vt(f, *task)?).unwrap();
+-                super::super::tasks::charge_result_selection(vt(f, *task)?, b)?;
+-                b.spend(context.ports.len())?;
+-                let mut p = Permission::default();
+-                for port in 0..context.ports.len() {
+-                    if super::super::tasks::result_port(vt(f, *task)?, port as u32) {
+-                        join_permission(&mut p, &select(get(*task)?, &[], port as u32, b)?, b)?;
+-                    }
+-                }
+-                add_leaf(
+-                    &mut out,
+-                    &[
+-                        PlaceProjection::ErrorArm(false),
+-                        PlaceProjection::Variant(zil_ir::VariantProjection {
+-                            variant: 1,
+-                            index: 0,
+-                        }),
+-                    ],
+-                    &p,
+-                    b,
+-                )?;
+-                out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+-            }
++            results::poll(module, vt(f, *task)?, get(*task)?, &mut out, b)?;
+         }
+         InstructionKind::MakeErrorUnion { value, is_error }
+             if shape(vt(
+diff --git a/crates/zil-verify/src/tasks.rs b/crates/zil-verify/src/tasks.rs
+index 0d53c854a..c1290b90b 100644
+--- a/crates/zil-verify/src/tasks.rs
++++ b/crates/zil-verify/src/tasks.rs
+@@ -545,6 +545,108 @@ fn task_poll_result(result: &Type) -> Type {
+     }
+ }
+ 
++fn complete_poll_result(module: &TypedModule, result: &Type, budget: &mut Budget) -> Check<Type> {
++    dynamic_metadata::ty(result, budget)?;
++    let child = frame_shape::declared_life(module, result, budget)?;
++    crate::semantic::task_domains::charge_life(&child, budget)?;
++    let field = PlaceProjection::Variant(VariantProjection {
++        variant: 1,
++        index: 0,
++    });
++    let storage = Type::Enum {
++        name: format!("@std.task:v1:Poll:{}", result.fingerprint()),
++        variants: vec![
++            ("Pending".into(), vec![]),
++            ("Ready".into(), vec![result.clone()]),
++        ],
++    };
++    let poll = if child.binder_count == 0 {
++        storage
++    } else {
++        let mut life = StorageLifeShape {
++            binder_count: child.binder_count,
++            slots: vec![],
++            retained: vec![],
++            nominal_arguments: vec![],
++        };
++        budget.spend((child.binder_count as usize).saturating_mul(2))?;
++        for class in 0..child.binder_count {
++            life.retained.push(StorageRetainedBinding {
++                path: vec![LifeTypeProjection::TypeArgument(0)],
++                class,
++                binder: class,
++            });
++        }
++        for row in &child.slots {
++            budget.spend(row.path.len().saturating_add(1))?;
++            let mut row = row.clone();
++            row.path.insert(0, field);
++            life.slots.push(row);
++        }
++        if matches!(
++            result,
++            Type::BorrowedStorage { .. }
++                | Type::Closure(_)
++                | Type::Task { .. }
++                | Type::Dyn { .. }
++                | Type::OwnedDyn { .. }
++        ) {
++            for class in 0..child.binder_count {
++                life.retained.push(StorageRetainedBinding {
++                    path: vec![LifeTypeProjection::Place(field)],
++                    class,
++                    binder: class,
++                });
++            }
++        } else {
++            for row in &child.retained {
++                budget.spend(row.path.len().saturating_add(1))?;
++                let mut row = row.clone();
++                row.path.insert(0, LifeTypeProjection::Place(field));
++                life.retained.push(row);
++            }
++        }
++        for row in &child.nominal_arguments {
++            budget.spend(row.path.len().saturating_add(1))?;
++            let mut row = row.clone();
++            row.path.insert(0, LifeTypeProjection::Place(field));
++            life.nominal_arguments.push(row);
++        }
++        budget.spend(
++            life.retained.len().saturating_mul(
++                life.retained
++                    .len()
++                    .checked_ilog2()
++                    .map_or(1, |n| n as usize + 1),
++            ),
++        )?;
++        life.retained.sort();
++        budget.spend(
++            life.nominal_arguments.len().saturating_mul(
++                life.nominal_arguments
++                    .len()
++                    .checked_ilog2()
++                    .map_or(1, |n| n as usize + 1),
++            ),
++        )?;
++        life.nominal_arguments.sort();
++        Type::BorrowedStorage {
++            storage: Box::new(storage),
++            life,
++        }
++    };
++    Ok(Type::ErrorUnion {
++        error: Box::new(Type::Enum {
++            name: "@std.task:v1:TaskPollState".into(),
++            variants: ["Complete", "Cancelled", "Invalid"]
++                .into_iter()
++                .map(|name| (name.into(), vec![]))
++                .collect(),
++        }),
++        result: Box::new(poll),
++    })
++}
++
+ pub(super) fn carrier(
+     module: &TypedModule,
+     ty: &Type,
+@@ -787,7 +889,7 @@ pub(super) fn instruction(
+                         for _ in 0..4 {
+                             resources::charge_payload(result, budget)?;
+                         }
+-                        task_poll_result(result)
++                        complete_poll_result(module, result, budget)?
+                     }
+                     _ => Type::Tuple(vec![Type::I32, Type::I32]),
+                 },
+diff --git a/crates/zil-verify/src/tasks/frame_shape.rs b/crates/zil-verify/src/tasks/frame_shape.rs
+index 470969cb7..2bea4ac43 100644
+--- a/crates/zil-verify/src/tasks/frame_shape.rs
++++ b/crates/zil-verify/src/tasks/frame_shape.rs
+@@ -222,6 +222,33 @@ pub(crate) fn life(
+     base: StorageBase,
+     b: &mut Budget,
+     depth: usize,
++) -> Check<StorageLifeShape> {
++    let static_outer = depth == 0
++        && f.storage_life.as_ref().is_some_and(|header| {
++            header
++                .static_bindings
++                .contains(&StoragePosition { base, path: vec![] })
++        });
++    type_life(module, ty, static_outer, Some(f.span), b, depth)
++}
++
++/// Complete type domain at a declared Task result boundary. No missing
++/// Result mapping is interpreted as a static source declaration.
++pub(crate) fn declared_life(
++    module: &TypedModule,
++    ty: &Type,
++    b: &mut Budget,
++) -> Check<StorageLifeShape> {
++    type_life(module, ty, false, None, b, 0)
++}
++
++fn type_life(
++    module: &TypedModule,
++    ty: &Type,
++    static_outer: bool,
++    span: Option<Span>,
++    b: &mut Budget,
++    depth: usize,
+ ) -> Check<StorageLifeShape> {
+     dynamic_metadata::ty(ty, b)?;
+     if depth > b.limits.max_call_depth.min(128) {
+@@ -278,15 +305,8 @@ pub(crate) fn life(
+             }
+         }
+         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
+-            let child = life(module, inner, f, base, b, depth + 1)?;
++            let child = type_life(module, inner, false, span, b, depth + 1)?;
+             let outer = matches!(ty, Type::Address { .. } | Type::Desc(_));
+-            let static_outer = outer
+-                && depth == 0
+-                && f.storage_life.as_ref().is_some_and(|header| {
+-                    header
+-                        .static_bindings
+-                        .contains(&StoragePosition { base, path: vec![] })
+-                });
+             let offset = u32::from(outer && !static_outer);
+             let mut parent = StorageLifeShape {
+                 binder_count: child
+@@ -335,7 +355,7 @@ pub(crate) fn life(
+             _ => {
+                 return Err(unsupported(
+                     "raw Task child requires its complete qualified domain",
+-                    Some(f.span),
++                    span,
+                 ));
+             }
+         },
+diff --git a/crates/zil-verify/src/tasks/owned.rs b/crates/zil-verify/src/tasks/owned.rs
+index 95d683ef0..8246578ae 100644
+--- a/crates/zil-verify/src/tasks/owned.rs
++++ b/crates/zil-verify/src/tasks/owned.rs
+@@ -156,6 +156,10 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> Check<bool> {
+                 dynamic_metadata::ty(t, budget)?;
+                 work.push(storage);
+             }
++            Type::Address {
++                mutable: false,
++                inner,
++            } if retained_pointee(inner) => {}
+             t if scalar(t) => {}
+             Type::Managed(payload) => {
+                 if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
+@@ -369,25 +373,26 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
+                         _ => {}
+                     }
+                 }
+-                if let Type::Address {
+-                    mutable: false,
+-                    inner,
+-                } = capture
+-                {
++                if let Type::Address { mutable, inner } = capture {
+                     let Some(life) = &c.storage_life else {
+                         return Ok(false);
+                     };
+-                    budget.spend(life.static_bindings.len())?;
++                    budget.spend(
++                        life.static_bindings
++                            .len()
++                            .saturating_add(life.bindings.len()),
++                    )?;
+                     let position = StoragePosition {
+                         base: StorageBase::Capture(index as u32),
+                         path: vec![],
+                     };
+-                    if !life.static_bindings.contains(&position) || !retained_pointee(inner) {
++                    let variable=life.bindings.iter().any(|row|row.position==position&&matches!(row.binder,StorageBinder::Fixed(class)if class<life.fixed_binder_count));
++                    let literal = !*mutable && life.static_bindings.contains(&position);
++                    if !(variable || literal) || !retained_pointee(inner) {
+                         return Ok(false);
+                     }
+-                    // Conditional shape only. The independent global SSA
+-                    // Static proof must discharge every ctor/write and all
+-                    // actual parent loans before this module can be accepted.
++                    // Eligibility only: actual capture sources, all parent
++                    // loans and every static dependency remain ordinary WF.
+                     continue;
+                 }
+                 let complete = if matches!(capture, Type::Closure(_)) {
