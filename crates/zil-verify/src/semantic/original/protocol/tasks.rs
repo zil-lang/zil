@@ -305,7 +305,10 @@ impl<'a> Engine<'a> {
                 "original Task cleanup has no possible current generation",
             ));
         }
-        root.charge_clone(b)?;
+        root.binder.charge_clone(b)?;
+        b.spend(root.fields.iter().fold(1usize, |n, field| {
+            n.saturating_add(field.len()).saturating_add(1)
+        }))?;
         if owner.states & !(CLOSED | DEAD) == 0 {
             if !self.async_tasks.contains(root) {
                 self.closed_tasks.insert(root.clone());
