@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T12:26:36.335553+00:00",
+  "updated_at_utc": "2026-11-14T12:32:39.327383+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -259,7 +259,7 @@
     "Capture TypeUse Expression representation must be consumed independently by A/V original lexical Name and actual capture checks",
     "All-exit cleanup and actual call-world requester receipts are still active WIP"
   ],
-  "last_full_component_regression": "f85dbb12c: alltargets0, Source152/0, Typesprobe2/0; not reused as current runtime acceptance",
+  "last_full_component_regression": "b88721e42: workspace alltargets0; 22ea2a166 materialize domain tests3/0; earlier f85dbb12c Source152/0 and Typesprobe2/0 remain separately versioned, not current whole-language acceptance",
   "task_stage_review": [
     "Private inference PendingTask keeps exact worker/call/input Terms until actual closure/worker domain formed; cannot become Typed/Wire/runtime pending",
     "Task domain identity is original scope/Life formal/whole Type-domain class index; actual worker header is a bridge, not authority to merge caller images. Preserve F.N2 and outer versus intrinsic pointee classes.",
@@ -291,10 +291,10 @@
     },
     "full_regressions": "not run in this feedback candidate",
     "scalar_native_followup": {
-      "candidate": "df14ee42c59684a628ff2788d497b34fa7781207",
-      "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scalars-native-df14ee42c",
-      "four_zil_backend_opt": "Pass via existing complete_domains_native_o0_o2",
-      "c_abi_companion": "Fail in Expand callback-expression profile; first type-formation profile fixed, next old narrow callback-expression gate remains. Original source/C provider retained."
+      "candidate": "22ea2a1667fcfebc62c4f2c8b3f96de9d6ad26f2",
+      "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scalars-native-22ea2a166",
+      "four_zil_backend_opt": "Pass via unchanged complete_domains_native_o0_o2",
+      "c_abi_companion": "Fail in Analyze original call scheme def0,12 Expr69/67/66; Types original CCallback consumer now passed. Original source/C provider retained."
     }
   },
   "latest_runtime_acceptance_summary": "NOT ACCEPTED: 1/13 source/check (scalars) and 4/4 intended SyncDrop negatives. ActualDirectory complete context evaluation compiled; Task actual generation and other original/actual consumer families still under construction. Same-candidate scalar native/C ABI running.",
