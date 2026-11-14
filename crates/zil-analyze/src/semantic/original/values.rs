@@ -191,6 +191,17 @@ impl Checked {
                 }
                 value::nominal(*definition, &actuals, &physical, inventory, b, depth + 1)
             }
+            Kind::Slice(element) => {
+                let element = self.value(*element, context, program, inventory, b, depth + 1)?;
+                if !element.classes.is_empty() {
+                    return Err(unknown(
+                        "original Slice requires its complete element occurrence embedding",
+                    ));
+                }
+                Ok(value::scalar(Type::Slice {
+                    element: Box::new(element.ty),
+                }))
+            }
             Kind::Tuple(fields) => {
                 let mut types = Vec::new();
                 for field in fields {

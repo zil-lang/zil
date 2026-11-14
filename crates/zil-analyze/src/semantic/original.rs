@@ -6,6 +6,7 @@ use zil_base::NodeId;
 mod effects;
 mod mixed;
 pub(super) mod nominal;
+mod roles;
 pub(super) mod sealed;
 mod values;
 use mixed::Life;
@@ -28,6 +29,7 @@ enum Kind {
         life: Term,
         inner: Term,
     },
+    Slice(Term),
     CallResult {
         caller: SemanticDefinitionId,
         node: NodeId,
@@ -83,6 +85,9 @@ struct CallableNeed {
     kind: CallableKind,
     parameters: Vec<Term>,
     result: Term,
+    call_kind: CallKind,
+    parameter_modes: Vec<PassingMode>,
+    result_mode: PassingMode,
 }
 struct Literal {
     term: Term,
@@ -115,6 +120,8 @@ struct Solver<'a, 'i> {
     needs: Vec<Need>,
     callable_needs: Vec<CallableNeed>,
     mutating_closures: BTreeSet<SemanticDefinitionId>,
+    role_frames: Vec<roles::RoleFrame>,
+    next_role: u32,
 }
 fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -222,6 +229,11 @@ impl Solver<'_, '_> {
                     }
                 }
             }
+            Kind::Slice(element) => {
+                if self.occurs(needle, *element, depth + 1, b)? {
+                    return Ok(true);
+                }
+            }
             Kind::Address { life, inner, .. } => {
                 if self.occurs(needle, *life, depth + 1, b)?
                     || self.occurs(needle, *inner, depth + 1, b)?
@@ -323,6 +335,7 @@ impl Solver<'_, '_> {
             self.state.arena[left].clone(),
             self.state.arena[right].clone(),
         ) {
+            (Kind::Slice(a), Kind::Slice(z)) => self.unify(a, z, depth + 1, b),
             (Kind::Atom(a), Kind::Atom(z)) if a == z => Ok(()),
             (Kind::Life(a), Kind::Life(z)) if a == z => Ok(()),
             (Kind::ConstValue(a), Kind::ConstValue(z)) if a == z => Ok(()),
@@ -501,6 +514,10 @@ impl Solver<'_, '_> {
                     .get(reference.ordinal as usize)
                     .copied()
                     .ok_or_else(|| fail("original type formal ordinal is out of range"))
+            }
+            SemanticTypeRecipe::Slice(element) => {
+                let element = self.recipe(frame, element, b, depth + 1)?;
+                self.term(Kind::Slice(element), b)
             }
             SemanticTypeRecipe::Address {
                 mutable,
@@ -1713,6 +1730,12 @@ impl Solver<'_, '_> {
             b.spend(self.state.frames.len().saturating_add(1), WORK)?;
             self.state.frames.insert(parent.definition, parent);
         }
+        for formal in &definition.parameters {
+            if let SemanticFormal::Type { requirements } = formal {
+                self.role_premises_wf(&frame, requirements, b)?;
+            }
+        }
+        self.role_premises_wf(&frame, &definition.requirements, b)?;
         for _ in parameters {
             let term = self.var(b)?;
             Self::push(&mut frame.parameters, term, b)?;
@@ -1726,6 +1749,11 @@ impl Solver<'_, '_> {
             }
             let declared = self.recipe(&frame, &signature.parameters[index].ty, b, depth + 1)?;
             self.unify(frame.parameters[index], declared, depth + 1, b)?;
+            if matches!(self.state.arena[self.root(declared, b)?], Kind::Slice(_)) {
+                return Err(fail(
+                    "original unsized Slice parameter needs an actual reference carrier",
+                ));
+            }
             if let Some(annotation) = &parameter.ty {
                 let annotation = self.recipe(&frame, annotation, b, depth + 1)?;
                 self.unify(frame.parameters[index], annotation, depth + 1, b)?;
@@ -1786,6 +1814,14 @@ impl Solver<'_, '_> {
         }
         let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
         self.unify(frame.result, result, depth + 1, b)?;
+        if matches!(
+            self.state.arena[self.root(frame.result, b)?],
+            Kind::Slice(_)
+        ) {
+            return Err(fail(
+                "original unsized Slice result needs an actual reference carrier",
+            ));
+        }
         for requirement in &definition.requirements {
             if let SemanticRequirementRecipe::Callable {
                 ty:
@@ -2023,6 +2059,8 @@ pub(super) fn check(
         needs: Vec::new(),
         callable_needs: Vec::new(),
         mutating_closures: BTreeSet::new(),
+        role_frames: Vec::new(),
+        next_role: 0,
     };
     for definition in &program.definitions {
         b.spend(1, WORK)?;
@@ -2132,6 +2170,15 @@ pub(super) fn check(
                 Predicate::Value => "original actual does not establish Value",
                 Predicate::StoreElement => "original actual does not establish StoreElement",
             }));
+        }
+    }
+    for frame in solver.state.frames.values() {
+        for value in frame
+            .parameters
+            .iter()
+            .chain(std::iter::once(&frame.result))
+        {
+            solver.sized_original(*value, b, 0)?;
         }
     }
     effects.finish(&solver.state, inventory, b)?;
@@ -2251,6 +2298,29 @@ impl Solver<'_, '_> {
         }
         Ok(output)
     }
+    fn sized_original(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        match &self.state.arena[self.root(term, b)?] {
+            Kind::Slice(_) => Err(fail(
+                "original unsized Slice needs a real reference carrier",
+            )),
+            Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
+                for field in fields {
+                    self.sized_original(*field, b, depth + 1)?;
+                }
+                Ok(())
+            }
+            Kind::CallResult { hidden, .. } => self.sized_original(*hidden, b, depth + 1),
+            Kind::Infer(_) => Err(unknown(
+                "original value layout is not resolved in its declaration context",
+            )),
+            Kind::Life(_)
+            | Kind::LifeVariable(_)
+            | Kind::ConstRigid { .. }
+            | Kind::ConstValue(_) => Err(fail("original value layout has a non-Type subject")),
+            _ => Ok(()),
+        }
+    }
     fn cleanup(&mut self, locals: &[Local], b: &mut Budget) -> CompileResult<()> {
         for local in locals {
             b.spend(1, WORK)?;
@@ -2312,7 +2382,7 @@ impl Solver<'_, '_> {
         for requirement in requirements {
             b.spend(1, WORK)?;
             if let SemanticRequirementRecipe::Callable { ty, signature, .. } = requirement {
-                if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
+                if signature.bound_lifetimes != 0 {
                     return Err(unknown(
                         "original callable premise needs its complete quantified relation",
                     ));
@@ -2369,6 +2439,13 @@ impl Solver<'_, '_> {
             } = requirement
             {
                 let term = self.recipe(frame, ty, b, 0)?;
+                if matches!(self.state.arena[self.root(term, b)?], Kind::Rigid(owner, _) if owner == frame.definition)
+                {
+                    // This is the current original domain's declared premise;
+                    // actual callers still prove it at the concrete boundary.
+                    self.role_premises_wf(frame, std::slice::from_ref(requirement), b)?;
+                    continue;
+                }
                 self.callable_need(frame, term, *kind, signature, b, 0)?;
                 continue;
             }
@@ -2443,6 +2520,7 @@ impl Solver<'_, '_> {
                         )?,
                 )
             }
+            Kind::Slice(_) => Ok(false),
             Kind::Tuple(fields) => {
                 if matches!(predicate, Predicate::StoreElement) {
                     return Err(unknown(
@@ -2544,6 +2622,16 @@ impl Checked {
             Kind::CallResult { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
                 .ty),
+            Kind::Slice(element) => Ok(Type::Slice {
+                element: Box::new(self.materialize(
+                    *element,
+                    context,
+                    program,
+                    inventory,
+                    b,
+                    depth + 1,
+                )?),
+            }),
             Kind::Address { mutable, inner, .. } => Ok(Type::Address {
                 mutable: *mutable,
                 inner: Box::new(self.materialize(

@@ -2,11 +2,12 @@
 //! lifetime identities. A particular executable image never equates them.
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Life {
     Formal(SemanticDefinitionId, u32),
     Implicit(SemanticDefinitionId, u32),
     Invocation(SemanticDefinitionId, u32),
+    Role(SemanticDefinitionId, u32, u32),
 }
 
 impl Solver<'_, '_> {
@@ -100,6 +101,19 @@ impl Solver<'_, '_> {
                 self.term(Kind::Life(Life::Implicit(owner, *ordinal)), b)
             }
             SemanticLifeRecipe::Invocation(ordinal) => {
+                if let Some(role) = self
+                    .role_frames
+                    .last()
+                    .filter(|role| role.owner == frame.definition)
+                {
+                    return role
+                        .lifetimes
+                        .get(*ordinal as usize)
+                        .copied()
+                        .ok_or_else(|| {
+                            fail("original callable Invocation exceeds its own role frame")
+                        });
+                }
                 let definition = self.inventory.definition(frame.definition, b)?;
                 let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
                 else {
@@ -375,6 +389,10 @@ impl Solver<'_, '_> {
                     b,
                 )
             }
+            Kind::Slice(element) => {
+                let element = self.instantiate(element, owner, actuals, b, depth + 1)?;
+                self.term(Kind::Slice(element), b)
+            }
             Kind::Address {
                 mutable,
                 life,
@@ -465,83 +483,9 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
-        self.step(depth, b)?;
-        if signature.bound_lifetimes != 0
-            || signature.invocation_lifetimes != 0
-            || signature.call_kind != CallKind::Direct
-        {
-            return Err(unknown(
-                "original callable obligation needs its complete higher-ranked or suspend relation",
-            ));
-        }
-        let mut parameters = Vec::new();
-        for parameter in &signature.parameters {
-            if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
-                return Err(unknown(
-                    "original callable passing mode requires its complete resource relation",
-                ));
-            }
-            let term = self.recipe(frame, &parameter.ty, b, depth + 1)?;
-            Self::push(&mut parameters, term, b)?;
-        }
-        let result = self.recipe(frame, &signature.result, b, depth + 1)?;
-        Self::push(
-            &mut self.callable_needs,
-            CallableNeed {
-                term,
-                kind,
-                parameters,
-                result,
-            },
-            b,
-        )
+        self.role_need(frame, term, kind, signature, b, depth)
     }
     pub(super) fn check_callables(&mut self, b: &mut Budget) -> CompileResult<()> {
-        let mut pending = std::mem::take(&mut self.callable_needs);
-        for need in pending.drain(..) {
-            let term = self.root(need.term, b)?;
-            b.spend(
-                match &self.state.arena[term] {
-                    Kind::Closure { parameters, .. } => parameters.len() + 1,
-                    _ => 1,
-                },
-                WORK,
-            )?;
-            let Kind::Closure {
-                definition,
-                parameters,
-                result,
-                ..
-            } = self.state.arena[term].clone()
-            else {
-                return Err(unknown(
-                    "original callable obligation needs its complete abstract callable premise proof",
-                ));
-            };
-            let declaration = self.inventory.definition(definition, b)?;
-            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &declaration.body
-            else {
-                return Err(fail(
-                    "original callable has no complete declaration signature",
-                ));
-            };
-            if signature.call_kind != CallKind::Direct {
-                return Err(fail(
-                    "original callable does not satisfy its declared Direct ABI bound",
-                ));
-            }
-            if parameters.len() != need.parameters.len()
-                || (need.kind == CallableKind::Fn && self.mutating_closures.contains(&definition))
-            {
-                return Err(fail(
-                    "original value does not satisfy its declared callable kind or arity",
-                ));
-            }
-            for (actual, expected) in parameters.into_iter().zip(need.parameters) {
-                self.unify(actual, expected, 0, b)?;
-            }
-            self.unify(result, need.result, 0, b)?;
-        }
-        Ok(())
+        self.check_roles(b)
     }
 }

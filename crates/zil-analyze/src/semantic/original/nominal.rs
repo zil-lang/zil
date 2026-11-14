@@ -86,10 +86,12 @@ impl Solver<'_, '_> {
         for formal in &declaration.parameters {
             if let SemanticFormal::Type { requirements } = formal {
                 self.premises_well_formed(definition, requirements, b)?;
+                self.role_premises_wf(&context, requirements, b)?;
                 self.premise_needs(&context, requirements, b)?;
             }
         }
         self.premises_well_formed(definition, &declaration.requirements, b)?;
+        self.role_premises_wf(&context, &declaration.requirements, b)?;
         self.premise_needs(&context, &declaration.requirements, b)?;
         let mut fields = Vec::new();
         match body {
@@ -101,6 +103,11 @@ impl Solver<'_, '_> {
                         return Err(fail("original nominal repeats a field name"));
                     }
                     let field = self.recipe(&context, &field.ty, b, depth + 1)?;
+                    if matches!(self.state.arena[self.root(field, b)?], Kind::Slice(_)) {
+                        return Err(fail(
+                            "original nominal field requires a sized value or reference carrier",
+                        ));
+                    }
                     Self::push(&mut fields, field, b)?;
                 }
             }
@@ -113,6 +120,11 @@ impl Solver<'_, '_> {
                     }
                     for field in &variant.fields {
                         let field = self.recipe(&context, field, b, depth + 1)?;
+                        if matches!(self.state.arena[self.root(field, b)?], Kind::Slice(_)) {
+                            return Err(fail(
+                                "original variant field requires a sized value or reference carrier",
+                            ));
+                        }
                         Self::push(&mut fields, field, b)?;
                     }
                 }
