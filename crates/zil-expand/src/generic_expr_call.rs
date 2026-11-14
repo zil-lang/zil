@@ -537,7 +537,10 @@ impl Engine<'_> {
                 loop {
                     match &task.kind {
                         TypeKind::Reference { inner, .. } | TypeKind::Group(inner) => task = inner,
-                        TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
+                        TypeKind::Named { path, args }
+                            if path.as_slice() == ["Managed"]
+                                || path.as_slice() == [crate::receivers::REFERENCE_OWNER] =>
+                        {
                             let [GenericArg::Type(inner)] = args.as_slice() else {
                                 break;
                             };

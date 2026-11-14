@@ -665,13 +665,72 @@ fn parameters(parameters: &[GenericParam], budget: &mut Budget<'_>) -> R<Vec<Lif
     let mut result = Vec::new();
     for parameter in parameters {
         budget.node(parameter.span, 0)?;
-        result.push(match &parameter.kind {
+        let kind = match &parameter.kind {
             GenericParamKind::Type(_) => LifeParameterKind::Type,
             GenericParamKind::Lifetime => LifeParameterKind::Lifetime,
             GenericParamKind::Const(ty) => LifeParameterKind::Const(lower_type(ty, budget)?),
-        });
+        };
+        budget.lineage_push(&mut result, kind, parameter.span)?;
     }
     Ok(result)
+}
+
+pub(crate) struct OriginalHeader {
+    pub(crate) kind: DynDeclarationKind,
+    pub(crate) parameters: Vec<LifeParameterKind>,
+    pub(crate) members: Vec<DynMemberDeclaration>,
+}
+
+/// A declaration header is original data, including for traits that never
+/// acquire a dynamic interface or executable provider in this request.
+pub(crate) fn original_header(item: &Item, budget: &mut Budget<'_>) -> R<Option<OriginalHeader>> {
+    let (kind, generics, members) = match &item.kind {
+        ItemKind::Trait(declaration) => (
+            DynDeclarationKind::Trait,
+            &declaration.generics,
+            &declaration.members,
+        ),
+        ItemKind::Impl(implementation) if implementation.trait_type.is_some() => (
+            DynDeclarationKind::Impl,
+            &implementation.generics,
+            &implementation.members,
+        ),
+        _ => return Ok(None),
+    };
+    let generic_parameters = parameters(generics, budget)?;
+    let mut output_members = Vec::new();
+    for member in members {
+        budget.node(member.span, 0)?;
+        let (name, kind) = match &member.kind {
+            ItemKind::TypeAlias(alias) => (&alias.name, DynMemberKind::Type),
+            ItemKind::Const(constant) => (&constant.name, DynMemberKind::Constant),
+            ItemKind::Function(function) => (
+                &function.name,
+                DynMemberKind::Method(parameters(&function.generics, budget)?),
+            ),
+            _ => {
+                return Err(unsupported(
+                    member.span,
+                    "dyn declaration member needs an explicit semantic kind",
+                ));
+            }
+        };
+        budget.text(name, member.span)?;
+        budget.lineage_bytes(name.len(), member.span)?;
+        budget.lineage_push(
+            &mut output_members,
+            DynMemberDeclaration {
+                name: name.clone(),
+                kind,
+            },
+            member.span,
+        )?;
+    }
+    Ok(Some(OriginalHeader {
+        kind,
+        parameters: generic_parameters,
+        members: output_members,
+    }))
 }
 
 pub(super) fn declarations(
@@ -683,45 +742,12 @@ pub(super) fn declarations(
     let mut result = Vec::new();
     for (ordinal, item) in module.items.iter().enumerate() {
         budget.node(item.span, 0)?;
-        let (kind, symbol, generics, members) = match &item.kind {
-            ItemKind::Trait(declaration) => (
-                DynDeclarationKind::Trait,
-                Some(&declaration.name),
-                &declaration.generics,
-                &declaration.members,
-            ),
-            ItemKind::Impl(implementation) if implementation.trait_type.is_some() => (
-                DynDeclarationKind::Impl,
-                None,
-                &implementation.generics,
-                &implementation.members,
-            ),
+        let symbol = match &item.kind {
+            ItemKind::Trait(declaration) => Some(&declaration.name),
+            ItemKind::Impl(implementation) if implementation.trait_type.is_some() => None,
             _ => continue,
         };
-        let generic_parameters = parameters(generics, budget)?;
-        let mut output_members = Vec::new();
-        for member in members {
-            budget.node(member.span, 0)?;
-            let (name, kind) = match &member.kind {
-                ItemKind::TypeAlias(alias) => (&alias.name, DynMemberKind::Type),
-                ItemKind::Const(constant) => (&constant.name, DynMemberKind::Constant),
-                ItemKind::Function(function) => (
-                    &function.name,
-                    DynMemberKind::Method(parameters(&function.generics, budget)?),
-                ),
-                _ => {
-                    return Err(unsupported(
-                        member.span,
-                        "dyn declaration member needs an explicit semantic kind",
-                    ));
-                }
-            };
-            budget.text(name, member.span)?;
-            output_members.push(DynMemberDeclaration {
-                name: name.clone(),
-                kind,
-            });
-        }
+        let header = original_header(item, budget)?.expect("guarded trait or implementation");
         let (self_pattern, implemented_trait) = recipes
             .remove(&origins.get(ordinal, item.span)?.declaration)
             .map_or((None, None), |(self_pattern, implemented_trait)| {
@@ -737,9 +763,9 @@ pub(super) fn declarations(
                     Ok::<_, Diagnostic>(symbol.clone())
                 })
                 .transpose()?,
-            kind,
-            parameters: generic_parameters,
-            members: output_members,
+            kind: header.kind,
+            parameters: header.parameters,
+            members: header.members,
         });
     }
     Ok(result)

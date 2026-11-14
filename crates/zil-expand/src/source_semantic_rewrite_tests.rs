@@ -45,6 +45,23 @@ fn callable_sync_drop_remains_an_independent_explicit_premise() {
         ));
         let found = BTreeMap::from([("F".into(), named("F", span))]);
         let variables = BTreeSet::from(["F".into()]);
+        // This is the real retained-template boundary: F has no actual entry
+        // yet. It leaves the original obligation unresolved, without creating
+        // a fake F->F actual or adding SyncDrop to the caller's premises.
+        traits
+            .check_arguments(
+                &function.generics,
+                &BTreeMap::new(),
+                (
+                    &trait_bounds::Bounds::new(),
+                    &BTreeSet::new(),
+                    callable::StoreCallbacks::None,
+                ),
+                &mut budget,
+                span,
+                Some(&roles),
+            )
+            .unwrap();
         traits
             .check_arguments(
                 &function.generics,
@@ -208,6 +225,66 @@ fn resource_borrow_hints_match_normalized_headers_without_changing_descriptors()
     assert!(
         matches!(desc.kind,TypeKind::Named{path,..} if path.as_slice()==[crate::receivers::VALUE_DESCRIPTION])
     );
+}
+
+#[test]
+fn actual_task_poll_preserves_its_error_union_through_the_owner_category() {
+    let span = Span::default();
+    let module = Module {
+        id: ModuleId(0),
+        items: vec![],
+        span,
+    };
+    let limits = Limits::default();
+    let patterns = BTreeMap::new();
+    let mut engine = Engine::with_budget(
+        &module,
+        &limits,
+        &patterns,
+        None,
+        &[],
+        Budget::new(&limits),
+        None,
+    )
+    .unwrap();
+    let task = TypeRef {
+        span,
+        kind: TypeKind::Named {
+            path: vec!["Task".into()],
+            args: vec![GenericArg::Type(named("i32", span))],
+        },
+    };
+    let mut env = Env::new();
+    env.insert("task".into(), Some(task));
+    let mut expression = Expr {
+        span,
+        semantic: Default::default(),
+        kind: ExprKind::Call {
+            callee: Box::new(Expr {
+                span,
+                semantic: Default::default(),
+                kind: ExprKind::Name("task_poll".into()),
+            }),
+            arguments: vec![Argument {
+                span,
+                spread: false,
+                value: Expr {
+                    span,
+                    semantic: Default::default(),
+                    kind: ExprKind::Unary {
+                        op: UnaryOp::BorrowMut,
+                        operand: Box::new(Expr {
+                            span,
+                            semantic: Default::default(),
+                            kind: ExprKind::Name("task".into()),
+                        }),
+                    },
+                },
+            }],
+        },
+    };
+    let ty = engine.expr(&mut expression, &mut env, 0).unwrap().unwrap();
+    assert!(matches!(ty.kind, TypeKind::Error { .. }));
 }
 
 #[test]

@@ -1046,6 +1046,13 @@ impl<'a> Index<'a> {
                 if retained_callable && !callable::sync_drop_bound(bound) {
                     continue;
                 }
+                // This specialization deliberately leaves callable roles for
+                // the actual entry binder. Its original formal requirement
+                // remains in Some; absence here is an unresolved obligation,
+                // never a supplied SyncDrop premise or an inferred F type.
+                if retained_callable && !found.contains_key(&parameter.name) {
+                    continue;
+                }
                 if copy::is_bound(bound) {
                     let actual = found
                         .get(&parameter.name)

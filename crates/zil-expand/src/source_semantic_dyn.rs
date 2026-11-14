@@ -7,6 +7,7 @@ pub(super) struct Template {
     declaration: LifeDeclarationId,
     scope: SemanticDefinitionId,
     identity: LifeDeclarationIdentity,
+    header: crate::generics::dynamic::source::OriginalHeader,
     self_type: Option<DynTypePattern>,
     trait_application: Option<DynSelfPattern>,
     supers: Option<Vec<DynSelfPattern>>,
@@ -48,6 +49,59 @@ impl DynRecipeMetadata for Identity<'_> {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.identity(self.0, depth)
+    }
+}
+// The public recipe visitor has leaf Type hooks but no declaration-header
+// root. Account the complete raw header without treating it as executable.
+struct Header<'a> {
+    parameters: &'a [LifeParameterKind],
+    members: &'a [DynMemberDeclaration],
+}
+impl DynRecipeMetadata for Header<'_> {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        fn parameters<V: DynRecipeVisitor>(
+            values: &[LifeParameterKind],
+            visitor: &mut V,
+            depth: usize,
+        ) -> Result<(), V::Error> {
+            visitor.rows(values.len(), depth)?;
+            visitor.allocation(
+                values
+                    .len()
+                    .saturating_mul(std::mem::size_of::<LifeParameterKind>()),
+                depth,
+            )?;
+            for parameter in values {
+                visitor.node(depth + 1)?;
+                if let LifeParameterKind::Const(ty) = parameter {
+                    visitor.ty(ty, depth + 2)?;
+                }
+            }
+            Ok(())
+        }
+        visitor.node(depth)?;
+        parameters(self.parameters, visitor, depth + 1)?;
+        visitor.rows(self.members.len(), depth + 1)?;
+        visitor.allocation(
+            self.members
+                .len()
+                .saturating_mul(std::mem::size_of::<DynMemberDeclaration>()),
+            depth + 1,
+        )?;
+        for member in self.members {
+            visitor.node(depth + 2)?;
+            visitor.text(&member.name, depth + 3)?;
+            visitor.allocation(member.name.len(), depth + 3)?;
+            visitor.node(depth + 3)?;
+            if let DynMemberKind::Method(formals) = &member.kind {
+                parameters(formals, visitor, depth + 4)?;
+            }
+        }
+        Ok(())
     }
 }
 fn identity(
@@ -729,50 +783,12 @@ fn associated(
     Ok(Some(output))
 }
 
-fn has_original_dyn(
-    inventory: &SourceDeclarationInventory<'_>,
-    budget: &mut Budget<'_>,
-) -> R<bool> {
-    struct Scan<'a, 'l> {
-        budget: &'a mut Budget<'l>,
-        found: bool,
-    }
-    impl crate::ct_selection::Visitor for Scan<'_, '_> {
-        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
-            self.budget.node(span, depth).map_err(|error| vec![error])
-        }
-        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
-            self.budget.text(text, span).map_err(|error| vec![error])
-        }
-        fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
-            if matches!(ty.kind, s::TypeKind::Dyn { .. }) {
-                self.found = true;
-            }
-            crate::ct_selection::walk_type(self, ty, depth)
-        }
-    }
-    let mut scan = Scan {
-        budget,
-        found: false,
-    };
-    for row in &inventory.declarations {
-        if row.parent.is_none() {
-            crate::ct_selection::walk_item(&mut scan, &row.item, 0)
-                .map_err(|mut errors| errors.remove(0))?;
-        }
-    }
-    Ok(scan.found)
-}
-
 pub(super) fn collect(
     builder: &mut Builder<'_, '_, '_, '_>,
     modules: &[(ModuleId, SemanticModule)],
 ) -> R<Vec<Template>> {
     let inventory = builder.inventory;
     let mut output = Vec::new();
-    if !has_original_dyn(inventory, builder.budget)? {
-        return Ok(output);
-    }
     for (owner, row) in inventory.declarations.iter().enumerate() {
         let members = match &row.item.kind {
             s::ItemKind::Trait(value) => &value.members,
@@ -969,12 +985,20 @@ pub(super) fn collect(
             }
         }
         let identity = identity(&scope.identity, builder.budget, row.item.span)?;
+        let header = crate::generics::dynamic::source::original_header(&row.item, builder.budget)?
+            .ok_or_else(|| {
+                error(
+                    row.item.span,
+                    "original Dyn scope has no authored declaration header",
+                )
+            })?;
         builder.push(
             &mut output,
             Template {
                 declaration,
                 scope: scope_id,
                 identity,
+                header,
                 self_type,
                 trait_application,
                 supers,
@@ -1584,7 +1608,57 @@ pub(super) fn publish(
                 }
             }
         }
-        let Some((mi, di)) = selected else { continue };
+        let (mi, di) = if let Some(selected) = selected {
+            selected
+        } else {
+            let mut module = None;
+            for (mi, (core, _)) in cores.iter().enumerate() {
+                budget.node(Span::default(), 0)?;
+                if core.module_id == template.declaration.module && module.replace(mi).is_some() {
+                    return Err(error(
+                        Span::default(),
+                        "original Dyn declaration module was emitted twice",
+                    ));
+                }
+            }
+            let mi = module.ok_or_else(|| {
+                error(
+                    Span::default(),
+                    "original Dyn declaration module is absent from the actual import closure",
+                )
+            })?;
+            prepay_recipe(
+                &Header {
+                    parameters: &template.header.parameters,
+                    members: &template.header.members,
+                },
+                budget,
+                Span::default(),
+                0,
+            )?;
+            let declaration = DynDeclaration {
+                implicit_lifetimes: None,
+                direct_supertraits: None,
+                requirements: None,
+                associated_definitions: None,
+                method_signatures: None,
+                method_definitions: None,
+                self_pattern: None,
+                implemented_trait: None,
+                id: template.declaration,
+                identity: identity(&template.identity, budget, Span::default())?,
+                kind: template.header.kind,
+                parameters: template.header.parameters.clone(),
+                members: template.header.members.clone(),
+            };
+            let di = cores[mi].0.dyn_declarations.len();
+            budget.lineage_push(
+                &mut cores[mi].0.dyn_declarations,
+                declaration,
+                Span::default(),
+            )?;
+            (mi, di)
+        };
         prepay_recipe_work(&Identity(&template.identity), budget, Span::default(), 0)?;
         prepay_recipe_work(
             &Identity(&cores[mi].0.dyn_declarations[di].identity),
@@ -1596,6 +1670,33 @@ pub(super) fn publish(
             return Err(error(
                 Span::default(),
                 "Dyn actual declaration has a different original identity",
+            ));
+        }
+        prepay_recipe_work(
+            &Header {
+                parameters: &cores[mi].0.dyn_declarations[di].parameters,
+                members: &cores[mi].0.dyn_declarations[di].members,
+            },
+            budget,
+            Span::default(),
+            0,
+        )?;
+        prepay_recipe_work(
+            &Header {
+                parameters: &template.header.parameters,
+                members: &template.header.members,
+            },
+            budget,
+            Span::default(),
+            0,
+        )?;
+        if cores[mi].0.dyn_declarations[di].kind != template.header.kind
+            || cores[mi].0.dyn_declarations[di].parameters != template.header.parameters
+            || cores[mi].0.dyn_declarations[di].members != template.header.members
+        {
+            return Err(error(
+                Span::default(),
+                "Dyn actual declaration header differs from its original full formal/member inventory",
             ));
         }
         if let Some(definitions) = &mut template.definitions {
@@ -1659,6 +1760,90 @@ mod tests {
     use crate::source_context::{DeclarationPlacement, SourceIdentityContext};
     use std::collections::BTreeMap;
     use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn original_traits_publish_without_dynamic_use_or_matching_member_ordinals() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "ordinary-original-traits.zil",
+            "trait Read{type Value;fn first(self:&Self)->i32;fn second(self:&Self)->i32;}\nstruct P{code:i32}\nimpl Read for P{fn second(self:&Self)->i32{return self.code}type Value=i32;fn first(self:&Self)->i32{return self.code}}\nfn main()->i32{return 0}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let output = crate::expand_with_map_semantics(
+            &source,
+            &syntax,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap();
+        let core = output.core;
+        assert!(core.dyn_interfaces.is_empty());
+        assert!(core.dyn_vtables.is_empty());
+        assert_eq!(core.dyn_declarations.len(), 2);
+        let semantic = core.semantic.as_ref().unwrap();
+        for declaration in &core.dyn_declarations {
+            let binding = semantic
+                .dyn_scopes
+                .iter()
+                .find(|binding| binding.owner == SemanticDynOwner::Declaration(declaration.id))
+                .unwrap();
+            let scope = semantic
+                .definitions
+                .iter()
+                .find(|definition| definition.id == binding.scope)
+                .unwrap();
+            assert_eq!(scope.identity, declaration.identity);
+            assert_eq!(
+                declaration.direct_supertraits.as_deref(),
+                Some([].as_slice())
+            );
+            assert!(declaration.requirements.is_some());
+            assert!(declaration.associated_definitions.is_some());
+            assert!(declaration.method_signatures.is_some());
+            assert!(declaration.method_definitions.is_some());
+            let names: Vec<_> = declaration
+                .members
+                .iter()
+                .map(|member| member.name.as_str())
+                .collect();
+            if declaration.kind == DynDeclarationKind::Trait {
+                assert_eq!(names, ["Value", "first", "second"]);
+                assert_eq!(
+                    declaration
+                        .method_signatures
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .map(|method| method.member)
+                        .collect::<Vec<_>>(),
+                    [1, 2]
+                );
+            } else {
+                assert_eq!(names, ["second", "Value", "first"]);
+                assert!(declaration.self_pattern.is_some());
+                assert!(declaration.implemented_trait.is_some());
+                let associated = &declaration.associated_definitions.as_ref().unwrap()[0];
+                assert_eq!(associated.member, 1);
+                assert!(associated.value.is_some());
+                assert_eq!(
+                    declaration
+                        .method_definitions
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .map(|method| method.member)
+                        .collect::<Vec<_>>(),
+                    [0, 2]
+                );
+            }
+        }
+    }
 
     #[test]
     fn real_owned_dyn_methods_keep_original_scopes_and_actual_emission_links() {

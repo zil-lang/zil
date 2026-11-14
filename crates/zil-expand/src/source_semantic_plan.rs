@@ -427,7 +427,7 @@ fn operations(
                         expression.kind,
                         s::ExprKind::Member { .. } | s::ExprKind::TypeApply { .. }
                     );
-                if observed_name {
+                if observed_name || observed_projection {
                     implicit_observation(program, definition, &path, budget, expression.span)?;
                 }
                 let action = if let Some(usage) = capture {
@@ -770,5 +770,53 @@ mod tests {
             }
         }
         assert_eq!(applies, 1);
+    }
+
+    #[test]
+    fn observed_resource_field_has_its_own_potential_head_occurrence() {
+        let (mut syntax, program) = prepare(
+            "resource R{code:i32}package Owner{manages resource:R}fn observe(owner:&Owner){let descriptor=owner.resource;return ()}",
+        );
+        let definition = program.modules[0]
+            .1
+            .definitions
+            .iter()
+            .find(|row| row.id.index == 2)
+            .unwrap();
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else {
+            panic!()
+        };
+        let s::ItemKind::Function(function) = &mut syntax[0].items[2].kind else {
+            panic!()
+        };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut body = SourceBody::Function(&mut function.body);
+        let mut projections = 0;
+        for site in sites {
+            if !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) {
+                continue;
+            }
+            let located = body
+                .locate(&site.occurrence_path[1..], &mut budget, function.span)
+                .unwrap()
+                .unwrap();
+            if matches!(
+                located.node,
+                body_nodes::Node::Expression(s::Expr {
+                    kind: s::ExprKind::Member { .. },
+                    ..
+                })
+            ) {
+                projections += 1;
+                assert!(
+                    definition
+                        .implicit_lifetimes
+                        .iter()
+                        .any(|implicit| implicit.occurrence_path == site.occurrence_path)
+                );
+            }
+        }
+        assert_eq!(projections, 1);
     }
 }
