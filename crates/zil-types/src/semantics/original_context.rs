@@ -168,7 +168,7 @@ impl Input {
                 .saturating_add(1),
         )?;
         let mut identities = BTreeMap::new();
-        let mut executable_ids = BTreeSet::new();
+        let mut executable_ids = std::collections::BTreeSet::new();
         for declaration in self.declarations.iter() {
             pay(left, search(executable_ids.len()))?;
             if !executable_ids.insert(declaration.row.id) {
