@@ -54,8 +54,6 @@ impl<'a> Check<'a, '_> {
                 }
                 if let Some(previous) = canonical {
                     let previous: &SemanticInstance = previous;
-                    crate::dyn_metadata::recipe(&world.actuals, b)?;
-                    crate::dyn_metadata::recipe(&previous.actuals, b)?;
                     b.spend(
                         world
                             .actuals
@@ -63,6 +61,9 @@ impl<'a> Check<'a, '_> {
                             .saturating_add(previous.actuals.len() + 1),
                         WORK,
                     )?;
+                    for actual in world.actuals.iter().chain(&previous.actuals) {
+                        crate::dyn_metadata::recipe(actual, b)?;
+                    }
                     if world.definition != previous.definition
                         || world.lifetime_instantiation != previous.lifetime_instantiation
                         || world.actuals != previous.actuals
