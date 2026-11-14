@@ -149,3 +149,134 @@ impl Check<'_, '_> {
         Ok(Some(result))
     }
 }
+
+impl Check<'_, '_> {
+    /// A managed resource element retains its real declaration and complete
+    /// synchronous teardown body. It is never inferred from a concrete i32
+    /// specialization of an unconstrained original payload.
+    pub(super) fn resource_store_element(
+        &mut self,
+        owner: SemanticDefinitionId,
+        payload: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Option<bool>> {
+        self.pay(1, depth)?;
+        let payload = self.resolve(owner, payload, depth + 1)?;
+        let SemanticTypeRecipe::Nominal {
+            definition,
+            arguments,
+        } = &payload
+        else {
+            return Ok(None);
+        };
+        let declaration = self.definition(*definition)?;
+        let SemanticDefinitionBody::Nominal {
+            kind: LifeNominalKind::Resource,
+            body: SemanticNominalBody::Product { fields },
+            ..
+        } = &declaration.body
+        else {
+            return Ok(None);
+        };
+        if fields.is_empty() {
+            return Ok(Some(false));
+        }
+        self.pay(arguments.len().saturating_add(fields.len()), depth)?;
+        for argument in arguments {
+            match argument {
+                SemanticActualRecipe::Life(_) => return Ok(Some(false)),
+                SemanticActualRecipe::Type(ty) => {
+                    if self.sealed_capability(
+                        owner,
+                        ty,
+                        SemanticBuiltinTrait::ClosedEnvironment,
+                        depth + 1,
+                    )? != Some(true)
+                    {
+                        return Ok(None);
+                    }
+                }
+                SemanticActualRecipe::Const { carrier, .. } => {
+                    if self.sealed_capability(
+                        owner,
+                        carrier,
+                        SemanticBuiltinTrait::ClosedEnvironment,
+                        depth + 1,
+                    )? != Some(true)
+                    {
+                        return Ok(None);
+                    }
+                }
+                SemanticActualRecipe::Infer => return Ok(None),
+            }
+        }
+        for field in fields {
+            let field = super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
+            if !self.copy_type(owner, &field, depth + 1)?
+                || self.sealed_capability(
+                    owner,
+                    &field,
+                    SemanticBuiltinTrait::ClosedEnvironment,
+                    depth + 1,
+                )? != Some(true)
+            {
+                return Ok(Some(false));
+            }
+        }
+        self.pay(self.program.definitions.len(), depth)?;
+        let mut selected = None;
+        for scope in &self.program.definitions {
+            let SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
+                trait_kind: SemanticBuiltinTrait::Drop,
+                ..
+            }) = &scope.body
+            else {
+                continue;
+            };
+            let actuals = match self.solve_parent(owner, scope, &payload, depth + 1) {
+                Ok(actuals) => actuals,
+                Err(diagnostic) if diagnostic.category == zil_base::ResultCategory::SafeReject => {
+                    continue
+                }
+                Err(diagnostic) => return Err(diagnostic),
+            };
+            self.pay(
+                self.program.definitions.len().saturating_add(actuals.len()),
+                depth,
+            )?;
+            let mut methods = self.program.definitions.iter().filter(|method| {
+                method.parent == Some(scope.id) && method.kind == SemanticDefinitionKind::Method
+            });
+            let method = methods
+                .next()
+                .ok_or_else(|| bad("resource Drop provider omits its real original method"))?;
+            if methods.next().is_some() {
+                return Err(bad("resource Drop provider has ambiguous original methods"));
+            }
+            let SemanticDefinitionBody::FunctionWithBody {
+                signature,
+                body: SemanticOriginalFunctionBody::Defined(_),
+                ..
+            } = &method.body
+            else {
+                return Err(bad(
+                    "resource teardown omits its complete original operation body",
+                ));
+            };
+            if signature.call_kind != CallKind::Direct {
+                return Ok(Some(false));
+            }
+            if !self.proof.complete.contains(&method.id) && !self.active.contains(&method.id) {
+                self.function(method, None)?;
+            }
+            if selected.replace(scope.id).is_some() {
+                return Err(bad(
+                    "resource element has ambiguous synchronous Drop providers",
+                ));
+            }
+        }
+        // With no authored Drop implementation this is the closed language
+        // resource's built-in release; no user cleanup capability is invented.
+        Ok(Some(true))
+    }
+}

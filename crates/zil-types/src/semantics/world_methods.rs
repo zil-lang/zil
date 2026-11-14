@@ -411,7 +411,15 @@ pub(super) fn evaluate(
             let expected = world.ty(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
             arguments::satisfy(
-                world, instance, callee, site, ordinal, *argument, &actual, &expected, locals,
+                world,
+                instance,
+                Some(callee),
+                site,
+                ordinal,
+                *argument,
+                &actual,
+                &expected,
+                locals,
                 implicit,
             )?;
         }
@@ -645,7 +653,16 @@ pub(super) fn callable(
         let expected = world.ty(instance.id, &parameter.ty, ty)?;
         let actual = world.get(values, *argument)?;
         arguments::satisfy(
-            world, instance, child, site, ordinal, *argument, &actual, &expected, locals, implicit,
+            world,
+            instance,
+            Some(child),
+            site,
+            ordinal,
+            *argument,
+            &actual,
+            &expected,
+            locals,
+            implicit,
         )?;
         expected_parameters.push(expected);
     }
@@ -780,7 +797,15 @@ pub(super) fn direct(
             let expected = world.ty(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
             arguments::satisfy(
-                world, instance, callee, site, ordinal, *argument, &actual, &expected, locals,
+                world,
+                instance,
+                Some(callee),
+                site,
+                ordinal,
+                *argument,
+                &actual,
+                &expected,
+                locals,
                 implicit,
             )?;
             parameters.push(expected);
@@ -818,4 +843,84 @@ pub(super) fn direct(
         selected = Some(expected);
     }
     Ok(selected)
+}
+
+/// A sealed task/thread operation carries a separately solved original worker
+/// scheme. Its real target is checked with the same complete boundary mapping
+/// as an ordinary static call; the builtin itself never becomes a fake Def.
+pub(super) fn sealed_worker(
+    world: &mut World<'_, '_>,
+    caller: &SemanticInstance,
+    callee: &SemanticInstance,
+    function: &TypedFunction,
+    signature: &SemanticSignatureRecipe,
+    recipes: &[SemanticActualRecipe],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    if function.call_kind != signature.call_kind
+        || function.result_mode != signature.result_mode
+        || function.parameters.len() != signature.parameters.len()
+        || callee.actuals.len() != recipes.len()
+    {
+        return Err(bad(
+            "sealed worker changes its full original ABI or mixed arity",
+        ));
+    }
+    world.pay(recipes.len().saturating_add(signature.parameters.len()))?;
+    let mut actuals = Vec::new();
+    for (recipe, target) in recipes.iter().zip(&callee.actuals) {
+        let actual = super::super::materialize::actual_at(
+            world.program,
+            world.module,
+            world.ledger,
+            caller.id,
+            recipe,
+            world.limits,
+            world.left,
+        )?;
+        actual_specialization(world, target, &actual)?;
+        actuals.push(actual);
+    }
+    let original = world.definition(callee.definition)?;
+    let SemanticDefinitionBody::FunctionWithBody { signature: raw, .. } = &original.body else {
+        return Err(bad("sealed worker lacks its complete original declaration"));
+    };
+    if raw.parameters.len() != signature.parameters.len() {
+        return Err(bad("sealed worker changes its original parameter count"));
+    }
+    let mut parameters = Vec::new();
+    for ((parameter, raw), local) in signature
+        .parameters
+        .iter()
+        .zip(&raw.parameters)
+        .zip(&function.parameters)
+    {
+        if parameter.mode != raw.mode {
+            return Err(bad("sealed worker changes an original passing mode"));
+        }
+        let ty = &function
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| bad("sealed worker parameter local is absent"))?
+            .ty;
+        parameters.push(world.ty(caller.id, &parameter.ty, ty)?);
+    }
+    let invocation = match &function.storage_life {
+        Some(header) => invocation_inputs(world, caller, callee, header, &parameters, implicit)?,
+        None => Vec::new(),
+    };
+    for (ordinal, (expected, local)) in parameters.iter().zip(&function.parameters).enumerate() {
+        let ty = &function
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| bad("sealed worker parameter local is absent"))?
+            .ty;
+        let target = world.parameter_value(callee.id, ordinal, ty)?;
+        let target = world.map_call_value(&target, &actuals, None, &invocation)?;
+        world.same(caller.id, &target, expected, implicit)?;
+    }
+    let expected = world.ty(caller.id, &signature.result, &function.return_type)?;
+    let target = world.result_value(callee.id, &function.return_type)?;
+    let target = world.map_call_value(&target, &actuals, None, &invocation)?;
+    world.same(caller.id, &target, &expected, implicit)
 }

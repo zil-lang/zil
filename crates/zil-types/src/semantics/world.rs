@@ -1143,10 +1143,16 @@ impl World<'_, '_> {
                 let expected = self.ty(instance.id, recipe, &f.values[result.0 as usize])?;
                 self.same(instance.id, claimed, &expected, implicit)?;
                 let symbolic = self.symbolic(instance.id, recipe)?;
+                let symbolic = match &symbolic {
+                    SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::Desc { inner, .. } => {
+                        inner.as_ref()
+                    }
+                    other => other,
+                };
                 let SemanticTypeRecipe::Nominal {
                     definition,
                     arguments,
-                } = &symbolic
+                } = symbolic
                 else {
                     return Err(pending(
                         "constructor needs its original compound field instantiation",
@@ -1745,6 +1751,34 @@ impl World<'_, '_> {
         }
         let expected_result = self.result_value(instance.id, &f.return_type)?;
         self.check_header(instance, f, signature)?;
+        if matches!(
+            &original.body,
+            SemanticDefinitionBody::FunctionWithBody {
+                body: SemanticOriginalFunctionBody::External,
+                ..
+            }
+        ) {
+            let declaration = f
+                .foreign
+                .as_ref()
+                .ok_or_else(|| bad("original external declaration has no actual foreign ABI"))?;
+            if declaration.abi != "C"
+                || !f.blocks.is_empty()
+                || !f.values.is_empty()
+                || f.environment.is_some()
+                || !original.parameters.is_empty()
+            {
+                return Err(bad(
+                    "external actual changes its complete bodyless ABI or generic environment",
+                ));
+            }
+            return Ok(());
+        }
+        if f.foreign.is_some() {
+            return Err(bad(
+                "defined original body was replaced by an external declaration",
+            ));
+        }
         let cfg = flow::Cfg::new(self, f)?;
         cfg.check_sites(self, f, &sites)?;
         let initial = flow::State {
@@ -1909,6 +1943,7 @@ impl World<'_, '_> {
                     &instruction.kind,
                     ty.or(Some(&Type::Unit)),
                     &values,
+                    &locals,
                     &implicit,
                 )?;
                 let produced = if intrinsic.is_some() {

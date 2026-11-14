@@ -16,7 +16,7 @@ pub(super) struct Edge {
 #[derive(Clone)]
 pub(super) struct Witness {
     pub caller: SemanticInstanceId,
-    pub callee: SemanticInstanceId,
+    pub callee: Option<SemanticInstanceId>,
     pub recipe: SemanticSiteId,
     pub block: BlockId,
     pub instruction: u32,
@@ -81,7 +81,7 @@ pub(super) fn roots(
 pub(super) fn satisfy(
     world: &mut World<'_, '_>,
     caller: &SemanticInstance,
-    callee: &SemanticInstance,
+    callee: Option<&SemanticInstance>,
     site: &SemanticSite,
     parameter: usize,
     operand: ValueId,
@@ -178,7 +178,7 @@ pub(super) fn satisfy(
     world.pay(parents.len().saturating_add(1))?;
     world.argument_witnesses.push(Witness {
         caller: caller.id,
-        callee: callee.id,
+        callee: callee.map(|callee| callee.id),
         recipe: site.recipe,
         block,
         instruction,
@@ -206,10 +206,15 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
         else {
             return Err(bad("argument role witness has no real caller function"));
         };
-        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(callee)) =
-            world.instance(callee_id)?.target
-        else {
-            return Err(bad("argument role witness has no real callee function"));
+        let callee = if let Some(callee_id) = callee_id {
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(callee)) =
+                world.instance(callee_id)?.target
+            else {
+                return Err(bad("argument role witness has no real callee function"));
+            };
+            Some(callee)
+        } else {
+            None
         };
         let function = world.function(caller)?;
         world.pay(function.blocks.len())?;
@@ -222,21 +227,45 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
             .instructions
             .get(instruction as usize)
             .ok_or_else(|| bad("argument role witness names an absent instruction"))?;
-        let actual_arguments = match &actual.kind {
-            InstructionKind::Call {
-                function: target,
-                arguments,
-            } if *target == callee => arguments,
-            InstructionKind::CallClosure { arguments, .. }
+        let argument_cost = match &actual.kind {
+            InstructionKind::Call { arguments, .. }
+            | InstructionKind::CallClosure { arguments, .. }
             | InstructionKind::CallClosureOnce { arguments, .. }
             | InstructionKind::CallClosureBorrowed { arguments, .. }
             | InstructionKind::CallClosureShared { arguments, .. }
-            | InstructionKind::CallClosureMut { arguments, .. } => arguments,
-            _ => {
-                return Err(bad(
-                    "argument role witness does not belong to its actual call opcode",
-                ))
+            | InstructionKind::CallClosureMut { arguments, .. } => arguments.len(),
+            _ => 8,
+        };
+        world.pay(argument_cost)?;
+        let actual_arguments = if let Some(callee) = callee {
+            match &actual.kind {
+                InstructionKind::Call {
+                    function: target,
+                    arguments,
+                } if *target == callee => arguments.clone(),
+                InstructionKind::CallClosure { arguments, .. }
+                | InstructionKind::CallClosureOnce { arguments, .. }
+                | InstructionKind::CallClosureBorrowed { arguments, .. }
+                | InstructionKind::CallClosureShared { arguments, .. }
+                | InstructionKind::CallClosureMut { arguments, .. } => arguments.clone(),
+                _ => {
+                    return Err(bad(
+                        "argument role witness does not belong to its actual call opcode",
+                    ))
+                }
             }
+        } else {
+            let ledger = world.ledger;
+            let proof = ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .ok_or_else(|| bad("sealed argument role has no complete original scheme"))?;
+            let owner = world.instance(caller_id)?.definition;
+            let scheme = proof
+                .intrinsics
+                .get(&(owner, recipe))
+                .ok_or_else(|| bad("sealed argument role has no exact original call scheme"))?;
+            super::intrinsics::operand_ids(&scheme.kind, &actual.kind)?
         };
         if actual_arguments.get(parameter as usize) != Some(&operand) {
             return Err(bad("argument role witness changes the real argument SSA"));
