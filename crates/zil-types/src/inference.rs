@@ -182,6 +182,7 @@ pub(super) fn charge_expression_snapshot(
 
 /// Borrow only the caller's currently remaining allowance. Charge successful
 /// visits even when planning stops early; a failed planner cannot refund work.
+#[track_caller]
 pub(super) fn charge_type_snapshot(
     ty: &Type,
     span: Span,
@@ -189,6 +190,7 @@ pub(super) fn charge_type_snapshot(
     remaining: &mut usize,
     copies: usize,
 ) -> R<()> {
+    let location = std::panic::Location::caller();
     let allowance = remaining.checked_div(copies).ok_or_else(|| {
         Diagnostic::limit(Phase::Types, "invalid type snapshot multiplier", Some(span))
     })?;
@@ -207,7 +209,10 @@ pub(super) fn charge_type_snapshot(
             Some(span),
         )
     })?;
-    result
+    result.map_err(|mut diagnostic| {
+        diagnostic.notes.push(format!("complete type snapshot at {}:{}: copies {}, nodes visited {}, work consumed {}, caller remaining {}, type constructor {:?}", location.file(), location.line(), copies, limits.max_nodes.saturating_sub(budget.nodes), debit, *remaining, std::mem::discriminant(ty)));
+        diagnostic
+    })
 }
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
