@@ -3942,6 +3942,19 @@ impl Solver<'_, '_> {
         Ok(output)
     }
     fn sized_original(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.carrier_original(term, false, b, depth)
+    }
+
+    // Passing an abstract whole value does not claim an inline layout or a
+    // structural Value capability. Aggregate occurrences require that extra
+    // theorem in the original declaration context.
+    fn carrier_original(
+        &self,
+        term: Term,
+        inline: bool,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.step(depth, b)?;
         match &self.state.arena[self.root(term, b)?] {
             Kind::Atom(Type::ByteBuffer)
@@ -3965,10 +3978,10 @@ impl Solver<'_, '_> {
                 "original borrowed Dyn payload requires its real reference carrier",
             )),
             Kind::Dyn(_) => Ok(()),
-            Kind::Array { element, .. } => self.sized_original(*element, b, depth + 1),
+            Kind::Array { element, .. } => self.carrier_original(*element, true, b, depth + 1),
             Kind::ErrorUnion { error, result } => {
-                self.sized_original(*error, b, depth + 1)?;
-                self.sized_original(*result, b, depth + 1)
+                self.carrier_original(*error, true, b, depth + 1)?;
+                self.carrier_original(*result, true, b, depth + 1)
             }
             Kind::Code {
                 parameters, result, ..
@@ -3993,15 +4006,17 @@ impl Solver<'_, '_> {
             }
             Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
                 for field in fields {
-                    self.sized_original(*field, b, depth + 1)?;
+                    self.carrier_original(*field, true, b, depth + 1)?;
                 }
                 Ok(())
             }
-            Kind::CallResult { hidden, .. } => self.sized_original(*hidden, b, depth + 1),
-            Kind::Associated { .. } if self.satisfies(term, Predicate::Value, b, depth + 1)? => {
+            Kind::CallResult { hidden, .. } => self.carrier_original(*hidden, inline, b, depth + 1),
+            Kind::Associated { .. } | Kind::SelfType(_) | Kind::Rigid(..)
+                if !inline || self.satisfies(term, Predicate::Value, b, depth + 1)? =>
+            {
                 Ok(())
             }
-            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
+            Kind::Associated { .. } | Kind::SelfType(_) | Kind::Rigid(..) => Err(unknown(
                 "original associated layout needs its complete declared Value or concrete member theorem",
             )),
             Kind::Infer(_) => Err(unknown(

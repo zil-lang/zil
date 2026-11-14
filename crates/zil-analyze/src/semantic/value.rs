@@ -358,12 +358,42 @@ pub(super) fn nominal(
                            path: PlaceProjection,
                            b: &mut Budget|
      -> CompileResult<()> {
-        for slot in &field.life.slots {
-            if !slot.path.is_empty() {
-                return Err(unknown(
-                    "nested nominal borrow field needs its complete typed projection embedding",
-                ));
+        if field.life.binder_count as usize != field.classes.len() {
+            return Err(fail(
+                "nominal field omits its complete intrinsic class domain",
+            ));
+        }
+        if matches!(&field.ty,Type::BorrowedStorage {life,..} if life != &field.life) {
+            return Err(fail(
+                "nested qualified field changes its complete intrinsic shape",
+            ));
+        }
+        if matches!(&field.ty,Type::BorrowedStorage {life,..} if life == &field.life) {
+            // A nested nominal/qualified boundary keeps its own full rows.
+            // The parent maps each intrinsic child class once, including
+            // phantom classes, rather than flattening those rows twice.
+            for (child, class) in field.classes.iter().enumerate() {
+                b.spend(classes.len().saturating_add(1), WORK)?;
+                let binder = classes
+                    .iter()
+                    .position(|candidate| candidate == class)
+                    .ok_or_else(|| fail("nested nominal field has an unwitnessed class"))?;
+                put(
+                    &mut retained,
+                    StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Place(path)],
+                        class: u32::try_from(child)
+                            .map_err(|_| fail("nested field class ordinal overflow"))?,
+                        binder: u32::try_from(binder)
+                            .map_err(|_| fail("nested field binder overflow"))?,
+                    },
+                    b,
+                )?;
             }
+            return Ok(());
+        }
+        for slot in &field.life.slots {
+            b.spend(slot.path.len().saturating_add(classes.len() + 1), WORK)?;
             let class = field
                 .classes
                 .get(slot.binder as usize)
@@ -372,20 +402,73 @@ pub(super) fn nominal(
                 .iter()
                 .position(|candidate| candidate == class)
                 .ok_or_else(|| fail("original field has an unwitnessed persistent class"))?;
+            let mut physical = Vec::new();
+            put(&mut physical, path, b)?;
+            for step in &slot.path {
+                put(&mut physical, *step, b)?;
+            }
             put(
                 &mut slots,
                 StorageLifeSlot {
-                    path: vec![path.clone()],
+                    path: physical,
                     binder: u32::try_from(binder).map_err(|_| fail("field binder overflow"))?,
                     mode: slot.mode,
                 },
                 b,
             )?;
         }
-        if !field.life.retained.is_empty() || !field.life.nominal_arguments.is_empty() {
-            return Err(unknown(
-                "nested nominal field needs its complete child class and phantom occurrence embedding",
-            ));
+        for row in &field.life.retained {
+            let class = field
+                .classes
+                .get(row.binder as usize)
+                .ok_or_else(|| fail("nested field retained class is absent"))?;
+            b.spend(classes.len().saturating_add(1), WORK)?;
+            let binder = classes
+                .iter()
+                .position(|candidate| candidate == class)
+                .ok_or_else(|| fail("nested field retained occurrence has no original actual"))?;
+            let mut prefix = Vec::new();
+            put(&mut prefix, LifeTypeProjection::Place(path), b)?;
+            for step in &row.path {
+                put(&mut prefix, step.clone(), b)?;
+            }
+            put(
+                &mut retained,
+                StorageRetainedBinding {
+                    path: prefix,
+                    class: row.class,
+                    binder: u32::try_from(binder)
+                        .map_err(|_| fail("nested retained binder overflow"))?,
+                },
+                b,
+            )?;
+        }
+        for row in &field.life.nominal_arguments {
+            let class = field
+                .classes
+                .get(row.binder as usize)
+                .ok_or_else(|| fail("nested field nominal class is absent"))?;
+            b.spend(classes.len().saturating_add(1), WORK)?;
+            let binder = classes
+                .iter()
+                .position(|candidate| candidate == class)
+                .ok_or_else(|| fail("nested field nominal occurrence has no original actual"))?;
+            let mut prefix = Vec::new();
+            put(&mut prefix, LifeTypeProjection::Place(path), b)?;
+            for step in &row.path {
+                put(&mut prefix, step.clone(), b)?;
+            }
+            put(
+                &mut nominal_rows,
+                NominalLifeArgument {
+                    path: prefix,
+                    declaration: row.declaration,
+                    argument: row.argument,
+                    binder: u32::try_from(binder)
+                        .map_err(|_| fail("nested nominal binder overflow"))?,
+                },
+                b,
+            )?;
         }
         Ok(())
     };

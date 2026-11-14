@@ -16,6 +16,7 @@ mod descriptions;
 mod dyn_tables;
 mod function_values;
 mod mutex;
+mod nominal_fields;
 mod operations;
 mod pattern_places;
 mod protocol_values;

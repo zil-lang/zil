@@ -131,6 +131,16 @@ impl Solver<'_, '_> {
                 }
             }
         }
+        for field in &fields {
+            Self::push(
+                &mut self.needs,
+                Need {
+                    term: *field,
+                    predicate: Predicate::Value,
+                },
+                b,
+            )?;
+        }
         self.term(
             Kind::Nominal {
                 definition,

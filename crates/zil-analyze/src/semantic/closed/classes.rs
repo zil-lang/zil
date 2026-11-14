@@ -576,7 +576,7 @@ impl Check<'_, '_> {
             )),
         }
     }
-    fn nominal_value(
+    pub(super) fn nominal_value(
         &self,
         definition: SemanticDefinitionId,
         arguments: &[Argument],
@@ -618,44 +618,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
-        b.spend(1, WORK)?;
-        if depth > b.partial_depth {
-            return Err(unknown(
-                "original nominal field value exceeds its complete depth",
-            ));
-        }
-        match recipe {
-            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => Ok(value::scalar(ty.clone())),
-            SemanticTypeRecipe::Formal(SemanticFormalRef {
-                scope: SemanticScopeRef::Ancestor(0),
-                ordinal,
-            }) => {
-                let Some(Argument::Type(value)) = args.get(*ordinal as usize) else {
-                    return Err(fail("original field changes its full Type formal kind"));
-                };
-                crate::dyn_metadata::ty(&value.ty, b)?;
-                crate::dyn_metadata::shape(&value.life, b)?;
-                Ok(value.clone())
-            }
-            SemanticTypeRecipe::Address {
-                mutable,
-                lifetime:
-                    SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(SemanticFormalRef {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        ordinal,
-                    })),
-                inner,
-            } => {
-                let Some(Argument::Life(class)) = args.get(*ordinal as usize) else {
-                    return Err(fail("original field changes its full Life formal kind"));
-                };
-                let inner = self.nominal_field(owner, args, inner, b, depth + 1)?;
-                value::address(*mutable, class.clone(), inner, b)
-            }
-            _ => Err(unknown(
-                "original nominal field needs its complete mixed type constructor substitution",
-            )),
-        }
+        self.nominal_field_value(owner, args, recipe, b, depth)
     }
 }
 
