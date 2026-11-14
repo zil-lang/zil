@@ -15,6 +15,9 @@ pub(super) enum Class {
     // Signature-local invocation symbols, never an enclosing function's
     // Invocation domain and never a premise for nominal equality.
     Role(SemanticInstanceId, u32),
+    // Every actual reborrow has its own outer occurrence. Its parent is read
+    // from that exact instruction only when proving a particular call role.
+    Reborrow(FunctionId, ValueId),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Value {
@@ -121,6 +124,83 @@ pub(super) fn address(
             retained,
             nominal_arguments: Vec::new(),
         },
+        classes,
+    })
+}
+
+pub(super) fn pointee(
+    input: &Value,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    let Type::Address { inner, .. } = &input.ty else {
+        return Err(fail("whole pointee query is not an Address"));
+    };
+    let life = match inner.as_ref() {
+        Type::BorrowedStorage { life, .. } => {
+            crate::dyn_metadata::shape(life, b)?;
+            life.clone()
+        }
+        Type::Closure(id) => {
+            b.spend(inventory.module.closures.len().saturating_add(1), WORK)?;
+            let declaration = inventory
+                .module
+                .closures
+                .get(id.0 as usize)
+                .filter(|d| d.id == *id)
+                .ok_or_else(|| fail("whole pointee has no actual closure inventory"))?;
+            StorageLifeShape {
+                binder_count: declaration
+                    .storage_life
+                    .as_ref()
+                    .ok_or_else(|| unknown("whole pointee closure scope is unknown"))?
+                    .fixed_binder_count,
+                slots: Vec::new(),
+                retained: Vec::new(),
+                nominal_arguments: Vec::new(),
+            }
+        }
+        Type::Address { .. } | Type::Desc(_) => {
+            return Err(unknown(
+                "nested raw pointee needs its complete intrinsic shape",
+            ));
+        }
+        _ => {
+            crate::stored_flow::validate_plain_nominal_zero(
+                inventory.module,
+                inner,
+                inventory.limits,
+                b,
+            )?;
+            empty()
+        }
+    };
+    if input.life.retained.len() != life.binder_count as usize {
+        return Err(fail("whole pointee omits complete child class occurrences"));
+    }
+    let mut classes = Vec::new();
+    for index in 0..life.binder_count {
+        let mut selected = None;
+        for row in &input.life.retained {
+            b.spend(row.path.len().saturating_add(1), WORK)?;
+            if row.path.as_slice() == [LifeTypeProjection::Pointee]
+                && row.class == index
+                && selected.replace(row.binder).is_some()
+            {
+                return Err(fail("whole pointee repeats a child class occurrence"));
+            }
+        }
+        let binder = selected.ok_or_else(|| fail("whole pointee omits a child occurrence"))?;
+        let class = input
+            .classes
+            .get(binder as usize)
+            .ok_or_else(|| fail("whole pointee class is out of range"))?;
+        put(&mut classes, class.clone(), b)?;
+    }
+    crate::dyn_metadata::ty(inner, b)?;
+    Ok(Value {
+        ty: inner.as_ref().clone(),
+        life,
         classes,
     })
 }

@@ -5,6 +5,7 @@ use super::*;
 pub(super) struct RoleFrame {
     pub(super) owner: SemanticDefinitionId,
     pub(super) lifetimes: Vec<Term>,
+    pub(super) implicits: BTreeMap<u32, Term>,
 }
 impl Solver<'_, '_> {
     #[allow(clippy::too_many_arguments)]
@@ -38,10 +39,11 @@ impl Solver<'_, '_> {
             RoleFrame {
                 owner: frame.definition,
                 lifetimes,
+                implicits: BTreeMap::new(),
             },
             b,
         )?;
-        let result = (|| {
+        let result: CompileResult<CallableNeed> = (|| {
             let mut parameters = Vec::new();
             let mut modes = Vec::new();
             for parameter in &signature.parameters {

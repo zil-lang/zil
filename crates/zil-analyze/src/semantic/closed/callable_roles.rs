@@ -75,6 +75,7 @@ impl Check<'_, '_> {
         actual: StorageBinder,
         subject: &Value,
         invocations: u32,
+        allow_new_invocation: bool,
         relation: &mut BTreeMap<Class, StorageBinder>,
         reverse: &mut BTreeMap<StorageBinder, Class>,
         b: &mut Budget,
@@ -92,7 +93,13 @@ impl Check<'_, '_> {
                     ));
                 }
             }
-            StorageBinder::Invocation(index) if index < invocations => {}
+            StorageBinder::Invocation(index) if index < invocations => {
+                if !allow_new_invocation && !relation.contains_key(expected) {
+                    return Err(unknown(
+                        "callable result lifetime has no independently grounded input role",
+                    ));
+                }
+            }
             _ => return Err(fail("callable role binder exceeds the actual entry domain")),
         }
         if relation.get(expected).is_some_and(|old| *old != actual)
@@ -107,12 +114,13 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    fn callable_signature(
+    pub(super) fn callable_signature(
         &self,
         context: &SemanticInstance,
         subject: &Value,
         definition: &ClosureDefinition,
         signature: &SemanticSignatureRecipe,
+        kind: CallableKind,
         b: &mut Budget,
     ) -> CompileResult<()> {
         if signature.bound_lifetimes != 0 {
@@ -270,11 +278,22 @@ impl Check<'_, '_> {
                         "actual callable omits or duplicates an original borrow occurrence",
                     ));
                 }
+                let binding =
+                    binding.ok_or_else(|| fail("callable occurrence lost its actual binding"))?;
+                b.spend(actual.bindings.len(), WORK)?;
+                let receiver_input = matches!(class, Class::Role(..))
+                    && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                    && actual.bindings.iter().any(|row| {
+                        row.position.base == StorageBase::Receiver
+                            && row.position.path.is_empty()
+                            && row.binder == binding
+                    });
                 self.role_occurrence(
                     class,
-                    binding.ok_or_else(|| fail("callable occurrence lost its actual binding"))?,
+                    binding,
                     subject,
                     actual.invocation_binder_count,
+                    base != StorageBase::Result || receiver_input,
                     &mut relation,
                     &mut reverse,
                     b,
@@ -318,6 +337,7 @@ impl Check<'_, '_> {
                     binder,
                     subject,
                     actual.invocation_binder_count,
+                    base != StorageBase::Result,
                     &mut relation,
                     &mut reverse,
                     b,
@@ -404,6 +424,6 @@ impl Check<'_, '_> {
             ));
         }
         self.capture_directory(id, b)?;
-        self.callable_signature(context, &subject, definition, signature, b)
+        self.callable_signature(context, &subject, definition, signature, kind, b)
     }
 }

@@ -89,6 +89,15 @@ impl Solver<'_, '_> {
             }
             SemanticLifeRecipe::Implicit { scope, ordinal } => {
                 let owner = self.original_scope(frame.definition, scope, b)?;
+                b.spend(self.role_frames.len(), WORK)?;
+                for role in self.role_frames.iter().rev() {
+                    if role.owner == owner && owner == frame.definition {
+                        b.lookup(role.implicits.len(), WORK)?;
+                        if let Some(life) = role.implicits.get(ordinal) {
+                            return Ok(*life);
+                        }
+                    }
+                }
                 if !self
                     .inventory
                     .definition(owner, b)?

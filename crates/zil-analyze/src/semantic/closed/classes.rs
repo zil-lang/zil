@@ -90,6 +90,17 @@ impl Check<'_, '_> {
                 b,
             ),
             SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => Ok(value::scalar(ty.clone())),
+            SemanticTypeRecipe::Slice(element) => {
+                let element = self.recipe_value(instance, element, b, depth + 1)?;
+                if !element.classes.is_empty() {
+                    return Err(unknown(
+                        "original Slice needs its complete element occurrence embedding",
+                    ));
+                }
+                Ok(value::scalar(Type::Slice {
+                    element: Box::new(element.ty),
+                }))
+            }
             SemanticTypeRecipe::Formal(reference) => {
                 let context = self.ancestor(instance, reference.scope, b)?;
                 if !matches!(
@@ -506,7 +517,7 @@ impl Check<'_, '_> {
                     .any(|ty| matches!(ty,Type::BorrowedStorage {life,..} if life.binder_count!=0))
             }))
     }
-    fn defining<'a>(
+    pub(super) fn defining<'a>(
         &self,
         function: &'a TypedFunction,
         value: ValueId,
@@ -862,6 +873,51 @@ impl Check<'_, '_> {
         }
         let (block, index, instruction) = self.defining(function, id, b)?;
         match &instruction.kind {
+            InstructionKind::CallClosureBorrowed { .. } => self
+                .abstract_operation(instance, function, block, index, b)?
+                .ok_or_else(|| {
+                    unknown("borrowed callable result has no complete original invocation role")
+                }),
+            InstructionKind::ReborrowAddress { address, mutable } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                operations::available_before(
+                    function,
+                    (block, index, SemanticSiteEdge::Before),
+                    *address,
+                    b,
+                )?;
+                let parent = self.ssa_value(instance, function, *address, b, depth + 1)?;
+                let Type::Address {
+                    mutable: parent_mutable,
+                    inner,
+                } = &parent.ty
+                else {
+                    return Err(fail("actual reborrow has no complete parent address value"));
+                };
+                if *mutable && !*parent_mutable {
+                    return Err(fail("actual reborrow strengthens a shared parent value"));
+                }
+                crate::dyn_metadata::ty(inner, b)?;
+                let output = Type::Address {
+                    mutable: *mutable,
+                    inner: inner.clone(),
+                };
+                if output != *ty
+                    || parent.life.slots.len() != 1
+                    || !parent.life.slots[0].path.is_empty()
+                {
+                    return Err(fail(
+                        "actual reborrow changes its whole pointee or outer occurrence",
+                    ));
+                }
+                let child = value::pointee(&parent, self.inventory, b)?;
+                let result = value::address(*mutable, Class::Reborrow(function.id, id), child, b)?;
+                // This distinct outer occurrence may adapt to its actual
+                // parent only within a proved call role; it is never Eq(parent).
+                Ok(result)
+            }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 self.local_value(instance, function, *local, (block, index), b, depth + 1)
             }
@@ -950,6 +1006,9 @@ impl Check<'_, '_> {
                 Ok(expected)
             }
             InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
                 let mut selected = None;
                 for site in &self.program.sites {
                     b.spend(1, WORK)?;
@@ -1067,6 +1126,13 @@ impl Check<'_, '_> {
                 arguments,
             } => {
                 let target = self.function_instance(*callee, b)?;
+                let expected_parameters =
+                    self.static_call_values(instance, function, block, index, *callee, b)?;
+                if expected_parameters.len() != arguments.len() {
+                    return Err(fail(
+                        "actual call changes its complete original input arity",
+                    ));
+                }
                 let callee = self
                     .inventory
                     .function(&SemanticFunctionTarget::Typed(*callee), b)?;
@@ -1126,12 +1192,30 @@ impl Check<'_, '_> {
                             .get(parameter as usize)
                             .ok_or_else(|| fail("callee class input omits an actual argument"))?;
                         let value = self.ssa_value(instance, function, actual, b, depth + 1)?;
-                        if value.classes.len() != 1 || !matches!(value.ty, Type::Address { .. }) {
-                            return Err(unknown(
-                                "callee outer binder needs its complete actual input occurrence",
+                        let expected = expected_parameters
+                            .get(parameter as usize)
+                            .ok_or_else(|| fail("callee outer role omits an original input"))?;
+                        if !matches!(expected.ty, Type::Address { .. })
+                            || expected.life.slots.len() != 1
+                            || !expected.life.slots[0].path.is_empty()
+                            || !self.outer_role(
+                                instance,
+                                function,
+                                &value,
+                                expected,
+                                b,
+                                depth + 1,
+                            )?
+                        {
+                            return Err(fail(
+                                "actual input does not satisfy its original outer call role",
                             ));
                         }
-                        let class = value.classes[0].clone();
+                        let class = expected
+                            .classes
+                            .get(expected.life.slots[0].binder as usize)
+                            .cloned()
+                            .ok_or_else(|| fail("original call outer input omits a whole class"))?;
                         if source.as_ref().is_some_and(|old| old != &class) {
                             return Err(unknown(
                                 "callee lifetime input needs its complete local role dependency union",
@@ -1159,13 +1243,16 @@ impl Check<'_, '_> {
                                 fail("callee class input omits an actual argument")
                             })?;
                             let input = self.ssa_value(instance, function, actual, b, depth + 1)?;
-                            let class = input
-                                .classes
-                                .get(row.position.class as usize)
-                                .cloned()
-                                .ok_or_else(|| {
-                                    fail("callee class input is absent from its actual value")
-                                })?;
+                            let expected = expected_parameters
+                                .get(parameter as usize)
+                                .ok_or_else(|| fail("callee class role omits an original input"))?;
+                            if input != *expected {
+                                return Err(fail(
+                                    "actual intrinsic input changes its complete original class domain",
+                                ));
+                            }
+                            let class = expected.classes.get(row.position.class as usize).cloned()
+                                .ok_or_else(|| fail("callee class input is absent from its original whole value"))?;
                             if source.as_ref().is_some_and(|old| old != &class) {
                                 return Err(unknown(
                                     "callee class input needs its complete role dependency union",

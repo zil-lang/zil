@@ -2,6 +2,8 @@
 //! Empty metadata never selects a proof: the complete type, original signature,
 //! creator, occurrence and operation inventories must independently agree.
 use super::*;
+mod abstract_calls;
+mod borrows;
 mod callable_roles;
 mod capture_heads;
 mod classes;

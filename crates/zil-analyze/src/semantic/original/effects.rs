@@ -437,6 +437,24 @@ impl Pending {
     ) -> CompileResult<()> {
         for (owner, node) in self.calls {
             b.spend(checked.calls.len().saturating_add(1), WORK)?;
+            let caller = inventory.definition(owner, b)?;
+            let SemanticDefinitionBody::FunctionWithBody {
+                signature: caller, ..
+            } = &caller.body
+            else {
+                return Err(fail("original effect edge has no caller signature"));
+            };
+            b.lookup(checked.abstract_calls.len(), WORK)?;
+            if let Some(call) = checked.abstract_calls.get(&(owner, node)) {
+                if caller.call_kind == CallKind::Direct
+                    && call.signature.call_kind == CallKind::Suspend
+                {
+                    return Err(fail(
+                        "original Direct body invokes a Suspend abstract callable",
+                    ));
+                }
+                continue;
+            }
             let call = checked.calls.get(&(owner, node)).ok_or_else(|| {
                 unknown("original call effect edge has no complete declaration-domain resolution")
             })?;

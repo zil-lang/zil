@@ -3,6 +3,7 @@
 use super::*;
 use zil_base::NodeId;
 
+mod abstract_calls;
 mod effects;
 mod mixed;
 pub(super) mod nominal;
@@ -49,7 +50,17 @@ enum Kind {
         environment: Vec<Term>,
     },
 }
+#[derive(Clone, Copy)]
+pub(super) enum LocalAnchor {
+    Parameter(u32),
+    Binding(NodeId),
+}
+struct Borrow {
+    anchor: LocalAnchor,
+    inner: Term,
+}
 struct Local {
+    anchor: Option<LocalAnchor>,
     name: String,
     ty: Term,
     mutable: bool,
@@ -98,6 +109,7 @@ struct Literal {
 struct Call {
     target: SemanticDefinitionId,
     actuals: Vec<Term>,
+    parameters: Vec<Term>,
     closure: bool,
 }
 pub(super) struct Checked {
@@ -105,6 +117,8 @@ pub(super) struct Checked {
     frames: BTreeMap<SemanticDefinitionId, Frame>,
     calls: BTreeMap<(SemanticDefinitionId, NodeId), Call>,
     intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
+    abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
+    borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
 }
 struct Solver<'a, 'i> {
@@ -445,6 +459,7 @@ impl Solver<'_, '_> {
         Self::push(
             &mut frame.locals,
             Local {
+                anchor: None,
                 name: name.to_owned(),
                 ty,
                 mutable,
@@ -654,6 +669,7 @@ impl Solver<'_, '_> {
             Self::push(
                 &mut locals,
                 Local {
+                    anchor: local.anchor,
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,
@@ -834,17 +850,10 @@ impl Solver<'_, '_> {
             expressions: BTreeMap::new(),
             bindings: BTreeMap::new(),
         };
-        for parameter in &signature.parameters {
-            let term = self.recipe(&frame, &parameter.ty, b, depth + 1)?;
-            Self::push(&mut frame.parameters, term, b)?;
-        }
-        for formal in &definition.parameters {
-            if let SemanticFormal::Type { requirements } = formal {
-                self.premise_needs(&frame, requirements, b)?;
-            }
-        }
-        self.premise_needs(&frame, &definition.requirements, b)?;
-        let result = if matches!(signature.result, SemanticTypeRecipe::Opaque { .. }) {
+        // Prove the opaque declaration in its own rigid domain before any
+        // caller-specific signature namespace exists. Never execute its body
+        // under a first caller's implicit lifetime substitution.
+        let opaque = if matches!(signature.result, SemanticTypeRecipe::Opaque { .. }) {
             if !self.state.frames.contains_key(&target) {
                 if self.active.contains(&target) {
                     return Err(unknown(
@@ -859,11 +868,53 @@ impl Solver<'_, '_> {
                 .get(&target)
                 .ok_or_else(|| fail("original opaque result has no checked declaration body"))?
                 .result;
-            self.instantiate(checked, target, &frame.formals, b, depth + 1)?
+            Some(self.instantiate(checked, target, &frame.formals, b, depth + 1)?)
         } else {
-            self.recipe(&frame, &signature.result, b, depth + 1)?
+            None
         };
-        self.unify(frame.result, result, depth + 1, b)?;
+        let mut implicits = BTreeMap::new();
+        for row in &definition.implicit_lifetimes {
+            b.spend(row.occurrence_path.len().saturating_add(1), WORK)?;
+            let life = self.term(Kind::LifeVariable(None), b)?;
+            b.lookup(implicits.len(), WORK)?;
+            if implicits.insert(row.ordinal, life).is_some() {
+                return Err(fail(
+                    "original call repeats an implicit declaration occurrence",
+                ));
+            }
+        }
+        Self::push(
+            &mut self.role_frames,
+            roles::RoleFrame {
+                owner: target,
+                lifetimes: Vec::new(),
+                implicits,
+            },
+            b,
+        )?;
+        let answer: CompileResult<Term> = (|| {
+            for parameter in &signature.parameters {
+                let term = self.recipe(&frame, &parameter.ty, b, depth + 1)?;
+                Self::push(&mut frame.parameters, term, b)?;
+            }
+            for formal in &definition.parameters {
+                if let SemanticFormal::Type { requirements } = formal {
+                    self.premise_needs(&frame, requirements, b)?;
+                }
+            }
+            self.premise_needs(&frame, &definition.requirements, b)?;
+            let result = if let Some(opaque) = opaque {
+                opaque
+            } else {
+                self.recipe(&frame, &signature.result, b, depth + 1)?
+            };
+            self.unify(frame.result, result, depth + 1, b)?;
+            Ok(result)
+        })();
+        self.role_frames
+            .pop()
+            .ok_or_else(|| fail("original static call lost its local signature frame"))?;
+        let result = answer?;
         Ok((frame.formals, frame.parameters, result))
     }
     fn expression(
@@ -1025,6 +1076,7 @@ impl Solver<'_, '_> {
                 let inner = self
                     .local(frame, name, b)?
                     .ok_or_else(|| fail("original borrow selects no lexical local"))?;
+                let mut anchor = None;
                 for local in frame.locals.iter().rev() {
                     b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
                     if local.name == *name {
@@ -1034,6 +1086,7 @@ impl Solver<'_, '_> {
                         if *op == UnaryOp::BorrowMut && !local.mutable {
                             return Err(fail("original mutable borrow requires a mutable place"));
                         }
+                        anchor = local.anchor;
                         if local.used {
                             Self::push(
                                 &mut self.needs,
@@ -1046,6 +1099,20 @@ impl Solver<'_, '_> {
                         }
                         break;
                     }
+                }
+                let anchor = anchor.ok_or_else(|| {
+                    unknown("original borrow needs its exact parameter or binding anchor")
+                })?;
+                b.lookup(self.state.borrows.len(), WORK)?;
+                if self
+                    .state
+                    .borrows
+                    .insert((frame.definition, value.id), Borrow { anchor, inner })
+                    .is_some()
+                {
+                    return Err(fail(
+                        "original borrow occurrence has competing source binders",
+                    ));
                 }
                 let row = self.borrow_occurrence(frame.definition, value.id, b)?;
                 // Read the original Name's type without moving its occupant.
@@ -1173,46 +1240,56 @@ impl Solver<'_, '_> {
                             "original generic callable needs its complete method instantiation",
                         ));
                     }
-                    let mut local = self.root(local, b)?;
-                    for _ in 0..=b.partial_depth {
-                        if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
-                            local = self.root(hidden, b)?;
-                        } else {
-                            break;
+                    if let Some((parameters, result)) =
+                        self.abstract_scheme(frame, head, value.id, local, b, depth + 1)?
+                    {
+                        (parameters, result)
+                    } else {
+                        let mut local = self.root(local, b)?;
+                        for _ in 0..=b.partial_depth {
+                            if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
+                                local = self.root(hidden, b)?;
+                            } else {
+                                break;
+                            }
                         }
+                        b.spend(
+                            match &self.state.arena[local] {
+                                Kind::Closure {
+                                    parameters,
+                                    environment,
+                                    ..
+                                } => parameters.len().saturating_add(environment.len() + 1),
+                                _ => 1,
+                            },
+                            WORK,
+                        )?;
+                        let Kind::Closure {
+                            definition: target,
+                            parameters,
+                            result,
+                            ..
+                        } = self.state.arena[local].clone()
+                        else {
+                            return Err(unknown(
+                                "original indirect call needs its full callable premise",
+                            ));
+                        };
+                        b.spend(
+                            self.state.calls.len().saturating_add(parameters.len() + 1),
+                            WORK,
+                        )?;
+                        self.state.calls.insert(
+                            (frame.definition, value.id),
+                            Call {
+                                target,
+                                actuals: Vec::new(),
+                                parameters: parameters.clone(),
+                                closure: true,
+                            },
+                        );
+                        (parameters, result)
                     }
-                    b.spend(
-                        match &self.state.arena[local] {
-                            Kind::Closure {
-                                parameters,
-                                environment,
-                                ..
-                            } => parameters.len().saturating_add(environment.len() + 1),
-                            _ => 1,
-                        },
-                        WORK,
-                    )?;
-                    let Kind::Closure {
-                        definition: target,
-                        parameters,
-                        result,
-                        ..
-                    } = self.state.arena[local].clone()
-                    else {
-                        return Err(unknown(
-                            "original indirect call needs its full callable premise",
-                        ));
-                    };
-                    b.spend(self.state.calls.len().saturating_add(1), WORK)?;
-                    self.state.calls.insert(
-                        (frame.definition, value.id),
-                        Call {
-                            target,
-                            actuals: Vec::new(),
-                            closure: true,
-                        },
-                    );
-                    (parameters, result)
                 } else {
                     let path = sealed::path(head, b, depth + 1)?.ok_or_else(|| {
                         unknown("original expression call needs its full source resolution")
@@ -1255,12 +1332,20 @@ impl Solver<'_, '_> {
                         sealed::Resolution::Definition(target) => {
                             let (actuals, parameters, result) =
                                 self.scheme(frame, target, written, b, depth + 1)?;
-                            b.spend(self.state.calls.len().saturating_add(actuals.len()), WORK)?;
+                            b.spend(
+                                self.state
+                                    .calls
+                                    .len()
+                                    .saturating_add(actuals.len())
+                                    .saturating_add(parameters.len()),
+                                WORK,
+                            )?;
                             self.state.calls.insert(
                                 (frame.definition, value.id),
                                 Call {
                                     target,
                                     actuals,
+                                    parameters: parameters.clone(),
                                     closure: false,
                                 },
                             );
@@ -1282,11 +1367,16 @@ impl Solver<'_, '_> {
                     let argument = self.expression(frame, argument, b, depth + 1)?;
                     self.unify(argument, parameter, depth + 1, b)?;
                 }
+                self.finish_abstract_call(frame.definition, value.id, b)?;
                 b.lookup(self.state.intrinsics.len(), WORK)?;
                 if self
                     .state
                     .intrinsics
                     .contains_key(&(frame.definition, value.id))
+                    || self
+                        .state
+                        .abstract_calls
+                        .contains_key(&(frame.definition, value.id))
                 {
                     // Unit has no hidden callee result domain. Its actual opcode
                     // is bound separately at this exact original call site.
@@ -1485,6 +1575,11 @@ impl Solver<'_, '_> {
                         self.unify(local, value, depth + 1, b)?;
                     }
                     self.bind(frame, name, local, *mutable, b)?;
+                    frame
+                        .locals
+                        .last_mut()
+                        .ok_or_else(|| fail("original binding lost its local"))?
+                        .anchor = Some(LocalAnchor::Binding(statement.id));
                     if initializer.is_none() {
                         if let Some(local) = frame.locals.last_mut() {
                             local.initialized = false;
@@ -1760,6 +1855,11 @@ impl Solver<'_, '_> {
             }
             let term = frame.parameters[index];
             self.bind(&mut frame, &parameter.name, term, false, b)?;
+            frame
+                .locals
+                .last_mut()
+                .ok_or_else(|| fail("original parameter lost its local"))?
+                .anchor = Some(LocalAnchor::Parameter(index as u32));
         }
         match body {
             SemanticOriginalFunctionBody::Defined(body) => {
@@ -2048,6 +2148,8 @@ pub(super) fn check(
             frames: BTreeMap::new(),
             calls: BTreeMap::new(),
             intrinsics: BTreeMap::new(),
+            abstract_calls: BTreeMap::new(),
+            borrows: BTreeMap::new(),
             names_at: BTreeMap::new(),
         },
         active: BTreeSet::new(),
@@ -2286,6 +2388,7 @@ impl Solver<'_, '_> {
             Self::push(
                 &mut output,
                 Local {
+                    anchor: local.anchor,
                     name: local.name.clone(),
                     ty: local.ty,
                     mutable: local.mutable,
@@ -2766,6 +2869,80 @@ impl Checked {
             _ => return Err(unknown("original projected binder or constant carrier needs its complete inference evidence")),
         }.ok_or_else(|| fail("original Type query selects no actual original node or binding"))?;
         self.value(term, context, program, inventory, b, 0)
+    }
+    pub(super) fn call_inputs(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<(SemanticDefinitionId, Vec<crate::semantic::value::Value>)> {
+        let definition = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("actual call inputs omit their complete original body"));
+        };
+        let mut node = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(id) = link.node else {
+                    return Err(fail("actual call input selects an original statement"));
+                };
+                if node.replace(id).is_some() {
+                    return Err(fail("actual call inputs have competing original nodes"));
+                }
+            }
+        }
+        b.lookup(self.calls.len(), WORK)?;
+        let call = self
+            .calls
+            .get(&(
+                context.definition,
+                node.ok_or_else(|| fail("actual call inputs have no original node"))?,
+            ))
+            .ok_or_else(|| {
+                fail("actual call inputs have no original declaration-domain inference")
+            })?;
+        let mut values = Vec::new();
+        for parameter in &call.parameters {
+            let value = self.value(*parameter, context, program, inventory, b, 0)?;
+            Solver::push(&mut values, value, b)?;
+        }
+        Ok((call.target, values))
+    }
+    pub(super) fn borrowed_source(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(LocalAnchor, crate::semantic::value::Value)>> {
+        let definition = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("actual borrow has no complete original body"));
+        };
+        let mut found = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(node) = link.node else {
+                    continue;
+                };
+                b.lookup(self.borrows.len(), WORK)?;
+                if let Some(source) = self.borrows.get(&(context.definition, node)) {
+                    if found.is_some() {
+                        return Err(fail("actual borrow has competing original source anchors"));
+                    }
+                    found = Some((
+                        source.anchor,
+                        self.value(source.inner, context, program, inventory, b, 0)?,
+                    ));
+                }
+            }
+        }
+        Ok(found)
     }
     pub(super) fn intrinsic(
         &self,

@@ -456,6 +456,18 @@ impl Check<'_, '_> {
                 }
             }
             (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {
+                if self
+                    .abstract_operation(
+                        instance,
+                        point.function,
+                        point.block.id,
+                        point.instruction,
+                        b,
+                    )?
+                    .is_some()
+                {
+                    return Ok(());
+                }
                 if let Some(intrinsic) =
                     self.original
                         .intrinsic(instance, site.recipe, self.inventory, b)?
@@ -666,6 +678,33 @@ impl Check<'_, '_> {
                 }
                 self.arguments(point.function, arguments, &parameters, b)?;
                 self.inputs(arguments, point, b)?;
+                let (input_target, expected_inputs) = self.original.call_inputs(
+                    instance,
+                    site.recipe,
+                    self.program,
+                    self.inventory,
+                    b,
+                )?;
+                if input_target != original || expected_inputs.len() != arguments.len() {
+                    return Err(fail(
+                        "actual call loses its independently inferred original input roles",
+                    ));
+                }
+                for (actual, expected) in arguments.iter().zip(&expected_inputs) {
+                    if self.uses_full_value(&expected.ty, b)? {
+                        let actual = self.ssa_value(instance, point.function, *actual, b, 0)?;
+                        let valid = if matches!(expected.ty, Type::Address { .. }) {
+                            self.outer_role(instance, point.function, &actual, expected, b, 0)?
+                        } else {
+                            actual == *expected
+                        };
+                        if !valid {
+                            return Err(fail(
+                                "actual call input differs from its complete original role",
+                            ));
+                        }
+                    }
+                }
                 self.result(instruction, point.function, result)?;
             }
             (
@@ -978,10 +1017,10 @@ impl Check<'_, '_> {
                         InstructionKind::CallClosure { .. }
                         | InstructionKind::CallClosureOnce { .. }
                         | InstructionKind::CallClosureShared { .. }
-                        | InstructionKind::CallClosureMut { .. } => Some(1),
+                        | InstructionKind::CallClosureMut { .. }
+                        | InstructionKind::CallClosureBorrowed { .. } => Some(1),
                         InstructionKind::MakeClosure { .. } => Some(2),
-                        InstructionKind::CallIndirect { .. }
-                        | InstructionKind::CallClosureBorrowed { .. } => {
+                        InstructionKind::CallIndirect { .. } => {
                             return Err(unknown(
                                 "actual semantic code operation has no completed scoped boundary proof",
                             ));

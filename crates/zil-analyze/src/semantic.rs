@@ -381,6 +381,7 @@ impl<'a> Inventory<'a> {
                                 | InstructionKind::CallClosureOnce { .. }
                                 | InstructionKind::CallClosureShared { .. }
                                 | InstructionKind::CallClosureMut { .. }
+                                | InstructionKind::CallClosureBorrowed { .. }
                                 | InstructionKind::TaskYield
                         )
                     }) {
