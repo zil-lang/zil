@@ -1,0 +1,940 @@
+diff --git a/crates/zil-analyze/src/semantic/original/places.rs b/crates/zil-analyze/src/semantic/original/places.rs
+index 4f9eaf982..d5fd82ab6 100644
+--- a/crates/zil-analyze/src/semantic/original/places.rs
++++ b/crates/zil-analyze/src/semantic/original/places.rs
+@@ -105,10 +105,14 @@ impl Solver<'_, '_> {
+                     selected: term,
+                 }
+             }
+-            CoreExprKind::Group(inner) => {
++            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                 let Some(place) = self.place(frame, inner, record, b, depth + 1)? else {
+                     return Ok(None);
+                 };
++                if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
++                    let expected = self.recipe(frame, ty, b, depth + 1)?;
++                    self.unify(place.selected, expected, depth + 1, b)?;
++                }
+                 place
+             }
+             CoreExprKind::Member {
+diff --git a/crates/zil-expand/src/source_semantic_builtins.rs b/crates/zil-expand/src/source_semantic_builtins.rs
+index 4950bc04e..5e6bfcf34 100644
+--- a/crates/zil-expand/src/source_semantic_builtins.rs
++++ b/crates/zil-expand/src/source_semantic_builtins.rs
+@@ -268,56 +268,75 @@ impl Builder<'_, '_, '_, '_> {
+         };
+         let mut domain = Vec::new();
+         let mut ports = Vec::new();
++        let mut retained = Vec::new();
++        let mut nominal = Vec::new();
+         for (index, field) in fields.iter().enumerate() {
+-            path.extend([1, index as u32]);
++            let ordinal = u32::try_from(index)
++                .map_err(|_| error(field.span, "Task input Context ordinal overflow"))?;
++            path.extend([1, ordinal]);
+             let value = self.ty(field, path, depth + 1, false);
+             path.pop();
+             path.pop();
+             let value = value?;
+-            let SemanticTypeRecipe::Address {
+-                mutable,
+-                lifetime: SemanticOuterLifeRecipe::Class(class),
+-                ..
+-            } = &value
+-            else {
+-                return Err(unsupported(
+-                    field.span,
+-                    "Task input Context requires its complete actual address ports",
+-                ));
+-            };
+-            self.budget.identity_work(domain.len(), field.span)?;
+-            for old in &domain {
+-                prepay_recipe(old, self.budget, field.span, depth + 1)?;
+-            }
+-            prepay_recipe(class, self.budget, field.span, depth + 1)?;
+-            let part = SemanticClassSequencePart::One(class.clone());
+-            if !domain.contains(&part) {
+-                self.push(&mut domain, part, field.span)?;
+-            }
+-            prepay_recipe(class, self.budget, field.span, depth + 1)?;
+-            let class = class.clone();
+-            let mode = if *mutable {
+-                StoredBorrowMode::ExclusiveAddress
+-            } else {
+-                StoredBorrowMode::SharedAddress
++            // The complete input Type contributes its entire domain, including
++            // classes behind an outer address and phantom nominal arguments.
++            // Ports remain occurrences: equal leaves may be distinct roots.
++            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
++            self.push(
++                &mut domain,
++                SemanticClassSequencePart::AllClasses {
++                    ty: Box::new(value.clone()),
++                    path: Vec::new(),
++                },
++                field.span,
++            )?;
++            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
++            self.budget.lineage_bytes(
++                std::mem::size_of::<SemanticClassSequencePart>()
++                    .saturating_add(std::mem::size_of::<SemanticTypeRecipe>()),
++                field.span,
++            )?;
++            let classes = SemanticClassSequenceRecipe {
++                parts: vec![SemanticClassSequencePart::AllClasses {
++                    ty: Box::new(value.clone()),
++                    path: Vec::new(),
++                }],
+             };
+-            self.budget
+-                .lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), field.span)?;
++            prepay_recipe(&classes, self.budget, field.span, depth + 1)?;
++            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
+             self.push(
+                 &mut ports,
+-                SemanticPortPart::One {
+-                    leaf: Box::new(value),
+-                    mode,
+-                    class,
++                SemanticPortPart::FromType {
++                    ty: Box::new(value.clone()),
++                    classes: classes.clone(),
++                },
++                field.span,
++            )?;
++            prepay_recipe(&classes, self.budget, field.span, depth + 1)?;
++            self.budget
++                .lineage_bytes(std::mem::size_of::<LifeTypeProjection>(), field.span)?;
++            self.push(
++                &mut retained,
++                SemanticRetainedPart::All {
++                    path: vec![LifeTypeProjection::Parameter(ordinal)],
++                    parents: classes.clone(),
++                },
++                field.span,
++            )?;
++            self.budget.lineage_bytes(
++                std::mem::size_of::<LifeTypeProjection>()
++                    .saturating_add(std::mem::size_of::<SemanticTypeRecipe>()),
++                field.span,
++            )?;
++            self.push(
++                &mut nominal,
++                SemanticNominalPart::FromType {
++                    path: vec![LifeTypeProjection::Parameter(ordinal)],
++                    ty: Box::new(value),
++                    classes,
+                 },
+                 field.span,
+             )?;
+-        }
+-        if ports.is_empty() {
+-            return Err(error(
+-                context.span,
+-                "Task explicit Context has no actual port",
+-            ));
+         }
+         // This is an equality obligation into the public input domain, not a
+         // new domain copied from R. Zero result classes emit no rows; nonzero
+@@ -339,11 +358,18 @@ impl Builder<'_, '_, '_, '_> {
+         Ok(SemanticRetainedShapeRecipe {
+             domain: SemanticClassSequenceRecipe { parts: domain },
+             ports,
+-            retained: vec![SemanticRetainedPart::All {
+-                path: vec![LifeTypeProjection::Result],
+-                parents: result_classes,
+-            }],
+-            nominal: Vec::new(),
++            retained: {
++                self.push(
++                    &mut retained,
++                    SemanticRetainedPart::All {
++                        path: vec![LifeTypeProjection::Result],
++                        parents: result_classes,
++                    },
++                    context.span,
++                )?;
++                retained
++            },
++            nominal,
+         })
+     }
+ }
+diff --git a/crates/zil-types/src/closures.rs b/crates/zil-types/src/closures.rs
+index 4ad3da6bf..48c6f3bca 100644
+--- a/crates/zil-types/src/closures.rs
++++ b/crates/zil-types/src/closures.rs
+@@ -408,6 +408,8 @@ pub(super) struct State {
+     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
+     pub helper_tables: std::rc::Rc<helpers::Tables>,
+     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
++    /// Real helper mint bindings, retained while its body is being built.
++    pub prepared_helpers: BTreeMap<FunctionId, helpers::Instance>,
+     pub forward_callers: BTreeSet<helpers::Instance>,
+     pub forward_results: BTreeMap<FunctionId, u32>,
+     pub deferred_closed: BTreeMap<ClosureId, Span>,
+@@ -762,6 +764,7 @@ impl State {
+             active_helpers: std::collections::BTreeSet::new(),
+             helper_tables: std::rc::Rc::new(BTreeMap::new()),
+             helper_instances: BTreeMap::new(),
++            prepared_helpers: BTreeMap::new(),
+             forward_callers: BTreeSet::new(),
+             forward_results: BTreeMap::new(),
+             deferred_closed: BTreeMap::new(),
+diff --git a/crates/zil-types/src/helpers.rs b/crates/zil-types/src/helpers.rs
+index 511b9133e..166b69811 100644
+--- a/crates/zil-types/src/helpers.rs
++++ b/crates/zil-types/src/helpers.rs
+@@ -962,17 +962,26 @@ impl Builder<'_, '_> {
+                 )?;
+                 parameters.push(t.clone());
+             }
+-            let life = actual
+-                .storage_life
+-                .as_ref()
+-                .and_then(|life| life.to_flat(parameters.len()));
+-            let context = tasks::borrowed_context_with_life(&parameters, life.as_ref(), &result);
++
+             self.closures.snapshot(before - remaining, span)?;
+-            let output = tasks::call_create_type(name, &result, context, &parameters);
++            let prepared_context =
++                self.actual_task_context(instance, &parameters, &result, span)?;
++            let output = if let Some(prepared) = &prepared_context {
++                tasks::call_create_full(name, &result, prepared)?
++            } else {
++                return Err(unsupported(
++                    span,
++                    "specialized Task worker awaits its exact original preparation context",
++                ));
++            };
+             if let Some(wanted) = expected {
+                 self.same(&output, wanted, span)?;
+             }
+-            let bindings = tasks::retained_bindings(&parameters);
++            let bindings = prepared_context
++                .as_ref()
++                .expect("prepared Task context")
++                .bindings
++                .clone();
+             let instruction = if name == "task_create_owned" {
+                 InstructionKind::TaskCreateOwned {
+                     worker: instance,
+@@ -1324,6 +1333,20 @@ impl Builder<'_, '_> {
+             &mut work,
+         )?;
+         self.closures.snapshot(before - work, span)?;
++        self.closures
++            .snapshot(bindings.extra_key_work().saturating_add(1), span)?;
++        if self
++            .closures
++            .prepared_helpers
++            .insert(id, (key, bindings.clone()))
++            .is_some()
++        {
++            return Err(error(
++                "E-TASK-CONTEXT",
++                span,
++                "actual helper repeats its preparation bindings",
++            ));
++        }
+         let mut builder = Builder::new(
+             &function,
+             id,
+@@ -1331,6 +1354,12 @@ impl Builder<'_, '_> {
+             self.limits,
+             self.closures,
+         )?;
++        builder.life_instances = self.life_instances;
++        builder
++            .closures
++            .snapshot(self.actual_functions.len().saturating_add(1), span)?;
++        builder.actual_functions = self.actual_functions.clone();
++        builder.actual_functions.push(&self.function);
+         builder.state_uses = state_uses;
+         builder.closures.snapshot(
+             plan::tree_work(builder.closures.forward_callers.len())
+diff --git a/crates/zil-types/src/lib.rs b/crates/zil-types/src/lib.rs
+index 2d6f801f2..992da2b22 100644
+--- a/crates/zil-types/src/lib.rs
++++ b/crates/zil-types/src/lib.rs
+@@ -689,6 +689,9 @@ pub fn check(
+             &mut closure_state,
+         )
+         .and_then(|mut b| {
++            b.life_instances = &life_instances;
++            b.closures.snapshot(functions.len(), f.span)?;
++            b.actual_functions = functions.iter().collect();
+             b.enums = Some(&enum_types);
+             b.dyn_declarations = &core.dyn_declarations;
+             b.dyn_interfaces = &core.dyn_interfaces;
+@@ -816,6 +819,8 @@ struct Builder<'a, 'c> {
+     state_uses: Option<state_origins::Uses>,
+     factory_bound: Option<CoreCallableReturn>,
+     signatures: &'a BTreeMap<String, Signature>,
++    life_instances: &'a [LifeNominalInstance],
++    actual_functions: Vec<&'a TypedFunction>,
+     dyn_declarations: &'a [DynDeclaration],
+     dyn_interfaces: &'a [DynInterface],
+     dyn_vtables: &'a [DynVtable],
+@@ -1002,6 +1007,8 @@ impl<'a, 'c> Builder<'a, 'c> {
+             state_uses: None,
+             factory_bound: f.callable_return.clone(),
+             signatures,
++            life_instances: &[],
++            actual_functions: Vec::new(),
+             dyn_declarations: &[],
+             dyn_interfaces: &[],
+             dyn_vtables: &[],
+@@ -3467,6 +3474,12 @@ impl<'a, 'c> Builder<'a, 'c> {
+                 self.closures,
+             )?;
+             builder.imports = self.imports;
++            builder.life_instances = self.life_instances;
++            builder
++                .closures
++                .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
++            builder.actual_functions = self.actual_functions.clone();
++            builder.actual_functions.push(&self.function);
+             builder.enums = self.enums;
+             let typed = builder.finish(&function.body)?;
+             self.closures.thin[slot] = Some(typed);
+@@ -3699,6 +3712,12 @@ impl<'a, 'c> Builder<'a, 'c> {
+             self.closures,
+         )?;
+         builder.imports = self.imports;
++        builder.life_instances = self.life_instances;
++        builder
++            .closures
++            .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
++        builder.actual_functions = self.actual_functions.clone();
++        builder.actual_functions.push(&self.function);
+         builder.enums = self.enums;
+         builder.dyn_declarations = self.dyn_declarations;
+         builder.dyn_interfaces = self.dyn_interfaces;
+diff --git a/crates/zil-types/src/program.rs b/crates/zil-types/src/program.rs
+index 01560d722..420f15cd8 100644
+--- a/crates/zil-types/src/program.rs
++++ b/crates/zil-types/src/program.rs
+@@ -359,6 +359,12 @@ fn check_resolved_program_in_context(
+         let mut builder =
+             Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
+         builder.imports = Some(&imports);
++        builder.life_instances = &life_instances;
++        builder
++            .closures
++            .snapshot(factories.len(), f.span)
++            .map_err(|e| vec![e])?;
++        builder.actual_functions = factories.values().collect();
+         builder.enums = Some(&enum_types);
+         builder.dyn_declarations = &dyn_declarations;
+         builder.dyn_interfaces = &dyn_interfaces;
+@@ -457,6 +463,12 @@ fn check_resolved_program_in_context(
+                 let mut builder =
+                     Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
+                 builder.imports = Some(&imports);
++                builder.life_instances = &life_instances;
++                builder
++                    .closures
++                    .snapshot(functions.len().saturating_add(factories.len()), f.span)
++                    .map_err(|e| vec![e])?;
++                builder.actual_functions = functions.iter().chain(factories.values()).collect();
+                 builder.enums = Some(&enum_types);
+                 builder.dyn_declarations = &dyn_declarations;
+                 builder.dyn_interfaces = &dyn_interfaces;
+diff --git a/crates/zil-types/src/semantics/emission.rs b/crates/zil-types/src/semantics/emission.rs
+index bc5713471..b9874095e 100644
+--- a/crates/zil-types/src/semantics/emission.rs
++++ b/crates/zil-types/src/semantics/emission.rs
+@@ -64,6 +64,10 @@ pub(crate) struct Ledger {
+     >,
+     /// Lexical selections recorded while emitting this exact MakeClosure.
+     pub(super) closure_captures: BTreeMap<ClosureId, Vec<(String, ValueId)>>,
++    /// Candidate headers formed at real MakeClosure operations. Publication
++    /// rebuilds and compares them; they confer no closedness or permissions.
++    pub(super) formed_headers:
++        BTreeMap<ClosureId, (StorageLifeContract, Vec<SemanticHeaderBinding>)>,
+     /// Actual Core headers deliberately retained for a later callable/value
+     /// specialization. A missing frame by itself is never this fact.
+     pub templates: std::collections::BTreeSet<Origin>,
+@@ -81,6 +85,37 @@ fn lookup_cost(n: usize) -> usize {
+     n.saturating_add(1).ilog2() as usize + 1
+ }
+ impl Ledger {
++    pub(crate) fn record_formed_header(
++        &mut self,
++        closure: ClosureId,
++        header: StorageLifeContract,
++        embedding: Vec<SemanticHeaderBinding>,
++    ) -> R<()> {
++        if let Some(previous) = self.formed_headers.get(&closure) {
++            if previous != &(header, embedding) {
++                return Err(invalid(
++                    Span::default(),
++                    "actual Task preparation changes an earlier complete closure header",
++                ));
++            }
++        } else {
++            self.formed_headers.insert(closure, (header, embedding));
++        }
++        Ok(())
++    }
++
++    pub(crate) fn active_expression(
++        &self,
++        function: FunctionId,
++        left: &mut usize,
++        span: Span,
++    ) -> R<Option<NodeId>> {
++        pay(left, lookup_cost(self.frames.len()), span)?;
++        Ok(self
++            .frames
++            .get(&function)
++            .and_then(|frame| frame.stack.last().copied()))
++    }
+     pub(crate) fn capture_sources(
+         &mut self,
+         closure: ClosureId,
+diff --git a/crates/zil-types/src/semantics/header_captures.rs b/crates/zil-types/src/semantics/header_captures.rs
+index a7ece5cd6..c52b497f7 100644
+--- a/crates/zil-types/src/semantics/header_captures.rs
++++ b/crates/zil-types/src/semantics/header_captures.rs
+@@ -673,7 +673,8 @@ pub(in crate::semantics) fn complete_emitted_headers(
+             .iter()
+             .find(|row| row.id == id)
+             .ok_or_else(|| bad("closure directory completion has no actual definition"))?;
+-        if definition.storage_life.is_some() {
++        let early = ledger.formed_headers.get(&id);
++        if definition.storage_life.is_some() && early.is_none() {
+             continue;
+         }
+         let entry = module
+@@ -681,7 +682,7 @@ pub(in crate::semantics) fn complete_emitted_headers(
+             .iter()
+             .find(|row| row.id == definition.function)
+             .ok_or_else(|| bad("closure directory completion has no actual entry"))?;
+-        if entry.storage_life.is_some() || entry.environment != Some(id) {
++        if (entry.storage_life.is_some() && early.is_none()) || entry.environment != Some(id) {
+             return Err(bad(
+                 "closure directory completion changes its actual entry identity",
+             ));
+@@ -692,6 +693,22 @@ pub(in crate::semantics) fn complete_emitted_headers(
+         else {
+             continue;
+         };
++        if let Some((expected, embedding)) = early {
++            crate::borrowed_fp::charge_contract(expected, |work| pay(left, work), 2)?;
++            crate::borrowed_fp::charge_contract(&directory, |work| pay(left, work), 2)?;
++            for row in embedding.iter().chain(mapping.iter()) {
++                crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
++            }
++            if expected != &directory
++                || embedding != &mapping
++                || definition.storage_life.as_ref() != Some(&directory)
++                || entry.storage_life.as_ref() != Some(&directory)
++            {
++                return Err(bad(
++                    "early actual Task closure directory differs from its complete finish reconstruction",
++                ));
++            }
++        }
+         changes.push((instance.id, id, entry.id, directory, mapping));
+     }
+     for (instance, closure, entry, header, embedding) in changes {
+diff --git a/crates/zil-types/src/semantics/materialize.rs b/crates/zil-types/src/semantics/materialize.rs
+index e6b2fff7e..1122d896a 100644
+--- a/crates/zil-types/src/semantics/materialize.rs
++++ b/crates/zil-types/src/semantics/materialize.rs
+@@ -38,6 +38,8 @@ mod opaque;
+ pub(super) use opaque::call_result_at;
+ #[path = "materialize_domains.rs"]
+ mod domains;
++#[path = "materialize_emitter.rs"]
++mod emitter;
+ #[path = "materialize_scopes.rs"]
+ mod scopes;
+ #[path = "materialize_self.rs"]
+@@ -46,6 +48,7 @@ mod self_type;
+ mod shapes;
+ #[path = "materialize_tasks.rs"]
+ mod task_domains;
++pub(crate) use emitter::{PreparedTask, prepare_task};
+ #[path = "materialize_view.rs"]
+ mod view;
+ pub(super) use view::ActualDirectory;
+@@ -1422,7 +1425,7 @@ impl<'a> Eval<'a, '_, '_> {
+                                 .saturating_add(self.ledger.frames.len()),
+                         )?;
+                         let mut found = None;
+-                        for child in &self.input.instances {
++                        for child in self.module.semantic_instances(self.input) {
+                             if child.parent != Some(scope) || child.definition != *definition {
+                                 continue;
+                             }
+@@ -1474,7 +1477,7 @@ impl<'a> Eval<'a, '_, '_> {
+                     .iter()
+                     .find(|row| row.id == *id)
+                     .ok_or_else(|| bad("whole closure type has no actual definition"))?;
+-                let mut children = self.input.instances.iter().filter(|child| child.parent == Some(scope) && child.definition == *definition && matches!(child.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == closure.function));
++                let mut children = self.module.semantic_instances(self.input).filter(|child| child.parent == Some(scope) && child.definition == *definition && matches!(child.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == closure.function));
+                 let child = children
+                     .next()
+                     .ok_or_else(|| bad("closure recipe has no matching actual original child"))?;
+diff --git a/crates/zil-types/src/semantics/materialize_domains.rs b/crates/zil-types/src/semantics/materialize_domains.rs
+index 1ea3db416..3164917ce 100644
+--- a/crates/zil-types/src/semantics/materialize_domains.rs
++++ b/crates/zil-types/src/semantics/materialize_domains.rs
+@@ -384,7 +384,21 @@ impl Eval<'_, '_, '_> {
+     ) -> R<Domain> {
+         self.node(depth)?;
+         self.fee(items.len())?;
+-        if items.is_empty() {
++        let mut children = Vec::new();
++        for (ordinal, item) in items.iter().enumerate() {
++            let ordinal =
++                u32::try_from(ordinal).map_err(|_| bad("tuple child ordinal overflows"))?;
++            self.occurrence_snapshot(occurrence)?;
++            let mut child_occurrence = occurrence.clone();
++            child_occurrence.path.push(ordinal);
++            children.push(self.type_domain_at(scope, item, None, depth + 1, &child_occurrence)?);
++        }
++        self.compose_tuple(children)
++    }
++
++    pub(super) fn compose_tuple(&mut self, children: Vec<Domain>) -> R<Domain> {
++        self.fee(children.len())?;
++        if children.is_empty() {
+             return Ok(Domain {
+                 value: resolved(Type::Unit, empty(), Vec::new()),
+                 selectors: Vec::new(),
+@@ -394,13 +408,9 @@ impl Eval<'_, '_, '_> {
+         let mut life = empty();
+         let mut classes = Vec::new();
+         let mut selectors = Vec::new();
+-        for (ordinal, item) in items.iter().enumerate() {
++        for (ordinal, child) in children.into_iter().enumerate() {
+             let ordinal =
+                 u32::try_from(ordinal).map_err(|_| bad("tuple child ordinal overflows"))?;
+-            self.occurrence_snapshot(occurrence)?;
+-            let mut child_occurrence = occurrence.clone();
+-            child_occurrence.path.push(ordinal);
+-            let child = self.type_domain_at(scope, item, None, depth + 1, &child_occurrence)?;
+             let map = self.join_domain(&mut selectors, &mut classes, &child)?;
+             let SemanticTypeValue::Resolved {
+                 ty, life: child, ..
+diff --git a/crates/zil-types/src/store_templates.rs b/crates/zil-types/src/store_templates.rs
+index b1a5d269f..4d3a7a8d5 100644
+--- a/crates/zil-types/src/store_templates.rs
++++ b/crates/zil-types/src/store_templates.rs
+@@ -591,6 +591,12 @@ impl Builder<'_, '_> {
+                 self.closures,
+             )?;
+             builder.imports = Some(&imports);
++            builder.life_instances = self.life_instances;
++            builder
++                .closures
++                .snapshot(self.actual_functions.len().saturating_add(1), span)?;
++            builder.actual_functions = self.actual_functions.clone();
++            builder.actual_functions.push(&self.function);
+             builder.enums = Some(&template.context.enums);
+             builder.finish(&function.body)
+         })();
+diff --git a/crates/zil-types/src/tasks.rs b/crates/zil-types/src/tasks.rs
+index 1163d2f96..7d8907fd4 100644
+--- a/crates/zil-types/src/tasks.rs
++++ b/crates/zil-types/src/tasks.rs
+@@ -328,6 +328,29 @@ pub(super) fn call_create_type(
+     }
+     ty
+ }
++pub(super) fn call_create_full(
++    name: &str,
++    result: &Type,
++    prepared: &semantics::materialize::PreparedTask,
++) -> R<Type> {
++    let mut ty = create_type(result, prepared.context.clone());
++    if name == "task_create_owned" {
++        let zil_ir::SemanticTypeValue::Resolved {
++            ty: inputs, life, ..
++        } = &prepared.inputs
++        else {
++            return Err(unsupported(
++                Span::default(),
++                "Task failure awaits its complete composed input domain",
++            ));
++        };
++        let failure = failure::carrier_full(inputs, life, &prepared.context)?;
++        if let Type::ErrorUnion { error, .. } = &mut ty {
++            **error = failure;
++        }
++    }
++    Ok(ty)
++}
+ pub(super) fn result_for(name: &str, task: &Type) -> Type {
+     let Type::Task { result: t, .. } = task else {
+         return result(name);
+@@ -517,6 +540,66 @@ pub(super) fn add_definition(
+     Ok(has_mutex)
+ }
+ impl Builder<'_, '_> {
++    pub(super) fn actual_task_context(
++        &mut self,
++        worker: FunctionId,
++        parameters: &[Type],
++        result: &Type,
++        span: Span,
++    ) -> R<Option<semantics::materialize::PreparedTask>> {
++        let before = self.closures.remaining_work();
++        let mut left = before;
++        let prepared = semantics::materialize::prepare_task(
++            self.closures,
++            &self.function,
++            &self.actual_functions,
++            self.life_instances,
++            self.dyn_declarations,
++            self.dyn_interfaces,
++            worker,
++            parameters,
++            result,
++            self.limits,
++            &mut left,
++        );
++        self.closures.snapshot(before - left, span)?;
++        let mut prepared = prepared?;
++        if let Some(prepared) = &mut prepared {
++            for (id, header, embedding) in std::mem::take(&mut prepared.headers) {
++                let pending = self
++                    .closures
++                    .pending
++                    .iter_mut()
++                    .find(|pending| pending.id == id)
++                    .ok_or_else(|| {
++                        unsupported(
++                            span,
++                            "actual Task closure header lost its real pending entry",
++                        )
++                    })?;
++                let entry = pending.typed.as_mut().ok_or_else(|| {
++                    unsupported(span, "actual Task closure header has no real typed entry")
++                })?;
++                if entry
++                    .storage_life
++                    .as_ref()
++                    .is_some_and(|previous| previous != &header)
++                {
++                    return Err(error(
++                        "E-TASK-CONTEXT",
++                        span,
++                        "actual Task closure header changes its existing directory",
++                    ));
++                }
++                entry.storage_life = Some(header.clone());
++                self.closures
++                    .semantic_emission
++                    .record_formed_header(id, header, embedding)?;
++            }
++        }
++        Ok(prepared)
++    }
++
+     pub(super) fn task_call(
+         &mut self,
+         name: &str,
+@@ -582,17 +665,6 @@ impl Builder<'_, '_> {
+             })();
+             self.closures.snapshot(before - remaining, span)?;
+             let (worker, parameters, worker_result, worker_life) = prepared?;
+-            if name == "task_create"
+-                && !borrowed_context_with_life(&parameters, worker_life.as_ref(), &worker_result)
+-                    .ports
+-                    .is_empty()
+-                && !retained_result(&worker_result)
+-            {
+-                return Err(unsupported(
+-                    span,
+-                    "retained Task result requires an actual supported complete result",
+-                ));
+-            }
+             if arguments.len() != parameters.len() + 1 {
+                 return Err(error(
+                     "E-CALL-ARITY",
+@@ -620,9 +692,30 @@ impl Builder<'_, '_> {
+                     self.closures.snapshot_type(parameter, 6, 128, span)?;
+                 }
+             }
++            let prepared_context = if name == "task_await" {
++                None
++            } else {
++                self.actual_task_context(worker, &parameters, &worker_result, span)?
++            };
++            let bindings = prepared_context
++                .as_ref()
++                .map(|prepared| prepared.bindings.clone())
++                .unwrap_or_else(|| retained_bindings(&parameters));
+             let ty = if name == "task_await" {
+                 worker_result
++            } else if let Some(prepared) = &prepared_context {
++                call_create_full(name, &worker_result, prepared)?
+             } else {
++                if !parameters.iter().all(|ty| {
++                    retained_pointee(ty)
++                        || matches!(ty, Type::Address { inner, .. } if retained_pointee(inner))
++                }) || !retained_result(&worker_result)
++                {
++                    return Err(unsupported(
++                        span,
++                        "Task without original preparation context requires complete ordinary scalar input/result types",
++                    ));
++                }
+                 call_create_type(
+                     name,
+                     &worker_result,
+@@ -643,13 +736,13 @@ impl Builder<'_, '_> {
+                     InstructionKind::TaskCreateOwned {
+                         worker,
+                         arguments: inputs,
+-                        port_bindings: retained_bindings(&parameters),
++                        port_bindings: bindings,
+                     }
+                 } else {
+                     InstructionKind::TaskCreate {
+                         worker,
+                         arguments: inputs,
+-                        port_bindings: retained_bindings(&parameters),
++                        port_bindings: bindings,
+                     }
+                 },
+                 ty.clone(),
+diff --git a/crates/zil-types/src/tasks/failure.rs b/crates/zil-types/src/tasks/failure.rs
+index 7037a2127..c0d99fe50 100644
+--- a/crates/zil-types/src/tasks/failure.rs
++++ b/crates/zil-types/src/tasks/failure.rs
+@@ -21,7 +21,10 @@ pub(crate) fn owns(t: &Type) -> bool {
+ }
+ 
+ pub(crate) fn is_carrier(ty: &Type) -> bool {
+-    matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record {name,fields} | Type::Package {name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(), [(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs")))
++    let Type::BorrowedStorage { storage, .. } = ty else {
++        return false;
++    };
++    matches!(storage.as_ref(), Type::Record {name,fields} | Type::Package {name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(), [(reason,_),(inputs,_)] if reason=="reason" && inputs=="inputs"))
+ }
+ 
+ /// Inputs are in the actual worker's complete parameter order. Its retained
+@@ -84,16 +87,96 @@ pub(super) fn carrier(inputs: &[Type], context: &zil_ir::RetainedLifeShape) -> T
+     }
+ }
+ 
++/// Actual creation uses the already composed input domain. No second scan of
++/// physical input types may infer its class equality.
++pub(super) fn carrier_full(
++    inputs: &Type,
++    life: &zil_ir::StorageLifeShape,
++    context: &zil_ir::RetainedLifeShape,
++) -> R<Type> {
++    if life.binder_count != context.binder_count {
++        return Err(error(
++            "E-TASK-CREATE-FAILURE",
++            Span::default(),
++            "failure input and Task context domains differ",
++        ));
++    }
++    let input = if life.binder_count == 0 {
++        inputs.clone()
++    } else {
++        Type::BorrowedStorage {
++            storage: Box::new(inputs.clone()),
++            life: life.clone(),
++        }
++    };
++    let physical = super::create_failure(input);
++    if life.binder_count == 0 {
++        return Ok(physical);
++    }
++    let mut shape = zil_ir::StorageLifeShape {
++        binder_count: life.binder_count,
++        slots: vec![],
++        retained: vec![],
++        nominal_arguments: vec![],
++    };
++    for slot in &life.slots {
++        let mut path = vec![P::Field(1)];
++        path.extend_from_slice(&slot.path);
++        shape.slots.push(zil_ir::StorageLifeSlot {
++            path,
++            ..slot.clone()
++        });
++    }
++    for class in 0..life.binder_count {
++        for path in [
++            vec![L::Place(P::Field(1))],
++            vec![L::TypeArgument(0)],
++            vec![L::TypeArgument(1)],
++        ] {
++            shape.retained.push(zil_ir::StorageRetainedBinding {
++                path,
++                class,
++                binder: class,
++            });
++        }
++    }
++    for row in &life.nominal_arguments {
++        let mut path = vec![L::Place(P::Field(1))];
++        path.extend_from_slice(&row.path);
++        shape.nominal_arguments.push(zil_ir::NominalLifeArgument {
++            path,
++            ..row.clone()
++        });
++    }
++    Ok(Type::BorrowedStorage {
++        storage: Box::new(physical),
++        life: shape,
++    })
++}
++
+ /// Keep the implicit actual context in the nominal key. Two equal physical
+ /// input tuples with different fixed class maps are different full instances.
+ pub(super) fn context_actual(context: &zil_ir::RetainedLifeShape) -> Type {
++    // This nominal argument has Unit as its result, while retaining the same
++    // complete input context as both arms of the actual create operation.
++    // Parameter and phantom class maps are not result projections.
+     Type::Task {
+         result: Box::new(Type::Unit),
+         retained_life: zil_ir::RetainedLifeShape {
+             binder_count: context.binder_count,
+             ports: context.ports.clone(),
+-            retained: vec![],
+-            nominal_arguments: vec![],
++            retained: context
++                .retained
++                .iter()
++                .filter(|row| !matches!(row.path.first(), Some(L::Result)))
++                .cloned()
++                .collect(),
++            nominal_arguments: context
++                .nominal_arguments
++                .iter()
++                .filter(|row| !matches!(row.path.first(), Some(L::Result)))
++                .cloned()
++                .collect(),
+         },
+     }
+ }
+@@ -200,7 +283,39 @@ pub(crate) fn append_inventory(
+                     .iter()
+                     .map(|local| target.locals[local.0 as usize].ty.clone())
+                     .collect();
+-                if carrier(&inputs, retained_life) != **failure {
++                let fields = match storage.as_ref() {
++                    Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
++                    _ => return Err(unsupported(i.span, "actual failure has no physical fields")),
++                };
++                let input = fields
++                    .get(1)
++                    .filter(|(name, _)| name == "inputs")
++                    .map(|(_, ty)| ty)
++                    .ok_or_else(|| {
++                        unsupported(i.span, "actual failure has no complete input field")
++                    })?;
++                let (physical_inputs, input_life) = match input {
++                    Type::BorrowedStorage { storage, life } => (storage.as_ref(), Some(life)),
++                    other => (other, None),
++                };
++                let matches_worker = if inputs.is_empty() {
++                    *physical_inputs == Type::Unit || *physical_inputs == Type::Tuple(vec![])
++                } else {
++                    matches!(physical_inputs, Type::Tuple(fields) if fields == &inputs)
++                };
++                if !matches_worker {
++                    return Err(error(
++                        "E-TASK-CREATE-FAILURE",
++                        i.span,
++                        "failure input field changes the actual worker parameter inventory",
++                    ));
++                }
++                let expected = if let Some(life) = input_life {
++                    carrier_full(physical_inputs, life, retained_life)?
++                } else {
++                    carrier(&inputs, retained_life)
++                };
++                if expected != **failure {
+                     return Err(error(
+                         "E-TASK-CREATE-FAILURE",
+                         i.span,
+@@ -214,7 +329,7 @@ pub(crate) fn append_inventory(
+                             .id,
+                         ty: (**failure).clone(),
+                         arguments: vec![
+-                            zil_ir::LifeNominalActual::Type(Type::Tuple(inputs)),
++                            zil_ir::LifeNominalActual::Type(input.clone()),
+                             zil_ir::LifeNominalActual::Type(context_actual(retained_life)),
+                         ],
+                     },
+diff --git a/crates/zil-verify/src/lib.rs b/crates/zil-verify/src/lib.rs
+index cf42f90d2..f034cad2b 100644
+--- a/crates/zil-verify/src/lib.rs
++++ b/crates/zil-verify/src/lib.rs
+@@ -402,6 +402,8 @@ struct Budget {
+     // Immutable replacement declarations/schedules only; no source permission.
+     stored_replacement_functions: BTreeSet<FunctionId>,
+     stored_replacements: Vec<Option<std::rc::Rc<stored_flow::replacements::Context>>>,
++    semantic_callables: Vec<semantic::callable_obligations::PendingCallable>,
++    proven_static_occurrences: BTreeSet<(ClosureId,StoragePosition)>,
+     task_frames: BTreeMap<semantic::task_domains::FrameKey,semantic::task_domains::FrameState>,
+     task_constructors: BTreeMap<semantic::task_domains::ConstructorKey,semantic::task_domains::ConstructorObligation>,
+     task_workers: BTreeSet<FunctionId>,
+@@ -518,6 +520,8 @@ impl Budget {
+             replacements: false,
+             stored_replacement_functions: BTreeSet::new(),
+             stored_replacements: Vec::new(),
++            semantic_callables: Vec::new(),
++            proven_static_occurrences: BTreeSet::new(),
+             task_frames: BTreeMap::new(),
+             task_constructors: BTreeMap::new(),
+             task_workers: BTreeSet::new(),
+@@ -1415,6 +1419,7 @@ fn check_module_budget(
+     tasks::transfer::finish(module, &mut budget)?;
+     registration::check_phase(module, &mut budget)?;
+     semantic::task_domains::drain(module,&mut budget)?;
++    semantic::callable_obligations::drain(module,&mut budget)?;
+     Ok(CheckedModule {
+         fingerprint,
+         uses_owned_sum_extension: budget.sums,
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index 7062ab06f..c175ee035 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -73,6 +73,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
+         // equates those outside images with the rigid creator's identities.
+     }
+     context.finish_external_methods(module,&mut external,&mut active,b)?;
++    context.defer_callable_shapes(module,&mut external,&checked_instances,b)?;
+     // External shape requests are obligations, not proof tokens. No Some
+     // program is published while its actual entry/static memory is pending.
+     if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty() {
+diff --git a/crates/zil-verify/src/semantic/mod.rs b/crates/zil-verify/src/semantic/mod.rs
+index 97d555168..120643b76 100644
+--- a/crates/zil-verify/src/semantic/mod.rs
++++ b/crates/zil-verify/src/semantic/mod.rs
+@@ -19,6 +19,7 @@ pub(crate) use nominal_origins::charge_origin as charge_intrinsic_origin;
+ mod closures;
+ mod opaque;
+ mod method_obligations;
++pub(crate) mod callable_obligations;
+ pub(crate) mod task_domains;
+ mod catalogue;
+ mod instances;
+diff --git a/crates/zil-verify/src/stored_flow/static_borrows.rs b/crates/zil-verify/src/stored_flow/static_borrows.rs
+index b7135f13e..1de1cdda1 100644
+--- a/crates/zil-verify/src/stored_flow/static_borrows.rs
++++ b/crates/zil-verify/src/stored_flow/static_borrows.rs
+@@ -648,5 +648,9 @@ pub(super) fn validate(
+             "constant field dependency cycle has no actual program-static root",
+         ));
+     }
++    // Exact actual source occurrences, published only after every constructor,
++    // write and Return and the whole least-root graph have succeeded.
++    b.spend(rooted.len())?;
++    b.proven_static_occurrences.extend(rooted);
+     Ok(())
+ }
