@@ -22,7 +22,7 @@ fn path(left: &mut usize, limits: &Limits, n: usize) -> R<()> {
     Ok(())
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn append(
+pub(in crate::semantics) fn append(
     value: &SemanticTypeValue,
     base: StorageBase,
     bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,

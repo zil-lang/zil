@@ -10100,6 +10100,9 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                     }
                     SemanticDefinitionBody::FunctionWithBody {
                         signature,
+                        protocol_contracts,
+                        foreign,
+                        resume_bound,
                         sites,
                         parameters,
                         receiver_parameter,
@@ -10110,7 +10113,7 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         prepare(
                             &mut pending,
                             meter,
-                            7,
+                            10,
                             std::mem::size_of::<(Walk<'_>, usize)>(),
                         )?;
                         pending.push((Walk::W421(body), depth + 1));
@@ -10119,6 +10122,9 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                         pending.push((Walk::W190(receiver_parameter), depth + 1));
                         pending.push((Walk::W415(parameters), depth + 1));
                         pending.push((Walk::W411(sites), depth + 1));
+                        pending.push((Walk::W106(resume_bound), depth + 1));
+                        pending.push((Walk::W117(foreign), depth + 1));
+                        pending.push((Walk::W111(protocol_contracts), depth + 1));
                         pending.push((Walk::W308(signature), depth + 1));
                     }
                 }

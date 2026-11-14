@@ -1473,10 +1473,10 @@ impl Check<'_, '_> {
                     || signature
                         .parameters
                         .iter()
-                        .any(|p| !matches!(p.mode, PassingMode::Infer | PassingMode::Value))
+                        .any(|p| !matches!(p.mode, PassingMode::Infer | PassingMode::Copy))
                     || !matches!(
                         signature.result_mode,
-                        PassingMode::Infer | PassingMode::Value
+                        PassingMode::Infer | PassingMode::Copy
                     )
                 {
                     return Err(bad(
