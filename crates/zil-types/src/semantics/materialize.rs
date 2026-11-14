@@ -479,6 +479,23 @@ impl<'a> Eval<'a, '_> {
         crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
         Ok(recipe.clone())
     }
+    fn inferred_actual(
+        &mut self,
+        scope: SemanticInstanceId,
+        call: SemanticSiteId,
+        formal: u32,
+        holder: Option<SemanticInstanceId>,
+        depth: usize,
+    ) -> R<SemanticActual> {
+        if let Some(actual) =
+            self.multiple_inferred_actual(scope, call, formal, holder, depth + 1)?
+        {
+            return Ok(actual);
+        }
+        let recipe = self.inferred_recipe(scope, call, formal, holder)?;
+        self.recipe_actual(scope, &recipe, depth + 1)
+    }
+
     fn type_actual(
         &mut self,
         scope: SemanticInstanceId,
@@ -511,11 +528,12 @@ impl<'a> Eval<'a, '_> {
                 if *formal != ordinal {
                     return Err(bad("inferred Type actual changes its full holder ordinal"));
                 }
-                let recipe = self.inferred_recipe(*scope, *call, *formal, Some(instance.id))?;
-                let SemanticActualRecipe::Type(recipe) = recipe else {
+                let SemanticActual::Type(value) =
+                    self.inferred_actual(*scope, *call, *formal, Some(instance.id), depth + 1)?
+                else {
                     return Err(bad("original inference selected a non-Type argument"));
                 };
-                self.ty(*scope, &recipe, None, depth + 1)?
+                value
             }
             _ => return Err(bad("Type formal selects a non-Type actual")),
         };
@@ -1297,7 +1315,7 @@ impl<'a> Eval<'a, '_> {
                     .iter()
                     .find(|row| row.id == *id)
                     .ok_or_else(|| bad("whole closure type has no actual definition"))?;
-                let mut children = self.input.instances.iter().filter(|child| child.definition == *definition && matches!(child.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == closure.function));
+                let mut children = self.input.instances.iter().filter(|child| child.parent == Some(scope) && child.definition == *definition && matches!(child.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(f)) if f == closure.function));
                 let child = children
                     .next()
                     .ok_or_else(|| bad("closure recipe has no matching actual original child"))?;
@@ -1733,8 +1751,7 @@ impl<'a> Eval<'a, '_> {
             if *formal != ordinal {
                 return Err(bad("inferred actual changes its full holder ordinal"));
             }
-            let recipe = self.inferred_recipe(*scope, *call, *formal, Some(holder))?;
-            return self.recipe_actual(*scope, &recipe, depth + 1);
+            return self.inferred_actual(*scope, *call, *formal, Some(holder), depth + 1);
         }
         self.actual(holder, actual, depth)
     }
@@ -1774,10 +1791,7 @@ impl<'a> Eval<'a, '_> {
                 scope,
                 call,
                 formal,
-            } => {
-                let recipe = self.inferred_recipe(*scope, *call, *formal, None)?;
-                self.recipe_actual(*scope, &recipe, depth + 1)?
-            }
+            } => self.inferred_actual(*scope, *call, *formal, None, depth + 1)?,
             SemanticActual::CoreRecipe { scope, recipe } => match recipe.as_ref() {
                 SemanticActualRecipe::Infer => {
                     return Err(bad(
@@ -1893,38 +1907,23 @@ pub(super) fn program(
         let f = eval.function(site.instance)?;
         if matches!(site.action, SemanticSiteAction::CoreBodyCall) {
             let owner = eval.instance(site.instance)?.definition;
-            let recipes = {
+            let count = {
                 let proof = ledger.original.borrow();
                 let proof = proof
                     .as_ref()
                     .ok_or_else(|| bad("call lacks completed original inference"))?;
-                let count = proof
+                proof
                     .calls
                     .get(&(owner, site.recipe))
                     .ok_or_else(|| bad("actual call lacks original fresh-variable solution"))?
-                    .len();
-                eval.fee(count)?;
-                let mut recipes = Vec::new();
-                for formal in 0..count {
-                    let formal = u32::try_from(formal)
-                        .map_err(|_| bad("actual call full formal ordinal overflows"))?;
-                    // This accessor preserves the exact original expression
-                    // boundary of an inferred opaque Type. Copying calls[]
-                    // directly loses that provenance after symbolic solving.
-                    recipes.push(proof.call_actual(
-                        owner,
-                        site.recipe,
-                        formal,
-                        limits,
-                        eval.left,
-                    )?);
-                }
-                recipes
+                    .len()
             };
             let mut actuals = Vec::new();
-            eval.fee(recipes.len())?;
-            for recipe in &recipes {
-                actuals.push(eval.recipe_actual(site.instance, recipe, 0)?);
+            eval.fee(count)?;
+            for formal in 0..count {
+                let formal = u32::try_from(formal)
+                    .map_err(|_| bad("actual call full formal ordinal overflows"))?;
+                actuals.push(eval.inferred_actual(site.instance, site.recipe, formal, None, 0)?);
             }
             site.action = SemanticSiteAction::BodyCall { actuals };
         }

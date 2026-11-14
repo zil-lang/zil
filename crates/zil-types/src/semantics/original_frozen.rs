@@ -137,6 +137,7 @@ fn clone_proof(
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
             .saturating_add(source.protocol_complete.len())
+            .saturating_add(source.cleanup_complete.len())
             .saturating_add(source.associated_complete.len())
             .saturating_add(source.capture_names.len())
             .saturating_add(source.closure_move.len())
@@ -152,6 +153,7 @@ fn clone_proof(
             .saturating_add(source.call_result_origins.len())
             .saturating_add(source.call_callees.len())
             .saturating_add(source.inferred_type_sources.len())
+            .saturating_add(source.inferred_type_origins.len())
             .saturating_add(source.scope_calls.len())
             .saturating_add(source.local_roles.len())
             .saturating_add(source.environments.len())
@@ -216,6 +218,9 @@ fn clone_proof(
             crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
         }
         crate::dyn_metadata::semantic_operand_snapshot(&function.signature, limits, left, 1)?;
+    }
+    for origins in source.inferred_type_origins.values() {
+        spend(left, origins.len(), 0, limits)?;
     }
     for injection in source.injections.values() {
         crate::dyn_metadata::semantic_operand_snapshot(&injection.payload, limits, left, 1)?;

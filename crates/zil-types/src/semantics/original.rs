@@ -167,6 +167,7 @@ pub(super) struct Proof {
     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
     pub complete: BTreeSet<SemanticDefinitionId>,
     pub protocol_complete: BTreeSet<SemanticDefinitionId>,
+    pub cleanup_complete: BTreeSet<SemanticDefinitionId>,
     pub kinds: BTreeMap<SemanticDefinitionId, CallableKind>,
     pub call_targets: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticDefinitionId>,
     pub intrinsics: BTreeMap<(SemanticDefinitionId, SemanticSiteId), IntrinsicCall>,
@@ -185,6 +186,10 @@ pub(super) struct Proof {
         Vec<SemanticActualRecipe>,
     >,
     call_callees: BTreeMap<(SemanticDefinitionId, SemanticSiteId), NodeId>,
+    inferred_type_origins: BTreeMap<
+        (SemanticDefinitionId, NodeId, u32),
+        Vec<(NodeId, SemanticDefinitionId, SemanticSiteId)>,
+    >,
     // None preserves ambiguity between independently originating results.
     inferred_type_sources: BTreeMap<
         (SemanticDefinitionId, NodeId, u32),
@@ -1397,7 +1402,7 @@ impl<'a> Check<'a, '_> {
             match &mut value {
                 SemanticTypeRecipe::Address {
                     mutable, lifetime, ..
-                } => {
+                } if !matches!(lifetime, SemanticOuterLifeRecipe::Static) => {
                     self.pay(2, depth)?;
                     *lifetime =
                         SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
@@ -1413,7 +1418,9 @@ impl<'a> Check<'a, '_> {
                             },
                         });
                 }
-                SemanticTypeRecipe::Desc { lifetime, .. } => {
+                SemanticTypeRecipe::Desc { lifetime, .. }
+                    if !matches!(lifetime, SemanticOuterLifeRecipe::Static) =>
+                {
                     self.pay(2, depth)?;
                     *lifetime =
                         SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
@@ -2638,6 +2645,17 @@ impl<'a> Check<'a, '_> {
                     self.writable(owner, operand, variables, depth + 1)?;
                 }
                 let inner = self.place(owner, operand, variables, depth + 1)?;
+                let inner = if matches!(inner, SemanticTypeRecipe::Opaque { .. }) {
+                    // Keep the true borrowed value's original occurrence. Its
+                    // hidden recipe must later be evaluated at that exact
+                    // factory boundary, never in this borrow caller's scope.
+                    SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Expression(operand.id),
+                    }
+                } else {
+                    inner
+                };
                 SemanticTypeRecipe::Address {
                     mutable: matches!(
                         expression.kind,

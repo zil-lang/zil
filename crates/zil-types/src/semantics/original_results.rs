@@ -34,14 +34,32 @@ impl Check<'_, '_> {
                     .inferred_type_sources
                     .get(&(owner, callee, ordinal as u32))
             {
-                let Some((node, _, _)) = source else {
-                    return Err(pending(
-                        "inferred whole Type has several original opaque result boundaries",
-                    ));
+                let node = if let Some((node, _, _)) = source {
+                    *node
+                } else {
+                    let origins = self
+                        .proof
+                        .inferred_type_origins
+                        .get(&(owner, callee, ordinal as u32))
+                        .ok_or_else(|| {
+                            bad("opaque common type loses its complete original sources")
+                        })?;
+                    common_closed_sources(
+                        self.program,
+                        &self.proof,
+                        owner,
+                        origins,
+                        self.limits,
+                        self.left,
+                    )?;
+                    // This is a representation of an already proved common
+                    // original type. The actual getter must validate *every*
+                    // boundary before publishing the shared actual Type.
+                    origins[0].0
                 };
                 *actual = SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0),
-                    source: SemanticOriginalTypeSource::Expression(*node),
+                    source: SemanticOriginalTypeSource::Expression(node),
                 });
             }
         }
@@ -90,6 +108,23 @@ impl Check<'_, '_> {
                     )?;
                     if original == actual {
                         let key = (owner, callee, *ordinal);
+                        self.pay(1, depth)?;
+                        let origins = self.proof.inferred_type_origins.entry(key).or_default();
+                        *self.left = self
+                            .left
+                            .checked_sub(origins.len().saturating_add(1))
+                            .ok_or_else(|| {
+                                Diagnostic::limit(
+                                    Phase::Types,
+                                    "opaque source-set work exceeded",
+                                    None,
+                                )
+                            })?;
+                        if !origins.iter().any(|(_, old_owner, old_call)| {
+                            (*old_owner, *old_call) == (origin_owner, origin_call)
+                        }) {
+                            origins.push((expression.id, origin_owner, origin_call));
+                        }
                         let candidate = Some((expression.id, origin_owner, origin_call));
                         match self.proof.inferred_type_sources.get(&key) {
                             Some(Some((_, old_owner, old_call)))
@@ -329,4 +364,342 @@ impl Proof {
             result: result.clone(),
         }))
     }
+}
+
+impl Proof {
+    pub(in crate::semantics) fn call_actual_boundaries(
+        &self,
+        program: &SemanticModule,
+        caller: SemanticDefinitionId,
+        call: SemanticSiteId,
+        formal: u32,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<Vec<CalleeResultBoundary>>> {
+        let Some(callee) = self.call_callees.get(&(caller, call)) else {
+            return Ok(None);
+        };
+        let Some(origins) = self.inferred_type_origins.get(&(caller, *callee, formal)) else {
+            return Ok(None);
+        };
+        if origins.len() < 2 {
+            return Ok(None);
+        }
+        common_closed_sources(program, self, caller, origins, limits, left)?;
+        let mut boundaries = Vec::new();
+        for (node, _, _) in origins {
+            let boundary = self
+                .call_result_boundary(
+                    caller,
+                    caller,
+                    &SemanticOriginalTypeSource::Expression(*node),
+                    limits,
+                    left,
+                )?
+                .ok_or_else(|| {
+                    bad("common opaque source lacks its exact original call boundary")
+                })?;
+            boundaries.push(boundary);
+        }
+        Ok(Some(boundaries))
+    }
+}
+fn common_closed_sources(
+    program: &SemanticModule,
+    proof: &Proof,
+    caller: SemanticDefinitionId,
+    origins: &[(NodeId, SemanticDefinitionId, SemanticSiteId)],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    *left = left
+        .checked_sub(origins.len().saturating_add(1))
+        .ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "common opaque source work exceeded", None)
+        })?;
+    if origins.len() < 2 {
+        return Err(bad("common opaque proof has fewer than two sources"));
+    }
+    let mut common = None;
+    for (node, owner, site) in origins {
+        if *owner != caller {
+            return Err(pending(
+                "common opaque sources cross an unproved lexical boundary",
+            ));
+        }
+        let target = *proof
+            .call_targets
+            .get(&(*owner, *site))
+            .ok_or_else(|| bad("opaque source has no real original callee"))?;
+        let definition = original_definition(program, target, limits, left)?;
+        if !definition.parameters.is_empty()
+            || definition.parent.is_some()
+            || !proof.complete.contains(&target)
+        {
+            return Err(pending("common opaque contexts require an independent full generic/ancestor result theorem"));
+        }
+        let ty = proof
+            .types
+            .get(&(caller, Query::Expression(*node)))
+            .ok_or_else(|| bad("opaque source loses its exact expression equation"))?;
+        if !matches!(ty, SemanticTypeRecipe::Opaque { definition, arguments, .. } if *definition == target && arguments.is_empty())
+        {
+            return Err(bad(
+                "opaque source changes its complete callee/actual context",
+            ));
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1)?;
+        if common.is_some_and(|previous| previous != ty) {
+            return Err(bad("opaque sources have different original complete types"));
+        }
+        common = Some(ty);
+        if !zero_original_domain(program, proof, target, ty, limits, left, 0, &mut Vec::new())? {
+            return Err(pending(
+                "common opaque sources lack a proved complete closed result domain",
+            ));
+        }
+    }
+    Ok(())
+}
+fn original_definition<'a>(
+    program: &'a SemanticModule,
+    id: SemanticDefinitionId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<&'a SemanticDefinition> {
+    let _ = limits;
+    *left = left
+        .checked_sub(program.definitions.len().saturating_add(1))
+        .ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "closed original definition lookup exceeded",
+                None,
+            )
+        })?;
+    let mut rows = program.definitions.iter().filter(|row| row.id == id);
+    let row = rows
+        .next()
+        .ok_or_else(|| bad("closed original type has no definition"))?;
+    if rows.next().is_some() {
+        return Err(bad("closed original definition is ambiguous"));
+    }
+    Ok(row)
+}
+fn zero_original_domain(
+    program: &SemanticModule,
+    proof: &Proof,
+    owner: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+    depth: usize,
+    active: &mut Vec<(SemanticDefinitionId, SemanticTypeRecipe)>,
+) -> R<bool> {
+    *left = left
+        .checked_sub(active.len().saturating_add(1))
+        .ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "original closed-domain work exceeded", None)
+        })?;
+    if depth > limits.max_call_depth {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "original closed-domain depth exceeded",
+            None,
+        ));
+    }
+    crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1)?;
+    for (scope, value) in active.iter() {
+        crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+        if *scope == owner && value == ty {
+            return Ok(false);
+        }
+    }
+    active.push((owner, ty.clone()));
+    let result =
+        zero_original_domain_inner(program, proof, owner, ty, limits, left, depth + 1, active);
+    active.pop();
+    result
+}
+fn zero_original_domain_inner(
+    program: &SemanticModule,
+    proof: &Proof,
+    owner: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+    depth: usize,
+    active: &mut Vec<(SemanticDefinitionId, SemanticTypeRecipe)>,
+) -> R<bool> {
+    let recurse = |scope, ty: &SemanticTypeRecipe, left: &mut usize, active: &mut Vec<_>| {
+        zero_original_domain(program, proof, scope, ty, limits, left, depth + 1, active)
+    };
+    Ok(match ty {
+        SemanticTypeRecipe::Atom(ty) => {
+            ty.is_b0_scalar()
+                || matches!(
+                    ty,
+                    Type::Unit | Type::ByteBuffer | Type::ForeignHandle | Type::CWideString
+                )
+        }
+        SemanticTypeRecipe::Exact(value) => {
+            value.classes.is_empty()
+                && value.life.binder_count == 0
+                && value.life.slots.is_empty()
+                && value.life.retained.is_empty()
+                && value.life.nominal_arguments.is_empty()
+                && (value.ty.is_b0_scalar() || value.ty == Type::Unit)
+        }
+        SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(hops),
+            source,
+        } => {
+            let mut target = owner;
+            for _ in 0..*hops {
+                target = original_definition(program, target, limits, left)?
+                    .parent
+                    .ok_or_else(|| bad("closed query escapes its real lexical parent"))?;
+            }
+            let value = proof
+                .types
+                .get(&(target, Query::from(source.clone())))
+                .ok_or_else(|| bad("closed original query has no equation"))?;
+            recurse(target, value, left, active)?
+        }
+        SemanticTypeRecipe::Environment {
+            scope: SemanticScopeRef::Ancestor(hops),
+            ordinal,
+        } => {
+            let mut target = owner;
+            for _ in 0..*hops {
+                target = original_definition(program, target, limits, left)?
+                    .parent
+                    .ok_or_else(|| bad("closed environment escapes its real lexical parent"))?;
+            }
+            let (parent, value) = proof
+                .environments
+                .get(&(target, *ordinal))
+                .ok_or_else(|| bad("closed type loses its original sealed environment"))?;
+            recurse(*parent, value, left, active)?
+        }
+        SemanticTypeRecipe::Opaque {
+            definition,
+            arguments,
+            hidden,
+        } => {
+            let source = original_definition(program, *definition, limits, left)?;
+            arguments.is_empty()
+                && source.parameters.is_empty()
+                && source.parent.is_none()
+                && proof.complete.contains(definition)
+                && recurse(*definition, hidden, left, active)?
+        }
+        SemanticTypeRecipe::Closure {
+            definition,
+            arguments,
+            environment,
+        } => {
+            let child = original_definition(program, *definition, limits, left)?;
+            if child.parent != Some(owner)
+                || !arguments.is_empty()
+                || !child.parameters.is_empty()
+                || child.environment.len() != environment.len()
+                || !proof.complete.contains(definition)
+            {
+                false
+            } else {
+                let mut all = true;
+                for value in environment {
+                    all &= match value {
+                        SemanticActualRecipe::Type(ty) => recurse(owner, ty, left, active)?,
+                        _ => false,
+                    };
+                }
+                all
+            }
+        }
+        SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::OwnedStore(inner) => {
+            recurse(owner, inner, left, active)?
+        }
+        SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
+            let mut all = true;
+            for field in fields {
+                all &= recurse(owner, field, left, active)?;
+            }
+            all
+        }
+        SemanticTypeRecipe::Array { element, length } => {
+            matches!(
+                length.as_ref(),
+                SemanticConstRecipe::Value(_) | SemanticConstRecipe::IntegerLiteral(_)
+            ) && recurse(owner, element, left, active)?
+        }
+        SemanticTypeRecipe::ErrorUnion { error, result } => {
+            recurse(owner, error, left, active)? && recurse(owner, result, left, active)?
+        }
+        SemanticTypeRecipe::Nominal {
+            definition,
+            arguments,
+        } => {
+            let source = original_definition(program, *definition, limits, left)?;
+            crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
+            let mut all =
+                source.implicit_lifetimes.is_empty() && source.parameters.len() == arguments.len();
+            for actual in arguments {
+                all &= match actual {
+                    SemanticActualRecipe::Type(ty) => recurse(owner, ty, left, active)?,
+                    SemanticActualRecipe::Const { carrier, value } => {
+                        matches!(
+                            value,
+                            SemanticConstRecipe::Value(_) | SemanticConstRecipe::IntegerLiteral(_)
+                        ) && recurse(owner, carrier, left, active)?
+                    }
+                    _ => false,
+                };
+            }
+            let body = match &source.body {
+                SemanticDefinitionBody::Nominal { body, .. } => body,
+                _ => return Err(bad("closed nominal type selects a nonnominal definition")),
+            };
+            let mut fields = Vec::new();
+            match body {
+                SemanticNominalBody::Product { fields: rows } => {
+                    for field in rows {
+                        fields.push(&field.ty);
+                    }
+                }
+                SemanticNominalBody::Enum { variants } => {
+                    for variant in variants {
+                        fields.extend(variant.fields.iter());
+                    }
+                }
+            }
+            *left = left
+                .checked_sub(fields.len().saturating_add(1))
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Types, "closed nominal field work exceeded", None)
+                })?;
+            for field in fields {
+                let value = super::super::instantiate::ty(
+                    program,
+                    proof,
+                    field,
+                    super::super::instantiate::DomainMapping {
+                        source: *definition,
+                        use_definition: owner,
+                        arguments,
+                        parent_call: None,
+                    },
+                    limits,
+                    left,
+                )?;
+                all &= recurse(owner, &value, left, active)?;
+            }
+            all
+        }
+        // Every unresolved or lifetime-bearing constructor remains unproved.
+        // No empty claimed slots/ports, Closed bound, or actual type hint is a
+        // zero-domain theorem for one of these constructors.
+        _ => false,
+    })
 }

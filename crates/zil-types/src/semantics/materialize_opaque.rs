@@ -2,6 +2,14 @@
 //! the actual recipes; the actual emitted call selects its real callee entry.
 //! Callee-local regions are deliberately not transported by this pass.
 use super::*;
+
+#[derive(PartialEq, Eq)]
+struct ClosedContext {
+    definition: SemanticDefinitionId,
+    arguments: Vec<SemanticActual>,
+    environment: Vec<SemanticActual>,
+}
+
 impl Eval<'_, '_> {
     fn opaque_actuals_match(
         &mut self,
@@ -206,6 +214,243 @@ impl Eval<'_, '_> {
         }
         Ok(())
     }
+    fn charge_closed_context(&mut self, context: Option<&ClosedContext>) -> R<()> {
+        if let Some(context) = context {
+            self.fee(
+                context
+                    .arguments
+                    .len()
+                    .saturating_add(context.environment.len()),
+            )?;
+            for actual in context.arguments.iter().chain(&context.environment) {
+                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn closed_context_actual(&mut self, value: &SemanticActual) -> R<()> {
+        let shape = match value {
+            SemanticActual::Type(SemanticTypeValue::Resolved { ty, life, classes })
+            | SemanticActual::Const {
+                ty: SemanticTypeValue::Resolved { ty, life, classes },
+                ..
+            } => {
+                if !classes.is_empty() {
+                    return Err(unknown(
+                        "multiple opaque origins retain a free actual class",
+                    ));
+                }
+                crate::stored::ordinary_zero_type(self.module, ty, self.limits, self.left)?;
+                life
+            }
+            _ => {
+                return Err(unknown(
+                    "multiple opaque origins require a completely closed actual context",
+                ));
+            }
+        };
+        let _ = self.copy_shape(shape)?;
+        if shape.binder_count != 0
+            || !shape.slots.is_empty()
+            || !shape.retained.is_empty()
+            || !shape.nominal_arguments.is_empty()
+        {
+            return Err(unknown(
+                "multiple opaque origins retain a nonempty actual domain",
+            ));
+        }
+        Ok(())
+    }
+
+    fn closed_result_context(
+        &mut self,
+        creator: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        value: &SemanticTypeValue,
+        depth: usize,
+    ) -> R<ClosedContext> {
+        self.node(depth)?;
+        let SemanticTypeRecipe::Closure {
+            definition,
+            arguments,
+            environment,
+        } = recipe
+        else {
+            return Err(unknown(
+                "multiple opaque origins need their complete original closure result",
+            ));
+        };
+        let SemanticTypeValue::Resolved {
+            ty: Type::Closure(id),
+            life,
+            classes,
+        } = value
+        else {
+            return Err(bad(
+                "closed original closure result has another actual carrier",
+            ));
+        };
+        let _ = self.copy_shape(life)?;
+        if life.binder_count != 0
+            || !classes.is_empty()
+            || !life.slots.is_empty()
+            || !life.retained.is_empty()
+            || !life.nominal_arguments.is_empty()
+        {
+            return Err(unknown(
+                "multiple opaque origins have a free actual result domain",
+            ));
+        }
+        crate::stored::ordinary_zero_type(
+            self.module,
+            &Type::Closure(*id),
+            self.limits,
+            self.left,
+        )?;
+        self.fee(
+            self.module
+                .closures
+                .len()
+                .saturating_add(self.input.instances.len()),
+        )?;
+        let closure = self
+            .module
+            .closures
+            .iter()
+            .find(|row| row.id == *id)
+            .ok_or_else(|| bad("closed result has no actual closure definition"))?;
+        let mut children = self.input.instances.iter().filter(|row| {
+            row.parent == Some(creator)
+                && row.definition == *definition
+                && row.target
+                    == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
+                        closure.function,
+                    ))
+                && matches!(&row.environment, Some(SemanticEnvironmentInstance {
+                    closure: SemanticClosureTarget::Typed(actual), ..
+                }) if actual == id)
+        });
+        let child = children
+            .next()
+            .ok_or_else(|| bad("closed result lacks its actual creator environment"))?;
+        if children.next().is_some() {
+            return Err(bad("closed result has ambiguous creator environments"));
+        }
+        let actual_environment = &child
+            .environment
+            .as_ref()
+            .expect("selected environment")
+            .actuals;
+        self.fee(arguments.len().saturating_add(environment.len()))?;
+        if arguments.len() != child.actuals.len() || environment.len() != actual_environment.len() {
+            return Err(bad("closed result omits a complete mixed context"));
+        }
+        let mut checked_arguments = Vec::new();
+        for (ordinal, (recipe, claim)) in arguments.iter().zip(&child.actuals).enumerate() {
+            let expected = self.recipe_actual(creator, recipe, depth + 1)?;
+            let actual = self.holder_actual(child.id, ordinal as u32, claim, depth + 1)?;
+            self.closed_context_actual(&expected)?;
+            self.closed_context_actual(&actual)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&expected, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&actual, self.limits, self.left, 1)?;
+            if expected != actual {
+                return Err(bad("closed result changes its original mixed actual"));
+            }
+            checked_arguments.push(expected);
+        }
+        let mut checked_environment = Vec::new();
+        for (recipe, claim) in environment.iter().zip(actual_environment) {
+            let expected = self.recipe_actual(creator, recipe, depth + 1)?;
+            let actual = self.actual(creator, claim, depth + 1)?;
+            self.closed_context_actual(&expected)?;
+            self.closed_context_actual(&actual)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&expected, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&actual, self.limits, self.left, 1)?;
+            if expected != actual {
+                return Err(bad("closed result changes its original sealed environment"));
+            }
+            checked_environment.push(expected);
+        }
+        Ok(ClosedContext {
+            definition: *definition,
+            arguments: checked_arguments,
+            environment: checked_environment,
+        })
+    }
+
+    pub(super) fn multiple_inferred_actual(
+        &mut self,
+        caller: SemanticInstanceId,
+        call: SemanticSiteId,
+        formal: u32,
+        holder: Option<SemanticInstanceId>,
+        depth: usize,
+    ) -> R<Option<SemanticActual>> {
+        self.node(depth)?;
+        let owner = self.instance(caller)?.definition;
+        let holder = holder
+            .map(|id| self.instance(id).map(|row| row.definition))
+            .transpose()?;
+        self.fee(self.input.definitions.len())?;
+        let boundaries = {
+            let proof = self.ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .filter(|proof| proof.complete.contains(&owner))
+                .or_else(|| self.ledger.frozen.as_deref().map(|source| &source.original))
+                .ok_or_else(|| bad("inferred opaque origins lack their complete original proof"))?;
+            if let Some(holder) = holder {
+                if proof.call_targets.get(&(owner, call)) != Some(&holder) {
+                    // Parent Scope actuals have a separate, checked receiver solution.
+                    return Ok(None);
+                }
+            }
+            let program = if self.input.definitions.iter().any(|row| row.id == owner) {
+                self.input
+            } else {
+                &self
+                    .ledger
+                    .frozen
+                    .as_deref()
+                    .ok_or_else(|| {
+                        bad("inferred opaque origins lost their original definition forest")
+                    })?
+                    .semantic
+            };
+            proof.call_actual_boundaries(program, owner, call, formal, self.limits, self.left)?
+        };
+        let Some(boundaries) = boundaries else {
+            return Ok(None);
+        };
+        self.fee(boundaries.len())?;
+        if boundaries.len() < 2 {
+            return Err(bad(
+                "multiple opaque origins omit their full original source set",
+            ));
+        }
+        let mut result: Option<(SemanticTypeValue, Option<ClosedContext>)> = None;
+        for boundary in &boundaries {
+            let (value, context) =
+                self.actual_result_boundary(caller, boundary, None, true, depth + 1)?;
+            if let Some((prior, prior_context)) = &result {
+                crate::dyn_metadata::semantic_operand_snapshot(prior, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
+                self.charge_closed_context(prior_context.as_ref())?;
+                self.charge_closed_context(context.as_ref())?;
+                if prior != &value || prior_context != &context {
+                    return Err(bad(
+                        "original opaque origins disagree on their complete actual result and context",
+                    ));
+                }
+            } else {
+                result = Some((value, context));
+            }
+        }
+        let (value, _) = result.ok_or_else(|| bad("inferred opaque source set is empty"))?;
+        Ok(Some(SemanticActual::Type(value)))
+    }
+
     pub(super) fn original_result_boundary(
         &mut self,
         scope: SemanticInstanceId,
@@ -232,13 +477,26 @@ impl Eval<'_, '_> {
         let Some(boundary) = boundary else {
             return Ok(None);
         };
-        if boundary.caller != caller_definition {
-            return Err(bad("opaque result changes its original caller definition"));
-        }
         if scope != caller {
             return Err(unknown(
                 "ancestor opaque result requires its actual sealed environment boundary",
             ));
+        }
+        self.actual_result_boundary(caller, &boundary, hint, false, depth + 1)
+            .map(|(value, _)| Some(value))
+    }
+
+    fn actual_result_boundary(
+        &mut self,
+        caller: SemanticInstanceId,
+        boundary: &super::super::original::CalleeResultBoundary,
+        hint: Option<&Type>,
+        closed: bool,
+        depth: usize,
+    ) -> R<(SemanticTypeValue, Option<ClosedContext>)> {
+        self.node(depth)?;
+        if boundary.caller != self.instance(caller)?.definition {
+            return Err(bad("opaque result changes its original caller definition"));
         }
         let function = self.function(caller)?;
         self.fee(self.input.sites.len())?;
@@ -310,7 +568,7 @@ impl Eval<'_, '_> {
             actuals.push(self.recipe_actual(caller, recipe, depth + 1)?);
         }
         self.fee(self.input.instances.len())?;
-        let mut result: Option<SemanticTypeValue> = None;
+        let mut result: Option<(SemanticTypeValue, Option<ClosedContext>)> = None;
         for candidate in &self.input.instances {
             if candidate.definition != boundary.callee
                 || candidate.target
@@ -323,20 +581,31 @@ impl Eval<'_, '_> {
             }
             let mut value = self.ty(candidate.id, &boundary.result, hint, depth + 1)?;
             self.explicit_result_images(&mut value, &actuals)?;
-            if let Some(prior) = &result {
+            let context = if closed {
+                Some(self.closed_result_context(
+                    candidate.id,
+                    &boundary.result,
+                    &value,
+                    depth + 1,
+                )?)
+            } else {
+                None
+            };
+            if let Some((prior, prior_context)) = &result {
                 crate::dyn_metadata::semantic_operand_snapshot(prior, self.limits, self.left, 1)?;
                 crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
-                if prior != &value {
+                self.charge_closed_context(prior_context.as_ref())?;
+                self.charge_closed_context(context.as_ref())?;
+                if prior != &value || prior_context != &context {
                     return Err(bad(
                         "actual callee contexts disagree on the complete original result",
                     ));
                 }
             } else {
-                result = Some(value);
+                result = Some((value, context));
             }
         }
         result
-            .map(Some)
             .ok_or_else(|| bad("opaque result call has no complete matching actual callee context"))
     }
 }
