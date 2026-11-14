@@ -315,6 +315,9 @@ pub(super) fn semantic_copy_capture(
             "completed nominal capture is not its immutable actual closure",
         ));
     }
+    // Copy capture data does not make its ordinary F carrier Copy. Schedule
+    // the established complete environment responsibility proof as well.
+    b.owning_environment_captures = true;
     Ok(true)
 }
 

@@ -29,6 +29,13 @@ pub(super) struct DynOutputClass {
 pub(super) mod enum_address;
 mod nominal;
 mod nominal_zero;
+mod synchronous_abi;
+pub(super) fn synchronous_callback_module(
+    module: &TypedModule,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    synchronous_abi::module(module, b)
+}
 pub(super) fn validate_nominal_metadata(
     module: &TypedModule,
     instance: &LifeNominalInstance,
@@ -8044,7 +8051,8 @@ pub(super) fn infer(
             && !super::stored_callables::scalar_foreign(f, b)?
             && !crate::tasks::input_scope::provider(module, f, b)?)
             || f.call_kind != CallKind::Direct
-                && !(b.task_sources() && f.call_kind == CallKind::Suspend)
+                && !(f.call_kind == CallKind::Suspend
+                    && (b.task_sources() || b.stored_synchronous_abis.contains(&f.id)))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,

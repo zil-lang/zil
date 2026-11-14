@@ -211,6 +211,10 @@ fn analyze_budgeted_context(
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
+        let synchronous_callbacks = ordinary_required
+            && !budget.task_sources()
+            && !budget.masked_stored_tasks()
+            && stored_flow::synchronous_callback_module(module, budget)?;
         if budget.task_sources() || budget.masked_stored_tasks() {
             if budget.masked_stored_tasks() && !budget.static_occurrences {
                 budget.spend(module.functions.len(), "qualified Option function mask")?;
@@ -226,7 +230,7 @@ fn analyze_budgeted_context(
                 }
             }
             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
-        } else if ordinary_required {
+        } else if ordinary_required && !synchronous_callbacks {
             let members = composition::partition(module, budget)?;
             if !members.iter().any(|member| *member) || !members.iter().any(|member| !*member) {
                 return Err(vec![Diagnostic::unsupported(

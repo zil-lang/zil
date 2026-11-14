@@ -56,6 +56,8 @@ pub(super) struct Budget {
     // Complete original/actual class relation for this immutable request,
     // including nonzero phantom domains. No memory/cleanup permission.
     pub(super) semantic_closures_proven: BTreeSet<zil_ir::ClosureId>,
+    // Actual closed execution graph, not an ABI rewrite or a Task capability.
+    pub(super) stored_synchronous_abis: BTreeSet<FunctionId>,
     pub(super) dyn_contexts: bool,
     // Concrete-function result occurrences awaiting actual CFG grounding.
     // Neither a signature nor its declared source upper proves these rows.
@@ -211,6 +213,7 @@ impl Budget {
             dyn_interfaces: BTreeSet::new(),
             semantic_zero_closures: BTreeSet::new(),
             semantic_closures_proven: BTreeSet::new(),
+            stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
