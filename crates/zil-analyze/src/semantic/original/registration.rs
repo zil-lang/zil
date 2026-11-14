@@ -193,6 +193,21 @@ impl Solver<'_, '_> {
                 "original registration operation selects another payload family",
             ));
         }
+        if observing {
+            let selected = self.type_root(input, b)?;
+            let source = match self.state.arena[selected] {
+                Kind::Address { inner, .. } => self.type_root(inner, b)?,
+                _ => selected,
+            };
+            if matches!(self.state.arena[source], Kind::Wrapped(Wrapper::Managed, _)) {
+                let place = self
+                    .place(frame, &arguments[0], false, b, depth + 1)?
+                    .ok_or_else(|| {
+                        unknown("registration observation requires its exact original owning place")
+                    })?;
+                self.describe_argument(frame, &arguments[0], &place, source, b, depth + 1)?;
+            }
+        }
         let result = if intrinsic == sealed::Intrinsic::AsyncPoll {
             let mut definition = None;
             for candidate in self.inventory.definitions.values() {
