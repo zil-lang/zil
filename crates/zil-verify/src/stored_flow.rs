@@ -1952,8 +1952,13 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
             b.pure_nominal = true;
         }
         physical(&instance.ty, limits, b)?;
-        let (storage, _) = qualified(&instance.ty)
-            .ok_or_else(|| err("nominal instance has no complete qualified type"))?;
+        let storage = match qualified(&instance.ty) {
+            Some((storage, _)) => storage,
+            None => {
+                nominal::plain(module, instance, limits, b)?;
+                &instance.ty
+            }
+        };
         b.spend(declarations.len())?;
         let d = declarations
             .iter()

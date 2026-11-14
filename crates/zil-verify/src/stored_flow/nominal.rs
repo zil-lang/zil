@@ -1,5 +1,7 @@
 //! Private nominal metadata proof. No physical target or permission is produced.
 use super::*;
+mod plain;
+pub(super) use plain::check as plain;
 
 pub(super) fn rows(
     module: &TypedModule,
@@ -27,6 +29,11 @@ fn walk(
     }
     b.spend(1)?;
     active.push(identity);
+    if !matches!(instance.ty, Type::BorrowedStorage { .. }) {
+        plain::with_active(module, instance, limits, b, active)?;
+        active.pop();
+        return Ok(Vec::new());
+    }
     physical(&instance.ty, limits, b)?;
     let Type::BorrowedStorage { storage, life } = &instance.ty else {
         return Err(err("nominal metadata has no qualified type"));
@@ -353,6 +360,9 @@ pub(super) fn same_key(
             }
             _ => {}
         }
+    }
+    if !matches!(a.ty, Type::BorrowedStorage { .. }) && !matches!(c.ty, Type::BorrowedStorage { .. }) {
+        return Ok(a.declaration == c.declaration && a.arguments == c.arguments);
     }
     let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
         (&a.ty, &c.ty)
