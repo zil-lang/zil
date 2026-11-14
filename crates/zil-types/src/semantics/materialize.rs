@@ -2154,7 +2154,13 @@ pub(super) fn program(
                 .ok_or_else(|| {
                     unknown("type-use requires its actual value or declared local type")
                 })?;
-                *expected = eval.value(site.instance, expected, Some(hint), 0)?;
+                *expected = eval.value(site.instance, expected, Some(hint), 0).map_err(|mut diagnostic| {
+                    diagnostic.notes.push(format!(
+                        "actual type-use: instance {:?}, recipe {:?}, subject {:?}, type constructor {:?}",
+                        site.instance, site.recipe, subject, std::mem::discriminant(hint)
+                    ));
+                    diagnostic
+                })?;
             }
             SemanticSiteAction::DeclareLocal {
                 local: SemanticLocalTarget::Typed(local),
@@ -2164,7 +2170,13 @@ pub(super) fn program(
                     .locals
                     .get(local.0 as usize)
                     .ok_or_else(|| bad("declaration constraint names an absent actual local"))?;
-                *expected = eval.value(site.instance, expected, Some(&hint.ty), 0)?;
+                *expected = eval.value(site.instance, expected, Some(&hint.ty), 0).map_err(|mut diagnostic| {
+                    diagnostic.notes.push(format!(
+                        "actual local declaration: instance {:?}, recipe {:?}, local {:?}, type constructor {:?}",
+                        site.instance, site.recipe, local, std::mem::discriminant(&hint.ty)
+                    ));
+                    diagnostic
+                })?;
             }
             SemanticSiteAction::Call { actuals, .. } | SemanticSiteAction::BodyCall { actuals } => {
                 eval.fee(actuals.len())?;
