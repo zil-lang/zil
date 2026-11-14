@@ -853,9 +853,18 @@ impl<'a> World<'a, '_> {
                         .clone();
                 }
                 _ => {
-                    return Err(pending(
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        image,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    self.pay(128)?;
+                    let mut diagnostic = pending(
                         "call class requires its complete scoped invocation/outer relation",
-                    ));
+                    );
+                    diagnostic.notes.push(format!("unmapped original call class: {image:?}; mixed actual positions: {}; sealed environment: {}",actuals.len(),environment.is_some()));
+                    return Err(diagnostic);
                 }
             }
         }

@@ -456,6 +456,54 @@ pub(super) fn evaluate(
     Ok(selected)
 }
 
+/// A declaration-local anonymous input is universally instantiated only at
+/// this real call boundary. Its Fixed identity inside the callee is unchanged;
+/// captured Fixed and every whole-Type intrinsic class use separate mappings.
+fn incoming_source(
+    world: &mut World<'_, '_>,
+    child: &SemanticInstance,
+    binder: StorageBinder,
+) -> R<Option<SemanticClassExpr>> {
+    let source = world.binding(child, binder)?;
+    if matches!(binder, StorageBinder::Invocation(_)) {
+        return Ok(Some(source));
+    }
+    let SemanticClassExpr::Implicit {
+        scope: SemanticScopeRef::Ancestor(0),
+        ordinal,
+    } = &source
+    else {
+        return Ok(None);
+    };
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = child.target else {
+        return Err(bad("call input class has no actual Typed entry"));
+    };
+    let entry = world.function(id)?;
+    let definition = world.definition(child.definition)?;
+    if entry.environment.is_some()
+        || !matches!(
+            definition.kind,
+            SemanticDefinitionKind::Function
+                | SemanticDefinitionKind::Method
+                | SemanticDefinitionKind::TaskEntry
+        )
+    {
+        return Ok(None);
+    }
+    world.pay(definition.implicit_lifetimes.len())?;
+    if definition
+        .implicit_lifetimes
+        .iter()
+        .filter(|row| row.ordinal == *ordinal)
+        .count()
+        != 1
+    {
+        return Err(bad(
+            "call input anonymous class has no unique original declaration occurrence",
+        ));
+    }
+    Ok(Some(source))
+}
 fn invocation_inputs(
     world: &mut World<'_, '_>,
     instance: &SemanticInstance,
@@ -467,9 +515,10 @@ fn invocation_inputs(
     let mut mapping: Vec<(SemanticClassExpr, SemanticClassExpr)> = Vec::new();
     world.pay(header.bindings.len().saturating_add(header.classes.len()))?;
     for row in &header.bindings {
-        let (StorageBinder::Invocation(_), StorageBase::Parameter(index)) =
-            (row.binder, row.position.base)
-        else {
+        let StorageBase::Parameter(index) = row.position.base else {
+            continue;
+        };
+        let Some(source) = incoming_source(world, child, row.binder)? else {
             continue;
         };
         let SemanticTypeValue::Resolved { life, classes, .. } = parameters
@@ -500,13 +549,13 @@ fn invocation_inputs(
         let actual = classes
             .get(slot.binder as usize)
             .ok_or_else(|| bad("invocation argument class exceeds its complete domain"))?;
-        let source = world.binding(child, row.binder)?;
         insert_invocation(world, instance, &mut mapping, source, actual, implicit)?;
     }
     for row in &header.classes {
-        let (StorageBinder::Invocation(_), StorageBase::Parameter(index)) =
-            (row.binder, row.position.base)
-        else {
+        let StorageBase::Parameter(index) = row.position.base else {
+            continue;
+        };
+        let Some(source) = incoming_source(world, child, row.binder)? else {
             continue;
         };
         let SemanticTypeValue::Resolved { ty, life, classes } = parameters
@@ -516,8 +565,15 @@ fn invocation_inputs(
             return Err(bad("invocation argument retains an unresolved type"));
         };
         let actual = if row.position.path.is_empty()
-            && matches!(ty, Type::BorrowedStorage { .. } | Type::Closure(_))
-        {
+            && matches!(
+                ty,
+                Type::BorrowedStorage { .. }
+                    | Type::Closure(_)
+                    | Type::MutexGuard { .. }
+                    | Type::Task { .. }
+                    | Type::Dyn { .. }
+                    | Type::OwnedDyn { .. }
+            ) {
             classes
                 .get(row.position.class as usize)
                 .ok_or_else(|| bad("invocation truncates a whole argument class domain"))?
@@ -541,7 +597,6 @@ fn invocation_inputs(
                 .get(part.binder as usize)
                 .ok_or_else(|| bad("invocation nested class exceeds complete argument N"))?
         };
-        let source = world.binding(child, row.binder)?;
         insert_invocation(world, instance, &mut mapping, source, actual, implicit)?;
     }
     Ok(mapping)
