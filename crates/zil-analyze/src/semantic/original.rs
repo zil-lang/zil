@@ -4,6 +4,7 @@ use super::*;
 use zil_base::NodeId;
 
 mod abstract_calls;
+mod body_equivalence;
 mod buffers;
 mod capabilities;
 mod captures;
@@ -3340,26 +3341,7 @@ impl Solver<'_, '_> {
         target: SemanticDefinitionId,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        let definition = self.inventory.definition(target, b)?;
-        let SemanticDefinitionBody::FunctionWithBody {
-            body: SemanticOriginalFunctionBody::Defined(other),
-            ..
-        } = &definition.body
-        else {
-            return Err(fail("original closure definition omits its literal body"));
-        };
-        crate::dyn_metadata::recipe(body, b)?;
-        crate::dyn_metadata::recipe(other, b)?;
-        let mut body = body.clone();
-        let mut other = other.clone();
-        normalize_block(&mut body, b, 0)?;
-        normalize_block(&mut other, b, 0)?;
-        if body != other {
-            return Err(fail(
-                "original closure literal and child declaration have different operations",
-            ));
-        }
-        Ok(())
+        self.compare_child_body(body, target, b)
     }
 }
 fn normalize_block(

@@ -1184,9 +1184,13 @@ impl Check<'_, '_> {
     ) -> CompileResult<Value> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth {
-            return Err(unknown(
-                "semantic value transport exceeds its finite actual SSA depth",
+            let mut errors =
+                unknown("semantic value transport exceeds its finite actual SSA depth");
+            errors[0].notes.push(format!(
+                "actual function {} SSA {} original world {}:{}",
+                function.id.0, id.0, instance.id.module.0, instance.id.index
             ));
+            return Err(errors);
         }
         let ty = function
             .values
@@ -1196,12 +1200,23 @@ impl Check<'_, '_> {
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
         }
-        if matches!(ty, Type::FunctionPointer { .. }) {
-            self.zero_data(ty, b, depth + 1)?;
-            return Ok(value::scalar(ty.clone()));
-        }
-        if matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task {..}|Type::Mutex {..}))
-        {
+        if matches!(
+            ty,
+            Type::FunctionPointer { .. }
+                | Type::ForeignCallback { .. }
+                | Type::Managed(_)
+                | Type::Tuple(_)
+                | Type::Array { .. }
+                | Type::Record { .. }
+                | Type::Package { .. }
+                | Type::Enum { .. }
+                | Type::ErrorUnion { .. }
+        ) {
+            // A complete independent zero-domain reconstruction needs no
+            // predecessor SSA class equation. Actual initialization, source,
+            // loans and cleanup remain obligations of each operation/kernel.
+            // This is not an empty-shape shortcut: zero_data walks the full
+            // nominal/opaque inventory and rejects nonzero or Unknown scopes.
             self.zero_data(ty, b, depth + 1)?;
             return Ok(value::scalar(ty.clone()));
         }
@@ -1660,9 +1675,15 @@ impl Check<'_, '_> {
                     classes,
                 })
             }
-            _ => Err(unknown(
-                "semantic value requires its exact actual class/role transport",
-            )),
+            _ => {
+                let mut errors =
+                    unknown("semantic value requires its exact actual class/role transport");
+                errors[0].notes.push(format!(
+                    "actual function {} SSA {} original world {}:{}",
+                    function.id.0, id.0, instance.id.module.0, instance.id.index
+                ));
+                Err(errors)
+            }
         }
     }
     pub(super) fn local_value(
