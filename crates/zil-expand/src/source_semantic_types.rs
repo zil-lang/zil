@@ -189,6 +189,75 @@ impl Builder<'_, '_, '_, '_> {
         }
         Err(error(span, "Self has no original nominal/trait/impl owner"))
     }
+    // Only a declaration-known Resource selects the default description head.
+    // Abstract trait Self and a generic impl target keep their symbolic role.
+    fn self_is_resource(&mut self, span: Span, depth: usize) -> R<bool> {
+        let mut next = Some(self.owner);
+        while let Some(index) = next {
+            self.budget.node(span, depth)?;
+            let row = &self.inventory.declarations[index];
+            match &row.item.kind {
+                s::ItemKind::Aggregate(aggregate) => {
+                    return Ok(aggregate.kind == s::AggregateKind::Resource);
+                }
+                s::ItemKind::Enum(_) | s::ItemKind::Trait(_) => return Ok(false),
+                s::ItemKind::Impl(implementation) => {
+                    let mut target = &implementation.target;
+                    let mut target_depth = depth;
+                    while let s::TypeKind::Group(inner) = &target.kind {
+                        target_depth = target_depth
+                            .checked_add(1)
+                            .ok_or_else(|| error(span, "Self target depth overflow"))?;
+                        self.budget.node(target.span, target_depth)?;
+                        target = inner;
+                    }
+                    let s::TypeKind::Named { path, .. } = &target.kind else {
+                        return Ok(false);
+                    };
+                    let caller = self.owner;
+                    let offset = self.lexical_offset;
+                    self.owner = index;
+                    self.lexical_offset = 0;
+                    let answer = (|| {
+                        if let [name] = path.as_slice() {
+                            self.budget.text(name, target.span)?;
+                            if self.formal(name, 0, target.span)?.is_some() {
+                                return Ok(false);
+                            }
+                            if matches!(
+                                name.as_str(),
+                                "ByteBuffer"
+                                    | "TaskI32"
+                                    | "OwnedStore"
+                                    | "Mutex"
+                                    | "Task"
+                                    | "Registration"
+                                    | "AsyncRegistration"
+                            ) {
+                                return Ok(true);
+                            }
+                            if name == "Self" {
+                                return Err(error(
+                                    target.span,
+                                    "impl Self target has no independently declared resource head",
+                                ));
+                            }
+                        }
+                        let declaration = self.named(path, target.span)?;
+                        Ok(
+                            matches!(&self.inventory.declarations[declaration].item.kind,
+                            s::ItemKind::Aggregate(aggregate) if aggregate.kind == s::AggregateKind::Resource),
+                        )
+                    })();
+                    self.owner = caller;
+                    self.lexical_offset = offset;
+                    return answer;
+                }
+                _ => next = row.parent,
+            }
+        }
+        Ok(false)
+    }
     pub(super) fn actuals(
         &mut self,
         row: usize,
@@ -416,9 +485,23 @@ impl Builder<'_, '_, '_, '_> {
                             return Ok(SemanticTypeRecipe::Formal(formal));
                         }
                         if name == "Self" {
-                            return Ok(SemanticTypeRecipe::SelfType {
+                            let value = SemanticTypeRecipe::SelfType {
                                 scope: self.self_scope(ty.span)?,
-                            });
+                            };
+                            return if !payload && self.self_is_resource(ty.span, depth + 1)? {
+                                self.budget.lineage_bytes(
+                                    std::mem::size_of::<SemanticTypeRecipe>(),
+                                    ty.span,
+                                )?;
+                                Ok(SemanticTypeRecipe::Desc {
+                                    lifetime: SemanticOuterLifeRecipe::Class(
+                                        self.implicit(path, ty.span)?,
+                                    ),
+                                    inner: Box::new(value),
+                                })
+                            } else {
+                                Ok(value)
+                            };
                         }
                         if name == "ByteBuffer" || name == "TaskI32" {
                             let inner =
@@ -1181,5 +1264,101 @@ impl Builder<'_, '_, '_, '_> {
             result = mode;
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod self_header_tests {
+    use super::*;
+    use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
+    use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn default_resource_self_has_its_own_header_description_occurrence() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(2),
+            "self-header.zil",
+            "resource Mark{let code:i32;}impl Drop for Mark{fn drop(self:Self){}}impl Mark{fn view(self:&Self){}}trait Abstract{fn take(self:Self);}impl<T> T{fn unknown(self:Self){}}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut remaining = limits.clone();
+        let inventory =
+            collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+                .unwrap();
+        let definitions = &inventory.modules[0].1.definitions;
+        let find = |name: &str| {
+            definitions
+                .iter()
+                .find(|definition| {
+                    let SemanticDefinitionBody::FunctionWithBody { parameters, .. } =
+                        &definition.body
+                    else {
+                        return false;
+                    };
+                    parameters
+                        .first()
+                        .is_some_and(|parameter| parameter.name == "self")
+                        && definition
+                            .identity
+                            .declaration_path
+                            .last()
+                            .is_some_and(|part| part == name)
+                })
+                .unwrap()
+        };
+        let drop = find("drop");
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &drop.body else {
+            unreachable!()
+        };
+        let SemanticTypeRecipe::Desc {
+            lifetime:
+                SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ordinal,
+                }),
+            inner,
+        } = &signature.parameters[0].ty
+        else {
+            panic!("default Resource Self loses its header description")
+        };
+        assert!(matches!(
+            inner.as_ref(),
+            SemanticTypeRecipe::SelfType {
+                scope: SemanticScopeRef::Ancestor(1)
+            }
+        ));
+        assert_eq!(
+            drop.implicit_lifetimes[*ordinal as usize].occurrence_path,
+            vec![1, 0]
+        );
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &find("view").body else {
+            unreachable!()
+        };
+        assert!(
+            matches!(&signature.parameters[0].ty, SemanticTypeRecipe::Address { inner,.. } if matches!(inner.as_ref(), SemanticTypeRecipe::SelfType { .. }))
+        );
+        for name in ["take", "unknown"] {
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &find(name).body
+            else {
+                unreachable!()
+            };
+            assert!(matches!(
+                signature.parameters[0].ty,
+                SemanticTypeRecipe::SelfType { .. }
+            ));
+        }
     }
 }

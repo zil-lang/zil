@@ -1125,6 +1125,49 @@ impl<'a> Check<'a, '_> {
                 let self_type = substitute::ty(self_type, &substitution, self.limits, self.left)?;
                 return self.resolve(owner, &self_type, depth + 1);
             }
+            if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
+                self.pay(definition.parameters.len(), depth)?;
+                let mut arguments = Vec::new();
+                for (ordinal, formal) in definition.parameters.iter().enumerate() {
+                    let reference = SemanticFormalRef {
+                        scope: SemanticScopeRef::Ancestor(*hops),
+                        ordinal: ordinal as u32,
+                    };
+                    let actual = match formal {
+                        SemanticFormal::Type { .. } => {
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                        }
+                        SemanticFormal::Lifetime => {
+                            SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                        }
+                        SemanticFormal::Const { carrier } => {
+                            let empty = BTreeMap::new();
+                            let carrier = substitute::ty(
+                                carrier,
+                                &substitute::Substitution {
+                                    frames: &[],
+                                    selves: &[],
+                                    environments: &[],
+                                    implicit: &empty,
+                                    invocation: &empty,
+                                    shift: *hops,
+                                },
+                                self.limits,
+                                self.left,
+                            )?;
+                            SemanticActualRecipe::Const {
+                                carrier,
+                                value: SemanticConstRecipe::Formal(reference),
+                            }
+                        }
+                    };
+                    arguments.push(actual);
+                }
+                return Ok(SemanticTypeRecipe::Nominal {
+                    definition: target,
+                    arguments,
+                });
+            }
             if !matches!(
                 definition.body,
                 SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
