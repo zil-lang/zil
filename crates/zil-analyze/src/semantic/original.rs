@@ -21,6 +21,7 @@ mod roles;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
 mod slices;
+mod trait_members;
 mod traits;
 mod values;
 use constructors::Wrapper;
@@ -175,6 +176,7 @@ pub(super) struct Checked {
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
+    program: &'i SemanticModule,
     indexes: BTreeMap<SemanticDefinitionId, original_index::Index<'a>>,
     state: Checked,
     active: BTreeSet<SemanticDefinitionId>,
@@ -2446,7 +2448,9 @@ impl Solver<'_, '_> {
         };
         if !matches!(
             definition.kind,
-            SemanticDefinitionKind::Function | SemanticDefinitionKind::Closure
+            SemanticDefinitionKind::Function
+                | SemanticDefinitionKind::Closure
+                | SemanticDefinitionKind::Method
         ) || signature.bound_lifetimes != 0
         {
             return Err(unknown(
@@ -2608,9 +2612,23 @@ impl Solver<'_, '_> {
                 }
             }
             SemanticOriginalFunctionBody::Declaration => {
-                return Err(unknown(
-                    "abstract original member needs its actual trait and implementation witness",
-                ));
+                let parent = self.inventory.definition(
+                    definition.parent.ok_or_else(|| {
+                        fail("abstract original member has no original trait parent")
+                    })?,
+                    b,
+                )?;
+                if definition.kind != SemanticDefinitionKind::Method
+                    || !matches!(
+                        parent.body,
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
+                    )
+                    || foreign.is_some()
+                {
+                    return Err(fail(
+                        "only an exact original abstract trait member may omit its body",
+                    ));
+                }
             }
         }
         if !frame.captured.is_empty() {
@@ -3001,6 +3019,7 @@ pub(super) fn check(
     }
     let mut solver = Solver {
         inventory,
+        program,
         indexes,
         state: Checked {
             arena: Vec::new(),
@@ -3032,6 +3051,18 @@ pub(super) fn check(
         trait_state: traits::State::default(),
     };
     solver.trait_catalog(b)?;
+    for definition in &program.definitions {
+        if definition.kind == SemanticDefinitionKind::Method
+            && definition.parent.is_some_and(|parent| {
+                inventory
+                    .definitions
+                    .get(&parent)
+                    .is_some_and(|owner| matches!(owner.body, SemanticDefinitionBody::Scope(_)))
+            })
+        {
+            solver.function(definition.id, None, b, 0)?;
+        }
+    }
     for definition in &program.definitions {
         b.spend(1, WORK)?;
         if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
@@ -3429,7 +3460,8 @@ impl Solver<'_, '_> {
                     }
                 }
                 SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => {}
-                SemanticTypeRecipe::AssociatedType { .. } => {}
+                SemanticTypeRecipe::AssociatedType { .. } | SemanticTypeRecipe::SelfType { .. } => {
+                }
                 _ => {
                     return Err(unknown(
                         "original structural premise subject needs its complete symbolic type",
@@ -3546,9 +3578,7 @@ impl Solver<'_, '_> {
                 )
             }
             Kind::Associated { .. } => self.associated_satisfies(term, predicate, b, depth + 1),
-            Kind::SelfType(_) => Err(unknown(
-                "original trait Self capability needs its complete declared bound theorem",
-            )),
+            Kind::SelfType(_) => self.associated_satisfies(term, predicate, b, depth + 1),
             Kind::Array { element, .. } => {
                 if matches!(predicate, Predicate::StoreElement) {
                     return Err(unknown(

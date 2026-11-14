@@ -1,6 +1,7 @@
 //! Original trait identities and projections. Receiver and all mixed actuals
 //! are interpreted in the original domain, never selected from a vtable ABI.
 use super::*;
+mod providers;
 
 #[derive(Default)]
 pub(super) struct State {
@@ -8,6 +9,9 @@ pub(super) struct State {
     selves: Vec<(SemanticDefinitionId, Term)>,
     projections: Vec<Term>,
     facts: Vec<(Term, Predicate)>,
+    active: Vec<(Term, LifeDeclarationId, Vec<Term>, u32)>,
+    proving_traits: Vec<(Term, LifeDeclarationId, Vec<Term>)>,
+    associated_values: Vec<(Term, LifeDeclarationId, Vec<Term>, u32, Term)>,
 }
 
 fn trait_frame(definition: SemanticDefinitionId, formals: Vec<Term>) -> Frame {
@@ -26,6 +30,55 @@ fn trait_frame(definition: SemanticDefinitionId, formals: Vec<Term>) -> Frame {
     }
 }
 
+fn declaration_work(row: &DynDeclaration, b: &mut Budget) -> CompileResult<()> {
+    crate::dyn_metadata::recipe_declaration(row, b)?;
+    if let Some(pattern) = &row.self_pattern {
+        crate::dyn_metadata::recipe(pattern, b)?;
+    }
+    if let Some(application) = &row.implemented_trait {
+        crate::dyn_metadata::recipe(application, b)?;
+    }
+    b.spend(
+        row.identity
+            .package
+            .len()
+            .saturating_add(
+                row.identity
+                    .module_path
+                    .iter()
+                    .map(String::len)
+                    .sum::<usize>(),
+            )
+            .saturating_add(
+                row.identity
+                    .declaration_path
+                    .iter()
+                    .map(String::len)
+                    .sum::<usize>(),
+            )
+            .saturating_add(row.identity.generation_path.len())
+            .saturating_add(row.parameters.len() + row.members.len() + 1),
+        WORK,
+    )?;
+    for kind in
+        row.parameters
+            .iter()
+            .chain(row.members.iter().flat_map(|member| match &member.kind {
+                DynMemberKind::Method(parameters) => parameters.as_slice(),
+                _ => &[],
+            }))
+    {
+        b.spend(1, WORK)?;
+        if let LifeParameterKind::Const(ty) = kind {
+            crate::dyn_metadata::ty(ty, b)?;
+        }
+    }
+    for member in &row.members {
+        b.spend(member.name.len(), WORK)?;
+    }
+    Ok(())
+}
+
 impl<'a> Inventory<'a> {
     pub(super) fn original_dyn(
         &self,
@@ -39,9 +92,9 @@ impl<'a> Inventory<'a> {
                 if row.id != id {
                     continue;
                 }
-                crate::dyn_metadata::recipe_declaration(row, b)?;
+                declaration_work(row, b)?;
                 if let Some(old) = found {
-                    crate::dyn_metadata::recipe_declaration(old, b)?;
+                    declaration_work(old, b)?;
                     if old != row {
                         return Err(fail(
                             "original trait has conflicting full declaration inventories",
@@ -97,6 +150,14 @@ impl Solver<'_, '_> {
                 | SemanticRequirementRecipe::Builtin {
                     ty: ty @ SemanticTypeRecipe::AssociatedType { .. },
                     ..
+                }
+                | SemanticRequirementRecipe::Structural {
+                    ty: ty @ SemanticTypeRecipe::SelfType { .. },
+                    ..
+                }
+                | SemanticRequirementRecipe::Builtin {
+                    ty: ty @ SemanticTypeRecipe::SelfType { .. },
+                    ..
                 } => {
                     let (_, predicate) = self.requirement(requirement)?;
                     let subject = self.recipe(frame, ty, b, 0)?;
@@ -131,6 +192,7 @@ impl Solver<'_, '_> {
     }
 
     pub(super) fn trait_catalog(&mut self, b: &mut Budget) -> CompileResult<()> {
+        trait_members::validate(self.program, self.inventory, b)?;
         for definition in self.inventory.definitions.values() {
             b.spend(1, WORK)?;
             let SemanticDefinitionBody::Scope(recipe) = &definition.body else {
@@ -266,6 +328,43 @@ impl Solver<'_, '_> {
                 ));
             }
         }
+        let mut done = BTreeSet::new();
+        let mut active = BTreeSet::new();
+        for id in self.trait_state.scopes.keys() {
+            let mut pending = vec![(*id, false)];
+            while let Some((id, exit)) = pending.pop() {
+                b.spend(done.len().saturating_add(active.len() + 1), WORK)?;
+                if exit {
+                    active.remove(&id);
+                    done.insert(id);
+                    continue;
+                }
+                if done.contains(&id) {
+                    continue;
+                }
+                if !active.insert(id) {
+                    return Err(fail("original supertrait declaration graph is cyclic"));
+                }
+                let raw = self.inventory.original_dyn(id, b)?;
+                Self::push(&mut pending, (id, true), b)?;
+                for application in raw
+                    .direct_supertraits
+                    .as_ref()
+                    .ok_or_else(|| unknown("original supertrait inventory is unknown"))?
+                {
+                    let target = self.inventory.original_dyn(application.declaration, b)?;
+                    if target.kind != DynDeclarationKind::Trait
+                        || target.parameters.len() != application.arguments.len()
+                    {
+                        return Err(fail(
+                            "original supertrait edge changes its declaration kind or full mixed arity",
+                        ));
+                    }
+                    Self::push(&mut pending, (application.declaration, false), b)?;
+                }
+            }
+        }
+        self.trait_scope_frames(b)?;
         Ok(())
     }
 
@@ -569,9 +668,9 @@ impl Solver<'_, '_> {
                 (owner, None)
             }
             _ => {
-                return Err(unknown(
-                    "concrete trait receiver needs its complete original provider and where proof",
-                ));
+                return self
+                    .original_provider(frame, receiver, declaration, arguments, b, depth + 1)
+                    .map(|_| true);
             }
         };
         let original = self.inventory.definition(owner, b)?;
@@ -638,6 +737,31 @@ impl Solver<'_, '_> {
             return Err(fail(
                 "original associated type selects another declaration or member kind",
             ));
+        }
+        for (old_receiver, old_decl, old_arguments, old_member, value) in
+            &self.trait_state.associated_values
+        {
+            if *old_decl == declaration
+                && *old_member == member
+                && self.same_original(*old_receiver, receiver, b, depth + 1)?
+                && self.same_original_rows(old_arguments, &arguments, b, depth + 1)?
+            {
+                return Ok(*value);
+            }
+        }
+        if !matches!(
+            self.state.arena[self.type_root(receiver, b)?],
+            Kind::Rigid(..) | Kind::SelfType(_)
+        ) {
+            return self.provider_associated(
+                frame,
+                receiver,
+                declaration,
+                arguments,
+                member,
+                b,
+                depth + 1,
+            );
         }
         if !self.declared_trait(frame, receiver, declaration, &arguments, b, depth + 1)? {
             return Err(fail(
