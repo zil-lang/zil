@@ -33,7 +33,13 @@ pub(crate) struct Event {
     pub(crate) role: SemanticEmissionRole,
     pub(crate) action: Action,
 }
+#[derive(Clone)]
+struct Injection {
+    is_error: bool,
+    payload: Vec<(SemanticSiteId, SemanticEmissionRole)>,
+}
 struct Pending {
+    injection: Option<Injection>,
     original_template: Option<u32>,
     instance: SemanticInstanceId,
     creator: Option<NodeId>,
@@ -43,10 +49,19 @@ struct Pending {
 pub(crate) struct Ledger {
     entries: Vec<Option<Pending>>,
     emitted: Vec<(SemanticInstanceId, NodeId, u32, SemanticEmissionRole)>,
+    completed: Vec<(
+        SemanticInstanceId,
+        NodeId,
+        NodeId,
+        SemanticSiteId,
+        SemanticEmissionRole,
+    )>,
+    injection_payloads: Vec<(SemanticInstanceId, NodeId, NodeId, Injection)>,
     owners: Vec<OriginalOwner>,
     templates: Vec<OriginalTemplate>,
 }
 struct OriginalTemplate {
+    injection: Option<Injection>,
     definition: SemanticDefinitionId,
     events: Vec<Event>,
 }
@@ -74,6 +89,233 @@ fn deferred(
     })
 }
 impl Ledger {
+    fn clone_events(events: &[Event], budget: &mut Budget<'_>, span: Span) -> R<Vec<Event>> {
+        budget.lineage_bytes(
+            events
+                .len()
+                .checked_mul(std::mem::size_of::<Event>())
+                .ok_or_else(|| unavailable("semantic event clone allocation overflow"))?,
+            span,
+        )?;
+        for event in events {
+            budget.node(span, 0)?;
+            match &event.action {
+                Action::Construct(ty) | Action::TypeUse(ty) | Action::DeclareLocal(ty) => {
+                    prepay_recipe(ty, budget, span, 1)?
+                }
+                #[cfg(test)]
+                Action::Call { target, actuals } => {
+                    prepay_recipe(target, budget, span, 1)?;
+                    budget.lineage_bytes(
+                        actuals
+                            .len()
+                            .checked_mul(std::mem::size_of::<Actual>())
+                            .ok_or_else(|| {
+                                unavailable("semantic actual clone allocation overflow")
+                            })?,
+                        span,
+                    )?;
+                    for actual in actuals {
+                        prepay_recipe(&actual.recipe, budget, span, 1)?;
+                    }
+                }
+                #[cfg(test)]
+                Action::CallableCall => {}
+                Action::BodyCall => {}
+                Action::Closure { environment } => {
+                    budget.lineage_bytes(
+                        environment
+                            .len()
+                            .checked_mul(std::mem::size_of::<SemanticActualRecipe>())
+                            .ok_or_else(|| {
+                                unavailable("semantic environment clone allocation overflow")
+                            })?,
+                        span,
+                    )?;
+                    for actual in environment {
+                        prepay_recipe(actual, budget, span, 1)?;
+                    }
+                }
+            }
+        }
+        Ok(events.to_vec())
+    }
+    fn clone_injection(
+        value: Option<&Injection>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Option<Injection>> {
+        if let Some(value) = value {
+            budget.lineage_bytes(
+                value
+                    .payload
+                    .len()
+                    .checked_mul(std::mem::size_of::<(SemanticSiteId, SemanticEmissionRole)>())
+                    .ok_or_else(|| unavailable("injection receipt allocation overflow"))?,
+                span,
+            )?;
+            budget.identity_work(value.payload.len(), span)?;
+        }
+        Ok(value.cloned())
+    }
+    /// Partition an original result observation from the operation which
+    /// produces its payload. Only the selected rewrite owns this transport.
+    pub(crate) fn split_implicit_injection(
+        &mut self,
+        marker: s::SemanticContextMarker,
+        is_error: bool,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<(s::SemanticContextMarker, s::SemanticContextMarker)> {
+        let Some(raw) = marker.raw_index() else {
+            return Ok((marker, Default::default()));
+        };
+        let (events, definition, original_template) = if raw & TEMPLATE != 0 {
+            let template = self
+                .templates
+                .get((raw & !TEMPLATE) as usize)
+                .ok_or_else(|| unavailable("injection original template is absent"))?;
+            if template.injection.is_some() {
+                return Err(unavailable(
+                    "original result injection was already transported",
+                ));
+            }
+            Self::validate_bundle(&template.events, budget, span)?;
+            if !template
+                .events
+                .iter()
+                .any(|event| matches!(event.action, Action::TypeUse(_)))
+            {
+                return Ok((marker, Default::default()));
+            }
+            (
+                Self::clone_events(&template.events, budget, span)?,
+                Some(template.definition),
+                None,
+            )
+        } else {
+            let pending = self
+                .entries
+                .get(raw as usize)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| unavailable("injection event is absent or consumed"))?;
+            if pending.creator.is_some() || pending.injection.is_some() {
+                return Err(unavailable("injection must precede actual Core emission"));
+            }
+            Self::validate_bundle(&pending.events, budget, span)?;
+            if !pending
+                .events
+                .iter()
+                .any(|event| matches!(event.action, Action::TypeUse(_)))
+            {
+                return Ok((marker, Default::default()));
+            }
+            let definition = pending
+                .original_template
+                .map(|index| self.templates[index as usize].definition);
+            (
+                Self::clone_events(&pending.events, budget, span)?,
+                definition,
+                pending.original_template,
+            )
+        };
+        Self::validate_bundle(&events, budget, span)?;
+        if !events
+            .iter()
+            .any(|event| matches!(event.action, Action::TypeUse(_)))
+        {
+            return Ok((marker, Default::default()));
+        }
+        // Reserve both destinations before moving the events. Existing
+        // operation roles retain their token in the actual namespace.
+        budget.lineage_bytes(
+            events
+                .len()
+                .checked_mul(
+                    std::mem::size_of::<Event>()
+                        + std::mem::size_of::<(SemanticSiteId, SemanticEmissionRole)>(),
+                )
+                .ok_or_else(|| unavailable("injection split allocation overflow"))?,
+            span,
+        )?;
+        let result_count = events
+            .iter()
+            .filter(|event| matches!(event.action, Action::TypeUse(_)))
+            .count();
+        let mut payload = Vec::with_capacity(events.len() - result_count);
+        let mut result = Vec::with_capacity(result_count);
+        let mut payload_sites = Vec::with_capacity(events.len() - result_count);
+        for event in events {
+            if matches!(event.action, Action::TypeUse(_)) {
+                result.push(event);
+            } else {
+                payload_sites.push((event.recipe, event.role));
+                payload.push(event);
+            }
+        }
+        let injection = Injection {
+            is_error,
+            payload: payload_sites,
+        };
+        if raw & TEMPLATE != 0 {
+            let definition = definition.expect("template definition");
+            let payload_marker = if payload.is_empty() {
+                Default::default()
+            } else {
+                self.template(definition, payload, budget, span)?
+            };
+            let result_marker = self.template(definition, result, budget, span)?;
+            self.templates[(result_marker.raw_index().unwrap() & !TEMPLATE) as usize].injection =
+                Some(injection);
+            return Ok((payload_marker, result_marker));
+        }
+        // Preserve fragment-specific immutable templates: lowering clones must
+        // not resurrect the unsplit bundle in either of the two expressions.
+        let (payload_template, result_template) = if original_template.is_some() {
+            let definition = definition.expect("actual original definition");
+            let payload_template = if payload.is_empty() {
+                None
+            } else {
+                let events = Self::clone_events(&payload, budget, span)?;
+                Some(
+                    self.template(definition, events, budget, span)?
+                        .raw_index()
+                        .unwrap()
+                        & !TEMPLATE,
+                )
+            };
+            let events = Self::clone_events(&result, budget, span)?;
+            let result_template = self
+                .template(definition, events, budget, span)?
+                .raw_index()
+                .unwrap()
+                & !TEMPLATE;
+            self.templates[result_template as usize].injection =
+                Self::clone_injection(Some(&injection), budget, span)?;
+            (payload_template, Some(result_template))
+        } else {
+            (None, None)
+        };
+        let mut pending = self.entries[raw as usize]
+            .take()
+            .expect("checked pending injection");
+        let result_marker =
+            self.record_bundle_inner(pending.instance, pending.creator, result, budget, span)?;
+        let row = self.entries[result_marker.raw_index().unwrap() as usize]
+            .as_mut()
+            .expect("new result fragment");
+        row.original_template = result_template;
+        row.injection = Some(injection);
+        let payload_marker = if payload.is_empty() {
+            Default::default()
+        } else {
+            pending.events = payload;
+            pending.original_template = payload_template;
+            self.entries[raw as usize] = Some(pending);
+            marker
+        };
+        Ok((payload_marker, result_marker))
+    }
     pub(crate) fn actual_role(&self, marker: u32) -> Option<SemanticEmissionRole> {
         self.entries
             .get(marker as usize)
@@ -167,7 +409,11 @@ impl Ledger {
                 .try_reserve_exact(growth)
                 .map_err(|_| unavailable("semantic template allocation failed"))?;
         }
-        self.templates.push(OriginalTemplate { definition, events });
+        self.templates.push(OriginalTemplate {
+            definition,
+            events,
+            injection: None,
+        });
         Ok(s::SemanticContextMarker::untrusted(index | TEMPLATE))
     }
     pub(crate) fn instantiate_template(
@@ -198,56 +444,8 @@ impl Ledger {
                 "semantic original occurrence belongs to another definition or completed specialization",
             ));
         }
-        budget.lineage_bytes(
-            template
-                .events
-                .len()
-                .checked_mul(std::mem::size_of::<Event>())
-                .ok_or_else(|| unavailable("semantic event clone allocation overflow"))?,
-            span,
-        )?;
-        for event in &template.events {
-            budget.node(span, 0)?;
-            match &event.action {
-                Action::Construct(ty) | Action::TypeUse(ty) | Action::DeclareLocal(ty) => {
-                    prepay_recipe(ty, budget, span, 1)?
-                }
-                #[cfg(test)]
-                Action::Call { target, actuals } => {
-                    prepay_recipe(target, budget, span, 1)?;
-                    budget.lineage_bytes(
-                        actuals
-                            .len()
-                            .checked_mul(std::mem::size_of::<Actual>())
-                            .ok_or_else(|| {
-                                unavailable("semantic actual clone allocation overflow")
-                            })?,
-                        span,
-                    )?;
-                    for actual in actuals {
-                        prepay_recipe(&actual.recipe, budget, span, 1)?;
-                    }
-                }
-                #[cfg(test)]
-                Action::CallableCall => {}
-                Action::BodyCall => {}
-                Action::Closure { environment } => {
-                    budget.lineage_bytes(
-                        environment
-                            .len()
-                            .checked_mul(std::mem::size_of::<SemanticActualRecipe>())
-                            .ok_or_else(|| {
-                                unavailable("semantic environment clone allocation overflow")
-                            })?,
-                        span,
-                    )?;
-                    for actual in environment {
-                        prepay_recipe(actual, budget, span, 1)?;
-                    }
-                }
-            }
-        }
-        let events = template.events.clone();
+        let events = Self::clone_events(&template.events, budget, span)?;
+        let injection = Self::clone_injection(template.injection.as_ref(), budget, span)?;
         let actual = self.record_original(instance, events, budget, span)?;
         let index = actual
             .raw_index()
@@ -256,6 +454,10 @@ impl Ledger {
             .as_mut()
             .ok_or_else(|| unavailable("actual semantic event is absent"))?
             .original_template = Some(raw & !TEMPLATE);
+        self.entries[index as usize]
+            .as_mut()
+            .expect("new actual event")
+            .injection = injection;
         Ok(actual)
     }
     /// Fork only original immutable templates at an actual lowering clone.
@@ -485,6 +687,7 @@ impl Ledger {
                 .map_err(|_| unavailable("semantic ledger allocation failed"))?;
         }
         self.entries.push(Some(Pending {
+            injection: None,
             original_template: None,
             instance,
             creator,
@@ -560,6 +763,11 @@ impl Ledger {
                 .map_err(|_| unavailable("emission inventory allocation failed"))?;
         }
         self.emitted.push((instance, node, occurrence, role));
+        budget.lineage_push(
+            &mut self.completed,
+            (instance, creator, node, pending.events[event].recipe, role),
+            span,
+        )?;
         let pending = self.entries[token as usize]
             .as_mut()
             .expect("actual source production checked");
@@ -579,6 +787,45 @@ impl Ledger {
         role: SemanticEmissionRole,
         budget: &mut Budget<'_>,
     ) -> R<SemanticSite> {
+        let injection = Self::clone_injection(
+            self.entries
+                .get(marker.raw_index().unwrap_or(u32::MAX) as usize)
+                .and_then(Option::as_ref)
+                .and_then(|row| row.injection.as_ref()),
+            budget,
+            expression.span,
+        )?;
+        if let Some(injection) = injection {
+            let CoreExprKind::Call { callee, arguments } = &expression.kind else {
+                return Err(unavailable(
+                    "injection result event does not select its actual constructor",
+                ));
+            };
+            let CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } = &callee.kind
+            else {
+                return Err(unavailable(
+                    "injection constructor lost its complete type arguments",
+                ));
+            };
+            // This checks the already minted producer node, never searches by
+            // spelling. Types independently resolves both complete arguments.
+            if arguments.len() != 1
+                || type_arguments.len() != 2
+                || !matches!(&callee.kind, CoreExprKind::Name(name) if name == if injection.is_error { "error_err" } else { "error_ok" })
+            {
+                return Err(unavailable(
+                    "injection constructor changed its selected arm or sole payload",
+                ));
+            }
+            budget.lineage_push(
+                &mut self.injection_payloads,
+                (instance, creator, arguments[0].id, injection),
+                expression.span,
+            )?;
+        }
         let pending = self.take(
             marker,
             instance,
@@ -795,6 +1042,22 @@ impl Ledger {
                 "source semantic production has no actual emitted node",
             ));
         }
+        for (instance, creator, payload, injection) in &self.injection_payloads {
+            for (site, role) in &injection.payload {
+                budget.identity_work(self.completed.len(), span)?;
+                if self
+                    .completed
+                    .iter()
+                    .filter(|row| **row == (*instance, *creator, *payload, *site, *role))
+                    .count()
+                    != 1
+                {
+                    return Err(unavailable(
+                        "injection payload event does not select its exact original operation",
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -821,6 +1084,161 @@ mod tests {
             role,
             action,
         }
+    }
+    fn injected(payload: CoreExpr, is_error: bool) -> CoreExpr {
+        CoreExpr {
+            id: NodeId(20),
+            span: Span::default(),
+            kind: CoreExprKind::Call {
+                callee: Box::new(CoreExpr {
+                    id: NodeId(21),
+                    span: Span::default(),
+                    kind: CoreExprKind::TypeApply {
+                        callee: Box::new(CoreExpr {
+                            id: NodeId(22),
+                            span: Span::default(),
+                            kind: CoreExprKind::Name(
+                                if is_error { "error_err" } else { "error_ok" }.into(),
+                            ),
+                        }),
+                        type_arguments: vec![Type::Unit, Type::Unit],
+                    },
+                }),
+                arguments: vec![payload],
+            },
+        }
+    }
+    #[test]
+    fn injection_fragments_survive_actual_and_template_cloning_without_replaying_roles() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut ledger = Ledger::default();
+        let span = Span::default();
+        let definition = SemanticDefinitionId {
+            module: ModuleId(0),
+            index: 7,
+        };
+        let original = ledger
+            .template(
+                definition,
+                vec![
+                    event(
+                        0,
+                        SemanticEmissionRole::Construct,
+                        Action::Construct(SemanticTypeRecipe::Tuple(vec![])),
+                    ),
+                    event(
+                        1,
+                        SemanticEmissionRole::Ascription,
+                        Action::TypeUse(SemanticTypeRecipe::Tuple(vec![])),
+                    ),
+                ],
+                &mut budget,
+                span,
+            )
+            .unwrap();
+        for index in 0..3 {
+            ledger
+                .original_owner(instance(index), definition, &mut budget, span)
+                .unwrap();
+        }
+        let actual = ledger
+            .instantiate_template(original, instance(0), &mut budget, span)
+            .unwrap();
+        let (payload, wrapper) = ledger
+            .split_implicit_injection(actual, false, &mut budget, span)
+            .unwrap();
+        assert_eq!(payload.raw_index(), actual.raw_index());
+        let owners = std::collections::BTreeMap::from([(instance(0), instance(1))]);
+        let clones = ledger.fork_templates(&owners, &mut budget, span).unwrap();
+        let (payload_template, wrapper_template) = ledger
+            .split_implicit_injection(original, false, &mut budget, span)
+            .unwrap();
+        // The unsplit original remains immutable for another specialization.
+        assert_eq!(
+            ledger.templates[(original.raw_index().unwrap() & !TEMPLATE) as usize]
+                .events
+                .len(),
+            2
+        );
+        let template_payload = ledger
+            .instantiate_template(payload_template, instance(2), &mut budget, span)
+            .unwrap();
+        let template_wrapper = ledger
+            .instantiate_template(wrapper_template, instance(2), &mut budget, span)
+            .unwrap();
+        let productions = [
+            (payload, wrapper),
+            (
+                s::SemanticContextMarker::untrusted(clones[&payload.raw_index().unwrap()]),
+                s::SemanticContextMarker::untrusted(clones[&wrapper.raw_index().unwrap()]),
+            ),
+            (template_payload, template_wrapper),
+        ];
+        for (index, (payload, wrapper)) in productions.into_iter().enumerate() {
+            let instance = instance(index as u32);
+            let creator = NodeId(4 + index as u32);
+            ledger
+                .bind_creator(instance, definition, creator, &mut budget, span)
+                .unwrap();
+            assert!(
+                ledger
+                    .expression(
+                        wrapper,
+                        instance,
+                        creator,
+                        &injected(tuple(), true),
+                        0,
+                        SemanticEmissionRole::Ascription,
+                        &mut budget
+                    )
+                    .is_err()
+            );
+            let payload_site = ledger
+                .expression(
+                    payload,
+                    instance,
+                    creator,
+                    &tuple(),
+                    0,
+                    SemanticEmissionRole::Construct,
+                    &mut budget,
+                )
+                .unwrap();
+            assert_eq!(payload_site.recipe, SemanticSiteId(0));
+            assert!(ledger.actual_role(payload.raw_index().unwrap()).is_none());
+            let result_site = ledger
+                .expression(
+                    wrapper,
+                    instance,
+                    creator,
+                    &injected(tuple(), false),
+                    0,
+                    SemanticEmissionRole::Ascription,
+                    &mut budget,
+                )
+                .unwrap();
+            assert_eq!(result_site.recipe, SemanticSiteId(1));
+            assert!(ledger.actual_role(wrapper.raw_index().unwrap()).is_none());
+            assert!(
+                ledger
+                    .expression(
+                        payload,
+                        instance,
+                        creator,
+                        &tuple(),
+                        0,
+                        SemanticEmissionRole::Construct,
+                        &mut budget
+                    )
+                    .is_err()
+            );
+        }
+        ledger.finish(&mut budget, span).unwrap();
+        // A same-shaped different payload is not the operation transported by
+        // the original event, even though every token has already been used.
+        ledger.injection_payloads[0].2 = NodeId(99);
+        assert!(ledger.finish(&mut budget, span).is_err());
     }
     #[test]
     fn one_actual_node_consumes_each_recorded_role_once_and_requires_the_full_bundle() {

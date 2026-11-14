@@ -449,7 +449,12 @@ impl Engine<'_> {
                     .default_error_arms
                     .get(&(reference.key.name.clone(), method.name.clone()))
             {
-                error_injection::apply(function, selected, &mut self.budget)?;
+                error_injection::apply(
+                    function,
+                    selected,
+                    self.products.semantic.as_mut(),
+                    &mut self.budget,
+                )?;
             }
             substitute_item(&mut body, &substitutions)?;
             let (calls, _) = self.check_default(declaration, &body, &reference, false)?;

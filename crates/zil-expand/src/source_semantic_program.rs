@@ -46,6 +46,18 @@ pub(crate) struct Program {
     scope_requests: Vec<requests::Request>,
 }
 impl Program {
+    /// The selected Source rewrite moves only the original result observation;
+    /// the original call/constructor/closure remains the sole payload operation.
+    pub(crate) fn split_implicit_injection(
+        &mut self,
+        marker: s::SemanticContextMarker,
+        is_error: bool,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<(s::SemanticContextMarker, s::SemanticContextMarker)> {
+        self.ledger
+            .split_implicit_injection(marker, is_error, budget, span)
+    }
     /// Borrow the original lexical names of this exact generation owner.
     /// Template and actual markers are different namespaces; neither selects
     /// the first function sharing an origin or a generated spelling.
@@ -718,65 +730,69 @@ impl Program {
                         &format!("actual semantic emission does not locate its minted Core node: module {} creator {} node {} statement {} token {}",module.0,emission.creator.0,emission.node.0,emission.statement,emission.marker),
                     )
                 })?;
-            let site = match node {
-                nodes::Node::Expression(expression) => {
-                    let role = self.ledger.actual_role(emission.marker).ok_or_else(|| {
-                        error(expression.span, "actual semantic expression has no role")
-                    })?;
-                    self.ledger.expression(
+            // A single physical mint can carry several distinct original
+            // roles. Consume each exactly once at this same Core node.
+            while self.ledger.actual_role(emission.marker).is_some() {
+                let site = match node {
+                    nodes::Node::Expression(expression) => {
+                        let role = self.ledger.actual_role(emission.marker).ok_or_else(|| {
+                            error(expression.span, "actual semantic expression has no role")
+                        })?;
+                        self.ledger.expression(
+                            s::SemanticContextMarker::untrusted(emission.marker),
+                            owner,
+                            emission.creator,
+                            expression,
+                            0,
+                            role,
+                            budget,
+                        )?
+                    }
+                    nodes::Node::Statement(statement) => self.ledger.statement(
                         s::SemanticContextMarker::untrusted(emission.marker),
                         owner,
                         emission.creator,
-                        expression,
+                        statement,
                         0,
-                        role,
                         budget,
-                    )?
+                    )?,
+                };
+                if let SemanticSiteAction::Closure { closure, .. } = &site.action {
+                    let index = self
+                        .closure_events
+                        .get(&emission.marker)
+                        .copied()
+                        .ok_or_else(|| {
+                            error(
+                                Span::default(),
+                                "closure mint has no actual original child owner",
+                            )
+                        })?;
+                    let child = self
+                        .children
+                        .get_mut(index)
+                        .ok_or_else(|| error(Span::default(), "closure child owner is absent"))?;
+                    if child.parent != owner || child.core.is_some() {
+                        return Err(error(
+                            Span::default(),
+                            "closure mint reuses or changes its actual lexical parent",
+                        ));
+                    }
+                    child.core = Some(closure.clone());
                 }
-                nodes::Node::Statement(statement) => self.ledger.statement(
-                    s::SemanticContextMarker::untrusted(emission.marker),
-                    owner,
-                    emission.creator,
-                    statement,
-                    0,
-                    budget,
-                )?,
-            };
-            if let SemanticSiteAction::Closure { closure, .. } = &site.action {
-                let index = self
-                    .closure_events
-                    .get(&emission.marker)
-                    .copied()
+                budget.lineage_bytes(std::mem::size_of::<SemanticSite>(), Span::default())?;
+                let target = self
+                    .modules
+                    .iter_mut()
+                    .find(|(id, _)| *id == owner.module)
                     .ok_or_else(|| {
                         error(
                             Span::default(),
-                            "closure mint has no actual original child owner",
+                            "actual semantic node owner module is absent",
                         )
                     })?;
-                let child = self
-                    .children
-                    .get_mut(index)
-                    .ok_or_else(|| error(Span::default(), "closure child owner is absent"))?;
-                if child.parent != owner || child.core.is_some() {
-                    return Err(error(
-                        Span::default(),
-                        "closure mint reuses or changes its actual lexical parent",
-                    ));
-                }
-                child.core = Some(closure.clone());
+                target.1.sites.push(site);
             }
-            budget.lineage_bytes(std::mem::size_of::<SemanticSite>(), Span::default())?;
-            let target = self
-                .modules
-                .iter_mut()
-                .find(|(id, _)| *id == owner.module)
-                .ok_or_else(|| {
-                    error(
-                        Span::default(),
-                        "actual semantic node owner module is absent",
-                    )
-                })?;
-            target.1.sites.push(site);
         }
         Ok(())
     }

@@ -1797,6 +1797,7 @@ impl<'a> Engine<'a> {
                 function,
                 selected,
                 error_arguments,
+                self.products.semantic.as_mut(),
                 &mut self.budget,
             )?;
             if let Some(anchors) = anchors.as_mut() {

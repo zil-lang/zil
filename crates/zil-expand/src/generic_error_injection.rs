@@ -50,7 +50,8 @@ pub(super) fn anchor_arguments(
     }
     Ok(ArgumentAnchors { sites })
 }
-struct RewriteSites {
+struct RewriteSites<'a> {
+    semantic: Option<&'a mut crate::source_semantics::program::Program>,
     moved: BTreeMap<usize, usize>,
     arguments: BTreeMap<usize, usize>,
 }
@@ -97,7 +98,7 @@ fn wrap(
     result: &TypeRef,
     is_error: bool,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     budget.const_expression(value)?;
     budget.ty(error)?;
@@ -105,7 +106,7 @@ fn wrap(
     let span = value.span;
     budget.lineage_bytes(std::mem::size_of::<(usize, usize)>(), span)?;
     let old_site = value as *const Expr as usize;
-    let payload = std::mem::replace(
+    let mut payload = std::mem::replace(
         value,
         Expr {
             semantic: Default::default(),
@@ -113,9 +114,23 @@ fn wrap(
             span,
         },
     );
+    let wrapper_marker = if let Some(program) = moved_sites.semantic.as_deref_mut() {
+        let (payload_marker, result_marker) =
+            program.split_implicit_injection(payload.semantic, is_error, budget, span)?;
+        payload.semantic = payload_marker;
+        result_marker
+    } else {
+        if payload.semantic.raw_index().is_some() {
+            return Err(error(
+                span,
+                "implicit injection marker has no Source producer",
+            ));
+        }
+        Default::default()
+    };
     let name = if is_error { "error_err" } else { "error_ok" };
     *value = Expr {
-        semantic: Default::default(),
+        semantic: wrapper_marker,
         kind: ExprKind::Call {
             callee: Box::new(Expr {
                 semantic: Default::default(),
@@ -152,16 +167,18 @@ fn wrap(
 pub(super) fn apply(
     function: &mut Function,
     choices: &Choices,
+    semantic: Option<&mut crate::source_semantics::program::Program>,
     budget: &mut Budget<'_>,
 ) -> R<BTreeMap<usize, usize>> {
     let anchors = anchor_arguments(function, choices, budget)?;
-    apply_with_arguments(function, choices, anchors, budget)
+    apply_with_arguments(function, choices, anchors, semantic, budget)
 }
 
 pub(super) fn apply_with_arguments(
     function: &mut Function,
     choices: &Choices,
     anchors: ArgumentAnchors,
+    semantic: Option<&mut crate::source_semantics::program::Program>,
     budget: &mut Budget<'_>,
 ) -> R<BTreeMap<usize, usize>> {
     if choices.is_empty() {
@@ -192,10 +209,10 @@ pub(super) fn apply_with_arguments(
         function.return_type.as_ref().map(|t| &grouped(t).kind)
     else {
         // Local annotated unions may be present even when the result is ordinary.
-        return apply_body(function, choices, anchors, None, budget);
+        return apply_body(function, choices, anchors, None, semantic, budget);
     };
     let pair = Some(((**error).clone(), (**result).clone()));
-    apply_body(function, choices, anchors, pair, budget)
+    apply_body(function, choices, anchors, pair, semantic, budget)
 }
 
 fn apply_body(
@@ -203,10 +220,12 @@ fn apply_body(
     choices: &Choices,
     anchors: ArgumentAnchors,
     return_pair: Option<(TypeRef, TypeRef)>,
+    semantic: Option<&mut crate::source_semantics::program::Program>,
     budget: &mut Budget<'_>,
 ) -> R<BTreeMap<usize, usize>> {
     let mut next = 0;
     let mut moved_sites = RewriteSites {
+        semantic,
         moved: BTreeMap::new(),
         arguments: anchors.sites,
     };
@@ -265,7 +284,7 @@ fn rewrite_block(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     for statement in &mut block.statements {
         rewrite_statement(statement, choices, return_pair, next, budget, moved_sites)?;
@@ -279,7 +298,7 @@ fn rewrite_statement(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     let site = *next;
     *next += 1;
@@ -406,7 +425,7 @@ fn rewrite_condition(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     match condition {
         Condition::Expression(value) | Condition::Let { value, .. } => {
@@ -421,7 +440,7 @@ fn rewrite_arrow(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     match arrow {
         ArrowBody::Block(body) => {
@@ -439,7 +458,7 @@ fn rewrite_expr(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     let pointer = value as *const Expr as usize;
     if let Some(ordinal) = moved_sites.arguments.remove(&pointer) {
@@ -580,7 +599,7 @@ fn rewrite_arg(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     match argument {
         GenericArg::AssociatedBinding(binding) => Err(error(
@@ -601,7 +620,7 @@ fn rewrite_type(
     return_pair: &Option<(TypeRef, TypeRef)>,
     next: &mut usize,
     budget: &mut Budget<'_>,
-    moved_sites: &mut RewriteSites,
+    moved_sites: &mut RewriteSites<'_>,
 ) -> R<()> {
     if let TypeKind::Dyn { bindings, .. } = &mut ty.kind {
         for binding in bindings {
@@ -719,8 +738,8 @@ mod tests {
             };
             if remove {
                 arguments.clear();
-                let error =
-                    apply_with_arguments(function, &choices, anchors, &mut budget).unwrap_err();
+                let error = apply_with_arguments(function, &choices, anchors, None, &mut budget)
+                    .unwrap_err();
                 assert!(error.message.contains("removed during rewriting"));
             } else {
                 // Callee rewriting grows a subtree before this argument in traversal order.
@@ -730,7 +749,8 @@ mod tests {
                     span: callee.span,
                     kind: ExprKind::Name("rewritten_sink".into()),
                 }));
-                let moved = apply_with_arguments(function, &choices, anchors, &mut budget).unwrap();
+                let moved =
+                    apply_with_arguments(function, &choices, anchors, None, &mut budget).unwrap();
                 assert!(moved.contains_key(&pointer));
                 let FunctionBody::Block(body) = &function.body else {
                     unreachable!()
@@ -807,7 +827,7 @@ mod tests {
         );
         let mut choices = Choices::default();
         choices.statements.insert(ordinal, (return_span, false));
-        apply(function, &choices, &mut budget).unwrap();
+        apply(function, &choices, None, &mut budget).unwrap();
         let FunctionBody::Block(body) = &function.body else {
             unreachable!()
         };
