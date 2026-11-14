@@ -43,7 +43,45 @@ unsafe extern "C" {
     fn LLVMModuleCreateWithNameInContext(name: *const c_char, context: Handle) -> Handle;
     fn LLVMSetSourceFileName(module: Handle, name: *const c_char, len: usize);
     fn LLVMSetTarget(module: Handle, triple: *const c_char);
-    fn LLVMSetModuleInlineAsm2(module: Handle, assembly: *const c_char, len: usize);
+    fn LLVMSetDataLayout(module: Handle, layout: *const c_char);
+    fn LLVMVoidTypeInContext(context: Handle) -> Handle;
+    fn LLVMFunctionType(
+        result: Handle,
+        params: *mut Handle,
+        count: c_uint,
+        vararg: c_int,
+    ) -> Handle;
+    fn LLVMAddFunction(module: Handle, name: *const c_char, ty: Handle) -> Handle;
+    fn LLVMCreateEnumAttribute(context: Handle, kind: c_uint, value: u64) -> Handle;
+    fn LLVMAddAttributeAtIndex(function: Handle, index: c_uint, attribute: Handle);
+    fn LLVMAppendBasicBlockInContext(
+        context: Handle,
+        function: Handle,
+        name: *const c_char,
+    ) -> Handle;
+    fn LLVMCreateBuilderInContext(context: Handle) -> Handle;
+    fn LLVMDisposeBuilder(builder: Handle);
+    fn LLVMPositionBuilderAtEnd(builder: Handle, block: Handle);
+    fn LLVMGetInlineAsm(
+        ty: Handle,
+        assembly: *const c_char,
+        len: usize,
+        constraints: *const c_char,
+        constraints_len: usize,
+        effects: c_int,
+        align_stack: c_int,
+        dialect: c_int,
+        can_throw: c_int,
+    ) -> Handle;
+    fn LLVMBuildCall2(
+        builder: Handle,
+        ty: Handle,
+        callee: Handle,
+        args: *mut Handle,
+        count: c_uint,
+        name: *const c_char,
+    ) -> Handle;
+    fn LLVMBuildUnreachable(builder: Handle) -> Handle;
     fn LLVMContextSetDiagnosticHandler(
         context: Handle,
         handler: Option<unsafe extern "C" fn(Handle, *mut c_void)>,
@@ -55,6 +93,7 @@ unsafe extern "C" {
 const MAX_FUNCTIONS: usize = 4096;
 const MAX_KEY_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ASSEMBLY_BYTES: usize = 32 * 1024 * 1024;
+owned!(AssemblyBuilder, LLVMDisposeBuilder);
 
 fn source_symbol(name: &str) -> bool {
     name.strip_prefix("zil.fn.").is_some_and(|id| {
@@ -363,6 +402,16 @@ fn assemble(
     config: &Config<'_>,
     assembly: &[u8],
 ) -> Result<Vec<u8>, Error> {
+    let carrier = c"__zil_emission_relay";
+    if assembly
+        .windows(carrier.to_bytes().len())
+        .any(|s| s == carrier.to_bytes())
+    {
+        return Err(error(
+            ErrorKind::Emit,
+            "reserved transport symbol collision",
+        ));
+    }
     let context = Context(unsafe { LLVMContextCreate() });
     if context.0.is_null() {
         return Err(error(ErrorKind::Emit, "assembly context unavailable"));
@@ -393,7 +442,79 @@ fn assemble(
     unsafe {
         LLVMSetSourceFileName(module.0, name, len);
         LLVMSetTarget(module.0, triple.as_ptr());
-        LLVMSetModuleInlineAsm2(module.0, assembly.as_ptr().cast(), assembly.len());
+        LLVMSetDataLayout(module.0, LLVMGetDataLayoutStr(source.0));
+    }
+    // Module inline asm uses a target-parser default STI, which changes LLVM23
+    // preferred alignment's long-NOP encoding. A private naked/no-unwind
+    // carrier supplies the SAME function subtarget as ordinary machine output.
+    // It emits no instructions, symbol-table entry or unwind record of its own.
+    // The complete actual payload functions retain their independent labels.
+    let void = unsafe { LLVMVoidTypeInContext(context.0) };
+    let ty = unsafe { LLVMFunctionType(void, ptr::null_mut(), 0, 0) };
+    let function = unsafe { LLVMAddFunction(module.0, carrier.as_ptr(), ty) };
+    if function.is_null() {
+        return Err(error(ErrorKind::Emit, "assembly carrier unavailable"));
+    }
+    unsafe { LLVMSetLinkage(function, 9) }; // private temporary, not a source export
+    for attribute in [c"naked", c"nounwind"] {
+        let kind = unsafe {
+            LLVMGetEnumAttributeKindForName(attribute.as_ptr(), attribute.to_bytes().len())
+        };
+        if kind == 0 {
+            return Err(error(
+                ErrorKind::Emit,
+                "assembly carrier attribute unavailable",
+            ));
+        }
+        let value = unsafe { LLVMCreateEnumAttribute(context.0, kind, 0) };
+        unsafe { LLVMAddAttributeAtIndex(function, u32::MAX, value) };
+    }
+    let block = unsafe { LLVMAppendBasicBlockInContext(context.0, function, c"entry".as_ptr()) };
+    let builder = AssemblyBuilder(unsafe { LLVMCreateBuilderInContext(context.0) });
+    if block.is_null() || builder.0.is_null() {
+        return Err(error(
+            ErrorKind::Emit,
+            "assembly carrier builder unavailable",
+        ));
+    }
+    let maximum = assembly
+        .len()
+        .checked_mul(2)
+        .and_then(|v| v.checked_add(8))
+        .filter(|v| *v <= 2 * MAX_ASSEMBLY_BYTES)
+        .ok_or_else(|| error(ErrorKind::Emit, "assembly transport outside optional bound"))?;
+    let mut escaped = Vec::with_capacity(maximum);
+    for byte in assembly {
+        // Function inline-asm expands dollar operands. This payload has no
+        // operands: quote EVERY dollar, including strings and immediates.
+        escaped.push(*byte);
+        if *byte == b'$' {
+            escaped.push(b'$');
+        }
+    }
+    // Function end labels must remain in text even if the complete module
+    // payload ends in .note.GNU-stack or a data section.
+    escaped.extend_from_slice(b"\n\t.text\n");
+    let asm = unsafe {
+        LLVMGetInlineAsm(
+            ty,
+            escaped.as_ptr().cast(),
+            escaped.len(),
+            c"".as_ptr(),
+            0,
+            1,
+            0,
+            0,
+            0,
+        )
+    };
+    if asm.is_null() {
+        return Err(error(ErrorKind::Emit, "assembly payload unavailable"));
+    }
+    unsafe {
+        LLVMPositionBuilderAtEnd(builder.0, block);
+        LLVMBuildCall2(builder.0, ty, asm, ptr::null_mut(), 0, c"".as_ptr());
+        LLVMBuildUnreachable(builder.0);
     }
     verify(&module)?;
     let result = emit_buffer(machine, &module, 1);
