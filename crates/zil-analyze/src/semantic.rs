@@ -371,21 +371,16 @@ impl<'a> Inventory<'a> {
             }
             match (&recipe.kind, &site.action) {
                 (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { .. }) => {
-                    if !actual.is_some_and(|instruction| {
-                        matches!(
-                            instruction.kind,
-                            InstructionKind::Call { .. }
-                                | InstructionKind::SuspendCall { .. }
-                                | InstructionKind::ForeignCall { .. }
-                                | InstructionKind::CallClosure { .. }
-                                | InstructionKind::CallClosureOnce { .. }
-                                | InstructionKind::CallClosureShared { .. }
-                                | InstructionKind::CallClosureMut { .. }
-                                | InstructionKind::CallClosureBorrowed { .. }
-                                | InstructionKind::TaskYield
-                        )
-                    }) {
-                        return Err(fail("original body call has no actual call opcode"));
+                    // An original source call may lower to a finite intrinsic,
+                    // constructor or resource operation rather than a Call.
+                    // This pass checks its emission boundary, not its scheme.
+                    // The original resolver and closed operation consumer below
+                    // must still prove the exact opcode, whole P/R, modes,
+                    // operands and source/cleanup contracts for this one node.
+                    if actual.is_none() || edge != SemanticSiteEdge::After {
+                        return Err(fail(
+                            "original body call has no actual operation completion boundary",
+                        ));
                     }
                 }
 
