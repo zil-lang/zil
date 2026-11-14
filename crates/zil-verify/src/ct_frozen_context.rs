@@ -24,6 +24,7 @@ pub fn verify_ct_program_in_context(
         uses_retained_registration:checked.uses_retained_registration,
         uses_stored_borrows:checked.uses_stored_borrows,
         task_workers:checked.task_workers,suspend_functions:checked.suspend_functions,
+        sabi_non_suspending:checked.sabi_non_suspending,
         task_exports:checked.task_exports,task_input_fingerprint:checked.task_input_fingerprint,
         task_ownership:Arc::new(checked.task_ownership),
     };
