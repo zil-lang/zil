@@ -366,6 +366,7 @@ impl Solver<'_, '_> {
         let width = match &self.state.arena[term] {
             Kind::Tuple(fields) => fields.len(),
             Kind::Task(task) => task.work(),
+            Kind::Dyn(ty) => ty.work(),
             Kind::Code {
                 parameters, modes, ..
             } => parameters.len().saturating_add(modes.len() + 1),
@@ -383,6 +384,7 @@ impl Solver<'_, '_> {
         let kind = self.state.arena[term].clone();
         match kind {
             Kind::Task(task) => self.task_instantiate(task, owner, actuals, b, depth + 1),
+            Kind::Dyn(ty) => self.dyn_instantiate(ty, owner, actuals, b, depth + 1),
             Kind::MutexGuard { payload, life } => {
                 let payload = self.instantiate(payload, owner, actuals, b, depth + 1)?;
                 let life = self.instantiate(life, owner, actuals, b, depth + 1)?;

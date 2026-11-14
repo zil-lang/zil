@@ -8,6 +8,7 @@ mod buffers;
 mod capabilities;
 mod captures;
 mod constructors;
+mod dyn_types;
 mod effects;
 mod enums;
 mod function_values;
@@ -85,6 +86,7 @@ enum Kind {
     },
     Slice(Term),
     Task(tasks::TaskType),
+    Dyn(dyn_types::DynType),
     MutexGuard {
         payload: Term,
         life: Term,
@@ -401,6 +403,13 @@ impl Solver<'_, '_> {
                     }
                 }
             }
+            Kind::Dyn(ty) => {
+                for term in ty.terms() {
+                    if self.occurs(needle, term, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+            }
             Kind::Address { life, inner, .. } => {
                 if self.occurs(needle, *life, depth + 1, b)?
                     || self.occurs(needle, *inner, depth + 1, b)?
@@ -506,6 +515,7 @@ impl Solver<'_, '_> {
             } => arguments.len().saturating_add(fields.len()),
             Kind::Associated { arguments, .. } => arguments.len().saturating_add(1),
             Kind::Task(task) => task.work(),
+            Kind::Dyn(ty) => ty.work(),
             Kind::Closure {
                 parameters,
                 environment,
@@ -579,6 +589,7 @@ impl Solver<'_, '_> {
             }
             (Kind::Slice(a), Kind::Slice(z)) => self.unify(a, z, depth + 1, b),
             (Kind::Task(a), Kind::Task(z)) => self.task_unify(&a, &z, b, depth + 1),
+            (Kind::Dyn(a), Kind::Dyn(z)) => self.dyn_unify(&a, &z, b, depth + 1),
             (
                 Kind::MutexGuard {
                     payload: a,
@@ -797,6 +808,9 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         match recipe {
+            SemanticTypeRecipe::Dyn { owned, interface } => {
+                self.dyn_type(frame, *owned, interface, b, depth + 1)
+            }
             SemanticTypeRecipe::Atom(ty)
                 if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
             {
@@ -3860,6 +3874,10 @@ impl Solver<'_, '_> {
             Kind::Task(_) => Err(fail(
                 "original Task payload requires its real Managed or Desc carrier",
             )),
+            Kind::Dyn(ty) if !ty.owned => Err(fail(
+                "original borrowed Dyn payload requires its real reference carrier",
+            )),
+            Kind::Dyn(_) => Ok(()),
             Kind::Array { element, .. } => self.sized_original(*element, b, depth + 1),
             Kind::ErrorUnion { error, result } => {
                 self.sized_original(*error, b, depth + 1)?;
@@ -4160,6 +4178,7 @@ impl Solver<'_, '_> {
             }
             Kind::Slice(_) => Ok(false),
             Kind::Task(_) => Ok(false),
+            Kind::Dyn(ty) => Ok(ty.owned && matches!(predicate, Predicate::Value)),
             Kind::Tuple(fields) => {
                 if matches!(predicate, Predicate::StoreElement) {
                     return Err(unknown(
@@ -4287,6 +4306,7 @@ impl Checked {
                 .ty),
             Kind::Array { .. }
             | Kind::Task(_)
+            | Kind::Dyn(_)
             | Kind::MutexGuard { .. }
             | Kind::Code { .. }
             | Kind::ErrorUnion { .. }

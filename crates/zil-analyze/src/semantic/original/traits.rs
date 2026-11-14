@@ -537,6 +537,7 @@ impl Solver<'_, '_> {
                 self.same_original(*a, *z, b, depth + 1)?
                     && self.same_original(*al, *zl, b, depth + 1)?
             }
+            (Kind::Dyn(a), Kind::Dyn(z)) => self.dyn_same(a, z, b, depth + 1)?,
             (Kind::Task(a), Kind::Task(z)) => {
                 b.spend(a.work().saturating_add(z.work()), WORK)?;
                 if a.retained != z.retained {

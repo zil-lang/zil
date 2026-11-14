@@ -65,6 +65,9 @@ impl Solver<'_, '_> {
                 }
                 Ok(true)
             }
+            Kind::Dyn(_) => Err(unknown(
+                "original Dyn capability requires its complete method, cleanup and retained-domain theorem",
+            )),
             Kind::Array { element, .. } => self.capability(*element, kind, b, depth + 1),
             Kind::ErrorUnion { error, result } => {
                 Ok(self.capability(*error, kind, b, depth + 1)?
@@ -288,6 +291,14 @@ impl Solver<'_, '_> {
             Kind::Atom(_) => Ok(true),
             Kind::Task(task) => {
                 for term in task.terms() {
+                    if !self.signature_closed(term, owner, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Kind::Dyn(ty) => {
+                for term in ty.terms() {
                     if !self.signature_closed(term, owner, b, depth + 1)? {
                         return Ok(false);
                     }

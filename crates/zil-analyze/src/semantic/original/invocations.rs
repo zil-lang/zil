@@ -28,6 +28,7 @@ impl Solver<'_, '_> {
         let width = match &self.state.arena[term] {
             Kind::Tuple(fields) => fields.len(),
             Kind::Task(task) => task.work(),
+            Kind::Dyn(ty) => ty.work(),
             Kind::Nominal {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
@@ -44,6 +45,7 @@ impl Solver<'_, '_> {
         b.spend(width, WORK)?;
         match self.state.arena[term].clone() {
             Kind::Task(task) => self.task_open_invocations(task, owner, actuals, b, depth + 1),
+            Kind::Dyn(ty) => self.dyn_open_invocations(ty, owner, actuals, b, depth + 1),
             Kind::MutexGuard { payload, life } => {
                 let payload = self.open_invocations(payload, owner, actuals, b, depth + 1)?;
                 let life = self.open_invocations(life, owner, actuals, b, depth + 1)?;
