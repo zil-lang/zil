@@ -27,6 +27,7 @@ impl Solver<'_, '_> {
         let term = self.root(term, b)?;
         let width = match &self.state.arena[term] {
             Kind::Tuple(fields) => fields.len(),
+            Kind::Task(task) => task.work(),
             Kind::Nominal {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
@@ -42,6 +43,7 @@ impl Solver<'_, '_> {
         };
         b.spend(width, WORK)?;
         match self.state.arena[term].clone() {
+            Kind::Task(task) => self.task_open_invocations(task, owner, actuals, b, depth + 1),
             Kind::Life(Life::Invocation(target, ordinal)) if target == owner => {
                 actuals.get(ordinal as usize).copied().ok_or_else(|| {
                     fail("original call omits an Invocation occurrence in its own frame")

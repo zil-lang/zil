@@ -124,6 +124,15 @@ impl Check<'_, '_> {
             return Err(fail("actual resource scope has no complete owning carrier"));
         };
         match payload.as_ref() {
+            Type::Task { result, .. } => {
+                self.zero_data(result, b, depth + 1)?;
+                crate::tasks::semantic_resource_scope(
+                    self.module,
+                    payload,
+                    self.inventory.limits,
+                    b,
+                )
+            }
             Type::ByteBuffer => self.actual_type(ty, b),
             Type::OwnedStore { element } => {
                 self.actual_type(ty, b)?;

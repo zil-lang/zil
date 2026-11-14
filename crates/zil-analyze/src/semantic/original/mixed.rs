@@ -365,6 +365,7 @@ impl Solver<'_, '_> {
         let term = self.root(term, b)?;
         let width = match &self.state.arena[term] {
             Kind::Tuple(fields) => fields.len(),
+            Kind::Task(task) => task.work(),
             Kind::Code {
                 parameters, modes, ..
             } => parameters.len().saturating_add(modes.len() + 1),
@@ -381,6 +382,7 @@ impl Solver<'_, '_> {
         b.spend(width, WORK)?;
         let kind = self.state.arena[term].clone();
         match kind {
+            Kind::Task(task) => self.task_instantiate(task, owner, actuals, b, depth + 1),
             Kind::Rigid(target, ordinal) | Kind::Life(Life::Formal(target, ordinal))
                 if target == owner =>
             {

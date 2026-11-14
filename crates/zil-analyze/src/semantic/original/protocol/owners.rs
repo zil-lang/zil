@@ -14,7 +14,7 @@ impl Proof<'_, '_> {
             };
             return Ok(matches!(
                 self.checked.arena[self.checked.root(payload, b)?],
-                Kind::Wrapped(Wrapper::AsyncRegistration, _)
+                Kind::Wrapped(Wrapper::AsyncRegistration, _) | Kind::Task(_)
             ));
         }
         Err(resource(

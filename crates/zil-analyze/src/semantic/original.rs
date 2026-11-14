@@ -22,6 +22,7 @@ mod roles;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
 mod slices;
+mod tasks;
 mod trait_members;
 mod traits;
 mod values;
@@ -79,6 +80,7 @@ enum Kind {
         inner: Term,
     },
     Slice(Term),
+    Task(tasks::TaskType),
     Desc {
         life: Term,
         inner: Term,
@@ -196,6 +198,7 @@ pub(super) struct Checked {
     native_paths: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u32>>,
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
     trait_calls: BTreeMap<(SemanticDefinitionId, NodeId), traits::TraitCall>,
+    task_templates: Vec<tasks::Template>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
@@ -367,6 +370,13 @@ impl Solver<'_, '_> {
                     return Ok(true);
                 }
             }
+            Kind::Task(task) => {
+                for term in task.terms() {
+                    if self.occurs(needle, term, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+            }
             Kind::Address { life, inner, .. } => {
                 if self.occurs(needle, *life, depth + 1, b)?
                     || self.occurs(needle, *inner, depth + 1, b)?
@@ -471,6 +481,7 @@ impl Solver<'_, '_> {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
             Kind::Associated { arguments, .. } => arguments.len().saturating_add(1),
+            Kind::Task(task) => task.work(),
             Kind::Closure {
                 parameters,
                 environment,
@@ -543,6 +554,7 @@ impl Solver<'_, '_> {
                 self.unify(ai, zi, depth + 1, b)
             }
             (Kind::Slice(a), Kind::Slice(z)) => self.unify(a, z, depth + 1, b),
+            (Kind::Task(a), Kind::Task(z)) => self.task_unify(&a, &z, b, depth + 1),
             (Kind::Atom(a), Kind::Atom(z)) if a == z => Ok(()),
             (Kind::Life(a), Kind::Life(z)) if a == z => Ok(()),
             (Kind::ConstValue(a), Kind::ConstValue(z)) if a == z => Ok(()),
@@ -757,6 +769,9 @@ impl Solver<'_, '_> {
             SemanticTypeRecipe::Slice(element) => {
                 let element = self.recipe(frame, element, b, depth + 1)?;
                 self.term(Kind::Slice(element), b)
+            }
+            SemanticTypeRecipe::Task { result, retained } => {
+                self.task_type(frame, result, retained, b, depth + 1)
             }
             SemanticTypeRecipe::Address {
                 mutable,
@@ -1347,6 +1362,43 @@ impl Solver<'_, '_> {
                 CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
                     self.expression(frame, value, b, depth + 1)?
                 }
+                CoreExprKind::Try(value) => {
+                    let value = self.expression(frame, value, b, depth + 1)?;
+                    let Kind::ErrorUnion { error, result } =
+                        self.state.arena[self.type_root(value, b)?]
+                    else {
+                        return Err(fail(
+                            "original propagation requires a complete ErrorUnion value",
+                        ));
+                    };
+                    let returned = self.type_root(frame.result, b)?;
+                    let expected_error = match self.state.arena[returned] {
+                        Kind::ErrorUnion { error, .. } => error,
+                        Kind::Infer(None) => {
+                            let success = self.var(b)?;
+                            let output = self.term(
+                                Kind::ErrorUnion {
+                                    error,
+                                    result: success,
+                                },
+                                b,
+                            )?;
+                            self.unify(frame.result, output, depth + 1, b)?;
+                            error
+                        }
+                        _ => {
+                            return Err(fail(
+                                "original propagation error edge has no ErrorUnion return context",
+                            ));
+                        }
+                    };
+                    self.unify(error, expected_error, depth + 1, b)?;
+                    if frame.alive {
+                        self.capture_exit(frame, b)?;
+                        self.cleanup(&frame.locals[frame.inherited..], b)?;
+                    }
+                    result
+                }
                 CoreExprKind::NumericConvert {
                     value: input,
                     target,
@@ -1878,6 +1930,28 @@ impl Solver<'_, '_> {
                                     .insert((frame.definition, value.id), vec![input]);
                                 (vec![input], self.atom(number.ty(), b)?)
                             }
+                            sealed::Resolution::Intrinsic(
+                                id @ (sealed::Intrinsic::TaskCreate
+                                | sealed::Intrinsic::TaskPoll
+                                | sealed::Intrinsic::TaskPollClose
+                                | sealed::Intrinsic::TaskCancel
+                                | sealed::Intrinsic::TaskFinish),
+                            ) => {
+                                let result = self.task_call(
+                                    frame,
+                                    value.id,
+                                    id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail("original Task call node is reused"));
+                                }
+                                return Ok(result);
+                            }
                             sealed::Resolution::Intrinsic(_) => {
                                 return Err(unknown(
                                     "original core operation needs its complete parameter, mode and cleanup scheme",
@@ -2255,7 +2329,18 @@ impl Solver<'_, '_> {
                         Some(value) => self.expression(frame, value, b, depth + 1)?,
                         None => self.atom(Type::Unit, b)?,
                     };
-                    self.unify(value, frame.result, depth + 1, b)?;
+                    let expected = self.type_root(frame.result, b)?;
+                    let actual = self.type_root(value, b)?;
+                    if let Kind::ErrorUnion { result, .. } = self.state.arena[expected]
+                        && !matches!(self.state.arena[actual], Kind::ErrorUnion { .. })
+                    {
+                        // Ordinary return values are the success arm of the
+                        // declaration's real ErrorUnion, never a new error type
+                        // inferred from a selected concrete caller.
+                        self.unify(value, result, depth + 1, b)?;
+                    } else {
+                        self.unify(value, frame.result, depth + 1, b)?;
+                    }
                     if frame.alive {
                         self.capture_exit(frame, b)?;
                         self.cleanup(&frame.locals[frame.inherited..], b)?;
@@ -2622,6 +2707,10 @@ impl Solver<'_, '_> {
                 .ok_or_else(|| fail("original parameter lost its local"))?
                 .anchor = Some(LocalAnchor::Parameter(index as u32));
         }
+        if matches!(signature.result, SemanticTypeRecipe::ErrorUnion { .. }) {
+            let expected = self.recipe(&frame, &signature.result, b, depth + 1)?;
+            self.unify(frame.result, expected, depth + 1, b)?;
+        }
         match body {
             SemanticOriginalFunctionBody::Defined(body) => {
                 self.block(&mut frame, body, b, depth + 1)?
@@ -2749,7 +2838,13 @@ impl Solver<'_, '_> {
             self.capture_exit(&frame, b)?;
             self.cleanup(&frame.locals[frame.inherited..], b)?;
             let unit = self.atom(Type::Unit, b)?;
-            self.unify(frame.result, unit, depth + 1, b)?;
+            if let Kind::ErrorUnion { result, .. } =
+                self.state.arena[self.type_root(frame.result, b)?]
+            {
+                self.unify(result, unit, depth + 1, b)?;
+            } else {
+                self.unify(frame.result, unit, depth + 1, b)?;
+            }
         }
         let result = self.recipe(&frame, &signature.result, b, depth + 1)?;
         self.unify(frame.result, result, depth + 1, b)?;
@@ -2938,6 +3033,7 @@ pub(super) fn normalize_expr(
     match &mut value.kind {
         CoreExprKind::Group(value)
         | CoreExprKind::CompileTime(value)
+        | CoreExprKind::Try(value)
         | CoreExprKind::Unary { operand: value, .. }
         | CoreExprKind::Ascribed { value, .. } => normalize_expr(value, b, depth + 1)?,
         CoreExprKind::Binary { left, right, .. } => {
@@ -3101,6 +3197,7 @@ pub(super) fn check(
             native_paths: BTreeMap::new(),
             abstract_calls: BTreeMap::new(),
             trait_calls: BTreeMap::new(),
+            task_templates: Vec::new(),
             borrows: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
             patterns: BTreeMap::new(),
@@ -3394,6 +3491,9 @@ impl Solver<'_, '_> {
             Kind::Slice(_) => Err(fail(
                 "original unsized Slice needs a real reference carrier",
             )),
+            Kind::Task(_) => Err(fail(
+                "original Task payload requires its real Managed or Desc carrier",
+            )),
             Kind::Array { element, .. } => self.sized_original(*element, b, depth + 1),
             Kind::ErrorUnion { error, result } => {
                 self.sized_original(*error, b, depth + 1)?;
@@ -3675,6 +3775,7 @@ impl Solver<'_, '_> {
                     && self.satisfies(*result, predicate, b, depth + 1)?)
             }
             Kind::Slice(_) => Ok(false),
+            Kind::Task(_) => Ok(false),
             Kind::Tuple(fields) => {
                 if matches!(predicate, Predicate::StoreElement) {
                     return Err(unknown(
@@ -3797,6 +3898,7 @@ impl Checked {
                 .value(term, context, program, inventory, b, depth + 1)?
                 .ty),
             Kind::Array { .. }
+            | Kind::Task(_)
             | Kind::Code { .. }
             | Kind::ErrorUnion { .. }
             | Kind::Desc { .. }

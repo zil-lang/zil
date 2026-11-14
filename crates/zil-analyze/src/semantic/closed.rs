@@ -18,6 +18,7 @@ mod registration_start;
 mod resources;
 mod slice_borrows;
 mod slices;
+mod tasks;
 mod traits;
 pub(super) use traits::{original_associated, original_self};
 
@@ -90,6 +91,9 @@ impl Check<'_, '_> {
                 }
                 Type::Registration { .. } | Type::AsyncRegistration { .. } => {
                     crate::dyn_metadata::ty(inner, b)?;
+                    return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
+                }
+                Type::Task { .. } => {
                     return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
                 }
                 _ => {

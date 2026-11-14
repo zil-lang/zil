@@ -27,7 +27,7 @@ impl Checked {
             "original actual lexical context exceeds its finite depth",
         ))
     }
-    fn life_value(
+    pub(super) fn life_value(
         &self,
         term: Term,
         context: &SemanticInstance,
@@ -143,6 +143,7 @@ impl Checked {
         }
         match &self.arena[self.root(term, b)?] {
             Kind::Atom(ty) => Ok(value::scalar(ty.clone())),
+            Kind::Task(task) => self.task_value(task, context, program, inventory, b, depth + 1),
             Kind::CallResult {
                 caller,
                 node,
@@ -227,6 +228,13 @@ impl Checked {
             }
             Kind::Wrapped(wrapper, inner) => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
+                if *wrapper == Wrapper::Managed && matches!(inner.ty, Type::Task { .. }) {
+                    return Ok(Value {
+                        ty: Type::Managed(Box::new(inner.ty)),
+                        life: inner.life,
+                        classes: inner.classes,
+                    });
+                }
                 if !inner.classes.is_empty() {
                     return Err(unknown(
                         "original opaque resource constructor needs its complete retained and phantom child occurrence transport",

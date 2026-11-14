@@ -560,6 +560,30 @@ impl Check<'_, '_> {
                             self.result(instruction, point.function, &Type::Unit)?;
                             return Ok(());
                         }
+                        id @ (original::sealed::Intrinsic::TaskCreate
+                        | original::sealed::Intrinsic::TaskPoll
+                        | original::sealed::Intrinsic::TaskCancel
+                        | original::sealed::Intrinsic::TaskPollClose
+                        | original::sealed::Intrinsic::TaskFinish) => {
+                            let output = self.task_operation(
+                                instance,
+                                site.recipe,
+                                id,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            self.result(
+                                instruction.ok_or_else(|| {
+                                    fail("actual Task operation has no instruction")
+                                })?,
+                                point.function,
+                                &output,
+                            )?;
+                            return Ok(());
+                        }
                         id @ (original::sealed::Intrinsic::BytesNew
                         | original::sealed::Intrinsic::BytesReserve
                         | original::sealed::Intrinsic::BytesPush
@@ -648,12 +672,18 @@ impl Check<'_, '_> {
                             let instruction = instruction.ok_or_else(|| {
                                 fail("original conversion has no actual instruction")
                             })?;
-                            let InstructionKind::ConvertNumber { value, target } =
-                                &instruction.kind
-                            else {
-                                return Err(fail(
-                                    "original numeric conversion is replaced by another actual opcode",
-                                ));
+                            let (value, target, integer) = match &instruction.kind {
+                                InstructionKind::ConvertNumber { value, target } => {
+                                    (value, target, false)
+                                }
+                                InstructionKind::ConvertInteger { value, target } => {
+                                    (value, target, true)
+                                }
+                                _ => {
+                                    return Err(fail(
+                                        "original numeric conversion is replaced by another actual opcode",
+                                    ));
+                                }
                             };
                             if !actuals.is_empty() || *target != number.ty() {
                                 return Err(fail(
@@ -697,6 +727,14 @@ impl Check<'_, '_> {
                             ) {
                                 return Err(fail(
                                     "actual numeric conversion input violates its original numeric premise",
+                                ));
+                            }
+                            if integer
+                                && (matches!(input, Type::F32 | Type::F64)
+                                    || matches!(target, Type::F32 | Type::F64))
+                            {
+                                return Err(fail(
+                                    "actual integer conversion changes the original mathematical carrier family",
                                 ));
                             }
                             self.result(instruction, point.function, &number.ty())?;
@@ -1222,6 +1260,12 @@ impl Check<'_, '_> {
                         | InstructionKind::SuspendCall { .. }
                         | InstructionKind::ForeignCall { .. } => Some(0),
                         InstructionKind::TaskYield
+                        | InstructionKind::TaskCreate { .. }
+                        | InstructionKind::TaskCreateOwned { .. }
+                        | InstructionKind::TaskPoll { .. }
+                        | InstructionKind::TaskRequestCancel { .. }
+                        | InstructionKind::TaskPollClose { .. }
+                        | InstructionKind::TaskFinishDestroy { .. }
                         | InstructionKind::AsyncRegistrationRequestClose { .. }
                         | InstructionKind::AsyncRegistrationPollClose { .. }
                         | InstructionKind::AsyncRegistrationFinishDestroy { .. }

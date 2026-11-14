@@ -46,6 +46,23 @@ impl Solver<'_, '_> {
                 )),
             },
             Kind::Desc { .. } | Kind::Address { .. } | Kind::Slice(_) => Ok(false),
+            Kind::Task(task) => {
+                if kind != SemanticBuiltinTrait::ClosedEnvironment {
+                    return Ok(false);
+                }
+                for term in task.terms() {
+                    match self.state.arena[self.type_root(term, b)?] {
+                        Kind::Life(_) | Kind::LifeVariable(_) => return Ok(false),
+                        Kind::ConstRigid { .. } | Kind::ConstValue(_) => {}
+                        _ => {
+                            if !self.capability(term, kind, b, depth + 1)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                }
+                Ok(true)
+            }
             Kind::Array { element, .. } => self.capability(*element, kind, b, depth + 1),
             Kind::ErrorUnion { error, result } => {
                 Ok(self.capability(*error, kind, b, depth + 1)?
@@ -264,6 +281,14 @@ impl Solver<'_, '_> {
         self.step(depth, b)?;
         match &self.state.arena[self.type_root(term, b)?] {
             Kind::Atom(_) => Ok(true),
+            Kind::Task(task) => {
+                for term in task.terms() {
+                    if !self.signature_closed(term, owner, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             Kind::Rigid(_, _) => {
                 self.capability(term, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)
             }

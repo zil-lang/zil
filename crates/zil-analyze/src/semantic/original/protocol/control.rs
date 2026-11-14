@@ -125,6 +125,13 @@ impl Proof<'_, '_> {
             CorePatternKind::Wildcard | CorePatternKind::Bool(_) | CorePatternKind::Integer(_) => {
                 Ok(())
             }
+            CorePatternKind::ErrorArm { is_error, pattern } => self.bind_pattern(
+                state,
+                pattern,
+                if *is_error { &Data::default() } else { data },
+                b,
+                depth + 1,
+            ),
             CorePatternKind::Tuple(fields)
             | CorePatternKind::Constructor { fields, .. }
             | CorePatternKind::Variant { fields, .. } => {
@@ -250,10 +257,28 @@ impl Proof<'_, '_> {
                     Solver::push(&mut branches, branch, b)?;
                 }
             } else {
-                Solver::push(&mut branches, base.copy(b)?, b)?;
+                let mut branch = base.copy(b)?;
+                if matches!(
+                    arm.pattern.kind,
+                    CorePatternKind::ErrorArm { is_error: true, .. }
+                ) && let Some(role) = data.alias
+                {
+                    branch.phases.insert(role, 0);
+                }
+                Solver::push(&mut branches, branch, b)?;
             }
             for mut branch in branches {
-                self.bind_pattern(&mut branch, &arm.pattern, &Data::default(), b, depth + 1)?;
+                self.bind_pattern(
+                    &mut branch,
+                    &arm.pattern,
+                    if poll.is_none() {
+                        &data
+                    } else {
+                        &Data::default()
+                    },
+                    b,
+                    depth + 1,
+                )?;
                 self.block(&mut branch, &arm.body, b, depth + 1)?;
                 branch.locals.truncate(scope);
                 joined.join(&branch, b)?;

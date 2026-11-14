@@ -270,6 +270,27 @@ impl Solver<'_, '_> {
                 }
                 Ok(irrefutable)
             }
+            CorePatternKind::ErrorArm { is_error, pattern } => {
+                let Kind::ErrorUnion { error, result } =
+                    self.state.arena[self.type_root(subject, b)?]
+                else {
+                    return Err(fail(
+                        "original error/success pattern has another complete subject family",
+                    ));
+                };
+                Self::push(path, u32::from(*is_error), b)?;
+                let result = self.pattern_bind(
+                    frame,
+                    statement,
+                    path,
+                    pattern,
+                    if *is_error { error } else { result },
+                    b,
+                    depth + 1,
+                );
+                path.pop();
+                result
+            }
             CorePatternKind::Constructor {
                 definition: _,
                 variant,
@@ -345,6 +366,7 @@ impl Solver<'_, '_> {
         let mut coverage = BTreeSet::new();
         let mut total = false;
         let mut bools = BTreeSet::new();
+        let mut errors = BTreeSet::new();
         for (arm_index, arm) in arms.iter().enumerate() {
             frame.locals = self.copy_locals(&base, b)?;
             frame.alive = original_alive;
@@ -375,6 +397,9 @@ impl Solver<'_, '_> {
                 CorePatternKind::Bool(value) => {
                     bools.insert(*value);
                 }
+                CorePatternKind::ErrorArm { is_error, .. } if irrefutable => {
+                    errors.insert(*is_error);
+                }
                 _ => {}
             }
             self.block(frame, &arm.body, b, depth + 1)?;
@@ -396,7 +421,7 @@ impl Solver<'_, '_> {
             }
         }
         if !total {
-            match &self.state.arena[self.root(subject, b)?] {
+            match &self.state.arena[self.type_root(subject, b)?] {
                 Kind::Nominal { definition, .. } => {
                     let declaration = self.inventory.definition(*definition, b)?;
                     let SemanticDefinitionBody::Nominal {
@@ -414,6 +439,7 @@ impl Solver<'_, '_> {
                     }
                 }
                 Kind::Atom(Type::Bool) if bools.len() == 2 => {}
+                Kind::ErrorUnion { .. } if errors.len() == 2 => {}
                 _ => {
                     return Err(unknown(
                         "original match needs its complete exhaustive pattern coverage proof",

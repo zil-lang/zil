@@ -100,6 +100,7 @@ impl Solver<'_, '_> {
                 }
             }
             Wrapper::Managed => match &self.state.arena[self.type_root(inner, b)?] {
+                Kind::Task(_) => {}
                 Kind::Atom(Type::ByteBuffer)
                 | Kind::Wrapped(
                     Wrapper::Store
@@ -125,6 +126,7 @@ impl Solver<'_, '_> {
     ) -> CompileResult<bool> {
         self.step(depth, b)?;
         match &self.state.arena[self.type_root(payload, b)?] {
+            Kind::Task(_) => Ok(false),
             Kind::Atom(Type::ByteBuffer) => Ok(true),
             Kind::Wrapped(Wrapper::Store, element) => {
                 Ok(

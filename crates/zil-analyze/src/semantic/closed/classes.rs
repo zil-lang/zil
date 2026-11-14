@@ -81,6 +81,15 @@ impl Check<'_, '_> {
             ));
         }
         match recipe {
+            SemanticTypeRecipe::Task { result, retained } => self.original.task_recipe(
+                instance,
+                result,
+                retained,
+                self.program,
+                self.inventory,
+                b,
+                depth + 1,
+            ),
             SemanticTypeRecipe::SelfType { scope } => {
                 let context = self.ancestor(instance, *scope, b)?;
                 self.original_scope_self(context, b, depth + 1)

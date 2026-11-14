@@ -9,10 +9,19 @@ pub(super) use context_work::{
 };
 pub(super) mod input_scope;
 mod owned;
+mod semantic_scope;
+pub(crate) fn semantic_resource_scope(
+    module: &TypedModule,
+    payload: &Type,
+    limits: &Limits,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    semantic_scope::zero(module, payload, limits, budget)
+}
 pub(super) use owned::once_cleanup_resumable;
 mod port_origins;
 pub(super) use drop_sync::{
-    needs_proof as needs_synchronous_proof, once_cleanup_has_no_task, once_cleanup_closed,
+    needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
     require as require_synchronous_drop, require_value as require_synchronous_value,
     require_worker as require_synchronous_worker,
 };

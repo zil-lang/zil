@@ -23,7 +23,7 @@ fn ordered(values: &[ProtocolState]) -> bool {
     !values.is_empty() && values.windows(2).all(|pair| pair[0] < pair[1])
 }
 fn owner(recipe: &SemanticTypeRecipe) -> bool {
-    matches!(recipe,SemanticTypeRecipe::Managed(inner) if matches!(inner.as_ref(),SemanticTypeRecipe::AsyncRegistration(_)))
+    matches!(recipe,SemanticTypeRecipe::Managed(inner) if matches!(inner.as_ref(),SemanticTypeRecipe::AsyncRegistration(_) | SemanticTypeRecipe::Task { .. }))
 }
 fn borrow(recipe: &SemanticTypeRecipe) -> bool {
     matches!(recipe,SemanticTypeRecipe::Address {mutable:true,inner,..} if owner(inner))
@@ -419,6 +419,23 @@ impl Proof<'_, '_> {
             CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
                 self.expression(state, value, b, depth + 1)
             }
+            CoreExprKind::Try(value) => {
+                let data = self.expression(state, value, b, depth + 1)?;
+                self.plain(&data)?;
+                // A newly created success owner does not exist on the error
+                // edge. Existing input roles retain their actual current state.
+                let mut failure = state.copy(b)?;
+                if let Some(role) = data.alias {
+                    failure.phases.insert(role, 0);
+                }
+                b.spend(failure.phases.len(), WORK)?;
+                let error = Data {
+                    alias: None,
+                    outcomes: vec![(ProtocolExit::ErrorErr, failure.phases.clone())],
+                };
+                self.exit(&failure, &error, b)?;
+                Ok(data)
+            }
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Give,
                 operand,
@@ -478,7 +495,11 @@ impl Proof<'_, '_> {
                         id @ (sealed::Intrinsic::AsyncRequest
                         | sealed::Intrinsic::AsyncPoll
                         | sealed::Intrinsic::AsyncFinish
-                        | sealed::Intrinsic::AsyncFinishChecked),
+                        | sealed::Intrinsic::AsyncFinishChecked
+                        | sealed::Intrinsic::TaskCancel
+                        | sealed::Intrinsic::TaskPoll
+                        | sealed::Intrinsic::TaskPollClose
+                        | sealed::Intrinsic::TaskFinish),
                     ) => {
                         let [data] = actuals.as_slice() else {
                             return Err(fail(
@@ -496,7 +517,7 @@ impl Proof<'_, '_> {
                         }
                         state.invalidate(b)?;
                         match id {
-                            sealed::Intrinsic::AsyncRequest => {
+                            sealed::Intrinsic::AsyncRequest | sealed::Intrinsic::TaskCancel => {
                                 state.phases.insert(
                                     role,
                                     (old & CLOSED)
@@ -509,8 +530,14 @@ impl Proof<'_, '_> {
                                 Ok(Data::default())
                             }
                             sealed::Intrinsic::AsyncFinish
-                            | sealed::Intrinsic::AsyncFinishChecked => {
-                                if id == sealed::Intrinsic::AsyncFinishChecked && old != CLOSED {
+                            | sealed::Intrinsic::AsyncFinishChecked
+                            | sealed::Intrinsic::TaskFinish => {
+                                if matches!(
+                                    id,
+                                    sealed::Intrinsic::AsyncFinishChecked
+                                        | sealed::Intrinsic::TaskFinish
+                                ) && old != CLOSED
+                                {
                                     return Err(fail(
                                         "original checked destroy needs the same current Closed parameter",
                                     ));
@@ -518,7 +545,7 @@ impl Proof<'_, '_> {
                                 state.phases.insert(role, 0);
                                 Ok(Data::default())
                             }
-                            sealed::Intrinsic::AsyncPoll => {
+                            sealed::Intrinsic::AsyncPoll | sealed::Intrinsic::TaskPollClose => {
                                 let mut outcomes = Vec::new();
                                 if old & (OPEN | CLOSING) != 0 {
                                     b.spend(state.phases.len(), WORK)?;
@@ -547,6 +574,12 @@ impl Proof<'_, '_> {
                                     outcomes,
                                 })
                             }
+                            sealed::Intrinsic::TaskPoll => {
+                                // Ordinary worker progress cannot certify that
+                                // the owning frame's close/drain has completed.
+                                state.phases.insert(role, ANY);
+                                Ok(Data::default())
+                            }
                             _ => Err(fail(
                                 "original protocol operation has another sealed identity",
                             )),
@@ -558,7 +591,9 @@ impl Proof<'_, '_> {
                         | sealed::Intrinsic::RegistrationValid
                         | sealed::Intrinsic::SliceLength,
                     ) => Ok(Data::default()),
-                    sealed::Resolution::Intrinsic(sealed::Intrinsic::RegisterAsync) => {
+                    sealed::Resolution::Intrinsic(
+                        sealed::Intrinsic::RegisterAsync | sealed::Intrinsic::TaskCreate,
+                    ) => {
                         state.opaque(b)?;
                         self.fresh_owner(state, value.id, b)
                     }
@@ -908,6 +943,11 @@ pub(super) fn check(
                             | sealed::Intrinsic::AsyncPoll
                             | sealed::Intrinsic::AsyncFinish
                             | sealed::Intrinsic::AsyncFinishChecked
+                            | sealed::Intrinsic::TaskCreate
+                            | sealed::Intrinsic::TaskPoll
+                            | sealed::Intrinsic::TaskCancel
+                            | sealed::Intrinsic::TaskPollClose
+                            | sealed::Intrinsic::TaskFinish
                     );
             }
             for ((owner, _), call) in &checked.calls {

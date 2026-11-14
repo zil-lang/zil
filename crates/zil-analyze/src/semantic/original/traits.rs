@@ -10,7 +10,7 @@ pub(in crate::semantic) use methods::TraitCall;
 #[derive(Default)]
 pub(super) struct State {
     scopes: BTreeMap<LifeDeclarationId, SemanticDefinitionId>,
-    selves: Vec<(SemanticDefinitionId, Term)>,
+    pub(super) selves: Vec<(SemanticDefinitionId, Term)>,
     projections: Vec<Term>,
     facts: Vec<(Term, Predicate)>,
     active: Vec<(Term, LifeDeclarationId, Vec<Term>, u32)>,
@@ -504,6 +504,29 @@ impl Solver<'_, '_> {
         let pair = (&self.state.arena[left], &self.state.arena[right]);
         Ok(match pair {
             (Kind::Atom(a), Kind::Atom(z)) => a == z,
+            (Kind::Task(a), Kind::Task(z)) => {
+                b.spend(a.work().saturating_add(z.work()), WORK)?;
+                if a.retained != z.retained {
+                    false
+                } else {
+                    let mut left = a.terms();
+                    let mut right = z.terms();
+                    let mut equal = true;
+                    loop {
+                        match (left.next(), right.next()) {
+                            (None, None) => break,
+                            (Some(a), Some(z)) => {
+                                equal &= self.same_original(a, z, b, depth + 1)?;
+                            }
+                            _ => {
+                                equal = false;
+                                break;
+                            }
+                        }
+                    }
+                    equal
+                }
+            }
             (Kind::Rigid(a, ai), Kind::Rigid(z, zi)) => a == z && ai == zi,
             (Kind::SelfType(a), Kind::SelfType(z)) => a == z,
             (Kind::Life(a), Kind::Life(z)) => a == z,
