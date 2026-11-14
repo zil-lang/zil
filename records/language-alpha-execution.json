@@ -1,0 +1,50 @@
+{
+  "updated_at_utc": "2026-11-14T08:13:54.946778+00:00",
+  "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
+  "one_hour_window": {
+    "start_utc": "2026-11-14T07:06:00Z",
+    "target_utc": "2026-11-14T08:06:00Z",
+    "met": false,
+    "stop_at_deadline": false
+  },
+  "current_acceptance": "NOT ACCEPTED",
+  "latest_completed_runtime": {
+    "candidate": "cca0d4c93",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-full-emission-static-queries",
+    "foundation_positives": {
+      "passed": 0,
+      "total": 13
+    },
+    "intended_negatives": {
+      "passed": 2,
+      "total": 4
+    },
+    "native_small_sources": {
+      "passed": 12,
+      "total": 16
+    },
+    "source_lib": {
+      "passed": 152,
+      "failed": 0
+    },
+    "warning": "These are not Alpha acceptance or new broad feature delivery."
+  },
+  "active_branch": "task/language-alpha",
+  "latest_ready_source": "785a0c85b",
+  "current_candidate_under_validation": "785a0c85b",
+  "wip_backup": {
+    "commit": "38de856da623862dbde8361295335e0b357f5b00",
+    "source_base": "77227db31d7b3ee13fb9097a372dc47de5b53b53",
+    "path": "language/20261114-alpha-wip-0659",
+    "paused_source_files": 21,
+    "restore_manifest_and_patch_readback_equal": true,
+    "accepted": false
+  },
+  "critical_groups": [
+    "Complete Source-to-actual emission, constructor roles and retained template instance graph",
+    "Complete original associated input and independent Types/Analyze/Verify provider, method and actual bridges",
+    "Whole nominal, opaque boundary origin sets, actual role and all-exit cleanup proof",
+    "Real foundation native/C/failure cleanup plus existing generated-source/ready-query/project consumers"
+  ],
+  "workflow": "One shared branch; exact READY writes committed immediately; immutable candidate and one build lock; Sol workers; Astra on hard public-contract questions; independent A/V algorithms; do not end work at08:06."
+}

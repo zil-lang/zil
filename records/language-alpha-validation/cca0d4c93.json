@@ -1,0 +1,462 @@
+{
+  "candidate": "cca0d4c9371b522525bb95d6e7211f91e64f4865",
+  "recorded_at_utc": "2026-11-14T08:13:54.946778+00:00",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-full-emission-static-queries",
+  "accepted": false,
+  "cli_sha256": "b0bac369763deff265b4aa263070df3116197c1bf7fd48218b69f5446f594bda",
+  "profile_sha256": "1cb51ba1ed6dd9fc2d71c2e939116837a7beaf1bac77931e60acb1ff14f69c81",
+  "exits": [
+    "CLI_BUILD_EXIT=0",
+    "FOUNDATION_PROFILE_EXIT=1",
+    "CORE_CHAIN_EXIT=1",
+    "WORKSPACE_ALLTARGETS_EXIT=0",
+    "TYPES_PROBE_EXIT=0",
+    "SOURCE_TESTS_EXIT=0"
+  ],
+  "foundation_positive": {
+    "passed": 0,
+    "total": 13
+  },
+  "foundation_negative": {
+    "passed": 2,
+    "total": 4
+  },
+  "rows": [
+    {
+      "group": "positive_cases",
+      "family": "scalars",
+      "source_sha256": "8b4677e668bcb425724ba30599b11d3138121b8818bb25d8379fd1c3fbabeaa3",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-STORED",
+          "message": "stored target proof: nominal instance has no complete qualified type",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "patterns",
+      "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "literal constructor has no actual producer receipt",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "generic-libraries",
+      "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original operation does not typecheck under its rigid declaration",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "closures",
+      "source_sha256": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "opaque hidden type requires its actual original call-result boundary: instance SemanticInstanceId { module: ModuleId(0), index: 1 }, actual definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, opaque definition SemanticDefinitionId { module: ModuleId(1), index: 3 }",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "ownership",
+      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "inferred whole Type has several original opaque result boundaries",
+          "span": {
+            "file": 0,
+            "start": 211,
+            "end": 320
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(19)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "dynamic-abstraction",
+      "source_sha256": "8a5df893801e58386b266191b6c62bcf82a55211e2fbef639ad015db827be8ff",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "Dyn method specialization changes Self or complete actuals",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "async-ownership",
+      "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original type constructor requires its complete scoped domain interpretation",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "threads",
+      "source_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "call outer role has no real reborrow path to its original argument role",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "caller SemanticInstanceId { module: ModuleId(0), index: 6 }, callee Some(SemanticInstanceId { module: ModuleId(0), index: 4 }), site SemanticSiteId(0), parameter 0, operand ValueId(1); source Class(IntrinsicClass { operand: Environment(0), path: [], class: 0 }), target Class(OuterOccurrence { operand: Environment(0), path: [], mode: WritableDescription })"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "foreign-lifecycle",
+      "source_sha256": "171812ab53d0b274cdf2bae0dd47cae94ca151e447bd6bbb19347325a7f57aa5",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual call has ambiguous original callee worlds",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "owning-collections",
+      "source_sha256": "ef8f72781a1e834993cfc9b5ee3b09343a896c1a9fdb212755e00598d55ad870",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-STORED-IDENTITY",
+          "message": "stored instance has no actual aggregate declaration",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "buffered-io",
+      "source_sha256": "25f26e1397071fd97bae5a83ede8eb91e3ceee94c1c1ec27615667143f5bcf5a",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "literal constructor has no actual producer receipt",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "iteration",
+      "source_sha256": "bdebeb8bd047fb868889de3e6a4acefa2e615f860192105f2cb5538272ccbfe1",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original field requires a visible complete nominal shape",
+          "span": {
+            "file": 1,
+            "start": 6295,
+            "end": 6308
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 25 }, expression NodeId(8)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 10 }, expression NodeId(61)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 10 }, expression NodeId(60)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "project-workflow",
+      "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "semantic source expression NodeId(13) in FunctionId(15) was not actually emitted",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "foreign-lifecycle",
+      "source_sha256": "492843ac3b06c3e1a904e968811e47ebe5047178ea92a3db6be292857d1e7818",
+      "pass": true,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "registration construction lacks the callback's independent original SyncDrop premise",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 6 }, expression NodeId(2)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "foreign-lifecycle-unused",
+      "source_sha256": "5a8e823faf707d6a148843367b7b7ed10deb427392084329fc7c41c5d7665ae3",
+      "pass": true,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "registration construction lacks the callback's independent original SyncDrop premise",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 6 }, expression NodeId(2)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-original",
+      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+      "pass": false,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "inferred whole Type has several original opaque result boundaries",
+          "span": {
+            "file": 0,
+            "start": 211,
+            "end": 320
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(19)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-unused",
+      "source_sha256": "cc3d89991162fcfd86b9442197cd92e8051bcde922f1886711345a7e454618ab",
+      "pass": false,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "literal constructor has no actual producer receipt",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "native_passed": 12,
+  "native_total": 16,
+  "native_failures": [
+    {
+      "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+      "backend": "clang",
+      "optimization": "O0",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original symbolic type constructor is not independently interpreted [original definition SemanticDefinitionId { module: ModuleId(0), index: 1 }]",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+      "backend": "clang",
+      "optimization": "O2",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original symbolic type constructor is not independently interpreted [original definition SemanticDefinitionId { module: ModuleId(0), index: 1 }]",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original symbolic type constructor is not independently interpreted [original definition SemanticDefinitionId { module: ModuleId(0), index: 1 }]",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original symbolic type constructor is not independently interpreted [original definition SemanticDefinitionId { module: ModuleId(0), index: 1 }]",
+          "span": null,
+          "notes": []
+        }
+      ]
+    }
+  ]
+}
