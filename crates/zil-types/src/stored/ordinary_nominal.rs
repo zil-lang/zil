@@ -840,12 +840,12 @@ impl<'a> Check<'a, '_> {
                     position.base == StorageBase::Capture(index as u32) && position.path.is_empty()
                 })
                 .count();
-            match capture {
+            let result = match capture {
                 Type::Address {
                     mutable: false,
                     inner,
-                } if static_occurrences == 1 => self.ty(inner, depth + 1)?,
-                _ if static_occurrences == 0 => self.ty(capture, depth + 1)?,
+                } if static_occurrences == 1 => self.ty(inner, depth + 1),
+                _ if static_occurrences == 0 => self.ty(capture, depth + 1),
                 _ => {
                     return Err(error(
                         "E-NOMINAL-DOMAIN",
@@ -853,6 +853,21 @@ impl<'a> Check<'a, '_> {
                         "static capture does not select one immutable complete borrow occurrence",
                     ));
                 }
+            };
+            if let Err(mut diagnostic) = result {
+                inference::charge_type_snapshot(
+                    capture,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                fee(self.left, 32, Span::default())?;
+                diagnostic.notes.push(format!(
+                    "actual persistent closure {:?}, entry {:?}, capture {} complete type {:?}",
+                    id, definition.function, index, capture
+                ));
+                return Err(diagnostic);
             }
         }
         for position in &life.static_bindings {
@@ -1140,10 +1155,49 @@ impl<'a> Check<'a, '_> {
                 )?;
                 let mut diagnostic =
                     unknown("ordinary nominal child has no complete known-zero persistent domain");
-                diagnostic.notes.push(format!(
-                    "actual persistent child type {:?}; active nominal row indices {:?}",
-                    ty, self.active
-                ));
+                diagnostic
+                    .notes
+                    .push(format!("actual persistent child type {:?}", ty));
+                fee(
+                    self.left,
+                    self.instances
+                        .len()
+                        .saturating_mul(self.active.len().saturating_add(1)),
+                    Span::default(),
+                )?;
+                for parent in self.instances {
+                    if self
+                        .active
+                        .contains(&(parent as *const LifeNominalInstance as usize))
+                    {
+                        inference::charge_type_snapshot(
+                            &parent.ty,
+                            Span::default(),
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                        fee(
+                            self.left,
+                            parent.arguments.len().saturating_add(16),
+                            Span::default(),
+                        )?;
+                        for argument in &parent.arguments {
+                            if let LifeNominalActual::Type(ty)
+                            | LifeNominalActual::QualifiedType { ty, .. } = argument
+                            {
+                                inference::charge_type_snapshot(
+                                    ty,
+                                    Span::default(),
+                                    self.limits,
+                                    self.left,
+                                    1,
+                                )?;
+                            }
+                        }
+                        diagnostic.notes.push(format!("actual persistent parent declaration {:?}, whole type {:?}, full mixed arguments {:?}",parent.declaration,parent.ty,parent.arguments));
+                    }
+                }
                 Err(diagnostic)
             }
         }
