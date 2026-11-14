@@ -1,6 +1,7 @@
 //! Actual Task operations retain their original worker and owning-head identity.
 //! Phase, allocation failure, retained loans and cleanup remain Task-kernel facts.
 use super::*;
+use crate::semantic::value;
 
 impl Check<'_, '_> {
     #[allow(clippy::too_many_arguments)]
@@ -15,8 +16,19 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Type> {
-        if !actuals.is_empty() {
-            return Err(fail("actual Task intrinsic invents generic actuals"));
+        let expected_type =
+            self.original
+                .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
+        let [actual_type] = actuals else {
+            return Err(fail(
+                "sealed resource operation requires its one complete intrinsic Type actual",
+            ));
+        };
+        if !matches!(self.actual_value(instance, actual_type, b, 0)?, value::Argument::Type(actual) if actual == expected_type)
+        {
+            return Err(fail(
+                "sealed resource Type actual changes its independently checked original scheme",
+            ));
         }
         let instruction = function
             .blocks

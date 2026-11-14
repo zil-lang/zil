@@ -1147,6 +1147,24 @@ impl Check<'_, '_> {
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
         }
+        if let Type::Closure(id) = ty {
+            let closure = self
+                .module
+                .closures
+                .get(id.0 as usize)
+                .filter(|closure| closure.id == *id)
+                .ok_or_else(|| fail("actual closure SSA has no exact definition"))?;
+            if closure
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| life.fixed_binder_count == 0)
+            {
+                // The count selects a proof obligation, never proves it:
+                // reconstruct every real capture and original environment.
+                self.zero_data(ty, b, 0)?;
+                return Ok(value::scalar(ty.clone()));
+            }
+        }
         if matches!(
             ty,
             Type::FunctionPointer { .. }

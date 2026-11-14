@@ -1,7 +1,7 @@
 //! Bind the closed original Store scheme to the actual manager and opcode.
 //! The actual Store kernel still proves prefix entries, loans and cleanup.
 use super::*;
-use crate::semantic::value::Value;
+use crate::semantic::value::{self, Value};
 impl Check<'_, '_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn store_operation(
@@ -48,26 +48,18 @@ impl Check<'_, '_> {
         let inputs =
             self.original
                 .intrinsic_inputs(instance, site, self.program, self.inventory, b)?;
-        if intrinsic == I::StoreNew {
-            if !actuals.is_empty() {
-                let [actual] = actuals else {
-                    return Err(fail(
-                        "actual Store construction changes its full Type actual arity",
-                    ));
-                };
-                let Some(expected) = inputs.first() else {
-                    return Err(fail("original Store construction omits its element"));
-                };
-                if !matches!(self.actual_value(instance,actual,b,0)?,value::Argument::Type(actual) if actual==*expected)
-                {
-                    return Err(fail(
-                        "actual Store construction changes its complete original Type actual",
-                    ));
-                }
-            }
-        } else if !actuals.is_empty() {
+        let expected_type =
+            self.original
+                .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
+        let [actual_type] = actuals else {
             return Err(fail(
-                "actual Store intrinsic invents generic function actuals",
+                "sealed resource operation requires its one complete intrinsic Type actual",
+            ));
+        };
+        if !matches!(self.actual_value(instance, actual_type, b, 0)?, value::Argument::Type(actual) if actual == expected_type)
+        {
+            return Err(fail(
+                "sealed resource Type actual changes its independently checked original scheme",
             ));
         }
         if let Some(store) = store {
