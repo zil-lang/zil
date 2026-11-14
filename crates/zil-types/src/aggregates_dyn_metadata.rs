@@ -12,9 +12,9 @@ fn actual(a: &mut DynGenericActual, r: &mut Resolver<'_>) -> R<()> {
 // A specialization receiver denotes payload Self, rather than an ordinary
 // default resource description. Only its original bare resource declaration
 // selects this category; explicit wrappers and complete Type actuals survive.
-fn receiver(value: &mut DynTypeValue, r: &mut Resolver<'_>) -> R<()> {
+fn receiver_type(value: &Type, r: &mut Resolver<'_>) -> R<Type> {
     r.charge(0, Span::default())?;
-    let raw_resource = match &value.ty {
+    let raw_resource = match value {
         Type::Named(name)
             if r.ordinary_parameter.as_ref() != Some(name)
                 && !r.aggregate_parameters.contains_key(name) =>
@@ -26,15 +26,18 @@ fn receiver(value: &mut DynTypeValue, r: &mut Resolver<'_>) -> R<()> {
         }
         _ => false,
     };
-    let resolved = r.ty(&value.ty, 0, Span::default())?;
-    value.ty = if raw_resource {
+    let resolved = r.ty(value, 0, Span::default())?;
+    Ok(if raw_resource {
         match resolved {
             Type::Desc(payload) => *payload,
             other => other,
         }
     } else {
         resolved
-    };
+    })
+}
+fn receiver(value: &mut DynTypeValue, r: &mut Resolver<'_>) -> R<()> {
+    value.ty = receiver_type(&value.ty, r)?;
     // life/classes are the original complete domain, not data reconstructed
     // from the resolved physical shape. Independent consumers check them.
     Ok(())
@@ -48,6 +51,27 @@ pub(super) fn function_instance(value: &mut DynFunctionInstance, r: &mut Resolve
         .chain(&mut value.method_actuals)
     {
         actual(a, r)?;
+    }
+    Ok(())
+}
+fn witness(value: &mut DynImplementationWitness, r: &mut Resolver<'_>) -> R<()> {
+    receiver(&mut value.receiver, r)?;
+    for a in value
+        .actuals
+        .iter_mut()
+        .chain(&mut value.application.actuals)
+    {
+        actual(a, r)?;
+    }
+    for associated in &mut value.associated {
+        r.charge(0, Span::default())?;
+        for a in &mut associated.member.application.actuals {
+            actual(a, r)?;
+        }
+        let ty = match &mut associated.value {
+            DynAssociatedValue::Type(ty) | DynAssociatedValue::Constant { ty, .. } => ty,
+        };
+        ty.ty = r.ty(&ty.ty, 0, Span::default())?;
     }
     Ok(())
 }
@@ -371,10 +395,11 @@ pub(super) fn resolve(
         }
     }
     for t in &mut tables {
-        // Closed raw tables keep their original nominal source name. Qualified
-        // tables must retain the complete resolved class-bearing Self type.
-        if matches!(t.self_type, Type::BorrowedStorage { .. }) {
-            t.self_type = r.ty(&t.self_type, 0, Span::default())?;
+        // Self is payload at this explicit specialization boundary. Preserve
+        // the original full life/classes while resolving its complete type.
+        t.self_type = receiver_type(&t.self_type, r)?;
+        for value in t.implementation_witnesses.iter_mut().flatten() {
+            witness(value, r)?;
         }
         for a in &mut t.actuals {
             actual(a, r)?;

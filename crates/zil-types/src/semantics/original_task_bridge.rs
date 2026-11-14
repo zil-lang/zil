@@ -9,6 +9,7 @@ pub(crate) struct TaskWorkerScheme {
     pub call: SemanticSiteId,
     pub worker: SemanticDefinitionId,
     pub signature: SemanticSignatureRecipe,
+    pub result: SemanticTypeRecipe,
     pub actuals: Vec<SemanticActualRecipe>,
     pub caller_actuals: Vec<SemanticActual>,
 }
@@ -108,6 +109,7 @@ impl super::super::emission::Ledger {
             bad("Task producer original operation lacks its full solved worker scheme")
         })?;
         crate::dyn_metadata::semantic_operand_snapshot(signature, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&intrinsic.result, limits, left, 1)?;
         *left = left
             .checked_sub(
                 actuals
@@ -134,6 +136,7 @@ impl super::super::emission::Ledger {
             call,
             worker,
             signature: signature.clone(),
+            result: intrinsic.result.clone(),
             actuals: actuals.clone(),
             caller_actuals: instance.actuals.clone(),
         }))

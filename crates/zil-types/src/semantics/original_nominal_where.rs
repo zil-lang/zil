@@ -159,3 +159,67 @@ impl<'a> NominalWhere<'a> {
         result
     }
 }
+
+impl Proof {
+    /// Specialize a universally checked method provider in a real original
+    /// source Gamma. The runtime call selects data; it supplies no premise.
+    pub(in crate::semantics) fn specialized_parent(
+        &self,
+        program: &SemanticModule,
+        source_owner: SemanticDefinitionId,
+        caller: SemanticDefinitionId,
+        call: SemanticSiteId,
+        provider: SemanticDefinitionId,
+        holder: SemanticDefinitionId,
+        receiver: &SemanticTypeRecipe,
+        application: Option<&SemanticTraitRecipe>,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Vec<SemanticActualRecipe>> {
+        let mut check = borrowed_check(program, self, source_owner, limits, left)?;
+        check.pay(3, 0)?;
+        let method = self
+            .method_calls
+            .get(&(caller, call))
+            .ok_or_else(|| bad("parent specialization lacks its original method call"))?;
+        if !self.complete.contains(&caller)
+            || !self.complete.contains(&provider)
+            || self.call_targets.get(&(caller, call)) != Some(&method.declaration)
+            || (provider != method.declaration
+                && self.providers.get(&provider) != Some(&method.declaration))
+            || check.definition(provider)?.parent != Some(holder)
+        {
+            return Err(bad(
+                "parent specialization changes its complete original provider boundary",
+            ));
+        }
+        let parent = check.definition(holder)?;
+        if let Some(application) = application {
+            if method.application.as_ref().map(|row| row.declaration)
+                != Some(application.declaration)
+            {
+                return Err(bad(
+                    "parent specialization changes the original trait declaration",
+                ));
+            }
+            let (selected, actuals) = check
+                .select_trait_provider(source_owner, receiver, application, 0)?
+                .ok_or_else(|| {
+                    bad("parent specialization has no complete original trait provider")
+                })?;
+            if selected != holder {
+                return Err(bad(
+                    "actual method parent differs from the unique original trait provider",
+                ));
+            }
+            Ok(actuals)
+        } else {
+            if method.application.is_some() || method.declaration != provider {
+                return Err(bad(
+                    "parent specialization loses its original trait application",
+                ));
+            }
+            check.solve_parent(source_owner, parent, receiver, 0)
+        }
+    }
+}

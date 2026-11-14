@@ -1055,6 +1055,42 @@ pub(crate) fn actual(
     Ok(value)
 }
 
+/// Transport a complete mixed operand through an independently validated
+/// lexical correspondence. Replacements remain in their declared use domain.
+pub(crate) fn actual_in_domains(
+    value: &SemanticActualRecipe,
+    substitution: &Substitution<'_>,
+    scopes: &BTreeMap<u32, u32>,
+    allow_root_invocation: bool,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticActualRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
+        substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: Some(scopes),
+        allow_root_invocation,
+        forall: None,
+        inference_seen: None,
+        nominal_filter: None,
+    }
+    .actual(&mut value, 1)?;
+    Ok(value)
+}
+
 pub(crate) fn signature_template(
     value: &SemanticSignatureRecipe,
     substitution: &Substitution<'_>,

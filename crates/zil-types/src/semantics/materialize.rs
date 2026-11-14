@@ -36,6 +36,8 @@ pub(super) use deferred::populate as populate_deferred_nominals;
 #[path = "materialize_opaque.rs"]
 mod opaque;
 pub(super) use opaque::call_result_at;
+#[path = "materialize_scopes.rs"]
+mod scopes;
 #[path = "materialize_self.rs"]
 mod self_type;
 #[path = "materialize_shapes.rs"]
@@ -524,6 +526,9 @@ impl<'a> Eval<'a, '_> {
         holder: Option<SemanticInstanceId>,
         depth: usize,
     ) -> R<SemanticActual> {
+        if let Some(actual) = self.inferred_parent_actual(scope, call, formal, holder, depth + 1)? {
+            return Ok(actual);
+        }
         if let Some(actual) =
             self.multiple_inferred_actual(scope, call, formal, holder, depth + 1)?
         {
