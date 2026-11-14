@@ -77,6 +77,8 @@ impl Solver<'_, '_> {
         }
         if *kind == LifeNominalKind::Resource {
             resources::drop_method(definition, self.inventory, b)?;
+        } else {
+            resources::ordinary_drop_absent(definition, self.inventory, b)?;
         }
         if arguments.len() != declaration.parameters.len() {
             return Err(fail("original nominal application omits a formal"));

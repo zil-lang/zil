@@ -84,7 +84,7 @@ impl Check<'_, '_> {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    fn buffer_place(
+    pub(super) fn sealed_resource_place(
         &self,
         instance: &SemanticInstance,
         function: &TypedFunction,
@@ -93,6 +93,7 @@ impl Check<'_, '_> {
         root: &Value,
         selected: &Value,
         expected_path: &[u32],
+        family: &Type,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let (block, index, instruction) = self.defining(function, descriptor, b)?;
@@ -213,7 +214,9 @@ impl Check<'_, '_> {
                 ));
             }
         };
-        if payload.as_ref() != &Type::ByteBuffer
+        crate::dyn_metadata::ty(payload, b)?;
+        crate::dyn_metadata::ty(family, b)?;
+        if payload.as_ref() != family
             || function.values.get(descriptor.0 as usize) != Some(&Type::Desc(payload.clone()))
         {
             return Err(fail(
@@ -291,8 +294,16 @@ impl Check<'_, '_> {
             let path = self
                 .original
                 .native_path(instance, site, self.inventory, b)?;
-            self.buffer_place(
-                instance, function, descriptor, anchor, &inputs[0], &inputs[1], &path, b,
+            self.sealed_resource_place(
+                instance,
+                function,
+                descriptor,
+                anchor,
+                &inputs[0],
+                &inputs[1],
+                &path,
+                &Type::ByteBuffer,
+                b,
             )?;
             if let Some(extra) = extra {
                 operations::available_before(

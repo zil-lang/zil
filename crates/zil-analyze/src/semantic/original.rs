@@ -25,6 +25,7 @@ mod roles;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
 mod slices;
+mod stores;
 mod tasks;
 mod trait_members;
 mod traits;
@@ -1890,6 +1891,31 @@ impl Solver<'_, '_> {
                         let resolution =
                             sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
                         match resolution {
+                            sealed::Resolution::Intrinsic(
+                                id @ (sealed::Intrinsic::StoreNew
+                                | sealed::Intrinsic::StoreReserve
+                                | sealed::Intrinsic::StorePush
+                                | sealed::Intrinsic::StorePop
+                                | sealed::Intrinsic::StoreLen
+                                | sealed::Intrinsic::StoreCapacity
+                                | sealed::Intrinsic::StoreAt
+                                | sealed::Intrinsic::StoreAtMut),
+                            ) => {
+                                let result = self.store_call(
+                                    frame,
+                                    value.id,
+                                    id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail("original Store call node is reused"));
+                                }
+                                return Ok(result);
+                            }
                             sealed::Resolution::Intrinsic(
                                 id @ (sealed::Intrinsic::BytesNew
                                 | sealed::Intrinsic::BytesReserve
@@ -4128,9 +4154,13 @@ impl Solver<'_, '_> {
                     return Ok(false);
                 }
                 if matches!(predicate, Predicate::StoreElement) {
-                    return Err(unknown(
-                        "original nominal Store qualification needs its complete layout and teardown proof",
-                    ));
+                    resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                    for field in fields {
+                        if !self.satisfies(*field, Predicate::StoreElement, b, depth + 1)? {
+                            return Ok(false);
+                        }
+                    }
+                    return Ok(true);
                 }
                 for field in fields {
                     if !self.satisfies(*field, predicate, b, depth + 1)? {

@@ -567,6 +567,26 @@ impl Check<'_, '_> {
                         .intrinsic(instance, site.recipe, self.inventory, b)?
                 {
                     match intrinsic {
+                        original::sealed::Intrinsic::StoreNew
+                        | original::sealed::Intrinsic::StoreReserve
+                        | original::sealed::Intrinsic::StorePush
+                        | original::sealed::Intrinsic::StorePop
+                        | original::sealed::Intrinsic::StoreLen
+                        | original::sealed::Intrinsic::StoreCapacity
+                        | original::sealed::Intrinsic::StoreAt
+                        | original::sealed::Intrinsic::StoreAtMut => {
+                            self.store_operation(
+                                instance,
+                                site.recipe,
+                                intrinsic,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            return Ok(());
+                        }
                         original::sealed::Intrinsic::TaskYield => {
                             let instruction = instruction.ok_or_else(|| {
                                 fail("original task_yield has no actual instruction")
@@ -1345,6 +1365,14 @@ impl Check<'_, '_> {
                         }
                     }
                     let requires = match instruction.kind {
+                        InstructionKind::OwnedStoreNew { .. }
+                        | InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                        | InstructionKind::OwnedStoreLen { .. }
+                        | InstructionKind::OwnedStoreCapacity { .. }
+                        | InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. } => Some(3),
                         InstructionKind::Call { .. }
                         | InstructionKind::SuspendCall { .. }
                         | InstructionKind::ForeignCall { .. } => Some(0),

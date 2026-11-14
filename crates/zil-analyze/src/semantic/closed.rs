@@ -22,6 +22,7 @@ mod registration_start;
 mod resources;
 mod slice_borrows;
 mod slices;
+mod stores;
 mod tasks;
 mod traits;
 mod worlds;

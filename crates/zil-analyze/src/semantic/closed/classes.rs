@@ -1227,6 +1227,16 @@ impl Check<'_, '_> {
         }
         let (block, index, instruction) = self.defining(function, id, b)?;
         match &instruction.kind {
+            InstructionKind::OwnedStoreNew { .. }
+            | InstructionKind::OwnedStoreReserve { .. }
+            | InstructionKind::OwnedStorePush { .. }
+            | InstructionKind::OwnedStorePop { .. }
+            | InstructionKind::OwnedStoreLen { .. }
+            | InstructionKind::OwnedStoreCapacity { .. }
+            | InstructionKind::OwnedStoreBorrow { .. }
+            | InstructionKind::OwnedStoreBorrowMut { .. } => {
+                self.store_result(instance, function, block, index, b)
+            }
             InstructionKind::DescribeLocal { .. } | InstructionKind::DescribeAddress { .. } => {
                 self.source_description(instance, function, id, b, depth + 1)
             }

@@ -2,6 +2,25 @@
 //! implementation, never by a runtime teardown name or a matching layout.
 use super::*;
 
+pub(super) fn ordinary_drop_absent(
+    definition: SemanticDefinitionId,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    for owner in inventory.definitions.values() {
+        b.spend(1, WORK)?;
+        if matches!(&owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{
+            self_type:SemanticTypeRecipe::Nominal{definition:target,..},trait_kind:SemanticBuiltinTrait::Drop,
+        }) if *target==definition)
+        {
+            return Err(unknown(
+                "ordinary nominal Drop requires its complete value teardown and non-Copy theorem",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(in crate::semantic) fn drop_method(
     resource: SemanticDefinitionId,
     inventory: &Inventory<'_>,
