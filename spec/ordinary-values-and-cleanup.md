@@ -8,6 +8,24 @@ These are definition obligations, not core permissions. Actual canonical Product
 
 A generic Product recipe records whether each ordinary formal requires `Value` or `StoreElement`. Types checks the actual argument against that declaration and independently checks every written `Store<T>` recipe. Changing a Value-only field recipe to a Store field cannot manufacture an element qualification. These source recipes do not become TypedIR ownership certificates.
 
+An ordinary generic Enum may declare a direct formal payload without spelling
+an additional bound, for example `enum Option<T> { None, Some(T) }`. This is a
+parameterized type-constructor scheme with conditional payload-formation
+obligations; it does not establish a global `Value` fact for an arbitrary T.
+Check the original declaration, all variants and field recipes, nominal
+identity, finite recursion and every nested formation requirement even when
+the declaration is unused. At each complete application, independently prove
+the required inline payload qualification in that application's original
+caller context, preserving the actual carrier mode and complete borrowed and
+phantom domains. Checking one concrete specialization cannot supply a missing
+premise for a generic caller. In particular, constructing `Option<T>` in a
+generic function still requires its original formation premises; a later i32
+call cannot provide them. Source may transport normalized formation conditions
+derived from the original field recipes, but Types, Analyze and Verify must
+independently reconstruct and check them. These conditions grant no Copy,
+SyncDrop, StoreElement, ownership, access or thread capability, and do not
+exempt ordinary user declarations by name or by a compiler flag.
+
 `std.iter.Iterator` transfers each actual owning `Item` out of its receiver. Its item and mapper output explicitly require `Value+SyncDrop`. Only `collect` separately requires `where I.Item:StoreElement`; ordinary inline ownership remains a weaker promise than Store admission. `Map` and `Filter` own their complete source and callback as ordinary `Value+SyncDrop` fields. They are lazy iterators and can be nested without a collection between adapters. `Drain` owns a Store header and can itself be placed in a Store when its complete finite element shape proves the sealed element and cleanup contract. Each layer retains a distinct actual manager, heap interval and parent loan. This also permits a Package containing Store headers and explicit direct owners such as `Store<Managed<Store<Item>>>`, `Store<Managed<ByteBuffer>>` and `Store<Managed<Ticket>>`. A bare resource name remains a description, so `Store<Store<Item>>` does not silently become owning storage. Inline unguarded recursion and unresolved element shapes do not qualify.
 
 `drain` visits the last stored element first. `into_iter` prepares a reverse stack once so later traversal follows insertion order. `collect` grows its private Store through `std.store.push_growing`; allocation failure cleans the rejected item, partial result, remaining iterator and callback owners exactly once. `Collected` transfers that storage through `into_store`. `for_each_owned`, `for_each_lent` and `fold_owned` use the same associated Item identity with ordinary mutable callback helpers. Lending callbacks receive only the current invocation's shared Item address; capturing and mutating that iterator's live receiver conflicts with its actual loan. A fold callback consumes its previous owning accumulator and yields its next complete accumulator.
