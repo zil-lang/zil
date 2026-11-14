@@ -56,8 +56,8 @@ impl Solver<'_, '_> {
             }
             if let Some((old_kind, old)) = selected {
                 crate::dyn_metadata::recipe(old, b)?;
-                crate::dyn_metadata::recipe(signature, b)?;
-                if old_kind != *kind || old != signature {
+                crate::dyn_metadata::recipe(signature.as_ref(), b)?;
+                if old_kind != *kind || old != signature.as_ref() {
                     return Err(unknown(
                         "abstract callable has multiple roles requiring its complete result-role selection",
                     ));
