@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-14T00:41:48.641629+00:00",
+  "updated_at_utc": "2026-11-14T02:21:16.035201+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Alpha not ready. ab980 whole workspace all-targets check and CLI build succeed. The new complete-original-body gate has eight real native successes for ordinary generic and unused generic identity. Default-borrow closure reaches Analyze then Verify rejects a scoped type/class claim; phantom still stopped at Types. All thirteen broader Source consumers remain blocked, six now reach Types. Real failures drive complete Source catalog/import/type, symbolic original-domain and budget chains.",
+  "status": "Alpha not ready: exact 1fec68654 workspace all-targets and CLI build pass, four original source positives pass Types, three sources complete 12 native executions. Phantom now passes Types and blocks at Analyze actual class/role transport. Thirteen unchanged core consumers remain 0/13, all before independent Verify. Astra review adopted complete domain substitution and immutable request-local original context; both compiled with controls intact.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -1975,5 +1975,22 @@
     "Reassign complete sealed resource/Store/Task/thread original-to-actual chain to the actual CFG owner, keeping original namespace/fresh inference/frozen caller in the original body owner.",
     "Resume independent Analyze and Verify original builtin and effect chains in parallel before Types completes, using public inputs/contracts and no algorithm sharing.",
     "Pause and immediately commit each precise READY set; keep final background-aware candidate immutable while source work continues."
-  ]
+  ],
+  "latest_integrated_validation": {
+    "candidate": "1fec68654",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-context-and-domain-complete",
+    "workspace_alltargets_exit": 0,
+    "types_probe_exit": 0,
+    "source_lib_passed": 129,
+    "verify_semantic_passed": 12,
+    "analyze_original_effects_passed": 4,
+    "hostile_unused_original_body_passed": 1,
+    "native_successes": 12,
+    "native_blocked": 4,
+    "core_checks_passed": 0,
+    "core_checks_total": 13,
+    "core_independent_verify_runs": 0,
+    "accepted": false
+  },
+  "path_review": "records/language-alpha-path-review.json"
 }

@@ -3,12 +3,17 @@
   "reviewer": "Astra; public contracts, IR, Source, Types, driver and exact receipts only; no Analyze/Verify algorithm reading",
   "assessment": "Substantial semantic safety architecture work, but no broad core-language usability breakthrough. Twelve native executions cover three programs; latest breadth remains zero of thirteen before independent Verify.",
   "evidence": {
-    "native_and_breadth_candidate": "cb69e7a32",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scoped-types-boundaries",
+    "native_and_breadth_candidate": "1fec68654",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-context-and-domain-complete",
     "types_positive_sources": 4,
     "native_successes": 12,
     "breadth_check_successes": 0,
-    "breadth_cases": 13
+    "breadth_cases": 13,
+    "source_lib_passed": 129,
+    "verify_semantic_passed": 12,
+    "analyze_original_effects_passed": 4,
+    "hostile_unused_original_body_passed": 1,
+    "phantom": "Passed Types; blocked at Analyze actual class/role transport"
   },
   "root_causes": [
     "Existing operational language paths were blocked by an incomplete whole-original-semantics migration.",
@@ -51,6 +56,7 @@
     "compile time and scale: real scalar CT and owning collections under default budgets"
   ],
   "acceptance": "One exact candidate preserves all existing positive native chains; all thirteen unchanged inputs pass nonzero independent Verify, then their original full native/C consumer and failure-cleanup checks run with nearby negative cases and budget controls. Not merely 13 check successes.",
-  "current_candidate_under_validation": "1fec68654",
-  "status": "Structural changes implemented and pushed; initial integrated build found and fixed a formal-reference move error. Full new candidate validation running, not accepted."
+  "current_candidate_under_validation": "df924e09b",
+  "status": "Structural changes implemented, pushed and integrated workspace all-targets checked. Source129, Vsemantic12, Aeffects4 and hostile unused body1 pass; 12 native successes preserved; 13 core consumers still 0/13 before V. No Alpha acceptance.",
+  "updated_at_utc": "2026-11-14T02:21:16.035201+00:00"
 }
