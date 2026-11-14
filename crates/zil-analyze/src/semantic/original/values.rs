@@ -165,6 +165,9 @@ impl Checked {
                 };
                 value::resolved(scope, actual, inventory, b, depth + 1)
             }
+            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
+                "actual associated value requires its original provider, full mixed substitution and member bounds",
+            )),
             Kind::Address {
                 mutable,
                 life,

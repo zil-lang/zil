@@ -21,6 +21,7 @@ mod roles;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
 mod slices;
+mod traits;
 mod values;
 use constructors::Wrapper;
 use mixed::Life;
@@ -30,6 +31,13 @@ type Term = usize;
 enum Kind {
     Atom(Type),
     Rigid(SemanticDefinitionId, u32),
+    SelfType(SemanticDefinitionId),
+    Associated {
+        receiver: Term,
+        declaration: LifeDeclarationId,
+        arguments: Vec<Term>,
+        member: u32,
+    },
     Life(Life),
     LifeVariable(Option<Term>),
     ConstRigid {
@@ -181,6 +189,7 @@ struct Solver<'a, 'i> {
     role_frames: Vec<roles::RoleFrame>,
     next_role: u32,
     loops: Vec<loops::LoopFrame>,
+    trait_state: traits::State,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -345,6 +354,20 @@ impl Solver<'_, '_> {
                     return Ok(true);
                 }
             }
+            Kind::Associated {
+                receiver,
+                arguments,
+                ..
+            } => {
+                if self.occurs(needle, *receiver, depth + 1, b)? {
+                    return Ok(true);
+                }
+                for argument in arguments {
+                    if self.occurs(needle, *argument, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+            }
             Kind::Closure {
                 parameters,
                 result,
@@ -417,6 +440,7 @@ impl Solver<'_, '_> {
             Kind::Nominal {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
+            Kind::Associated { arguments, .. } => arguments.len().saturating_add(1),
             Kind::Closure {
                 parameters,
                 environment,
@@ -520,6 +544,27 @@ impl Solver<'_, '_> {
                 self.unify(at, zt, depth + 1, b)
             }
             (Kind::Rigid(a, ai), Kind::Rigid(z, zi)) if a == z && ai == zi => Ok(()),
+            (Kind::SelfType(a), Kind::SelfType(z)) if a == z => Ok(()),
+            (
+                Kind::Associated {
+                    receiver: ar,
+                    declaration: ad,
+                    arguments: aa,
+                    member: am,
+                },
+                Kind::Associated {
+                    receiver: zr,
+                    declaration: zd,
+                    arguments: za,
+                    member: zm,
+                },
+            ) if ad == zd && am == zm && aa.len() == za.len() => {
+                self.unify(ar, zr, depth + 1, b)?;
+                for (a, z) in aa.into_iter().zip(za) {
+                    self.unify(a, z, depth + 1, b)?;
+                }
+                Ok(())
+            }
             (
                 Kind::Nominal {
                     definition: a,
@@ -877,9 +922,24 @@ impl Solver<'_, '_> {
                 let inner = self.recipe(frame, inner, b, depth + 1)?;
                 self.term(Kind::Desc { life, inner }, b)
             }
-            SemanticTypeRecipe::SelfType { .. } => Err(unknown(
-                "original Self type requires its exact original impl scope",
-            )),
+            SemanticTypeRecipe::SelfType { scope } => self.trait_self(frame, *scope, b, depth + 1),
+            SemanticTypeRecipe::AssociatedType {
+                receiver,
+                application,
+                member,
+            } => {
+                let receiver = self.recipe(frame, receiver, b, depth + 1)?;
+                let arguments = self.trait_arguments(frame, application, b, depth + 1)?;
+                self.associated_type(
+                    frame,
+                    receiver,
+                    application.declaration,
+                    arguments,
+                    *member,
+                    b,
+                    depth + 1,
+                )
+            }
             _ => Err(unknown(
                 "original type constructor requires its complete scoped domain interpretation",
             )),
@@ -2416,6 +2476,7 @@ impl Solver<'_, '_> {
             let term = self.rigid_formal(id, ordinal, formal, &frame.formals, b)?;
             Self::push(&mut frame.formals, term, b)?;
         }
+        self.original_trait_facts(&frame, b)?;
         if let Some(inherited) = inherited {
             for local in inherited {
                 self.bind(&mut frame, &local.name, local.ty, local.mutable, b)?;
@@ -2968,7 +3029,9 @@ pub(super) fn check(
         role_frames: Vec::new(),
         next_role: 0,
         loops: Vec::new(),
+        trait_state: traits::State::default(),
     };
+    solver.trait_catalog(b)?;
     for definition in &program.definitions {
         b.spend(1, WORK)?;
         if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
@@ -3248,6 +3311,12 @@ impl Solver<'_, '_> {
                 Ok(())
             }
             Kind::CallResult { hidden, .. } => self.sized_original(*hidden, b, depth + 1),
+            Kind::Associated { .. } if self.satisfies(term, Predicate::Value, b, depth + 1)? => {
+                Ok(())
+            }
+            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
+                "original associated layout needs its complete declared Value or concrete member theorem",
+            )),
             Kind::Infer(_) => Err(unknown(
                 "original value layout is not resolved in its declaration context",
             )),
@@ -3314,6 +3383,17 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         for requirement in requirements {
             b.spend(1, WORK)?;
+            if let SemanticRequirementRecipe::Trait { application, .. } = requirement {
+                let raw = self.inventory.original_dyn(application.declaration, b)?;
+                if raw.kind != DynDeclarationKind::Trait
+                    || raw.parameters.len() != application.arguments.len()
+                {
+                    return Err(fail(
+                        "original trait premise changes its declaration kind or full mixed arity",
+                    ));
+                }
+                continue;
+            }
             if let SemanticRequirementRecipe::Callable { ty, signature, .. } = requirement {
                 if signature.bound_lifetimes != 0 {
                     return Err(unknown(
@@ -3349,6 +3429,7 @@ impl Solver<'_, '_> {
                     }
                 }
                 SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => {}
+                SemanticTypeRecipe::AssociatedType { .. } => {}
                 _ => {
                     return Err(unknown(
                         "original structural premise subject needs its complete symbolic type",
@@ -3365,6 +3446,10 @@ impl Solver<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         for requirement in requirements {
+            if matches!(requirement, SemanticRequirementRecipe::Trait { .. }) {
+                self.original_trait_need(frame, requirement, b)?;
+                continue;
+            }
             if let SemanticRequirementRecipe::Callable {
                 ty,
                 kind,
@@ -3398,7 +3483,11 @@ impl Solver<'_, '_> {
     ) -> CompileResult<bool> {
         for requirement in requirements {
             b.spend(1, WORK)?;
-            if matches!(requirement, SemanticRequirementRecipe::Callable { .. }) {
+            if matches!(
+                requirement,
+                SemanticRequirementRecipe::Callable { .. }
+                    | SemanticRequirementRecipe::Trait { .. }
+            ) {
                 continue;
             }
             let (ty, available) = self.requirement(requirement)?;
@@ -3456,6 +3545,10 @@ impl Solver<'_, '_> {
                         )?,
                 )
             }
+            Kind::Associated { .. } => self.associated_satisfies(term, predicate, b, depth + 1),
+            Kind::SelfType(_) => Err(unknown(
+                "original trait Self capability needs its complete declared bound theorem",
+            )),
             Kind::Array { element, .. } => {
                 if matches!(predicate, Predicate::StoreElement) {
                     return Err(unknown(
@@ -3692,6 +3785,9 @@ impl Checked {
             }
             Kind::Infer(_) => Err(unknown(
                 "original Type remains unresolved independently of actual caller headers",
+            )),
+            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
+                "original associated or Self type needs its independently checked concrete provider substitution",
             )),
         }
     }

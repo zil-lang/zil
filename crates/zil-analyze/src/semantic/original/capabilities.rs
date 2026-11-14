@@ -246,6 +246,9 @@ impl Solver<'_, '_> {
             Kind::Infer(_) => Err(unknown(
                 "original sealed capability remains unresolved in its own declaration context",
             )),
+            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
+                "original associated sealed capability requires its exact member bound or provider theorem",
+            )),
             Kind::CallResult { .. } => Err(fail(
                 "original capability failed to open its checked result role",
             )),
@@ -312,6 +315,9 @@ impl Solver<'_, '_> {
             }
             Kind::Infer(_) => Err(unknown(
                 "original closure signature free-class domain remains unresolved",
+            )),
+            Kind::Associated { .. } | Kind::SelfType(_) => Err(unknown(
+                "original associated signature domain requires its full member substitution",
             )),
             Kind::CallResult { .. } => Err(fail(
                 "original signature domain failed to open its checked call result",

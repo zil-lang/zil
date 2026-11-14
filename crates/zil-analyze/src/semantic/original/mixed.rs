@@ -412,6 +412,28 @@ impl Solver<'_, '_> {
                     b,
                 )
             }
+            Kind::Associated {
+                receiver,
+                declaration,
+                arguments,
+                member,
+            } => {
+                let receiver = self.instantiate(receiver, owner, actuals, b, depth + 1)?;
+                let mut replaced = Vec::new();
+                for argument in arguments {
+                    let argument = self.instantiate(argument, owner, actuals, b, depth + 1)?;
+                    Self::push(&mut replaced, argument, b)?;
+                }
+                self.term(
+                    Kind::Associated {
+                        receiver,
+                        declaration,
+                        arguments: replaced,
+                        member,
+                    },
+                    b,
+                )
+            }
             Kind::Array { element, length } => {
                 let element = self.instantiate(element, owner, actuals, b, depth + 1)?;
                 let length = self.instantiate(length, owner, actuals, b, depth + 1)?;
