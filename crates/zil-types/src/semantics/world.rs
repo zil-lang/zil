@@ -476,11 +476,17 @@ impl<'a> World<'a, '_> {
         }
         Ok(value)
     }
+    #[track_caller]
     fn equal(&mut self, a: &SemanticTypeValue, b: &SemanticTypeValue) -> R<()> {
+        let location = std::panic::Location::caller();
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
         if a != b {
-            return Err(bad("actual whole type or rigid original classes disagree"));
+            crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+            let mut diagnostic = bad("actual whole type or rigid original classes disagree");
+            diagnostic.notes.push(format!("actual class equation at {}:{}; actual point {:?}; left complete value {:?}; right complete value {:?}", location.file(), location.line(), self.current_point, a, b));
+            return Err(diagnostic);
         }
         Ok(())
     }
