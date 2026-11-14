@@ -1,0 +1,11 @@
+{
+  "scope": "Post-run preservation of actual root controllers, which were outside the Git source checkout. Original compiler commands and measured implementation copies remain authoritative in archived receipts. No claim these controller hashes were recorded at original admission.",
+  "files": {
+    "chain15-gates.py": "1f43f1e61a87e1cbdfdbd900721f5cbc8637f6cc88570ca9026b1790e866bede",
+    "chain17-gates.py": "bb5f01b2d7e84e56b64d3e44fe7cc6d8b82734e86335c326621e17a2238d5320",
+    "chain16-gates.py": "8741bb50d4d6a294ff57846baf143afdf8ec858c8e580052769bbd7cf4c06176",
+    "main-host-release-control.py": "1f984ed5b2b7c184e0278ab620a4a902652d1ac90a55eeac88dbde6dbbbc75bc",
+    "large-capacity-current.py": "2aacf81ee91aabcbc1e42e6fc942968b6022c589354898183aecc7d881686f9b",
+    "large-project-current-batch-03.py": "50dada1df0421cd4169c7bba9e9ed2f5f8d7a2314d70f234c027ed646fa8e825"
+  }
+}

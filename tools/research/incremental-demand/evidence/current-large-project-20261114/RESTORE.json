@@ -1,0 +1,34 @@
+{
+  "schema": "zil.current-large-project-recovery.v1",
+  "compiled_source": "1de00f63f80cf4534ec995dc51e106005b270ddb",
+  "compiled_tree": "850ff626b6e9cc227d29b2cbe823fa769df52c8c",
+  "binary_sha256": "4d040bb3dea0d3ca8b4ec06e38d47c359289a74c54ab3069b7bc90fd9f0fa5f7",
+  "stock_source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
+  "baseline_source": "9170bb4210554392e36eb7528596612596ebef80",
+  "tool_source": "ad81486b976634e71bf1c61544d0fd28a783fbae",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "e1de61971a99698f2b074a200c0756487bdd72811647e748018b7c9234865294",
+  "archive_sha256": "b43f75d3d7a5b25b2f6cd53057250408f4fa2e43504497c4ecf260adc7b58f82",
+  "archive_bytes": 1256214534,
+  "parts": 50,
+  "regular_files": 38370,
+  "logical_bytes": 5872518806,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "candidate_binary_relative_to_restored_payload": "out/binaries/1de00f63f80cf4534ec995dc51e106005b270ddb/zil",
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/current-large-project-20261114",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "dependencies": {
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "prior_large_windows": "https://github.com/zil-lang/zil/blob/1de00f63f80cf4534ec995dc51e106005b270ddb/tools/research/incremental-demand/evidence/large-project-pain-20261114/RESTORE.json"
+  },
+  "scope": "Current immutable release gates and original5105 capacity success at unchanged defaults; nine controlled actual-main/candidate/Rust windows, seven complete and two full-ELF native1000 failures. Full negatives/source/runtime/binaries retained. No universal Rust lead or main merge. This is evidence and preserved binaries, not a full toolchain/LLVM installation. Restore separately pinned SDK18/native-link; do not rebuild LLVM. Absolute runtime paths require reconstruction or explicit rebinding.",
+  "LLVM_rebuilt": false,
+  "main_merge": false
+}

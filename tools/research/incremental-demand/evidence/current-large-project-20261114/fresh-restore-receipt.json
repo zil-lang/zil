@@ -1,0 +1,16 @@
+{
+  "archive_bytes": 1256214534,
+  "files": 38370,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 50,
+  "raw_bytes": 5872518806,
+  "restore_dir": "/workspace/zil-recovery/current-large-project-fresh-01",
+  "scope": "Current immutable release gates and original5105 capacity success at unchanged defaults; nine controlled actual-main/candidate/Rust windows, seven complete and two full-ELF native1000 failures. Full negatives/source/runtime/binaries retained. No universal Rust lead or main merge.",
+  "sha256": "b43f75d3d7a5b25b2f6cd53057250408f4fa2e43504497c4ecf260adc7b58f82",
+  "source_commits": {
+    "research": "1de00f63f80cf4534ec995dc51e106005b270ddb",
+    "stock": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
+    "tools": "ad81486b976634e71bf1c61544d0fd28a783fbae"
+  },
+  "status": "verified"
+}
