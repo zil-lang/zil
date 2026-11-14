@@ -118,6 +118,9 @@ impl CheckedContext {
     }
     fn function(&self,module:&TypedModule,instance:&SemanticInstance,function:FunctionId,signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
+        let original_definition=self.definition(module,instance.definition,b)?;
+        let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,..}=&original_definition.body else{return Err(bad("actual protocol bridge lacks its original body"));};
+        if f.protocol_contracts!=*protocol_contracts{return Err(bad("actual phase contract differs from the complete original protocol declaration"));}
         if f.parameters.len()!=signature.parameters.len()||f.return_type!=signature.result.ty||f.result_mode!=signature.result_mode||f.call_kind!=signature.call_kind {return Err(bad("actual function ABI differs from the original complete signature"));}
         let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
         b.spend(f.locals.len().saturating_add(f.values.len()).saturating_add(f.blocks.len()))?;

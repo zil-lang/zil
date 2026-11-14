@@ -275,7 +275,7 @@ fn original_effect_control(kind:CallKind,yields:bool,in_defer:bool)->(TypedModul
         sites:if yields{vec![SemanticSiteRecipe{id:SemanticSiteId(950),occurrence_path:vec![950],kind:SemanticSiteRecipeKind::OriginalCall}]}else{vec![]},
         parameters:vec![],receiver_parameter:None,
         site_nodes:if yields{vec![SemanticOriginalSiteNode{site:SemanticSiteId(950),node:SemanticOriginalNode::Expression(zil_base::NodeId(952))}]}else{vec![]},
-        names:vec![],body:SemanticOriginalFunctionBody::Defined(body),
+        names:vec![],protocol_contracts:vec![],body:SemanticOriginalFunctionBody::Defined(body),
     };
     module.semantic.as_mut().unwrap().definitions.push(definition);(module,plan)
 }

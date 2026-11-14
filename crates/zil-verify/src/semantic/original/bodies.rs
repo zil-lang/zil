@@ -13,7 +13,8 @@ impl CheckedOriginal {
     }
     fn definition_inner(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let definition=context.definition(module,id,b)?;
-        let SemanticDefinitionBody::FunctionWithBody{signature,parameters,receiver_parameter,body,..}=&definition.body else{return Err(unsupported("Some semantic function lacks its complete original body",None));};
+        let SemanticDefinitionBody::FunctionWithBody{signature,parameters,receiver_parameter,protocol_contracts,body,..}=&definition.body else{return Err(unsupported("Some semantic function lacks its complete original body",None));};
+        if !protocol_contracts.is_empty(){return Err(unsupported("original nonempty protocol contract requires its complete universal entry/exit proof",None));}
         if parameters.len()!=signature.parameters.len()||receiver_parameter.is_some_and(|ordinal|ordinal as usize>=parameters.len()){return Err(bad("original value parameter binder inventory differs from its signature"));}
         for ordinal in 0..parameters.len(){if !self.parameters.contains_key(&(id,ordinal as u32)){let value=self.fresh(b)?;self.parameters.insert((id,ordinal as u32),value);}}
         if !self.results.contains_key(&id){let value=self.fresh(b)?;self.results.insert(id,value);}
