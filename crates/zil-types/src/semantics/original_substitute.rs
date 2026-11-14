@@ -125,7 +125,7 @@ impl<'a> Apply<'a, '_> {
                 if self.scopes.is_some() {
                     if let Some(actual) = self.selected(reference)? {
                         match actual {
-                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(actual)) => { *reference = *actual; },
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(actual)) => { *reference = actual.clone(); },
                             SemanticActualRecipe::Type(SemanticTypeRecipe::Environment { scope, ordinal }) => {
                                 *operand = SemanticRecipeOperand::Environment { scope: *scope, ordinal: *ordinal };
                             }
