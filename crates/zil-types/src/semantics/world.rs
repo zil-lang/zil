@@ -1773,7 +1773,7 @@ impl World<'_, '_> {
                 "defined original body was replaced by an external declaration",
             ));
         }
-        let cfg = flow::Cfg::new(self, f)?;
+        let cfg = flow::Cfg::new(self, instance, f)?;
         cfg.check_sites(self, f, &sites)?;
         let mut incoming_roots = BTreeMap::new();
         self.pay(f.parameters.len().saturating_mul(2))?;

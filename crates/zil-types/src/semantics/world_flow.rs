@@ -174,16 +174,17 @@ pub(super) struct Cfg {
     instance: SemanticInstanceId,
 }
 impl Cfg {
-    pub fn new(world: &mut World<'_, '_>, function: &TypedFunction) -> R<Self> {
-        world.pay(world.program.instances.len())?;
-        let mut instances = world.program.instances.iter().filter(|instance| matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function.id));
-        let instance = instances
-            .next()
-            .ok_or_else(|| bad("class CFG has no real original instance"))?
-            .id;
-        if instances.next().is_some() {
-            return Err(bad("class CFG has ambiguous original instances"));
+    pub fn new(
+        world: &mut World<'_, '_>,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+    ) -> R<Self> {
+        world.pay(1)?;
+        if !matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function.id)
+        {
+            return Err(bad("class CFG changes its exact original instance target"));
         }
+        let instance = instance.id;
         let count = function.blocks.len();
         world.pay(
             count

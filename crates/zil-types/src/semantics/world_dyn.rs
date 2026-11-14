@@ -3,6 +3,42 @@
 use super::*;
 use crate::semantics::original::{IntrinsicCall, IntrinsicKind};
 
+fn receiver_origin(
+    world: &mut World<'_, '_>,
+    function: &TypedFunction,
+    mut value: ValueId,
+    original: ValueId,
+) -> R<bool> {
+    let mut seen = std::collections::BTreeSet::new();
+    while value != original {
+        world.pay(seen.len().saturating_add(1))?;
+        if seen.len() >= world.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "dynamic receiver reborrow depth exceeded",
+                None,
+            ));
+        }
+        if !seen.insert(value) {
+            return Err(bad("dynamic receiver contains a cyclic actual SSA origin"));
+        }
+        let mut producer = None;
+        for block in &function.blocks {
+            world.pay(block.instructions.len())?;
+            for operation in &block.instructions {
+                if operation.result == Some(value) && producer.replace(&operation.kind).is_some() {
+                    return Err(bad("dynamic receiver repeats an actual SSA producer"));
+                }
+            }
+        }
+        match producer {
+            Some(InstructionKind::ReborrowAddress { address, .. }) => value = *address,
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
 pub(super) fn borrow(
     world: &mut World<'_, '_>,
     function: &TypedFunction,
@@ -144,8 +180,10 @@ pub(super) fn seal_borrow(
             .find(|row| row.id == call_block)
             .and_then(|row| row.instructions.get(instruction as usize))
             .ok_or_else(|| bad("dynamic call occurrence leaves its actual CFG"))?;
-        if !matches!(operation.kind, InstructionKind::CallDynSlot { callee, .. } if callee == *result)
-        {
+        let InstructionKind::CallDynSlot { callee, .. } = operation.kind else {
+            continue;
+        };
+        if !receiver_origin(world, function, callee, *result)? {
             continue;
         }
         world.pay(sites.len().saturating_add(proof.intrinsics.len()))?;

@@ -53,7 +53,15 @@ fn creator_input(
             }
         }
     }
-    let Some(node) = node else { return Ok(None) };
+    let Some(node) = node else {
+        world.pay(occurrence.occurrence_path.len().saturating_add(64))?;
+        let mut diagnostic = bad("implicit captured head has no original type-use occurrence");
+        diagnostic.notes.push(format!(
+            "child {:?}, original {:?}, implicit {}, path {:?}",
+            child.id, original.id, ordinal, occurrence.occurrence_path
+        ));
+        return Err(diagnostic);
+    };
     let ledger = world.ledger;
     let proof = ledger.original.borrow();
     let proof = proof
@@ -66,7 +74,18 @@ fn creator_input(
             .saturating_add(proof.closure_move.len()),
     )?;
     if proof.closure_move.get(&original.id) != Some(&false) {
-        return Ok(None);
+        world.pay(64)?;
+        let mut diagnostic =
+            bad("implicit captured head has no original default-borrow capture mode");
+        diagnostic.notes.push(format!(
+            "child {:?}, original {:?}, implicit {}, source node {:?}, move mode {:?}",
+            child.id,
+            original.id,
+            ordinal,
+            node,
+            proof.closure_move.get(&original.id)
+        ));
+        return Err(diagnostic);
     }
     let names = proof
         .capture_names
@@ -84,7 +103,23 @@ fn creator_input(
         }
     }
     let Some(name) = selected else {
-        return Ok(None);
+        let mut diagnostic =
+            bad("implicit captured head has no matching original first free capture use");
+        world.pay(names.iter().fold(64usize, |work, name| {
+            work.saturating_add(name.len()).saturating_add(32)
+        }))?;
+        let mut uses = Vec::new();
+        for name in names {
+            uses.push((
+                name.as_str(),
+                first_use::find(original, name, world.limits, world.left)?,
+            ))
+        }
+        diagnostic.notes.push(format!(
+            "child {:?}, original {:?}, implicit {}, source node {:?}, first free uses {:?}",
+            child.id, original.id, ordinal, node, uses
+        ));
+        return Err(diagnostic);
     };
     let environment = child
         .environment
@@ -319,7 +354,7 @@ pub(super) fn input(world: &mut World<'_, '_>, child: &SemanticInstance, ordinal
     };
     let function = world.function(function)?;
     let definition = world.definition(child.definition)?;
-    let cfg = flow::Cfg::new(world, function)?;
+    let cfg = flow::Cfg::new(world, child, function)?;
     world.pay(
         function
             .locals

@@ -872,7 +872,7 @@ pub(super) fn check(
         .iter()
         .filter(|site| site.instance == caller.id)
         .collect();
-    let cfg = flow::Cfg::new(world, f)?;
+    let cfg = flow::Cfg::new(world, caller, f)?;
     let mut cases = vec![BTreeMap::new()];
     for contract in &f.protocol_contracts {
         let mut next = Vec::new();
