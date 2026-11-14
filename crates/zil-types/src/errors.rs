@@ -164,6 +164,17 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn return_value(&mut self, value: Option<ValueId>, span: Span) -> R<()> {
+        if !self.task_return_inferred
+            && task_factories::result_task(&self.function.return_type).is_some_and(|task| matches!(task, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()))
+            && let Some(value) = value
+        {
+            self.closures.snapshot(self.instructions.saturating_add(1), span)?;
+            if self.function.blocks.iter().flat_map(|block| &block.instructions).any(|instruction| instruction.result == Some(value) && matches!(instruction.kind, InstructionKind::MakeErrorUnion { is_error: true, .. })) {
+                self.task_return_errors.push(value);
+            } else if self.function.values.get(value.0 as usize).is_some_and(|ty| task_factories::result_task(ty).is_some()) {
+                self.task_return_inferred = true;
+            }
+        }
         self.end_unsafe_regions(0, span)?;
         self.end_scopes_kind(0, CleanupExitKind::Return, span)?;
         self.terminate(Terminator::Return(value));

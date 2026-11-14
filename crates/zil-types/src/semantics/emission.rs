@@ -92,6 +92,10 @@ fn lookup_cost(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
 impl Ledger {
+    pub(crate) fn has_original_context(&self) -> bool {
+        self.original.context().is_some()
+    }
+
     pub(crate) fn record_formed_header(
         &mut self,
         closure: ClosureId,

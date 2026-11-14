@@ -814,6 +814,10 @@ struct Builder<'a, 'c> {
     declared_call_kind: Option<CallKind>,
     original_call_kind: Option<CallKind>,
     function: TypedFunction,
+    // Hidden Task return context is fixed by actual return events. Error-only
+    // constructors retain their payload while this private result is pending.
+    task_return_inferred: bool,
+    task_return_errors: Vec<ValueId>,
     helper_bounds: Vec<CoreCallableParameter>,
     // Owning State specialization removes symbolic parameters, but a direct
     // field invocation still uses the mode promised by that static interface.
@@ -966,6 +970,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         let first_closure = closures.pending.len();
         let helper_bounds = closures.source_helper_bounds(f)?;
         let mut b = Self {
+            task_return_inferred: false,
+            task_return_errors: Vec::new(),
             declared_call_kind: f.call_kind,
             original_call_kind,
             function: TypedFunction {
@@ -1900,8 +1906,18 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .array_snapshot(&self.function.return_type, 1, s.span)?;
                 let wanted = self.function.return_type.clone();
                 let value = if let Some(e) = e {
-                    let (v, t) = self.transfer_expr(e, Some(&wanted))?;
-                    self.same(&t, &wanted, e.span)?;
+                    let infer_task = !self.task_return_inferred && task_factories::result_task(&wanted).is_some_and(|task| matches!(task, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()));
+                    let (v, t) = if infer_task {
+                        let (v, t) = self.transfer_expr(e, None)?;
+                        self.complete_task_return(&t, e.span)?;
+                        self.closures
+                            .array_snapshot(&self.function.return_type, 1, e.span)?;
+                        let complete = self.function.return_type.clone();
+                        self.inject_error_union(v, t, &complete, e.span)?
+                    } else {
+                        self.transfer_expr(e, Some(&wanted))?
+                    };
+                    self.same(&t, &self.function.return_type, e.span)?;
                     if t == Type::Unit { None } else { Some(v) }
                 } else if matches!(&wanted, Type::ErrorUnion { .. }) {
                     let (v, ty) = self.constant(Constant::Unit, s.span)?;

@@ -17,7 +17,7 @@ pub(super) fn factory(f: &CoreFunction) -> bool {
         && f.type_parameters.is_empty()
         && f.state_parameters.is_empty()
         && result_task(&f.return_type).is_some()
-        && f.parameters.iter().any(|p| retained_input(&p.ty))
+        && (f.source_scope.is_some() || f.parameters.iter().any(|p| retained_input(&p.ty)))
 }
 
 fn retained_input(ty: &Type) -> bool {
@@ -25,10 +25,7 @@ fn retained_input(ty: &Type) -> bool {
 }
 
 pub(super) fn signature_factory(signature: &Signature) -> bool {
-    !signature.foreign
-        && signature.template.is_none()
-        && result_task(&signature.result).is_some()
-        && signature.parameters.iter().any(retained_input)
+    !signature.foreign && signature.template.is_none() && result_task(&signature.result).is_some()
 }
 
 pub(super) fn replace_task(ty: &mut Type, actual: &Type, span: Span) -> R<()> {
@@ -341,6 +338,12 @@ pub(super) fn prepare(
     let cost = inference::helper_snapshot_work(function, limits)?.0;
     state.snapshot(cost, function.span)?;
     let mut resolved = function.clone();
+    if state.semantic_emission.has_original_context() {
+        // Actual Return events form the hidden result with the same complete
+        // TaskCreate producer. The original body proof and finish relation
+        // remain independent; no address-only pre-scan supplies an empty shape.
+        return Ok(resolved);
+    }
     // Closed factories retain their ordinary body profile. An external frame
     // port must originate in an actual, qualified address parameter.
     let mut context = tasks::borrowed_context_with_life(

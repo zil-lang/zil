@@ -540,6 +540,68 @@ pub(super) fn add_definition(
     Ok(has_mutex)
 }
 impl Builder<'_, '_> {
+    pub(super) fn complete_task_return(&mut self, actual: &Type, span: Span) -> R<()> {
+        let Some(task) = task_factories::result_task(actual) else {
+            return Ok(());
+        };
+        self.closures
+            .snapshot_type(&self.function.return_type, 1, 0, span)?;
+        self.closures.snapshot_type(task, 1, 0, span)?;
+        let mut complete = self.function.return_type.clone();
+        task_factories::replace_task(&mut complete, task, span)?;
+        // Only the exact real error constructor recorded at a Return may have
+        // its uninhabited success arm completed. Ordinary union SSA is fixed.
+        for value in &self.task_return_errors {
+            self.closures.snapshot(self.instructions, span)?;
+            let mut producer = None;
+            for instruction in self
+                .function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+            {
+                if instruction.result == Some(*value) {
+                    if !matches!(
+                        instruction.kind,
+                        InstructionKind::MakeErrorUnion { is_error: true, .. }
+                    ) || producer.replace(()).is_some()
+                    {
+                        return Err(error(
+                            "E-TASK-RETURN-CONTEXT",
+                            span,
+                            "pending Task error return lost its exact error constructor",
+                        ));
+                    }
+                }
+            }
+            if producer.is_none() {
+                return Err(error(
+                    "E-TASK-RETURN-CONTEXT",
+                    span,
+                    "pending Task error return has no actual producer",
+                ));
+            }
+            let previous = self.function.values.get(value.0 as usize).ok_or_else(|| {
+                unsupported(span, "pending Task error return has no actual value")
+            })?;
+            self.closures.snapshot_type(previous, 1, 0, span)?;
+            if !matches!((previous, &complete), (Type::ErrorUnion { error: a, .. }, Type::ErrorUnion { error: b, .. }) if a == b)
+            {
+                return Err(error(
+                    "E-TASK-RETURN-CONTEXT",
+                    span,
+                    "pending Task return changes its live error payload",
+                ));
+            }
+            self.closures.snapshot_type(&complete, 1, 0, span)?;
+            self.function.values[value.0 as usize] = complete.clone();
+        }
+        self.function.return_type = complete;
+        self.task_return_inferred = true;
+        self.task_return_errors.clear();
+        Ok(())
+    }
+
     pub(super) fn actual_task_context(
         &mut self,
         worker: FunctionId,
