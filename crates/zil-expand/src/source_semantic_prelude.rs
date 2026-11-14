@@ -589,7 +589,7 @@ mod tests {
             FileId(0),
             ModuleId(7),
             "failure-originals.zil",
-            "fn worker(){task_yield();}",
+            "fn worker(){task_yield();}fn create(){let pending=task_create(worker);}",
         );
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
         let limits = Limits::default();
