@@ -1093,7 +1093,7 @@ fn cleanup_repairs_duplicate_edges_dead_predecessors_and_literal_boolean_control
         };
         run(&s, &mut f, DEFAULT_FUEL).unwrap();
         assert_eq!(
-            f.blocks.as_ref().unwrap().as_ref(),
+            f.blocks.as_ref().unwrap().as_slice(),
             &[block("entry", vec![ret(m::Val::Int(7))])]
         );
     }
