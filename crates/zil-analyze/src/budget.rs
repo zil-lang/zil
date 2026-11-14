@@ -53,6 +53,9 @@ pub(super) struct Budget {
     // semantic consumer checks every actual entry, creator and capture. This
     // is a zero-free-domain fact, never Copy, cleanup or loan authority.
     pub(super) semantic_zero_closures: BTreeSet<zil_ir::ClosureId>,
+    // Complete original/actual class relation for this immutable request,
+    // including nonzero phantom domains. No memory/cleanup permission.
+    pub(super) semantic_closures_proven: BTreeSet<zil_ir::ClosureId>,
     pub(super) dyn_contexts: bool,
     // Concrete-function result occurrences awaiting actual CFG grounding.
     // Neither a signature nor its declared source upper proves these rows.
@@ -207,6 +210,7 @@ impl Budget {
             pod_store_carriers: None,
             dyn_interfaces: BTreeSet::new(),
             semantic_zero_closures: BTreeSet::new(),
+            semantic_closures_proven: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
@@ -1731,6 +1735,9 @@ pub(super) fn preflight(
                     ));
                 }
                 local_value(ty, Span::default(), module, budget)?;
+                continue;
+            }
+            if super::stored_callables::semantic_copy_capture(module, closure, ty, budget)? {
                 continue;
             }
             if closure.storage_life.is_some() && !empty_scope {

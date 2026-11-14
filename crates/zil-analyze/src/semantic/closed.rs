@@ -874,6 +874,21 @@ pub(super) fn check(
         b.lookup(b.semantic_zero_closures.len(), WORK)?;
         b.semantic_zero_closures.insert(id);
     }
+    for closure in &module.closures {
+        for capture in &closure.captures {
+            if matches!(capture, Type::BorrowedStorage { storage, life }
+                if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. } | Type::Tuple(_))
+                    && life.slots.is_empty() && storage.is_copy_value())
+            {
+                crate::stored_flow::qualification(module, capture, inventory.limits, b)?;
+            }
+        }
+        // instances()+sites() above proved the actual entry, complete intrinsic
+        // directory, real constructors and original class images. Preserve the
+        // nonzero domain; this table is never a zero/Copy/loan certificate.
+        b.lookup(b.semantic_closures_proven.len(), WORK)?;
+        b.semantic_closures_proven.insert(closure.id);
+    }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
     // No semantic context manufactures a target, loan, epoch or effect.
     Ok(())

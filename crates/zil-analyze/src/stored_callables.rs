@@ -270,6 +270,54 @@ pub(super) fn ordinary_capture(
     closed_callback_data(inner, b)?;
     super::stored_flow::owned::ordinary_value(module, t, b)
 }
+/// Copy nominal data with phantom classes is an ordinary environment value,
+/// not an Address capture. Eligibility here requires the completed independent
+/// original/creator/header proof, then the full actual nominal qualification.
+pub(super) fn semantic_copy_capture(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    b.lookup(
+        b.semantic_closures_proven.len(),
+        "completed original capture scope",
+    )?;
+    if !b.semantic_closures_proven.contains(&closure.id) {
+        return Ok(false);
+    }
+    let Type::BorrowedStorage { storage, life } = ty else {
+        return Ok(false);
+    };
+    b.type_work(ty, false, "complete nominal capture tree")?;
+    if !matches!(
+        storage.as_ref(),
+        Type::Record { .. } | Type::Enum { .. } | Type::Tuple(_)
+    ) || !life.slots.is_empty()
+        || !storage.is_copy_value()
+    {
+        return Ok(false);
+    }
+    if closure.storage_life.is_none() {
+        return Err(bad(
+            "completed nominal capture omits its actual class contract",
+        ));
+    }
+    // The completed request proof qualified every such actual capture using
+    // this request's real Limits before publishing the closure identity.
+    b.spend(module.closures.len(), "actual completed capture owner")?;
+    if !module
+        .closures
+        .iter()
+        .any(|actual| actual.id == closure.id && std::ptr::eq(actual, closure))
+    {
+        return Err(bad(
+            "completed nominal capture is not its immutable actual closure",
+        ));
+    }
+    Ok(true)
+}
+
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
@@ -287,10 +335,16 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
-            if let Type::OwnedDyn{interface}=t {
-                super::dyn_cleanup::capture_interface(module,*interface,b)?;
-                let item=module.dyn_interfaces.iter().find(|d|d.id==*interface).ok_or_else(||bad("owned capture interface absent"))?;
-                if item.retained_life.binder_count>0 && d.storage_life.is_none(){return Err(bad("Context owning capture has no actual Fixed directory"));}
+            if let Type::OwnedDyn { interface } = t {
+                super::dyn_cleanup::capture_interface(module, *interface, b)?;
+                let item = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|d| d.id == *interface)
+                    .ok_or_else(|| bad("owned capture interface absent"))?;
+                if item.retained_life.binder_count > 0 && d.storage_life.is_none() {
+                    return Err(bad("Context owning capture has no actual Fixed directory"));
+                }
                 continue;
             }
 
@@ -304,6 +358,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                 capture(t)
                     || matches!(t,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
                     || exclusive_capture(t)
+                    || semantic_copy_capture(module, d, t, b)?
                     || owned_capture(t, b)?
                     || ordinary_capture(module, t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
@@ -480,9 +535,10 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .and_then(|id| module.closures.get(id.0 as usize))
             .is_some_and(|d| {
                 (!*mutable && lending(d))
-                    || d.captures.get(*index as usize).is_some_and(
-                        |ty| matches!(ty, Type::Closure(child) if finite(module,*child)) || matches!(ty,Type::OwnedDyn{..}),
-                    )
+                    || d.captures.get(*index as usize).is_some_and(|ty| {
+                        matches!(ty, Type::Closure(child) if finite(module,*child))
+                            || matches!(ty, Type::OwnedDyn { .. })
+                    })
             }),
         InstructionKind::TakeCapture { index } => f
             .environment
@@ -539,12 +595,24 @@ pub(super) fn types(
         }
         return Ok(());
     }
-    if let InstructionKind::BorrowCapture{index,mutable}=i.kind
-        && let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
-        && let Some(actual @ Type::OwnedDyn{interface})=d.captures.get(index as usize) {
-        super::dyn_cleanup::capture_interface(module,*interface,b)?;
-        if mutable && d.kind==CallableKind::Fn {return Err(bad("shared callback cannot mutably borrow an owning capture"));}
-        if !matches!(i.result.and_then(|id|f.values.get(id.0 as usize)),Some(Type::Address{mutable:mode,inner})if *mode==mutable && inner.as_ref()==actual){return Err(bad("owned capture loan changes its actual complete type or mode"));}
+    if let InstructionKind::BorrowCapture { index, mutable } = i.kind
+        && let Some(d) = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+        && let Some(actual @ Type::OwnedDyn { interface }) = d.captures.get(index as usize)
+    {
+        super::dyn_cleanup::capture_interface(module, *interface, b)?;
+        if mutable && d.kind == CallableKind::Fn {
+            return Err(bad(
+                "shared callback cannot mutably borrow an owning capture",
+            ));
+        }
+        if !matches!(i.result.and_then(|id|f.values.get(id.0 as usize)),Some(Type::Address{mutable:mode,inner})if *mode==mutable && inner.as_ref()==actual)
+        {
+            return Err(bad(
+                "owned capture loan changes its actual complete type or mode",
+            ));
+        }
         return Ok(());
     }
     if let InstructionKind::BorrowCapture { index, mutable } = i.kind
