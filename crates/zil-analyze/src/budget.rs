@@ -477,7 +477,16 @@ impl Budget {
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
                 self.lookup(self.dyn_interfaces.len(), "dyn type interface lookup")?;
                 if !self.dyn_interfaces.contains(interface) {
-                    return Err(bad("dyn type lacks a checked interface"));
+                    self.spend(
+                        context.len().saturating_add(64),
+                        "dyn interface diagnostic context",
+                    )?;
+                    let mut errors = bad("dyn type lacks a checked interface");
+                    errors[0].notes.push(format!(
+                        "actual interface {}, metadata consumer {context}",
+                        interface.0
+                    ));
+                    return Err(errors);
                 }
             }
             Type::BorrowedStorage { storage, life } => {
