@@ -1050,14 +1050,18 @@ bool exactStageEntry(const Stage &Prior, const Stage &Current) {
          Prior.Pipeline == Current.Pipeline && Prior.EntryKeys == Current.EntryKeys &&
          Prior.EntryFacts == Current.EntryFacts;
 }
-bool exactCohortStageEntry(const Stage &Prior, const Stage &Current) {
+bool exactCohortStageEntry(const Stage &Prior, const Stage &Current,
+                           const std::string &CurrentCanonical) {
   if (Prior.Proof != ClosureProof::ClosedBody || !stageProofShape(Prior) ||
       Current.CohortContext.empty() || Prior.CohortContext != Current.CohortContext ||
       Prior.CohortConfig != Current.CohortConfig || Prior.Pipeline != Current.Pipeline ||
       Prior.EntryKeys != Current.EntryKeys || Prior.EntryFacts != Current.EntryFacts) return false;
-  auto Canonical = cohortRebindFunctionText(Current.Input, Current.CohortName, "zil.cohort.subject");
-  return !Canonical.empty() &&
-      cohortRebindFunctionText(Prior.Input, Prior.CohortName, "zil.cohort.subject") == Canonical;
+  return !CurrentCanonical.empty() &&
+      cohortRebindFunctionText(Prior.Input, Prior.CohortName, "zil.cohort.subject") == CurrentCanonical;
+}
+bool exactCohortStageEntry(const Stage &Prior, const Stage &Current) {
+  return exactCohortStageEntry(Prior, Current,
+      cohortRebindFunctionText(Current.Input, Current.CohortName, "zil.cohort.subject"));
 }
 // Called only after exact current Config and Slot lookup. False leaves IR/AM
 // untouched and executes the original stage. AttemptedDecode is a fixture-only
@@ -1479,7 +1483,9 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
     ++R.BodyStats.replays; return true;
   }
   IRScopeNS<> ParseTime(R.Stats.ir_parse_ns);
-  auto Buffer = MemoryBuffer::getMemBufferCopy(P.Output, "zil.function.product");
+  // P owns immutable bytes throughout parsing and the parsed Module's lifetime.
+  // The non-lazy reader needs a buffer wrapper, not another bitcode allocation.
+  auto Buffer = MemoryBuffer::getMemBuffer(P.Output, "zil.function.product", false);
   auto Parsed = parseBitcodeFile(Buffer->getMemBufferRef(), F.getContext());
   ParseTime.stop(); // Parsed Module/Buffer cleanup remains in replay only.
   if (!Parsed) { consumeError(Parsed.takeError()); return Fail("bitcode-parse"); }
@@ -1603,6 +1609,7 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     return FreshWithoutCapture();
   }
   R.Stats.ir_key_bytes += P->Input.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
+  std::string CanonicalInput;
   if (Closed) {
     P->CohortName = F.getName().str();
     P->CohortContext = std::move(ClosedContext); P->CohortConfig = R.Config;
@@ -1613,9 +1620,9 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
     const auto Occurrence = Slot.rfind('#');
     if (Occurrence == std::string::npos) P->CohortContext.clear();
     else P->CohortConfig += Slot.substr(Occurrence);
-    auto Canonical = cohortRebindFunctionText(P->Input, P->CohortName, "zil.cohort.subject");
-    if (Canonical.empty()) P->CohortContext.clear();
-    else P->CohortKey = cohortHash(Canonical, P->CohortContext, P->CohortConfig, P->Pipeline);
+    CanonicalInput = cohortRebindFunctionText(P->Input, P->CohortName, "zil.cohort.subject");
+    if (CanonicalInput.empty()) P->CohortContext.clear();
+    else P->CohortKey = cohortHash(CanonicalInput, P->CohortContext, P->CohortConfig, P->Pipeline);
   }
   KeyTime.stop();
   // Closed prior and peer products share the same complete consumer proof.
@@ -1626,10 +1633,14 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
         Candidate->CohortConfig != P->CohortConfig || Candidate->EntryKeys != P->EntryKeys ||
         (!Candidate->BodyUnchanged && !Candidate->TypedBody)) return false;
     Stage Old;
-    if (!unpackStage(*Candidate, Old) || !exactCohortStageEntry(Old, *P)) return false;
+    // This projection belongs only to this unchanged entry and synchronous
+    // lookup. It is still compared in full against every decoded candidate.
+    if (!unpackStage(*Candidate, Old) || !exactCohortStageEntry(Old, *P, CanonicalInput)) return false;
     auto Output = Old.BodyUnchanged ? std::string{} :
         cohortRebindFunctionText(Old.OutputText, Old.CohortName, P->CohortName);
     if (!Old.BodyUnchanged && Output.empty()) return false;
+    bool SameStoredText = Old.CohortName == P->CohortName && Old.Input == P->Input &&
+        (Old.BodyUnchanged || Output == Old.OutputText);
     // The typed consumer's ordinary declaration guard stays exact after a
     // complete value comparison and rebinding to CURRENT serialized slots.
     for (auto &D : Old.OriginalDeclarations) {
@@ -1638,10 +1649,13 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
       std::string Text = declarationText(*Current);
       auto Expected = cohortAttributeSlots(D.second, "\n; complete-attribute-values ");
       if (Expected.empty() || cohortAttributeSlots(Text, "\n; complete-attribute-values ") != Expected) return false;
+      SameStoredText &= Text == D.second;
       D.second = std::move(Text);
     }
-    Old.Input = P->Input; Old.OutputText = std::move(Output);
-    Old.CohortName = P->CohortName; Old.EntrySummary.reset();
+    // Selection is complete: every subsequent exit consumes this candidate,
+    // including a dirty replay failure. Transfer current bindings, not copies.
+    Old.Input = std::move(P->Input); Old.OutputText = std::move(Output);
+    Old.CohortName = std::move(P->CohortName); Old.EntrySummary.reset();
     std::string CurrentOutput;
     // No pass executes on this path. The closed typed/unchanged transport and
     // supported analysis factories only update current F/FAM; complete output
@@ -1652,11 +1666,18 @@ int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
       if (R.Arena) R.Arena->disable(&R.CohortStats);
       PA = PreservedAnalyses::none(); return true;
     }
-    if (!Old.BodyUnchanged) Old.OutputText = std::move(CurrentOutput);
+    if (!Old.BodyUnchanged) {
+      SameStoredText &= CurrentOutput == Old.OutputText;
+      Old.OutputText = std::move(CurrentOutput);
+    }
     PA = Old.PA;
     { // Sequential with replay(): retention/repacking belongs to replay.
       IRScopeNS<> RetentionTime(R.Stats.ir_replay_ns);
-      retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
+      // Entry/output/declarations and every typed field are unchanged. Share
+      // the original immutable frame only AFTER the complete current replay
+      // and context checks; normalized equality alone cannot skip rebinding.
+      if (SameStoredText) retainStage(R, Slot, Candidate);
+      else retainStage(R, Slot, std::make_shared<const Stage>(std::move(Old)));
     }
     if (Peer) R.Arena->replayed(0, &R.CohortStats);
     else *HitGroup = Group;
@@ -1904,6 +1925,61 @@ extern "C" int ZilNativeCohortCounterexamplesV1() {
   bool AttemptedDecode = true;
   if (decodeStageCandidate(*Stored->second, WorldCurrent, Decoded, Transport.Stats, &AttemptedDecode) || AttemptedDecode)
     return Fail("world-consumer-refuses-closed-before-unpack");
+  // Actual fresh capture and no-arena replay: prove immutable frame sharing,
+  // then force a same-name ModuleSlotTracker change. Alpha-equivalent input
+  // still replays but MUST publish a new frame with current serialized slots.
+  {
+    Module OriginalModule("closed-frame-owner", Context), CurrentModule("closed-frame-current", Context);
+    auto Leaf = [&](Module &Owner) {
+      auto *F = Function::Create(FunctionType::get(I32, {I32}, false),
+          GlobalValue::ExternalLinkage, "zil.fn.71", Owner);
+      F->addFnAttr(Attribute::NoInline);
+      auto *BB = BasicBlock::Create(Context, "entry", F);
+      ReturnInst::Create(Context, F->getArg(0), BB); return F;
+    };
+    Function *Original = Leaf(OriginalModule);
+    auto *Prefix = Function::Create(FunctionType::get(I32, false),
+        GlobalValue::ExternalLinkage, "prefix", CurrentModule);
+    Prefix->addFnAttr(Attribute::NoUnwind);
+    ReturnInst::Create(Context, ConstantInt::get(I32, 0), BasicBlock::Create(Context, "entry", Prefix));
+    Function *Current = Leaf(CurrentModule);
+    if (functionText(*Original) == functionText(*Current) ||
+        cohortFunctionText(*Original) != cohortFunctionText(*Current)) return Fail("same-name-slot-fixture");
+    FunctionPassManager PM;
+    FunctionAnalysisManager AM;
+    AM.registerPass([] { return PassInstrumentationAnalysis(); });
+    AM.getResult<PassInstrumentationAnalysis>(*Original);
+    Request Producer(OriginalModule, "closed-retention", nullptr); Producer.ClosedPolicy = true;
+    void *Token = nullptr; GroupRuntime *Hit = nullptr;
+    PreservedAnalyses PA = PreservedAnalyses::none();
+    const auto Slot = path(Producer, *Original);
+    if (beforeStageImpl(Producer, PM, *Original, AM, PA, &Token, &Hit, Slot) || !Token)
+      return Fail("closed-frame-fresh-entry");
+    PA = PM.run(*Original, AM);
+    afterStage(&Producer, nullptr, Original, &AM, &PA, Token);
+    auto Product = Producer.Next.Stages.find(Slot);
+    if (Producer.Failed || !Producer.PendingTokens.empty() || Product == Producer.Next.Stages.end() ||
+        Product->second->Proof != ClosureProof::ClosedBody || !Producer.Stats.world_projection_direct)
+      return Fail("closed-frame-fresh-world-proof");
+    auto Consume = [&](Module &Owner, Function &F, bool SameFrame) {
+      FunctionAnalysisManager CurrentAM;
+      CurrentAM.registerPass([] { return PassInstrumentationAnalysis(); });
+      CurrentAM.getResult<PassInstrumentationAnalysis>(F);
+      Request Consumer(Owner, "closed-retention", &Producer.Next); Consumer.ClosedPolicy = true;
+      void *Pending = nullptr; GroupRuntime *Group = nullptr;
+      PreservedAnalyses Result = PreservedAnalyses::none();
+      if (beforeStageImpl(Consumer, PM, F, CurrentAM, Result, &Pending, &Group, Slot) != 1 ||
+          Consumer.Failed || Pending || Consumer.Stats.optimizer_function_stage_reuses != 1 ||
+          Consumer.Stats.world_projection_direct || Consumer.Stats.world_projection_fallback ||
+          Consumer.Next.Stages.size() != 1 ||
+          (Consumer.Next.Stages.at(Slot).get() == Product->second.get()) != SameFrame) return false;
+      Stage Rebound;
+      return unpackStage(*Consumer.Next.Stages.at(Slot), Rebound) && Rebound.Input == functionText(F) &&
+          Rebound.CohortName == F.getName() && !verifyFunction(F, nullptr);
+    };
+    if (!Consume(OriginalModule, *Original, true)) return Fail("closed-frame-shares-exact-product");
+    if (!Consume(CurrentModule, *Current, false)) return Fail("closed-frame-rebinds-changed-slots");
+  }
   Y.Input = functionText(*Different); Y.CohortName = Different->getName().str();
   if (exactCohortStageEntry(X, Y)) return Fail("forced-hash-collision-body");
   Y = X; Y.CohortConfig += "changed";

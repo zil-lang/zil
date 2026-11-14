@@ -1006,10 +1006,12 @@ std::string machineText(const llvm::MachineModuleInfo &MMI,
 
 // Canonical empty body spelling is identical for the SDK's header projection
 // and for the original full-printer fallback. Header bytes are never dropped.
-std::string emptyBodyHeader(llvm::StringRef Text) {
+std::string emptyBodyHeader(std::string Text) {
   const size_t At = Text.find("\nbody:");
-  if (At == llvm::StringRef::npos) return {};
-  return Text.take_front(At).str() + "\nbody:             |\n\n...\n";
+  if (At == std::string::npos) return {};
+  Text.resize(At);
+  Text += "\nbody:             |\n\n...\n";
+  return Text;
 }
 std::string machineHeader(const llvm::MachineModuleInfo &MMI,
                           const llvm::MachineFunction &MF) {
@@ -1017,7 +1019,9 @@ std::string machineHeader(const llvm::MachineModuleInfo &MMI,
   std::string Text;
   llvm::raw_string_ostream OS(Text);
   if (!targetInfoAPI().printHeader(&MMI, &MF, &OS)) return {};
-  return emptyBodyHeader(Text);
+  // The printer's temporary is exclusively owned; keep its allocation while
+  // replacing only the body suffix. No second full header copy is necessary.
+  return emptyBodyHeader(std::move(Text));
 }
 // CFI operands are rendered by dereferencing their complete frame table, not
 // just their index. Keep the active variant/value equality as an independent
@@ -1805,6 +1809,7 @@ struct MachineRequest {
     bool closedReplay = false, cohortReplay = false;
     const std::string &replayHeader() const { return binding ? binding->mirHeader : replay->mirHeader; }
     const std::string &replayText() const { return binding ? binding->mir : replay->mir; }
+    const std::string &replayInput() const { return binding ? binding->input : replay->input; }
     std::vector<PassOccurrence> sequence;
     llvm::Pass *pendingMachine = nullptr;
     llvm::Pass *skipped = nullptr;
@@ -2040,6 +2045,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
   if (New) {
     const auto KeyStart = Clock::now();
     bool KeyRecorded = false;
+    // One owned projection of this exact current entry, shared only by the
+    // hash lookup and complete candidate comparison below. No LLVM memo.
+    std::string Canonical;
     const auto &Triple = R.machine.getTargetTriple();
     if (Triple.getArch() == llvm::Triple::x86_64 && Triple.isOSLinux() &&
         R.reservedSlots < MaxMachineSlots && R.reservedBytes < MaxMachinePayload &&
@@ -2060,7 +2068,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         if (R.arena && C.recording->cohortContext.empty()) R.arena->decline(R.cohortStats);
         if (!C.recording->cohortContext.empty()) {
           C.recording->cohortName = F.getName().str(); C.recording->cohortConfig = R.config;
-          auto Canonical = cohortRebindFunctionText(C.recording->input, C.recording->cohortName, "zil.cohort.subject");
+          Canonical = cohortRebindFunctionText(C.recording->input, C.recording->cohortName, "zil.cohort.subject");
           if (Canonical.empty()) C.recording->cohortContext.clear();
           else C.recording->cohortKey = cohortHash(Canonical, C.recording->cohortContext, R.config, "machine-v1");
           if (MachineDiagnostics) {
@@ -2076,21 +2084,30 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         R.discardRecording(C);
     }
     if (C.recording) {
-      const auto Canonical = C.recording->cohortContext.empty() ? std::string{} :
-          cohortRebindFunctionText(C.recording->input, C.recording->cohortName, "zil.cohort.subject");
       auto TryClosed = [&](const std::shared_ptr<const Snapshot> &S, bool Peer) {
         if (!R.closedPolicy || (R.arena && R.arena->read().disabled) || Canonical.empty() || !closedSnapshotShape(*S) ||
             S->cohortContext != C.recording->cohortContext || S->cohortConfig != R.config ||
             !samePipeline(S->pipeline, C.recording->pipeline) || S->firstMachine != C.recording->firstMachine ||
             !completeSequence(*S) || !matchesOccurrence(*S, 0, P, true) || MMI.getMachineFunction(F) ||
             cohortRebindFunctionText(S->input, S->cohortName, "zil.cohort.subject") != Canonical) return false;
-        auto Bound = std::make_shared<MachineBinding>();
-        Bound->proof = ClosureProof::ClosedBody;
-        Bound->mir = cohortMachineHeader(S->mir, S->cohortName, F.getName());
-        Bound->mirHeader = cohortMachineHeader(S->mirHeader, S->cohortName, F.getName());
-        if (Bound->mir.empty() || Bound->mirHeader.empty()) return false;
-        Bound->input = C.recording->input; // No unproved/empty World key is used.
-        if (!R.reserve(C, boundedAdd(snapshotReservation(*S, F.getName().size()), boundedAdd(Bound->bytes(), F.getName().size())))) return false;
+        std::shared_ptr<MachineBinding> Bound;
+        // Exact own name AND complete input equality mean all serialized
+        // bindings already name the current function. This follows the full
+        // closure/pipeline checks above; a same-name identity is no permission.
+        const bool OriginalBinding = S->cohortName == F.getName() && S->input == C.recording->input;
+        if (!OriginalBinding) {
+          Bound = std::make_shared<MachineBinding>();
+          Bound->proof = ClosureProof::ClosedBody;
+          Bound->mir = cohortMachineHeader(S->mir, S->cohortName, F.getName());
+          Bound->mirHeader = cohortMachineHeader(S->mirHeader, S->cohortName, F.getName());
+          if (Bound->mir.empty() || Bound->mirHeader.empty()) return false;
+          // Transfer only after admission: the recording is consumed on a hit.
+          // Account using its still-owned input before transferring below.
+        }
+        size_t BindingBytes = Bound ? boundedAdd(Bound->bytes(), C.recording->input.size()) : 0;
+        if (!R.reserve(C, boundedAdd(snapshotReservation(*S, F.getName().size()),
+                Bound ? boundedAdd(BindingBytes, F.getName().size()) : 0))) return false;
+        if (Bound) Bound->input = std::move(C.recording->input);
         C.replay = S; C.binding = std::move(Bound);
         C.closedReplay = true; C.cohortReplay = Peer; return true;
       };
@@ -2145,8 +2162,10 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             // parser/header destruction. It is not pure YAML parsing time.
             // Pause around restoration/validation so these scopes do not overlap.
             ScopedNS ParseTime(R.stats.mir_parse_ns);
+            // C retains the immutable snapshot/binding until after Parser is
+            // destroyed. std::string supplies the required trailing NUL.
             auto Parser = llvm::createMIRParser(
-                llvm::MemoryBuffer::getMemBufferCopy(C.replayHeader(), "zil-current-machine-header"),
+                llvm::MemoryBuffer::getMemBuffer(C.replayHeader(), "zil-current-machine-header"),
                 R.module.getContext());
             // Required to initialize the YAML cursor. This header is empty;
             // parseMachineFunctions explicitly receives the CURRENT Module/MMI.
@@ -2213,8 +2232,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             ParseTime.resume();
           }
           if (!R.failed && C.closedReplay &&
-              (!C.binding || C.binding->proof != ClosureProof::ClosedBody || !C.binding->world.empty() ||
-               cohortContext(F) != C.replay->cohortContext || functionText(F) != C.binding->input))
+              ((C.binding ? C.binding->proof != ClosureProof::ClosedBody || !C.binding->world.empty() :
+                            !closedSnapshotShape(*C.replay)) ||
+               cohortContext(F) != C.replay->cohortContext || functionText(F) != C.replayInput()))
             R.fail();
           if (!R.failed) {
             ++R.stats.machine_function_reuses;
@@ -2296,8 +2316,10 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
           C.recording->mir = machineHeader(MMI, *MF);
           C.recording->headerOnly = !C.recording->mir.empty();
           if (!C.recording->headerOnly) C.recording->mir = machineText(MMI, *MF);
-          const std::string EmptyBody = C.recording->headerOnly ? C.recording->mir :
-              emptyBodyHeader(C.recording->mir);
+          std::string EmptyBodyFallback;
+          if (!C.recording->headerOnly) EmptyBodyFallback = emptyBodyHeader(C.recording->mir);
+          const llvm::StringRef EmptyBody = C.recording->headerOnly ?
+              llvm::StringRef(C.recording->mir) : llvm::StringRef(EmptyBodyFallback);
           if (EmptyBody.empty()) {
             R.discardRecording(C); return 0;
           }

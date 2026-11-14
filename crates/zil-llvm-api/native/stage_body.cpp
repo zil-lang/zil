@@ -466,6 +466,37 @@ bool decode(const uint8_t *Data, size_t Size, View &V) {
     if (U.User >= V.Instructions.size() || U.Operand >= V.Instructions[U.User].Operands.Count) return false;
   return true;
 }
+// The complete current sequence is often already exact (including zero/one
+// use values). Prove that before allocating a rank map or sorting. This is an
+// equality of actual operand Uses, not a use-count or construction-order guess.
+bool restoreOwnedUseOrder(Value &V, ArrayRef<UseRow> Expected,
+                          ArrayRef<Instruction *> Instructions,
+                          size_t *RankTables = nullptr) {
+  auto Operand = [&](const UseRow &U) -> Use * {
+    if (U.User >= Instructions.size() || !Instructions[U.User] ||
+        U.Operand >= Instructions[U.User]->getNumOperands()) return nullptr;
+    Use *Current = &Instructions[U.User]->getOperandUse(U.Operand);
+    return Current->get() == &V ? Current : nullptr;
+  };
+  auto Next = V.use_begin();
+  bool Same = true;
+  for (const UseRow &U : Expected) {
+    Use *Current = Operand(U);
+    if (!Current) return false;
+    if (Next == V.use_end() || &*Next != Current) { Same = false; break; }
+    ++Next;
+  }
+  if (Same && Next == V.use_end()) return true;
+  if (RankTables) ++*RankTables;
+  DenseMap<const Use *, uint32_t> Ranks;
+  for (size_t K = 0; K != Expected.size(); ++K) {
+    Use *Current = Operand(Expected[K]);
+    if (!Current || !Ranks.try_emplace(Current, static_cast<uint32_t>(K)).second) return false;
+  }
+  if (Ranks.size() != V.getNumUses()) return false;
+  V.sortUseList([&](const Use &A, const Use &B) { return Ranks.lookup(&A) < Ranks.lookup(&B); });
+  return true;
+}
 }
 struct StageBody::Storage {
   std::unique_ptr<uint8_t[]> Bytes;
@@ -706,15 +737,8 @@ bool StageBody::restore(Function &F, Prepared &PreparedBody) const {
   for (BasicBlock *B : Blocks) { Owned.push_back(B); for (Instruction &I : *B) Owned.push_back(&I); }
   if (Owned.size() != V.UseLists.size()) return false;
   for (size_t N = 0; N != Owned.size(); ++N) {
-    Value *Value = Owned[N]; const UseList &L = V.UseLists[N];
-    DenseMap<const Use *, uint32_t> Ranks;
-    for (unsigned K = 0; K != L.Entries.Count; ++K) {
-      const UseRow &U = V.Uses[L.Entries.Start + K];
-      Use *Current = &Instructions[U.User]->getOperandUse(U.Operand);
-      if (Current->get() != Value || !Ranks.try_emplace(Current, K).second) return false;
-    }
-    if (Ranks.size() != Value->getNumUses()) return false;
-    Value->sortUseList([&](const Use &A, const Use &B) { return Ranks.lookup(&A) < Ranks.lookup(&B); });
+    const UseList &L = V.UseLists[N];
+    if (!restoreOwnedUseOrder(*Owned[N], V.Uses.slice(L.Entries.Start, L.Entries.Count), Instructions)) return false;
   }
   return true; // The actual consumer performs the unchanged current verifier.
 }
@@ -725,6 +749,50 @@ int StageBody::counterexamples() {
   LLVMContext C; Module M("typed-stage-body", C);
   M.setTargetTriple(Triple("x86_64-unknown-linux-gnu"));
   auto *I130 = IntegerType::get(C, 130); auto *I32 = Type::getInt32Ty(C);
+  // Exercise the production order restoration without relying on LLVM's
+  // current insertion order. Matching lists must allocate no rank table;
+  // permutations must restore exactly, while duplicate/missing/foreign Uses
+  // refuse before sorting a malformed sequence.
+  {
+    auto *Order = Function::Create(FunctionType::get(I32, {I32, I32}, false),
+        GlobalValue::ExternalLinkage, "use.order", &M);
+    auto *BB = BasicBlock::Create(C, "entry", Order);
+    auto *Add = BinaryOperator::CreateAdd(Order->getArg(0), Order->getArg(0), "twice", BB);
+    auto *Ret = ReturnInst::Create(C, Add, BB);
+    std::vector<Instruction *> Insts{Add, Ret};
+    std::vector<UseRow> Uses;
+    for (const Use &U : Order->getArg(0)->uses()) Uses.push_back({0, U.getOperandNo()});
+    size_t Tables = 0;
+    if (Uses.size() != 2 || !restoreOwnedUseOrder(*Order->getArg(0), Uses, Insts, &Tables) || Tables)
+      return Fail("matching-use-order-no-ranks");
+    if (!restoreOwnedUseOrder(*Order->getArg(1), {}, Insts, &Tables) || Tables)
+      return Fail("zero-use-no-ranks");
+    std::vector<UseRow> One{{1, 0}};
+    if (!restoreOwnedUseOrder(*Add, One, Insts, &Tables) || Tables)
+      return Fail("one-use-no-ranks");
+    std::reverse(Uses.begin(), Uses.end());
+    if (!restoreOwnedUseOrder(*Order->getArg(0), Uses, Insts, &Tables) || Tables != 1)
+      return Fail("permuted-use-order-ranks");
+    auto Next = Order->getArg(0)->use_begin();
+    for (const auto &U : Uses) if (&*Next++ != &Add->getOperandUse(U.Operand))
+      return Fail("permuted-use-order-exact");
+    auto Duplicate = Uses; Duplicate[1] = Duplicate[0];
+    if (restoreOwnedUseOrder(*Order->getArg(0), Duplicate, Insts) ||
+        restoreOwnedUseOrder(*Order->getArg(0), ArrayRef<UseRow>(Uses).take_front(1), Insts) ||
+        restoreOwnedUseOrder(*Order->getArg(1), Uses, Insts) ||
+        restoreOwnedUseOrder(*Order->getArg(0), One, Insts)) return Fail("malformed-use-order");
+    std::vector<UseRow> Invalid{{2, 0}};
+    if (restoreOwnedUseOrder(*Order->getArg(0), Invalid, Insts)) return Fail("foreign-use-index");
+    auto *Extra = BinaryOperator::CreateAdd(Order->getArg(0), Order->getArg(1), "extra");
+    Extra->insertInto(BB, Ret->getIterator());
+    if (restoreOwnedUseOrder(*Order->getArg(0), Uses, Insts)) return Fail("extra-current-use");
+    Extra->eraseFromParent();
+    auto *Detached = BinaryOperator::CreateAdd(Order->getArg(0), Order->getArg(1), "detached");
+    bool ForeignRefused = !restoreOwnedUseOrder(*Order->getArg(0), Uses, Insts);
+    Detached->deleteValue();
+    if (!ForeignRefused) return Fail("extra-foreign-owner-use");
+    if (verifyFunction(*Order, nullptr)) return Fail("use-order-fixture-verifier");
+  }
   auto *F = Function::Create(FunctionType::get(I130, {I130, Type::getInt1Ty(C)}, false), GlobalValue::ExternalLinkage, "wide", &M);
   F->getArg(0)->setName("x"); F->getArg(1)->setName("condition");
   auto *Entry = BasicBlock::Create(C, "entry", F);

@@ -1173,7 +1173,38 @@ mod native_product_tests {
             prior_stats.world_projection_direct,
             prior_stats.world_projection_fallback
         );
+        // The shared immutable IR/MIR/MC payload must outlive both its fresh
+        // producer and weak index. Each new parser borrows only from products
+        // held by this request; a transitive prior cannot depend on old owners.
+        let closed_prior_products = closed_prior_products.expect("closed replay owns its products");
+        drop(leaf_products);
+        drop(leaf_arena);
+        let (transitive, _, transitive_products) = compile_module_with_cohorts(
+            &leaves,
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            Some(&closed_prior_products),
+            None,
+        )
+        .unwrap();
         drop(closed_prior_products);
+        assert_eq!(transitive.bytes, leaf_ordinary.bytes);
+        assert!(transitive.receipt.verify_before_after);
+        let transitive_stats = transitive.receipt.native_products.unwrap();
+        assert!(transitive_stats.optimizer_function_stage_reuses > 0);
+        assert!(transitive_stats.machine_function_reuses > 0);
+        assert_eq!(transitive_stats.failed_replays, 0);
+        assert_eq!(transitive_stats.fresh_context_fallbacks, 0);
+        assert_eq!(transitive_stats.world_projection_direct, 0);
+        assert_eq!(transitive_stats.world_projection_fallback, 0);
+        let transitive_emission = transitive_stats
+            .machine_emission
+            .expect("transitive current MC replay observations");
+        assert!(transitive_emission.replayed_functions > 0);
+        assert!(transitive_emission.mc_replay_events > 0);
+        assert_eq!(transitive_emission.failed_replays, 0);
+        assert!(transitive_products.is_some());
         let before = arena.stats();
         let mut invalid = current.clone();
         let Item::Function(function) = &mut invalid.items[0] else {
