@@ -199,7 +199,7 @@ impl Solver<'_, '_> {
             )),
         }
     }
-    fn constant(
+    pub(super) fn constant(
         &mut self,
         frame: &Frame,
         recipe: &SemanticConstRecipe,
