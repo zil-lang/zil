@@ -966,6 +966,11 @@ impl<'a> Eval<'a, '_> {
                     classes,
                 )
             }
+            SemanticTypeRecipe::Tuple(items) if items.is_empty() => {
+                // Original empty tuple syntax denotes Unit, as in Gamma's
+                // resolution. Its complete runtime type is not Tuple([]).
+                resolved(Type::Unit, empty(), Vec::new())
+            }
             SemanticTypeRecipe::Tuple(items) => {
                 self.fee(items.len())?;
                 let mut fields = Vec::new();

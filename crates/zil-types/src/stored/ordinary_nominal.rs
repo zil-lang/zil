@@ -64,7 +64,11 @@ impl<'a> Check<'a, '_> {
         }
         let physical = physical(&instance.ty);
         if declaration.id.compiler {
-            if compiler_declaration(declaration) {
+            if declaration.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
+                || declaration.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE
+            {
+                self.failure_instance(declaration, instance, depth + 1)?;
+            } else if compiler_declaration(declaration) {
                 compiler_instance(declaration, physical, self.left)?;
             } else if option_address::declaration(declaration)
                 || enum_address::poll_declaration(declaration)
@@ -248,6 +252,162 @@ impl<'a> Check<'a, '_> {
         self.fields(physical, depth + 1)?;
         self.active.pop();
         Ok(())
+    }
+    fn failure_instance(
+        &mut self,
+        declaration: &LifeNominalDeclaration,
+        instance: &LifeNominalInstance,
+        depth: usize,
+    ) -> R<()> {
+        self.node(depth)?;
+        if !compiler_declaration(declaration) {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure original declaration is not canonical",
+            ));
+        }
+        fn get_type(actual: &LifeNominalActual) -> Option<&Type> {
+            match actual {
+                LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } => {
+                    Some(ty)
+                }
+                _ => None,
+            }
+        }
+        let [inputs, context] = instance.arguments.as_slice() else {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure omits full input/context Type actuals",
+            ));
+        };
+        let inputs = get_type(inputs).ok_or_else(|| {
+            error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure input actual has another mixed kind",
+            )
+        })?;
+        let context = get_type(context).ok_or_else(|| {
+            error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure context actual has another mixed kind",
+            )
+        })?;
+        if !matches!(inputs, Type::Tuple(_)) {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure input actual is not its whole ordered Tuple",
+            ));
+        }
+        let Type::Task {
+            result,
+            retained_life,
+        } = context
+        else {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure context actual is not its actual Task context",
+            ));
+        };
+        fee(
+            self.left,
+            retained_life
+                .ports
+                .len()
+                .saturating_add(retained_life.retained.len())
+                .saturating_add(retained_life.nominal_arguments.len())
+                .saturating_add(1),
+            Span::default(),
+        )?;
+        if **result != Type::Unit
+            || retained_life.binder_count != 0
+            || !retained_life.ports.is_empty()
+            || !retained_life.retained.is_empty()
+            || !retained_life.nominal_arguments.is_empty()
+        {
+            return Err(unknown(
+                "nonzero TaskCreateFailure context requires its full qualified input/port/phantom projection proof",
+            ));
+        }
+        let (name, fields) = match (declaration.id, physical(&instance.ty)) {
+            (id, Type::Record { name, fields })
+                if id == zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD =>
+            {
+                (name, fields)
+            }
+            (id, Type::Package { name, fields })
+                if id == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE =>
+            {
+                (name, fields)
+            }
+            _ => {
+                return Err(error(
+                    "E-NOMINAL-DOMAIN",
+                    Span::default(),
+                    "TaskCreateFailure changes its actual Record/Package ownership constructor",
+                ));
+            }
+        };
+        fee(
+            self.left,
+            name.len().saturating_add(fields.len()),
+            Span::default(),
+        )?;
+        let [(reason_name, reason), (inputs_name, actual_inputs)] = fields.as_slice() else {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure changes its exact field inventory",
+            ));
+        };
+        if reason_name != "reason" || inputs_name != "inputs" {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure changes field order or identity",
+            ));
+        }
+        for ty in [inputs, actual_inputs] {
+            inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 2)?;
+        }
+        if inputs != actual_inputs
+            || name != &format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint())
+        {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure changes its complete input payload or canonical application identity",
+            ));
+        }
+        fee(self.left, self.declarations.len(), Span::default())?;
+        let mut declarations = self
+            .declarations
+            .iter()
+            .filter(|row| row.id == zil_ir::builtin_life::TASK_CREATE_ERROR);
+        let reason_declaration = declarations.next().ok_or_else(|| {
+            error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure has no actual canonical reason declaration",
+            )
+        })?;
+        if declarations.next().is_some() {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "TaskCreateFailure reason declaration is duplicated",
+            ));
+        }
+        compiler_instance(reason_declaration, reason, self.left)?;
+        // The ordinary row pass independently walks both full actuals and all
+        // physical fields. No omitted class/phantom or unknown child is zero.
+        self.ty(inputs, depth + 1)?;
+        self.ty(context, depth + 1)
     }
     fn fields(&mut self, ty: &Type, depth: usize) -> R<()> {
         self.node(depth)?;
