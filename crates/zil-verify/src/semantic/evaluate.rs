@@ -56,6 +56,10 @@ impl CheckedContext {
                     .type_recipe(module, definition, source, environment, b)?;
                 self.evaluate_type(module, &recipe, environment, external, active, b)
             }
+            SemanticTypeRecipe::Code{kind:SemanticCodeKind::ForeignCallback,signature}=>{
+                let signature=self.evaluate_signature(module,signature,environment,external,active,b)?;
+                self.foreign_callback_code(module,&signature,b)
+            }
             SemanticTypeRecipe::Atom(ty) => {
                 if !(ty.is_b0_scalar()
                     || matches!(

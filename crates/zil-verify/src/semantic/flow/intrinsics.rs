@@ -52,6 +52,10 @@ impl CheckedContext {
                 "actual opcode differs from its independently resolved original intrinsic",
             ));
         }
+        if use_.kind==Intrinsic::CCallback{
+            let target=use_.worker.ok_or_else(||bad("c_callback has no independently resolved original static target"))?;
+            return self.actual_c_callback(module,instruction,target,environment,external,active,b).map(Some);
+        }
         if let Intrinsic::Convert(target) = use_.kind {
             let value = match instruction.kind {
                 InstructionKind::ConvertInteger { value, .. }

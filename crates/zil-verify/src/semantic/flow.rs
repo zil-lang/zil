@@ -13,6 +13,7 @@ mod call_borrows;
 mod trait_members;
 mod worlds;
 mod task_operations;
+mod callbacks;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -284,6 +285,7 @@ impl CheckedContext {
                         else if module.functions.get(callee.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("ordinary Call substitutes for an original foreign execution"));}
                         result
                     },
+                    InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
                         let site=declarations.next().ok_or_else(||bad("actual Closure creation has no original semantic site"))?;

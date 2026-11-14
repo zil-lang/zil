@@ -4,7 +4,7 @@
 use super::*;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub(in crate::semantic) enum Intrinsic {Convert(Numeric),TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskCreateOwned,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope}
+pub(in crate::semantic) enum Intrinsic {Convert(Numeric),CCallback,TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskCreateOwned,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope}
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub(in crate::semantic) enum Numeric {I8,I16,I32,I64,Isize,U8,U16,U32,U64,Usize,F32,F64}
 impl Numeric {
@@ -21,6 +21,7 @@ pub(in crate::semantic) struct Use {pub(in crate::semantic) kind:Intrinsic,pub(i
 impl Intrinsic {
     pub(in crate::semantic) fn actual(kind:&InstructionKind)->Option<Self>{Some(match kind{
         InstructionKind::ConvertInteger{target,..}|InstructionKind::ConvertNumber{target,..}=>Self::Convert(Numeric::from_type(target)?),
+        InstructionKind::ForeignFunctionRef{..}=>Self::CCallback,
         InstructionKind::TaskYield=>Self::TaskYield,
         InstructionKind::ByteBufferNew=>Self::BytesNew,
         InstructionKind::ByteBufferReserve{..}=>Self::BytesReserve,
@@ -35,7 +36,7 @@ impl Intrinsic {
         InstructionKind::AsyncRegistrationStart{..}=>Self::AsyncStart,InstructionKind::AsyncRegistrationValid{..}=>Self::AsyncValid,InstructionKind::AsyncRegistrationRequestClose{..}=>Self::AsyncRequest,InstructionKind::AsyncRegistrationPollClose{..}=>Self::AsyncPoll,InstructionKind::AsyncRegistrationFinishDestroy{..}=>Self::AsyncFinish,InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>Self::AsyncFinishChecked,InstructionKind::WithScopedThread{..}=>Self::ThreadScope,
         _=>return None,
     })}
-    fn name(name:&str)->Option<Self>{if let Some(target)=Numeric::name(name){return Some(Self::Convert(target));}Some(match name{"task_yield"=>Self::TaskYield,"bytes_new"=>Self::BytesNew,"bytes_reserve"=>Self::BytesReserve,"bytes_push"=>Self::BytesPush,"bytes_truncate"=>Self::BytesTruncate,"bytes_len"=>Self::BytesLen,"bytes_capacity"=>Self::BytesCapacity,"bytes_view"=>Self::BytesView,"bytes_view_mut"=>Self::BytesViewMut,
+    fn name(name:&str)->Option<Self>{if let Some(target)=Numeric::name(name){return Some(Self::Convert(target));}Some(match name{"c_callback"=>Self::CCallback,"task_yield"=>Self::TaskYield,"bytes_new"=>Self::BytesNew,"bytes_reserve"=>Self::BytesReserve,"bytes_push"=>Self::BytesPush,"bytes_truncate"=>Self::BytesTruncate,"bytes_len"=>Self::BytesLen,"bytes_capacity"=>Self::BytesCapacity,"bytes_view"=>Self::BytesView,"bytes_view_mut"=>Self::BytesViewMut,
         "store_new"=>Self::StoreNew,"store_reserve"=>Self::StoreReserve,"store_push"=>Self::StorePush,"store_pop"=>Self::StorePop,"store_at"=>Self::StoreGet,"store_at_mut"=>Self::StoreGetMut,"store_len"=>Self::StoreLen,"store_capacity"=>Self::StoreCapacity,
         "task_create"=>Self::TaskCreate,"task_create_owned"=>Self::TaskCreateOwned,"task_valid"=>Self::TaskValid,"task_poll"=>Self::TaskPoll,"task_request_cancel"=>Self::TaskRequest,"task_poll_close"=>Self::TaskPollClose,"task_finish_destroy"=>Self::TaskFinish,
         "mutex_create"=>Self::MutexCreate,"mutex_lock"=>Self::MutexLock,"mutex_value"=>Self::MutexValue,"mutex_unlock"=>Self::MutexUnlock,
@@ -62,6 +63,7 @@ impl CheckedOriginal {
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn intrinsic_call(&mut self,module:&TypedModule,context:&CheckedContext,intrinsic:Intrinsic,site:SemanticSiteId,written:&[Arg],expected:Option<&Ty>,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty> {
+        if intrinsic==Intrinsic::CCallback{return self.c_callback(module,context,site,written,arguments,env,bindings,active,b);}
         if let Some(ty)=self.operation(module,context,intrinsic,site,written,expected,arguments,env,bindings,active,b)?{return Ok(ty);}
         if !written.is_empty(){return Err(bad("closed nongeneric intrinsic has written mixed arguments"));}
         let arity=match intrinsic{Intrinsic::TaskYield|Intrinsic::BytesNew=>0,Intrinsic::Convert(_)=>1,Intrinsic::BytesLen|Intrinsic::BytesCapacity=>1,_=>2};
