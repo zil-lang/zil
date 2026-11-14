@@ -114,7 +114,7 @@ impl Check<'_, '_> {
         };
         self.pay(2, depth)?;
         let copy = copy_recipe(&role_type, self.limits, self.left)?;
-        self.proof.local_roles.insert(
+        self.proof.proof_mut()?.local_roles.insert(
             (owner, statement),
             LocalRole {
                 kind,
@@ -139,7 +139,9 @@ impl Check<'_, '_> {
     ) -> R<()> {
         self.pay(1, depth)?;
         if owner != role_owner {
-            return Err(pending("captured local role mutation requires its explicit creator/child substitution receipt"));
+            return Err(pending(
+                "captured local role mutation requires its explicit creator/child substitution receipt",
+            ));
         }
         let role = self
             .proof
@@ -176,6 +178,7 @@ impl Check<'_, '_> {
         self.pay(1, depth)?;
         let role = self
             .proof
+            .proof_mut()?
             .local_roles
             .get_mut(&(role_owner, statement))
             .ok_or_else(|| bad("original local role disappeared during assignment proof"))?;
@@ -221,7 +224,7 @@ impl Check<'_, '_> {
                 }
             }
             CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
-                return self.role_source(owner, value, lifetime, variables, depth + 1)
+                return self.role_source(owner, value, lifetime, variables, depth + 1);
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
@@ -412,6 +415,7 @@ impl Check<'_, '_> {
         }
         active.remove(&(owner, binding));
         self.proof
+            .proof_mut()?
             .local_roles
             .get_mut(&(owner, binding))
             .ok_or_else(|| bad("original role disappeared during escape proof"))?

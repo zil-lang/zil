@@ -79,7 +79,7 @@ impl<'a> Check<'a, '_> {
             _ => {
                 return Err(bad(
                     "associated declaration does not select its original trait/impl Scope",
-                ))
+                ));
             }
         };
         crate::dyn_metadata::semantic_operand_snapshot(scope, self.limits, self.left, 1)?;
@@ -148,13 +148,15 @@ impl<'a> Check<'a, '_> {
                 let actual_self = self.pattern_type(scope.id, raw_self, depth + 1)?;
                 let actual_trait = self.pattern_application(scope.id, raw_trait, depth + 1)?;
                 if &actual_self != self_type || &actual_trait != trait_application {
-                    return Err(bad("associated provider changes its complete original Self or trait application"));
+                    return Err(bad(
+                        "associated provider changes its complete original Self or trait application",
+                    ));
                 }
             }
             _ => {
                 return Err(pending(
                     "associated provider omits its complete original Self/trait program",
-                ))
+                ));
             }
         }
         let raw_requirements = input.row.requirements.as_ref().ok_or_else(|| {
@@ -266,9 +268,11 @@ impl<'a> Check<'a, '_> {
                         Some(_),
                         None | Some(DynAssociatedValueRecipe::Constant { .. }),
                     ) => {}
-                    _ => return Err(bad(
-                        "associated definition changes its declared Type/Const category or carrier",
-                    )),
+                    _ => {
+                        return Err(bad(
+                            "associated definition changes its declared Type/Const category or carrier",
+                        ));
+                    }
                 }
                 if input.row.kind == DynDeclarationKind::Impl && definition.value.is_none() {
                     return Err(bad(
@@ -362,11 +366,13 @@ impl<'a> Check<'a, '_> {
             DynLifePattern::MethodParameter(_) => {
                 return Err(bad(
                     "associated declaration recipe borrows an unrelated method parameter domain",
-                ))
+                ));
             }
-            DynLifePattern::ImplicitDeclaration(_) => return Err(pending(
-                "legacy anonymous associated lifetime lacks its real Semantic occurrence mapping",
-            )),
+            DynLifePattern::ImplicitDeclaration(_) => {
+                return Err(pending(
+                    "legacy anonymous associated lifetime lacks its real Semantic occurrence mapping",
+                ));
+            }
         })
     }
     fn pattern_application(
@@ -434,7 +440,7 @@ impl<'a> Check<'a, '_> {
                 _ => {
                     return Err(bad(
                         "associated application changes a full mixed actual kind",
-                    ))
+                    ));
                 }
             };
             arguments.push(actual);
@@ -510,7 +516,7 @@ impl<'a> Check<'a, '_> {
             DynTypePattern::MethodParameter(_) => {
                 return Err(bad(
                     "associated Type definition selects an unrelated method parameter",
-                ))
+                ));
             }
             DynTypePattern::Concrete(ty) => {
                 if !(ty.is_b0_scalar()
@@ -652,7 +658,7 @@ impl<'a> Check<'a, '_> {
             DynConstPattern::MethodParameter(_) => {
                 return Err(bad(
                     "associated Const definition selects an unrelated method parameter",
-                ))
+                ));
             }
             DynConstPattern::AssociatedProjection {
                 receiver,
@@ -680,13 +686,14 @@ impl<'a> Check<'a, '_> {
                 right: Box::new(self.pattern_constant(scope, right, depth + 1)?),
             },
             DynConstPattern::Convert { value, ty } => {
-                let source_type =
-                    match value.as_ref() {
-                        DynConstPattern::Value(value) => SemanticTypeRecipe::Atom(value.ty()),
-                        _ => return Err(pending(
+                let source_type = match value.as_ref() {
+                    DynConstPattern::Value(value) => SemanticTypeRecipe::Atom(value.ty()),
+                    _ => {
+                        return Err(pending(
                             "associated Const conversion lacks its full original source carrier",
-                        )),
-                    };
+                        ));
+                    }
+                };
                 SemanticConstRecipe::Convert {
                     source_type: Box::new(source_type),
                     target_type: Box::new(self.pattern_type(scope, ty, depth + 1)?),
@@ -1134,7 +1141,10 @@ impl Check<'_, '_> {
             self.contexts.pop();
             result?;
             self.pay(1, depth)?;
-            self.proof.associated_complete.insert(input.row.id);
+            self.proof
+                .proof_mut()?
+                .associated_complete
+                .insert(input.row.id);
         }
         Ok(())
     }
@@ -1202,7 +1212,7 @@ impl Check<'_, '_> {
             _ => {
                 return Err(bad(
                     "associated definition has no real original trait/impl Scope",
-                ))
+                ));
             }
         };
         let definitions = input
@@ -1215,7 +1225,9 @@ impl Check<'_, '_> {
         for definition in definitions {
             let own = &input.row.members[definition.member as usize];
             if matches!(own.kind, DynMemberKind::Constant) {
-                return Err(pending("associated Const definitions require their full original carrier/value theorem"));
+                return Err(pending(
+                    "associated Const definitions require their full original carrier/value theorem",
+                ));
             }
             let mut declared_member = None;
             for (ordinal, member) in trait_input.row.members.iter().enumerate() {
@@ -1240,7 +1252,9 @@ impl Check<'_, '_> {
                 if matches!(&occurrence.ty, SemanticTypeRecipe::AssociatedType { receiver, .. }
                     if matches!(receiver.as_ref(), SemanticTypeRecipe::SelfType { .. }))
                 {
-                    return Err(pending("Self-dependent associated RHS needs its complete original dependency graph"));
+                    return Err(pending(
+                        "Self-dependent associated RHS needs its complete original dependency graph",
+                    ));
                 }
             }
             // Own override bounds are obligations too, not assumptions about
@@ -1284,7 +1298,9 @@ impl Check<'_, '_> {
                     let declared =
                         self.associated_member(&trait_input, ordinal as u32, depth + 1)?;
                     let Some(DynAssociatedValueRecipe::Type(value)) = &declared.value else {
-                        return Err(bad("implementation omits a required associated Type without a trait default"));
+                        return Err(bad(
+                            "implementation omits a required associated Type without a trait default",
+                        ));
                     };
                     let raw = self.pattern_type(trait_input.scope, value, depth + 1)?;
                     let value = super::super::instantiate::ty_with_self(

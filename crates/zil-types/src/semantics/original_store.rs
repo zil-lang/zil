@@ -57,14 +57,16 @@ impl Check<'_, '_> {
                         };
                         copy_recipe(element, self.limits, self.left)?
                     }
-                    _ => return Err(pending(
-                        "original Store constructor requires its complete element result context",
-                    )),
+                    _ => {
+                        return Err(pending(
+                            "original Store constructor requires its complete element result context",
+                        ));
+                    }
                 },
                 _ => {
                     return Err(bad(
                         "original Store constructor changes its one-Type mixed scheme",
-                    ))
+                    ));
                 }
             };
             let result = SemanticTypeRecipe::Managed(Box::new(SemanticTypeRecipe::OwnedStore(
@@ -144,6 +146,7 @@ impl Check<'_, '_> {
         self.record_intrinsic(owner, site, kind, parameters, &result, wanted, depth + 1)?;
         self.pay(1, depth)?;
         self.proof
+            .proof_mut()?
             .calls
             .insert((owner, site), vec![SemanticActualRecipe::Type(element)]);
         Ok(Some(result))
@@ -248,7 +251,7 @@ impl Check<'_, '_> {
             let actuals = match self.solve_parent(owner, scope, &payload, depth + 1) {
                 Ok(actuals) => actuals,
                 Err(diagnostic) if diagnostic.category == zil_base::ResultCategory::SafeReject => {
-                    continue
+                    continue;
                 }
                 Err(diagnostic) => return Err(diagnostic),
             };

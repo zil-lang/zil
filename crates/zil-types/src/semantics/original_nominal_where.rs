@@ -2,11 +2,11 @@
 //! whole-program proof. Runtime type equality only locates an application.
 use super::*;
 
-pub(super) struct NominalRequest {
+pub(in crate::semantics) struct NominalRequest {
     pub caller: SemanticDefinitionId,
     pub recipe: SemanticTypeRecipe,
 }
-pub(super) struct NominalWhere<'a> {
+pub(in crate::semantics) struct NominalWhere<'a> {
     program: &'a SemanticModule,
     proof: &'a Proof,
 }
@@ -27,7 +27,7 @@ pub(super) fn borrowed_check<'a, 'b>(
         program,
         limits,
         left,
-        proof: std::borrow::Cow::Borrowed(proof),
+        proof: ProofAccess::Borrowed(proof),
         active: BTreeSet::new(),
         captures: BTreeMap::new(),
         loops: Vec::new(),
@@ -41,10 +41,10 @@ pub(super) fn borrowed_check<'a, 'b>(
     })
 }
 impl<'a> NominalWhere<'a> {
-    pub(super) fn new(program: &'a SemanticModule, proof: &'a Proof) -> Self {
+    pub(in crate::semantics) fn new(program: &'a SemanticModule, proof: &'a Proof) -> Self {
         Self { program, proof }
     }
-    pub(super) fn requests(
+    pub(in crate::semantics) fn requests(
         &self,
         definition: SemanticDefinitionId,
         limits: &Limits,
@@ -96,7 +96,7 @@ impl<'a> NominalWhere<'a> {
         }
         Ok(result)
     }
-    pub(super) fn prove(
+    pub(in crate::semantics) fn prove(
         &self,
         caller: SemanticDefinitionId,
         recipe: &SemanticTypeRecipe,
@@ -152,7 +152,7 @@ impl<'a> NominalWhere<'a> {
             }
             Ok(())
         })();
-        if !matches!(check.proof, std::borrow::Cow::Borrowed(_)) {
+        if !matches!(check.proof, ProofAccess::Borrowed(_)) {
             return Err(bad(
                 "read-only original where unexpectedly changed its proof context",
             ));

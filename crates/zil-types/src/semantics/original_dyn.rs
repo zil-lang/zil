@@ -293,7 +293,10 @@ impl Check<'_, '_> {
             wanted,
             depth + 1,
         )?;
-        self.proof.calls.insert((owner, site.id), actuals);
+        self.proof
+            .proof_mut()?
+            .calls
+            .insert((owner, site.id), actuals);
         // The source observation still denotes the owner. The independently
         // emitted receiver borrow has its own outer occurrence and is checked
         // against parameters[0] at the actual slot boundary.

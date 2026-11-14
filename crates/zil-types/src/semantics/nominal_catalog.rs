@@ -780,10 +780,9 @@ impl<'a> Check<'a, '_> {
                 let images = self.type_images(owner, ordinal as u32, expected, depth + 1)?;
                 self.match_images(&images, &classes, root_classes)?
             }
-            (
-                SemanticActual::Life(actual),
-                LifeNominalActual::Lifetime(StorageBinder::Fixed(index)),
-            ) => root_classes.get(*index as usize) == Some(&actual),
+            (SemanticActual::Life(actual), LifeNominalActual::Lifetime(index)) => {
+                root_classes.get(*index as usize) == Some(&actual)
+            }
             (
                 SemanticActual::Const {
                     ty: SemanticTypeValue::Resolved { ty, life, classes },
@@ -808,7 +807,7 @@ impl<'a> Check<'a, '_> {
     }
     fn match_images(
         &mut self,
-        images: &[StorageBinder],
+        images: &[u32],
         actual: &[SemanticClassExpr],
         root: &[SemanticClassExpr],
     ) -> R<bool> {
@@ -818,9 +817,7 @@ impl<'a> Check<'a, '_> {
         }
         for (image, actual) in images.iter().zip(actual) {
             crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
-            let StorageBinder::Fixed(index) = image else {
-                return Ok(false);
-            };
+            let index = image;
             let Some(expected) = root.get(*index as usize) else {
                 return Ok(false);
             };

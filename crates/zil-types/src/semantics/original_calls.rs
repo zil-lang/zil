@@ -805,13 +805,17 @@ impl Check<'_, '_> {
             crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
         }
         self.proof
+            .proof_mut()?
             .scope_calls
             .insert((owner, site, parent.id), parent_actuals);
-        self.proof.call_targets.insert((owner, site), target);
-        self.proof.calls.insert((owner, site), actuals);
+        self.proof
+            .proof_mut()?
+            .call_targets
+            .insert((owner, site), target);
+        self.proof.proof_mut()?.calls.insert((owner, site), actuals);
         crate::dyn_metadata::semantic_operand_snapshot(&self_type, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(&solved, self.limits, self.left, 1)?;
-        self.proof.method_calls.insert(
+        self.proof.proof_mut()?.method_calls.insert(
             (owner, site),
             MethodCall {
                 declaration: target,
@@ -1197,7 +1201,7 @@ impl Check<'_, '_> {
         }
         crate::dyn_metadata::semantic_operand_snapshot(&signature, self.limits, self.left, 1)?;
         self.pay(2, depth)?;
-        self.proof.callable_calls.insert(
+        self.proof.proof_mut()?.callable_calls.insert(
             (owner, site),
             CallableCall {
                 callee: callee_type,
@@ -1206,7 +1210,10 @@ impl Check<'_, '_> {
                 signature: signature.clone(),
             },
         );
-        self.proof.calls.insert((owner, site), Vec::new());
+        self.proof
+            .proof_mut()?
+            .calls
+            .insert((owner, site), Vec::new());
         Ok(Some(signature.result))
     }
     pub(super) fn prove_trait(

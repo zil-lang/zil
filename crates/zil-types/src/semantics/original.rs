@@ -272,7 +272,7 @@ struct Check<'a, 'b> {
     program: &'a SemanticModule,
     limits: &'b Limits,
     left: &'b mut usize,
-    proof: std::borrow::Cow<'a, Proof>,
+    proof: ProofAccess<'a>,
     active: BTreeSet<SemanticDefinitionId>,
     captures: BTreeMap<SemanticDefinitionId, Vec<String>>,
     loops: Vec<LoopFrame>,
@@ -288,6 +288,42 @@ struct Check<'a, 'b> {
 struct LoopFrame {
     breaks: Vec<BTreeMap<String, Binding>>,
     continues: Vec<BTreeMap<String, Binding>>,
+}
+enum ProofAccess<'a> {
+    Owned(Proof),
+    Borrowed(&'a Proof),
+}
+impl Default for ProofAccess<'_> {
+    fn default() -> Self {
+        Self::Owned(Proof::default())
+    }
+}
+impl std::ops::Deref for ProofAccess<'_> {
+    type Target = Proof;
+    fn deref(&self) -> &Proof {
+        match self {
+            Self::Owned(proof) => proof,
+            Self::Borrowed(proof) => proof,
+        }
+    }
+}
+impl ProofAccess<'_> {
+    fn proof_mut(&mut self) -> R<&mut Proof> {
+        match self {
+            Self::Owned(proof) => Ok(proof),
+            Self::Borrowed(_) => Err(pending(
+                "read-only original where cannot add or change a symbolic proof fact",
+            )),
+        }
+    }
+    fn into_owned(self) -> R<Proof> {
+        match self {
+            Self::Owned(proof) => Ok(proof),
+            Self::Borrowed(_) => Err(bad(
+                "read-only original where cannot publish an owned proof",
+            )),
+        }
+    }
 }
 impl<'a> Check<'a, '_> {
     fn observe_capture(
@@ -313,7 +349,12 @@ impl<'a> Check<'a, '_> {
                 .saturating_add(4),
             depth,
         )?;
-        let names = self.proof.capture_names.entry(owner).or_default();
+        let names = self
+            .proof
+            .proof_mut()?
+            .capture_names
+            .entry(owner)
+            .or_default();
         if !names.iter().any(|old| old == name) {
             names.push(name.to_owned());
         }
@@ -322,7 +363,12 @@ impl<'a> Check<'a, '_> {
         } else {
             CallableKind::Fn
         };
-        let kind = self.proof.kinds.entry(owner).or_insert(CallableKind::Fn);
+        let kind = self
+            .proof
+            .proof_mut()?
+            .kinds
+            .entry(owner)
+            .or_insert(CallableKind::Fn);
         if observed == CallableKind::FnOnce
             || observed == CallableKind::FnMut && *kind == CallableKind::Fn
         {
@@ -349,7 +395,10 @@ impl<'a> Check<'a, '_> {
                         self.proof.kinds.len().saturating_add(1).ilog2() as usize + 2,
                         depth,
                     )?;
-                    self.proof.kinds.insert(owner, CallableKind::FnOnce);
+                    self.proof
+                        .proof_mut()?
+                        .kinds
+                        .insert(owner, CallableKind::FnOnce);
                 }
                 value = binding.shadowed.as_deref();
             }
@@ -966,6 +1015,7 @@ impl<'a> Check<'a, '_> {
         }?;
         let copy = copy_recipe(&ty, self.limits, self.left)?;
         self.proof
+            .proof_mut()?
             .types
             .insert((owner, Query::Expression(expression.id)), copy);
         self.expression_result_origin(owner, expression, variables, &ty, depth + 1)?;
@@ -1303,6 +1353,7 @@ impl<'a> Check<'a, '_> {
                 let snapshot = self.clone_variables(variables)?;
                 self.pay(1, 0)?;
                 self.proof
+                    .proof_mut()?
                     .frozen_environments
                     .insert((owner, expression, node), snapshot);
             }
@@ -1348,7 +1399,7 @@ impl<'a> Check<'a, '_> {
                 };
                 if let Some(origin) = result_origin {
                     self.pay(name.len().saturating_add(2), 0)?;
-                    self.proof.call_result_origins.insert(
+                    self.proof.proof_mut()?.call_result_origins.insert(
                         (
                             owner,
                             Query::NameAt {
@@ -1360,7 +1411,7 @@ impl<'a> Check<'a, '_> {
                         origin,
                     );
                 }
-                self.proof.types.insert(
+                self.proof.proof_mut()?.types.insert(
                     (
                         owner,
                         Query::NameAt {
@@ -2713,12 +2764,14 @@ impl<'a> Check<'a, '_> {
                     let payload = copy_recipe(&actual, self.limits, self.left)?;
                     self.pay(1, depth)?;
                     self.proof
+                        .proof_mut()?
                         .injections
                         .insert((owner, expression.id), Injection { is_error, payload });
                     copy_recipe(union, self.limits, self.left)?
                 };
                 let copy = copy_recipe(&value, self.limits, self.left)?;
                 self.proof
+                    .proof_mut()?
                     .types
                     .insert((owner, Query::Expression(expression.id)), copy);
                 return Ok(value);
@@ -2733,6 +2786,7 @@ impl<'a> Check<'a, '_> {
             {
                 let copy = copy_recipe(&result, self.limits, self.left)?;
                 self.proof
+                    .proof_mut()?
                     .types
                     .insert((owner, Query::Expression(expression.id)), copy);
                 return Ok(result);
@@ -2755,6 +2809,7 @@ impl<'a> Check<'a, '_> {
         if let Some(result) = self.fn_value(owner, expression, variables, wanted, depth + 1)? {
             let copy = copy_recipe(&result, self.limits, self.left)?;
             self.proof
+                .proof_mut()?
                 .types
                 .insert((owner, Query::Expression(expression.id)), copy);
             return Ok(result);
@@ -3056,6 +3111,7 @@ impl<'a> Check<'a, '_> {
                 // never admitted as a standalone positive narrow integer.
                 let copy = copy_recipe(&ty, self.limits, self.left)?;
                 self.proof
+                    .proof_mut()?
                     .types
                     .insert((owner, Query::Expression(operand.id)), copy);
                 ty
@@ -3215,6 +3271,7 @@ impl<'a> Check<'a, '_> {
                 self.pay(1, depth)?;
                 if self
                     .proof
+                    .proof_mut()?
                     .closure_move
                     .insert(*definition, *move_capture)
                     .is_some_and(|old| old != *move_capture)
@@ -3264,6 +3321,7 @@ impl<'a> Check<'a, '_> {
                     let candidates = capture_candidates::collect(child, self.limits, self.left)?;
                     self.pay(2, depth)?;
                     self.proof
+                        .proof_mut()?
                         .capture_candidates
                         .insert(child.id, candidates.clone());
                     candidates
@@ -3326,6 +3384,7 @@ impl<'a> Check<'a, '_> {
                             if matches {
                                 let parent_type = copy_recipe(&value.ty, self.limits, self.left)?;
                                 self.proof
+                                    .proof_mut()?
                                     .environments
                                     .insert((child.id, slot as u32), (owner, parent_type));
                                 sealed = Some(SemanticTypeRecipe::Environment {
@@ -3367,7 +3426,10 @@ impl<'a> Check<'a, '_> {
                             SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
                         ) {
                             self.pay(1, depth)?;
-                            self.proof.borrowed_capture_heads.insert(child.id);
+                            self.proof
+                                .proof_mut()?
+                                .borrowed_capture_heads
+                                .insert(child.id);
                         }
                     }
                 }
@@ -3459,10 +3521,16 @@ impl<'a> Check<'a, '_> {
                     depth,
                 )?;
                 if self.stage_depth > 0 {
-                    self.proof.compile_time_calls.insert((owner, site.id));
+                    self.proof
+                        .proof_mut()?
+                        .compile_time_calls
+                        .insert((owner, site.id));
                 }
                 if self.cleanup_depth > 0 {
-                    self.proof.cleanup_calls.insert((owner, site.id));
+                    self.proof
+                        .proof_mut()?
+                        .cleanup_calls
+                        .insert((owner, site.id));
                 }
                 if matches!(
                     site.kind,
@@ -3474,6 +3542,7 @@ impl<'a> Check<'a, '_> {
                     {
                         let copy = copy_recipe(&result, self.limits, self.left)?;
                         self.proof
+                            .proof_mut()?
                             .types
                             .insert((owner, Query::Expression(expression.id)), copy);
                         return Ok(result);
@@ -3483,6 +3552,7 @@ impl<'a> Check<'a, '_> {
                     {
                         let copy = copy_recipe(&result, self.limits, self.left)?;
                         self.proof
+                            .proof_mut()?
                             .types
                             .insert((owner, Query::Expression(expression.id)), copy);
                         return Ok(result);
@@ -3492,6 +3562,7 @@ impl<'a> Check<'a, '_> {
                     {
                         let copy = copy_recipe(&result, self.limits, self.left)?;
                         self.proof
+                            .proof_mut()?
                             .types
                             .insert((owner, Query::Expression(expression.id)), copy);
                         return Ok(result);
@@ -3506,6 +3577,7 @@ impl<'a> Check<'a, '_> {
                     )? {
                         let copy = copy_recipe(&result, self.limits, self.left)?;
                         self.proof
+                            .proof_mut()?
                             .types
                             .insert((owner, Query::Expression(expression.id)), copy);
                         return Ok(result);
@@ -3625,11 +3697,14 @@ impl<'a> Check<'a, '_> {
                 )?;
                 self.call_requirements(owner, definition, &actuals, depth + 1)?;
                 self.pay(actuals.len(), depth)?;
-                self.proof.call_targets.insert((owner, site.id), target);
+                self.proof
+                    .proof_mut()?
+                    .call_targets
+                    .insert((owner, site.id), target);
                 for (ordinal, actual) in actuals.iter().enumerate() {
                     if let SemanticActualRecipe::Const { carrier, .. } = actual {
                         let carrier = copy_recipe(carrier, self.limits, self.left)?;
-                        self.proof.types.insert(
+                        self.proof.proof_mut()?.types.insert(
                             (
                                 owner,
                                 Query::CallConstCarrier {
@@ -3641,7 +3716,10 @@ impl<'a> Check<'a, '_> {
                         );
                     }
                 }
-                self.proof.calls.insert((owner, site.id), actuals.clone());
+                self.proof
+                    .proof_mut()?
+                    .calls
+                    .insert((owner, site.id), actuals.clone());
                 crate::dyn_metadata::semantic_operand_snapshot(
                     &solved_signature,
                     self.limits,
@@ -3649,6 +3727,7 @@ impl<'a> Check<'a, '_> {
                     1,
                 )?;
                 self.proof
+                    .proof_mut()?
                     .direct_calls
                     .insert((owner, site.id), solved_signature.clone());
                 solved_signature.result
@@ -3661,6 +3740,7 @@ impl<'a> Check<'a, '_> {
         };
         let copy = copy_recipe(&result, self.limits, self.left)?;
         self.proof
+            .proof_mut()?
             .types
             .insert((owner, Query::Expression(expression.id)), copy);
         Ok(result)
@@ -3800,6 +3880,7 @@ impl<'a> Check<'a, '_> {
                     self.writable(owner, object, variables, depth + 1)?;
                     let copy = copy_recipe(&field, self.limits, self.left)?;
                     self.proof
+                        .proof_mut()?
                         .types
                         .insert((owner, Query::Expression(expression.id)), copy);
                     return Ok(field);
@@ -3846,6 +3927,7 @@ impl<'a> Check<'a, '_> {
         }?;
         let copy = copy_recipe(&ty, self.limits, self.left)?;
         self.proof
+            .proof_mut()?
             .types
             .insert((owner, Query::Expression(expression.id)), copy);
         self.expression_result_origin(owner, expression, variables, &ty, depth + 1)?;
@@ -3906,7 +3988,10 @@ impl<'a> Check<'a, '_> {
                     pattern: path.clone(),
                 };
                 let copy = copy_recipe(ty, self.limits, self.left)?;
-                self.proof.types.insert((owner, origin.clone()), copy);
+                self.proof
+                    .proof_mut()?
+                    .types
+                    .insert((owner, origin.clone()), copy);
                 let binding_type = copy_recipe(ty, self.limits, self.left)?;
                 self.insert_binding(
                     variables,
@@ -4343,7 +4428,10 @@ impl<'a> Check<'a, '_> {
                 self.same(&previous, &unit)?;
             } else {
                 self.pay(1, depth)?;
-                self.proof.types.insert((owner, Query::Result), unit);
+                self.proof
+                    .proof_mut()?
+                    .types
+                    .insert((owner, Query::Result), unit);
             }
         }
         let expected = self.resolve(owner, result, depth + 1)?;
@@ -4484,6 +4572,7 @@ impl<'a> Check<'a, '_> {
                     };
                     let copy = copy_recipe(&value, self.limits, self.left)?;
                     self.proof
+                        .proof_mut()?
                         .types
                         .insert((owner, Query::Binding(statement.id)), copy);
                     if let Some(initializer) = initializer {
@@ -4531,7 +4620,10 @@ impl<'a> Check<'a, '_> {
                             self.same(&old, &value)?;
                         } else {
                             let copy = copy_recipe(&value, self.limits, self.left)?;
-                            self.proof.types.insert((owner, Query::Result), copy);
+                            self.proof
+                                .proof_mut()?
+                                .types
+                                .insert((owner, Query::Result), copy);
                         }
                     }
                     let expected = self.resolve(owner, result, depth + 1)?;
@@ -4738,6 +4830,7 @@ impl<'a> Check<'a, '_> {
                     }
                     let copy = copy_recipe(&actual, self.limits, self.left)?;
                     self.proof
+                        .proof_mut()?
                         .types
                         .insert((owner, Query::Binding(statement.id)), copy);
                     self.pattern(
@@ -5032,7 +5125,10 @@ impl<'a> Check<'a, '_> {
         self.pay(name.len(), depth)?;
         let origin = Query::Binding(statement);
         let copy = copy_recipe(&ty, self.limits, self.left)?;
-        self.proof.types.insert((owner, origin.clone()), copy);
+        self.proof
+            .proof_mut()?
+            .types
+            .insert((owner, origin.clone()), copy);
         self.insert_binding(
             variables,
             name.to_owned(),
@@ -5184,7 +5280,7 @@ impl<'a> Check<'a, '_> {
         if self.proof.complete.contains(&definition.id) {
             return Ok(());
         }
-        if matches!(self.proof, std::borrow::Cow::Borrowed(_)) {
+        if matches!(self.proof, ProofAccess::Borrowed(_)) {
             return Err(pending(
                 "read-only original where proof cannot introduce an unchecked body fact",
             ));
@@ -5226,6 +5322,7 @@ impl<'a> Check<'a, '_> {
             }
             let copy = copy_recipe(&ty, self.limits, self.left)?;
             self.proof
+                .proof_mut()?
                 .types
                 .insert((definition.id, Query::Parameter(index as u32)), copy);
             variables.insert(
@@ -5329,12 +5426,13 @@ impl<'a> Check<'a, '_> {
             0,
         )?;
         names.sort_unstable();
-        self.proof.kinds.insert(definition.id, kind);
+        self.proof.proof_mut()?.kinds.insert(definition.id, kind);
         self.pay(names.len(), 0)?;
         for name in &names {
             self.pay(name.len(), 0)?;
         }
         self.proof
+            .proof_mut()?
             .capture_names
             .insert(definition.id, names.clone());
         self.captures.insert(definition.id, names);
@@ -5345,6 +5443,7 @@ impl<'a> Check<'a, '_> {
         {
             let result = self.resolve(definition.id, &result, 0)?;
             self.proof
+                .proof_mut()?
                 .types
                 .insert((definition.id, Query::Result), result);
         }
@@ -5369,13 +5468,16 @@ impl<'a> Check<'a, '_> {
         }
         self.recheck_escaping_roles(definition.id, 0)?;
         if let Some(declaration) = provider {
-            self.proof.providers.insert(definition.id, declaration);
+            self.proof
+                .proof_mut()?
+                .providers
+                .insert(definition.id, declaration);
         }
         self.active.remove(&definition.id);
         if self.contexts.pop() != Some(definition.id) {
             return Err(bad("original lexical equality context stack changed"));
         }
-        self.proof.complete.insert(definition.id);
+        self.proof.proof_mut()?.complete.insert(definition.id);
         Ok(())
     }
 }
@@ -5465,7 +5567,7 @@ fn check_requested(
         program,
         limits,
         left,
-        proof: std::borrow::Cow::Owned(Proof {
+        proof: ProofAccess::Owned(Proof {
             definition_positions,
             declarations,
             ..Proof::default()
@@ -5510,8 +5612,8 @@ fn check_requested(
     }
     check.finish_effects()?;
     check.associated_obligations(0)?;
-    protocol::check(program, &mut check.proof, check.limits, check.left)?;
-    Ok(check.proof.into_owned())
+    protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
+    check.proof.into_owned()
 }
 
 impl Proof {

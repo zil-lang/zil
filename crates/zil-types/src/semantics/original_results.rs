@@ -109,7 +109,12 @@ impl Check<'_, '_> {
                     if original == actual {
                         let key = (owner, callee, *ordinal);
                         self.pay(1, depth)?;
-                        let origins = self.proof.inferred_type_origins.entry(key).or_default();
+                        let origins = self
+                            .proof
+                            .proof_mut()?
+                            .inferred_type_origins
+                            .entry(key)
+                            .or_default();
                         *self.left = self
                             .left
                             .checked_sub(origins.len().saturating_add(1))
@@ -130,10 +135,16 @@ impl Check<'_, '_> {
                             Some(Some((_, old_owner, old_call)))
                                 if (*old_owner, *old_call) != (origin_owner, origin_call) =>
                             {
-                                self.proof.inferred_type_sources.insert(key, None);
+                                self.proof
+                                    .proof_mut()?
+                                    .inferred_type_sources
+                                    .insert(key, None);
                             }
                             None => {
-                                self.proof.inferred_type_sources.insert(key, candidate);
+                                self.proof
+                                    .proof_mut()?
+                                    .inferred_type_sources
+                                    .insert(key, candidate);
                             }
                             _ => {}
                         }
@@ -207,6 +218,7 @@ impl Check<'_, '_> {
         }
         self.pay(1, depth)?;
         self.proof
+            .proof_mut()?
             .call_result_origins
             .insert((owner, target), origin);
         Ok(())
@@ -225,7 +237,10 @@ impl Check<'_, '_> {
         if let CoreExprKind::Call { callee, .. } = &expression.kind {
             if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
                 self.pay(1, depth)?;
-                self.proof.call_callees.insert((owner, site.id), callee.id);
+                self.proof
+                    .proof_mut()?
+                    .call_callees
+                    .insert((owner, site.id), callee.id);
             }
         }
         // This receipt describes a whole opaque value. Aggregates or projections
@@ -247,6 +262,7 @@ impl Check<'_, '_> {
                 if self.proof.call_targets.contains_key(&(owner, site.id)) {
                     self.pay(1, depth)?;
                     self.proof
+                        .proof_mut()?
                         .call_result_origins
                         .insert((owner, target), (owner, site.id));
                 }

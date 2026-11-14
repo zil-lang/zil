@@ -119,7 +119,7 @@ impl Check<'_, '_> {
                 }
             }
         }
-        self.proof.effective_call_kind = effects;
+        self.proof.proof_mut()?.effective_call_kind = effects;
         Ok(())
     }
 }

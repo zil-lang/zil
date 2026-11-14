@@ -122,6 +122,7 @@ impl Check<'_, '_> {
             .ok_or_else(|| bad("original package place loses its binder"))?;
         let copy = copy_recipe(&original.ty, self.limits, self.left)?;
         self.proof
+            .proof_mut()?
             .types
             .insert((owner, Query::Expression(object.id)), copy);
         let binding = variables
@@ -295,6 +296,7 @@ impl Check<'_, '_> {
                     self.observe_capture(owner, name, binding, depth + 1)?;
                     let copy = copy_recipe(&field, self.limits, self.left)?;
                     self.proof
+                        .proof_mut()?
                         .types
                         .insert((owner, Query::Expression(operand.id)), copy);
                     return Ok(field);
@@ -327,6 +329,7 @@ impl Check<'_, '_> {
         self.observe_capture(owner, name, value, depth + 1)?;
         let copy = copy_recipe(&head, self.limits, self.left)?;
         self.proof
+            .proof_mut()?
             .types
             .insert((owner, Query::Expression(operand.id)), copy);
         Ok(head)

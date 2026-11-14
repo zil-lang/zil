@@ -97,7 +97,10 @@ impl Check<'_, '_> {
                 "original projected loan has several unmerged operation sources",
             ));
         }
-        self.proof.view_bounds.insert((owner, target), value);
+        self.proof
+            .proof_mut()?
+            .view_bounds
+            .insert((owner, target), value);
         Ok(())
     }
     pub(super) fn view_bound(
@@ -280,7 +283,7 @@ impl Check<'_, '_> {
         crate::dyn_metadata::semantic_operand_snapshot(wanted, self.limits, self.left, 2)?;
         let inner = copy_recipe(inner, self.limits, self.left)?;
         self.pay(1, depth)?;
-        self.proof.borrow_roles.insert(
+        self.proof.proof_mut()?.borrow_roles.insert(
             (owner, expression.id),
             BorrowRole {
                 parameter: bound.parameter,

@@ -275,6 +275,7 @@ impl Check<'_, '_> {
                         depth + 1,
                     )?;
                     self.proof
+                        .proof_mut()?
                         .intrinsics
                         .get_mut(&(owner, site))
                         .ok_or_else(|| bad("thread scheme receipt disappeared"))?
@@ -582,7 +583,7 @@ impl Check<'_, '_> {
             }
             _ => {}
         }
-        self.proof.calls.insert((owner, site), actuals);
+        self.proof.proof_mut()?.calls.insert((owner, site), actuals);
         let result = copy_recipe(result, self.limits, self.left)?;
         let effect = match &kind {
             IntrinsicKind::DynCall { call_kind, .. } => *call_kind,
@@ -592,7 +593,7 @@ impl Check<'_, '_> {
             } => CallKind::Suspend,
             _ => CallKind::Direct,
         };
-        self.proof.intrinsics.insert(
+        self.proof.proof_mut()?.intrinsics.insert(
             (owner, site),
             IntrinsicCall {
                 kind,
@@ -1199,11 +1200,12 @@ impl Check<'_, '_> {
                 crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
             }
             self.proof
+                .proof_mut()?
                 .intrinsics
                 .get_mut(&(owner, site))
                 .ok_or_else(|| bad("Task scheme receipt disappeared"))?
                 .worker_scheme = Some((signature, actuals.clone()));
-            self.proof.calls.insert((owner, site), actuals);
+            self.proof.proof_mut()?.calls.insert((owner, site), actuals);
             return Ok(Some(result));
         }
         if let Some(op) = match name {
@@ -1280,6 +1282,7 @@ impl Check<'_, '_> {
                 depth + 1,
             )?;
             self.proof
+                .proof_mut()?
                 .calls
                 .insert((owner, site), vec![SemanticActualRecipe::Type(payload)]);
             return Ok(Some(result));
@@ -1376,7 +1379,7 @@ impl Check<'_, '_> {
                 wanted,
                 depth + 1,
             )?;
-            self.proof.calls.insert(
+            self.proof.proof_mut()?.calls.insert(
                 (owner, site),
                 vec![
                     SemanticActualRecipe::Type(interface),
@@ -1613,6 +1616,7 @@ impl Check<'_, '_> {
                 depth + 1,
             )?;
             self.proof
+                .proof_mut()?
                 .calls
                 .insert((owner, site), vec![SemanticActualRecipe::Type(actual)]);
             return Ok(Some(result));
@@ -1702,6 +1706,7 @@ impl Check<'_, '_> {
                 depth + 1,
             )?;
             self.proof
+                .proof_mut()?
                 .calls
                 .insert((owner, site), vec![SemanticActualRecipe::Type(actual)]);
             return Ok(Some(result));

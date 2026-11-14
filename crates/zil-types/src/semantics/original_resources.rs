@@ -315,6 +315,7 @@ impl Check<'_, '_> {
         self.pay(1, depth)?;
         if self
             .proof
+            .proof_mut()?
             .nominal_constructors
             .insert((owner, expression.id), (id, ordinal as u32))
             .is_some_and(|previous| previous != (id, ordinal as u32))
@@ -342,7 +343,10 @@ impl Check<'_, '_> {
                 wanted,
                 depth + 1,
             )?;
-            self.proof.calls.insert((owner, site.id), actuals);
+            self.proof
+                .proof_mut()?
+                .calls
+                .insert((owner, site.id), actuals);
         }
         Ok(Some(solved.result))
     }

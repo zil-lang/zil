@@ -146,7 +146,7 @@ impl Check<'_, '_> {
             self.same(&result, wanted)?;
         }
         self.pay(1, depth)?;
-        self.proof.function_values.insert(
+        self.proof.proof_mut()?.function_values.insert(
             (owner, expression.id),
             FunctionValue {
                 target,
