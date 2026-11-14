@@ -306,8 +306,16 @@ fn project_stored_declaration(
             continue;
         };
         let actual = match storage.as_ref() {
-            Type::Record { name, .. } | Type::Package { name, .. } => {
-                &stored::aggregate_instance(core, instance, limits, remaining)?.name
+            Type::Record { .. } | Type::Package { .. } => {
+                &stored::aggregate_instance(
+                    &core.aggregates,
+                    &core.aggregate_applications,
+                    core.module_id,
+                    instance,
+                    limits,
+                    remaining,
+                )?
+                .name
             }
             Type::Enum { name, .. } => {
                 &stored::enum_from(&core.enums, core.module_id, name, remaining)?.name
@@ -546,12 +554,19 @@ fn resolve_indexed(
             )
             .map_err(|e| vec![e])?;
             let actual_name = match storage.as_ref() {
-                Type::Record { .. } | Type::Package { .. } => {
-                    stored::aggregate_instance(source.unwrap_or(&core), instance, limits, remaining)
-                        .map_err(|e| vec![e])?
-                        .name
-                        .as_str()
-                }
+                Type::Record { .. } | Type::Package { .. } => stored::aggregate_instance(
+                    aggregates,
+                    source.map_or(core.aggregate_applications.as_slice(), |source| {
+                        source.aggregate_applications.as_slice()
+                    }),
+                    module,
+                    instance,
+                    limits,
+                    remaining,
+                )
+                .map_err(|e| vec![e])?
+                .name
+                .as_str(),
                 Type::Enum { .. } => stored::enum_from(enums, module, name, remaining)
                     .map_err(|e| vec![e])?
                     .name
@@ -941,12 +956,17 @@ fn resolve_indexed(
         aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
             .map_err(|e| vec![e])?;
         let actual_name = match storage {
-            Type::Record { .. } | Type::Package { .. } => {
-                stored::aggregate_instance(&core, instance, limits, &mut resolver.remaining)
-                    .map_err(|e| vec![e])?
-                    .name
-                    .as_str()
-            }
+            Type::Record { .. } | Type::Package { .. } => stored::aggregate_instance(
+                &core.aggregates,
+                &core.aggregate_applications,
+                core.module_id,
+                instance,
+                limits,
+                &mut resolver.remaining,
+            )
+            .map_err(|e| vec![e])?
+            .name
+            .as_str(),
             Type::Enum { .. } => stored::enum_declaration(&core, name, &mut resolver.remaining)
                 .map_err(|e| vec![e])?
                 .name

@@ -71,7 +71,9 @@ pub(super) fn aggregate<'a>(
 /// canonical spelling is recomputed from the complete actual vector; it is
 /// never parsed to recover a declaration or a lexical owner.
 pub(super) fn aggregate_instance<'a>(
-    core: &'a CoreModule,
+    aggregates: &'a [CoreAggregate],
+    applications: &[CoreAggregateApplication],
+    module: zil_base::ModuleId,
     instance: &LifeNominalInstance,
     limits: &Limits,
     left: &mut usize,
@@ -86,24 +88,24 @@ pub(super) fn aggregate_instance<'a>(
             ));
         }
     };
-    for row in &core.aggregates {
+    for row in aggregates {
         fee(
             left,
             row.name.len().saturating_add(name.len()).saturating_add(40),
             row.span,
         )?;
-        if name == &row.name || name == &format!("@module{}:{}", core.module_id.0, row.name) {
+        if name == &row.name || name == &format!("@module{}:{}", module.0, row.name) {
             return Ok(row);
         }
     }
     let mut found = None;
-    for application in &core.aggregate_applications {
+    for application in applications {
         fee(
             left,
             application
                 .arguments
                 .len()
-                .saturating_add(core.aggregates.len())
+                .saturating_add(aggregates.len())
                 .saturating_add(1),
             Span::default(),
         )?;
@@ -153,8 +155,7 @@ pub(super) fn aggregate_instance<'a>(
         if &canonical != name {
             continue;
         }
-        let mut declarations = core
-            .aggregates
+        let mut declarations = aggregates
             .iter()
             .filter(|row| row.id == application.aggregate);
         let declaration = declarations.next().ok_or_else(|| {
@@ -450,7 +451,14 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 }
             }
         } else if let Type::Record { fields, .. } | Type::Package { fields, .. } = storage {
-            let actual = aggregate_instance(core, instance, limits, left)?;
+            let actual = aggregate_instance(
+                &core.aggregates,
+                &core.aggregate_applications,
+                core.module_id,
+                instance,
+                limits,
+                left,
+            )?;
             if !matches!(
                 (actual.kind, storage),
                 (
