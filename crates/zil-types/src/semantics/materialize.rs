@@ -969,6 +969,46 @@ impl<'a> Eval<'a, '_> {
                     classes,
                 )
             }
+            SemanticTypeRecipe::Array { element, length } => {
+                let SemanticTypeValue::Resolved { ty, life, classes } =
+                    self.ty(scope, element, None, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                if life.binder_count != 0
+                    || !classes.is_empty()
+                    || !life.slots.is_empty()
+                    || !life.retained.is_empty()
+                    || !life.nominal_arguments.is_empty()
+                    || !stored::pure_inline(&ty, self.left, self.limits, Span::default())?
+                {
+                    return Err(unknown(
+                        "array element requires its complete qualified occurrence and intrinsic-class composition",
+                    ));
+                }
+                let length = self.constant(scope, length, &Type::Usize, depth + 1)?;
+                let Constant::Usize(length) = length else {
+                    return Err(bad("array length has another original constant carrier"));
+                };
+                let length = u32::try_from(length)
+                    .map_err(|_| bad("array length exceeds its complete runtime layout"))?;
+                if length as usize > self.limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "array length exceeds semantic node budget",
+                        None,
+                    ));
+                }
+                self.fee(length as usize)?;
+                resolved(
+                    Type::Array {
+                        element: Box::new(ty),
+                        length,
+                    },
+                    empty(),
+                    Vec::new(),
+                )
+            }
             SemanticTypeRecipe::Tuple(items) if items.is_empty() => {
                 // Original empty tuple syntax denotes Unit, as in Gamma's
                 // resolution. Its complete runtime type is not Tuple([]).
@@ -1574,9 +1614,10 @@ impl<'a> Eval<'a, '_> {
                 value
             }
             _ => {
-                return Err(unknown(
-                    "semantic type recipe requires its complete actual class materializer",
-                ));
+                return Err(unknown(&format!(
+                    "semantic type recipe requires its complete actual class materializer: instance {scope:?}, recipe {:?}",
+                    std::mem::discriminant(recipe)
+                )));
             }
         };
         if let Some(hint) = hint {
