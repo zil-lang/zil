@@ -918,8 +918,12 @@ fn physical_leaf<'a>(
             (Type::Enum { variants, .. }, PlaceProjection::Variant(index)) => variants
                 .get(index.variant as usize)
                 .and_then(|(_, fields)| fields.get(index.index as usize)),
-            (Type::ErrorUnion { error, result }, PlaceProjection::ErrorArm(success)) => {
-                Some(if *success { result } else { error })
+            (Type::ErrorUnion { error, result }, PlaceProjection::ErrorArm(is_error)) => {
+                Some(if *is_error {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                })
             }
             _ => None,
         }

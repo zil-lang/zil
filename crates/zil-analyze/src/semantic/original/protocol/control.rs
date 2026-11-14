@@ -125,13 +125,16 @@ impl Proof<'_, '_> {
             CorePatternKind::Wildcard | CorePatternKind::Bool(_) | CorePatternKind::Integer(_) => {
                 Ok(())
             }
-            CorePatternKind::ErrorArm { is_error, pattern } => self.bind_pattern(
-                state,
-                pattern,
-                if *is_error { &Data::default() } else { data },
-                b,
-                depth + 1,
-            ),
+            CorePatternKind::ErrorArm { is_error, pattern } => {
+                let empty = Data::default();
+                self.bind_pattern(
+                    state,
+                    pattern,
+                    if *is_error { &empty } else { data },
+                    b,
+                    depth + 1,
+                )
+            }
             CorePatternKind::Tuple(fields)
             | CorePatternKind::Constructor { fields, .. }
             | CorePatternKind::Variant { fields, .. } => {
@@ -268,14 +271,11 @@ impl Proof<'_, '_> {
                 Solver::push(&mut branches, branch, b)?;
             }
             for mut branch in branches {
+                let empty = Data::default();
                 self.bind_pattern(
                     &mut branch,
                     &arm.pattern,
-                    if poll.is_none() {
-                        &data
-                    } else {
-                        &Data::default()
-                    },
+                    if poll.is_none() { &data } else { &empty },
                     b,
                     depth + 1,
                 )?;
