@@ -134,7 +134,7 @@ impl<'a> NominalWhere<'a> {
                             }),
                     )
             {
-                let mapped = super::super::instantiate::requirement_with_self(
+                let mapped = super::super::instantiate::requirement(
                     self.program,
                     self.proof,
                     requirement,
@@ -144,7 +144,6 @@ impl<'a> NominalWhere<'a> {
                         arguments,
                         parent_call: None,
                     },
-                    recipe,
                     limits,
                     check.left,
                 )?;

@@ -1,6 +1,6 @@
 //! Full original-domain substitution at a real nominal use. Domain identities
 //! are mandatory: a source ancestor never becomes a same-numbered use ancestor.
-use super::original::{substitute, Proof};
+use super::original::{Proof, substitute};
 use crate::*;
 use std::collections::BTreeMap;
 
@@ -167,6 +167,29 @@ fn ty_using_self(
         left,
         |substitution, scopes, allow, left| {
             substitute::ty_in_domains(value, substitution, scopes, allow, limits, left)
+        },
+    )
+}
+/// Substitute a nominal declaration's obligations without inventing a Self
+/// binder. Only the separate Scope entry below accepts a proved receiver.
+pub(super) fn requirement(
+    program: &SemanticModule,
+    proof: &Proof,
+    value: &SemanticRequirementRecipe,
+    mapping: DomainMapping<'_>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticRequirementRecipe> {
+    in_mapping(
+        program,
+        proof,
+        mapping,
+        None,
+        true,
+        limits,
+        left,
+        |substitution, scopes, allow, left| {
+            substitute::requirement_in_domains(value, substitution, scopes, allow, limits, left)
         },
     )
 }
