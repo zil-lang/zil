@@ -300,7 +300,7 @@ pub(super) fn place(
     let field = match field {
         Some(field) => field,
         None => {
-            crate::dyn_metadata::semantic_operand_snapshot(ty, world.limits, world.left, 1)?;
+            inference::charge_type_snapshot(ty, Span::default(), world.limits, world.left, 1)?;
             let mut error = bad("actual projection is outside its complete product or sum");
             error.notes.push(format!(
                 "actual projection point {:?}; selector {selector:?}; parent complete type {ty:?}",
