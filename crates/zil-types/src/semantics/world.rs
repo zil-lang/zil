@@ -3921,8 +3921,24 @@ impl World<'_, '_> {
                 value_roots: std::mem::take(&mut self.value_roots),
                 local_roots: std::mem::take(&mut self.local_roots),
             };
-            for successor in successors {
-                let state = state.snapshot(self)?;
+            // The final outgoing edge owns this complete state. Only real
+            // sibling edges need a deep independent copy; no consumer uses
+            // the original after the last transfer. Each offer still applies
+            // its own dominance, loop epoch and full dynamic state checks.
+            let outgoing_count = successors.len();
+            let mut outgoing_state = Some(state);
+            for (ordinal, successor) in successors.into_iter().enumerate() {
+                self.pay(1)?;
+                let state = if ordinal.saturating_add(1) == outgoing_count {
+                    outgoing_state
+                        .take()
+                        .ok_or_else(|| bad("CFG state transferred more than once"))?
+                } else {
+                    outgoing_state
+                        .as_ref()
+                        .ok_or_else(|| bad("CFG sibling state was already transferred"))?
+                        .snapshot(self)?
+                };
                 cfg.offer(
                     self,
                     Some(block_index),
