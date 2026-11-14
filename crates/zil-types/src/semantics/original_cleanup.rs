@@ -137,12 +137,24 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<Category> {
         self.pay(1, depth)?;
+        if let SemanticTypeRecipe::Exact(value) = ty {
+            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+            if value.ty.is_copy_value() {
+                return Ok(Category::Copy);
+            }
+            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) {
+                return Ok(Category::View);
+            }
+        }
         if let SemanticTypeRecipe::Qualified { storage, .. } = ty {
             return self.cleanup_category(owner, storage, depth + 1);
         }
         if matches!(
             ty,
-            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+            SemanticTypeRecipe::Address { .. }
+                | SemanticTypeRecipe::Desc { .. }
+                | SemanticTypeRecipe::Slice(_)
+                | SemanticTypeRecipe::Dyn { owned: false, .. }
         ) {
             return Ok(Category::View);
         }
@@ -256,6 +268,8 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::Address { .. }
                 | SemanticTypeRecipe::Desc { .. }
                 | SemanticTypeRecipe::Code { .. }
+                | SemanticTypeRecipe::Slice(_)
+                | SemanticTypeRecipe::Dyn { owned: false, .. }
         ) {
             return Ok(true);
         }
@@ -291,6 +305,25 @@ impl Check<'_, '_> {
             }
         }
         match &ty {
+            SemanticTypeRecipe::Exact(value) => {
+                crate::dyn_metadata::semantic_operand_snapshot(&ty, self.limits, self.left, 1)?;
+                // The complete original carrier uses the ordinary physical
+                // Copy rule; its class domain is neither erased nor merged.
+                if value.ty.is_copy_value()
+                    || matches!(value.ty, Type::Address { .. } | Type::Desc(_))
+                {
+                    return Ok(true);
+                }
+            }
+            SemanticTypeRecipe::Dyn { owned: true, .. } => {
+                // Every legal erased owner carries its synchronous owning
+                // cleanup bound. Construction proves exact concrete teardown
+                // on failure and transfers that responsibility on success;
+                // provider admission independently checks the whole bound.
+                // Releasing this owner establishes no property of an erased
+                // provider type and grants no external leaf ownership.
+                return Ok(true);
+            }
             // These rules release only a genuine initialized owner/view. They
             // never export a payload SyncDrop premise or a protocol phase.
             SemanticTypeRecipe::MutexGuard { .. } => return Ok(true),

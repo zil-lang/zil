@@ -3827,7 +3827,7 @@ impl World<'_, '_> {
                 )?;
             }
         }
-        protocol_flow::check(self, f)?;
+        protocol_flow::check(self, instance, f)?;
         Ok(())
     }
 }

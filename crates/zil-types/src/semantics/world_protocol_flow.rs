@@ -253,21 +253,16 @@ fn unknown(
 fn call(
     world: &mut World<'_, '_>,
     state: &mut State,
+    caller: &SemanticInstance,
+    sites: &[&SemanticSite],
+    block: BlockId,
+    index: usize,
     function: FunctionId,
     arguments: &[ValueId],
 ) -> R<Value> {
     let values = operand_values(world, state, arguments)?;
     let callee = world.function(function)?;
-    world.pay(world.program.instances.len())?;
-    let mut instances=world.program.instances.iter().filter(|i|matches!(i.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==function));
-    let instance = instances
-        .next()
-        .ok_or_else(|| bad("actual protocol call has no true original callee instance"))?;
-    if instances.next().is_some() {
-        return Err(bad(
-            "actual protocol call has multiple original callee instances",
-        ));
-    }
+    let instance = sourcecall::callee(world, caller, function, sites, block, index)?;
     let original = world.definition(instance.definition)?;
     super::protocol::header(world, original, callee)?;
     if callee.protocol_contracts.is_empty() {
@@ -360,6 +355,10 @@ fn instruction(
     world: &mut World<'_, '_>,
     state: &mut State,
     f: &TypedFunction,
+    caller: &SemanticInstance,
+    sites: &[&SemanticSite],
+    block: BlockId,
+    index: usize,
     instruction: &Instruction,
 ) -> R<()> {
     world.pay(1)?;
@@ -628,7 +627,9 @@ fn instruction(
         | InstructionKind::SuspendCall {
             function,
             arguments,
-        } => call(world, state, *function, arguments)?,
+        } => call(
+            world, state, caller, sites, block, index, *function, arguments,
+        )?,
         InstructionKind::ForeignCall { arguments, .. } => {
             let values = operand_values(world, state, arguments)?;
             unknown(world, state, &values, false)?;
@@ -843,7 +844,11 @@ fn returned(
     }
     Ok(())
 }
-pub(super) fn check(world: &mut World<'_, '_>, f: &TypedFunction) -> R<()> {
+pub(super) fn check(
+    world: &mut World<'_, '_>,
+    caller: &SemanticInstance,
+    f: &TypedFunction,
+) -> R<()> {
     if f.foreign.is_some() {
         return Ok(());
     }
@@ -860,6 +865,13 @@ pub(super) fn check(world: &mut World<'_, '_>, f: &TypedFunction) -> R<()> {
     if !relevant {
         return Ok(());
     }
+    world.pay(world.program.sites.len())?;
+    let sites: Vec<_> = world
+        .program
+        .sites
+        .iter()
+        .filter(|site| site.instance == caller.id)
+        .collect();
     let cfg = flow::Cfg::new(world, f)?;
     let mut cases = vec![BTreeMap::new()];
     for contract in &f.protocol_contracts {
@@ -914,8 +926,8 @@ pub(super) fn check(world: &mut World<'_, '_>, f: &TypedFunction) -> R<()> {
         while let Some((index, mut state)) = queue.pop_front() {
             world.pay(1)?;
             let block = &f.blocks[index];
-            for op in &block.instructions {
-                instruction(world, &mut state, f, op)?;
+            for (index, op) in block.instructions.iter().enumerate() {
+                instruction(world, &mut state, f, caller, &sites, block.id, index, op)?;
             }
             match block.terminator {
                 Terminator::Return(result) => returned(world, &state, f, result, &inputs)?,

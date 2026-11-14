@@ -203,8 +203,56 @@ struct Engine<'a, 'b> {
     left: &'b mut usize,
     active: BTreeSet<SemanticDefinitionId>,
     relevant: BTreeSet<SemanticDefinitionId>,
+    categories: Vec<(SemanticDefinitionId, SemanticTypeRecipe, cleanup::Category)>,
+    cleanup: Vec<(SemanticDefinitionId, SemanticTypeRecipe, bool)>,
 }
 impl<'a> Engine<'a, '_> {
+    fn category(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<cleanup::Category> {
+        self.pay(self.categories.len().saturating_add(1), depth)?;
+        for (scope, candidate, result) in &self.categories {
+            if *scope != owner {
+                continue;
+            }
+            crate::dyn_metadata::semantic_operand_snapshot(candidate, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+            if candidate == ty {
+                return Ok(*result);
+            }
+        }
+        let result =
+            cleanup::category(self.program, self.proof, owner, ty, self.limits, self.left)?;
+        self.categories
+            .push((owner, copy_recipe(ty, self.limits, self.left)?, result));
+        Ok(result)
+    }
+    fn can_drop(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(self.cleanup.len().saturating_add(1), depth)?;
+        for (scope, candidate, result) in &self.cleanup {
+            if *scope != owner {
+                continue;
+            }
+            crate::dyn_metadata::semantic_operand_snapshot(candidate, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+            if candidate == ty {
+                return Ok(*result);
+            }
+        }
+        let result =
+            cleanup::capability(self.program, self.proof, owner, ty, self.limits, self.left)?;
+        self.cleanup
+            .push((owner, copy_recipe(ty, self.limits, self.left)?, result));
+        Ok(result)
+    }
     fn pay(&mut self, n: usize, depth: usize) -> R<()> {
         *self.left = self.left.checked_sub(n).ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "original protocol work exceeded", None)
@@ -594,7 +642,7 @@ impl<'a> Engine<'a, '_> {
         depth: usize,
     ) -> R<Value> {
         self.pay(value.work(), depth)?;
-        match cleanup::category(self.program, self.proof, owner, ty, self.limits, self.left)? {
+        match self.category(owner, ty, depth + 1)? {
             cleanup::Category::Copy | cleanup::Category::View => {
                 return self.view(value, depth + 1);
             }
@@ -858,24 +906,17 @@ impl<'a> Engine<'a, '_> {
                 self.drop_value(payload, state, depth + 1)?
             }
             Value::Cleanup { owner, ty } => {
-                if !cleanup::capability(
-                    self.program,
-                    self.proof,
-                    *owner,
-                    ty,
-                    self.limits,
-                    self.left,
-                )? {
+                if !self.can_drop(*owner, ty, depth + 1)? {
                     self.pay(128, depth)?;
                     let mut error = error(
                         "E-ORIGINAL-CLEANUP",
                         Span::default(),
-                        "live original value has no independent synchronous cleanup proof",
+                        "live original value has no independent SyncDrop proof",
                     );
+                    crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
                     error.notes.push(format!(
-                        "original cleanup owner {:?}, type recipe {:?}",
-                        owner,
-                        std::mem::discriminant(ty)
+                        "original cleanup owner {:?}, complete type recipe {:?}",
+                        owner, ty
                     ));
                     return Err(error);
                 }
@@ -1352,7 +1393,18 @@ impl<'a> Engine<'a, '_> {
         if !state.reachable {
             return Ok(Value::Plain);
         }
-        let mut value = self.expr_inner(owner, expr, state, depth)?;
+        let mut value = self
+            .expr_inner(owner, expr, state, depth)
+            .map_err(|mut diagnostic| {
+                diagnostic.notes.push(format!(
+                    "original operation owner {:?}, expression {:?}, span {:?}, kind {:?}",
+                    owner,
+                    expr.id,
+                    expr.span,
+                    std::mem::discriminant(&expr.kind)
+                ));
+                diagnostic
+            })?;
         self.pay(self.proof.injections.len(), depth)?;
         if let Some(injection) = self.proof.injections.get(&(owner, expr.id)) {
             let is_error = injection.is_error;
@@ -1370,15 +1422,33 @@ impl<'a> Engine<'a, '_> {
             }
         }
         if let Some(ty) = self.query_type(owner, Query::Expression(expr.id), depth + 1)? {
-            let category =
-                cleanup::category(self.program, self.proof, owner, &ty, self.limits, self.left)?;
+            let category = self.category(owner, &ty, depth + 1)?;
             if category == cleanup::Category::Own
                 && matches!(
                     expr.kind,
                     CoreExprKind::Name(_) | CoreExprKind::Member { .. }
                 )
             {
-                self.move_place(expr, state, depth + 1)?;
+                // A sealed constructor expression can be spelled as a static
+                // member. It creates a value instead of reading a local place.
+                let constructed = if let Some(site) = self.site(owner, expr.id, depth + 1)? {
+                    self.pay(self.proof.intrinsics.len(), depth)?;
+                    matches!(
+                        self.proof
+                            .intrinsics
+                            .get(&(owner, site))
+                            .map(|row| &row.kind),
+                        Some(IntrinsicKind::NominalConstructor { .. })
+                    )
+                } else {
+                    false
+                };
+                if !constructed {
+                    self.move_place(expr, state, depth + 1).map_err(|mut diagnostic| {
+                        diagnostic.notes.push(format!("original transfer owner {:?}, expression {:?}, span {:?}, operation {:?}", owner, expr.id, expr.span, std::mem::discriminant(&expr.kind)));
+                        diagnostic
+                    })?;
+                }
             }
             value = self.typed(owner, &ty, value, depth + 1)?;
         }
@@ -1608,6 +1678,20 @@ impl<'a> Engine<'a, '_> {
                         "protocol root projection requires its exact original constant index",
                     ));
                 }
+                Ok(Value::Plain)
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                // The original place rule already proves the array/slice and
+                // integer endpoints. Slicing creates a view and transfers no
+                // owning element or container responsibility.
+                let source = self.observe(owner, object, state, depth + 1)?;
+                let begin = state.temporaries.len();
+                state.temporaries.push(self.view(source, depth + 1)?);
+                for bound in start.iter().chain(end.iter()) {
+                    let value = self.expr(owner, bound, state, depth + 1)?;
+                    self.drop_value(&value, state, depth + 1)?;
+                }
+                state.temporaries.truncate(begin);
                 Ok(Value::Plain)
             }
             CoreExprKind::Sequence { bindings, value } => {
@@ -2463,7 +2547,14 @@ impl<'a> Engine<'a, '_> {
                 .find(|(n, _)| n == name)
                 .map_or(0, |(_, len)| *len);
             for value in values.iter().skip(keep) {
-                self.drop_value(value, state, depth + 1)?;
+                self.drop_value(value, state, depth + 1)
+                    .map_err(|mut diagnostic| {
+                        diagnostic.notes.push(format!(
+                            "original scope cleanup binding {:?}, retained lexical depth {}",
+                            name, keep
+                        ));
+                        diagnostic
+                    })?;
             }
         }
         state.names.retain(|name, values| {
@@ -2616,7 +2707,18 @@ impl<'a> Engine<'a, '_> {
             }
             let mut next = Vec::new();
             for state in active {
-                for mut state in self.statement(owner, statement, state, depth + 1)? {
+                for mut state in self.statement(owner, statement, state, depth + 1).map_err(
+                    |mut diagnostic| {
+                        diagnostic.notes.push(format!(
+                            "original statement owner {:?}, node {:?}, span {:?}, operation {:?}",
+                            owner,
+                            statement.id,
+                            statement.span,
+                            std::mem::discriminant(&statement.kind)
+                        ));
+                        diagnostic
+                    },
+                )? {
                     self.pay(1, depth)?;
                     for exit in std::mem::take(&mut state.abrupt) {
                         ended.extend(self.cleanup(owner, exit, &defers, &scope, depth + 1)?);
@@ -3124,9 +3226,13 @@ impl<'a> Engine<'a, '_> {
                     }
                     state.names.retain(|_, values| !values.is_empty());
                 }
-                for values in state.names.values() {
+                for (name, values) in &state.names {
                     for value in values {
-                        self.drop_value(value, &state, depth + 1)?;
+                        self.pay(name.len().saturating_add(1), depth)?;
+                        self.drop_value(value, &state, depth + 1).map_err(|mut diagnostic| {
+                            diagnostic.notes.push(format!("original function exit owner {:?}, binding {:?}, body span {:?}", owner, name, body.span));
+                            diagnostic
+                        })?;
                     }
                 }
                 self.output(owner, &state, protocol_contracts, &inputs, depth + 1)?;
@@ -3193,6 +3299,8 @@ pub(super) fn check(
         left,
         active: BTreeSet::new(),
         relevant: BTreeSet::new(),
+        categories: Vec::new(),
+        cleanup: Vec::new(),
     };
     engine.pay(
         program
@@ -3250,7 +3358,14 @@ pub(super) fn check(
             definition.body,
             SemanticDefinitionBody::FunctionWithBody { .. }
         ) {
-            engine.function(definition.id, 0)?;
+            engine
+                .function(definition.id, 0)
+                .map_err(|mut diagnostic| {
+                    diagnostic
+                        .notes
+                        .push(format!("original checked function {:?}", definition.id));
+                    diagnostic
+                })?;
         }
     }
     Ok(())
