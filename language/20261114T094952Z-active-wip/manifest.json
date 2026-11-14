@@ -1,0 +1,29 @@
+{
+  "source_base": "f452266fef4e95ec88f9e85ed7e5104fad2d8b8c",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T094952Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-expand/src/source_semantic_plan.rs": "dabc10a853b0c24e81b019a4e271f359fd525edc9caeb8e90afcf26bd8789420",
+    "crates/zil-types/src/enums.rs": "12c00b478144ba39157ded16a9d722c0946060c18f38042c8f3e0fc4237853d9",
+    "crates/zil-types/src/lib.rs": "c9955f5e86e5d1bfd7e1174b06e178b715732acd6ecde381622dbdf09f675c21",
+    "crates/zil-verify/src/semantic/flow/trait_members.rs": "a23bc0046baada50fc05dbed0fa9dc52931ca42e935583dd133650e5539c423d",
+    "crates/zil-verify/src/semantic/original/materialize.rs": "672a2da40bb06d961e4480d45e29859b343d378dadfd0a2f727890fc23849e43",
+    "crates/zil-verify/src/semantic/original/mod.rs": "a24cb524ad921b14ff07b2dd47c04462092a509476961ffd7ad1ec2726f638e4",
+    "crates/zil-verify/src/semantic/original/operations.rs": "978da7bb087a1855391a17242b07e4baf9d3a6e9125c75ae83a1e54376537f00",
+    "crates/zil-verify/src/semantic/original/tasks.rs": "c22a75bd8c055e83fd75154ad8b127ee2956b38cf76782481717989bf2724888",
+    "crates/zil-verify/src/semantic/original/trait_calls.rs": "183da48ae6281c83e999b00bf2d1cc1b52bf27e6275270e5299442ae8ac9bfe8",
+    "crates/zil-verify/src/semantic/original/trait_calls/materialize.rs": "0e3f99bc331ad3051ff251944da6ca1676f3da979a91971d37f7a27e90274ac7"
+  },
+  "artifacts": {
+    "source.patch": "d8268d06419341b3ce833449ffba9ccaa382b8b40e84fe068d5e11877b212b4b",
+    "untracked/crates/zil-verify/src/semantic/original/tasks.rs": "c22a75bd8c055e83fd75154ad8b127ee2956b38cf76782481717989bf2724888",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "95ec99071b1b436b148269067545c2bbd96a30c9aeff7fc2f66a7b334d9f9099"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}

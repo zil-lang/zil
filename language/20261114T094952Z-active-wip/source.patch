@@ -1,0 +1,408 @@
+diff --git a/crates/zil-expand/src/source_semantic_plan.rs b/crates/zil-expand/src/source_semantic_plan.rs
+index 90f369934..2e1db0dc9 100644
+--- a/crates/zil-expand/src/source_semantic_plan.rs
++++ b/crates/zil-expand/src/source_semantic_plan.rs
+@@ -389,6 +389,140 @@ fn implicit_observation(
+         span,
+     )
+ }
++// A bare unit variant is an original construction, even without Call syntax.
++// Resolve its original type namespace and enum declaration; local shadowing is
++// taken from the lexical value-use directory rather than a spelling heuristic.
++fn unit_variant(
++    program: &program::Program,
++    definition: SemanticDefinitionId,
++    expression: &s::Expr,
++    original_path: &[u32],
++    nodes: &[body::OriginalBodyNode],
++    value_names: &[zil_base::NodeId],
++    budget: &mut Budget<'_>,
++) -> R<bool> {
++    let s::ExprKind::Member {
++        object,
++        member: s::MemberName::Name(variant),
++    } = &expression.kind
++    else {
++        return Ok(false);
++    };
++    let mut owner = object.as_ref();
++    let mut path = original_path.to_vec();
++    budget.lineage_bytes((path.len() + 1) * 4, expression.span)?;
++    path.push(0);
++    let mut parts = Vec::new();
++    loop {
++        budget.node(owner.span, parts.len())?;
++        match &owner.kind {
++            s::ExprKind::Member {
++                object,
++                member: s::MemberName::Name(name),
++            } => {
++                budget.text(name, owner.span)?;
++                budget.lineage_push(&mut parts, name.as_str(), owner.span)?;
++                owner = object;
++                budget.lineage_push(&mut path, 0, owner.span)?;
++            }
++            s::ExprKind::TypeApply { callee, .. } | s::ExprKind::Group(callee) => {
++                owner = callee;
++                budget.lineage_push(&mut path, 0, owner.span)?;
++            }
++            s::ExprKind::Name(name) => {
++                budget.identity_work(
++                    nodes.len().saturating_mul(path.len().saturating_add(1)),
++                    owner.span,
++                )?;
++                if nodes
++                    .iter()
++                    .any(|node| node.path == path && value_names.binary_search(&node.id).is_ok())
++                {
++                    return Ok(false);
++                }
++                budget.text(name, owner.span)?;
++                budget.lineage_push(&mut parts, name.as_str(), owner.span)?;
++                break;
++            }
++            _ => return Ok(false),
++        }
++    }
++    parts.reverse();
++    budget.identity_work(
++        program
++            .modules
++            .iter()
++            .map(|(_, module)| module.definitions.len())
++            .sum(),
++        expression.span,
++    )?;
++    let original = program
++        .modules
++        .iter()
++        .flat_map(|(_, module)| &module.definitions)
++        .find(|row| row.id == definition)
++        .ok_or_else(|| error(expression.span, "unit variant lost its original owner"))?;
++    let SemanticDefinitionBody::FunctionWithBody { names, .. } = &original.body else {
++        return Ok(false);
++    };
++    budget.identity_work(
++        names.len().saturating_mul(parts.len().saturating_add(1)),
++        expression.span,
++    )?;
++    let mut selected = None;
++    for name in names {
++        if name.namespace != SemanticOriginalNamespace::Type
++            || !name
++                .path
++                .iter()
++                .map(String::as_str)
++                .eq(parts.iter().copied())
++        {
++            continue;
++        }
++        let target = match &name.value {
++            SemanticOriginalNameValue::Definition(id) => *id,
++            SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
++                SemanticTypeRecipe::Nominal { definition, .. },
++            )) => *definition,
++            _ => return Ok(false),
++        };
++        if selected.replace(target).is_some() {
++            return Ok(false);
++        }
++    }
++    let Some(selected) = selected else {
++        return Ok(false);
++    };
++    let Some(original) = program
++        .modules
++        .iter()
++        .flat_map(|(_, module)| &module.definitions)
++        .find(|row| row.id == selected)
++    else {
++        return Ok(false);
++    };
++    let SemanticDefinitionBody::Nominal {
++        body: SemanticNominalBody::Enum { variants },
++        ..
++    } = &original.body
++    else {
++        return Ok(false);
++    };
++    budget.identity_work(
++        variants
++            .len()
++            .saturating_mul(variant.len().saturating_add(1)),
++        expression.span,
++    )?;
++    let mut found = None;
++    for row in variants {
++        if row.name == *variant && found.replace(row.fields.is_empty()).is_some() {
++            return Ok(false);
++        }
++    }
++    Ok(found == Some(true))
++}
+ fn operations(
+     program: &mut program::Program,
+     definition: SemanticDefinitionId,
+@@ -418,7 +552,7 @@ fn operations(
+     )?;
+     value_names.sort_unstable();
+     let nodes = directory.nodes;
+-    for original in nodes {
++    for original in &nodes {
+         let observation = observation_operand(body, &original.path, budget, span)?;
+         let projection_value = projection_value(body, &original.path, budget, span)?;
+         let navigation = assignment_navigation(body, &original.path, budget, span)?;
+@@ -437,7 +571,7 @@ fn operations(
+         budget.lineage_bytes((original.path.len() + 1) * 4, span)?;
+         path.push(40);
+         path.extend_from_slice(&original.path);
+-        match (original.kind, located.node) {
++        match (&original.kind, located.node) {
+             (body::OriginalBodyNodeKind::Binding, body_nodes::Node::Statement(statement)) => {
+                 if !matches!(statement.kind, s::StmtKind::Binding { .. }) {
+                     continue;
+@@ -496,6 +630,15 @@ fn operations(
+                         expression.kind,
+                         s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
+                     );
++                let unit_variant = unit_variant(
++                    program,
++                    definition,
++                    expression,
++                    &original.path,
++                    &nodes,
++                    &value_names,
++                    budget,
++                )?;
+                 let observed_projection = observation
+                     && projection_value
+                     && matches!(
+@@ -523,6 +666,20 @@ fn operations(
+                     ))
+                 } else {
+                     match &expression.kind {
++                        s::ExprKind::Member { .. } if unit_variant => {
++                            let expected = SemanticTypeRecipe::OriginalType {
++                                scope: SemanticScopeRef::Ancestor(0),
++                                source: SemanticOriginalTypeSource::Expression(original.id),
++                            };
++                            prepay_recipe(&expected, budget, expression.span, 0)?;
++                            Some((
++                                SemanticSiteRecipeKind::Construct {
++                                    result: expected.clone(),
++                                },
++                                Action::Construct(expected),
++                                SemanticEmissionRole::Construct,
++                            ))
++                        }
+                         s::ExprKind::Call { .. } => Some((
+                             SemanticSiteRecipeKind::OriginalCall,
+                             Action::BodyCall,
+diff --git a/crates/zil-types/src/enums.rs b/crates/zil-types/src/enums.rs
+index 285ce3f0f..0422602a9 100644
+--- a/crates/zil-types/src/enums.rs
++++ b/crates/zil-types/src/enums.rs
+@@ -873,12 +873,13 @@ impl<'a, 'c> Builder<'a, 'c> {
+     }
+     pub(super) fn make_variant(
+         &mut self,
++        expression: &CoreExpr,
+         ty: &Type,
+         variant: u32,
+         expressions: &[CoreExpr],
+         expected: Option<&Type>,
+-        span: Span,
+     ) -> R<(ValueId, Type)> {
++        let span = expression.span;
+         let Type::Enum { variants, .. } = stored::physical(ty) else {
+             unreachable!()
+         };
+@@ -904,10 +905,10 @@ impl<'a, 'c> Builder<'a, 'c> {
+                 staged.push(self.stage_argument(value, &actual, expression.span)?);
+             }
+             let fields = self.commit_arguments(staged, span)?;
+-            let value = self.value(
++            let value = self.semantic_constructor_value(
++                expression,
+                 InstructionKind::MakeVariant { variant, fields },
+                 ty.clone(),
+-                span,
+             )?;
+             return Ok((value, ty.clone()));
+         }
+@@ -923,13 +924,13 @@ impl<'a, 'c> Builder<'a, 'c> {
+             values.push(value);
+         }
+         Ok((
+-            self.value(
++            self.semantic_constructor_value(
++                expression,
+                 InstructionKind::MakeVariant {
+                     variant,
+                     fields: values,
+                 },
+                 ty.clone(),
+-                span,
+             )?,
+             ty.clone(),
+         ))
+diff --git a/crates/zil-types/src/lib.rs b/crates/zil-types/src/lib.rs
+index c64bace0b..2d6f801f2 100644
+--- a/crates/zil-types/src/lib.rs
++++ b/crates/zil-types/src/lib.rs
+@@ -2486,7 +2486,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+         }
+         if self.enum_constructor(e)?.is_some() {
+             let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
+-            return self.make_variant(ty, variant, &[], expected, e.span);
++            return self.make_variant(e, ty, variant, &[], expected);
+         }
+         let result = if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none())
+         {
+@@ -2699,7 +2699,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+                 return self.foreign_callback(arguments, e.span);
+             }
+             if let Some((ty, variant)) = self.enum_constructor(callee)? {
+-                return self.make_variant(ty, variant, arguments, expected, e.span);
++                return self.make_variant(e, ty, variant, arguments, expected);
+             }
+             if let CoreExprKind::Member {
+                 object,
+diff --git a/crates/zil-verify/src/semantic/flow/trait_members.rs b/crates/zil-verify/src/semantic/flow/trait_members.rs
+index dbf4344ee..2ae1df5dd 100644
+--- a/crates/zil-verify/src/semantic/flow/trait_members.rs
++++ b/crates/zil-verify/src/semantic/flow/trait_members.rs
+@@ -8,7 +8,7 @@ impl CheckedContext {
+     pub(super) fn actual_trait_member(&self,module:&TypedModule,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
+         let receiver=self.evaluate_type(module,&original.receiver,environment,external,active,b)?;
+         let application=self.application(module,&original.application,environment,external,active,b)?;
+-        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(self.evaluate_actual(module,recipe,environment,external,active,b)?);}
++        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,environment,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,environment,b)?)});}
+         let receipt=select_original_member(external,module,self,environment,&receiver,&application,original.member,&actuals,active,b)?;
+         if receipt.member!=original.member||receipt.application!=application||receipt.receiver!=receiver{return Err(bad("actual member selection changes its complete requested identity"));}
+         let programme=module.semantic.as_ref().ok_or_else(||bad("actual member call lacks the original programme"))?;
+diff --git a/crates/zil-verify/src/semantic/original/materialize.rs b/crates/zil-verify/src/semantic/original/materialize.rs
+index b03b8c95d..c19faa12c 100644
+--- a/crates/zil-verify/src/semantic/original/materialize.rs
++++ b/crates/zil-verify/src/semantic/original/materialize.rs
+@@ -72,7 +72,7 @@ impl CheckedOriginal {
+     fn reify_outer(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticOuterLifeRecipe>{if *life==Life::Static{Ok(SemanticOuterLifeRecipe::Static)}else{Ok(SemanticOuterLifeRecipe::Class(self.reify_life(module,life,env,b)?))}}
+     pub(super) fn reify_life(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{let resolved=self.resolved_life(life,b)?;let life=&resolved;b.spend(1)?;Ok(match life{
+         Life::Head(definition,ordinal)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*definition){return Err(bad("original description head was not instantiated at its true call boundary"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Parameter(*ordinal),path:vec![],mode:StoredBorrowMode::ReadOnlyDescription}},
+-        Life::ReceiverRole(definition,node,mode)=>self.receiver_role(module,*definition,*node,*mode,env,b)?,
++        Life::ReceiverRole(..)=>return Err(unsupported("receiver role requires the private exact actual-call value bridge",None)),
+         Life::Formal(definition,ordinal)=>SemanticLifeRecipe::Formal(SemanticFormalRef{scope:self.scope(*definition,env,b)?,ordinal:*ordinal}),
+         Life::Implicit(definition,ordinal)=>SemanticLifeRecipe::Implicit{scope:self.scope(*definition,env,b)?,ordinal:*ordinal},
+         Life::Invocation(token,index)=>{
+diff --git a/crates/zil-verify/src/semantic/original/mod.rs b/crates/zil-verify/src/semantic/original/mod.rs
+index d429774aa..8111a87ac 100644
+--- a/crates/zil-verify/src/semantic/original/mod.rs
++++ b/crates/zil-verify/src/semantic/original/mod.rs
+@@ -35,7 +35,7 @@ mod constructors;
+ mod associated;
+ mod trait_methods;
+ mod trait_calls;
+-pub(in crate::semantic) use trait_calls::TraitCallRecipes;
++pub(in crate::semantic) use trait_calls::{TraitCallRecipes,MethodActualRecipe};
+ mod raw_schemes;
+ mod opaque;
+ pub(super) mod intrinsics;
+diff --git a/crates/zil-verify/src/semantic/original/operations.rs b/crates/zil-verify/src/semantic/original/operations.rs
+index f06e905b4..3777e485b 100644
+--- a/crates/zil-verify/src/semantic/original/operations.rs
++++ b/crates/zil-verify/src/semantic/original/operations.rs
+@@ -51,28 +51,7 @@ impl CheckedOriginal {
+                 let Ty::Carrier{kind:CarrierKind::MutexGuard,child,..}=payload else{return Err(bad("guard operation has another complete guard type"));};
+                 if kind==Intrinsic::MutexValue{use_.buffer=Some(self.operation_source(&arguments[0],env,bindings,b)?);Ty::Address{mutable:true,life,inner:child}}else{Ty::Atom(Type::Unit)}
+             },
+-            Intrinsic::TaskCreate=>{
+-                if arguments.is_empty(){return Err(bad("task_create omits its original worker"));}
+-                let worker=self.expression(module,context,&arguments[0],env,bindings,None,active,b)?;let Ty::Function(worker)=worker else{return Err(bad("Task worker is not an independently resolved original static definition"));};
+-                let prototype=self.operation_function(module,context,worker,active,b)?;self.operation_arity(&arguments[1..],prototype.parameters.len())?;use_.worker=Some(worker);
+-                let mut retained=Retained::default();
+-                for((argument,parameter),mode)in arguments[1..].iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,parameter,*mode,env,bindings,active,b)?;self.unify(&actual,parameter,b)?;
+-                    match self.resolved(&actual,b)?{leaf @ Ty::Address{..}|leaf @ Ty::Desc{..}=>{let(class,mode)=match &leaf{Ty::Address{mutable,life,..}=>(life.clone(),if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress}),Ty::Desc{life,..}=>(life.clone(),StoredBorrowMode::ReadOnlyDescription),_=>unreachable!()};retained.domain.push(ClassPart::One(class.clone()));retained.ports.push(PortPart::One{leaf,mode,class});},value=>{self.structural_obligation(module,context,&value,DynStructuralBound::Value,env,active,b)?;self.structural_obligation(module,context,&value,DynStructuralBound::SyncDrop,env,active,b)?;}}
+-                }
+-                // The worker is referenced and retained, not executed by this
+-                // constructor. Its own full body/effect is checked separately.
+-                Ty::ErrorUnion(Box::new(Ty::SealedError(SealedError::TaskCreate)),Box::new(Ty::Managed(Box::new(Ty::Carrier{kind:CarrierKind::Task,child:Box::new(prototype.result),retained:Box::new(retained)}))))
+-            },
+-            Intrinsic::TaskValid|Intrinsic::TaskPoll|Intrinsic::TaskRequest|Intrinsic::TaskPollClose|Intrinsic::TaskFinish=>{
+-                if kind==Intrinsic::TaskFinish{return Err(unsupported("original Task destroy requires its complete all-exit close-state proof",None));}
+-                self.operation_arity(arguments,1)?;
+-                let value=if kind==Intrinsic::TaskFinish{self.expression(module,context,&arguments[0],env,bindings,None,active,b)?}else{let(value,source)=self.operation_observe(module,context,&arguments[0],env,bindings,active,b)?;use_.buffer=Some(source);value};
+-                if kind==Intrinsic::TaskFinish&&!matches!(arguments[0].kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){return Err(bad("Task destroy omits its explicit owning transfer"));}
+-                let(payload,_)=self.operation_payload(&value,env.current()?,arguments[0].id,b)?;
+-                let Ty::Carrier{kind:CarrierKind::Task,child,..}=payload else{return Err(bad("Task operation selects another complete frame/result type"));};
+-                if matches!(kind,Intrinsic::TaskPoll|Intrinsic::TaskRequest|Intrinsic::TaskPollClose)&&!matches!(self.resolved(&value,b)?,Ty::Address{mutable:true,..}){return Err(bad("Task driving operation lacks its exclusive original head borrow"));}
+-                match kind{Intrinsic::TaskValid=>Ty::Atom(Type::Bool),Intrinsic::TaskPoll=>Ty::ErrorUnion(Box::new(Ty::SealedError(SealedError::TaskPoll)),Box::new(self.poll_type(module,*child,b)?)),Intrinsic::TaskPollClose=>self.poll_type(module,Ty::Atom(Type::Unit),b)?,_=>Ty::Atom(Type::Unit)}
+-            },
++            Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned|Intrinsic::TaskValid|Intrinsic::TaskPoll|Intrinsic::TaskRequest|Intrinsic::TaskPollClose|Intrinsic::TaskFinish=>self.task_operation(module,context,kind,arguments,env,bindings,&mut use_,active,b)?,
+             Intrinsic::AsyncStart=>{
+                 self.operation_arity(arguments,4)?;if self.unsafe_depth.get(&env.current()?).copied().unwrap_or(0)==0{return Err(bad("async registration construction lacks its original unsafe scope"));}
+                 let mut providers=Vec::new();for argument in &arguments[..3]{let value=self.expression(module,context,argument,env,bindings,None,active,b)?;let Ty::Function(id)=value else{return Err(bad("async provider is not a real original foreign declaration"));};providers.push(id);}
+@@ -99,14 +78,14 @@ impl CheckedOriginal {
+         };
+         self.execute_effect(env,CallKind::Direct,b)?;b.spend(1)?;self.intrinsic_calls.insert((env.current()?,site),use_);Ok(Some(result))
+     }
+-    fn operation_arity(&self,args:&[SemanticOriginalExpr],expected:usize)->Check<()>{if args.len()==expected{Ok(())}else{Err(bad("operational intrinsic has another complete value arity"))}}
++    pub(super) fn operation_arity(&self,args:&[SemanticOriginalExpr],expected:usize)->Check<()>{if args.len()==expected{Ok(())}else{Err(bad("operational intrinsic has another complete value arity"))}}
+     #[allow(clippy::too_many_arguments)]
+     fn operation_scalar(&mut self,module:&TypedModule,context:&CheckedContext,value:&SemanticOriginalExpr,ty:Type,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{let expected=Ty::Atom(ty);let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.unify(&actual,&expected,b)}
+     fn operation_source(&self,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<BufferSource>{let mut node=expression;loop{b.spend(1)?;match &node.kind{CoreExprKind::Group(inner)|CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand:inner}=>node=inner,CoreExprKind::Name(name)=>return match &bindings.get(name).ok_or_else(||bad("operation owner name lacks its original binder"))?.identity{Binder::Parameter{definition,ordinal}=>Ok(BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),Binder::Local{definition,node,..}=>Ok(BufferSource::Local{definition:*definition,node:*node}),_ if self.value_places.contains_key(&(env.current()?,node.id))=>Ok(BufferSource::Place{definition:env.current()?,node:node.id}),_=>Err(unsupported("operation captured owner needs its complete actual capture source bridge",None))},_ if self.value_places.contains_key(&(env.current()?,node.id))=>return Ok(BufferSource::Place{definition:env.current()?,node:node.id}),_=>return Err(unsupported("operation projected owner needs its complete original typed path bridge",None))}}}
+     #[allow(clippy::too_many_arguments)]
+-    fn operation_observe(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,BufferSource)>{let(value,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&value,env,false,active,b)?;}Ok((self.resolved(&value,b)?,self.operation_source(expression,env,bindings,b)?))}
+-    fn operation_payload(&self,ty:&Ty,owner:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(Ty,Life)>{Ok(match self.resolved(ty,b)?{Ty::Managed(inner)=>(*inner,Life::Local(owner,node)),Ty::Desc{life,inner}=>(*inner,life),Ty::Address{life,inner,..}=>match *inner{Ty::Managed(payload)=>(*payload,life),payload=>(payload,life)},_=>return Err(bad("operational input is not a real owner, description or owner address"))})}
+-    fn operation_function(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{let definition=context.definition(module,id,b)?;if !definition.parameters.is_empty(){return Err(unsupported("worker function value needs its complete original written specialization",None));}let SemanticDefinitionBody::FunctionWithBody{signature,body:SemanticOriginalFunctionBody::Defined(_),..}=&definition.body else{return Err(bad("worker is not a real original executable body"));};let env=self.environment(module,context,id,active,b)?;self.call_signature(module,context,id,signature,&env,active,b)}
++    pub(super) fn operation_observe(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,BufferSource)>{let(value,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&value,env,false,active,b)?;}Ok((self.resolved(&value,b)?,self.operation_source(expression,env,bindings,b)?))}
++    pub(super) fn operation_payload(&self,ty:&Ty,owner:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(Ty,Life)>{Ok(match self.resolved(ty,b)?{Ty::Managed(inner)=>(*inner,Life::Local(owner,node)),Ty::Desc{life,inner}=>(*inner,life),Ty::Address{life,inner,..}=>match *inner{Ty::Managed(payload)=>(*payload,life),payload=>(payload,life)},_=>return Err(bad("operational input is not a real owner, description or owner address"))})}
++    pub(super) fn operation_function(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{let definition=context.definition(module,id,b)?;if !definition.parameters.is_empty(){return Err(unsupported("worker function value needs its complete original written specialization",None));}let SemanticDefinitionBody::FunctionWithBody{signature,body:SemanticOriginalFunctionBody::Defined(_),..}=&definition.body else{return Err(bad("worker is not a real original executable body"));};let env=self.environment(module,context,id,active,b)?;self.call_signature(module,context,id,signature,&env,active,b)}
+     fn operation_callable(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{match self.resolved(ty,b)?{Ty::Closure(id,..)=>self.prototypes.get(&id).cloned().ok_or_else(||bad("callback lacks its complete universally checked original entry")),ty=>self.callable_premise(module,context,&ty,env,active,b)?.ok_or_else(||bad("abstract callback lacks its original complete Callable premise"))}}
+     fn operation_providers(&self,module:&TypedModule,context:&CheckedContext,providers:&[SemanticDefinitionId],b:&mut Budget)->Check<bool>{
+         let mut roles=Vec::new();
+diff --git a/crates/zil-verify/src/semantic/original/trait_calls.rs b/crates/zil-verify/src/semantic/original/trait_calls.rs
+index c3bdebcee..ab021564b 100644
+--- a/crates/zil-verify/src/semantic/original/trait_calls.rs
++++ b/crates/zil-verify/src/semantic/original/trait_calls.rs
+@@ -3,7 +3,7 @@
+ use super::*;
+ mod applications;
+ mod materialize;
+-pub(in crate::semantic) use materialize::TraitCallRecipes;
++pub(in crate::semantic) use materialize::{TraitCallRecipes,MethodActualRecipe};
+ 
+ #[derive(Clone)]
+ pub(super) struct TraitCall{pub receiver:Ty,pub declaration:LifeDeclarationId,pub arguments:Vec<Arg>,pub member:u32,pub actuals:Vec<Arg>,pub node:NodeId,pub receiver_mode:Option<StoredBorrowMode>}
+diff --git a/crates/zil-verify/src/semantic/original/trait_calls/materialize.rs b/crates/zil-verify/src/semantic/original/trait_calls/materialize.rs
+index 4a669727f..8f557e565 100644
+--- a/crates/zil-verify/src/semantic/original/trait_calls/materialize.rs
++++ b/crates/zil-verify/src/semantic/original/trait_calls/materialize.rs
+@@ -1,13 +1,17 @@
+ use super::*;
+-pub(in crate::semantic) struct TraitCallRecipes{pub receiver:SemanticTypeRecipe,pub application:SemanticTraitRecipe,pub member:u32,pub actuals:Vec<SemanticActualRecipe>}
++pub(in crate::semantic) enum MethodActualRecipe{Recipe(SemanticActualRecipe),ReceiverRole(SemanticClassExpr)}
++pub(in crate::semantic) struct TraitCallRecipes{pub receiver:SemanticTypeRecipe,pub application:SemanticTraitRecipe,pub member:u32,pub actuals:Vec<MethodActualRecipe>}
+ impl CheckedOriginal {
+     pub(in crate::semantic) fn trait_call_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,environment:&EvalEnv,b:&mut Budget)->Check<Option<TraitCallRecipes>>{
+         let Some(call)=self.trait_calls.get(&(definition,site))else{return Ok(None);};
+         let mut arguments=Vec::new();for actual in &call.arguments{arguments.push(self.reify_argument(module,actual,environment,b)?);}
+-        let mut actuals=Vec::new();for actual in &call.actuals{actuals.push(self.reify_argument(module,actual,environment,b)?);}
++        let mut actuals=Vec::new();for actual in &call.actuals{
++            let role=match actual{Arg::Life(life)=>match self.resolved_life(life,b)?{Life::ReceiverRole(definition,node,mode)=>Some(self.receiver_role(module,definition,node,mode,environment,b)?),_=>None},_=>None};
++            actuals.push(match role{Some(role)=>MethodActualRecipe::ReceiverRole(role),None=>MethodActualRecipe::Recipe(self.reify_argument(module,actual,environment,b)?)});
++        }
+         Ok(Some(TraitCallRecipes{receiver:self.reify_type(module,&call.receiver,environment,b)?,application:SemanticTraitRecipe{declaration:call.declaration,arguments},member:call.member,actuals}))
+     }
+-    pub(in crate::semantic) fn receiver_role(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,mode:StoredBorrowMode,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{
++    pub(in crate::semantic) fn receiver_role(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,mode:StoredBorrowMode,env:&EvalEnv,b:&mut Budget)->Check<SemanticClassExpr>{
+         let Some(frame)=env.lexical.first().filter(|row|row.definition==definition)else{return Err(bad("original receiver role escapes its actual caller"));};
+         let ScopeKey::Instance(instance)=frame.key else{return Err(unsupported("receiver role requires its exact actual caller instance",None));};
+         let programme=module.semantic.as_ref().ok_or_else(||bad("receiver role lacks its original programme"))?;
+@@ -27,6 +31,6 @@ impl CheckedOriginal {
+         let value=*arguments.first().ok_or_else(||bad("receiver role actual Call omits its receiver"))?;
+         let ty=function.values.get(value.0 as usize).ok_or_else(||bad("receiver role actual operand is absent"))?;
+         if !matches!((mode,ty),(StoredBorrowMode::SharedAddress,Type::Address{mutable:false,..})|(StoredBorrowMode::ExclusiveAddress,Type::Address{mutable:true,..})|(StoredBorrowMode::ReadOnlyDescription,Type::Desc(_))){return Err(bad("receiver role actual outer borrowing mode differs"));}
+-        Ok(SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Value(value),path:vec![],mode})
++        Ok(SemanticClassExpr::OuterOccurrence{operand:SemanticOperand::Value(value),path:vec![],mode})
+     }
+ }
