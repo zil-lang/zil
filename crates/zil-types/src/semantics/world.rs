@@ -22,6 +22,8 @@ mod methods;
 mod projection;
 #[path = "world_protocol.rs"]
 mod protocol;
+#[path = "world_protocol_flow.rs"]
+mod protocol_flow;
 #[path = "world_roles.rs"]
 mod roles;
 /// Relocation may identify a sealed opcode only by its independently checked
@@ -793,7 +795,7 @@ impl<'a> World<'a, '_> {
             _ => {
                 return Err(bad(
                     "borrow producer result is not an address or description",
-                ))
+                ));
             }
         };
         Ok(SemanticClassExpr::OuterOccurrence {
@@ -1224,7 +1226,7 @@ impl World<'_, '_> {
                     _ => {
                         return Err(bad(
                             "constructor changes its original nominal kind or selected variant",
-                        ))
+                        ));
                     }
                 }
                 selected = Some(expected);
@@ -2118,7 +2120,7 @@ impl World<'_, '_> {
                                 _ => {
                                     return Err(bad(
                                         "indexed address changes its actual complete container",
-                                    ))
+                                    ));
                                 }
                             };
                             let value = self.zero(element)?;
@@ -2143,7 +2145,7 @@ impl World<'_, '_> {
                                 _ => {
                                     return Err(bad(
                                         "slice address changes its actual complete container",
-                                    ))
+                                    ));
                                 }
                             };
                             let value = self.zero(&Type::Slice {
@@ -2230,7 +2232,7 @@ impl World<'_, '_> {
                                     _ => {
                                         return Err(bad(
                                             "aggregate changes its complete original product arity",
-                                        ))
+                                        ));
                                     }
                                 }
                                 Some(expected)
@@ -2242,8 +2244,8 @@ impl World<'_, '_> {
                                 || captures.len() != d.captures.len()
                             {
                                 return Err(bad(
-                                "closure constructor changes its actual lexical creator/captures",
-                            ));
+                                    "closure constructor changes its actual lexical creator/captures",
+                                ));
                             }
                             let mut selected = None;
                             for site in self.point_sites(&sites, block.id, index)? {
@@ -2255,8 +2257,8 @@ impl World<'_, '_> {
                                 {
                                     if id != closure || selected.is_some() {
                                         return Err(bad(
-                                    "closure constructor changes its actual environment identity",
-                                ));
+                                            "closure constructor changes its actual environment identity",
+                                        ));
                                     }
                                     let recipe = self.original_recipe(original, site.recipe)?;
                                     let SemanticSiteRecipeKind::Closure {
@@ -2316,8 +2318,8 @@ impl World<'_, '_> {
                                         )?;
                                         if &source != claimed {
                                             return Err(bad(
-                                        "sealed environment actual changes its original creator-domain source",
-                                    ));
+                                                "sealed environment actual changes its original creator-domain source",
+                                            ));
                                         }
                                     }
                                     for ((recipe, actual), claimed) in
@@ -2340,8 +2342,8 @@ impl World<'_, '_> {
                                         )?;
                                         if &value != actual || &value != claimed {
                                             return Err(bad(
-                                        "closure ghost slot changes its original creator actual",
-                                    ));
+                                                "closure ghost slot changes its original creator actual",
+                                            ));
                                         }
                                     }
                                     selected = Some(());
@@ -2397,8 +2399,8 @@ impl World<'_, '_> {
                                         };
                                         if life.binder_count as usize != classes.len() {
                                             return Err(bad(
-                                            "constructed Type environment omits complete classes",
-                                        ));
+                                                "constructed Type environment omits complete classes",
+                                            ));
                                         }
                                         let image = classes.get(*class as usize).ok_or_else(|| {
                                         bad("constructed Fixed class exceeds sealed Type domain")
@@ -2411,33 +2413,76 @@ impl World<'_, '_> {
                                         )?;
                                         image.clone()
                                     }
-                                    SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal } => {
+                                    SemanticClassExpr::Implicit {
+                                        scope: SemanticScopeRef::Ancestor(0),
+                                        ordinal,
+                                    } => {
                                         let capture_index = capture::input(self, child, *ordinal)?;
                                         self.pay(header.bindings.len())?;
-                                        let mut rows = header.bindings.iter().filter(|row| row.binder == StorageBinder::Fixed(fixed));
+                                        let mut rows = header.bindings.iter().filter(|row| {
+                                            row.binder == StorageBinder::Fixed(fixed)
+                                        });
                                         let mut image = None;
                                         for row in &mut rows {
-                                            let StoragePosition { base: StorageBase::Capture(index), path } = &row.position else {
-                                                return Err(bad("implicit captured Fixed class is attached to another header role"));
+                                            let StoragePosition {
+                                                base: StorageBase::Capture(index),
+                                                path,
+                                            } = &row.position
+                                            else {
+                                                return Err(bad(
+                                                    "implicit captured Fixed class is attached to another header role",
+                                                ));
                                             };
                                             if !path.is_empty() || *index != capture_index {
-                                                return Err(bad("implicit captured Fixed class changes its original actual capture observation"));
+                                                return Err(bad(
+                                                    "implicit captured Fixed class changes its original actual capture observation",
+                                                ));
                                             }
                                             let operand = captures.get(*index as usize).ok_or_else(|| bad("implicit capture omits its actual constructor operand"))?;
                                             let actual = self.get(&values, *operand)?;
-                                            let SemanticTypeValue::Resolved { life, classes, .. } = &actual else { return Err(bad("implicit capture input retains an unresolved whole type")); };
+                                            let SemanticTypeValue::Resolved {
+                                                life, classes, ..
+                                            } = &actual
+                                            else {
+                                                return Err(bad(
+                                                    "implicit capture input retains an unresolved whole type",
+                                                ));
+                                            };
                                             self.pay(life.slots.len())?;
-                                            let mut outer = life.slots.iter().filter(|slot| slot.path.is_empty());
+                                            let mut outer = life
+                                                .slots
+                                                .iter()
+                                                .filter(|slot| slot.path.is_empty());
                                             let slot = outer.next().ok_or_else(|| bad("implicit capture constructor operand has no real outer occurrence"))?;
-                                            if outer.next().is_some() { return Err(bad("implicit capture constructor repeats an outer occurrence")); }
+                                            if outer.next().is_some() {
+                                                return Err(bad(
+                                                    "implicit capture constructor repeats an outer occurrence",
+                                                ));
+                                            }
                                             let actual_image = classes.get(slot.binder as usize).ok_or_else(|| bad("implicit capture outer image exceeds its complete domain"))?;
-                                            crate::dyn_metadata::semantic_operand_snapshot(actual_image, self.limits, self.left, 1)?;
-                                            if let Some(old) = &image { self.same_class(instance.id, old, actual_image, &implicit)?; }
+                                            crate::dyn_metadata::semantic_operand_snapshot(
+                                                actual_image,
+                                                self.limits,
+                                                self.left,
+                                                1,
+                                            )?;
+                                            if let Some(old) = &image {
+                                                self.same_class(
+                                                    instance.id,
+                                                    old,
+                                                    actual_image,
+                                                    &implicit,
+                                                )?;
+                                            }
                                             image = Some(actual_image.clone());
                                         }
                                         image.ok_or_else(|| bad("implicit captured Fixed class has no actual capture header occurrence"))?
                                     }
-                                    _ => return Err(pending("constructed Fixed class requires its complete actual capture or ghost seal")),
+                                    _ => {
+                                        return Err(pending(
+                                            "constructed Fixed class requires its complete actual capture or ghost seal",
+                                        ));
+                                    }
                                 };
                                 *images
                                     .get_mut(fixed as usize)
@@ -2586,8 +2631,8 @@ impl World<'_, '_> {
                                                 )?;
                                                 if actual != &expected {
                                                     return Err(bad(
-                                                    "call changes original mixed actual expression",
-                                                ));
+                                                        "call changes original mixed actual expression",
+                                                    ));
                                                 }
                                             }
                                             actuals
@@ -2868,12 +2913,23 @@ impl World<'_, '_> {
                                 .ok_or_else(|| bad("error union constructor has no result"))?;
                             let actual_ty = ty
                                 .ok_or_else(|| bad("error union constructor has no actual type"))?;
-                            let expected = match self.constructed_value(instance, original, &sites, block.id, index, result, actual_ty, &implicit)? {
+                            let expected = match self.constructed_value(
+                                instance, original, &sites, block.id, index, result, actual_ty,
+                                &implicit,
+                            )? {
                                 Some(value) => value,
-                                None => match self.emitted_value(instance, f, block.id, index, result)? {
+                                None => match self
+                                    .emitted_value(instance, f, block.id, index, result)?
+                                {
                                     Some(value) => value,
-                                    None if ty == Some(&f.return_type) => self.copy(&expected_result)?,
-                                    None => return Err(pending("error union constructor lacks its original complete result equation")),
+                                    None if ty == Some(&f.return_type) => {
+                                        self.copy(&expected_result)?
+                                    }
+                                    None => {
+                                        return Err(pending(
+                                            "error union constructor lacks its original complete result equation",
+                                        ));
+                                    }
                                 },
                             };
                             let payload = projection::place(
@@ -3192,7 +3248,7 @@ impl World<'_, '_> {
                 _ => {
                     return Err(bad(
                         "reachable CFG terminator has no complete class-flow equation",
-                    ))
+                    ));
                 }
             };
             let state = flow::State {
@@ -3223,6 +3279,7 @@ impl World<'_, '_> {
                 )?;
             }
         }
+        protocol_flow::check(self, f)?;
         Ok(())
     }
 }
@@ -3267,7 +3324,7 @@ pub(super) fn program(
             _ => {
                 return Err(bad(
                     "Core target survives the complete actual semantic world",
-                ))
+                ));
             }
         }
         let original = world.definition(instance.definition)?;
@@ -3353,7 +3410,7 @@ pub(super) fn program(
                 _ => {
                     return Err(bad(
                         "actual lexical scope changes its real original parent chain",
-                    ))
+                    ));
                 }
             }
             let recipe = match &original.body {
@@ -3407,7 +3464,9 @@ pub(super) fn program(
                     {
                         world.equal(actual, expected)?;
                     } else {
-                        return Err(pending("trait default Self metadata requires its complete parent-domain class rebasing"));
+                        return Err(pending(
+                            "trait default Self metadata requires its complete parent-domain class rebasing",
+                        ));
                     }
                 } else {
                     let expected = world.ty(

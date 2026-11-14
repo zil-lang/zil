@@ -395,6 +395,33 @@ impl<'a> Engine<'a, '_> {
                     self.change(state, root, OPEN | CLOSED, true, depth)?;
                     return Ok(Value::Root(root, true));
                 }
+                IntrinsicKind::NominalConstructor {
+                    definition,
+                    variant,
+                } => {
+                    let declaration = self.definition(definition)?;
+                    if matches!(&declaration.body,SemanticDefinitionBody::Nominal{declaration,..}if *declaration==zil_ir::builtin_life::POLL)
+                    {
+                        let exit = match variant {
+                            0 => ProtocolExit::PollPending,
+                            1 => ProtocolExit::PollReady,
+                            _ => {
+                                return Err(failure(
+                                    "original canonical Poll constructor has an invalid variant ordinal",
+                                ));
+                            }
+                        };
+                        self.pay(state.roots.len().saturating_add(1), depth)?;
+                        return Ok(Value::Poll {
+                            fresh: true,
+                            outcomes: vec![Outcome {
+                                exit,
+                                phases: state.roots.clone(),
+                            }],
+                        });
+                    }
+                    return self.unknown_call(owner, expression.id, values, state, depth);
+                }
                 IntrinsicKind::RegistrationOperation(
                     op @ (RegistrationOp::AsyncValid
                     | RegistrationOp::AsyncRequest
@@ -939,9 +966,11 @@ impl<'a> Engine<'a, '_> {
         self.pay(value.work(), depth)?;
         if let Value::Poll { fresh, outcomes } = value {
             if !fresh {
-                return Err(failure(
-                    "a stale original Poll cannot refine a later generation of its root",
-                ));
+                // An old Copy discriminator remains an ordinary value; it
+                // supplies no state fact about the current root generation.
+                let mut branch = self.copy(state, depth)?;
+                self.pattern(pattern, Value::Plain, &mut branch, depth + 1)?;
+                return Ok(vec![branch]);
             }
             let variant = match &pattern.kind {
                 CorePatternKind::Variant { variant, .. }
@@ -1382,6 +1411,7 @@ impl<'a> Engine<'a, '_> {
             protocol_contracts,
             parameters,
             body,
+            foreign,
             ..
         } = &definition.body
         else {
@@ -1393,6 +1423,40 @@ impl<'a> Engine<'a, '_> {
             parameters.len().saturating_add(protocol_contracts.len()),
             depth,
         )?;
+        if let Some(declaration) = foreign {
+            self.pay(
+                declaration
+                    .abi
+                    .len()
+                    .saturating_add(declaration.symbol.len())
+                    .saturating_add(declaration.noescape_parameters.len())
+                    .saturating_add(1),
+                depth,
+            )?;
+            if !matches!(body, SemanticOriginalFunctionBody::External)
+                || declaration.abi != "C"
+                || declaration.symbol.is_empty()
+            {
+                return Err(failure(
+                    "original foreign head is not its bodyless, concrete C declaration",
+                ));
+            }
+            let mut previous = None;
+            for parameter in &declaration.noescape_parameters {
+                if *parameter as usize >= parameters.len()
+                    || previous.is_some_and(|p| p >= *parameter)
+                {
+                    return Err(failure(
+                        "original noescape promise does not name distinct ordered real parameters",
+                    ));
+                }
+                previous = Some(*parameter);
+            }
+        } else if matches!(body, SemanticOriginalFunctionBody::External) {
+            return Err(failure(
+                "original external body has no independently produced ABI declaration",
+            ));
+        }
         let mut roles = BTreeSet::new();
         for contract in protocol_contracts {
             crate::registration::charge_contract(contract, |work| self.pay(work, depth))?;

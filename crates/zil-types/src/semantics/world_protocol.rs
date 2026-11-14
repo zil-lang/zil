@@ -9,9 +9,36 @@ pub(super) fn header(
 ) -> R<()> {
     let contracts = match &original.body {
         SemanticDefinitionBody::FunctionWithBody {
-            protocol_contracts, ..
-        } => protocol_contracts.as_slice(),
-        _ => &[],
+            protocol_contracts,
+            foreign,
+            resume_bound,
+            ..
+        } => {
+            for declaration in foreign.iter().chain(function.foreign.iter()) {
+                world.pay(
+                    declaration
+                        .abi
+                        .len()
+                        .saturating_add(declaration.symbol.len())
+                        .saturating_add(declaration.noescape_parameters.len())
+                        .saturating_add(1),
+                )?;
+            }
+            if foreign != &function.foreign || *resume_bound != function.resume_bound {
+                return Err(bad(
+                    "actual external promises or Task resume bound differ from the complete original head",
+                ));
+            }
+            protocol_contracts.as_slice()
+        }
+        _ => {
+            if function.foreign.is_some() || function.resume_bound != TaskResumeBound::Local {
+                return Err(bad(
+                    "actual external/resume head has no complete original declaration",
+                ));
+            }
+            &[]
+        }
     };
     world.pay(
         contracts
@@ -26,7 +53,7 @@ pub(super) fn header(
             ));
         }
     }
-    if contracts != function.protocol_contracts {
+    if contracts != function.protocol_contracts.as_slice() {
         return Err(bad(
             "actual protocol table differs from its complete original declaration",
         ));

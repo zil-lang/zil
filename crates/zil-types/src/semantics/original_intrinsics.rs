@@ -1047,7 +1047,7 @@ impl Check<'_, '_> {
             _ => {
                 return Err(pending(
                     "Task failure input ownership requires a complete original structural premise",
-                ))
+                ));
             }
         })
     }
@@ -1240,7 +1240,7 @@ impl Check<'_, '_> {
                 _ => {
                     return Err(bad(
                         "original Task operation changes its carrier access/ownership mode",
-                    ))
+                    ));
                 }
             };
             let SemanticTypeRecipe::Task {
@@ -1318,7 +1318,7 @@ impl Check<'_, '_> {
                 _ => {
                     return Err(bad(
                         "owned dyn requires its full written original dyn interface",
-                    ))
+                    ));
                 }
             };
             let SemanticTypeRecipe::Dyn {
@@ -1398,6 +1398,7 @@ impl Check<'_, '_> {
                 ));
             }
             let mut providers = Vec::new();
+            let mut threaded_provider = None;
             self.pay(provider_count, depth)?;
             for (ordinal, argument) in arguments[..provider_count].iter().enumerate() {
                 let id = self.static_provider(owner, argument, variables, depth + 1)?;
@@ -1405,6 +1406,7 @@ impl Check<'_, '_> {
                 let SemanticDefinitionBody::FunctionWithBody {
                     signature,
                     body: SemanticOriginalFunctionBody::External,
+                    foreign: Some(foreign),
                     ..
                 } = &definition.body
                 else {
@@ -1412,7 +1414,71 @@ impl Check<'_, '_> {
                         "registration provider is not its real original external declaration",
                     ));
                 };
-                if !definition.parameters.is_empty() || signature.call_kind != CallKind::Direct {
+                self.pay(
+                    signature.parameters.len().saturating_add(
+                        foreign
+                            .abi
+                            .len()
+                            .saturating_add(foreign.symbol.len())
+                            .saturating_add(foreign.noescape_parameters.len())
+                            .saturating_add(1),
+                    ),
+                    depth,
+                )?;
+                let threaded = if asynchronous {
+                    if ordinal == 0 {
+                        let threaded = match foreign.scoped_callback {
+                            Some(ScopedCallbackRole::AsyncRegister) => false,
+                            Some(ScopedCallbackRole::ThreadAsyncRegister) => true,
+                            _ => {
+                                return Err(bad(
+                                    "registration has no independently declared original register role",
+                                ));
+                            }
+                        };
+                        threaded_provider = Some(threaded);
+                        threaded
+                    } else {
+                        threaded_provider.ok_or_else(|| {
+                            bad("registration role order lost its original register provider")
+                        })?
+                    }
+                } else {
+                    false
+                };
+                let role = if !asynchronous {
+                    [ScopedCallbackRole::Register, ScopedCallbackRole::Close][ordinal]
+                } else if threaded {
+                    [
+                        ScopedCallbackRole::ThreadAsyncRegister,
+                        ScopedCallbackRole::ThreadAsyncRequestClose,
+                        ScopedCallbackRole::ThreadAsyncPollDrain,
+                    ][ordinal]
+                } else {
+                    [
+                        ScopedCallbackRole::AsyncRegister,
+                        ScopedCallbackRole::AsyncRequestClose,
+                        ScopedCallbackRole::AsyncPollDrain,
+                    ][ordinal]
+                };
+                if !definition.parameters.is_empty()
+                    || !definition.environment.is_empty()
+                    || signature.call_kind != CallKind::Direct
+                    || signature.bound_lifetimes != 0
+                    || signature.invocation_lifetimes != 0
+                    || foreign.abi != "C"
+                    || foreign.symbol.is_empty()
+                    || !foreign.static_callbacks
+                    || foreign.scoped_callback != Some(role)
+                    || signature
+                        .parameters
+                        .iter()
+                        .any(|p| !matches!(p.mode, PassingMode::Infer | PassingMode::Value))
+                    || !matches!(
+                        signature.result_mode,
+                        PassingMode::Infer | PassingMode::Value
+                    )
+                {
                     return Err(bad(
                         "registration provider changes its concrete C role signature",
                     ));
@@ -1496,7 +1562,9 @@ impl Check<'_, '_> {
                 depth + 1,
             )? != Some(true)
             {
-                return Err(bad("registration callback lacks its independently proved complete ClosedEnvironment premise"));
+                return Err(bad(
+                    "registration callback lacks its independently proved complete ClosedEnvironment premise",
+                ));
             }
             let threaded_capable = self.sealed_capability(
                 owner,
@@ -1510,6 +1578,11 @@ impl Check<'_, '_> {
                     SemanticBuiltinTrait::ThreadCallable,
                     depth + 1,
                 )? == Some(true);
+            if threaded_provider == Some(true) && !threaded_capable {
+                return Err(bad(
+                    "thread registration lacks original callback Transfer and ThreadCallable proofs",
+                ));
+            }
             let result = SemanticTypeRecipe::Managed(Box::new(if asynchronous {
                 SemanticTypeRecipe::AsyncRegistration(Box::new(copy_recipe(
                     &callback,
@@ -1587,27 +1660,28 @@ impl Check<'_, '_> {
                 _ => {
                     return Err(bad(
                         "registration operation changes its ownership or receiver access mode",
-                    ))
+                    ));
                 }
             };
-            let environment =
-                match (inner, op) {
-                    (
-                        SemanticTypeRecipe::Registration(environment),
-                        RegistrationOp::Valid | RegistrationOp::Close,
-                    ) => environment.as_ref(),
-                    (
-                        SemanticTypeRecipe::AsyncRegistration(environment),
-                        RegistrationOp::AsyncValid
-                        | RegistrationOp::AsyncRequest
-                        | RegistrationOp::AsyncPollClose
-                        | RegistrationOp::AsyncFinish
-                        | RegistrationOp::AsyncFinishChecked,
-                    ) => environment.as_ref(),
-                    _ => return Err(bad(
+            let environment = match (inner, op) {
+                (
+                    SemanticTypeRecipe::Registration(environment),
+                    RegistrationOp::Valid | RegistrationOp::Close,
+                ) => environment.as_ref(),
+                (
+                    SemanticTypeRecipe::AsyncRegistration(environment),
+                    RegistrationOp::AsyncValid
+                    | RegistrationOp::AsyncRequest
+                    | RegistrationOp::AsyncPollClose
+                    | RegistrationOp::AsyncFinish
+                    | RegistrationOp::AsyncFinishChecked,
+                ) => environment.as_ref(),
+                _ => {
+                    return Err(bad(
                         "registration operation changes its synchronous/asynchronous head family",
-                    )),
-                };
+                    ));
+                }
+            };
             let actual = copy_recipe(environment, self.limits, self.left)?;
             let result = if matches!(op, RegistrationOp::Valid | RegistrationOp::AsyncValid) {
                 SemanticTypeRecipe::Atom(Type::Bool)
