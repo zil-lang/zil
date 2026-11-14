@@ -1212,12 +1212,26 @@ impl World<'_, '_> {
                             if name != &recipe.name {
                                 return Err(bad("constructor changes original field identity"));
                             }
-                            let recipe = super::instantiate::ty(
-                                &recipe.ty,
-                                arguments,
-                                self.limits,
-                                self.left,
-                            )?;
+                            let recipe = {
+                                let ledger = self.ledger;
+                                let proof = ledger.original.borrow();
+                                let proof = proof.as_ref().ok_or_else(|| {
+                                    bad("nominal construction has no checked original domain proof")
+                                })?;
+                                super::instantiate::ty(
+                                    self.program,
+                                    proof,
+                                    &recipe.ty,
+                                    super::instantiate::DomainMapping {
+                                        source: nominal.id,
+                                        use_definition: instance.definition,
+                                        arguments,
+                                        parent_call: None,
+                                    },
+                                    self.limits,
+                                    self.left,
+                                )?
+                            };
                             let expected_field = self.ty(instance.id, &recipe, ty)?;
                             let value = self.get(values, *field)?;
                             self.same(instance.id, &value, &expected_field, implicit)?;
@@ -1253,8 +1267,26 @@ impl World<'_, '_> {
                         for ((field, recipe), ty) in
                             fields.iter().zip(&recipe.fields).zip(actual_fields)
                         {
-                            let recipe =
-                                super::instantiate::ty(recipe, arguments, self.limits, self.left)?;
+                            let recipe = {
+                                let ledger = self.ledger;
+                                let proof = ledger.original.borrow();
+                                let proof = proof.as_ref().ok_or_else(|| {
+                                    bad("variant construction has no checked original domain proof")
+                                })?;
+                                super::instantiate::ty(
+                                    self.program,
+                                    proof,
+                                    recipe,
+                                    super::instantiate::DomainMapping {
+                                        source: nominal.id,
+                                        use_definition: instance.definition,
+                                        arguments,
+                                        parent_call: None,
+                                    },
+                                    self.limits,
+                                    self.left,
+                                )?
+                            };
                             let expected_field = self.ty(instance.id, &recipe, ty)?;
                             let value = self.get(values, *field)?;
                             self.same(instance.id, &value, &expected_field, implicit)?;

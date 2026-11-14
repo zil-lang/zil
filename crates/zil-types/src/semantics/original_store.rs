@@ -211,8 +211,19 @@ impl Check<'_, '_> {
             }
         }
         for field in fields {
-            let field =
-                super::super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
+            let field = super::super::instantiate::ty(
+                self.program,
+                &self.proof,
+                &field.ty,
+                super::super::instantiate::DomainMapping {
+                    source: declaration.id,
+                    use_definition: owner,
+                    arguments,
+                    parent_call: None,
+                },
+                self.limits,
+                self.left,
+            )?;
             if !self.copy_type(owner, &field, depth + 1)?
                 || self.sealed_capability(
                     owner,

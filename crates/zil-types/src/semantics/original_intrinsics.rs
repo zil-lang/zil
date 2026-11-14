@@ -919,6 +919,7 @@ impl Check<'_, '_> {
     }
     fn task_failure(
         &mut self,
+        owner: SemanticDefinitionId,
         parameters: &[SemanticParameterRecipe],
         shape: &SemanticRetainedShapeRecipe,
         depth: usize,
@@ -927,7 +928,7 @@ impl Check<'_, '_> {
         let mut inputs = Vec::new();
         let mut owns = false;
         for parameter in parameters {
-            owns |= self.task_input_owns(&parameter.ty, depth + 1)?;
+            owns |= self.task_input_owns(owner, &parameter.ty, depth + 1)?;
             inputs.push(copy_recipe(&parameter.ty, self.limits, self.left)?);
         }
         crate::dyn_metadata::semantic_operand_snapshot(shape, self.limits, self.left, 1)?;
@@ -949,7 +950,12 @@ impl Check<'_, '_> {
             depth + 1,
         )
     }
-    fn task_input_owns(&mut self, ty: &SemanticTypeRecipe, depth: usize) -> R<bool> {
+    fn task_input_owns(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
         self.pay(1, depth)?;
         Ok(match ty {
             SemanticTypeRecipe::Managed(_)
@@ -963,15 +969,16 @@ impl Check<'_, '_> {
                 self.pay(fields.len(), depth)?;
                 let mut owns = false;
                 for field in fields {
-                    owns |= self.task_input_owns(field, depth + 1)?;
+                    owns |= self.task_input_owns(owner, field, depth + 1)?;
                 }
                 owns
             }
             SemanticTypeRecipe::Array { element, .. } => {
-                self.task_input_owns(element, depth + 1)?
+                self.task_input_owns(owner, element, depth + 1)?
             }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
-                self.task_input_owns(error, depth + 1)? | self.task_input_owns(result, depth + 1)?
+                self.task_input_owns(owner, error, depth + 1)?
+                    | self.task_input_owns(owner, result, depth + 1)?
             }
             SemanticTypeRecipe::Nominal {
                 definition,
@@ -991,12 +998,19 @@ impl Check<'_, '_> {
                         let mut owns = false;
                         for field in fields {
                             let field = super::super::instantiate::ty(
+                                self.program,
+                                &self.proof,
                                 &field.ty,
-                                arguments,
+                                super::super::instantiate::DomainMapping {
+                                    source: definition.id,
+                                    use_definition: owner,
+                                    arguments,
+                                    parent_call: None,
+                                },
                                 self.limits,
                                 self.left,
                             )?;
-                            owns |= self.task_input_owns(&field, depth + 1)?;
+                            owns |= self.task_input_owns(owner, &field, depth + 1)?;
                         }
                         owns
                     }
@@ -1010,12 +1024,19 @@ impl Check<'_, '_> {
                             self.pay(variant.fields.len(), depth)?;
                             for field in &variant.fields {
                                 let field = super::super::instantiate::ty(
+                                    self.program,
+                                    &self.proof,
                                     field,
-                                    arguments,
+                                    super::super::instantiate::DomainMapping {
+                                        source: definition.id,
+                                        use_definition: owner,
+                                        arguments,
+                                        parent_call: None,
+                                    },
                                     self.limits,
                                     self.left,
                                 )?;
-                                owns |= self.task_input_owns(&field, depth + 1)?;
+                                owns |= self.task_input_owns(owner, &field, depth + 1)?;
                             }
                         }
                         owns
@@ -1136,7 +1157,7 @@ impl Check<'_, '_> {
             } else {
                 let shape = self.empty_task_shape(&signature.parameters, &payload, depth + 1)?;
                 let error = if name == "task_create_owned" {
-                    self.task_failure(&signature.parameters, &shape, depth + 1)?
+                    self.task_failure(owner, &signature.parameters, &shape, depth + 1)?
                 } else {
                     self.compiler_carrier(
                         zil_ir::builtin_life::TASK_CREATE_ERROR,

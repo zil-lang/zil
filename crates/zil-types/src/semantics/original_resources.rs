@@ -104,8 +104,19 @@ impl Check<'_, '_> {
                 .iter()
                 .find(|field| field.name == *name)
                 .ok_or_else(|| bad("original record constructor changes a field identity"))?;
-            let expected =
-                super::super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
+            let expected = super::super::instantiate::ty(
+                self.program,
+                &self.proof,
+                &field.ty,
+                super::super::instantiate::DomainMapping {
+                    source: original.id,
+                    use_definition: owner,
+                    arguments,
+                    parent_call: None,
+                },
+                self.limits,
+                self.left,
+            )?;
             let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
             self.same(&actual, &expected)?;
         }
@@ -417,8 +428,19 @@ impl Check<'_, '_> {
                 };
                 let mut all = true;
                 for field in fields {
-                    let field =
-                        super::super::instantiate::ty(field, arguments, self.limits, self.left)?;
+                    let field = super::super::instantiate::ty(
+                        self.program,
+                        &self.proof,
+                        field,
+                        super::super::instantiate::DomainMapping {
+                            source: declaration.id,
+                            use_definition: owner,
+                            arguments,
+                            parent_call: None,
+                        },
+                        self.limits,
+                        self.left,
+                    )?;
                     match self.sealed_capability(owner, &field, kind, depth + 1)? {
                         Some(value) => all &= value,
                         None => return Ok(None),
