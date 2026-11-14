@@ -2,6 +2,7 @@
 //! correspondence data, never a provider/where/cleanup permission theorem.
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
+use zil_base::NodeId;
 
 pub(crate) fn relocate(
     program: &SemanticModule,
@@ -57,8 +58,8 @@ pub(crate) fn relocate(
                     "Dyn registry target is not an original method definition",
                 ));
             }
-            crate::dyn_metadata::semantic_operand_snapshot(&definition.identity, limits, left, 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(&original.identity, limits, left, 1)?;
+            identity_work(&definition.identity, left)?;
+            identity_work(&original.identity, left)?;
             if definition.identity != original.identity {
                 return Err(bad(
                     "Dyn registry method changes its complete original identity",
@@ -162,6 +163,27 @@ pub(crate) fn relocate(
             .and_then(|row| row.instances.get_mut(specialization))
             .ok_or_else(|| bad("Dyn registry record disappeared during relocation"))?;
         record.function = DynFunctionTarget::Typed(target);
+    }
+    Ok(())
+}
+
+fn identity_work(identity: &LifeDeclarationIdentity, left: &mut usize) -> R<()> {
+    provider_fee(
+        left,
+        identity
+            .package
+            .len()
+            .saturating_add(identity.module_path.len())
+            .saturating_add(identity.declaration_path.len())
+            .saturating_add(identity.generation_path.len())
+            .saturating_add(1),
+    )?;
+    for part in identity
+        .module_path
+        .iter()
+        .chain(&identity.declaration_path)
+    {
+        provider_fee(left, part.len())?;
     }
     Ok(())
 }
