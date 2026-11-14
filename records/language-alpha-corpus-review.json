@@ -1,0 +1,41 @@
+{
+  "reviewed_at_utc": "2026-11-14T05:23:54.929891+00:00",
+  "reviewer": "Astra; read all36 source units/1545 lines and public contracts, no Analyze/Verify algorithm reading",
+  "original_receipt": "records/language-alpha-validation/e13f41bbd.json",
+  "findings": [
+    {
+      "family": "foreign-lifecycle",
+      "source": "tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+      "invalid_definition": "install<F>",
+      "missing": "SyncDrop(F), independently required by callback constructor failure cleanup",
+      "preservation": "Original file unchanged; its exact hash is retained in validation/language-foundation-profile.json",
+      "new_positive": "tests/language-readiness/foreign-thread-registration/threaded-generic-sync-drop.zil",
+      "notes": "closed<F> operates an already initialized sealed owner and may use only that owner construction invariant, not a global ability to destroy independent F values; it does not prove synchronous owner closure."
+    },
+    {
+      "family": "ownership",
+      "source": "examples/mainline/state-replacement/state.zil",
+      "invalid_definitions": [
+        "replace<T,F>",
+        "replace_first<T,F>"
+      ],
+      "missing": "SyncDrop(F) at cancel/early-return discarded replacement and old-field overwrite",
+      "preservation": "Original five .zil project units are byte-preserved under tests/language-readiness/original-obligations/state-replacement-missing-sync-drop; hashes recorded in the product profile.",
+      "new_positive": "Existing example project, with only the two required API bounds added; main entry bytes unchanged but dependency/project identity changed.",
+      "notes": "No SyncDrop added to pack whole-value transfer, consume_replace FnOnce consumption/reinitialization, or invoke borrowed F."
+    }
+  ],
+  "other_eleven": "No comparable high-confidence missing generic obligation found by public-source review; not proof that all semantics or implementations are complete.",
+  "do_not_add_obligations": [
+    "StoreElement already entails Value+SyncDrop where the public profile says so.",
+    "std.iter Item/Output and collect/fold predicates include existing where constraints.",
+    "ThreadCallable, Transfer, ClosedEnvironment and FnMut do not imply synchronous final environment cleanup.",
+    "Source type admissibility is separate from operation/loan/capability/cleanup permission."
+  ],
+  "implementation_commits": [
+    "c706c8f53",
+    "44297b3e9"
+  ],
+  "acceptance": "Thirteen separately identified valid feature programs/projects, plus four preserved missing-bound negative entries. Negative acceptance requires intended semantic rejection rather than Unsupported/ResourceLimit. Each positive still needs nonzero independent Verify and its full original native/C consumer/failure cleanup. Never call this original13/13 success.",
+  "status": "Corpus expectations corrected; no implementation or feature success is claimed by this audit."
+}

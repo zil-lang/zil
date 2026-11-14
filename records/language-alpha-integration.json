@@ -50,7 +50,7 @@
       "status": "Complete24 Source suite imported; numeric owns final captured-owned-result production integration"
     }
   },
-  "alpha_release_rule": "Only a single exact candidate covering required core language capability families with actual complete native/error/counterexample evidence is Alpha-ready; no safety relaxation or higher default budgets.",
+  "alpha_release_rule": "One exact candidate covers13 semantically valid core feature programs/projects plus the intended missing-bound negative controls, with nonzero independent Verify, native/C/failure-cleanup evidence and no safety or default-budget relaxation. Two old positive expectations were invalid; their complete bytes/hashes remain preserved and can never be described as original13/13 success.",
   "common_checkpoints": [
     "c6f100934e126038bcf68ce548ba4b71a5d08e0a",
     "e8f32e1cf4251fbf1810a9d6d4da4f8692ac9f04",
@@ -2012,5 +2012,7 @@
       "passed": 133,
       "failed": 0
     }
-  ]
+  ],
+  "corpus_review": "records/language-alpha-corpus-review.json",
+  "current_product_profile": "validation/language-foundation-profile.json"
 }
