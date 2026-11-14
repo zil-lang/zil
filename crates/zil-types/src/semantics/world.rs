@@ -20,6 +20,8 @@ mod intrinsics;
 mod methods;
 #[path = "world_projection.rs"]
 mod projection;
+#[path = "world_protocol.rs"]
+mod protocol;
 #[path = "world_roles.rs"]
 mod roles;
 /// Relocation may identify a sealed opcode only by its independently checked
@@ -1629,6 +1631,7 @@ impl World<'_, '_> {
                 "actual function changes its complete original signature",
             ));
         }
+        protocol::header(self, original, f)?;
         self.requirements(instance, original, None, &BTreeMap::new())?;
         self.pay(
             self.program
