@@ -12,6 +12,12 @@ struct Check<'a, 'b> {
     phase: InventoryPhase,
     active: Vec<usize>,
     active_closures: Vec<ClosureId>,
+    // Borrowed immutable directory, local to this exact Check/phase. Hashes
+    // select candidates only; every collision still uses complete Type Eq.
+    type_index:
+        Option<std::collections::BTreeMap<zil_base::Fingerprint, Vec<&'a LifeNominalInstance>>>,
+    checked_rows: std::collections::BTreeSet<usize>,
+    checked_closures: std::collections::BTreeSet<ClosureId>,
 }
 fn unknown(message: &str) -> Diagnostic {
     unsupported(Span::default(), message)
@@ -28,6 +34,53 @@ impl<'a> Check<'a, '_> {
         }
         Ok(())
     }
+    fn candidates(&mut self, ty: &Type) -> R<Vec<&'a LifeNominalInstance>> {
+        if self.type_index.is_none() {
+            if self.instances.len() > self.limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "ordinary nominal index exceeds node limit",
+                    None,
+                ));
+            }
+            let mut index: std::collections::BTreeMap<
+                zil_base::Fingerprint,
+                Vec<&'a LifeNominalInstance>,
+            > = std::collections::BTreeMap::new();
+            fee(self.left, self.instances.len(), Span::default())?;
+            for row in self.instances {
+                inference::charge_type_snapshot(
+                    &row.ty,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    2,
+                )?;
+                let key = row.ty.fingerprint();
+                fee(
+                    self.left,
+                    (usize::BITS - index.len().leading_zeros()) as usize + 2,
+                    Span::default(),
+                )?;
+                index.entry(key).or_default().push(row);
+            }
+            self.type_index = Some(index);
+        }
+        inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 2)?;
+        let key = ty.fingerprint();
+        let index = self
+            .type_index
+            .as_ref()
+            .ok_or_else(|| unknown("ordinary nominal index was not built"))?;
+        fee(
+            self.left,
+            (usize::BITS - index.len().leading_zeros()) as usize + 1,
+            Span::default(),
+        )?;
+        let rows = index.get(&key).map(Vec::as_slice).unwrap_or(&[]);
+        fee(self.left, rows.len().saturating_add(1), Span::default())?;
+        Ok(rows.to_vec())
+    }
     fn row(&mut self, instance: &'a LifeNominalInstance, depth: usize) -> R<()> {
         self.node(depth)?;
         let key = instance as *const LifeNominalInstance as usize;
@@ -42,6 +95,14 @@ impl<'a> Check<'a, '_> {
                 Span::default(),
                 "ordinary nominal domain depends cyclically on its own asserted catalogue",
             ));
+        }
+        fee(
+            self.left,
+            (usize::BITS - self.checked_rows.len().leading_zeros()) as usize + 1,
+            Span::default(),
+        )?;
+        if self.checked_rows.contains(&key) {
+            return Ok(());
         }
         self.active.push(key);
         fee(self.left, self.declarations.len(), Span::default())?;
@@ -253,6 +314,12 @@ impl<'a> Check<'a, '_> {
         }
         self.fields(physical, depth + 1)?;
         self.active.pop();
+        fee(
+            self.left,
+            (usize::BITS - self.checked_rows.len().leading_zeros()) as usize + 1,
+            Span::default(),
+        )?;
+        self.checked_rows.insert(key);
         Ok(())
     }
     fn failure_instance(
@@ -457,15 +524,7 @@ impl<'a> Check<'a, '_> {
         let module = self.module.ok_or_else(|| unknown(
             "Core closure placeholder requires its actual emitted definition and complete domain",
         ))?;
-        fee(
-            self.left,
-            module
-                .closures
-                .len()
-                .saturating_add(module.functions.len())
-                .saturating_add(self.active_closures.len()),
-            Span::default(),
-        )?;
+        fee(self.left, self.active_closures.len(), Span::default())?;
         if self.active_closures.contains(&id) {
             return Err(error(
                 "E-NOMINAL-DOMAIN",
@@ -473,6 +532,19 @@ impl<'a> Check<'a, '_> {
                 "closure domain depends cyclically on its own asserted environment",
             ));
         }
+        fee(
+            self.left,
+            (usize::BITS - self.checked_closures.len().leading_zeros()) as usize + 1,
+            Span::default(),
+        )?;
+        if self.checked_closures.contains(&id) {
+            return Ok(());
+        }
+        fee(
+            self.left,
+            module.closures.len().saturating_add(module.functions.len()),
+            Span::default(),
+        )?;
         let mut definitions = module.closures.iter().filter(|d| d.id == id);
         let definition = definitions
             .next()
@@ -607,6 +679,12 @@ impl<'a> Check<'a, '_> {
             }
         }
         self.active_closures.pop();
+        fee(
+            self.left,
+            (usize::BITS - self.checked_closures.len().leading_zeros()) as usize + 1,
+            Span::default(),
+        )?;
+        self.checked_closures.insert(id);
         Ok(())
     }
     fn ty(&mut self, ty: &Type, depth: usize) -> R<()> {
@@ -715,9 +793,9 @@ impl<'a> Check<'a, '_> {
                 if canonical_nullary_enum(ty, self.limits, self.left)? {
                     return Ok(());
                 }
-                fee(self.left, self.instances.len(), Span::default())?;
+                let candidates = self.candidates(ty)?;
                 let mut selected: Option<&LifeNominalInstance> = None;
-                for row in self.instances {
+                for row in candidates {
                     inference::charge_type_snapshot(
                         &row.ty,
                         Span::default(),
@@ -885,6 +963,9 @@ pub(super) fn rows(
         phase,
         active: Vec::new(),
         active_closures: Vec::new(),
+        type_index: None,
+        checked_rows: Default::default(),
+        checked_closures: Default::default(),
     }
     .row(instance, 0)
 }
@@ -902,6 +983,9 @@ pub(super) fn module(module: &TypedModule, limits: &Limits, left: &mut usize) ->
         phase: InventoryPhase::Resolved,
         active: Vec::new(),
         active_closures: Vec::new(),
+        type_index: None,
+        checked_rows: Default::default(),
+        checked_closures: Default::default(),
     };
     for row in &module.life_instances {
         for actual in &row.arguments {
@@ -942,6 +1026,9 @@ pub(super) fn zero_type(
         phase: InventoryPhase::Resolved,
         active: Vec::new(),
         active_closures: Vec::new(),
+        type_index: None,
+        checked_rows: Default::default(),
+        checked_closures: Default::default(),
     }
     .ty(ty, 0)
 }
