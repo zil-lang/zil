@@ -483,8 +483,7 @@ impl Budget {
                     )?;
                     let mut errors = bad("dyn type lacks a checked interface");
                     errors[0].notes.push(format!(
-                        "actual interface {}, metadata consumer {context}",
-                        interface.0
+                        "actual interface {interface:?}, metadata consumer {context}"
                     ));
                     return Err(errors);
                 }
