@@ -2,6 +2,8 @@
 //! binder identities are preserved; caller images never determine a header.
 use super::emission::Ledger;
 use crate::*;
+#[path = "creator_invocations.rs"]
+mod invocations;
 #[path = "header_rows.rs"]
 pub(super) mod rows;
 fn bad(message: &str) -> Diagnostic {
@@ -86,6 +88,7 @@ pub(super) fn populate(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    invocations::seed(program, module, ledger, limits, left)?;
     let mut changes = Vec::new();
     for instance in &program.instances {
         pay(left, 1)?;
