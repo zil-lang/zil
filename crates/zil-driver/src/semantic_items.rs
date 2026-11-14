@@ -532,7 +532,12 @@ impl Store {
         };
         if let Ok(CacheRead::Candidate(bytes)) =
             ArtifactCache::with_limit(&self.root, maximum).inspect_candidate(self.key)
-            && let Some(epoch) = packed::Epoch::hint(&self.root.join("packs-v1"), &bytes, bounds)
+            && let Some(epoch) = packed::Epoch::hint(
+                &self.root.join("packs-v1"),
+                &bytes,
+                bounds,
+                &options.cancellation,
+            )
         {
             publication.semantic_packs = epoch;
         }

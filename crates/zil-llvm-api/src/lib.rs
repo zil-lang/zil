@@ -343,6 +343,7 @@ impl NativeWorkProducts {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
+    pub emission_reuse: Option<EmissionReuseStats>,
     pub late_closed: Option<LateClosedReport>,
     pub llvm_version: String,
     pub triple: String,
@@ -361,6 +362,35 @@ pub struct Receipt {
     pub emit_ns: u64,
     pub total_ns: u64,
     pub native_products: Option<NativeProductStats>,
+}
+
+/// Current-request-only repeated machine-body work. This is an observation,
+/// never a language or machine preflight capability.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EmissionReuseStats {
+    pub considered_functions: usize,
+    pub distinct_bodies: usize,
+    pub reused_functions: usize,
+    pub selection_ns: u64,
+    pub machine_assembly_ns: u64,
+    pub reconstruction_ns: u64,
+    pub assembly_ns: u64,
+    pub fallback: bool,
+}
+impl EmissionReuseStats {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"considered_functions\":{},\"distinct_bodies\":{},\"reused_functions\":{},\"selection_ns\":{},\"machine_assembly_ns\":{},\"reconstruction_ns\":{},\"assembly_ns\":{},\"fallback\":{},\"scope\":\"current-post-O2-module; fresh canonical machine producer; distinct function symbols\"}}",
+            self.considered_functions,
+            self.distinct_bodies,
+            self.reused_functions,
+            self.selection_ns,
+            self.machine_assembly_ns,
+            self.reconstruction_ns,
+            self.assembly_ns,
+            self.fallback
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -492,6 +522,28 @@ pub fn compile_module_with_preflight_receipt(
     #[cfg(feature = "native")]
     {
         native::compile_module_with_preflight_receipt(module, config, function_merging, cancelled)
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        let _ = (module, config, function_merging, cancelled);
+        Err(Error {
+            kind: ErrorKind::Unavailable,
+            message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),
+        })
+    }
+}
+
+/// Complete current preflight and IR O2, with conservative current-module
+/// machine-body reuse. All declined shapes use ordinary object generation.
+pub fn compile_module_with_emission_reuse(
+    module: &model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<(Object, PreflightReceipt), Error> {
+    #[cfg(feature = "native")]
+    {
+        native::compile_module_with_emission_reuse(module, config, function_merging, cancelled)
     }
     #[cfg(not(feature = "native"))]
     {

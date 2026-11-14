@@ -1364,6 +1364,12 @@ impl CompilationSession {
         build.incremental_o2 = options.incremental_o2;
         let native_selection = select_native_products(lir.functions, options);
         build.native_products = native_selection.enabled;
+        build.emission_reuse = options.push_reuse
+            && options.backend == NativeBackend::LlvmApi
+            && options.optimization == Optimization::O2
+            && !build.native_products
+            && !options.closed_executable
+            && !options.late_closed_executable;
         report.native_product_selection = Some(Box::new(native_selection));
         // The current BuildOptions value enters the original backend config
         // match and successful native-history commit. A cheap successful build

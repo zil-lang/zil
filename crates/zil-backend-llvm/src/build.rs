@@ -162,6 +162,8 @@ pub struct BuildOptions {
     pub incremental_o2: bool,
     /// Explicit audited LLVM optimization/machine products; no default opt-in.
     pub native_products: bool,
+    /// Explicit current-module post-O2 machine-body sharing. No default opt-in.
+    pub emission_reuse: bool,
     /// Explicit O2 pass policy; default preserves the reference pipeline.
     pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
@@ -185,6 +187,7 @@ impl BuildOptions {
             late_closed_executable: false,
             incremental_o2: false,
             native_products: false,
+            emission_reuse: false,
             function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,
@@ -980,6 +983,7 @@ pub fn build_view_with_cancellation_and_session(
                     key: None,
                     preflight: None,
                     retain_preflight: session.is_some(),
+                    emission_reuse: options.emission_reuse,
                     native_owner: options.native_products.then(|| {
                         crate::incremental::NativeUnitOwner {
                             triple: lir.target.triple.clone(),
@@ -1331,6 +1335,7 @@ struct UnitInput {
     key: Option<zil_base::Fingerprint>,
     preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
     retain_preflight: bool,
+    emission_reuse: bool,
     native_owner: Option<crate::incremental::NativeUnitOwner>,
     native_prior: Option<std::sync::Arc<crate::incremental::NativeUnitProduct>>,
     native_history: Vec<std::sync::Arc<crate::incremental::NativeUnitProduct>>,
@@ -1750,6 +1755,15 @@ fn compile_api_unit_with_cohorts(
         )
         .map_err(api_error)?;
         (object, Some(std::sync::Arc::new(receipt)), products)
+    } else if unit.emission_reuse {
+        let (object, receipt) = zil_llvm_api::compile_module_with_emission_reuse(
+            &unit.module,
+            &config,
+            function_merging,
+            cancelled,
+        )
+        .map_err(api_error)?;
+        (object, Some(std::sync::Arc::new(receipt)), None)
     } else if unit.retain_preflight {
         let (object, receipt) = zil_llvm_api::compile_module_with_preflight_receipt(
             &unit.module,
@@ -1811,6 +1825,12 @@ fn compile_api_unit_with_cohorts(
         r.total_ns
     );
 
+    if let Some(stats) = &r.emission_reuse {
+        receipt.pop();
+        receipt.push_str(",\"emission_reuse\":");
+        receipt.push_str(&stats.to_json());
+        receipt.push('}');
+    }
     if let Some(report) = &r.late_closed {
         receipt.pop();
         receipt.push_str(",\"late_closed\":");
@@ -2019,6 +2039,7 @@ mod native_history_cache_tests {
             key: None,
             preflight: None,
             retain_preflight: true,
+            emission_reuse: false,
             native_owner: Some(owner),
             native_prior,
             native_history,

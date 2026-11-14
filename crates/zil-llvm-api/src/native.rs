@@ -9,6 +9,7 @@ enum Input<'a> {
     #[cfg(feature = "text-reference")]
     Text(&'a str),
     Structured(&'a crate::model::Module),
+    StructuredEmission(&'a crate::model::Module),
 }
 use std::{
     ffi::{CStr, CString, c_char, c_int, c_uint, c_void},
@@ -114,6 +115,8 @@ owned!(Layout, LLVMDisposeTargetData);
 owned!(PassOptions, LLVMDisposePassBuilderOptions);
 owned!(Buffer, LLVMDisposeMemoryBuffer);
 mod builder;
+mod emission;
+mod emission_assembly;
 #[cfg(test)]
 mod late_closed_tests;
 pub(crate) mod products;
@@ -218,6 +221,25 @@ pub(super) fn compile_module_with_preflight_receipt(
     Ok((
         object,
         receipt.expect("structured preflight issued a receipt"),
+    ))
+}
+pub(super) fn compile_module_with_emission_reuse(
+    module: &crate::model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<(Object, PreflightReceipt), Error> {
+    let (object, receipt) = compile_input(
+        Input::StructuredEmission(module),
+        config,
+        function_merging,
+        cancelled,
+        true,
+        None,
+    )?;
+    Ok((
+        object,
+        receipt.expect("current complete structured preflight"),
     ))
 }
 #[derive(Default)]
@@ -494,6 +516,7 @@ fn compile_input_with_policy(
     late_closed: Option<&crate::LateClosedPlan>,
 ) -> Result<(Object, Option<PreflightReceipt>), Error> {
     let start = Instant::now();
+    let emission_requested = matches!(&input, Input::StructuredEmission(_));
     // A cancellation callback may reenter ordinary/native compilation. Suspend
     // its outer request for this complete invocation, including fresh fallback.
     // This guard outlives every LLVM owner declared below and restores TLS last.
@@ -515,7 +538,7 @@ fn compile_input_with_policy(
     check(cancelled)?;
     if let Some(plan) = late_closed {
         let module = match &input {
-            Input::Structured(module) => *module,
+            Input::Structured(module) | Input::StructuredEmission(module) => *module,
             #[cfg(feature = "text-reference")]
             Input::Text(_) => {
                 return Err(error(
@@ -616,7 +639,7 @@ fn compile_input_with_policy(
             }
             (module, "llvm-text", 0, 0, nanos(t), None)
         }
-        Input::Structured(program) => {
+        Input::Structured(program) | Input::StructuredEmission(program) => {
             if program.triple != config.triple {
                 return Err(error(
                     ErrorKind::Target,
@@ -771,36 +794,50 @@ fn compile_input_with_policy(
         scope.phase(2);
     }
     let t = Instant::now();
-    let mut object = ptr::null_mut();
-    let mut msg = ptr::null_mut();
-    // LLVMObjectFile=1. No file is created until the full object is returned.
-    let failed = unsafe {
-        LLVMTargetMachineEmitToMemoryBuffer(machine.0, module.0, 1, &mut msg, &mut object)
+    let (reconstructed, emission_reuse) = if emission_requested
+        && config.optimization == Optimization::O2
+        && config.triple == "x86_64-unknown-linux-gnu"
+        && function_merging == FunctionMerging::Disabled
+    {
+        let (bytes, stats) = emission::try_emit(&module, &machine, config, cancelled)?;
+        (bytes, Some(stats))
+    } else {
+        (None, None)
     };
-    let object = Buffer(object);
-    let message = unsafe { take_message(msg) };
-    let replay_failed = product_scope
-        .as_mut()
-        .is_some_and(products::Scope::replay_failed);
-    if let Some(timings) = attempt_timings.as_deref_mut() {
-        timings.emit_ns = nanos(t);
-    }
-    if replay_failed {
-        return Err(error(
-            ErrorKind::Emit,
-            "native machine replay failed; discard request",
-        ));
-    }
-    if failed != 0 || object.0.is_null() {
-        return Err(error(ErrorKind::Emit, message));
-    }
-    let len = unsafe { LLVMGetBufferSize(object.0) };
-    let ptr = unsafe { LLVMGetBufferStart(object.0) };
-    if len == 0 || len > isize::MAX as usize || ptr.is_null() {
-        return Err(error(ErrorKind::Emit, "invalid object buffer"));
-    }
-    // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
-    let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
+    let bytes = if let Some(bytes) = reconstructed {
+        bytes
+    } else {
+        let mut object = ptr::null_mut();
+        let mut msg = ptr::null_mut();
+        // LLVMObjectFile=1. No file is created until the full object is returned.
+        let failed = unsafe {
+            LLVMTargetMachineEmitToMemoryBuffer(machine.0, module.0, 1, &mut msg, &mut object)
+        };
+        let object = Buffer(object);
+        let message = unsafe { take_message(msg) };
+        let replay_failed = product_scope
+            .as_mut()
+            .is_some_and(products::Scope::replay_failed);
+        if let Some(timings) = attempt_timings.as_deref_mut() {
+            timings.emit_ns = nanos(t);
+        }
+        if replay_failed {
+            return Err(error(
+                ErrorKind::Emit,
+                "native machine replay failed; discard request",
+            ));
+        }
+        if failed != 0 || object.0.is_null() {
+            return Err(error(ErrorKind::Emit, message));
+        }
+        let len = unsafe { LLVMGetBufferSize(object.0) };
+        let ptr = unsafe { LLVMGetBufferStart(object.0) };
+        if len == 0 || len > isize::MAX as usize || ptr.is_null() {
+            return Err(error(ErrorKind::Emit, "invalid object buffer"));
+        }
+        // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
+        unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec()
+    };
     let emit_ns = nanos(t);
     if let Some(timings) = attempt_timings {
         timings.emit_ns = emit_ns;
@@ -825,6 +862,7 @@ fn compile_input_with_policy(
         Object {
             bytes,
             receipt: Receipt {
+                emission_reuse,
                 late_closed: late_report,
                 llvm_version: super::LLVM_VERSION.into(),
                 triple: config.triple.into(),

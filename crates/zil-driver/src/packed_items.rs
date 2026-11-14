@@ -12,6 +12,51 @@ const MANIFEST_HEADER: usize = 32;
 const PACK_ROW: usize = 40;
 const ITEM_ROW: usize = 80;
 const PACK_HEADER: usize = 20;
+// A second transport layer shares the otherwise repeated locator/binding
+// tables. Its output is exactly the old envelope, not a semantic certificate.
+const SHARED_MAGIC: &[u8; 8] = b"ZILPKS01";
+const SHARED_HEADER: usize = 52;
+const CHUNK_MIN: usize = 2048;
+const CHUNK_MAX: usize = 8192;
+const SHARED_THRESHOLD: usize = 2 * CHUNK_MAX;
+
+const fn gear_table() -> [u64; 256] {
+    let mut table = [0; 256];
+    let mut index = 0;
+    while index < table.len() {
+        let mut value = (index as u64).wrapping_add(0x9e3779b97f4a7c15);
+        value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+        value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
+        table[index] = value ^ (value >> 31);
+        index += 1;
+    }
+    table
+}
+const GEAR: [u64; 256] = gear_table();
+
+/// Content-defined boundaries resynchronize after insertions in sorted tables;
+/// fixed offsets would duplicate their entire shifted suffix. Always bounded,
+/// deterministic and independent of function identities or benchmark names.
+fn chunks(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
+    let mut remaining = bytes;
+    std::iter::from_fn(move || {
+        if remaining.is_empty() {
+            return None;
+        }
+        let mut end = remaining.len().min(CHUNK_MAX);
+        let mut hash = 0u64;
+        for (index, byte) in remaining[..end].iter().enumerate() {
+            hash = (hash << 1).wrapping_add(GEAR[usize::from(*byte)]);
+            if index + 1 >= CHUNK_MIN && hash & 2047 == 0 {
+                end = index + 1;
+                break;
+            }
+        }
+        let (chunk, rest) = remaining.split_at(end);
+        remaining = rest;
+        Some(chunk)
+    })
+}
 
 #[derive(Clone, Copy)]
 pub(crate) struct Bounds {
@@ -54,8 +99,16 @@ pub(crate) struct Epoch {
     packs: BTreeMap<Fingerprint, PackRecord>,
 }
 impl Epoch {
-    pub(crate) fn hint(root: &Path, bytes: &[u8], bounds: Bounds) -> Option<Self> {
-        let manifest = Manifest::decode(bytes, bounds)?;
+    pub(crate) fn hint(
+        root: &Path,
+        bytes: &[u8],
+        bounds: Bounds,
+        cancellation: &CancellationToken,
+    ) -> Option<Self> {
+        if !private_directory(root, false) {
+            return None;
+        }
+        let manifest = read_manifest(root, bytes, bounds, cancellation)?;
         Some(Self {
             namespace: Some(root.to_path_buf()),
             locations: manifest.locations,
@@ -139,12 +192,12 @@ struct Manifest {
     packs: BTreeMap<Fingerprint, usize>,
 }
 pub(crate) fn is_packed(bytes: &[u8]) -> bool {
-    bytes.get(..8) == Some(MANIFEST_MAGIC)
+    bytes.get(..8) == Some(MANIFEST_MAGIC) || bytes.get(..8) == Some(SHARED_MAGIC)
 }
 
 impl Manifest {
     fn decode(bytes: &[u8], bounds: Bounds) -> Option<Self> {
-        if bytes.len() > bounds.manifest_maximum()? || !is_packed(bytes) {
+        if bytes.len() > bounds.manifest_maximum()? || bytes.get(..8) != Some(MANIFEST_MAGIC) {
             return None;
         }
         let logical_len = number(bytes, 8)?;
@@ -250,6 +303,134 @@ impl Manifest {
     }
 }
 
+fn read_chunk(root: &Path, key: Fingerprint, length: usize) -> Option<Vec<u8>> {
+    if length == 0 || length > CHUNK_MAX || stamp(&path(root, key)).is_none() {
+        return None;
+    }
+    let CacheRead::Candidate(bytes) = ArtifactCache::with_limit(root, length)
+        .inspect_candidate(key)
+        .ok()?
+    else {
+        return None;
+    };
+    (bytes.len() == length && Fingerprint::of(&bytes) == key).then_some(bytes)
+}
+
+fn read_manifest(
+    root: &Path,
+    bytes: &[u8],
+    bounds: Bounds,
+    cancellation: &CancellationToken,
+) -> Option<Manifest> {
+    if cancellation.is_cancelled() || bytes.len() > bounds.manifest_maximum()? {
+        return None;
+    }
+    if bytes.get(..8) != Some(SHARED_MAGIC) {
+        return Manifest::decode(bytes, bounds);
+    }
+    let total = number(bytes, 8)?;
+    let digest = Fingerprint(bytes.get(16..48)?.try_into().ok()?);
+    let count = count(bytes, 48)?;
+    // Bound both descriptor and reconstructed bytes before allocation or I/O.
+    // Nonfinal chunks have at least CHUNK_MIN bytes. No recursive references.
+    if total < SHARED_THRESHOLD
+        || total > bounds.manifest_maximum()?
+        || count == 0
+        || count > total.div_ceil(CHUNK_MIN)
+        || SHARED_HEADER.checked_add(count.checked_mul(PACK_ROW)?)? != bytes.len()
+    {
+        return None;
+    }
+    let rows = bytes[SHARED_HEADER..].as_chunks::<PACK_ROW>().0;
+    let mut expected = 0usize;
+    for (index, row) in rows.iter().enumerate() {
+        let length = number(row, 32)?;
+        if length == 0 || length > CHUNK_MAX || (index + 1 < count && length < CHUNK_MIN) {
+            return None;
+        }
+        expected = expected.checked_add(length).filter(|size| *size <= total)?;
+    }
+    if expected != total {
+        return None;
+    }
+    let mut envelope = Vec::with_capacity(total);
+    for row in rows {
+        if cancellation.is_cancelled() {
+            return None;
+        }
+        let key = Fingerprint(row[..32].try_into().ok()?);
+        envelope.extend_from_slice(&read_chunk(root, key, number(row, 32)?)?);
+    }
+    if cancellation.is_cancelled() || Fingerprint::of(&envelope) != digest {
+        return None;
+    }
+    // Includes all original logical/item/pack count, offset and aggregate I/O
+    // quotas. The second transport layer never grants a fresh body allowance.
+    Manifest::decode(&envelope, bounds)
+}
+
+fn share_manifest(
+    context: &PublishContext<'_>,
+    envelope: &[u8],
+    stats: &mut PublicationStats,
+) -> Option<Vec<u8>> {
+    if envelope.len() < SHARED_THRESHOLD {
+        return Some(envelope.to_vec());
+    }
+    let encode = publication_start(context.profile);
+    let pieces: Vec<_> = chunks(envelope)
+        .map(|piece| (!context.cancellation.is_cancelled()).then_some(piece))
+        .collect::<Option<_>>()?;
+    let mut descriptor =
+        Vec::with_capacity(SHARED_HEADER.checked_add(pieces.len().checked_mul(PACK_ROW)?)?);
+    descriptor.extend_from_slice(SHARED_MAGIC);
+    push_number(&mut descriptor, envelope.len())?;
+    descriptor.extend_from_slice(&Fingerprint::of(envelope).0);
+    push_count(&mut descriptor, pieces.len())?;
+    for piece in &pieces {
+        if context.cancellation.is_cancelled() {
+            return None;
+        }
+        let key = Fingerprint::of(piece);
+        descriptor.extend_from_slice(&key.0);
+        push_number(&mut descriptor, piece.len())?;
+    }
+    stats.encode_ns += publication_elapsed(encode);
+    for (piece, row) in pieces
+        .into_iter()
+        .zip(descriptor[SHARED_HEADER..].as_chunks::<PACK_ROW>().0)
+    {
+        if context.cancellation.is_cancelled() {
+            return None;
+        }
+        let key = Fingerprint(row[..32].try_into().ok()?);
+        let io = publication_start(context.profile);
+        let exists =
+            read_chunk(context.packs.root(), key, piece.len()).is_some_and(|bytes| bytes == piece);
+        stats.manifest_io_ns += publication_elapsed(io);
+        if !exists {
+            let guard = publication_start(context.profile);
+            context.packs.validate_write().ok()?;
+            stats.guard_ns += publication_elapsed(guard);
+            let io = publication_start(context.profile);
+            ArtifactCache::with_limit(context.packs.root(), CHUNK_MAX)
+                .write_candidate_cancellable(key, piece, context.cancellation)
+                .ok()?;
+            let written = stamp(&path(context.packs.root(), key))?;
+            if read_chunk(context.packs.root(), key, piece.len())?.as_slice() != piece {
+                return None;
+            }
+            // Body-pack counters retain their meaning. Manifest bytes include
+            // actual newly written shared records (outer raw headers included).
+            stats.manifest_bytes = stats
+                .manifest_bytes
+                .checked_add(usize::try_from(written.length).ok()?)?;
+            stats.manifest_io_ns += publication_elapsed(io);
+        }
+    }
+    Some(descriptor)
+}
+
 fn inspect_pack(
     root: &Path,
     key: Fingerprint,
@@ -311,7 +492,7 @@ impl Reader {
         Some(Self {
             root: root.to_path_buf(),
             bounds,
-            manifest: Manifest::decode(bytes, bounds)?,
+            manifest: read_manifest(root, bytes, bounds, cancellation)?,
             loaded: BTreeMap::new(),
             requested: BTreeSet::new(),
             cancellation: cancellation.clone(),
@@ -609,6 +790,7 @@ fn publish_with_hook(
     }
     .encode(bounds)?;
     stats.encode_ns += publication_elapsed(encode);
+    let envelope = share_manifest(&context, &envelope, &mut stats)?;
     before_manifest();
     let guard = publication_start(context.profile);
     if context.cancellation.is_cancelled() {
@@ -620,9 +802,9 @@ fn publish_with_hook(
     ArtifactCache::with_limit(context.manifest_root, bounds.manifest_maximum()?)
         .write_candidate_cancellable(context.manifest_key, &envelope, context.cancellation)
         .ok()?;
-    stats.manifest_io_ns = publication_elapsed(io);
+    stats.manifest_io_ns += publication_elapsed(io);
     stats.manifest_writes = 1;
-    stats.manifest_bytes = envelope.len();
+    stats.manifest_bytes = stats.manifest_bytes.checked_add(envelope.len())?;
     *epoch = Epoch {
         namespace: Some(context.namespace_key.to_path_buf()),
         locations,
