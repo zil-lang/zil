@@ -1063,27 +1063,113 @@ mod native_product_tests {
             "MIR reuse must reach the actual current AsmPrinter: {emission:?}"
         );
         assert!(reused.receipt.verify_before_after);
-        // A completed closed product must remain useful as an ordinary prior
-        // after its build-local peer index is gone. No peer event may claim
-        // this reuse, and current symbols/numbering still match fresh codegen.
-        let peer_before_prior = arena.stats();
-        let (prior_reused, _, closed_prior_products) = compile_module_with_cohorts(
-            &current,
+        // Isolate the closed prior: the cross-CGU fixture also contains
+        // WorldBound prefix/caller definitions which could mask a closed miss.
+        // Retain declarations (including intrinsics), but only closed leaves
+        // may have bodies. The original fixture still checks cross-CGU owners.
+        let mut leaves = cohort_module(12345, true);
+        leaves.items = leaves
+            .items
+            .iter()
+            .filter(|item| match item {
+                Item::Function(f) => f.blocks.is_none() || f.name.starts_with("zil.fn."),
+                _ => false,
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+            .into();
+        let definitions = leaves
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(f) if f.blocks.is_some() => Some(f),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(definitions.len(), 1, "one real closed leaf must execute");
+        for function in definitions {
+            assert!(function.name.starts_with("zil.fn."));
+            assert_eq!(function.linkage, Linkage::External);
+            for block in function.blocks.as_ref().unwrap().iter() {
+                for instruction in &block.instructions {
+                    if let Op::Call { callee, .. } = &instruction.op {
+                        assert!(
+                            matches!(
+                                callee,
+                                crate::model::Val::Global(name) if name.starts_with("llvm.")
+                            ),
+                            "closed leaves cannot call another ordinary definition"
+                        );
+                    }
+                }
+            }
+        }
+        let leaf_ordinary =
+            compile_module(&leaves, &config(), FunctionMerging::Disabled, &|| false).unwrap();
+        let leaf_arena = crate::NativeCohortArena::new().expect("isolated leaf producer arena");
+        let (leaf_produced, _, leaf_products) = compile_module_with_cohorts(
+            &leaves,
             &config(),
             FunctionMerging::Disabled,
             &|| false,
-            current_products.as_ref(),
+            None,
+            Some(&leaf_arena),
+        )
+        .unwrap();
+        assert_eq!(leaf_produced.bytes, leaf_ordinary.bytes);
+        assert!(leaf_produced.receipt.verify_before_after);
+        let producer_stats = leaf_produced.receipt.native_products.unwrap();
+        let producer_peer = producer_stats.cohort.expect("leaf producer cohort events");
+        assert_eq!(producer_peer.ir_replays, 0);
+        assert_eq!(producer_peer.machine_replays, 0);
+        assert_eq!(producer_stats.failed_replays, 0);
+        assert_eq!(producer_stats.fresh_context_fallbacks, 0);
+        let leaf_products = leaf_products.expect("completed closed leaf products");
+        let peer_before_prior = leaf_arena.stats().expect("leaf arena observations");
+        let (prior_reused, _, closed_prior_products) = compile_module_with_cohorts(
+            &leaves,
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            Some(&leaf_products),
             None,
         )
         .unwrap();
-        assert_eq!(prior_reused.bytes, ordinary.bytes);
+        assert_eq!(prior_reused.bytes, leaf_ordinary.bytes);
         let prior_stats = prior_reused.receipt.native_products.unwrap();
-        assert!(prior_stats.optimizer_function_stage_reuses > 0);
-        assert!(prior_stats.machine_function_reuses > 0);
+        assert!(
+            prior_stats.optimizer_function_stage_reuses > 0,
+            "the isolated leaf must reuse IR stages without an arena: {prior_stats:?}"
+        );
+        assert!(
+            prior_stats.machine_function_reuses > 0,
+            "the isolated leaf must reuse MIR without an arena: {prior_stats:?}"
+        );
+        let prior_emission = prior_stats
+            .machine_emission
+            .expect("closed-prior current MC consumer observations");
+        assert!(
+            prior_emission.replayed_functions > 0
+                && prior_emission.machine_instructions_skipped > 0
+                && prior_emission.mc_replay_events > 0,
+            "closed-prior MIR reuse must reach actual current MC emission: {prior_emission:?}"
+        );
+        assert_eq!(prior_emission.failed_replays, 0);
+        assert_eq!(prior_stats.failed_replays, 0);
         assert_eq!(prior_stats.fresh_context_fallbacks, 0);
         assert!(prior_stats.cohort.is_none());
-        assert_eq!(arena.stats(), peer_before_prior);
+        assert_eq!(leaf_arena.stats(), Some(peer_before_prior));
         assert!(prior_reused.receipt.verify_before_after);
+        assert!(closed_prior_products.is_some());
+        // Observe complete-request World work; misses and producer captures
+        // may legitimately project World, so do not assume an all-zero count.
+        eprintln!(
+            "closed-prior leaf World projections: producer direct={} fallback={}; consumer direct={} fallback={}",
+            producer_stats.world_projection_direct,
+            producer_stats.world_projection_fallback,
+            prior_stats.world_projection_direct,
+            prior_stats.world_projection_fallback
+        );
         drop(closed_prior_products);
         let before = arena.stats();
         let mut invalid = current.clone();
