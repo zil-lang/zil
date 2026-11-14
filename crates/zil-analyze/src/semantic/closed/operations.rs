@@ -546,6 +546,31 @@ impl Check<'_, '_> {
                             self.result(instruction, point.function, &Type::Unit)?;
                             return Ok(());
                         }
+                        id @ (original::sealed::Intrinsic::BytesNew
+                        | original::sealed::Intrinsic::BytesReserve
+                        | original::sealed::Intrinsic::BytesPush
+                        | original::sealed::Intrinsic::BytesTruncate
+                        | original::sealed::Intrinsic::BytesLen
+                        | original::sealed::Intrinsic::BytesCapacity) => {
+                            let output = self.buffer_operation(
+                                instance,
+                                site.recipe,
+                                id,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            self.result(
+                                instruction.ok_or_else(|| {
+                                    fail("actual ByteBuffer operation has no instruction")
+                                })?,
+                                point.function,
+                                &output,
+                            )?;
+                            return Ok(());
+                        }
                         id @ (original::sealed::Intrinsic::Register
                         | original::sealed::Intrinsic::RegisterAsync) => {
                             let output = self.registration_start_operation(

@@ -4,6 +4,7 @@
 use super::*;
 mod abstract_calls;
 mod borrows;
+mod buffers;
 mod callable_roles;
 mod capabilities;
 mod capture_heads;

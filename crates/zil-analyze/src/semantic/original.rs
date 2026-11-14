@@ -4,6 +4,7 @@ use super::*;
 use zil_base::NodeId;
 
 mod abstract_calls;
+mod buffers;
 mod capabilities;
 mod constructors;
 mod effects;
@@ -157,6 +158,7 @@ pub(super) struct Checked {
     intrinsic_inputs: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
     intrinsic_anchors: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
     native_targets: BTreeMap<(SemanticDefinitionId, NodeId), Vec<SemanticDefinitionId>>,
+    native_paths: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u32>>,
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
@@ -1654,6 +1656,29 @@ impl Solver<'_, '_> {
                         sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
                     match resolution {
                         sealed::Resolution::Intrinsic(
+                            id @ (sealed::Intrinsic::BytesNew
+                            | sealed::Intrinsic::BytesReserve
+                            | sealed::Intrinsic::BytesPush
+                            | sealed::Intrinsic::BytesTruncate
+                            | sealed::Intrinsic::BytesLen
+                            | sealed::Intrinsic::BytesCapacity),
+                        ) => {
+                            let result = self.buffer_call(
+                                frame,
+                                value.id,
+                                id,
+                                written,
+                                arguments,
+                                b,
+                                depth + 1,
+                            )?;
+                            b.lookup(frame.expressions.len(), WORK)?;
+                            if frame.expressions.insert(value.id, result).is_some() {
+                                return Err(fail("original ByteBuffer call node is reused"));
+                            }
+                            return Ok(result);
+                        }
+                        sealed::Resolution::Intrinsic(
                             id @ (sealed::Intrinsic::Register | sealed::Intrinsic::RegisterAsync),
                         ) => {
                             let result = self.registration_start(
@@ -2924,6 +2949,7 @@ pub(super) fn check(
             intrinsic_inputs: BTreeMap::new(),
             intrinsic_anchors: BTreeMap::new(),
             native_targets: BTreeMap::new(),
+            native_paths: BTreeMap::new(),
             abstract_calls: BTreeMap::new(),
             borrows: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
