@@ -133,7 +133,7 @@ impl Solver<'_, '_> {
     }
 }
 impl Checked {
-    pub(super) fn native_path(
+    pub(in crate::semantic) fn native_path(
         &self,
         instance: &SemanticInstance,
         site: SemanticSiteId,
