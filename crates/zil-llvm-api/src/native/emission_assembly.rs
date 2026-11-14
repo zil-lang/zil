@@ -688,10 +688,10 @@ pub(super) fn reconstruct(
     }
     // Reject duplicate definitions outside parsed function bodies, too.
     for line in text.lines() {
-        if let Some(label) = code(line).strip_suffix(':') {
-            if aliases.contains_key(label) {
-                return None;
-            }
+        if let Some(label) = code(line).strip_suffix(':')
+            && aliases.contains_key(label)
+        {
+            return None;
         }
     }
     let mut templates = BTreeMap::new();

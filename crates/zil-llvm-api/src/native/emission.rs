@@ -10,10 +10,10 @@ unsafe extern "C" {
     fn LLVMGetFirstFunction(module: Handle) -> Handle;
     fn LLVMGetNextFunction(function: Handle) -> Handle;
     fn LLVMIsDeclaration(function: Handle) -> c_int;
-    fn LLVMGetLinkage(function: Handle) -> c_int;
+    fn LLVMGetLinkage(function: Handle) -> c_uint;
     fn LLVMSetLinkage(function: Handle, linkage: c_int);
-    fn LLVMGetVisibility(function: Handle) -> c_int;
-    fn LLVMGetDLLStorageClass(function: Handle) -> c_int;
+    fn LLVMGetVisibility(function: Handle) -> c_uint;
+    fn LLVMGetDLLStorageClass(function: Handle) -> c_uint;
     fn LLVMGetValueName2(value: Handle, len: *mut usize) -> *const c_char;
     fn LLVMGlobalGetValueType(value: Handle) -> Handle;
     fn LLVMGetTypeKind(ty: Handle) -> c_int;
@@ -412,11 +412,12 @@ fn assemble(
             "reserved transport symbol collision",
         ));
     }
+    // Outlive the context and every callback, including owner destruction.
+    let mut failed = false;
     let context = Context(unsafe { LLVMContextCreate() });
     if context.0.is_null() {
         return Err(error(ErrorKind::Emit, "assembly context unavailable"));
     }
-    let mut failed = false;
     unsafe {
         LLVMContextSetDiagnosticHandler(
             context.0,
@@ -728,5 +729,131 @@ mod tests {
         )
         .unwrap();
         assert_eq!(retried.0.bytes, ordinary.bytes);
+
+        // Real external-call unwind records, a live global and relocations
+        // must survive the same transport as the copied closed leaves.
+        let mut items = module.items.to_vec();
+        items.push(Item::Global(m::Global {
+            name: "emission.data".into(),
+            linkage: Linkage::External,
+            ty: Ty::Int(32),
+            initializer: Some(Val::Int(36)),
+            constant: false,
+            unnamed_addr: false,
+            alignment: 4,
+        }));
+        let signature = Signature::new(Ty::Int(32), vec![Param::new(Ty::Int(32), "arg.0")]);
+        items.push(Item::Function(Function {
+            name: "emission.external".into(),
+            linkage: Linkage::External,
+            signature: signature.clone(),
+            attrs: vec![],
+            blocks: None,
+        }));
+        items.push(Item::Function(Function {
+            name: "zil.fn.90".into(),
+            linkage: Linkage::External,
+            signature,
+            attrs: vec![Attr::NoInline],
+            blocks: Some(
+                vec![Block {
+                    name: "entry".into(),
+                    instructions: vec![
+                        Inst::new(
+                            Some("v.0".into()),
+                            Op::Load {
+                                ty: Ty::Int(32),
+                                ptr: m::global("emission.data".into()),
+                                align: 4,
+                            },
+                        ),
+                        Inst::new(
+                            Some("v.1".into()),
+                            Op::Call {
+                                result: Ty::Int(32),
+                                result_attrs: vec![],
+                                callee: m::global("emission.external".into()),
+                                args: vec![Arg::new(Ty::Int(32), m::local("arg.0".into()))],
+                                vararg: None,
+                            },
+                        ),
+                        Inst::new(
+                            Some("v.2".into()),
+                            Op::Binary {
+                                opcode: "add".into(),
+                                ty: Ty::Int(32),
+                                left: m::local("v.0".into()),
+                                right: m::local("v.1".into()),
+                            },
+                        ),
+                        Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), m::local("v.2".into())))),
+                        ),
+                    ],
+                }]
+                .into(),
+            ),
+        }));
+        let mixed = m::Module {
+            items: items.into(),
+            ..module
+        };
+        let ordinary =
+            super::super::compile_module(&mixed, &config, FunctionMerging::Disabled, &|| false)
+                .unwrap();
+        for required in [
+            b".eh_frame".as_slice(),
+            b".rela.text",
+            b"emission.data",
+            b"emission.external",
+        ] {
+            assert!(
+                ordinary
+                    .bytes
+                    .windows(required.len())
+                    .any(|bytes| bytes == required)
+            );
+        }
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let calls = AtomicUsize::new(0);
+        let reused = super::super::compile_module_with_emission_reuse(
+            &mixed,
+            &config,
+            FunctionMerging::Disabled,
+            &|| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                false
+            },
+        )
+        .unwrap()
+        .0;
+        assert_eq!(
+            ordinary.bytes, reused.bytes,
+            "all mixed CFI/data/relocation bytes"
+        );
+        let stats = reused.receipt.emission_reuse.unwrap();
+        assert!(!stats.fallback, "{stats:?}");
+        assert_eq!(stats.reused_functions, 9);
+        let total = calls.load(Ordering::Relaxed);
+        assert!(total >= 4);
+        let calls = AtomicUsize::new(0);
+        let cancelled = super::super::compile_module_with_emission_reuse(
+            &mixed,
+            &config,
+            FunctionMerging::Disabled,
+            &|| calls.fetch_add(1, Ordering::Relaxed) == total - 2,
+        )
+        .unwrap_err();
+        assert_eq!(cancelled.kind, ErrorKind::Cancelled);
+        let retry = super::super::compile_module_with_emission_reuse(
+            &mixed,
+            &config,
+            FunctionMerging::Disabled,
+            &|| false,
+        )
+        .unwrap()
+        .0;
+        assert_eq!(retry.bytes, ordinary.bytes);
     }
 }
