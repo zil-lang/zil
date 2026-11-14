@@ -119,13 +119,13 @@ impl<'a> Lower<'a, '_> {
         match target {
             SemanticClosureTarget::Core {
                 module,
-                creator,
+                creator: core_creator,
                 expression,
                 occurrence,
             } => {
                 let origin = Self::origin(&SemanticFunctionTarget::CoreClosure {
                     module: *module,
-                    creator: *creator,
+                    creator: *core_creator,
                     expression: *expression,
                     occurrence: *occurrence,
                 })?;

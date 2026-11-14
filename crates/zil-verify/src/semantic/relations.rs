@@ -67,7 +67,7 @@ impl CheckedContext {
             seen.push(current);current=next.clone();
         }
     }
-    pub(super) fn same_origin(&self,environment:&EvalEnv,left:&IntrinsicOrigin,right:&IntrinsicOrigin,b:&mut Budget)->Check<bool> {
+    pub(crate) fn same_origin(&self,environment:&EvalEnv,left:&IntrinsicOrigin,right:&IntrinsicOrigin,b:&mut Budget)->Check<bool> {
         let left=self.canonical_origin(left,b)?;let right=self.canonical_origin(right,b)?;
         if matches!((&left,&right),(IntrinsicOrigin::Existing{..},IntrinsicOrigin::Existing{..})) {return Ok(left==right);}
         let key=|origin:IntrinsicOrigin|match origin {

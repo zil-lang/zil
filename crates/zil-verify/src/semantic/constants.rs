@@ -4,7 +4,7 @@ use super::*;
 
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn evaluate_constant(
+    pub(crate) fn evaluate_constant(
         &self,
         module: &TypedModule,
         recipe: &SemanticConstRecipe,
