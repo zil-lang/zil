@@ -23,6 +23,15 @@ pub(super) struct ReturnValue {
     pub sources: Option<Vec<TaskResultSource>>,
     pub injection: Option<bool>,
 }
+#[derive(Clone)]
+pub(super) struct NameSource {
+    pub owner: SemanticDefinitionId,
+    pub origin: Query,
+    pub stable: bool,
+}
+/// A control-flow state supplies every currently available original binder.
+/// A missing or unknown entry proves no source relation.
+pub(super) type SourceBindings = BTreeMap<Query, Option<Vec<TaskResultSource>>>;
 pub(super) fn source_snapshot(
     values: &[TaskResultSource],
     limits: &Limits,
@@ -51,6 +60,31 @@ pub(super) fn source_snapshot(
     Ok(())
 }
 impl Check<'_, '_> {
+    pub(super) fn record_task_name_source(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        let CoreExprKind::Name(name) = &expression.kind else {
+            return Ok(());
+        };
+        let Some(binding) = variables.get(name) else {
+            return Ok(());
+        };
+        self.pay(binding.origin.copy_work().saturating_add(1), depth)?;
+        let source = NameSource {
+            owner: binding.origin_owner,
+            origin: binding.origin.clone(),
+            stable: !binding.mutable && !binding.written,
+        };
+        self.proof
+            .proof_mut()?
+            .task_name_sources
+            .insert((owner, expression.id), source);
+        Ok(())
+    }
     fn copy_task_sources(
         &mut self,
         value: &Option<Vec<TaskResultSource>>,
@@ -139,16 +173,56 @@ impl Check<'_, '_> {
         variables: &BTreeMap<String, Binding>,
         depth: usize,
     ) -> R<Option<Vec<TaskResultSource>>> {
+        self.task_value_sources_in(owner, expression, Some(variables), None, depth)
+    }
+    fn task_value_sources_in(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: Option<&BTreeMap<String, Binding>>,
+        bindings: Option<&SourceBindings>,
+        depth: usize,
+    ) -> R<Option<Vec<TaskResultSource>>> {
         self.pay(1, depth)?;
         let source = match &expression.kind {
             CoreExprKind::Name(name) => {
-                let Some(binding) = variables.get(name) else {
-                    return Ok(None);
+                let (source_owner, origin, stable) = if let Some(variables) = variables {
+                    let Some(binding) = variables.get(name) else {
+                        return Ok(None);
+                    };
+                    (
+                        binding.origin_owner,
+                        &binding.origin,
+                        !binding.mutable && !binding.written,
+                    )
+                } else {
+                    let Some(source) = self.proof.task_name_sources.get(&(owner, expression.id))
+                    else {
+                        return Ok(None);
+                    };
+                    (source.owner, &source.origin, source.stable)
                 };
-                if binding.origin_owner != owner || binding.mutable || binding.written {
+                if source_owner != owner {
                     return Ok(None);
                 }
-                match &binding.origin {
+                *self.left = self.left.checked_sub(origin.copy_work()).ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "Task original name source work exceeded",
+                        None,
+                    )
+                })?;
+                let origin = origin.clone();
+                if let Some(bindings) = bindings {
+                    let Some(source) = bindings.get(&origin) else {
+                        return Ok(None);
+                    };
+                    return self.copy_task_sources(source);
+                }
+                if !stable {
+                    return Ok(None);
+                }
+                match &origin {
                     Query::Parameter(parameter) => {
                         self.pay(1, depth)?;
                         Some(vec![TaskResultSource {
@@ -178,19 +252,21 @@ impl Check<'_, '_> {
             | CoreExprKind::Unary {
                 op: UnaryOp::Give,
                 operand: inner,
-            } => self.task_value_sources(owner, inner, variables, depth + 1)?,
+            } => self.task_value_sources_in(owner, inner, variables, bindings, depth + 1)?,
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let source = self.task_value_sources(owner, operand, variables, depth + 1)?;
+                let source =
+                    self.task_value_sources_in(owner, operand, variables, bindings, depth + 1)?;
                 self.project_task_sources(source, &[LifeTypeProjection::Pointee], depth + 1)?
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 operand,
             } => {
-                let inner = self.task_value_sources(owner, operand, variables, depth + 1)?;
+                let inner =
+                    self.task_value_sources_in(owner, operand, variables, bindings, depth + 1)?;
                 let Some(mut source) =
                     self.prefix_task_sources(inner, &[LifeTypeProjection::Pointee], depth + 1)?
                 else {
@@ -308,7 +384,8 @@ impl Check<'_, '_> {
                 path.push(LifeTypeProjection::Place(PlaceProjection::Field(
                     ordinal as u32,
                 )));
-                let source = self.task_value_sources(owner, object, variables, depth + 1)?;
+                let source =
+                    self.task_value_sources_in(owner, object, variables, bindings, depth + 1)?;
                 self.project_task_sources(source, &path, depth + 1)?
             }
             CoreExprKind::Index { object, .. } => {
@@ -337,14 +414,16 @@ impl Check<'_, '_> {
                     return Ok(None);
                 }
                 path.push(LifeTypeProjection::Element);
-                let source = self.task_value_sources(owner, object, variables, depth + 1)?;
+                let source =
+                    self.task_value_sources_in(owner, object, variables, bindings, depth + 1)?;
                 self.project_task_sources(source, &path, depth + 1)?
             }
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
                 let mut sources = Vec::new();
                 self.pay(fields.len(), depth)?;
                 for (ordinal, field) in fields.iter().enumerate() {
-                    let source = self.task_value_sources(owner, field, variables, depth + 1)?;
+                    let source =
+                        self.task_value_sources_in(owner, field, variables, bindings, depth + 1)?;
                     let path = if matches!(expression.kind, CoreExprKind::Tuple(_)) {
                         LifeTypeProjection::Place(PlaceProjection::Field(ordinal as u32))
                     } else {
@@ -363,12 +442,12 @@ impl Check<'_, '_> {
                 ..
             } => {
                 let Some(mut left) =
-                    self.task_value_sources(owner, then_value, variables, depth + 1)?
+                    self.task_value_sources_in(owner, then_value, variables, bindings, depth + 1)?
                 else {
                     return Ok(None);
                 };
                 let Some(right) =
-                    self.task_value_sources(owner, else_value, variables, depth + 1)?
+                    self.task_value_sources_in(owner, else_value, variables, bindings, depth + 1)?
                 else {
                     return Ok(None);
                 };
@@ -427,8 +506,13 @@ impl Check<'_, '_> {
                         let Some(argument) = arguments.get(edge.parameter as usize) else {
                             return Ok(None);
                         };
-                        let argument =
-                            self.task_value_sources(owner, argument, variables, depth + 1)?;
+                        let argument = self.task_value_sources_in(
+                            owner,
+                            argument,
+                            variables,
+                            bindings,
+                            depth + 1,
+                        )?;
                         let selected =
                             self.project_task_sources(argument, &edge.input_path, depth + 1)?;
                         let Some(mut selected) =
@@ -499,6 +583,20 @@ impl Check<'_, '_> {
     }
 }
 impl Proof {
+    /// Replay only the already checked class-transport algebra in one exact
+    /// control-flow inventory. The caller must retain every reaching state.
+    pub(super) fn task_value_sources_at(
+        &self,
+        program: &SemanticModule,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        bindings: &SourceBindings,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<Vec<TaskResultSource>>> {
+        let mut check = super::nominal_where::borrowed_check(program, self, owner, limits, left)?;
+        check.task_value_sources_in(owner, expression, None, Some(bindings), 0)
+    }
     pub(super) fn task_result_sources(
         &self,
         program: &SemanticModule,

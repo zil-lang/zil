@@ -233,6 +233,7 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<()> {
         self.pay(1, depth)?;
+        self.record_task_name_source(owner, expression, variables, depth + 1)?;
         self.view_bound(owner, expression, variables, depth + 1)?;
         if let CoreExprKind::Call { callee, .. } = &expression.kind {
             if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {

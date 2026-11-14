@@ -49,6 +49,7 @@ mod task_families;
 #[path = "original_task_results.rs"]
 mod task_results;
 pub(super) use nominal_where::{NominalRequest, NominalWhere};
+pub(super) use task_results::SourceBindings;
 pub(crate) use task_results::{TaskResultSource, TaskReturnSources};
 #[path = "original_value_predicate.rs"]
 mod value_predicate;
@@ -194,6 +195,7 @@ pub(super) struct Proof {
     task_returns: BTreeMap<(SemanticDefinitionId, NodeId), task_results::ReturnValue>,
     task_result_types: BTreeMap<SemanticDefinitionId, SemanticTypeRecipe>,
     task_binding_sources: BTreeMap<(SemanticDefinitionId, NodeId), Option<Vec<TaskResultSource>>>,
+    task_name_sources: BTreeMap<(SemanticDefinitionId, NodeId), task_results::NameSource>,
     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
     pub complete: BTreeSet<SemanticDefinitionId>,
     pub protocol_complete: BTreeSet<SemanticDefinitionId>,

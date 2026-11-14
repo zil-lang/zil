@@ -146,6 +146,7 @@ fn clone_proof(
             .saturating_add(source.task_returns.len())
             .saturating_add(source.task_result_types.len())
             .saturating_add(source.task_binding_sources.len())
+            .saturating_add(source.task_name_sources.len())
             .saturating_add(source.protocol_complete.len())
             .saturating_add(source.cleanup_complete.len())
             .saturating_add(source.associated_complete.len())
@@ -179,6 +180,9 @@ fn clone_proof(
     for ((_, query), ty) in &source.types {
         spend(left, query.copy_work(), 0, limits)?;
         crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1)?;
+    }
+    for name in source.task_name_sources.values() {
+        spend(left, name.origin.copy_work().saturating_add(2), 0, limits)?;
     }
     for ((_, query), _) in &source.call_result_origins {
         spend(left, query.copy_work(), 0, limits)?;
