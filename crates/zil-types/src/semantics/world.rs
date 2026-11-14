@@ -32,6 +32,8 @@ mod protocol_flow;
 mod receiver;
 #[path = "world_roles.rs"]
 mod roles;
+#[path = "world_sourcecall.rs"]
+mod sourcecall;
 /// Relocation may identify a sealed opcode only by its independently checked
 /// original scheme. This authenticates operation correspondence, not W/classes.
 pub(super) fn intrinsic_operation_matches(
@@ -2971,16 +2973,9 @@ impl World<'_, '_> {
                             function: target,
                             arguments,
                         } => {
-                            self.pay(self.program.instances.len())?;
-                            let mut candidates = self.program.instances.iter().filter(|i| matches!(i.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == *target));
-                            let callee = candidates
-                                .next()
-                                .ok_or_else(|| bad("actual call has no original callee world"))?;
-                            if candidates.next().is_some() {
-                                return Err(bad(
-                                    "actual call has ambiguous original callee worlds",
-                                ));
-                            }
+                            let callee = sourcecall::callee(
+                                self, instance, *target, &sites, block.id, index,
+                            )?;
                             let target_function = self.function(*target)?;
                             let target_definition = self.definition(callee.definition)?;
                             protocol::header(self, target_definition, target_function)?;
@@ -3871,8 +3866,9 @@ pub(super) fn program(
     for instance in &program.instances {
         match instance.target {
             SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) => {
-                if targets.insert(function, instance.id).is_some() {
-                    return Err(bad("actual function has multiple original worlds"));
+                if let Some(previous) = targets.insert(function, instance.id) {
+                    let first = world.instance(previous)?;
+                    sourcecall::shared(&mut world, first, instance, function)?;
                 }
             }
             SemanticInstanceTarget::Scope => {}

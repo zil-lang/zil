@@ -792,9 +792,21 @@ pub(crate) fn owned_provider(
             || specialization.declaration_actuals != table.actuals
             || !specialization.method_actuals.is_empty()
         {
-            return Err(bad(
-                "Dyn method specialization changes Self or complete actuals",
+            let mut diagnostic = bad("Dyn method specialization changes Self or complete actuals");
+            inference::charge_type_snapshot(source, Span::default(), limits, left, 1)?;
+            inference::charge_type_snapshot(
+                &specialization.receiver.ty,
+                Span::default(),
+                limits,
+                left,
+                1,
+            )?;
+            diagnostic.notes.push(format!(
+                "original provider {:?}, scope {:?}, actual function {:?}, Core origin {:?}; expected Self {:?}, specialization Self {:?}",
+                original_provider.id, impl_scope.id, entry.function, frame.origin,
+                source, specialization.receiver.ty
             ));
+            return Err(diagnostic);
         }
         let mut instances = program.instances.iter().filter(|row| {
             row.definition == original_provider.id
@@ -805,6 +817,65 @@ pub(crate) fn owned_provider(
             .ok_or_else(|| bad("Dyn provider method has no exact original emitted instance"))?;
         if instances.next().is_some() || instance.parent.is_none() {
             return Err(bad("Dyn provider method instance is ambiguous or unscoped"));
+        }
+        provider_fee(left, program.instances.len())?;
+        let mut parents = program
+            .instances
+            .iter()
+            .filter(|row| Some(row.id) == instance.parent);
+        let parent = parents
+            .next()
+            .ok_or_else(|| bad("Dyn provider has no actual lexical impl scope"))?;
+        if parents.next().is_some()
+            || parent.definition != impl_scope.id
+            || !matches!(parent.target, SemanticInstanceTarget::Scope)
+        {
+            return Err(bad(
+                "Dyn provider changes its exact original lexical impl scope",
+            ));
+        }
+        // Self is derived in the real provider's lexical domain, not from a
+        // same-shaped table or a specialization's proposed receiver type.
+        let expected_self = super::type_at(
+            program,
+            module,
+            ledger,
+            instance.id,
+            &SemanticTypeRecipe::SelfType {
+                scope: SemanticScopeRef::Ancestor(0),
+            },
+            Some(source),
+            limits,
+            left,
+        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(&expected_self, limits, left, 1)?;
+        let SemanticTypeValue::Resolved {
+            ty: expected_type,
+            life: expected_life,
+            classes: expected_classes,
+        } = &expected_self
+        else {
+            return Err(bad(
+                "Dyn provider Self remains unresolved in its original domain",
+            ));
+        };
+        if expected_type != source
+            || expected_life != &specialization.receiver.life
+            || expected_classes.len() != expected_life.binder_count as usize
+        {
+            return Err(bad(
+                "Dyn provider specialization differs from its independently derived complete lexical Self",
+            ));
+        }
+        let claimed_self = instance
+            .self_type
+            .as_ref()
+            .ok_or_else(|| bad("Dyn provider instance omits its complete lexical Self"))?;
+        crate::dyn_metadata::semantic_operand_snapshot(claimed_self, limits, left, 1)?;
+        if claimed_self != &expected_self {
+            return Err(bad(
+                "Dyn provider instance changes its original complete Self domain",
+            ));
         }
         let function = module
             .functions
