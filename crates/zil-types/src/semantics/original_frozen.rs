@@ -436,6 +436,7 @@ pub(crate) fn check_with_frozen(
     }
     let mut proof = clone_proof(&source.original, program, limits, left)?;
     proof.declarations = declarations;
+    proof.definition_positions = definition_positions(program, limits, left)?;
     let mut check = Check {
         program,
         limits,

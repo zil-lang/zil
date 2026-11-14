@@ -219,7 +219,7 @@ pub(crate) struct OriginalContext {
     pub(super) declarations: Rc<Vec<Declaration>>,
     pub(super) original: super::original::Proof,
     parts: Vec<Part>,
-    definitions: BTreeMap<SemanticDefinitionId, usize>,
+    definitions: Rc<BTreeMap<SemanticDefinitionId, usize>>,
     instances: BTreeMap<SemanticInstanceId, usize>,
     frozen: Option<Rc<super::frozen_context::FrozenSource>>,
 }
@@ -235,7 +235,7 @@ impl OriginalContext {
                 "checked original proof differs from its immutable declaration input",
             ));
         }
-        let mut definitions = BTreeMap::new();
+        let definitions = proof.definition_positions.clone();
         let mut instances = BTreeMap::new();
         pay(
             left,
@@ -248,9 +248,16 @@ impl OriginalContext {
         )?;
         for (index, definition) in input.semantic.definitions.iter().enumerate() {
             pay(left, search(definitions.len()))?;
-            if definitions.insert(definition.id, index).is_some() {
-                return Err(bad("checked original context has duplicate definitions"));
+            if definitions.get(&definition.id) != Some(&index) {
+                return Err(bad(
+                    "checked original context differs from its proved definition index",
+                ));
             }
+        }
+        if definitions.len() != input.semantic.definitions.len() {
+            return Err(bad(
+                "checked original context changes its complete definition inventory",
+            ));
         }
         for (index, instance) in input.semantic.instances.iter().enumerate() {
             pay(left, search(instances.len()))?;
