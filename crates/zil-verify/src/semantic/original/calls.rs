@@ -55,9 +55,10 @@ impl CheckedOriginal {
                 let prototype=self.call_signature(module,context,target,signature,&selected,active,b)?;
                 self.execute_effect(env,prototype.call_kind,b)?;
                 if prototype.parameters.len()!=arguments.len(){return Err(bad("original Call value arity differs from the declared signature"));}
-                if let Some(expected)=expected{self.unify(&prototype.result,expected,b)?;}
-                for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,parameter,*mode,env,bindings,active,b)?;self.unify(&actual,parameter,b)?;}
-                if let Some(expected)=expected{self.unify(&prototype.result,expected,b)?;}
+                if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
+                for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
+                let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
+                if let Some(expected)=expected{self.unify(&result,expected,b)?;}
                 // A target's requirements are obligations here. They never enter
                 // the caller's equality assumptions merely by selecting target.
                 for requirement in &definition.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
@@ -66,7 +67,7 @@ impl CheckedOriginal {
                 self.calls.insert((env.current()?,site.id),checked);
                 self.call_targets.insert((env.current()?,site.id),target);
                 if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
-                Ok(prototype.result)
+                Ok(result)
             },
             Ty::Closure(definition,actuals,sealed)=>{
                 if written_types.is_some()||written_mixed.is_some(){return Err(bad("original closure invocation has unsupported generic application"));}

@@ -35,7 +35,7 @@ pub(super) enum ConstValue {Variable(SemanticDefinitionId,u32),Value(Constant),U
 #[derive(Clone)]
 pub(super) struct Frame {pub(super) definition:SemanticDefinitionId,pub(super) actuals:Vec<Arg>,pub(super) environment:Vec<Arg>}
 #[derive(Clone)]
-pub(super) struct Env {pub(super) lexical:Vec<Frame>,pub(super) bounds:Vec<Vec<Life>>,pub(super) invocation:Vec<Life>}
+pub(super) struct Env {pub(super) lexical:Vec<Frame>,pub(super) bounds:Vec<Vec<Life>>,pub(super) invocation:Vec<Life>,pub(super) self_type:Option<(SemanticDefinitionId,Ty)>}
 impl Env {
     pub(super) fn current(&self)->Check<SemanticDefinitionId>{self.lexical.first().map(|frame|frame.definition).ok_or_else(||bad("original body has no lexical definition"))}
     pub(super) fn frame(&self,scope:SemanticScopeRef)->Check<&Frame>{let SemanticScopeRef::Ancestor(depth)=scope;self.lexical.get(depth as usize).ok_or_else(||bad("original recipe escapes its real lexical parent"))}

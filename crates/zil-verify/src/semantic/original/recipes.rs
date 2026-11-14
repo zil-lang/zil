@@ -21,7 +21,7 @@ impl CheckedOriginal {
                         let mut selected=env.clone();selected.lexical=selected.lexical[depth..].to_vec();
                         self.ty(module,context,self_type,&selected,active,b)?
                     },
-                    SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{..})=>Ty::SelfType(definition.id),
+                    SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{..})=>match &env.self_type{Some((owner,value))if *owner==definition.id=>self.resolved(value,b)?,_=>Ty::SelfType(definition.id)},
                     _=>return Err(bad("original SelfType selects no receiver scope")),
                 }
             },

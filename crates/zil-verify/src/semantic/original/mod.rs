@@ -51,6 +51,7 @@ pub(super) struct CheckedOriginal {
     calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),Vec<Arg>>,
     call_targets:BTreeMap<(SemanticDefinitionId,SemanticSiteId),SemanticDefinitionId>,
     constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
+    projection_terms:Vec<(Ty,LifeDeclarationId,Vec<Arg>,u32,Ty)>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
@@ -164,7 +165,7 @@ impl CheckedOriginal {
     fn environment(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<Env>{
         if let Some(environment)=self.environments.get(&id){b.spend(environment.lexical.len())?;return Ok(environment.clone());}
         let definition=context.definition(module,id,b)?;
-        let mut environment=if let Some(parent)=definition.parent{self.environment(module,context,parent,active,b)?}else{Env{lexical:vec![],bounds:vec![],invocation:vec![]}};
+        let mut environment=if let Some(parent)=definition.parent{self.environment(module,context,parent,active,b)?}else{Env{lexical:vec![],bounds:vec![],invocation:vec![],self_type:None}};
         let mut actuals=Vec::new();
         for(ordinal,formal)in definition.parameters.iter().enumerate(){b.spend(1)?;actuals.push(match formal{
             SemanticFormal::Type{..}=>Arg::Type(Ty::Variable(id,ordinal as u32)),

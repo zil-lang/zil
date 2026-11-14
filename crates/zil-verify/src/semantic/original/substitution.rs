@@ -7,6 +7,7 @@ impl CheckedOriginal {
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original simultaneous substitution depth exceeded"));}
         let ty=self.resolved(ty,b)?;
         Ok(match ty{
+            Ty::SelfType(owner)=>match &env.self_type{Some((actual,value))if *actual==owner=>self.resolved(value,b)?,_=>Ty::SelfType(owner)},
             Ty::Variable(definition,ordinal)=>{
                 if let Some(frame)=env.lexical.iter().find(|frame|frame.definition==definition){match frame.actuals.get(ordinal as usize){Some(Arg::Type(value))=>self.resolved(value,b)?,_=>return Err(bad("original Type substitution changes formal kind"))}}else{Ty::Variable(definition,ordinal)}
             },

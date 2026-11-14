@@ -60,6 +60,7 @@ impl CheckedOriginal {
                 lexical: env.lexical[index..].to_vec(),
                 bounds: env.bounds.clone(),
                 invocation: env.invocation.clone(),
+                self_type: env.self_type.as_ref().map(|(owner,ty)|self.resolved(ty,b).map(|ty|(*owner,ty))).transpose()?,
             };
             let mut requirements = Vec::new();
             b.spend(definition.requirements.len())?;
