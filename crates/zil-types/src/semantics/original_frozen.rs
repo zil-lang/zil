@@ -143,6 +143,7 @@ fn clone_proof(
             .saturating_add(source.method_calls.len())
             .saturating_add(source.callable_calls.len())
             .saturating_add(source.direct_calls.len())
+            .saturating_add(source.function_values.len())
             .saturating_add(source.call_result_origins.len())
             .saturating_add(source.scope_calls.len())
             .saturating_add(source.local_roles.len())
@@ -201,6 +202,13 @@ fn clone_proof(
     for call in source.callable_calls.values() {
         crate::dyn_metadata::semantic_operand_snapshot(&call.callee, limits, left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(&call.signature, limits, left, 1)?;
+    }
+    for function in source.function_values.values() {
+        spend(left, function.actuals.len(), 0, limits)?;
+        for actual in &function.actuals {
+            crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(&function.signature, limits, left, 1)?;
     }
     for signature in source.direct_calls.values() {
         crate::dyn_metadata::semantic_operand_snapshot(signature, limits, left, 1)?;

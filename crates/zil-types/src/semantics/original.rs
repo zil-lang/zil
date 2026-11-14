@@ -30,7 +30,10 @@ mod roles;
 mod store;
 #[path = "original_substitute.rs"]
 pub(super) mod substitute;
+#[path = "original_values.rs"]
+mod values;
 pub(super) use calls::{CallableCall, MethodCall};
+pub(super) use values::FunctionValue;
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
 }
@@ -151,6 +154,7 @@ pub(super) struct Proof {
     pub method_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), MethodCall>,
     pub callable_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), CallableCall>,
     pub providers: BTreeMap<SemanticDefinitionId, SemanticDefinitionId>,
+    pub function_values: BTreeMap<(SemanticDefinitionId, NodeId), FunctionValue>,
     pub direct_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticSignatureRecipe>,
     pub effective_call_kind: BTreeMap<SemanticDefinitionId, CallKind>,
     pub borrowed_capture_heads: BTreeSet<SemanticDefinitionId>,
@@ -498,6 +502,9 @@ impl<'a> Check<'a, '_> {
         Ok(match ty {
             SemanticTypeRecipe::Atom(ty) => ty.is_copy_value(),
             SemanticTypeRecipe::Address { mutable: false, .. } => true,
+            SemanticTypeRecipe::Code { kind, signature } => self
+                .function_value_copy(owner, *kind, signature, depth + 1)?
+                .ok_or_else(|| pending("original code value needs its complete Copy scheme"))?,
             SemanticTypeRecipe::Array { element, .. } => {
                 self.copy_type(owner, element, depth + 1)?
             }
@@ -2342,6 +2349,13 @@ impl<'a> Check<'a, '_> {
                     .insert((owner, Query::Expression(expression.id)), copy);
                 return Ok(result);
             }
+        }
+        if let Some(result) = self.fn_value(owner, expression, variables, wanted, depth + 1)? {
+            let copy = copy_recipe(&result, self.limits, self.left)?;
+            self.proof
+                .types
+                .insert((owner, Query::Expression(expression.id)), copy);
+            return Ok(result);
         }
         let result = match &expression.kind {
             CoreExprKind::Literal(value) => SemanticTypeRecipe::Atom(value.ty()),
