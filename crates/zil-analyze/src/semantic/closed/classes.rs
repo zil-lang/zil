@@ -231,7 +231,12 @@ impl Check<'_, '_> {
             }
         }
     }
-    fn push_value<T>(&self, out: &mut Vec<T>, value: T, b: &mut Budget) -> CompileResult<()> {
+    pub(super) fn push_value<T>(
+        &self,
+        out: &mut Vec<T>,
+        value: T,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
         b.spend(out.len().saturating_add(1), WORK)?;
         out.try_reserve(1)
             .map_err(|_| fail("complete original value allocation failed"))?;
@@ -1406,6 +1411,41 @@ impl Check<'_, '_> {
                     if self.header_class(instance, binder, b)? != *expected {
                         return Err(fail(
                             "actual intrinsic header class differs from its complete original occurrence",
+                        ));
+                    }
+                    used_classes += 1;
+                }
+            }
+            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) {
+                for child in &value.life.retained {
+                    if child.path.as_slice() != [LifeTypeProjection::Pointee] {
+                        return Err(unknown(
+                            "outer header requires its complete child occurrence path",
+                        ));
+                    }
+                    let expected = value
+                        .classes
+                        .get(child.binder as usize)
+                        .ok_or_else(|| fail("original Pointee header omits its whole class"))?;
+                    let mut selected = None;
+                    for row in &contract.classes {
+                        b.spend(row.position.path.len().saturating_add(1), WORK)?;
+                        if row.position.base == base
+                            && row.position.path == child.path
+                            && row.position.class == child.class
+                            && selected.replace(row.binder).is_some()
+                        {
+                            return Err(fail(
+                                "actual header repeats a Pointee intrinsic class occurrence",
+                            ));
+                        }
+                    }
+                    let binder = selected.ok_or_else(|| {
+                        fail("actual header omits a complete Pointee class occurrence")
+                    })?;
+                    if self.header_class(instance, binder, b)? != *expected {
+                        return Err(fail(
+                            "actual Pointee header class differs from its complete original occurrence",
                         ));
                     }
                     used_classes += 1;

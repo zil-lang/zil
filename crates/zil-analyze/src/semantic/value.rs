@@ -9,6 +9,12 @@ pub(super) enum Class {
     Invocation(SemanticInstanceId, u32),
     TypeArgument(SemanticInstanceId, u32, u32),
     Nominal(u32, u32),
+    // Ephemeral canonical-shape atoms; never produced by a public class
+    // expression and never transported as an original semantic identity.
+    Local(u32),
+    // Signature-local invocation symbols, never an enclosing function's
+    // Invocation domain and never a premise for nominal equality.
+    Role(SemanticInstanceId, u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Value {
@@ -71,11 +77,27 @@ pub(super) fn address(
     inner: Value,
     b: &mut Budget,
 ) -> CompileResult<Value> {
-    if !inner.classes.is_empty() {
-        return Err(unknown(
-            "address child needs its complete explicit Pointee class embedding",
-        ));
+    if inner.life.binder_count as usize != inner.classes.len() {
+        return Err(fail("address child omits its complete intrinsic domain"));
     }
+    let mut classes = Vec::new();
+    let outer = intern(&mut classes, class, b)?;
+    let mut retained = Vec::new();
+    for (index, class) in inner.classes.into_iter().enumerate() {
+        let binder = intern(&mut classes, class, b)?;
+        put(
+            &mut retained,
+            StorageRetainedBinding {
+                path: vec![LifeTypeProjection::Pointee],
+                class: u32::try_from(index)
+                    .map_err(|_| fail("address child class ordinal overflow"))?,
+                binder,
+            },
+            b,
+        )?;
+    }
+    let binder_count =
+        u32::try_from(classes.len()).map_err(|_| fail("address complete domain overflow"))?;
     b.spend(3, WORK)?;
     Ok(Value {
         ty: Type::Address {
@@ -83,20 +105,23 @@ pub(super) fn address(
             inner: Box::new(inner.ty),
         },
         life: StorageLifeShape {
-            binder_count: 1,
+            binder_count,
             slots: vec![StorageLifeSlot {
                 path: Vec::new(),
-                binder: 0,
+                binder: outer,
                 mode: if mutable {
                     StoredBorrowMode::ExclusiveAddress
                 } else {
                     StoredBorrowMode::SharedAddress
                 },
             }],
-            retained: Vec::new(),
+            // The child retains its own intrinsic shape and nominal identity
+            // inside inner.ty. Only the explicit child-class embedding crosses
+            // this Address boundary; no duplicate nominal or physical slots.
+            retained,
             nominal_arguments: Vec::new(),
         },
-        classes: vec![class],
+        classes,
     })
 }
 
@@ -635,24 +660,112 @@ pub(super) fn resolved(
                 ));
             }
         }
-        Type::Address { mutable, inner } if inner.is_b0_scalar() => {
-            if life.binder_count != 1
-                || life.slots.len() != 1
-                || life.slots[0]
-                    != (StorageLifeSlot {
-                        path: Vec::new(),
-                        binder: 0,
-                        mode: if *mutable {
-                            StoredBorrowMode::ExclusiveAddress
-                        } else {
-                            StoredBorrowMode::SharedAddress
-                        },
-                    })
-                || !life.retained.is_empty()
+        Type::Address { mutable, inner } => {
+            if life.slots.len() != 1
+                || !life.slots[0].path.is_empty()
+                || life.slots[0].binder != 0
+                || life.slots[0].mode
+                    != if *mutable {
+                        StoredBorrowMode::ExclusiveAddress
+                    } else {
+                        StoredBorrowMode::SharedAddress
+                    }
                 || !life.nominal_arguments.is_empty()
             {
+                return Err(fail("semantic address loses its exact outer occurrence"));
+            }
+            let child_life = match inner.as_ref() {
+                Type::BorrowedStorage { life, .. } => {
+                    crate::dyn_metadata::shape(life, b)?;
+                    life.clone()
+                }
+                Type::Closure(id) => {
+                    b.spend(inventory.module.closures.len().saturating_add(1), WORK)?;
+                    let declaration = inventory
+                        .module
+                        .closures
+                        .get(id.0 as usize)
+                        .filter(|declaration| declaration.id == *id)
+                        .ok_or_else(|| fail("address child has no actual closure inventory"))?;
+                    let count = declaration
+                        .storage_life
+                        .as_ref()
+                        .ok_or_else(|| unknown("address child closure domain is unknown"))?
+                        .fixed_binder_count;
+                    StorageLifeShape {
+                        binder_count: count,
+                        slots: Vec::new(),
+                        retained: Vec::new(),
+                        nominal_arguments: Vec::new(),
+                    }
+                }
+                Type::Address { .. } | Type::Desc(_) => {
+                    return Err(unknown(
+                        "nested raw reference child requires its independently reconstructed whole local shape",
+                    ));
+                }
+                _ => {
+                    crate::stored_flow::validate_plain_nominal_zero(
+                        inventory.module,
+                        inner,
+                        inventory.limits,
+                        b,
+                    )?;
+                    empty()
+                }
+            };
+            if life.retained.len() != child_life.binder_count as usize {
                 return Err(fail(
-                    "semantic scalar address loses its exact outer lifetime occurrence",
+                    "semantic address omits or duplicates a Pointee class occurrence",
+                ));
+            }
+            let mut child_expressions = Vec::new();
+            let mut local_classes = Vec::new();
+            for child in 0..child_life.binder_count {
+                let mut selected = None;
+                for row in &life.retained {
+                    b.spend(row.path.len().saturating_add(1), WORK)?;
+                    if row.path.as_slice() == [LifeTypeProjection::Pointee] && row.class == child {
+                        if selected.replace(row.binder).is_some() {
+                            return Err(fail(
+                                "semantic address repeats a Pointee class occurrence",
+                            ));
+                        }
+                    }
+                }
+                let binder = selected
+                    .ok_or_else(|| fail("semantic address omits a Pointee class occurrence"))?;
+                let expression = classes.get(binder as usize).ok_or_else(|| {
+                    fail("semantic Pointee embedding is outside its whole domain")
+                })?;
+                crate::dyn_metadata::recipe(expression, b)?;
+                put(&mut child_expressions, expression.clone(), b)?;
+                put(&mut local_classes, Class::Local(binder), b)?;
+            }
+            crate::dyn_metadata::ty(inner, b)?;
+            crate::dyn_metadata::shape(&child_life, b)?;
+            let child = SemanticTypeValue::Resolved {
+                ty: inner.as_ref().clone(),
+                life: child_life.clone(),
+                classes: child_expressions,
+            };
+            // Recursively validate the child's intrinsic domain. External image
+            // equality does not shrink that domain or its phantom inventory.
+            resolved(instance, &child, inventory, b, depth + 1)?;
+            crate::dyn_metadata::ty(inner, b)?;
+            let expected = address(
+                *mutable,
+                Class::Local(0),
+                Value {
+                    ty: inner.as_ref().clone(),
+                    life: child_life,
+                    classes: local_classes,
+                },
+                b,
+            )?;
+            if expected.life != *life {
+                return Err(fail(
+                    "semantic address changes its complete canonical Pointee embedding",
                 ));
             }
         }

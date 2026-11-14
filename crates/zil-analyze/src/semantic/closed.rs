@@ -2,6 +2,7 @@
 //! Empty metadata never selects a proof: the complete type, original signature,
 //! creator, occurrence and operation inventories must independently agree.
 use super::*;
+mod callable_roles;
 mod capture_heads;
 mod classes;
 mod operations;
@@ -38,6 +39,12 @@ impl Check<'_, '_> {
             return Ok(());
         }
         match ty {
+            Type::Address { inner, .. } => {
+                return self.ordinary_type_at(inner, b, depth + 1);
+            }
+            Type::Slice { element } => {
+                return self.ordinary_type_at(element, b, depth + 1);
+            }
             Type::Tuple(fields) => {
                 for field in fields {
                     self.ordinary_type_at(field, b, depth + 1)?;
@@ -74,15 +81,15 @@ impl Check<'_, '_> {
                 .saturating_add(definition.parameters.len()),
             WORK,
         )?;
-        if !definition
+        for ty in definition
             .parameters
             .iter()
             .chain(std::iter::once(&definition.result))
-            .all(|ty| ty.is_b0_scalar() || *ty == Type::Unit)
         {
-            return Err(unknown(
-                "semantic closure has a non-scalar actual capture or signature occurrence",
-            ));
+            // Classification preserves each complete input/result type. The
+            // original header and role theorem separately check all classes;
+            // classifying a reference never grants a borrow or fixed domain.
+            self.ordinary_type_at(ty, b, depth + 1)?;
         }
         let entry = self
             .module
@@ -431,63 +438,7 @@ impl Check<'_, '_> {
                     kind,
                     signature,
                 } => {
-                    let value = self.recipe_value(context, ty, b, 0)?;
-                    let Type::Closure(id) = value.ty else {
-                        return Err(unknown(
-                            "original callable bound requires its full actual callable inventory",
-                        ));
-                    };
-                    let definition = self
-                        .module
-                        .closures
-                        .get(id.0 as usize)
-                        .filter(|definition| definition.id == id)
-                        .ok_or_else(|| fail("actual callable has another closure identity"))?;
-                    let allowed = match kind {
-                        // This branch has a real Closure type and environment
-                        // entry. Even zero captures do not establish a thin
-                        // function pointer or its distinct call instruction.
-                        CallableKind::FunctionPointer => false,
-                        CallableKind::Fn => definition.kind == CallableKind::Fn,
-                        CallableKind::FnMut => {
-                            matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut)
-                        }
-                        CallableKind::FnOnce => matches!(
-                            definition.kind,
-                            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-                        ),
-                    };
-                    if !allowed
-                        || signature.bound_lifetimes != 0
-                        || signature.invocation_lifetimes != 0
-                        || signature.parameters.len() != definition.parameters.len()
-                    {
-                        return Err(unknown(
-                            "actual callable needs its complete original kind and quantified signature relation",
-                        ));
-                    }
-                    let entry = self
-                        .inventory
-                        .function(&SemanticFunctionTarget::Typed(definition.function), b)?;
-                    if entry.call_kind != signature.call_kind {
-                        return Err(fail("actual callable changes its original call kind"));
-                    }
-                    for (actual, required) in
-                        definition.parameters.iter().zip(&signature.parameters)
-                    {
-                        if *actual != self.recipe_value(context, &required.ty, b, 0)?.ty {
-                            return Err(fail(
-                                "actual callable parameter differs from its original declared bound",
-                            ));
-                        }
-                    }
-                    if definition.result != self.recipe_value(context, &signature.result, b, 0)?.ty
-                    {
-                        return Err(fail(
-                            "actual callable result differs from its original declared bound",
-                        ));
-                    }
-                    self.capture_directory(id, b)?;
+                    self.callable_requirement(context, ty, *kind, signature, b)?;
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
                     if self.ty(context, left, b, 0)? != self.ty(context, right, b, 0)? {
@@ -609,7 +560,14 @@ impl Check<'_, '_> {
             {
                 match (formal, actual) {
                     (SemanticFormal::Type { requirements }, SemanticActual::Type(value)) => {
-                        self.value_type(value, b)?;
+                        let value = crate::semantic::value::resolved(
+                            instance,
+                            value,
+                            self.inventory,
+                            b,
+                            0,
+                        )?;
+                        self.actual_type(&value.ty, b)?;
                         self.requirements(instance, requirements, b)?;
                     }
                     (SemanticFormal::Lifetime, SemanticActual::Life(actual)) => {
