@@ -134,6 +134,7 @@ fn clone_proof(
         source
             .types
             .len()
+            .saturating_add(source.capture_candidates.len())
             .saturating_add(source.view_bounds.len())
             .saturating_add(source.borrow_roles.len())
             .saturating_add(source.calls.len())

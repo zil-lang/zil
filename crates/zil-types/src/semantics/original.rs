@@ -7,6 +7,8 @@ use zil_base::NodeId;
 mod associated;
 #[path = "original_calls.rs"]
 mod calls;
+#[path = "original_capture_candidates.rs"]
+mod capture_candidates;
 #[path = "original_cleanup.rs"]
 pub(super) mod cleanup;
 #[path = "original_dyn.rs"]
@@ -161,6 +163,7 @@ pub(super) struct Injection {
 }
 #[derive(Clone, Default)]
 pub(super) struct Proof {
+    capture_candidates: BTreeMap<SemanticDefinitionId, std::rc::Rc<capture_candidates::Candidates>>,
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
@@ -3121,15 +3124,38 @@ impl<'a> Check<'a, '_> {
                 }
                 let _ = (body, child_body); // Full operation correspondence is indexed per original owner.
 
+                self.pay(
+                    self.proof
+                        .capture_candidates
+                        .len()
+                        .saturating_add(1)
+                        .ilog2() as usize
+                        + 2,
+                    depth,
+                )?;
+                let candidates = if let Some(candidates) =
+                    self.proof.capture_candidates.get(&child.id)
+                {
+                    candidates.clone()
+                } else {
+                    let candidates = capture_candidates::collect(child, self.limits, self.left)?;
+                    self.pay(2, depth)?;
+                    self.proof
+                        .capture_candidates
+                        .insert(child.id, candidates.clone());
+                    candidates
+                };
                 let mut captured = BTreeMap::new();
                 for (name, value) in variables.iter() {
-                    self.pay(name.len(), depth)?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        &value.ty,
-                        self.limits,
-                        self.left,
-                        1,
+                    self.pay(
+                        name.len().saturating_add(
+                            candidates.names.len().saturating_add(1).ilog2() as usize + 2,
+                        ),
+                        depth,
                     )?;
+                    if !candidates.opaque_type_syntax && !candidates.names.contains(name) {
+                        continue;
+                    }
                     self.pay(
                         value
                             .origin
