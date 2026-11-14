@@ -145,9 +145,15 @@ impl<'a> Eval<'a, '_> {
                         let (source, actuals) =
                             self.source_parent_solution(*scope, *call, holder, active, depth + 1)?;
                         let recipe = actuals
-                            .into_iter()
-                            .nth(ordinal as usize)
+                            .get(ordinal as usize)
                             .ok_or_else(|| bad("parent solution omits a full mixed ordinal"))?;
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            recipe,
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                        let recipe = recipe.clone();
                         Ok(SourceActual {
                             scope: source,
                             recipe,
@@ -300,7 +306,7 @@ impl<'a> Eval<'a, '_> {
         holder: SemanticInstanceId,
         active: &mut BTreeSet<(SemanticInstanceId, u32)>,
         depth: usize,
-    ) -> R<(SemanticInstanceId, Vec<SemanticActualRecipe>)> {
+    ) -> R<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
         self.node(depth)?;
         let caller_definition = self.scope_source_instance(caller)?.definition;
         let holder_definition = self.scope_source_instance(holder)?.definition;
@@ -468,8 +474,13 @@ impl<'a> Eval<'a, '_> {
                 .resolve_source_type(self.input, owner, &recipe, self.limits, self.left)?
         };
         crate::dyn_metadata::semantic_operand_snapshot(&recipe, self.limits, self.left, 1)?;
-        crate::dyn_metadata::semantic_operand_snapshot(&reduced, self.limits, self.left, 1)?;
-        if recipe == reduced {
+        crate::dyn_metadata::semantic_operand_snapshot(
+            reduced.as_ref(),
+            self.limits,
+            self.left,
+            1,
+        )?;
+        if recipe == *reduced {
             return Err(unknown(
                 "associated source has no finite original defining equation in its full specialization domain",
             ));
@@ -550,7 +561,7 @@ impl Eval<'_, '_> {
         }
         self.fee(recipes.len())?;
         let mut result = Vec::new();
-        for recipe in &recipes {
+        for recipe in recipes.iter() {
             result.push(self.recipe_actual(source, recipe, 0)?);
         }
         Ok(result)

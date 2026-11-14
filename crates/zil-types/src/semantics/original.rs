@@ -36,6 +36,8 @@ pub(super) use intrinsics::{IntrinsicCall, IntrinsicKind, RegistrationOp, TaskOp
 mod nominal_where;
 #[path = "original_roles.rs"]
 mod roles;
+#[path = "original_source_cache.rs"]
+mod source_cache;
 #[path = "original_store.rs"]
 mod store;
 #[path = "original_substitute.rs"]
@@ -194,6 +196,8 @@ pub(super) struct Proof {
     pub effective_call_kind: BTreeMap<SemanticDefinitionId, CallKind>,
     pub borrowed_capture_heads: BTreeSet<SemanticDefinitionId>,
     closed_opaque_domains: BTreeMap<SemanticDefinitionId, bool>,
+    pure_queries_ready: bool,
+    pure_queries: source_cache::Cache,
     compile_time_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
@@ -5615,6 +5619,7 @@ fn check_requested(
     check.associated_obligations(0)?;
     check.cache_closed_opaque_domains()?;
     protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
+    check.proof.proof_mut()?.pure_queries_ready = true;
     check.proof.into_owned()
 }
 

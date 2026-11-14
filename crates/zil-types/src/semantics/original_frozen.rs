@@ -438,6 +438,7 @@ pub(crate) fn check_with_frozen(
         ));
     }
     let mut proof = clone_proof(&source.original, program, limits, left)?;
+    proof.pure_queries_ready = false;
     proof.declarations = declarations;
     proof.definition_positions = definition_positions(program, limits, left)?;
     let mut check = Check {
@@ -497,5 +498,6 @@ pub(crate) fn check_with_frozen(
     check.associated_obligations(0)?;
     check.cache_closed_opaque_domains()?;
     protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
+    check.proof.proof_mut()?.pure_queries_ready = true;
     check.proof.into_owned()
 }

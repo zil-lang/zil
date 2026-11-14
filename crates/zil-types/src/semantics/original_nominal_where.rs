@@ -170,9 +170,39 @@ impl Proof {
         recipe: &SemanticTypeRecipe,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<SemanticTypeRecipe> {
+    ) -> R<std::rc::Rc<SemanticTypeRecipe>> {
         let mut check = borrowed_check(program, self, owner, limits, left)?;
-        check.resolve(owner, recipe, 0)
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, check.left, 1)?;
+        let query = source_cache::Query::Type(recipe.clone());
+        let key = if self.pure_queries_ready {
+            let (key, cached) = self
+                .pure_queries
+                .lookup(owner, &query, limits, check.left)?;
+            if let Some(value) = cached {
+                return match value {
+                    source_cache::Value::Type(value) => Ok(value),
+                    _ => Err(bad(
+                        "original pure source cache changes its exact query kind",
+                    )),
+                };
+            }
+            Some(key)
+        } else {
+            None
+        };
+        let result = check.resolve(owner, recipe, 0)?;
+        check.pay(2, 0)?;
+        let result = std::rc::Rc::new(result);
+        if let Some(key) = key {
+            self.pure_queries.insert(
+                key,
+                query,
+                source_cache::Value::Type(result.clone()),
+                limits,
+                check.left,
+            )?;
+        }
+        Ok(result)
     }
     /// Specialize a universally checked method provider in a real original
     /// source Gamma. The runtime call selects data; it supplies no premise.
@@ -188,7 +218,7 @@ impl Proof {
         application: Option<&SemanticTraitRecipe>,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<Vec<SemanticActualRecipe>> {
+    ) -> R<std::rc::Rc<Vec<SemanticActualRecipe>>> {
         let mut check = borrowed_check(program, self, source_owner, limits, left)?;
         check.pay(3, 0)?;
         let method = self
@@ -207,7 +237,34 @@ impl Proof {
             ));
         }
         let parent = check.definition(holder)?;
+        crate::dyn_metadata::semantic_operand_snapshot(receiver, limits, check.left, 1)?;
         if let Some(application) = application {
+            crate::dyn_metadata::semantic_operand_snapshot(application, limits, check.left, 1)?;
+        }
+        check.pay(8, 0)?;
+        let query = source_cache::Query::Parent {
+            caller,
+            call,
+            provider,
+            holder,
+            receiver: receiver.clone(),
+            application: application.cloned(),
+        };
+        let key = if self.pure_queries_ready {
+            let (key, cached) =
+                self.pure_queries
+                    .lookup(source_owner, &query, limits, check.left)?;
+            if let Some(value) = cached {
+                return match value {
+                    source_cache::Value::Parent(value) => Ok(value),
+                    _ => Err(bad("original parent cache changes its exact query kind")),
+                };
+            }
+            Some(key)
+        } else {
+            None
+        };
+        let actuals = if let Some(application) = application {
             if method.application.as_ref().map(|row| row.declaration)
                 != Some(application.declaration)
             {
@@ -225,14 +282,26 @@ impl Proof {
                     "actual method parent differs from the unique original trait provider",
                 ));
             }
-            Ok(actuals)
+            actuals
         } else {
             if method.application.is_some() || method.declaration != provider {
                 return Err(bad(
                     "parent specialization loses its original trait application",
                 ));
             }
-            check.solve_parent(source_owner, parent, receiver, 0)
+            check.solve_parent(source_owner, parent, receiver, 0)?
+        };
+        check.pay(2, 0)?;
+        let actuals = std::rc::Rc::new(actuals);
+        if let Some(key) = key {
+            self.pure_queries.insert(
+                key,
+                query,
+                source_cache::Value::Parent(actuals.clone()),
+                limits,
+                check.left,
+            )?;
         }
+        Ok(actuals)
     }
 }
