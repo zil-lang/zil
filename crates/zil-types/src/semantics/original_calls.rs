@@ -1232,6 +1232,24 @@ impl Check<'_, '_> {
     ) -> R<bool> {
         self.pay(1, depth)?;
         let ty = self.observation_type(owner, ty, depth + 1)?;
+        for requirement in self.original_requirements(owner, depth + 1)? {
+            let premise = match &requirement {
+                SemanticRequirementRecipe::Structural {
+                    ty,
+                    bound: DynStructuralBound::StoreElement,
+                }
+                | SemanticRequirementRecipe::Builtin {
+                    ty,
+                    trait_kind: SemanticBuiltinTrait::StoreElement,
+                } => Some(ty),
+                _ => None,
+            };
+            if let Some(premise) = premise {
+                if self.premise_type_equal(owner, &ty, premise, depth + 1)? {
+                    return Ok(true);
+                }
+            }
+        }
         match &ty {
             SemanticTypeRecipe::Formal(reference) => {
                 let SemanticScopeRef::Ancestor(hops) = reference.scope;
@@ -1304,17 +1322,13 @@ impl Check<'_, '_> {
                     return Ok(false);
                 }
                 for field in fields {
-                    let frames = [(0, arguments.as_slice())];
-                    let empty = BTreeMap::new();
-                    let substitution = substitute::Substitution {
-                        frames: &frames,
-                        selves: &[],
-                        environments: &[],
-                        implicit: &empty,
-                        invocation: &empty,
-                        shift: 0,
-                    };
-                    let field = substitute::ty(&field.ty, &substitution, self.limits, self.left)?;
+                    let field = self.instantiate_field(
+                        owner,
+                        definition.id,
+                        &field.ty,
+                        arguments,
+                        depth + 1,
+                    )?;
                     if !self.store_element(owner, &field, depth + 1)? {
                         return Ok(false);
                     }

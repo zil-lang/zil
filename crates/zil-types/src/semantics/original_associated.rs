@@ -73,6 +73,9 @@ impl<'a> Check<'a, '_> {
             SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
                 declaration, ..
             }) => (*declaration, DynDeclarationKind::Impl),
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. }) => {
+                (input.row.id, DynDeclarationKind::Impl)
+            }
             _ => {
                 return Err(bad(
                     "associated declaration does not select its original trait/impl Scope",
@@ -102,6 +105,30 @@ impl<'a> Check<'a, '_> {
                     "associated declaration changes a full mixed formal kind",
                 ));
             }
+        }
+        if matches!(
+            scope.body,
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. })
+        ) {
+            // This source row carries no user associated program or trait
+            // authority. Keep its exact data, while the sealed impl/body are
+            // checked by their original builtin rules independently.
+            if input
+                .row
+                .members
+                .iter()
+                .any(|member| !matches!(member.kind, DynMemberKind::Method(_)))
+                || input
+                    .row
+                    .associated_definitions
+                    .as_ref()
+                    .is_some_and(|rows| !rows.is_empty())
+            {
+                return Err(bad(
+                    "sealed builtin impl is disguised as a user associated provider",
+                ));
+            }
+            return Ok(scope);
         }
         match (
             &scope.body,
@@ -198,6 +225,12 @@ impl<'a> Check<'a, '_> {
                 continue;
             }
             let scope = self.declaration_scope(input, depth + 1)?;
+            if matches!(
+                scope.body,
+                SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. })
+            ) {
+                continue;
+            }
             let mut names = BTreeSet::new();
             for member in &input.row.members {
                 self.pay(member.name.len().saturating_add(names.len()), depth)?;
@@ -1090,6 +1123,12 @@ impl Check<'_, '_> {
                 continue;
             }
             let scope = self.declaration_scope(input, depth + 1)?;
+            if matches!(
+                scope.body,
+                SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. })
+            ) {
+                continue;
+            }
             self.contexts.push(scope.id);
             let result = self.associated_definition_obligations(input, scope, depth + 1);
             self.contexts.pop();

@@ -91,19 +91,38 @@ impl Input {
                         binding.owner, SemanticDynOwner::Declaration(id) if id == row.id
                     )
                 });
-                let scope = scopes
-                    .next()
-                    .ok_or_else(|| {
-                        bad(
-                    "original associated declaration has no exact declaration Scope binding",
-                )
-                    })?
-                    .scope;
+                let mut scope = scopes.next().map(|binding| binding.scope);
                 if scopes.next().is_some() {
                     return Err(bad(
                         "original associated declaration has duplicate Scope bindings",
                     ));
                 }
+                if scope.is_none() {
+                    // Builtin impls are not user trait declarations. Their raw
+                    // catalog row is retained for exact input comparison, and
+                    // tied only to the unique real BuiltinImpl by full identity.
+                    pay(left, original.definitions.len().saturating_add(1))?;
+                    for definition in &original.definitions {
+                        if matches!(
+                            definition.body,
+                            SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. })
+                        ) {
+                            crate::dyn_metadata::semantic_operand_snapshot(
+                                definition, limits, left, 1,
+                            )?;
+                            if definition.identity == row.identity
+                                && scope.replace(definition.id).is_some()
+                            {
+                                return Err(bad(
+                                    "raw builtin declaration has ambiguous real Scope identity",
+                                ));
+                            }
+                        }
+                    }
+                }
+                let scope = scope.ok_or_else(|| {
+                    bad("original associated declaration has no exact declaration Scope binding")
+                })?;
                 declarations.push(Declaration {
                     row: row.clone(),
                     scope,
