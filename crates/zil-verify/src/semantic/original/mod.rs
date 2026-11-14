@@ -30,6 +30,7 @@ mod invocation;
 mod operations;
 mod elements;
 mod heads;
+mod protocol;
 pub(super) mod intrinsics;
 use usage::{Binder,Place,Uses};
 use terms::*;
@@ -67,6 +68,7 @@ pub(super) struct CheckedOriginal {
     value_bindings:BTreeMap<(SemanticDefinitionId,NodeId),Binder>,
     names_at:BTreeMap<(SemanticDefinitionId,bool,NodeId,String),Ty>,
     pattern_types:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Ty>,
+    pattern_bindings:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Binder>,
     pattern_origin:Option<(NodeId,Vec<u32>)>,
     unsafe_depth:BTreeMap<SemanticDefinitionId,usize>,
     in_defer:BTreeMap<SemanticDefinitionId,usize>,
@@ -96,6 +98,10 @@ impl CheckedOriginal {
         result.current=None;
         result.check_cleanups(module,context,active,b)?;
         result.check_effects(b)?;
+        // No original protocol claim is usable by the actual bridge until
+        // every original body, including uninstantiated bodies, has been
+        // checked against its own entry relation.
+        result.check_protocols(module,context,&index,b)?;
         for binding in &result.creation_returns{b.spend(1)?;if result.creation_tainted.contains(binding){return Err(bad("original create result has a reassigned or loop-carried unproved lineage"));}}
         Ok(result)
     }
@@ -105,7 +111,7 @@ impl CheckedOriginal {
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original symbolic type substitution depth exceeded"));}
         Ok(match ty{
             Ty::Infer(id)=>match self.substitutions.get(id){Some(value)=>return self.resolve_at(value,depth+1,b),None=>ty.clone()},
-            Ty::Tuple(fields)=>{let mut values=Vec::new();for field in fields{values.push(self.resolve_at(field,depth+1,b)?);}Ty::Tuple(values)},
+            Ty::Tuple(fields)=>{let mut values=Vec::new();for field in fields{values.push(self.resolve_at(field,depth+1,b)?);}if values.is_empty(){Ty::Atom(Type::Unit)}else{Ty::Tuple(values)}},
             Ty::Address{mutable,life,inner}=>Ty::Address{mutable:*mutable,life:self.resolved_life(life,b)?,inner:Box::new(self.resolve_at(inner,depth+1,b)?)},
             Ty::Desc{life,inner}=>Ty::Desc{life:self.resolved_life(life,b)?,inner:Box::new(self.resolve_at(inner,depth+1,b)?)},
             Ty::Array(inner,length)=>Ty::Array(Box::new(self.resolve_at(inner,depth+1,b)?),length.clone()),

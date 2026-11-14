@@ -185,7 +185,7 @@ pub(super) fn tuple(children: &[terms::Value], b: &mut Budget) -> Check<terms::V
         )?;
         fields.push(child.raw.ty.clone());
     }
-    rows.finish(Type::Tuple(fields), true, b)
+    rows.finish(if fields.is_empty(){Type::Unit}else{Type::Tuple(fields)}, true, b)
 }
 
 #[cfg(test)]

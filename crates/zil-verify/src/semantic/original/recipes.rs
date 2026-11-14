@@ -31,7 +31,7 @@ impl CheckedOriginal {
                 let mut checked=Vec::new();for(formal,actual)in nominal.parameters.iter().zip(arguments){let value=self.actual(module,context,actual,env,active,b)?;if !matches!((formal,&value),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Const{..},Arg::Const(_))|(SemanticFormal::Lifetime,Arg::Life(_))){return Err(bad("original nominal argument changes full-ordinal kind"));}checked.push(value);}
                 Ty::Nominal(*definition,checked)
             },
-            SemanticTypeRecipe::Tuple(fields)=>{b.spend(fields.len())?;let mut checked=Vec::new();for field in fields{checked.push(self.ty(module,context,field,env,active,b)?);}Ty::Tuple(checked)},
+            SemanticTypeRecipe::Tuple(fields)=>{b.spend(fields.len().saturating_add(1))?;let mut checked=Vec::new();for field in fields{checked.push(self.ty(module,context,field,env,active,b)?);}if checked.is_empty(){Ty::Atom(Type::Unit)}else{Ty::Tuple(checked)}},
             SemanticTypeRecipe::Address{mutable,lifetime,inner}=>Ty::Address{mutable:*mutable,life:self.outer(module,context,lifetime,env,active,b)?,inner:Box::new(self.ty(module,context,inner,env,active,b)?)},
             SemanticTypeRecipe::Desc{lifetime,inner}=>Ty::Desc{life:self.outer(module,context,lifetime,env,active,b)?,inner:Box::new(self.ty(module,context,inner,env,active,b)?)},
             SemanticTypeRecipe::Slice(inner)=>Ty::Slice(Box::new(self.ty(module,context,inner,env,active,b)?)),

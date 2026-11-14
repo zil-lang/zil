@@ -86,7 +86,8 @@ impl CheckedOriginal {
                 Ty::Managed(Box::new(Ty::Carrier{kind:CarrierKind::AsyncRegistration,child:Box::new(callback),retained:Box::default()}))
             },
             Intrinsic::AsyncValid|Intrinsic::AsyncRequest|Intrinsic::AsyncPoll|Intrinsic::AsyncFinish|Intrinsic::AsyncFinishChecked=>{
-                if kind==Intrinsic::AsyncFinishChecked{return Err(unsupported("original checked registration destroy requires its complete all-exit Closed proof",None));}
+                // Checked destruction is admitted only if the mandatory
+                // original protocol replay proves Closed at this exact call.
                 self.operation_arity(arguments,1)?;let destroy=matches!(kind,Intrinsic::AsyncFinish|Intrinsic::AsyncFinishChecked);
                 let value=if destroy{if !matches!(arguments[0].kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){return Err(bad("registration destroy omits explicit give"));}self.expression(module,context,&arguments[0],env,bindings,None,active,b)?}else{let(value,source)=self.operation_observe(module,context,&arguments[0],env,bindings,active,b)?;use_.buffer=Some(source);value};
                 let(payload,_)=self.operation_payload(&value,env.current()?,arguments[0].id,b)?;if !matches!(payload,Ty::Carrier{kind:CarrierKind::AsyncRegistration,..}){return Err(bad("async operation has another complete registration environment"));}
