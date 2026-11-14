@@ -2002,18 +2002,35 @@ pub(super) fn program(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
-    crate::dyn_metadata::semantic_snapshot(program, limits, left, 1)?;
-    let input = program.clone();
+    // The immutable original definitions never change in this pass. Borrow
+    // the complete old input while constructing independent mutable outputs;
+    // do not deep-copy every original body merely to avoid a borrow conflict.
     let mut eval = Eval {
-        input: &input,
+        input: &*program,
         module: &ActualDirectory::from_module(module),
         ledger,
         limits,
         left,
         active: BTreeSet::new(),
     };
-    eval.fee(program.instances.len().saturating_add(program.sites.len()))?;
-    for instance in &mut program.instances {
+    eval.fee(
+        program
+            .instances
+            .len()
+            .saturating_add(program.sites.len())
+            .saturating_mul(2),
+    )?;
+    let mut instances = Vec::with_capacity(program.instances.len());
+    for instance in &program.instances {
+        crate::dyn_metadata::semantic_operand_snapshot(instance, limits, eval.left, 1)?;
+        instances.push(instance.clone());
+    }
+    let mut sites = Vec::with_capacity(program.sites.len());
+    for site in &program.sites {
+        crate::dyn_metadata::semantic_operand_snapshot(site, limits, eval.left, 1)?;
+        sites.push(site.clone());
+    }
+    for instance in &mut instances {
         eval.fee(instance.actuals.len())?;
         for (ordinal, actual) in instance.actuals.iter_mut().enumerate() {
             let mut value = eval.holder_actual(instance.id, ordinal as u32, actual, 0)?;
@@ -2072,7 +2089,7 @@ pub(super) fn program(
             binding.actual = eval.class(instance.id, &binding.actual)?;
         }
     }
-    for site in &mut program.sites {
+    for site in &mut sites {
         let f = eval.function(site.instance)?;
         if matches!(site.action, SemanticSiteAction::CoreBodyCall) {
             let owner = eval.instance(site.instance)?.definition;
@@ -2164,6 +2181,9 @@ pub(super) fn program(
             }
         }
     }
+    drop(eval);
+    program.instances = instances;
+    program.sites = sites;
     Ok(())
 }
 
