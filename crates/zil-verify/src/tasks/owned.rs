@@ -24,6 +24,7 @@ fn scalar(t: &Type) -> bool {
 pub(super) fn retained_pointee(ty: &Type) -> bool {
     match ty {
         ty if scalar(ty) => true,
+        Type::BorrowedStorage { storage, .. } => retained_pointee(storage),
         Type::Record { fields, .. } => fields.iter().all(|(_, field)| retained_pointee(field)),
         Type::Tuple(fields) => fields.iter().all(retained_pointee),
         Type::Array { element, .. } | Type::Slice { element } => retained_pointee(element),
@@ -118,6 +119,10 @@ fn record(t: &Type, budget: &mut Budget) -> Check<bool> {
     while let Some(t) = pending.pop() {
         budget.spend(1)?;
         match t {
+            Type::BorrowedStorage { storage, .. } => {
+                dynamic_metadata::ty(t, budget)?;
+                pending.push(storage);
+            }
             t if scalar(t) => {}
             Type::Record { fields, .. } => {
                 budget.spend(fields.len())?;
@@ -147,6 +152,10 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> Check<bool> {
     while let Some(t) = work.pop() {
         budget.spend(1)?;
         match t {
+            Type::BorrowedStorage { storage, .. } => {
+                dynamic_metadata::ty(t, budget)?;
+                work.push(storage);
+            }
             t if scalar(t) => {}
             Type::Managed(payload) => {
                 if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
@@ -188,6 +197,10 @@ fn aggregate_resources<'a>(t: &'a Type, budget: &mut Budget) -> Check<Vec<&'a Ty
     while let Some(t) = work.pop() {
         budget.spend(1)?;
         match t {
+            Type::BorrowedStorage { storage, .. } => {
+                dynamic_metadata::ty(t, budget)?;
+                work.push(storage);
+            }
             Type::Managed(_) => leaves.push(t),
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 budget.spend(fields.len())?;
@@ -272,6 +285,10 @@ fn tuple(t: &Type, budget: &mut Budget) -> Check<bool> {
 fn storage(t: &Type, budget: &mut Budget) -> Check<bool> {
     budget.spend(1)?;
     match t {
+        Type::BorrowedStorage { storage: inner, .. } => {
+            dynamic_metadata::ty(t, budget)?;
+            storage(inner, budget)
+        }
         Type::Managed(p) | Type::Desc(p) => {
             if p.as_ref() == &Type::ByteBuffer {
                 Ok(true)
@@ -295,9 +312,17 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
     match t {
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
-        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => {
-            super::require_closed_context(p,None)?;
-            Ok(super::input_scope::domain(p,budget)? == super::input_scope::Domain::Known(0))
+        Type::BorrowedStorage { storage: inner, .. } => {
+            dynamic_metadata::ty(t, budget)?;
+            pollable_storage(module, inner, budget)
+        }
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Task { .. }) => {
+            super::require_closed_context(p, None)?;
+            dynamic_metadata::ty(p, budget)?;
+            Ok(matches!(
+                super::input_scope::domain(p, budget)?,
+                super::input_scope::Domain::Known(_)
+            ))
         }
         Type::Managed(p) | Type::Desc(p)
             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
@@ -310,7 +335,9 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
         Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
         Type::Address { inner, .. } => pollable_storage(module, inner, budget),
         Type::Closure(id) => {
-            if super::input_scope::domain(t,budget)? != super::input_scope::Domain::Known(0) { return Ok(false); }
+            if super::input_scope::domain(t, budget)? != super::input_scope::Domain::Known(0) {
+                return Ok(false);
+            }
             let Some(c) = module.closures.get(id.0 as usize) else {
                 return Ok(false);
             };
@@ -318,15 +345,22 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                 return Ok(false);
             }
             for (index, capture) in c.captures.iter().enumerate() {
-                if let Type::Managed(payload)=capture {
+                if let Type::Managed(payload) = capture {
                     match payload.as_ref() {
                         Type::Task { .. } => {
-                            super::require_closed_context(payload,None)?;
-                            if super::input_scope::domain(payload,budget)? != super::input_scope::Domain::Known(0) { return Ok(false); }
+                            super::require_closed_context(payload, None)?;
+                            if !matches!(
+                                super::input_scope::domain(payload, budget)?,
+                                super::input_scope::Domain::Known(_)
+                            ) {
+                                return Ok(false);
+                            }
                             continue;
                         }
                         Type::AsyncRegistration { .. } => {
-                            if !pollable_storage(module,capture,budget)? { return Ok(false); }
+                            if !pollable_storage(module, capture, budget)? {
+                                return Ok(false);
+                            }
                             continue;
                         }
                         _ => {}
@@ -708,11 +742,16 @@ pub(super) fn profile(
 
     if f.resume_bound == zil_ir::TaskResumeBound::Transfer {
         for parameter in &f.parameters {
-            let actual=local_type(f,*parameter,span)?;
-            if let Type::Closure(_)=actual {
-                if super::drop_sync::contains_kind(module,actual,budget,true)?
-                    || super::needs_synchronous_proof(module,actual,budget)? {
-                    return Err(reject("E-VERIFY-TASK",span,"callable-owned asynchronous inputs have no actual frame handoff certificate"));
+            let actual = local_type(f, *parameter, span)?;
+            if let Type::Closure(_) = actual {
+                if super::drop_sync::contains_kind(module, actual, budget, true)?
+                    || super::needs_synchronous_proof(module, actual, budget)?
+                {
+                    return Err(reject(
+                        "E-VERIFY-TASK",
+                        span,
+                        "callable-owned asynchronous inputs have no actual frame handoff certificate",
+                    ));
                 }
             }
         }
@@ -995,7 +1034,9 @@ pub(crate) fn once_cleanup_resumable(
         return Ok(false);
     };
     if !super::needs_synchronous_proof(module, ty, budget)?
-        && !(budget.async_registrations && super::drop_sync::contains_kind(module, ty, budget, true)?) {
+        && !(budget.async_registrations
+            && super::drop_sync::contains_kind(module, ty, budget, true)?)
+    {
         return Ok(false);
     }
     pollable_storage(module, ty, budget)

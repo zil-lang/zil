@@ -24,115 +24,84 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
     }
 }
 
-pub(super) fn raw_frame_shape(
+mod failure;
+pub(crate) mod frame_shape;
+pub(super) fn raw_frame_data(
     module: &TypedModule,
     worker: &TypedFunction,
+    declaration: &Type,
     b: &mut Budget,
-) -> Check<RetainedLifeShape> {
-    for parameter in &worker.parameters {
-        let ty = local_type(worker, *parameter, Some(worker.span))?;
-        let selected = if let Type::Address { inner, .. } = ty {
-            inner.as_ref()
-        } else {
-            ty
-        };
-        match input_scope::domain(selected, b)? {
-            input_scope::Domain::Known(0) => {}
-            _ => {
-                return Err(unsupported(
-                    "raw Task frame requires its complete original full-class selector metadata",
-                    Some(worker.span),
-                ));
-            }
-        }
-    }
-    let _ = module;
-    owned::borrowed_shape(worker, b)
+) -> Check<frame_shape::Frame> {
+    frame_shape::frame(module, worker, declaration, b)
 }
-pub(super) fn raw_frame_sources(
-    _module: &TypedModule,
-    worker: &TypedFunction,
-    b: &mut Budget,
-) -> Check<Vec<RetainedPortBinding>> {
-    let mut sources = Vec::new();
-    for (ordinal, parameter) in worker.parameters.iter().enumerate() {
-        b.spend(1)?;
-        if matches!(
-            local_type(worker, *parameter, Some(worker.span))?,
-            Type::Address { .. }
-        ) {
-            sources.push(RetainedPortBinding {
-                port: sources.len() as u32,
-                source: StoragePosition {
-                    base: StorageBase::Parameter(ordinal as u32),
-                    path: vec![],
-                },
-            });
-        }
-    }
-    Ok(sources)
-}
+/// Structural admission of an explicitly declared opaque frame domain. This
+/// grants no Closed state, synchronous destruction or actual port source.
 pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()> {
-    if let Type::Task {
-        result,
-        retained_life,
-    } = ty
+    let Type::Task { retained_life, .. } = ty else {
+        return Ok(());
+    };
+    if retained_life
+        .retained
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+        || retained_life
+            .nominal_arguments
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
     {
-        let address_result = matches!(result.as_ref(), Type::Address { mutable: false, .. });
-        if address_result || !retained_life.retained.is_empty() {
-            if !address_result {
-                return Err(reject(
-                    "E-VERIFY-TASK-RESULT",
-                    span,
-                    "shared Task result has no exact shared retained input context",
-                ));
-            }
-            if retained_life.retained.is_empty() {
-                return Err(unsupported(
-                    "borrowed Task retained classes require actual implemented frame port mappings",
-                    span,
-                ));
-            }
-            let result_ok = matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner));
-            let map_ok = matches!(retained_life.retained.as_slice(), [row]
-                if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0
-                && row.binder < retained_life.binder_count
-                && retained_life.ports.iter().any(|port| port.binder == row.binder && port.leaf == **result)
-                && retained_life.ports.iter().filter(|port| port.binder == row.binder).all(|port|
-                    port.mode == zil_ir::StoredBorrowMode::SharedAddress));
-            if !(result_ok && map_ok && retained_life.nominal_arguments.is_empty()) {
-                return Err(reject(
-                    "E-VERIFY-TASK-RESULT",
-                    span,
-                    "shared Task result has no exact shared retained input context",
-                ));
-            }
+        return Err(reject(
+            "E-VERIFY-TASK",
+            span,
+            "Task full class/phantom directory is not canonical",
+        ));
+    }
+    let valid = |binder: u32| binder < retained_life.binder_count;
+    for port in &retained_life.ports {
+        if !valid(port.binder)
+            || !matches!(
+                (&port.leaf, port.mode),
+                (
+                    Type::Address { mutable: false, .. },
+                    StoredBorrowMode::SharedAddress
+                ) | (
+                    Type::Address { mutable: true, .. },
+                    StoredBorrowMode::ExclusiveAddress
+                ) | (
+                    Type::Desc(_),
+                    StoredBorrowMode::ReadOnlyDescription | StoredBorrowMode::WritableDescription
+                ) | (Type::Mutex { .. }, StoredBorrowMode::SharedAddress)
+            )
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "Task port changes its complete declared leaf/mode/domain",
+            ));
         }
     }
-    let mut next = 0;
-    if let Type::Task {
-        result,
-        retained_life,
-    } = ty
-        && *retained_life != empty_context()
-        && !((owned::retained_result(result)
-            || matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner)))
-            && retained_life.binder_count > 0
-            && retained_life.nominal_arguments.is_empty()
-            && !retained_life.ports.is_empty()
-            && retained_life.ports.iter().all(|port| {
-                let dense = if port.binder == next { next += 1; true } else { port.binder < next };
-                dense
-                    && matches!(&port.leaf, Type::Address { mutable, inner }
-                        if owned::retained_pointee(inner)
-                            && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
-            })
-            && next == retained_life.binder_count)
-    {
-        return Err(unsupported(
-            "borrowed Task retained classes require actual implemented frame port mappings",
-            span,
-        ));
+    for row in &retained_life.retained {
+        if !valid(row.binder)
+            || !matches!(
+                row.path.as_slice(),
+                [LifeTypeProjection::Parameter(_)] | [LifeTypeProjection::Result]
+            )
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "Task complete child-domain row selects another frame component",
+            ));
+        }
+    }
+    for row in &retained_life.nominal_arguments {
+        if !valid(row.binder) || !matches!(row.path.first(), Some(LifeTypeProjection::Parameter(_)))
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "Task phantom row loses its original whole input occurrence",
+            ));
+        }
     }
     Ok(())
 }
@@ -160,11 +129,15 @@ pub(super) fn result_binder(ty: &Type) -> Option<u32> {
     if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
         return None;
     }
-    match retained_life.retained.as_slice() {
-        [row] if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 => {
-            Some(row.binder)
-        }
-        _ => None,
+    let mut rows = retained_life
+        .retained
+        .iter()
+        .filter(|row| row.path == [LifeTypeProjection::Result] && row.class == 0);
+    let row = rows.next()?;
+    if rows.next().is_some() {
+        None
+    } else {
+        Some(row.binder)
     }
 }
 pub(super) fn result_port(ty: &Type, port: u32) -> bool {
@@ -520,120 +493,6 @@ fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> 
         }))),
     }
 }
-fn owned_create_type(
-    result: &Type,
-    retained: zil_ir::RetainedLifeShape,
-    parameters: Vec<Type>,
-    b: &mut Budget,
-) -> Check<Type> {
-    b.spend(
-        parameters
-            .len()
-            .saturating_mul(48)
-            .saturating_add(retained.ports.len().saturating_mul(12)),
-    )?;
-    let mut qualified = !retained.ports.is_empty();
-    for t in &parameters {
-        if !matches!(t, Type::Address { .. })
-            && !t.is_copy_value()
-            && !matches!(t,Type::Managed(payload) if payload.is_copy_value())
-        {
-            qualified &= matches!(t, Type::Managed(_) | Type::Closure(_))
-                && input_scope::domain(t, b)? == input_scope::Domain::Known(0);
-        }
-    }
-    let mut rows = Vec::new();
-    let mut relations = Vec::new();
-    if qualified {
-        let selected: Vec<_> = parameters
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| matches!(t, Type::Address { .. }))
-            .collect();
-        if selected.len() != retained.ports.len() {
-            return Err(reject(
-                "E-VERIFY-TASK",
-                None,
-                "owned failure actual port count differs",
-            ));
-        }
-        for ((index, input), port) in selected.into_iter().zip(&retained.ports) {
-            if input != &port.leaf {
-                return Err(reject(
-                    "E-VERIFY-TASK",
-                    None,
-                    "owned failure actual port type differs",
-                ));
-            }
-            rows.push(zil_ir::StorageLifeSlot {
-                path: vec![
-                    PlaceProjection::Field(1),
-                    PlaceProjection::Field(index as u32),
-                ],
-                mode: port.mode,
-                binder: port.binder,
-            });
-            relations.push(zil_ir::StorageRetainedBinding {
-                path: vec![
-                    zil_ir::LifeTypeProjection::TypeArgument(0),
-                    zil_ir::LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
-                ],
-                class: 0,
-                binder: port.binder,
-            });
-        }
-        for binder in 0..retained.binder_count {
-            relations.push(zil_ir::StorageRetainedBinding {
-                path: vec![zil_ir::LifeTypeProjection::TypeArgument(1)],
-                class: binder,
-                binder,
-            });
-        }
-    }
-    let tuple = Type::Tuple(parameters);
-    resources::charge_payload(&tuple, b)?;
-    let name = format!("@std.task:v1:TaskCreateFailure:{}", tuple.fingerprint());
-    let plain = if let Type::Tuple(fields) = &tuple {
-        fields
-            .iter()
-            .all(|t| t.is_copy_value() || matches!(t, Type::Address { .. }))
-    } else {
-        false
-    };
-    let fields = vec![
-        (
-            "reason".into(),
-            Type::Enum {
-                name: "@std.task:v1:TaskCreateError".into(),
-                variants: vec![("Allocation".into(), vec![])],
-            },
-        ),
-        ("inputs".into(), tuple),
-    ];
-    let storage = if plain {
-        Type::Record { name, fields }
-    } else {
-        Type::Package { name, fields }
-    };
-    let error = if qualified {
-        Type::BorrowedStorage {
-            storage: Box::new(storage),
-            life: zil_ir::StorageLifeShape {
-                binder_count: retained.binder_count,
-                slots: rows,
-                retained: relations,
-                nominal_arguments: vec![],
-            },
-        }
-    } else {
-        storage
-    };
-    let mut expected = task_create_type(result, retained);
-    if let Type::ErrorUnion { error: slot, .. } = &mut expected {
-        **slot = error;
-    }
-    Ok(expected)
-}
 pub(super) fn is_close_poll(ty: &Type) -> bool {
     ty == &task_poll_type(&Type::Unit)
 }
@@ -701,6 +560,9 @@ pub(super) fn carrier(
     };
     charge_result_context(payload, budget)?;
     require_closed_context(payload, span)?;
+    if matches!(payload.as_ref(), Type::Task { .. }) {
+        crate::semantic::task_domains::task_metadata_domain(module, payload, budget)?;
+    }
     resources::charge_payload(payload, budget)?;
     if let Type::Task { result, .. } = payload.as_ref()
         && !owned::result_type(result, budget)?
@@ -768,10 +630,24 @@ pub(super) fn instruction(
                     return Err(bad());
                 }
             }
+            let proposed = value_type(f, i.result.ok_or_else(bad)?, span)?;
+            let declaration =
+                crate::semantic::task_domains::constructor_declaration(proposed, budget)?;
+            let Type::Task {
+                result: declared_result,
+                retained_life: declared_shape,
+            } = declaration
+            else {
+                unreachable!()
+            };
+            if **declared_result != target.return_type {
+                return Err(bad());
+            }
             let frames = crate::semantic::task_domains::metadata_candidates(worker, budget)?;
-            let mut selected = None;
+            let mut selected: Option<crate::semantic::task_domains::FrameMetadata> = None;
             for frame in frames {
                 if frame.result_type != target.return_type
+                    || frame.shape != *declared_shape
                     || frame.parameter_types.len() != target.parameters.len()
                 {
                     continue;
@@ -786,8 +662,12 @@ pub(super) fn instruction(
                 if !compatible {
                     continue;
                 }
-                if let Some((shape, sources)) = &selected {
-                    if *shape != frame.shape || *sources != frame.port_sources {
+                if let Some(known) = &selected {
+                    if known.shape != frame.shape
+                        || known.port_sources != frame.port_sources
+                        || known.parameter_lives != frame.parameter_lives
+                        || known.result_life != frame.result_life
+                    {
                         return Err(reject(
                             "E-VERIFY-TASK",
                             span,
@@ -795,11 +675,11 @@ pub(super) fn instruction(
                         ));
                     }
                 } else {
-                    selected = Some((frame.shape, frame.port_sources));
+                    selected = Some(frame);
                 }
             }
-            let (retained_life, expected) = selected.ok_or_else(bad)?;
-            if port_bindings != &expected {
+            let selected = selected.ok_or_else(bad)?;
+            if port_bindings != &selected.port_sources {
                 return Err(reject(
                     "E-VERIFY-TASK",
                     span,
@@ -812,16 +692,9 @@ pub(super) fn instruction(
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(worker);
             let ty = if matches!(i.kind, InstructionKind::TaskCreateOwned { .. }) {
-                let mut inputs = vec![];
-                for parameter in &target.parameters {
-                    let t = local_type(target, *parameter, span)?;
-                    resources::charge_payload(t, budget)?;
-                    resources::charge_payload(t, budget)?;
-                    inputs.push(t.clone());
-                }
-                owned_create_type(&target.return_type, retained_life, inputs, budget)?
+                failure::check(module, proposed, target, &selected, budget)?
             } else {
-                task_create_type(&target.return_type, retained_life)
+                task_create_type(&target.return_type, selected.shape.clone())
             };
             let Type::ErrorUnion { result, .. } = &ty else {
                 unreachable!()

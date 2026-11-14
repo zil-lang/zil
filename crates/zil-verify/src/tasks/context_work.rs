@@ -10,79 +10,8 @@ pub(crate) fn context(ty: &Type, b: &mut Budget) -> Check<()> {
     else {
         return Ok(());
     };
-    if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
-        return Ok(());
-    }
-    b.spend(
-        retained_life
-            .ports
-            .len()
-            .saturating_add(retained_life.retained.len())
-            .saturating_add(retained_life.nominal_arguments.len())
-            .saturating_add(1)
-            .saturating_mul(4),
-    )?;
-    for row in &retained_life.retained {
-        b.spend(row.path.len().saturating_mul(4))?;
-    }
-    for row in &retained_life.nominal_arguments {
-        b.spend(row.path.len().saturating_mul(4))?;
-    }
-    // Reserve container growth before building the worklist. Every supported
-    // leaf node/name pays its walk, admission and complete equality visits.
-    let mut pending = Vec::new();
-    pending.push((result.as_ref(), 0usize));
-    pending.extend(retained_life.ports.iter().map(|p| (&p.leaf, 0usize)));
-    while let Some((leaf, depth)) = pending.pop() {
-        b.spend(4)?;
-        if depth > b.limits.max_call_depth {
-            return Err(limit(
-                "Task result context nesting exceeds verification limit",
-            ));
-        }
-        match leaf {
-            Type::Address { inner, .. }
-            | Type::Array { element: inner, .. }
-            | Type::Slice { element: inner } => {
-                pending.push((inner.as_ref(), depth + 1));
-            }
-            Type::Record { name, fields } => {
-                b.spend(name.len().saturating_add(fields.len()).saturating_mul(4))?;
-                for (name, child) in fields {
-                    b.spend(name.len().saturating_mul(4))?;
-                    pending.push((child, depth + 1));
-                }
-            }
-            Type::Tuple(fields) => {
-                b.spend(fields.len().saturating_mul(4))?;
-                pending.extend(fields.iter().map(|child| (child, depth + 1)));
-            }
-            Type::Unit
-            | Type::Bool
-            | Type::U8
-            | Type::U16
-            | Type::U32
-            | Type::I32
-            | Type::I8
-            | Type::I16
-            | Type::Isize
-            | Type::I64
-            | Type::U64
-            | Type::Usize
-            | Type::F32
-            | Type::F64 => {}
-            // These cannot be a whole retained input/result leaf. Reject before
-            // an unmetered structural classifier or equality can inspect them.
-            _ => {
-                return Err(reject(
-                    "E-VERIFY-TASK-RESULT",
-                    None,
-                    "shared Task result has no exact shared retained input context",
-                ));
-            }
-        }
-    }
-    Ok(())
+    dynamic_metadata::ty(result, b)?;
+    dynamic_metadata::retained_shape(retained_life, b)
 }
 
 pub(crate) fn selection(mut ty: &Type, b: &mut Budget) -> Check<()> {

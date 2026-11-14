@@ -154,6 +154,17 @@ impl CheckedOriginal {
             self.calls.insert((env.current()?, site), worker_actuals);
             self.call_targets.insert((env.current()?, site), worker);
             use_.worker = Some(worker);
+            let mut context_retained = retained.clone();
+            context_retained.retained.retain(|part| match part {
+                RetainedPart::One { path, .. } | RetainedPart::All { path, .. } => {
+                    path.as_slice() != [LifeTypeProjection::Result]
+                }
+            });
+            let failure_context = Ty::Carrier {
+                kind: CarrierKind::Task,
+                child: Box::new(Ty::Atom(Type::Unit)),
+                retained: Box::new(context_retained),
+            };
             let task = Ty::Managed(Box::new(Ty::Carrier {
                 kind: CarrierKind::Task,
                 child: Box::new(prototype.result),
@@ -164,7 +175,7 @@ impl CheckedOriginal {
                     module,
                     context,
                     Ty::Tuple(inputs),
-                    task.clone(),
+                    failure_context,
                     env,
                     active,
                     b,

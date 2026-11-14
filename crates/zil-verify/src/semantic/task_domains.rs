@@ -6,6 +6,7 @@ use super::*;
 pub(crate) struct FrameKey {
     pub(crate) worker: FunctionId,
     pub(crate) instance: Option<SemanticInstanceId>,
+    pub(crate) raw_declaration: Option<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Selector {
@@ -30,6 +31,8 @@ pub(crate) struct FrameMetadata {
     pub(crate) arguments: Vec<CheckedActual>,
     pub(crate) parameters: Vec<CheckedType>,
     pub(crate) parameter_types: Vec<Type>,
+    pub(crate) parameter_lives: Vec<StorageLifeShape>,
+    pub(crate) result_life: StorageLifeShape,
     pub(crate) result: Option<CheckedType>,
     pub(crate) result_type: Type,
     pub(crate) shape: RetainedLifeShape,
@@ -270,6 +273,7 @@ impl CheckedContext {
                 let key = FrameKey {
                     worker,
                     instance: Some(instance.id),
+                    raw_declaration: None,
                 };
                 if b.task_frames.contains_key(&key) {
                     continue;
@@ -453,6 +457,7 @@ impl CheckedContext {
         let key = FrameKey {
             worker,
             instance: Some(instance.id),
+            raw_declaration: None,
         };
         let Some(state) = b.task_frames.get_mut(&key) else {
             return Ok(());
@@ -463,6 +468,12 @@ impl CheckedContext {
         if frame.definition != Some(instance.definition)
             || frame.parameter_types.len() != signature.parameters.len()
             || frame.result_type != signature.result.ty
+            || frame.result_life != signature.result.life
+            || frame
+                .parameter_lives
+                .iter()
+                .zip(&signature.parameters)
+                .any(|(life, (value, _))| *life != value.life)
         {
             return Err(bad(
                 "actual Task worker world differs from its complete source metadata",
@@ -611,6 +622,35 @@ pub(super) fn selector(
     })
 }
 
+fn selector_index(
+    context: &CheckedContext,
+    env: &EvalEnv,
+    domain: &[Selector],
+    selected: &Selector,
+    b: &mut Budget,
+) -> Check<Option<usize>> {
+    for (index, row) in domain.iter().enumerate() {
+        b.spend(1)?;
+        let equal = match (row, selected) {
+            (
+                Selector::Whole {
+                    owner: a,
+                    origin: x,
+                },
+                Selector::Whole {
+                    owner: z,
+                    origin: y,
+                },
+            ) if a == z => context.same_origin(env, x, y, b)?,
+            _ => row == selected,
+        };
+        if equal {
+            return Ok(Some(index));
+        }
+    }
+    Ok(None)
+}
+
 fn build_frame(
     context: &CheckedContext,
     module: &TypedModule,
@@ -646,7 +686,7 @@ fn build_frame(
         for class in 0..input.life.binder_count {
             let selected = selector(context, owner, &original.ty, input, class, b)?;
             b.spend(selectors.len().saturating_add(1))?;
-            let binder = match selectors.iter().position(|old| old == &selected) {
+            let binder = match selector_index(context, env, &selectors, &selected, b)? {
                 Some(index) => index as u32,
                 None => {
                     if selectors.len() >= b.limits.max_nodes {
@@ -695,12 +735,9 @@ fn build_frame(
     for class in 0..signature.result.life.binder_count {
         let result = selector(context, owner, &recipe.result, &signature.result, class, b)?;
         b.spend(selectors.len())?;
-        let binder = selectors
-            .iter()
-            .position(|row| row == &result)
-            .ok_or_else(|| {
-                bad("Task result class/phantom lacks its exact original input-domain selector")
-            })? as u32;
+        let binder = selector_index(context, env, &selectors, &result, b)?.ok_or_else(|| {
+            bad("Task result class/phantom lacks its exact original input-domain selector")
+        })? as u32;
         result_map.push(binder);
         shape.retained.push(StorageRetainedBinding {
             path: vec![LifeTypeProjection::Result],
@@ -721,6 +758,12 @@ fn build_frame(
             .iter()
             .map(|(value, _)| value.clone())
             .collect(),
+        parameter_lives: signature
+            .parameters
+            .iter()
+            .map(|(value, _)| value.life.clone())
+            .collect(),
+        result_life: signature.result.life.clone(),
         parameter_types: signature
             .parameters
             .iter()
@@ -743,14 +786,24 @@ pub(super) fn input_ports(
     value: &CheckedType,
     b: &mut Budget,
 ) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
-    let mut result = Vec::new();
     if !value.statics.is_empty() {
         return Err(unsupported(
             "Task constant-source frame input requires its complete source obligations",
             None,
         ));
     }
-    for slot in &value.life.slots {
+    let _ = context;
+    raw_input_ports(module, &value.ty, &value.life, b)
+}
+
+pub(crate) fn raw_input_ports(
+    module: &TypedModule,
+    ty: &Type,
+    life: &StorageLifeShape,
+    b: &mut Budget,
+) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
+    let mut result = Vec::new();
+    for slot in &life.slots {
         b.spend(slot.path.len().saturating_add(1))?;
         let path = slot
             .path
@@ -758,7 +811,7 @@ pub(super) fn input_ports(
             .copied()
             .map(LifeTypeProjection::Place)
             .collect::<Vec<_>>();
-        let leaf = lifetimes::select(&value.ty, &path, b)?;
+        let leaf = lifetimes::select(ty, &path, b)?;
         dynamic_metadata::ty(leaf, b)?;
         result.push((
             leaf.clone(),
@@ -771,7 +824,7 @@ pub(super) fn input_ports(
                 .collect(),
         ));
     }
-    let mut payload = &value.ty;
+    let mut payload = ty;
     let mut prefix = Vec::new();
     loop {
         match payload {
@@ -806,8 +859,7 @@ pub(super) fn input_ports(
             let class = if prefix.is_empty() {
                 port.binder
             } else {
-                let mut rows = value
-                    .life
+                let mut rows = life
                     .retained
                     .iter()
                     .filter(|row| row.path == prefix && row.class == port.binder);
@@ -873,8 +925,7 @@ pub(super) fn input_ports(
             let class = if prefix.is_empty() {
                 class
             } else {
-                let mut rows = value
-                    .life
+                let mut rows = life
                     .retained
                     .iter()
                     .filter(|row| row.path == prefix && row.class == class);
@@ -895,7 +946,6 @@ pub(super) fn input_ports(
             result.push((leaf, mode, class, path));
         }
     }
-    let _ = context;
     Ok(result)
 }
 
@@ -1061,6 +1111,24 @@ fn register_constructors(module: &TypedModule, b: &mut Budget) -> Check<()> {
     Ok(())
 }
 
+pub(crate) fn constructor_declaration<'a>(ty: &'a Type, b: &mut Budget) -> Check<&'a Type> {
+    dynamic_metadata::ty(ty, b)?;
+    let Type::ErrorUnion { result, .. } = ty else {
+        return Err(bad(
+            "Task constructor result is not its complete fallible owner",
+        ));
+    };
+    let Type::Managed(task) = result.as_ref() else {
+        return Err(bad("Task constructor success is not an owning frame"));
+    };
+    if !matches!(task.as_ref(), Type::Task { .. }) {
+        return Err(bad(
+            "Task constructor success changes its exact payload kind",
+        ));
+    }
+    Ok(task)
+}
+
 pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) -> Check<()> {
     if module.semantic.is_some() {
         return Err(bad(
@@ -1068,19 +1136,43 @@ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) ->
         ));
     }
     register_constructors(module, b)?;
-    for worker in workers(module, b)? {
+    b.spend(b.task_constructors.len())?;
+    let sites = b.task_constructors.keys().copied().collect::<Vec<_>>();
+    for site in sites {
+        let caller = module
+            .functions
+            .get(site.function.0 as usize)
+            .ok_or_else(|| bad("raw Task constructor function absent"))?;
+        let value = caller
+            .values
+            .get(site.result.0 as usize)
+            .ok_or_else(|| bad("raw Task constructor value absent"))?;
+        let declaration = constructor_declaration(value, b)?;
+        let Type::Task {
+            result,
+            retained_life,
+        } = declaration
+        else {
+            unreachable!()
+        };
+        b.spend(b.task_frames.len())?;
+        if b.task_frames.iter().any(|(key,state)|key.worker==site.worker&&key.instance.is_none()&&matches!(state,FrameState::MetadataReady(frame)if frame.result_type==**result&&frame.shape==*retained_life)){continue;}
+        if b.task_frames.len() >= b.limits.max_nodes {
+            return Err(limit("raw Task complete declaration inventory exceeded"));
+        }
+        let key = FrameKey {
+            worker: site.worker,
+            instance: None,
+            raw_declaration: Some(
+                u32::try_from(b.task_frames.len())
+                    .map_err(|_| limit("raw Task declaration inventory overflow"))?,
+            ),
+        };
         let function = module
             .functions
-            .get(worker.0 as usize)
+            .get(site.worker.0 as usize)
             .ok_or_else(|| bad("raw Task worker absent"))?;
-        // The mature raw profile remains the authoritative complete worker
-        // type interpreter. Its frame metadata never records a WF success.
-        let shape = crate::tasks::raw_frame_shape(module, function, b)?;
-        let key = FrameKey {
-            worker,
-            instance: None,
-        };
-        let sources = crate::tasks::raw_frame_sources(module, function, b)?;
+        let frame = crate::tasks::raw_frame_data(module, function, declaration, b)?;
         let parameter_types = function
             .parameters
             .iter()
@@ -1092,6 +1184,13 @@ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) ->
                     .ok_or_else(|| bad("raw Task parameter local absent"))
             })
             .collect::<Check<Vec<_>>>()?;
+        let result_map = frame
+            .shape
+            .retained
+            .iter()
+            .filter(|row| row.path == [LifeTypeProjection::Result])
+            .map(|row| row.binder)
+            .collect();
         b.task_frames.insert(
             key,
             FrameState::MetadataReady(FrameMetadata {
@@ -1100,12 +1199,14 @@ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) ->
                 arguments: vec![],
                 parameters: vec![],
                 parameter_types,
+                parameter_lives: frame.parameters,
+                result_life: frame.result,
                 result: None,
                 result_type: function.return_type.clone(),
-                shape,
-                port_sources: sources,
-                input_maps: vec![],
-                result_map: vec![],
+                shape: frame.shape,
+                port_sources: frame.sources,
+                input_maps: frame.maps,
+                result_map,
                 selectors: vec![],
                 worker_checked: false,
             }),
@@ -1114,6 +1215,27 @@ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) ->
     Ok(())
 }
 
+pub(crate) fn charge_life(life: &StorageLifeShape, b: &mut Budget) -> Check<()> {
+    if life.binder_count as usize > b.limits.max_nodes {
+        return Err(limit("Task full class metadata exceeded"));
+    }
+    b.spend(
+        (life.binder_count as usize)
+            .saturating_add(life.slots.len())
+            .saturating_add(life.retained.len())
+            .saturating_add(life.nominal_arguments.len()),
+    )?;
+    for row in &life.slots {
+        b.spend(row.path.len())?;
+    }
+    for row in &life.retained {
+        b.spend(row.path.len())?;
+    }
+    for row in &life.nominal_arguments {
+        b.spend(row.path.len())?;
+    }
+    Ok(())
+}
 pub(crate) fn metadata_candidates(worker: FunctionId, b: &mut Budget) -> Check<Vec<FrameMetadata>> {
     b.spend(b.task_frames.len())?;
     let frames = std::mem::take(&mut b.task_frames);
@@ -1133,6 +1255,24 @@ pub(crate) fn metadata_candidates(worker: FunctionId, b: &mut Budget) -> Check<V
                 .chain(std::iter::once(&frame.result_type))
             {
                 dynamic_metadata::ty(ty, b)?;
+            }
+            for value in frame.parameters.iter().chain(frame.result.iter()) {
+                dynamic_metadata::ty(&value.ty, b)?;
+                charge_life(&value.life, b)?;
+                b.spend(
+                    value
+                        .classes
+                        .len()
+                        .saturating_add(value.origins.len())
+                        .saturating_add(value.statics.len()),
+                )?;
+            }
+            for life in frame
+                .parameter_lives
+                .iter()
+                .chain(std::iter::once(&frame.result_life))
+            {
+                charge_life(life, b)?;
             }
             b.spend(
                 frame
@@ -1240,12 +1380,34 @@ pub(crate) fn task_metadata_domain(module: &TypedModule, ty: &Type, b: &mut Budg
         return Err(bad("Task domain cursor selects another type"));
     };
     dynamic_metadata::retained_shape(retained_life, b)?;
+    if retained_life.binder_count == 0
+        && retained_life.ports.is_empty()
+        && retained_life.retained.is_empty()
+        && retained_life.nominal_arguments.is_empty()
+    {
+        let (count, _) = dynamic_witness::intrinsic_domain(module, result, b)?;
+        if count == 0 {
+            return Ok(0);
+        }
+        return Err(bad(
+            "zero Task context omits a nonzero complete result domain",
+        ));
+    }
     let mut found = false;
     let workers = workers(module, b)?;
     for worker in workers {
         for frame in metadata_candidates(worker, b)? {
             if frame.result_type == **result && frame.shape == *retained_life {
                 found = true;
+            }
+            if **result == Type::Unit {
+                let mut context = frame.shape.clone();
+                context
+                    .retained
+                    .retain(|row| row.path != [LifeTypeProjection::Result]);
+                if context == *retained_life {
+                    found = true;
+                }
             }
         }
     }
@@ -1284,16 +1446,35 @@ pub(crate) fn record_raw_constructor(
         ));
     }
     for key in selected {
+        let raw_frame = if key.caller.is_none() {
+            let declaration = constructor_declaration(expected, b)?;
+            let Type::Task {
+                result,
+                retained_life,
+            } = declaration
+            else {
+                unreachable!()
+            };
+            b.spend(b.task_frames.len())?;
+            let frames=b.task_frames.iter().filter_map(|(frame_key,state)|if frame_key.worker==key.worker&&frame_key.instance.is_none()&&matches!(state,FrameState::MetadataReady(frame)if frame.result_type==**result&&frame.shape==*retained_life){Some(*frame_key)}else{None}).collect::<Vec<_>>();
+            if frames.len() != 1 {
+                return Err(bad(
+                    "raw Task constructor has no unique complete declared frame",
+                ));
+            }
+            Some(frames[0])
+        } else {
+            None
+        };
         let obligation = b.task_constructors.get_mut(&key).unwrap();
         if obligation.state == ObligationState::Checking {
             return Err(bad("Task constructor WF forms an active cycle"));
         }
         obligation.raw_checked = true;
         if key.caller.is_none() {
-            obligation.frames = vec![FrameKey {
-                worker: key.worker,
-                instance: None,
-            }];
+            obligation.frames = vec![
+                raw_frame.ok_or_else(|| bad("raw Task constructor frame obligation is absent"))?,
+            ];
             obligation.state = ObligationState::Discharged;
         }
     }
