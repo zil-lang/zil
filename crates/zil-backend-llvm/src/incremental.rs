@@ -20,6 +20,7 @@ pub struct BackendSession {
     pub(crate) final_product: Option<Arc<crate::final_product::Product>>,
     pub(crate) native_profile: Option<Arc<crate::native_link::Profile>>,
     pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
+    scoped_threads: ScopedThreads,
     diagnostic_items: zil_ir::PersistentVec<DiagnosticItem>,
     diagnostic_fragments: zil_ir::PersistentVec<Arc<String>>,
     diagnostic_output: Option<crate::machine_output::MachineOutput>,
@@ -27,6 +28,10 @@ pub struct BackendSession {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendSessionSummary {
     pub reused_machine_module: bool,
+    pub representation_functions_checked: usize,
+    pub representation_functions_reused: usize,
+    pub scoped_thread_functions_checked: usize,
+    pub scoped_thread_functions_reused: usize,
     pub whole_machine_input_functions_compared: usize,
     pub lowered_functions: usize,
     pub reused_functions: usize,
@@ -49,9 +54,55 @@ pub struct BackendSessionSummary {
     /// This is not process RSS or memory held by separate session checkpoints.
     pub native_history_payload_bytes: u64,
 }
+// A raw boolean fold, not a checker receipt. Strong immutable roots make
+// unchanged blocks exact inputs; changed/removed/reordered functions update the
+// actual aggregate before it selects the current linker variant.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct ScopedThreads {
+    functions: zil_ir::PersistentVec<zil_ir::TypedFunction>,
+    present: zil_ir::PersistentVec<bool>,
+    count: usize,
+}
+fn has_scoped_thread(function: &zil_ir::TypedFunction) -> bool {
+    function
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }))
+}
 impl BackendSession {
     pub fn summary(&self) -> &BackendSessionSummary {
         &self.summary
+    }
+    pub(crate) fn scoped_threads(
+        &mut self,
+        functions: &zil_ir::PersistentVec<zil_ir::TypedFunction>,
+    ) -> bool {
+        let inventory = &mut self.scoped_threads;
+        if inventory.functions.len() != functions.len() {
+            inventory.present = functions.iter().map(has_scoped_thread).collect();
+            inventory.count = inventory.present.iter().filter(|value| **value).count();
+            self.summary.scoped_thread_functions_checked = functions.len();
+        } else {
+            let changed = functions.changed_indices(&inventory.functions);
+            self.summary.scoped_thread_functions_reused = functions.len();
+            for index in changed {
+                if functions[index]
+                    .blocks
+                    .ptr_eq(&inventory.functions[index].blocks)
+                {
+                    continue;
+                }
+                self.summary.scoped_thread_functions_checked += 1;
+                self.summary.scoped_thread_functions_reused -= 1;
+                let present = has_scoped_thread(&functions[index]);
+                inventory.count -= usize::from(inventory.present[index]);
+                inventory.count += usize::from(present);
+                inventory.present.replace(index, present);
+            }
+        }
+        inventory.functions = functions.clone();
+        inventory.count != 0
     }
     pub(crate) fn render(&mut self, module: &Module) -> DiagnosticText {
         self.diagnostic_output = None;

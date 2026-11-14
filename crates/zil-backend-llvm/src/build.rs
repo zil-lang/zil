@@ -378,6 +378,8 @@ pub fn build_view_with_cancellation_and_session(
             && !options.closed_executable,
     )?;
     if let Some(session) = session.as_deref_mut() {
+        session.summary.representation_functions_checked = session.lower.representation_checked;
+        session.summary.representation_functions_reused = session.lower.representation_reused;
         session.summary.lowered_functions = session.lower.misses;
         session.summary.reused_functions = session.lower.hits;
         session.summary.reused_machine_module = session.lower.reused_machine_module;
@@ -785,12 +787,15 @@ pub fn build_view_with_cancellation_and_session(
     }
     check_cancelled(cancelled)?;
     let scan_started = std::time::Instant::now();
-    let scoped_threads = lir
-        .functions
-        .iter()
-        .flat_map(|f| &f.blocks)
-        .flat_map(|b| &b.instructions)
-        .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }));
+    let scoped_threads = if let Some(session) = session.as_deref_mut() {
+        session.scoped_threads(lir.functions)
+    } else {
+        lir.functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }))
+    };
     timings.machine_ns += crate::object_cache::elapsed_ns(scan_started);
     let llvm = llvm.current(&verified.fingerprint().to_hex());
     let final_candidate = session.as_ref().and_then(|_| {

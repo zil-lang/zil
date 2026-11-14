@@ -4,6 +4,7 @@
 use super::*;
 use std::sync::Arc;
 mod metadata_budget;
+mod representation;
 mod whole;
 #[cfg(test)]
 pub(crate) use metadata_budget::test_contract as test_callable_metadata_budget_contract;
@@ -30,6 +31,9 @@ pub(crate) struct Session {
     admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
     machine_history: std::collections::VecDeque<Arc<whole::MachineProduct>>,
     metadata_budget: metadata_budget::Cache,
+    representation: representation::Cache,
+    pub(crate) representation_checked: usize,
+    pub(crate) representation_reused: usize,
     pub(crate) reused_machine_module: bool,
     pub(crate) whole_machine_input_functions_compared: usize,
 }

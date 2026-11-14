@@ -229,7 +229,13 @@ pub(crate) fn lower_output_with_session(
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
-    let sum_helpers = bind_lir(verified, lir, options.entry, &mut remaining_work)?;
+    let sum_helpers = bind_lir(
+        verified,
+        lir,
+        options.entry,
+        &mut remaining_work,
+        session.as_deref_mut(),
+    )?;
     let machine_prefix_work = remaining_work;
     if let Some(session) = session.as_deref_mut() {
         if let Some(output) = session.reuse_machine(verified, lir, whole_options, remaining_work) {
@@ -985,6 +991,7 @@ fn bind_lir(
     lir: &LirView<'_>,
     entry: EntryPoint,
     remaining_work: &mut usize,
+    session: Option<&mut incremental::Session>,
 ) -> CompileResult<m::Code> {
     let module = verified.module();
     let layouts = vec![
@@ -1285,76 +1292,88 @@ fn bind_lir(
         &capture_sum_roots,
         entry,
     )?;
-    for function in lir.functions {
-        if !forwarded_callable_signature(function) {
-            return unsupported(
-                "forwarded callable result requires the same actual by-value parameter and Returned role",
-                Some(function.span),
-            );
-        }
-        if !(function.return_type.is_copy_value()
-            || stored_borrows::representation_type(&function.return_type)
-            || function.return_type.is_scalar_or_address()
-            || matches!(function.return_type, Type::MutexGuard { .. })
-            || matches!(function.return_type, Type::OwnedDyn { .. })
-            || drop_plan::sum_address(&function.return_type, lir.resources)
-            || resources::supported_type(&function.return_type, lir.resources)
-            || packages::supported_value_type(&function.return_type, lir.resources)
-            || errors::supported_type(&function.return_type, lir.resources)
-            || arrays::supported_type(&function.return_type, lir.resources)
-            || (matches!(function.return_type, Type::Closure(_))
-                && function.callable_return_contract.is_some()))
-            || function.parameters.iter().any(|id| {
-                let ty = &function.locals[id.0 as usize].ty;
-                !(ty.is_copy_value()
-                    || stored_borrows::representation_type(ty)
-                    || ty.is_scalar_or_address()
-                    || matches!(ty, Type::MutexGuard { .. })
-                    || matches!(ty, Type::OwnedDyn { .. })
-                    || resource_head_address(ty)
-                    || drop_plan::sum_address(ty, lir.resources)
-                    || resources::supported_type(ty, lir.resources)
-                    || packages::supported_value_type(ty, lir.resources)
-                    || errors::supported_type(ty, lir.resources)
-                    || arrays::supported_type(ty, lir.resources)
-                    || callable_parameter_type(ty, lir.closures))
-            })
-        {
-            return unsupported("LLVM scalar function signature", Some(function.span));
-        }
-        for ty in function
-            .locals
-            .iter()
-            .map(|local| &local.ty)
-            .chain(function.values.iter())
-        {
-            let concrete_closure = callable_parameter_type(ty, lir.closures);
-            if !ty.is_copy_value()
-                && !stored_borrows::representation_type(ty)
-                && !concrete_closure
-                && !ty.is_shared_sync_cell_address()
-                && !drop_plan::sum_address(ty, lir.resources)
-                && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !matches!(ty, Type::MutexGuard { .. })
-                && !matches!(ty, Type::OwnedDyn { .. })
-                && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
-                && !resource_head_address(ty)
-                && !ty.is_exclusive_task_head_address()
-                && !ty.is_package_address()
-                && !resources::supported_type(ty, lir.resources)
-                && !packages::supported_value_type(ty, lir.resources)
-                && !errors::supported_type(ty, lir.resources)
-                && !arrays::supported_type(ty, lir.resources)
-                && !stored_borrows::pure_storage_address(ty)
-            {
-                return unsupported(
-                    format!("LLVM representation for {}", ty.name()),
-                    Some(function.span),
-                );
-            }
+    if let Some(session) = session {
+        session.check_representations(lir)?;
+    } else {
+        for function in lir.functions {
+            check_function_representation(function, lir)?;
         }
     }
     Ok(sum_helpers)
+}
+
+// Pure representation predicates only: no budget ledger, VerifiedModule bit,
+// callback, entry choice or mutable world is read here. bind_lir's exact current
+// capability binding, closure qualification and paid helper checks stay above.
+fn check_function_representation(function: &TypedFunction, lir: &LirView<'_>) -> CompileResult<()> {
+    if !forwarded_callable_signature(function) {
+        return unsupported(
+            "forwarded callable result requires the same actual by-value parameter and Returned role",
+            Some(function.span),
+        );
+    }
+    if !(function.return_type.is_copy_value()
+        || stored_borrows::representation_type(&function.return_type)
+        || function.return_type.is_scalar_or_address()
+        || matches!(function.return_type, Type::MutexGuard { .. })
+        || matches!(function.return_type, Type::OwnedDyn { .. })
+        || drop_plan::sum_address(&function.return_type, lir.resources)
+        || resources::supported_type(&function.return_type, lir.resources)
+        || packages::supported_value_type(&function.return_type, lir.resources)
+        || errors::supported_type(&function.return_type, lir.resources)
+        || arrays::supported_type(&function.return_type, lir.resources)
+        || (matches!(function.return_type, Type::Closure(_))
+            && function.callable_return_contract.is_some()))
+        || function.parameters.iter().any(|id| {
+            let ty = &function.locals[id.0 as usize].ty;
+            !(ty.is_copy_value()
+                || stored_borrows::representation_type(ty)
+                || ty.is_scalar_or_address()
+                || matches!(ty, Type::MutexGuard { .. })
+                || matches!(ty, Type::OwnedDyn { .. })
+                || resource_head_address(ty)
+                || drop_plan::sum_address(ty, lir.resources)
+                || resources::supported_type(ty, lir.resources)
+                || packages::supported_value_type(ty, lir.resources)
+                || errors::supported_type(ty, lir.resources)
+                || arrays::supported_type(ty, lir.resources)
+                || callable_parameter_type(ty, lir.closures))
+        })
+    {
+        return unsupported("LLVM scalar function signature", Some(function.span));
+    }
+    for ty in function
+        .locals
+        .iter()
+        .map(|local| &local.ty)
+        .chain(function.values.iter())
+    {
+        let concrete_closure = callable_parameter_type(ty, lir.closures);
+        if !ty.is_copy_value()
+            && !stored_borrows::representation_type(ty)
+            && !concrete_closure
+            && !ty.is_shared_sync_cell_address()
+            && !drop_plan::sum_address(ty, lir.resources)
+            && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+            && !matches!(ty, Type::MutexGuard { .. })
+            && !matches!(ty, Type::OwnedDyn { .. })
+            && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
+            && !resource_head_address(ty)
+            && !ty.is_exclusive_task_head_address()
+            && !ty.is_package_address()
+            && !resources::supported_type(ty, lir.resources)
+            && !packages::supported_value_type(ty, lir.resources)
+            && !errors::supported_type(ty, lir.resources)
+            && !arrays::supported_type(ty, lir.resources)
+            && !stored_borrows::pure_storage_address(ty)
+        {
+            return unsupported(
+                format!("LLVM representation for {}", ty.name()),
+                Some(function.span),
+            );
+        }
+    }
+    Ok(())
 }
 
 fn entry_wrapper(

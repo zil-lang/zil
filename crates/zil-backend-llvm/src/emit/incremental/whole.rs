@@ -160,6 +160,8 @@ impl Session {
         self.source_projection_instruction_visits = 0;
         self.source_projection_reuses = 0;
         self.reused_machine_module = false;
+        self.representation_checked = 0;
+        self.representation_reused = 0;
         self.whole_machine_input_functions_compared = 0;
     }
 

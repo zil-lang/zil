@@ -2686,3 +2686,130 @@ mod mixed_lowering_tests;
 
 #[path = "whole_machine_tests.rs"]
 mod whole_machine_tests;
+
+#[test]
+fn current_representation_fold_rechecks_changed_owners_and_rejects_substituted_lir() {
+    let first = returning(Constant::I32(7));
+    let mut sibling = returning(Constant::I32(19));
+    sibling.id = FunctionId(1);
+    sibling.name = "sibling".into();
+    let verified = checked(vec![first, sibling], vec![vec![(vec![], vec![])]; 2]);
+    let options = EmitOptions::default();
+    let mut session = crate::emit::incremental::Session::default();
+    let input = lir(&verified);
+    let mut lower = |cap: &VerifiedModule, input: &LirModule| {
+        crate::emit::lower_view_with_session(
+            cap,
+            &input.as_view(),
+            &options,
+            false,
+            false,
+            1,
+            Some(&mut session),
+        )
+    };
+    let cold = lower(&verified, &input).unwrap().0;
+    let warm = lower(&verified, &input).unwrap().0;
+    assert_eq!(cold.items, warm.items);
+    assert_eq!(
+        (
+            session.representation_checked,
+            session.representation_reused
+        ),
+        (0, 2)
+    );
+    let mut module = verified.module().clone();
+    module.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(23));
+    let mut plan = verified.plan().clone();
+    plan.module_fingerprint = module.fingerprint();
+    let changed = verify_module(
+        module,
+        plan,
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let changed_lir = lir(&changed);
+    let (actual, _, _) = crate::emit::lower_view_with_session(
+        &changed,
+        &changed_lir.as_view(),
+        &options,
+        false,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap();
+    let fresh = crate::emit::lower_with_options(&changed, &changed_lir, &options).unwrap();
+    assert_eq!(actual.items, fresh.items);
+    assert_eq!(
+        (
+            session.representation_checked,
+            session.representation_reused
+        ),
+        (1, 1)
+    );
+    let mut substituted = changed_lir.clone();
+    substituted.functions[1].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(99));
+    let cached_error = crate::emit::lower_view_with_session(
+        &changed,
+        &substituted.as_view(),
+        &options,
+        false,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap_err();
+    let fresh_error =
+        crate::emit::lower_with_options(&changed, &substituted, &options).unwrap_err();
+    assert_eq!(cached_error, fresh_error);
+    assert_eq!(cached_error[0].code, "E-CODEGEN-UNBOUND-LIR");
+    assert_eq!(
+        session.representation_reused, 0,
+        "binding fails before cached predicates"
+    );
+}
+
+#[test]
+fn scoped_thread_fold_tracks_real_body_edits_reordering_and_checkpoint_isolation() {
+    let mut functions: PersistentVec<_> = (0..3)
+        .map(|id| {
+            let mut f = returning(Constant::I32(id as i32));
+            f.id = FunctionId(id);
+            f
+        })
+        .collect();
+    let mut session = BackendSession::default();
+    assert!(!session.scoped_threads(&functions));
+    session.begin();
+    assert!(!session.scoped_threads(&functions));
+    assert_eq!(session.summary().scoped_thread_functions_checked, 0);
+    assert_eq!(session.summary().scoped_thread_functions_reused, 3);
+    let mut checkpoint = session.clone();
+    let old_functions = functions.clone();
+    functions[1].blocks[0].instructions.push(instruction(
+        None,
+        InstructionKind::WithScopedThread {
+            worker: FunctionId(0),
+            argument: ValueId(0),
+            body: ValueId(0),
+        },
+    ));
+    session.begin();
+    assert!(session.scoped_threads(&functions));
+    assert_eq!(session.summary().scoped_thread_functions_checked, 1);
+    assert!(!checkpoint.scoped_threads(&old_functions));
+    let reordered: PersistentVec<_> = functions.iter().rev().cloned().collect();
+    session.begin();
+    assert!(session.scoped_threads(&reordered));
+    let removed: PersistentVec<_> = reordered
+        .iter()
+        .filter(|f| f.id != FunctionId(1))
+        .cloned()
+        .collect();
+    assert!(!session.scoped_threads(&removed));
+    assert!(!session.scoped_threads(&PersistentVec::new()));
+}

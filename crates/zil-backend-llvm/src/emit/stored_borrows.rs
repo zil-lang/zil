@@ -1661,7 +1661,7 @@ mod tests {
         let run = |n, raw: &LirModule| -> CompileResult<usize> {
             let mut left = n;
             reserve_binding(verified.module(), verified.limits(), &mut left)?;
-            bind_lir(&verified, &raw.as_view(), EntryPoint::None, &mut left)?;
+            bind_lir(&verified, &raw.as_view(), EntryPoint::None, &mut left, None)?;
             Ok(left)
         };
         assert_eq!(run(needed, &lir).unwrap(), 0);
