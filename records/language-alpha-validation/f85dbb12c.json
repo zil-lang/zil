@@ -1,0 +1,304 @@
+{
+  "candidate": "f85dbb12c7d8bea847fa2e101c8718f4d7fce0cf",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-emission-complete-build",
+  "accepted": false,
+  "cli_build": 0,
+  "workspace_alltargets": 0,
+  "source_lib": {
+    "passed": 152,
+    "failed": 0
+  },
+  "types_probe": {
+    "passed": 2,
+    "failed": 0
+  },
+  "foundation_positives": {
+    "passed": 0,
+    "total": 13
+  },
+  "intended_negatives": {
+    "passed": 2,
+    "total": 4
+  },
+  "native_small_sources": {
+    "passed": 12,
+    "total": 16
+  },
+  "failures": [
+    {
+      "group": "positive_cases",
+      "family": "scalars",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original result role has no actual call",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "patterns",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "ErrorUnion recipe changes its actual result constructor",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "generic-libraries",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original operation does not typecheck under its rigid declaration",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "closures",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "invocation type needs its complete actual header embedding",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "ownership",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "semantic source expression NodeId(33) in FunctionId(12) was not actually emitted",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "dynamic-abstraction",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "Dyn method specialization changes Self or complete actuals",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "async-ownership",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "original type query has no derived symbolic solution",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original query: current SemanticDefinitionId { module: ModuleId(0), index: 4 }, owner SemanticDefinitionId { module: ModuleId(0), index: 4 }, Expression 4"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "threads",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original core operation needs its complete parameter, mode and cleanup scheme",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 0, expression 1"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "foreign-lifecycle",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual call has ambiguous original callee worlds",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "owning-collections",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "original address changes a rigid lifetime anchor",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original type heads: actual Address, wanted Address",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 12 }, expression NodeId(24)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 11 }, expression NodeId(119)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "buffered-io",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "ErrorUnion recipe changes its actual result constructor",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "iteration",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original callable requires its declared complete role premise",
+          "span": {
+            "file": 1,
+            "start": 7045,
+            "end": 7060
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 27 }, expression NodeId(7)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "project-workflow",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "whole closure type has an unknown actual domain",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-original",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-EMISSION",
+          "message": "semantic source expression NodeId(33) in FunctionId(12) was not actually emitted",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-unused",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "ErrorUnion recipe changes its actual result constructor",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    }
+  ]
+}
