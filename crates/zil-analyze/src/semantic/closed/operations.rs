@@ -407,6 +407,14 @@ impl Check<'_, '_> {
                 }
 
                 self.image_operands(instance, expected, point, None, b)?;
+                self.function_reference(
+                    instance,
+                    site.recipe,
+                    point.function,
+                    subject,
+                    &expected_type,
+                    b,
+                )?;
                 if expected_type
                     != self.captured_value(
                         instance,
@@ -464,6 +472,20 @@ impl Check<'_, '_> {
                 }
             }
             (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {
+                if self
+                    .code_operation(
+                        instance,
+                        site.recipe,
+                        point.function,
+                        point.block.id,
+                        point.instruction,
+                        actuals,
+                        b,
+                    )?
+                    .is_some()
+                {
+                    return Ok(());
+                }
                 if self
                     .trait_operation(
                         instance,
@@ -1347,11 +1369,7 @@ impl Check<'_, '_> {
                         | InstructionKind::CallClosureMut { .. }
                         | InstructionKind::CallClosureBorrowed { .. } => Some(1),
                         InstructionKind::MakeClosure { .. } => Some(2),
-                        InstructionKind::CallIndirect { .. } => {
-                            return Err(unknown(
-                                "actual semantic code operation has no completed scoped boundary proof",
-                            ));
-                        }
+                        InstructionKind::CallIndirect { .. } => Some(3),
                         _ => None,
                     };
                     if let Some(kind) = requires {

@@ -1216,6 +1216,10 @@ impl Check<'_, '_> {
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
         }
+        if matches!(ty, Type::FunctionPointer { .. }) {
+            self.zero_data(ty, b, depth + 1)?;
+            return Ok(value::scalar(ty.clone()));
+        }
         if matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task {..}|Type::Mutex {..}))
         {
             self.zero_data(ty, b, depth + 1)?;

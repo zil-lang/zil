@@ -10,6 +10,7 @@ mod captures;
 mod constructors;
 mod effects;
 mod enums;
+mod function_values;
 mod invocations;
 mod loops;
 pub(super) mod mixed;
@@ -193,6 +194,10 @@ struct Call {
     parameters: Vec<Term>,
     closure: bool,
 }
+struct CodeCall {
+    code: Term,
+    anchor: LocalAnchor,
+}
 pub(super) struct Checked {
     arena: Vec<Kind>,
     frames: BTreeMap<SemanticDefinitionId, Frame>,
@@ -212,6 +217,8 @@ pub(super) struct Checked {
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
     environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
     capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
+    function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
+    code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -1339,6 +1346,11 @@ impl Solver<'_, '_> {
             if frame.expressions.contains_key(&value.id) {
                 return Err(fail("original expression identity is reused"));
             }
+            if let Some(term) = self.function_value(frame, value, b, depth + 1)? {
+                b.lookup(frame.expressions.len(), WORK)?;
+                frame.expressions.insert(value.id, term);
+                return Ok(term);
+            }
             let ty = match &value.kind {
                 CoreExprKind::Integer(text) => self.scalar_literal(text, false, b)?,
                 CoreExprKind::Float(text) => self.scalar_literal(text, true, b)?,
@@ -1793,6 +1805,10 @@ impl Solver<'_, '_> {
                             self.abstract_scheme(frame, head, value.id, local, b, depth + 1)?
                         {
                             (parameters, result)
+                        } else if let Some(call) =
+                            self.code_call(frame, head, value.id, local, b, depth + 1)?
+                        {
+                            call
                         } else {
                             let mut local = self.root(local, b)?;
                             for _ in 0..=b.partial_depth {
@@ -2087,6 +2103,10 @@ impl Solver<'_, '_> {
                         || self
                             .state
                             .abstract_calls
+                            .contains_key(&(frame.definition, value.id))
+                        || self
+                            .state
+                            .code_calls
                             .contains_key(&(frame.definition, value.id))
                     {
                         // Unit has no hidden callee result domain. Its actual opcode
@@ -3469,6 +3489,8 @@ pub(super) fn check(
             names_at: BTreeMap::new(),
             environment_reads: BTreeMap::new(),
             capture_origins: BTreeMap::new(),
+            function_values: BTreeMap::new(),
+            code_calls: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),

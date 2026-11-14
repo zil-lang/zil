@@ -13,6 +13,7 @@ mod capture_places;
 mod class_origins;
 mod classes;
 mod descriptions;
+mod function_values;
 mod mutex;
 mod operations;
 mod registration;
@@ -226,6 +227,63 @@ impl Check<'_, '_> {
                 life: intrinsic, ..
             } if intrinsic == life => {}
             Type::Address { .. } if life.binder_count == 1 => {}
+            Type::MutexGuard { .. }
+                if life.binder_count == 1
+                    && life.slots.is_empty()
+                    && life.retained.is_empty()
+                    && life.nominal_arguments.is_empty() => {}
+            Type::Desc(inner) => {
+                crate::dyn_metadata::ty(inner, b)?;
+                self.resource_zero(&Type::Managed(inner.clone()), b, 0)?;
+                if life.binder_count != 1
+                    || !life.retained.is_empty()
+                    || !life.nominal_arguments.is_empty()
+                    || !matches!(life.slots.as_slice(),[slot] if slot.path.is_empty() && slot.binder==0 && slot.mode==StoredBorrowMode::WritableDescription)
+                {
+                    return Err(fail(
+                        "semantic description loses its complete weak outer occurrence",
+                    ));
+                }
+            }
+            Type::Address { mutable, inner }
+                if matches!(inner.as_ref(), Type::MutexGuard { .. }) =>
+            {
+                self.ordinary_type(inner, b)?;
+                let [row] = life.retained.as_slice() else {
+                    return Err(fail(
+                        "semantic guard address omits its intrinsic Pointee class",
+                    ));
+                };
+                if row.path.as_slice() != [LifeTypeProjection::Pointee]
+                    || row.class != 0
+                    || row.binder >= life.binder_count
+                {
+                    return Err(fail(
+                        "semantic guard address changes its exact intrinsic class selector",
+                    ));
+                }
+                crate::dyn_metadata::ty(inner, b)?;
+                let expected = value::address(
+                    *mutable,
+                    value::Class::Local(0),
+                    value::Value {
+                        ty: inner.as_ref().clone(),
+                        life: StorageLifeShape {
+                            binder_count: 1,
+                            slots: Vec::new(),
+                            retained: Vec::new(),
+                            nominal_arguments: Vec::new(),
+                        },
+                        classes: vec![value::Class::Local(row.binder)],
+                    },
+                    b,
+                )?;
+                if expected.life != *life {
+                    return Err(fail(
+                        "semantic guard address changes its complete outer/Pointee embedding",
+                    ));
+                }
+            }
             Type::Closure(id) => {
                 let definition = self
                     .module

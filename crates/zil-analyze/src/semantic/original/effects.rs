@@ -474,6 +474,19 @@ impl Pending {
                 continue;
             }
             b.lookup(checked.intrinsics.len(), WORK)?;
+            b.lookup(checked.code_calls.len(), WORK)?;
+            if let Some(call) = checked.code_calls.get(&(owner, node)) {
+                let Kind::Code { call_kind, .. } = &checked.arena[checked.root(call.code, b)?]
+                else {
+                    return Err(fail(
+                        "original code effect edge loses its complete signature",
+                    ));
+                };
+                if caller.call_kind == CallKind::Direct && *call_kind == CallKind::Suspend {
+                    return Err(fail("original Direct body invokes Suspend code"));
+                }
+                continue;
+            }
             if let Some(id) = checked.intrinsics.get(&(owner, node)) {
                 if caller.call_kind == CallKind::Direct && id.call_kind() == CallKind::Suspend {
                     return Err(fail(
