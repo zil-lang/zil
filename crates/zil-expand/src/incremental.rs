@@ -7,6 +7,9 @@ use std::time::Instant;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId, TargetProfile};
 use zil_syntax::ParsedSource;
 
+#[path = "scalar_placement.rs"]
+mod scalar_placement;
+
 #[derive(Clone, Debug)]
 pub struct ModuleRevision(Arc<()>);
 impl PartialEq for ModuleRevision {
@@ -264,10 +267,18 @@ macro_rules! statistics {
 // complete syntax clones. Deferred normalized hits retain recipes, not an
 // extra normalized body; reconstruction work is reported separately and never
 // debits the already-paid formal Normalize ledger again.
+// Placement replay still copies moved restored syntax and Core leaves. Those
+// copies have dedicated counters; cloned_source_map_entries includes all moved
+// map entries, and rebound_source_map_validations counts current-source checks.
 // `cloned_source_map_entries` counts copied mapping
 // entries (including span markers), not all nested Core/type/string copies.
 statistics!(
     classified_modules,
+    rebound_scalar_modules,
+    rebound_frontend_modules,
+    rebound_restored_item_deep_clones,
+    rebound_core_function_deep_clones,
+    rebound_source_map_validations,
     classifier_nodes,
     preflight_modules,
     normalize_modules,
@@ -647,6 +658,9 @@ struct Entry {
     shared_restored: Option<Arc<modules::SharedScalarModule>>,
     restored: Option<Arc<(s::Module, Vec<CoreImport>)>>,
     lower: Option<(Limits, Arc<ExpandedModule>)>,
+    // A changed absolute binding must validate against all current sources at
+    // its actual Lower entry allowance before a cached product can escape.
+    relocated_lower: bool,
     revision: ModuleRevision,
     functions: Arc<BTreeMap<String, FunctionInput>>,
 }
@@ -686,9 +700,12 @@ impl ExpandSession {
         }
         if self.entries.get(&syntax.module.id).is_some_and(|entry| {
             entry.scalar
-                && entry.parsed.same_revision(parsed)
                 && (limits.max_nodes as u64) >= entry.scalar_nodes
                 && limits.max_call_depth >= entry.scalar_depth_limit
+                && (entry.parsed.same_revision(parsed)
+                    || (parsed.source().text.len() <= limits.max_source_bytes
+                        && parsed.parsed().fits_limits(limits)
+                        && scalar_placement::Placement::between(&entry.parsed, parsed).is_some()))
         }) {
             return true;
         }
@@ -761,6 +778,7 @@ impl ExpandSession {
             _ => return Ok(None),
         };
         let mut entries = BTreeMap::new();
+        let mut placements = BTreeMap::new();
         for parsed in parsed {
             let module = &parsed.parsed().module;
             if !parsed.parsed().diagnostics.is_empty()
@@ -777,12 +795,37 @@ impl ExpandSession {
             let entry = if let Some(old) = old {
                 old.clone()
             } else {
-                self.stats.classified_modules += 1;
-                let (scalar, nodes) = scalar(module, limits);
-                self.stats.classifier_nodes += nodes;
+                let placement = self
+                    .entries
+                    .get(&module.id)
+                    .filter(|old| {
+                        old.scalar
+                            && limits.max_nodes as u64 >= old.scalar_nodes
+                            && limits.max_call_depth >= old.scalar_depth_limit
+                            && parsed.source().text.len() <= limits.max_source_bytes
+                            && parsed.parsed().fits_limits(limits)
+                    })
+                    .and_then(|old| {
+                        scalar_placement::Placement::between(&old.parsed, parsed)
+                            .map(|placement| (placement, old.scalar_nodes))
+                    });
+                let (scalar, nodes) = if let Some((placement, nodes)) = placement {
+                    placements.insert(module.id, placement);
+                    self.stats.rebound_scalar_modules += 1;
+                    (true, nodes)
+                } else {
+                    self.stats.classified_modules += 1;
+                    let (scalar, nodes) = scalar(module, limits);
+                    self.stats.classifier_nodes += nodes;
+                    (scalar, nodes)
+                };
                 Entry {
                     parsed: parsed.clone(),
-                    headers: {
+                    headers: if placements.contains_key(&module.id) {
+                        // Exact ordered declaration bytes include all
+                        // signature and attribute inputs of this projection.
+                        self.entries[&module.id].headers.clone()
+                    } else {
                         let current = if scalar {
                             module_headers(module)
                         } else {
@@ -810,6 +853,7 @@ impl ExpandSession {
                     shared_restored: None,
                     restored: None,
                     lower: None,
+                    relocated_lower: false,
                     revision: ModuleRevision(Arc::new(())),
                     // Only the complete compatible environment below can keep
                     // a previous function's sealed lowering input evidence.
@@ -869,6 +913,7 @@ impl ExpandSession {
                 entry.restore_base = RestoreEpoch::default();
                 entry.restored = None;
                 entry.lower = None;
+                entry.relocated_lower = false;
                 entry.revision = ModuleRevision(Arc::new(()));
                 if !preserve_function_inputs {
                     entry.functions = Arc::default();
@@ -969,6 +1014,74 @@ impl ExpandSession {
             .filter(|old| old.as_ref() == &environment)
             .cloned()
             .unwrap_or_else(|| Arc::new(environment.clone()));
+        // This is a separate sealed producer proof, not function-input identity
+        // authorizing old output. All declaration bytes/order, parser context,
+        // complete semantic environment and every emitted position must bind.
+        if self
+            .environment
+            .as_ref()
+            .is_some_and(|old| old.function_inputs_compatible(&environment))
+        {
+            for (module, placement) in placements {
+                let Some(old) = self.entries.get(&module) else {
+                    continue;
+                };
+                let Some(current) = entries.get(&module) else {
+                    continue;
+                };
+                let Some(position) = environment
+                    .sources
+                    .iter()
+                    .position(|(id, _, _)| *id == module)
+                else {
+                    continue;
+                };
+                // Import spans are caller inputs, too: semantic import equality
+                // alone cannot replace their actual current diagnostic binding.
+                if placement
+                    .imports(
+                        &self
+                            .environment
+                            .as_ref()
+                            .expect("compatible environment")
+                            .imports[position],
+                    )
+                    .as_ref()
+                    != Some(&environment.imports[position])
+                {
+                    continue;
+                }
+                let clock = self.profiling.then(Instant::now);
+                let rebound = placement.rebind(old, current, &normalization_environment);
+                if let Some(start) = clock {
+                    self.stats.assembly_ns += nanos(start);
+                }
+                if let Some((rebound, syntax_copies, map_copies)) = rebound {
+                    self.stats.rebound_frontend_modules += 1;
+                    self.stats.rebound_restored_item_deep_clones += syntax_copies;
+                    self.stats.rebound_core_function_deep_clones +=
+                        rebound.lower.as_ref().map_or(0, |(_, lower)| {
+                            lower
+                                .core
+                                .functions
+                                .iter()
+                                .zip(
+                                    old.lower
+                                        .as_ref()
+                                        .expect("sealed prior Lower")
+                                        .1
+                                        .core
+                                        .functions
+                                        .iter(),
+                                )
+                                .filter(|(a, b)| a.span != b.span)
+                                .count() as u64
+                        });
+                    self.stats.cloned_source_map_entries += map_copies;
+                    entries.insert(module, rebound);
+                }
+            }
+        }
         let mut reuse = Reuse {
             normalization_environment: normalization_environment.clone(),
             scalar_inventory: &mut scalar_inventory,
@@ -1754,6 +1867,39 @@ impl Reuse<'_> {
         self.entry(file).restored = Some(value);
     }
     pub(crate) fn lower(&mut self, file: FileId, limits: &Limits) -> Option<ExpandedModule> {
+        if self.entry(file).relocated_lower {
+            return None;
+        }
+        self.lower_candidate(file, limits)
+    }
+    pub(super) fn lower_for_sources<S: std::borrow::Borrow<SourceUnit>>(
+        &mut self,
+        file: FileId,
+        limits: &Limits,
+        sources: &[S],
+    ) -> CompileResult<Option<ExpandedModule>> {
+        let relocated = self.entry(file).relocated_lower;
+        let Some(candidate) = self.lower_candidate(file, limits) else {
+            return Ok(None);
+        };
+        if relocated {
+            let clock = self.clock();
+            let result = candidate
+                .source_map
+                .validate_iter(sources.iter().map(|source| source.borrow()), limits);
+            self.production(clock);
+            self.stats.rebound_source_map_validations += 1;
+            if let Err(errors) = result {
+                self.stats.reused_lower_modules -= 1;
+                self.stats.retained_lower_cores -= 1;
+                self.stats.retained_lower_source_maps -= 1;
+                return Err(errors);
+            }
+            self.entry(file).relocated_lower = false;
+        }
+        Ok(Some(candidate))
+    }
+    fn lower_candidate(&mut self, file: FileId, limits: &Limits) -> Option<ExpandedModule> {
         let clock = self.clock();
         let candidate = self
             .entry(file)
@@ -1796,6 +1942,7 @@ impl Reuse<'_> {
         self.stats.copied_lower_map_entries += value.copied_lower_map_entries as u64;
         let entry = self.entry(file);
         entry.lower = Some((limits.clone(), value));
+        entry.relocated_lower = false;
         entry.revision = ModuleRevision(Arc::new(()));
     }
     pub(crate) fn cloned(&mut self, span: Span, stage: Stage) {

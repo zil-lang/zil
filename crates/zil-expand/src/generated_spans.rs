@@ -116,6 +116,11 @@ impl Visitor for Mapper<'_, '_> {
 pub(crate) trait Visitor {
     fn node(&mut self, span: &mut Span, depth: usize) -> CompileResult<()>;
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()>;
+    // A path component has no independently stored span. Keep its traversal
+    // charge separate from mutation of a syntax-owned position.
+    fn path_component(&mut self, mut span: Span, depth: usize) -> CompileResult<()> {
+        self.node(&mut span, depth)
+    }
     fn item(&mut self, item: &mut s::Item, depth: usize) -> CompileResult<()> {
         walk_item(self, item, depth)
     }
@@ -136,11 +141,11 @@ pub(crate) trait Visitor {
 fn path<V: Visitor + ?Sized>(
     v: &mut V,
     names: &[String],
-    mut span: Span,
+    span: Span,
     depth: usize,
 ) -> CompileResult<()> {
     for name in names {
-        v.node(&mut span, depth)?;
+        v.path_component(span, depth)?;
         v.text(name, span)?;
     }
     Ok(())

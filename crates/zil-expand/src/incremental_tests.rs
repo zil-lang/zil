@@ -927,7 +927,7 @@ fn import_binding_inputs(prefix: &str) -> [ParsedSource; 2] {
 }
 
 #[test]
-fn moved_import_diagnostics_keep_only_exact_function_input_versions() {
+fn moved_import_diagnostics_rebind_complete_scalar_products_to_current_sources() {
     let mut session = ExpandSession::default();
     session.set_cost_profiling(true);
     let cold = checked_import_bindings(&mut session, &import_binding_inputs(""));
@@ -957,18 +957,22 @@ fn moved_import_diagnostics_keep_only_exact_function_input_versions() {
     );
     assert_eq!(work.function_input_text_comparisons, 2);
     assert_eq!(work.function_input_binding_hashes, 2);
-    // No old position-bearing producer output or stage receipt survives.
+    // The complete producer proof rebinds every output position. Relative
+    // function identity alone still cannot authorize position-bearing output.
     assert_eq!(
         (
             work.normalize_modules,
             work.restore_modules,
             work.lower_modules
         ),
-        (2, 2, 2)
+        (0, 0, 0)
     );
-    assert_eq!(work.reused_lower_modules, 0);
-    assert_eq!(work.retained_normalized_items, 0);
-    assert_eq!(work.retained_restored_modules, 0);
+    assert_eq!(work.rebound_frontend_modules, 2);
+    assert_eq!(work.rebound_scalar_modules, 2);
+    assert_eq!(work.rebound_source_map_validations, 2);
+    assert_eq!(work.reused_lower_modules, 2);
+    assert_eq!(work.retained_normalized_items, 2);
+    assert_eq!(work.retained_restored_modules, 2);
 }
 
 #[test]
@@ -1699,4 +1703,342 @@ fn deferred_reconstruction_uses_normalize_entry_allowance_not_later_remainder() 
             "failure never publishes tentative normalized/header/restored products"
         );
     }
+}
+
+#[test]
+fn scalar_placement_rebinds_all_stages_and_generated_names_in_both_directions() {
+    let limits = Limits::default();
+    let declarations = [
+        "extern \"C\" fn getchar()->i32;",
+        "#[test] fn value(x:i32)->i32{let _=x;let y=x+1;if y<10{return y;}else{return x*2;}}",
+        "fn pipe(x:i32)->i32=>x |> value();",
+        "fn main(){unsafe{let x=getchar();value(x);}}",
+    ];
+    let original = declarations.join(" ");
+    let moved = format!(
+        "// λ current\r\n{}\n/* outer /* inner */ end */\n{}\n\n{}\n{}\n// tail",
+        declarations[0], declarations[1], declarations[2], declarations[3]
+    );
+    let mut session = ExpandSession::default();
+    let cold = checked(&mut session, &[parsed(0, &original)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    for text in [&moved, &original] {
+        let input = [parsed(0, text)];
+        assert!(session.parsed_scalar(&input[0], &limits));
+        let current = checked(&mut session, &input, &limits)
+            .into_program(ModuleId(0), Fingerprint::ZERO)
+            .0;
+        let stats = session.last_stats();
+        assert_eq!(stats.rebound_scalar_modules, 1);
+        assert_eq!(stats.rebound_frontend_modules, 1);
+        assert_eq!(
+            (
+                stats.classified_modules,
+                stats.preflight_modules,
+                stats.normalize_modules,
+                stats.plain_prepare_modules,
+                stats.plain_lifetimes_modules,
+                stats.restore_modules,
+                stats.lower_modules,
+                stats.normalized_item_deep_clones,
+                stats.normalized_materializations
+            ),
+            (0, 0, 0, 0, 0, 0, 0, 0, 0)
+        );
+        assert_eq!(stats.rebound_source_map_validations, 1);
+        assert!(stats.cloned_source_map_entries > 0);
+        assert!(stats.rebound_restored_item_deep_clones > 0);
+        assert!(stats.rebound_core_function_deep_clones > 0);
+        assert!(
+            current
+                .change_batch()
+                .changes()
+                .iter()
+                .all(|change| !change.body_changed() && !change.interface_changed())
+        );
+        for name in ["getchar", "value", "pipe", "main"] {
+            assert_eq!(
+                cold.function_body_revision(ModuleId(0), name),
+                current.function_body_revision(ModuleId(0), name)
+            );
+        }
+        let recipe = session.entries[&ModuleId(0)]
+            .normalized
+            .values()
+            .next()
+            .unwrap();
+        let NormalizedCache::Deferred(recipe) = recipe else {
+            panic!("current Normalize recipe");
+        };
+        assert!(recipe.parsed.same_revision(&input[0]));
+        let warm = checked(&mut session, &input, &limits);
+        assert!(Arc::ptr_eq(
+            &warm.modules[0].0.core,
+            &current.program().modules[0].core
+        ));
+        assert_eq!(session.last_stats().rebound_source_map_validations, 0);
+    }
+}
+
+#[test]
+fn scalar_placement_preserves_exact_current_work_and_node_boundaries_and_first_errors() {
+    let limits = Limits::default();
+    let original = [parsed(
+        0,
+        "fn first(x:i32)->i32{let y=x+1;return y*2;} fn second(x:i32)->i32=>first(x)+3;",
+    )];
+    let moved = [parsed(
+        0,
+        &format!(
+            "// relocated\n\n{}\n// complete tail",
+            original[0].source().text
+        ),
+    )];
+    let mut seed = ExpandSession::default();
+    checked(&mut seed, &original, &limits);
+    let epoch = seed.epoch.clone();
+    let mut replayed_failures = 0;
+    let mut successful_rebindings = 0;
+    for nodes in [false, true] {
+        let allowance = |amount| {
+            if nodes {
+                Limits {
+                    max_nodes: amount,
+                    ..limits.clone()
+                }
+            } else {
+                Limits {
+                    max_analysis_steps: amount,
+                    ..limits.clone()
+                }
+            }
+        };
+        let mut low = 0;
+        let mut high = if nodes {
+            limits.max_nodes
+        } else {
+            limits.max_analysis_steps
+        };
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if fresh(&moved, &allowance(mid)).is_ok() {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        assert!(low > 0);
+        assert!(fresh(&moved, &allowance(low)).is_ok());
+        assert!(fresh(&moved, &allowance(low - 1)).is_err());
+        // N and N-1 are derived from the original complete fresh pipeline,
+        // separately for the actual work and node ledgers.
+        for amount in [0, 1, low / 2, low - 1, low, low + 1] {
+            let mut session = seed.checkpoint();
+            let current = allowance(amount);
+            match (
+                expand(&mut session, &moved, &current),
+                fresh(&moved, &current),
+            ) {
+                (Ok(Some(actual)), Ok(expected)) => {
+                    assert_eq!(actual.modules, expected, "nodes={nodes}, amount={amount}");
+                    successful_rebindings += session.last_stats().rebound_frontend_modules;
+                }
+                (Err(actual), Err(expected)) => {
+                    assert_eq!(
+                        actual, expected,
+                        "current first diagnostic: nodes={nodes}, amount={amount}"
+                    );
+                    assert_eq!(
+                        session.epoch, epoch,
+                        "failure cannot publish a relocated epoch"
+                    );
+                    replayed_failures += u64::from(session.last_stats().receipt_hits > 0);
+                    checked(&mut session, &moved, &limits);
+                }
+                _ => panic!("position boundary disagreement: nodes={nodes}, amount={amount}"),
+            }
+        }
+    }
+    assert!(successful_rebindings > 0);
+    assert!(replayed_failures > 0);
+    // Source ingress remains a current-request obligation. Even when handed a
+    // successful parse made with larger limits, placement cannot carry a file
+    // exceeding this request's byte quota into the receipt path.
+    let byte_limits = Limits {
+        max_source_bytes: original[0].source().text.len(),
+        ..limits.clone()
+    };
+    let mut session = seed.checkpoint();
+    match (
+        expand(&mut session, &moved, &byte_limits),
+        fresh(&moved, &byte_limits),
+    ) {
+        (Ok(Some(actual)), Ok(expected)) => assert_eq!(actual.modules, expected),
+        (Err(actual), Err(expected)) => assert_eq!(actual, expected),
+        _ => panic!("current source-byte allowance disagreement"),
+    }
+    assert_eq!(session.last_stats().rebound_frontend_modules, 0);
+}
+
+#[test]
+fn scalar_placement_missing_receipts_reconstruct_current_normalized_input() {
+    let limits = Limits::default();
+    let input = [parsed(0, "fn f(x:i32)->i32{let y=x+1;return y*2;}")];
+    let moved = [parsed(
+        0,
+        &format!("/* moved */\n{}", input[0].source().text),
+    )];
+    for stage in [
+        Stage::Normalize,
+        Stage::Prepare,
+        Stage::Lifetimes,
+        Stage::Headers,
+        Stage::Distribute,
+        Stage::RestoreItem,
+    ] {
+        let mut session = ExpandSession::default();
+        checked(&mut session, &input, &limits);
+        let entry = session.entries.get_mut(&ModuleId(0)).unwrap();
+        let receipts = Arc::make_mut(&mut entry.receipts);
+        receipts.remove(&(stage, input[0].parsed().module.items[0].span.start));
+        if stage == Stage::RestoreItem {
+            receipts.remove(&(Stage::Restore, input[0].parsed().module.span.start));
+        }
+        checked(&mut session, &moved, &limits);
+        assert_eq!(session.last_stats().rebound_frontend_modules, 1);
+        assert_eq!(session.last_stats().normalized_item_deep_clones, 1);
+        assert_eq!(
+            session.last_stats().normalized_materializations,
+            u64::from(stage != Stage::Normalize)
+        );
+        let item = &session.entries[&ModuleId(0)].normalized
+            [&moved[0].parsed().module.items[0].span.start];
+        let NormalizedCache::Deferred(recipe) = item else {
+            panic!("current recipe");
+        };
+        assert!(recipe.parsed.same_revision(&moved[0]));
+    }
+}
+
+#[test]
+fn scalar_placement_rejects_semantic_gap_changes_and_reports_current_first_error() {
+    let limits = Limits::default();
+    let original = [parsed(0, "fn f(x:i32)->i32=>x;")];
+    let mut seed = ExpandSession::default();
+    checked(&mut seed, &original, &limits);
+    for text in [
+        "// shift\nfn f(x:i32)->i32=>x+1;",
+        "// shift\n#[test] fn f(x:i32)->i32=>x;",
+        "// shift\nfn added()->i32=>1; fn f(x:i32)->i32=>x;",
+    ] {
+        let mut session = seed.checkpoint();
+        checked(&mut session, &[parsed(0, text)], &limits);
+        assert_eq!(session.last_stats().rebound_frontend_modules, 0);
+    }
+    // A removed definition is absent from the item list, but present on the
+    // lossless token tape. It must not disappear into an admitted gap.
+    let removed = [parsed(
+        0,
+        "#[cfg(false)] fn hidden()->i32=>7; fn f(x:i32)->i32=>x;",
+    )];
+    assert!(!removed[0].parsed().cfg_removed.is_empty());
+    assert!(scalar_placement::Placement::between(&original[0], &removed[0]).is_none());
+    let mut session = seed.checkpoint();
+    assert!(expand(&mut session, &removed, &limits).unwrap().is_none());
+    assert_eq!(session.epoch, seed.epoch);
+    let syntax_import = [parsed(
+        0,
+        "syntax use extension as ext; fn f(x:i32)->i32=>x;",
+    )];
+    assert!(
+        expand(&mut session, &syntax_import, &limits)
+            .unwrap()
+            .is_none()
+    );
+    let duplicate = [parsed(
+        0,
+        "// current duplicate\nfn f(x:i32)->i32=>x; fn f()->i32=>2;",
+    )];
+    let actual = match expand(&mut session, &duplicate, &limits) {
+        Err(errors) => errors,
+        _ => panic!("duplicate must fail"),
+    };
+    assert_eq!(actual, fresh(&duplicate, &limits).unwrap_err());
+    assert_eq!(actual[0].code, "E-NAME-DUPLICATE");
+    assert_eq!(
+        actual[0].span,
+        Some(duplicate[0].parsed().module.items[1].span)
+    );
+    assert_eq!(session.epoch, seed.epoch);
+    checked(&mut session, &original, &limits);
+}
+
+#[test]
+fn scalar_placement_binds_actual_import_spans_and_parser_attribute_context() {
+    let input = import_binding_inputs("");
+    let moved = import_binding_inputs("// moved\n");
+    let mut session = ExpandSession::default();
+    checked_import_bindings(&mut session, &input);
+    let aliases = BTreeMap::from([(vec!["dep".into()], ModuleId(1))]);
+    // Equal alias/module/file is insufficient: this is an actual different
+    // diagnostic binding supplied by the current importer.
+    let imports = vec![
+        vec![CoreImport {
+            alias: "dep".into(),
+            module: ModuleId(1),
+            span: moved[0].parsed().module.items[1].span,
+        }],
+        vec![],
+    ];
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let result = session
+        .expand_parsed(
+            &moved,
+            &imports,
+            &limits,
+            &target,
+            source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .unwrap();
+    let sources = moved.iter().map(ParsedSource::source).collect::<Vec<_>>();
+    let syntax = moved
+        .iter()
+        .map(|input| &input.parsed().module)
+        .collect::<Vec<_>>();
+    let raw =
+        expand_program_with_limits_target(&sources, &syntax, &imports, &limits, &target).unwrap();
+    for ((module, map), (expected, expected_map)) in result.modules.iter().zip(raw) {
+        assert_eq!(*module, expected);
+        assert_eq!(map.as_ref(), &expected_map);
+    }
+    assert_eq!(
+        session.last_stats().rebound_frontend_modules,
+        1,
+        "only the dependency's binding is eligible"
+    );
+    let plain = parsed(0, "fn f()->i32=>1;");
+    let mut context = AttributeContext::default();
+    context.configuration.insert(
+        "changed".into(),
+        zil_syntax::attributes::ConfigValue::Bool(true),
+    );
+    let changed = ParsedSource::parse(
+        Arc::new(SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "module0.zil",
+            "// moved\nfn f()->i32=>1;",
+        )),
+        &limits,
+        &context,
+    );
+    assert!(changed.parsed().diagnostics.is_empty());
+    assert!(scalar_placement::Placement::between(&plain, &changed).is_none());
 }

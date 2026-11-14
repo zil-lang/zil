@@ -20,6 +20,12 @@ pub(super) struct ItemLowerReceipt {
     after: ItemState,
     binding: FunctionLowerBinding,
 }
+impl ItemLowerReceipt {
+    pub(super) fn rebind_span(&mut self, bind: impl FnOnce(Span) -> Option<Span>) -> Option<()> {
+        self.span = bind(self.span)?;
+        Some(())
+    }
+}
 #[derive(Clone)]
 pub(super) struct ItemLowerPlan {
     pub(super) old: Arc<ExpandedModule>,
@@ -336,7 +342,7 @@ pub(super) fn expand_shared_scalar<S: std::borrow::Borrow<SourceUnit>>(
     for (source, module) in sources.iter().zip(modules) {
         let source: &SourceUnit = source.borrow();
         let input_limits = remaining.clone();
-        let cached = reuse.lower(module.span.file, &remaining);
+        let cached = reuse.lower_for_sources(module.span.file, &remaining, sources)?;
         let expanded = if let Some(cached) = cached {
             cached
         } else {
