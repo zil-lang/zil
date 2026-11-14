@@ -1685,6 +1685,23 @@ impl Check<'_, '_> {
             .filter(|item| item.id == local)
             .ok_or_else(|| fail("semantic class query selects no actual local type"))?
             .ty;
+        if let Type::Closure(id) = ty {
+            let closure = self
+                .module
+                .closures
+                .get(id.0 as usize)
+                .filter(|closure| closure.id == *id)
+                .ok_or_else(|| fail("actual closure local has no exact definition"))?;
+            if closure
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| life.fixed_binder_count == 0)
+            {
+                self.zero_data(ty, b, 0)?;
+                crate::dyn_metadata::ty(ty, b)?;
+                return Ok(value::scalar(ty.clone()));
+            }
+        }
         if ty.is_b0_scalar()
             || matches!(
                 ty,

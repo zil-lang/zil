@@ -27,6 +27,7 @@ pub(super) struct DynOutputClass {
     ports: Vec<(StoragePosition, Type, StoredBorrowMode)>,
 }
 pub(super) mod enum_address;
+mod mutex;
 mod nominal;
 mod nominal_zero;
 mod synchronous_abi;
@@ -552,6 +553,9 @@ pub(super) enum PortOrigin {
         carrier: Vec<zil_ir::ContractProjection>,
         port: u32,
     },
+    MutexPayload {
+        carrier: Vec<zil_ir::ContractProjection>,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
@@ -852,9 +856,11 @@ pub(super) fn target_width(target: &Target) -> usize {
             n.saturating_add(path.len()).saturating_add(1)
         }))
         .saturating_add(match &target.retained_port {
-            Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => {
-                carrier.len()
-            }
+            Some(
+                PortOrigin::Dyn { carrier, .. }
+                | PortOrigin::Task { carrier, .. }
+                | PortOrigin::MutexPayload { carrier },
+            ) => carrier.len(),
             _ => 0,
         })
 }
@@ -2776,7 +2782,9 @@ fn returns(
             let HoldRoot::Parameter(index) = source.base else {
                 return Err(failure("result retains local/captured target"));
             };
-            if (if source.retained_port.is_some() {
+            if (if matches!(source.retained_port, Some(PortOrigin::MutexPayload { .. })) {
+                mutex::source_binding(f, source, b)?
+            } else if source.retained_port.is_some() {
                 task_address::source_binding(module, f, source, b)?
             } else {
                 environment_memory::binding(module, f, index, &source.stored, b)?
@@ -3427,6 +3435,7 @@ fn seed_value(
     }
     task_address::seed(module, ty, base, &mut value, loans, b)?;
     dyn_address::seed(module, ty, base, &mut value, loans, b)?;
+    mutex::seed(module, ty, base, &mut value, loans, b)?;
     Ok(value)
 }
 fn seed(
@@ -3807,6 +3816,14 @@ fn substitute(
                 task_address::select_carrier(value, &source.stored, carrier, *port, b)?
             }
             PortOrigin::Dyn { carrier, port } => dyn_address::select(value, carrier, *port, b)?,
+            PortOrigin::MutexPayload { carrier } => {
+                if !source.stored.is_empty() {
+                    return Err(failure(
+                        "Mutex payload substitution cannot drop a stored carrier path",
+                    ));
+                }
+                mutex::select(value, carrier, b)?
+            }
         }
     } else if source.stored.is_empty() {
         let mut out = Permission::default();
@@ -4113,6 +4130,7 @@ fn transfer(
     let dyn_transfer = dyn_address::transfer(module, f, i, state, values, b)?;
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
+    let mutex_transfer = mutex::transfer(module, f, i, state, values, loans, b)?;
     let failure_view = failure_projection(f, i, b)?;
     let failure_wrapper = task_failure::wrapper(f, i, state, values, b)?;
     let unpack_failure = failure_unpack(f, i, b)?;
@@ -4122,6 +4140,7 @@ fn transfer(
         None
     };
     match &i.kind {
+        _ if mutex_transfer.is_some() => {out = mutex_transfer.ok_or_else(|| failure("Mutex operation lost its actual transport"))?;}
         InstructionKind::BindPackageCapture { local, index } => {
             let actual = state.captures.get(index)
                 .ok_or_else(|| failure("captured view has no actual environment value"))?;
@@ -4216,6 +4235,7 @@ fn transfer(
                     f.locals[local.0 as usize].ty,
                     Type::Address { mutable: true, .. }
                 )
+                || matches!(f.locals[local.0 as usize].ty,Type::MutexGuard{..})
                 || environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || affine_compound(module,&f.locals[local.0 as usize].ty,b)?
@@ -5480,6 +5500,7 @@ fn transfer(
         out.store_description = permission;
     }
     dyn_address::propagate(module, f, i, state, values, &mut out, b)?;
+    mutex::propagate(f, i, state, values, &mut out, b)?;
     if let Some(result) = i.result
         && b.static_utf8
         && matches!(value_type(f, result)?, Type::Address { mutable: true, .. })
@@ -5497,7 +5518,8 @@ fn transfer(
     if let Some(result) = i.result
         && (matches!(
             i.kind,
-            InstructionKind::BorrowLocal { .. }
+            InstructionKind::MutexValue { .. }
+                | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. }
                 | InstructionKind::MakeDynBorrow { .. }
@@ -5976,6 +5998,7 @@ fn reverse(
             live.put(f.values.len() + local.0 as usize, false)?
         }
         InstructionKind::Load(local)
+        | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
@@ -5999,7 +6022,10 @@ fn reverse(
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || affine_compound(module, &f.locals[local.0 as usize].ty, b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
-                    && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
+                    && matches!(
+                        f.locals[local.0 as usize].ty,
+                        Type::Address { .. } | Type::MutexGuard { .. }
+                    ) =>
         {
             live.put(f.values.len() + local.0 as usize, true)?
         }
@@ -6028,6 +6054,7 @@ fn reverse_bool(
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local) => live[f.values.len() + local.0 as usize] = false,
         InstructionKind::Load(local)
+        | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
@@ -6051,7 +6078,10 @@ fn reverse_bool(
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || affine_compound(module, &f.locals[local.0 as usize].ty, b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
-                    && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
+                    && matches!(
+                        f.locals[local.0 as usize].ty,
+                        Type::Address { .. } | Type::MutexGuard { .. }
+                    ) =>
         {
             live[f.values.len() + local.0 as usize] = true
         }
@@ -6327,6 +6357,9 @@ fn windows(
                     dyn_accesses,
                     b,
                 )? {
+                    access.check(&permission, write, apart, b)?;
+                }
+                for (permission, write) in mutex::accesses(module, f, i, &state, values, b)? {
                     access.check(&permission, write, apart, b)?;
                 }
                 if let Some((head, write)) = super::nested_store::head_access(&i.kind) {
@@ -7503,6 +7536,7 @@ fn derive_cfg(
                 }
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
+                    mutex::returning(f, value, &loans, b)?;
                     if let Some(marker) = entry.receiver_loan
                         && f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
@@ -8121,6 +8155,7 @@ pub(super) fn infer(
                 false
             };
             if !(byte_value
+                || mutex::admitted(module, ty, b)?
                 || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
@@ -8624,6 +8659,7 @@ fn actual_instructions(
                         | InstructionKind::DropErrorUnion { .. }
                         | InstructionKind::DescribePackageField { .. }
                 ))
+                && !mutex::instruction(module, f, i, b)?
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
                 && !pure_copy::ordinary_package_borrow(module, f, i, b)?

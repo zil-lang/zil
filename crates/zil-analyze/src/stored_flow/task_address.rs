@@ -25,7 +25,10 @@ pub(super) fn source_snapshot(
                 HoldRoot::Parameter(index) | HoldRoot::Capture(index) => {
                     if target.heap_element.is_some()
                         || !target.heap_parents.is_empty()
-                        || matches!(&target.retained_port, Some(PortOrigin::Dyn { .. }))
+                        || matches!(
+                            &target.retained_port,
+                            Some(PortOrigin::Dyn { .. } | PortOrigin::MutexPayload { .. })
+                        )
                     {
                         TaskPortSource::Unknown
                     } else {
