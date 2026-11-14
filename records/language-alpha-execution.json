@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T12:32:39.327383+00:00",
+  "updated_at_utc": "2026-11-14T12:40:07.629914+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,8 +9,8 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "22ea2a1667fcfebc62c4f2c8b3f96de9d6ad26f2",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-original-context-and-domain-integration",
+    "candidate": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-nominal-directory-and-source-domains",
     "accepted": false,
     "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
     "cli_build": 0,
@@ -21,6 +21,15 @@
     "intended_negatives": {
       "passed": 4,
       "total": 4
+    },
+    "native_small_sources": {
+      "passed": 12,
+      "total": 16
+    },
+    "source_lib": {
+      "passed": 152,
+      "failed": 0,
+      "ignored": 0
     },
     "failures": [
       {
@@ -89,7 +98,9 @@
               "start": 0,
               "end": 0
             },
-            "notes": []
+            "notes": [
+              "complete type snapshot at crates/zil-types/src/stored/ordinary_nominal.rs:52: copies 2, nodes visited 11, work consumed 274, caller remaining 5, type constructor Discriminant(34)"
+            ]
           }
         ]
       },
@@ -164,11 +175,9 @@
             "phase": "types",
             "category": "Unsupported",
             "code": "E-UNSUPPORTED",
-            "message": "nominal field requires a complete opaque/callable domain directory",
+            "message": "nominal field has no complete parent class projection",
             "span": null,
-            "notes": [
-              "complete actual nominal child type: Address { mutable: false, inner: Package { name: \"@module0:$module0_Value\", fields: [(\"bytes\", Managed(ByteBuffer)), (\"id\", I64)] } }"
-            ]
+            "notes": []
           }
         ]
       },
@@ -227,22 +236,18 @@
         ]
       }
     ],
-    "native_small_sources": {
-      "passed": 12,
-      "total": 16
-    },
-    "full_regressions": "not run in this feedback candidate"
+    "full_regressions": "Source lib152/0; alltargets b8870 separate predecessor; not full acceptance"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "70c7edcd51dff8bd26dcf7708ccd9a8ea84ae340",
-  "current_candidate_under_validation": "22ea2a1667fcfebc62c4f2c8b3f96de9d6ad26f2",
+  "latest_ready_source": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
+  "current_candidate_under_validation": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
   "wip_backup": {
-    "archive_commit": "cd022f4459cc69ce0065d22c3daac89d17848d15",
-    "previous_archive": "908e7f11bfbffa4e959890350490615b76515169",
-    "source_base": "b81b57590f991286195c693108f51ff8c525e281",
-    "prefix": "language/20261114T122408Z-active-wip",
-    "changed_files": 19,
-    "artifacts": 9,
+    "archive_commit": "9360384a8143bffb8c73150f91c79e683401f8a4",
+    "previous_archive": "cd022f4459cc69ce0065d22c3daac89d17848d15",
+    "source_base": "47e38f62575c1b7d95fae91e8c5ede7b89708bf0",
+    "prefix": "language/20261114T123824Z-active-wip",
+    "changed_files": 30,
+    "artifacts": 13,
     "remote_manifest_and_patch_readback_equal": true,
     "state": "WIP, not functional acceptance"
   },
@@ -259,7 +264,7 @@
     "Capture TypeUse Expression representation must be consumed independently by A/V original lexical Name and actual capture checks",
     "All-exit cleanup and actual call-world requester receipts are still active WIP"
   ],
-  "last_full_component_regression": "b88721e42: workspace alltargets0; 22ea2a166 materialize domain tests3/0; earlier f85dbb12c Source152/0 and Typesprobe2/0 remain separately versioned, not current whole-language acceptance",
+  "last_full_component_regression": "47e38f625 Source152/0/0; b88721e42 workspace alltargets0; 22ea2a166 materialize domain3/0. Each exact candidate separate; not whole-language acceptance.",
   "task_stage_review": [
     "Private inference PendingTask keeps exact worker/call/input Terms until actual closure/worker domain formed; cannot become Typed/Wire/runtime pending",
     "Task domain identity is original scope/Life formal/whole Type-domain class index; actual worker header is a bridge, not authority to merge caller images. Preserve F.N2 and outer versus intrinsic pointee classes.",
