@@ -11,6 +11,7 @@ pub(crate) struct Budget<'a> {
     temporary_bytes: Option<usize>,
     lineage_bytes: usize,
     scoped_scratch: usize,
+    metadata_mode: bool,
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
     primitive_binders: bool,
@@ -37,6 +38,7 @@ impl<'a> Budget<'a> {
             temporary_bytes: None,
             lineage_bytes: 0,
             scoped_scratch: 0,
+            metadata_mode: false,
             enum_profiles: BTreeSet::new(),
             enum_header: None,
             primitive_binders: false,
@@ -150,6 +152,20 @@ impl<'a> Budget<'a> {
         run: impl FnOnce(&mut Self) -> R<T>,
     ) -> R<T> {
         self.allocation_scope(span, true, 1024, run)
+    }
+    /// Metadata has its own actual Vec/Box/String layout. Keep the same
+    /// node/work/depth limits without charging an AST clone for every tag.
+    pub(crate) fn metadata_scope<T>(
+        &mut self,
+        span: Span,
+        copy: bool,
+        run: impl FnOnce(&mut Self) -> R<T>,
+    ) -> R<T> {
+        let previous = self.metadata_mode;
+        self.metadata_mode = true;
+        let result = self.allocation_scope(span, copy, 0, run);
+        self.metadata_mode = previous;
+        result
     }
     fn allocation_scope<T>(
         &mut self,
@@ -392,7 +408,9 @@ impl<'a> Budget<'a> {
             .saturating_add(std::mem::size_of::<Expr>())
             .saturating_add(std::mem::size_of::<TypeRef>())
             .saturating_add(std::mem::size_of::<Function>());
-        self.temporary(node_bytes, span)?;
+        if !self.metadata_mode {
+            self.temporary(node_bytes, span)?;
+        }
         if depth > self.limits.max_call_depth || self.nodes == 0 || self.work == 0 {
             return Err(Diagnostic::limit(
                 Phase::Expand,
@@ -427,7 +445,9 @@ impl<'a> Budget<'a> {
         Ok(())
     }
     pub(crate) fn identity_work(&mut self, amount: usize, span: Span) -> R<()> {
-        self.temporary(amount, span)?;
+        if !self.metadata_mode {
+            self.temporary(amount, span)?;
+        }
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,
@@ -438,10 +458,12 @@ impl<'a> Budget<'a> {
         Ok(())
     }
     pub(crate) fn text(&mut self, text: &str, span: Span) -> R<()> {
-        self.temporary(
-            text.len().saturating_add(4 * std::mem::size_of::<String>()),
-            span,
-        )?;
+        if !self.metadata_mode {
+            self.temporary(
+                text.len().saturating_add(4 * std::mem::size_of::<String>()),
+                span,
+            )?;
+        }
         self.work = self.work.checked_sub(text.len()).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,

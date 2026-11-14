@@ -68,7 +68,9 @@ pub(crate) fn prepay_recipe(
     span: Span,
     depth: usize,
 ) -> R<()> {
-    budget.retained_copy(span, |budget| recipe_work(value, budget, span, depth, true))
+    budget.metadata_scope(span, true, |budget| {
+        recipe_work(value, budget, span, depth, true)
+    })
 }
 fn prepay_recipe_work(
     value: &impl DynRecipeMetadata,
@@ -76,7 +78,7 @@ fn prepay_recipe_work(
     span: Span,
     depth: usize,
 ) -> R<()> {
-    budget.borrowed_work(span, |budget| {
+    budget.metadata_scope(span, false, |budget| {
         recipe_work(value, budget, span, depth, false)
     })
 }
@@ -91,6 +93,7 @@ fn recipe_work(
         budget: &'b mut Budget<'l>,
         span: Span,
         copy: bool,
+        scratch_peak: usize,
     }
     impl DynRecipeVisitor for Meter<'_, '_> {
         type Error = Diagnostic;
@@ -100,27 +103,30 @@ fn recipe_work(
         fn rows(&mut self, length: usize, depth: usize) -> R<()> {
             self.node(depth)?;
             self.budget.identity_work(length, self.span)?;
-            // The generated heap stack stores one reference/depth/tag frame
-            // per pending child. Four host words bound a frame; doubling
-            // covers Vec growth before the previous allocation is released.
-            self.budget.scratch_storage(
-                length
-                    .checked_mul(8 * std::mem::size_of::<usize>())
-                    .ok_or_else(|| error(self.span, "semantic traversal scratch overflow"))?,
-                self.span,
-            )?;
+            Ok(())
+        }
+        fn allocation(&mut self, bytes: usize, _: usize) -> R<()> {
             if self.copy {
-                self.budget.lineage_bytes(
-                    length
-                        .checked_mul(std::mem::size_of::<SemanticTypeRecipe>())
-                        .ok_or_else(|| error(self.span, "semantic clone inventory overflow"))?,
-                    self.span,
-                )?;
+                self.budget.lineage_bytes(bytes, self.span)?;
+            }
+            Ok(())
+        }
+        fn scratch(&mut self, bytes: usize, _: usize) -> R<()> {
+            if bytes > self.scratch_peak {
+                self.budget
+                    .scratch_storage(bytes - self.scratch_peak, self.span)?;
+                self.scratch_peak = bytes;
             }
             Ok(())
         }
         fn ty(&mut self, value: &Type, depth: usize) -> R<()> {
-            crate::stored_types::pay_type(value, self.budget, self.span, depth)
+            crate::semantic_nominal_lower::pay_metadata_type(
+                value,
+                self.budget,
+                self.span,
+                depth,
+                self.copy,
+            )
         }
         fn life(&mut self, value: &StorageLifeShape, depth: usize) -> R<()> {
             self.node(depth)?;
@@ -130,19 +136,29 @@ fn recipe_work(
                 value.slots.len() + value.retained.len() + value.nominal_arguments.len(),
                 depth + 1,
             )?;
+            self.allocation(std::mem::size_of_val(value.slots.as_slice()), depth)?;
+            self.allocation(std::mem::size_of_val(value.retained.as_slice()), depth)?;
+            self.allocation(
+                std::mem::size_of_val(value.nominal_arguments.as_slice()),
+                depth,
+            )?;
             for row in &value.slots {
                 self.rows(row.path.len(), depth + 1)?;
+                self.allocation(std::mem::size_of_val(row.path.as_slice()), depth + 1)?;
             }
             for row in &value.retained {
                 self.rows(row.path.len(), depth + 1)?;
+                self.allocation(std::mem::size_of_val(row.path.as_slice()), depth + 1)?;
             }
             for row in &value.nominal_arguments {
                 self.rows(row.path.len(), depth + 1)?;
+                self.allocation(std::mem::size_of_val(row.path.as_slice()), depth + 1)?;
             }
             Ok(())
         }
         fn identity(&mut self, value: &LifeDeclarationIdentity, depth: usize) -> R<()> {
             self.node(depth)?;
+            self.allocation(value.package.len(), depth + 1)?;
             self.text(&value.package, depth + 1)?;
             self.rows(
                 value.module_path.len()
@@ -150,31 +166,51 @@ fn recipe_work(
                     + value.generation_path.len(),
                 depth + 1,
             )?;
+            self.allocation(
+                std::mem::size_of_val(value.module_path.as_slice()),
+                depth + 1,
+            )?;
+            self.allocation(
+                std::mem::size_of_val(value.declaration_path.as_slice()),
+                depth + 1,
+            )?;
+            self.allocation(
+                std::mem::size_of_val(value.generation_path.as_slice()),
+                depth + 1,
+            )?;
             for part in value.module_path.iter().chain(&value.declaration_path) {
+                self.allocation(part.len(), depth + 1)?;
                 self.text(part, depth + 1)?;
             }
             Ok(())
         }
         fn position(&mut self, value: &StoragePosition, depth: usize) -> R<()> {
-            self.rows(value.path.len(), depth)
+            self.rows(value.path.len(), depth)?;
+            self.allocation(std::mem::size_of_val(value.path.as_slice()), depth)
         }
         fn constant(&mut self, value: &Constant, depth: usize) -> R<()> {
             self.node(depth)?;
             if let Constant::WideString(units) = value {
                 self.rows(units.len(), depth + 1)?;
+                self.allocation(std::mem::size_of_val(units.as_slice()), depth + 1)?;
             }
             Ok(())
         }
         fn text(&mut self, value: &str, depth: usize) -> R<()> {
             self.node(depth)?;
             self.budget.text(value, self.span)?;
-            if self.copy {
-                self.budget.lineage_bytes(value.len(), self.span)?;
-            }
             Ok(())
         }
     }
-    value.visit_dyn_metadata(&mut Meter { budget, span, copy }, depth)
+    value.visit_dyn_metadata(
+        &mut Meter {
+            budget,
+            span,
+            copy,
+            scratch_peak: 0,
+        },
+        depth,
+    )
 }
 
 struct DefinitionBodyNodes {
@@ -497,6 +533,103 @@ mod tests {
     use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
     use std::collections::BTreeMap;
     use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn metadata_clone_layout_preserves_live_bytes_and_releases_traversal_scratch() {
+        fn check(value: &impl DynRecipeMetadata, bytes: usize) {
+            let limits = Limits {
+                max_source_bytes: 16_384,
+                ..Limits::default()
+            };
+            let mut budget = Budget::new(&limits);
+            let before = budget.remaining_limits().max_source_bytes;
+            for _ in 0..2 {
+                prepay_recipe_work(value, &mut budget, Span::default(), 0).unwrap();
+                assert_eq!(budget.remaining_limits().max_source_bytes, before);
+            }
+            prepay_recipe(value, &mut budget, Span::default(), 0).unwrap();
+            assert_eq!(budget.remaining_limits().max_source_bytes, before - bytes);
+            prepay_recipe_work(value, &mut budget, Span::default(), 0).unwrap();
+            assert_eq!(budget.remaining_limits().max_source_bytes, before - bytes);
+        }
+        let recipe = SemanticTypeRecipe::Tuple(vec![SemanticTypeRecipe::Atom(Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: RetainedLifeShape {
+                binder_count: 1,
+                ports: vec![RetainedBorrowPort {
+                    leaf: Type::Address {
+                        mutable: false,
+                        inner: Box::new(Type::U8),
+                    },
+                    mode: StoredBorrowMode::SharedAddress,
+                    binder: 0,
+                }],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        })]);
+        check(
+            &recipe,
+            std::mem::size_of::<SemanticTypeRecipe>()
+                + 2 * std::mem::size_of::<Type>()
+                + std::mem::size_of::<RetainedBorrowPort>(),
+        );
+        check(
+            &DynGenericActual::Const(Constant::WideString(vec![97, 98, 0])),
+            6,
+        );
+        check(
+            &DynTypeValue {
+                ty: Type::I32,
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![StorageLifeSlot {
+                        path: vec![PlaceProjection::Field(0)],
+                        binder: 0,
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+                classes: vec![StorageBinder::Fixed(0)],
+            },
+            std::mem::size_of::<StorageLifeSlot>()
+                + std::mem::size_of::<PlaceProjection>()
+                + std::mem::size_of::<StorageBinder>(),
+        );
+
+        // Metadata still consumes each original node, work and depth quota.
+        for limits in [
+            Limits {
+                max_nodes: 0,
+                ..Limits::default()
+            },
+            Limits {
+                max_analysis_steps: 0,
+                ..Limits::default()
+            },
+            Limits {
+                max_call_depth: 0,
+                ..Limits::default()
+            },
+        ] {
+            assert!(prepay_recipe(&recipe, &mut Budget::new(&limits), Span::default(), 0).is_err());
+        }
+        let limits = Limits::default();
+        let mut failed = Budget::new(&limits);
+        assert!(
+            failed
+                .metadata_scope(Span::default(), false, |_| -> R<()> {
+                    Err(error(Span::default(), "injected traversal failure"))
+                })
+                .is_err()
+        );
+        failed.limit_temporary_bytes(0);
+        assert!(
+            failed.node(Span::default(), 0).is_err(),
+            "AST accounting must be restored after failure"
+        );
+    }
 
     #[test]
     fn original_templates_preserve_unused_formals_self_fields_and_actual_bodies() {

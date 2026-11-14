@@ -4,6 +4,22 @@ use super::*;
 use generics::{Budget, origins::Origin};
 #[path = "semantic_nominal_copy.rs"]
 mod copy;
+
+/// Reuse the complete nominal Type clone layout; metadata interpretation
+/// remains outside this allocation preflight.
+pub(crate) fn pay_metadata_type(
+    value: &Type,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+    retained: bool,
+) -> Result<(), Diagnostic> {
+    if retained {
+        copy::ty(value, budget, span, depth)
+    } else {
+        crate::stored_types::pay_type(value, budget, span, depth)
+    }
+}
 #[derive(Clone, Debug)]
 pub(super) struct SemanticNominalEmission {
     pub item: usize,
