@@ -730,7 +730,7 @@ impl Check<'_, '_> {
         }
         selected.ok_or_else(|| fail("semantic SSA value has no actual definition"))
     }
-    fn capture_value_origin(
+    pub(super) fn capture_value_origin(
         &self,
         function: &TypedFunction,
         value: ValueId,
@@ -752,7 +752,7 @@ impl Check<'_, '_> {
             )),
         }
     }
-    fn capture_local_origin(
+    pub(super) fn capture_local_origin(
         &self,
         function: &TypedFunction,
         local: LocalId,
@@ -772,6 +772,13 @@ impl Check<'_, '_> {
         for instruction in block.instructions.iter().take(at.1).rev() {
             b.spend(1, WORK)?;
             match instruction.kind {
+                InstructionKind::BindPackageCapture {
+                    local: target,
+                    index,
+                } if target == local => return Ok(index),
+                InstructionKind::EndPackageCapture { local: target, .. } if target == local => {
+                    return Err(fail("capture origin crosses an ended owning Package view"));
+                }
                 InstructionKind::Store {
                     local: target,
                     value,
@@ -836,8 +843,12 @@ impl Check<'_, '_> {
             .as_ref()
             .ok_or_else(|| unknown("ghost capture domain has no complete class contract"))?;
         if function.storage_life.as_ref() != Some(contract)
-            || contract.invocation_binder_count != 0
-            || !contract.bindings.is_empty()
+            || contract.bindings.iter().any(|row| {
+                !matches!(
+                    row.position.base,
+                    StorageBase::Parameter(_) | StorageBase::Result
+                )
+            })
             || !contract.static_bindings.is_empty()
             || !closure.lending_captures.is_empty()
         {
@@ -908,6 +919,7 @@ impl Check<'_, '_> {
                     return Err(fail("captured name has another actual operation"));
                 };
                 let capture = match subject {
+                    SemanticOperand::Capture(index) => *index,
                     SemanticOperand::Value(value) => {
                         self.capture_value_origin(function, *value, b, 0)?
                     }
@@ -994,13 +1006,21 @@ impl Check<'_, '_> {
             if !ty.is_b0_scalar()
                 && !matches!(ty,Type::BorrowedStorage {life,..} if life.slots.is_empty())
             {
-                return Err(unknown(
-                    "actual capture requires its complete owning or borrowed-data proof",
-                ));
+                self.zero_data(ty, b, 0)?;
             }
         }
-        if used_rows.len() != contract.classes.len()
-            || instance.header_embedding.len() != directory.len()
+        if used_rows.len()
+            != contract
+                .classes
+                .iter()
+                .filter(|row| matches!(row.position.base, StorageBase::Capture(_)))
+                .count()
+            || instance
+                .header_embedding
+                .iter()
+                .filter(|row| matches!(row.header, StorageBinder::Fixed(_)))
+                .count()
+                != directory.len()
         {
             return Err(fail(
                 "ghost capture adds or omits a complete class/header occurrence",
@@ -1513,6 +1533,17 @@ impl Check<'_, '_> {
         for instruction in block.instructions.iter().take(at.1).rev() {
             b.spend(1, WORK)?;
             match instruction.kind {
+                InstructionKind::BindPackageCapture {
+                    local: target,
+                    index,
+                } if target == local => {
+                    return self.capture_whole_value(instance, function, index, b, depth + 1);
+                }
+                InstructionKind::EndPackageCapture { local: target, .. } if target == local => {
+                    return Err(fail(
+                        "semantic Package class read crosses an ended capture view",
+                    ));
+                }
                 InstructionKind::Store {
                     local: target,
                     value,
@@ -1791,6 +1822,9 @@ impl Check<'_, '_> {
                 b,
                 0,
             )?,
+            SemanticOperand::Capture(index) => {
+                self.capture_whole_value(instance, function, *index, b, 0)?
+            }
             SemanticOperand::Parameter(index) => {
                 let local = *function
                     .parameters

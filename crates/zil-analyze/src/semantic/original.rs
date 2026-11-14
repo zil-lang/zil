@@ -12,6 +12,7 @@ mod invocations;
 mod loops;
 pub(super) mod mixed;
 pub(super) mod nominal;
+mod places;
 mod protocol;
 mod registration;
 mod registration_start;
@@ -86,6 +87,7 @@ enum Kind {
 pub(super) enum LocalAnchor {
     Parameter(u32),
     Binding(NodeId),
+    Environment(u32),
 }
 struct Borrow {
     anchor: LocalAnchor,
@@ -1827,6 +1829,13 @@ impl Solver<'_, '_> {
                 member,
                 owner,
             } => {
+                if let Some(term) = self.copy_member(frame, object, member, owner, b, depth + 1)? {
+                    b.lookup(frame.expressions.len(), WORK)?;
+                    if frame.expressions.insert(value.id, term).is_some() {
+                        return Err(fail("original Copy-field node is reused"));
+                    }
+                    return Ok(term);
+                }
                 let term = self.expression(frame, object, b, depth + 1)?;
                 if let Some(owner) = owner {
                     let owner = self.recipe(frame, owner, b, depth + 1)?;
@@ -1838,7 +1847,7 @@ impl Solver<'_, '_> {
                 parameters,
                 return_type,
                 body,
-                ..
+                move_capture,
             } => {
                 let definition = self.inventory.definition(frame.definition, b)?;
                 let recipe = self.original_site(definition, value.id, b)?;
@@ -1892,13 +1901,46 @@ impl Solver<'_, '_> {
                     .get(&target)
                     .ok_or_else(|| fail("original child capture footprint is absent"))?
                     .captured;
-                b.spend(
-                    captured.len().saturating_add(frame.captured.len() + 1),
-                    WORK,
-                )?;
-                for (index, ty) in captured {
-                    if *index < frame.inherited {
-                        frame.captured.insert(*index, *ty);
+                b.spend(captured.len(), WORK)?;
+                let captures = captured
+                    .iter()
+                    .map(|(index, ty)| (*index, *ty))
+                    .collect::<Vec<_>>();
+                for (index, ty) in captures {
+                    if index < frame.inherited {
+                        b.lookup(frame.captured.len(), WORK)?;
+                        frame.captured.insert(index, ty);
+                    }
+                    if *move_capture {
+                        let local = frame.locals.get(index).ok_or_else(|| {
+                            fail("original move capture loses its parent lexical binding")
+                        })?;
+                        if !local.initialized {
+                            return Err(fail(
+                                "original move capture reads an uninitialized parent binding",
+                            ));
+                        }
+                        if local.used || local.borrowed {
+                            Self::push(
+                                &mut self.needs,
+                                Need {
+                                    term: ty,
+                                    predicate: Predicate::Copy,
+                                },
+                                b,
+                            )?;
+                        }
+                        Self::push(
+                            &mut self.needs,
+                            Need {
+                                term: ty,
+                                predicate: Predicate::Value,
+                            },
+                            b,
+                        )?;
+                        if frame.alive {
+                            frame.locals[index].used = true;
+                        }
                     }
                 }
                 let root = self.root(term, b)?;

@@ -7,6 +7,7 @@ mod borrows;
 mod callable_roles;
 mod capabilities;
 mod capture_heads;
+mod capture_places;
 mod classes;
 mod operations;
 mod registration;

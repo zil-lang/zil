@@ -85,7 +85,10 @@ impl Solver<'_, '_> {
                 for local in frame.locals.iter().rev() {
                     b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
                     if local.name == *name {
-                        return local.anchor.ok_or_else(||unknown("original registration captured head needs its complete environment place anchor"));
+                        return match local.anchor {
+                            Some(anchor) => Ok(anchor),
+                            None => self.environment_anchor(frame, name, b),
+                        };
                     }
                 }
                 Err(fail("original registration operation has no lexical head"))

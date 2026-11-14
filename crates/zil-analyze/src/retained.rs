@@ -286,6 +286,12 @@ pub(super) fn check_function(
     budget.spend(definition.captures.len(), "factory cleanup reconstruction")?;
     let mut cleanup = Vec::new();
     for (index, ty) in definition.captures.iter().enumerate() {
+        if crate::stored_callables::semantic_copy_capture(module, definition, ty, budget)? {
+            // Its original nonzero domain remains in return_life and the
+            // complete Capture class rows. There is no physical owner cleanup
+            // debt in this independently qualified Copy nominal tree.
+            continue;
+        }
         if let Type::OwnedDyn { interface } = ty {
             crate::dyn_cleanup::capture_interface(module, *interface, budget)?;
             cleanup.push(index as u32);
