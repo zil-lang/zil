@@ -81,6 +81,15 @@ impl Check<'_, '_> {
             ));
         }
         match recipe {
+            SemanticTypeRecipe::Dyn { owned, interface } => self.original.dyn_recipe(
+                instance,
+                *owned,
+                interface,
+                self.program,
+                self.inventory,
+                b,
+                depth + 1,
+            ),
             SemanticTypeRecipe::Task { result, retained } => self.original.task_recipe(
                 instance,
                 result,
