@@ -1,6 +1,7 @@
 //! Original place observations retain binder identity and ordered field paths.
 //! They do not create physical addresses or executable borrow permissions.
 use super::*;
+fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn place(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,Option<Place>)>{
@@ -30,10 +31,13 @@ impl CheckedOriginal {
                 CoreExprKind::Index{object,index}=>{
                     let (object,mut place)=self.place(module,context,object,env,bindings,active,b)?;let mut storage=self.resolved(&object,b)?;
                     if let Ty::Address{inner,..}=storage{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}storage=*inner;place=None;}
-                    let index_ty=self.expression(module,context,index,env,bindings,Some(&Ty::Atom(Type::Usize)),active,b)?;
+                    // Runtime indices accept every actual integer carrier.
+                    // An existing u32/i16 index is not implicitly a usize, and
+                    // an unsuffixed value keeps normal original inference.
+                    let index_ty=self.expression(module,context,index,env,bindings,None,active,b)?;
                     if !matches!(self.resolved(&index_ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original index is not integer"));}
                     let child=match storage{Ty::Array(child,_)|Ty::Slice(child)=>*child,_=>return Err(bad("original indexed place is not an Array/Slice"))};
-                    if let Some(whole)=&mut place{if let CoreExprKind::Integer(text)=&index.kind{let value=scalar::closed(&DynConstPattern::IntegerLiteral(text.clone()),&Type::Usize,module.target.pointer_width,b)?.ok_or_else(||bad("original constant index unresolved"))?;let Constant::Usize(value)=value else{return Err(bad("original index carrier differs"));};whole.fields.push(format!("[{value}]"));}else{place=None;}}
+                    if let Some(whole)=&mut place{if let CoreExprKind::Integer(text)=&index.kind{let Ty::Atom(carrier)=self.resolved(&index_ty,b)? else{return Err(bad("original constant index has no integer carrier"));};b.spend(text.len())?;let value=scalar::closed(&DynConstPattern::IntegerLiteral(text.clone()),&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("original constant index unresolved"))?;let value=nonnegative_index(&value);if let Some(value)=value{b.spend(24)?;whole.fields.push(format!("[{value}]"));}else{place=None;}}else{place=None;}}
                     (child,place)
                 },
                 _=>(self.expression(module,context,expression,env,bindings,None,active,b)?,None),

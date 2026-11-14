@@ -31,12 +31,14 @@ mod operations;
 mod elements;
 mod heads;
 mod protocol;
+mod constructors;
 pub(super) mod intrinsics;
 use usage::{Binder,Place,Uses};
 use terms::*;
 use std::collections::{BTreeMap,BTreeSet};
 #[derive(Clone)]
 pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) callable_kind:Option<CallableKind>}
+struct VariantConstruction{definition:SemanticDefinitionId,variant:u32,actuals:Vec<Arg>}
 #[derive(Default)]
 pub(super) struct CheckedOriginal {
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
@@ -45,6 +47,7 @@ pub(super) struct CheckedOriginal {
     results:BTreeMap<SemanticDefinitionId,Ty>,
     calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),Vec<Arg>>,
     call_targets:BTreeMap<(SemanticDefinitionId,SemanticSiteId),SemanticDefinitionId>,
+    constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
@@ -150,7 +153,7 @@ impl CheckedOriginal {
             (Ty::Array(a,n),Ty::Array(c,m)) if n==m=>self.unify(a,c,b),
             (Ty::Carrier{kind:a,child:x,retained:ar},Ty::Carrier{kind:c,child:y,retained:cr}) if a==c&&ar==cr=>self.unify(x,y,b),
             (Ty::Nominal(a,aa),Ty::Nominal(c,ca)) if a==c&&aa.len()==ca.len()=>{for(a,c)in aa.iter().zip(ca){match(a,c){(Arg::Type(a),Arg::Type(c))=>self.unify(a,c,b)?,(Arg::Life(a),Arg::Life(c))=>self.unify_life(a,c,b)?,_ if a==c=>{},_=>return Err(bad("original nominal actuals require a proved equality"))}}Ok(())},
-            _=>Err(bad("original body relates independent rigid type/const identities without an original equality")),
+            _=>Err(bad(&format!("original body relates independent rigid type/const identities without an original equality (actual {}, expected {})",type_category(&left),type_category(&right)))),
         }
     }
     fn environment(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<Env>{
@@ -173,4 +176,6 @@ impl CheckedOriginal {
         self.environments.insert(id,environment.clone());Ok(environment)
     }
 }
+fn atom_category(ty:&Type)->&'static str{match ty{Type::Unit=>"Unit",Type::Bool=>"Bool",Type::I8=>"i8",Type::I16=>"i16",Type::I32=>"i32",Type::I64=>"i64",Type::Isize=>"isize",Type::U8=>"u8",Type::U16=>"u16",Type::U32=>"u32",Type::U64=>"u64",Type::Usize=>"usize",Type::F32=>"f32",Type::F64=>"f64",Type::ForeignHandle=>"ForeignHandle",Type::CWideString=>"CWideString",Type::ByteBuffer=>"ByteBuffer",Type::SyncCell(_)=>"SyncCell",_=>"NonAtomicType"}}
+fn type_category(ty:&Ty)->String{match ty{Ty::Atom(ty)=>atom_category(ty).into(),Ty::Variable(definition,ordinal)=>format!("TypeFormal({definition:?},{ordinal})"),Ty::SelfType(definition)=>format!("Self({definition:?})"),Ty::Nominal(definition,args)=>format!("Nominal({definition:?},{} actuals)",args.len()),Ty::Tuple(fields)=>format!("Tuple({} fields)",fields.len()),Ty::Array(_,length)=>format!("Array(length carrier {}, {})",match length.carrier.as_ref(){Ty::Atom(ty)=>atom_category(ty),_=>"symbolic"},match &length.value{ConstValue::Value(_)=>"literal",ConstValue::Variable(..)=>"formal",_=>"expression"}),Ty::Address{mutable,..}=>if *mutable{"ExclusiveAddress".into()}else{"SharedAddress".into()},Ty::Desc{..}=>"Description".into(),Ty::Managed(_)=>"Managed".into(),Ty::Store(_)=>"Store".into(),Ty::Carrier{kind,..}=>format!("{kind:?}"),Ty::Closure(definition,..)=>format!("Closure({definition:?})"),Ty::Function(definition)=>format!("Function({definition:?})"),Ty::Code{..}=>"Code".into(),Ty::ErrorUnion(..)=>"ErrorUnion".into(),Ty::Slice(_)=>"Slice".into(),Ty::SealedError(kind)=>format!("{kind:?}"),Ty::Infer(id)=>format!("Infer({id})")}}
 fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::Carrier{child,retained,..}=>{queue.push(child);retained.types(&mut queue,b)?;},Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)=>for actual in arguments{if let Arg::Type(ty)=actual{queue.push(ty);}},_=>{}}}Ok(false)}

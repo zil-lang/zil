@@ -22,8 +22,10 @@ impl CheckedOriginal {
             if let Some(expected)=expected{self.unify(&result,expected,b)?;}
             return Ok(result);
         }
+        let static_type=self.static_call_type(module,context,base,env,bindings,b)?;
+        if static_type.is_none(){if let Some(result)=self.variant_constructor(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
         self.callable_nodes.insert((env.current()?,call.id),base.id);
-        let(callee_type,callee_place)=match self.static_call_type(module,context,base,env,bindings,b)?{Some(ty)=>(ty,None),None=>self.place(module,context,base,env,bindings,active,b)?};if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,false,active,b)?;}
+        let(callee_type,callee_place)=match static_type{Some(ty)=>(ty,None),None=>self.place(module,context,base,env,bindings,active,b)?};if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,false,active,b)?;}
         match self.resolved(&callee_type,b)?{
             Ty::Function(target)=>{
                 let definition=context.definition(module,target,b)?;

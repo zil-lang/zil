@@ -6,6 +6,7 @@ mod intrinsics;
 mod capture_values;
 mod closed_values;
 mod operations;
+mod products;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -213,6 +214,7 @@ impl CheckedContext {
                         Some(value)
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
+                    InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
                         let Type::Address{inner,..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};

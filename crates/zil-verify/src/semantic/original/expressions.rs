@@ -67,7 +67,7 @@ impl CheckedOriginal {
             if let Some(expected)=expected{self.unify(&actual,expected,b)?;}
             if self.creation(id,expression,bindings,b)?{b.spend(1)?;self.created.insert((id,expression.id));}
             self.expressions.insert((id,expression.id),actual.clone());Ok(actual)
-        })
+        }).map_err(|mut error|{error.message.push_str(&format!(" [original definition {:?}, expression {:?}]",env.current().ok(),expression.id));if error.span.is_none(){error.span=Some(expression.span);}error})
     }
     pub(super) fn literal_original(&self,module:&TypedModule,text:&str,floating:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
         self.literal_original_sign(module,text,floating,false,expected,b)
