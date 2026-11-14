@@ -382,6 +382,7 @@ fn type_zero(
         Type::Address { .. } | Type::Desc(_) => Err(failure(
             "plain nominal contains an outer persistent borrow occurrence",
         )),
+        Type::Task { .. } => crate::tasks::semantic_resource_scope(module, ty, limits, b),
         Type::Closure(id) => {
             b.lookup(
                 b.semantic_zero_closures.len(),
@@ -401,7 +402,6 @@ fn type_zero(
         | Type::Dyn { .. }
         | Type::OwnedDyn { .. }
         | Type::TaskI32
-        | Type::Task { .. }
         | Type::MutexGuard { .. }
         | Type::Registration { .. }
         | Type::AsyncRegistration { .. }
