@@ -301,7 +301,7 @@ impl CheckedContext {
                         self.claim(module,expected,&required,&environment,b)?;
                         let value=match subject {SemanticOperand::Value(value)=>value_at(&values,*value)?,SemanticOperand::Local(local)=>state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?,_=>return Err(unsupported("semantic TypeUse requires its exact actual operand ledger",None))};
                         self.bind_implicit_use(module,instance,site,subject,value,&required,&environment,b)?;
-                        if !self.compatible(&environment,value,&required,b)? {return Err(bad("actual TypeUse violates its original rigid class requirement"));}
+                        if !self.compatible(&environment,value,&required,b)? {return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}
                     }
                 }
             }
@@ -659,12 +659,20 @@ impl CheckedContext {
         let definition=self.definition(module,instance.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("implicit occurrence has no original function body"));};
         let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("implicit occurrence has no original site"))?;
-        let SemanticSiteRecipeKind::TypeUse{expected:SemanticTypeRecipe::Address{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}}=&recipe.kind else{return Ok(());};
+        let SemanticSiteRecipeKind::TypeUse{expected:source_recipe}=&recipe.kind else{return Ok(());};
+        let expanded;let mut source=None;
+        let source_recipe=if let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:original_source}=source_recipe{
+            let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original implicit address lacks its complete body proof"))?;
+            source=original.original_address_source(module,instance.definition,original_source,b)?;
+            expanded=original.type_recipe(module,instance.definition,original_source,environment,b)?;&expanded
+        }else{source_recipe};
+        let SemanticTypeRecipe::Address{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}=source_recipe else{return Ok(());};
         b.spend(definition.implicit_lifetimes.len())?;
         if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==*ordinal&&row.occurrence_path==recipe.occurrence_path){return Ok(());}
         let SemanticOperand::Value(mut value)=*subject else{return Ok(());};
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("implicit occurrence belongs to a nonexecutable scope"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("implicit occurrence actual function is absent"))?;
+        if let Some(source)=source{self.intrinsic_buffer_source(module,instance,f,value,source,b)?;}
         let mut seen=std::collections::BTreeSet::new();
         loop {
             b.spend(1)?;if !seen.insert(value){return Err(bad("implicit address producer cycle"));}

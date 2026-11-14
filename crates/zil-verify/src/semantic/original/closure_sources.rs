@@ -2,6 +2,16 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn original_address_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
+        let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};
+        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original address has no complete body index"))?;
+        let mut expression=*function.expressions.get(node).ok_or_else(||bad("original address expression is absent"))?;
+        loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(value)|CoreExprKind::Ascribed{value,..}=>expression=value, _=>break}}
+        let CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=&expression.kind else{return Ok(None);};
+        let place=self.value_places.get(&(definition,operand.id)).ok_or_else(||unsupported("original address needs its complete checked source Place",None))?;
+        if !place.fields.is_empty(){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand.id}));}
+        Ok(Some(match &place.binder{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("original address needs its complete captured/indirect Place boundary",None))}))
+    }
     pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
         let index=index::build(module,b)?;
         let parent=index.definitions.get(&creator).ok_or_else(||bad("logical capture has no original creator body"))?;
