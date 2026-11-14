@@ -353,6 +353,59 @@ pub(crate) fn prepare_task(
             left,
         )?;
     }
+    // A previously prepared real closure keeps the same complete original
+    // embedding when another TaskCreate observes it. A header without its
+    // exact original class bridge is never treated as a closed environment.
+    for closure in directory.closures.iter() {
+        let Some((header, embedding, _)) = ledger.formed_headers.get(&closure.id) else {
+            continue;
+        };
+        let actual = closure
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| bad("previously formed closure lost its actual header"))?;
+        if actual != header {
+            return Err(bad("reused Task input closure changes its complete header"));
+        }
+        ledger.validate_formed_capture(
+            closure.id,
+            &closure.parameters,
+            &closure.captures,
+            &closure.result,
+            actual,
+            limits,
+            left,
+        )?;
+        fee(left, directory.instances.len())?;
+        let mut instance = None;
+        for row in directory.instances.values() {
+            if matches!(&row.environment, Some(env) if env.closure == SemanticClosureTarget::Typed(closure.id))
+            {
+                if instance.replace(row.id).is_some() {
+                    return Err(bad(
+                        "reused Task closure has multiple original preparation worlds",
+                    ));
+                }
+            }
+        }
+        let Some(instance) = instance else {
+            continue;
+        };
+        for row in embedding {
+            crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
+        }
+        let row = directory
+            .instances
+            .get_mut(&instance)
+            .ok_or_else(|| bad("reused Task original world disappeared"))?;
+        if !row.header_embedding.is_empty() && &row.header_embedding != embedding {
+            return Err(bad(
+                "reused Task closure changes its original Fixed mapping",
+            ));
+        }
+        row.header_embedding = embedding.clone();
+    }
+    install_callable_actuals(&mut directory, &context.semantic, state, limits, left)?;
     let mut headers = Vec::new();
     // Actual capture dependencies form a finite creation graph. Revisit only
     // when a previous complete directory was formed; missing dependencies are

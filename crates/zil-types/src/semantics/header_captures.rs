@@ -1013,16 +1013,17 @@ pub(in crate::semantics) fn validate_formed_header(
             .len()
             .saturating_mul(ordered.len().saturating_add(1).ilog2() as usize + 1),
     )?;
-    ordered.sort_by_key(|(base, _)| match base {
-        StorageBase::Parameter(i) => (0u8, *i),
-        StorageBase::Capture(i) => (1, *i),
-        StorageBase::Result => (2, 0),
-    });
+    ordered.sort_by_key(|(base, _)| *base);
     for (base, value) in ordered {
         let actual = match *base {
             StorageBase::Parameter(i) => parameters.get(i as usize),
             StorageBase::Capture(i) => captures.get(i as usize),
             StorageBase::Result => Some(result),
+            StorageBase::Receiver => {
+                return Err(bad(
+                    "closure formation P/C/R cannot invent an invocation Receiver operand",
+                ));
+            }
         }
         .ok_or_else(|| bad("formed closure operand leaves the actual P/C/R inventory"))?;
         if !seen.insert(*base) {

@@ -7,7 +7,7 @@ mod captures;
 pub(super) use captures::complete_emitted_headers;
 pub(super) use captures::form_emitted_header;
 pub(super) use captures::populate as capture_domains;
-pub(crate) use captures::validate_formed_header;
+pub(super) use captures::validate_formed_header;
 
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-HEADER", Span::default(), message)
