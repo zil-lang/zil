@@ -107,7 +107,13 @@ impl<'s> FrozenContext<'s> {
         let mut view=execution.clone();
         let mut semantic=SemanticModule{definitions:self.definitions.values().map(|row|(*row).clone()).collect(),instances:self.instances.values().map(|row|(*row).clone()).collect(),sites:raw.sites.clone(),dyn_scopes:raw.dyn_scopes.clone()};
         for definition in &raw.definitions {
-            if self.definitions.contains_key(&definition.id){return Err(bad("CT execution package attempts to replace a frozen original definition"));}
+            if let Some(source)=self.definitions.get(&definition.id){
+                // Both trees were fully prepaid above. Distinguish a redundant
+                // frozen copy from a changed definition without printing or
+                // trusting its body; neither can replace S through this API.
+                let relation=if *source==definition{"identical frozen copy"}else{"changed frozen definition"};
+                return Err(bad(&format!("CT execution package attempts to replace a frozen original definition: {:?} ({relation})",definition.id)));
+            }
             semantic.definitions.push(definition.clone());
         }
         for instance in &raw.instances {
