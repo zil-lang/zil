@@ -83,6 +83,7 @@ pub(super) struct CheckedOriginal {
     value_bindings:BTreeMap<(SemanticDefinitionId,NodeId),Binder>,
     value_places:BTreeMap<(SemanticDefinitionId,NodeId),Place>,
     names_at:BTreeMap<(SemanticDefinitionId,bool,NodeId,String),Ty>,
+    name_binders_at:BTreeMap<(SemanticDefinitionId,bool,NodeId,String),Binder>,
     pattern_types:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Ty>,
     pattern_bindings:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Binder>,
     pattern_origin:Option<(NodeId,Vec<u32>)>,

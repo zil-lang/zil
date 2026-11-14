@@ -34,6 +34,9 @@ impl CheckedContext {
                 let frame = self.frame(environment, *scope, b)?;
                 let definition = frame.definition;
                 if !self.domain_only.get() {
+                    if let Some(value)=self.original_call_result(module,definition,source,frame.key,environment,b)?{
+                        return Ok(value);
+                    }
                     if let Some(value) = self.original_closure_value(
                         module,
                         definition,

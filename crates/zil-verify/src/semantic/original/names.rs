@@ -47,7 +47,7 @@ impl CheckedOriginal {
     }
     pub(super) fn remember_names(&mut self,env:&Env,at:SemanticOriginalNode,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<()> {
         let definition=env.current()?;let(kind,node)=node_key(at);
-        for(name,binding)in bindings{b.spend(name.len().saturating_add(1))?;let ty=self.resolved(&binding.ty,b)?;self.names_at.insert((definition,kind,node,name.clone()),ty);}Ok(())
+        for(name,binding)in bindings{b.spend(name.len().saturating_mul(2).saturating_add(2))?;let ty=self.resolved(&binding.ty,b)?;binding.identity.charge_clone(b)?;self.names_at.insert((definition,kind,node,name.clone()),ty);self.name_binders_at.insert((definition,kind,node,name.clone()),binding.identity.clone());}Ok(())
     }
     pub(super) fn named<'m>(&self,module:&'m TypedModule,context:&CheckedContext,definition:SemanticDefinitionId,name:&str,namespace:SemanticOriginalNamespace,b:&mut Budget)->Check<Option<&'m SemanticOriginalNameValue>>{
         let definition=context.definition(module,definition,b)?;let SemanticDefinitionBody::FunctionWithBody{names,..}=&definition.body else{return Err(bad("original name lookup has no complete function body"));};

@@ -2,6 +2,31 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    // Select a proved original call by its lexical node or its inferred local
+    // binding. Explicit type ascriptions remain separate invariant obligations.
+    pub(in crate::semantic) fn call_result_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<SemanticSiteId>>{
+        if !matches!(source,SemanticOriginalTypeSource::Binding(_)|SemanticOriginalTypeSource::Expression(_)|SemanticOriginalTypeSource::NameAt{..}){return Ok(None);}
+        let checked=self.original_type(definition,source,b)?;
+        // These forms already reuse a complete original type argument or have
+        // no fresh class construction whose domain could be compressed.
+        if matches!(checked,Ty::Atom(_)|Ty::SealedError(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Function(_)){return Ok(None);}
+        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original Call result has no complete body index"))?;
+        let binder=match source{
+            SemanticOriginalTypeSource::Binding(node)=>Some(*node),
+            SemanticOriginalTypeSource::Expression(node)=>match self.value_bindings.get(&(definition,*node)){Some(Binder::Local{definition:owner,node,..})if *owner==definition=>Some(*node),_=>None},
+            SemanticOriginalTypeSource::NameAt{at,name}=>{let(kind,node)=match at{SemanticOriginalNode::Expression(node)=>(false,*node),SemanticOriginalNode::Statement(node)=>(true,*node)};b.spend(name.len())?;match self.name_binders_at.get(&(definition,kind,node,name.clone())){Some(Binder::Local{definition:owner,node,..})if *owner==definition=>Some(*node),_=>None}},
+            _=>None,
+        };
+        let mut expression=if let Some(node)=binder{
+            let statement=function.bindings.get(&node).ok_or_else(||bad("original Call result binding is absent"))?;
+            let CoreStatementKind::Binding{ty:None,initializer:Some(initializer),..}=&statement.kind else{return Ok(None);};initializer
+        }else if let SemanticOriginalTypeSource::Expression(node)=source{let Some(expression)=function.expressions.get(node)else{return Ok(None);};*expression}else{return Ok(None);};
+        while let CoreExprKind::Group(inner)=&expression.kind{b.spend(1)?;expression=inner;}
+        if !matches!(expression.kind,CoreExprKind::Call{..}){return Ok(None);}
+        let mut selected=None;
+        for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}
+        Ok(selected)
+    }
     pub(in crate::semantic) fn original_address_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
         let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};
         let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original address has no complete body index"))?;
