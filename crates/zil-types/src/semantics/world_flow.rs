@@ -13,6 +13,7 @@ pub(super) struct State {
     pub stale_values: BTreeSet<ValueId>,
     pub stale_locals: BTreeSet<LocalId>,
     pub scopes: Vec<ScopeId>,
+    pub unsafe_regions: Vec<u32>,
     pub owners: BTreeMap<LocalId, ScopeId>,
     pub vacant: BTreeSet<(LocalId, Vec<PlaceProjection>)>,
     pub role_sources: BTreeMap<LocalId, roles::Source>,
@@ -32,6 +33,7 @@ impl State {
                 .saturating_add(self.stale_values.len())
                 .saturating_add(self.stale_locals.len())
                 .saturating_add(self.scopes.len())
+                .saturating_add(self.unsafe_regions.len())
                 .saturating_add(self.owners.len())
                 .saturating_add(self.vacant.len())
                 .saturating_add(self.role_sources.len())
@@ -93,6 +95,7 @@ impl State {
             stale_values: self.stale_values.clone(),
             stale_locals: self.stale_locals.clone(),
             scopes: self.scopes.clone(),
+            unsafe_regions: self.unsafe_regions.clone(),
             owners: self.owners.clone(),
             vacant: self.vacant.clone(),
             role_sources,
@@ -112,6 +115,7 @@ impl State {
                 .saturating_add(self.stale_locals.len())
                 .saturating_add(self.stale_values.len())
                 .saturating_add(self.scopes.len())
+                .saturating_add(self.unsafe_regions.len())
                 .saturating_add(self.owners.len())
                 .saturating_add(self.vacant.len())
                 .saturating_add(self.role_sources.len())
@@ -377,7 +381,9 @@ impl Cfg {
                         target: SemanticFunctionTarget::Typed(a),
                         ..
                     },
-                    InstructionKind::Call { function: b, .. },
+                    InstructionKind::Call { function: b, .. }
+                    | InstructionKind::ForeignCall { function: b, .. }
+                    | InstructionKind::SuspendCall { function: b, .. },
                 ) => a == b,
                 (
                     SemanticSiteAction::CallableCall {
@@ -391,25 +397,35 @@ impl Cfg {
                         callee: SemanticOperand::Value(a),
                     },
                     InstructionKind::CallClosure { callee: b, .. }
+                    | InstructionKind::CallIndirect { callee: b, .. }
                     | InstructionKind::CallClosureOnce { callee: b, .. }
                     | InstructionKind::CallClosureBorrowed { callee: b, .. },
                 ) => a == b,
                 (
                     SemanticSiteAction::BodyCall { .. },
                     InstructionKind::Call { .. }
+                    | InstructionKind::ForeignCall { .. }
+                    | InstructionKind::SuspendCall { .. }
+                    | InstructionKind::CallIndirect { .. }
                     | InstructionKind::CallClosure { .. }
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::CallClosureBorrowed { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. },
                 ) => true,
-                (SemanticSiteAction::BodyCall { .. }, _) => {
+                (SemanticSiteAction::BodyCall { .. }, actual) => {
                     let owner = world.instance(site.instance)?.definition;
                     let ledger = world.ledger;
                     let proof = ledger.original.borrow();
-                    proof
+                    if let Some(kind) = proof
                         .as_ref()
-                        .is_some_and(|proof| proof.intrinsics.contains_key(&(owner, site.recipe)))
+                        .and_then(|p| p.intrinsics.get(&(owner, site.recipe)))
+                        .map(|c| &c.kind)
+                    {
+                        super::intrinsic_operation_matches(kind, actual, world.left)?
+                    } else {
+                        false
+                    }
                 }
                 _ => false,
             };

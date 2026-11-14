@@ -6,6 +6,8 @@ use crate::*;
 use std::collections::BTreeMap;
 #[path = "world_arguments.rs"]
 mod arguments;
+#[path = "world_calls.rs"]
+mod calls;
 #[path = "world_capture.rs"]
 mod capture;
 #[path = "world_dyn.rs"]
@@ -1704,6 +1706,7 @@ impl World<'_, '_> {
             stale_values: Default::default(),
             stale_locals: Default::default(),
             scopes: Vec::new(),
+            unsafe_regions: Default::default(),
             owners: BTreeMap::new(),
             vacant: Default::default(),
             role_sources: BTreeMap::new(),
@@ -1725,6 +1728,7 @@ impl World<'_, '_> {
                 stale_values,
                 stale_locals,
                 mut scopes,
+                mut unsafe_regions,
                 mut owners,
                 vacant,
                 role_sources,
@@ -2021,6 +2025,16 @@ impl World<'_, '_> {
                                 .result
                                 .ok_or_else(|| bad("dynamic borrow has no actual SSA result"))?;
                             let image = self.occurrence(f, result)?;
+                            dynamic::seal_borrow(
+                                self,
+                                original,
+                                &sites,
+                                block.id,
+                                index,
+                                *local,
+                                &image,
+                                &mut implicit,
+                            )?;
                             Some(dynamic::borrow(
                                 self,
                                 f,
@@ -2516,6 +2530,15 @@ impl World<'_, '_> {
                         InstructionKind::Call {
                             function: target,
                             arguments,
+                        }
+                        | InstructionKind::ForeignCall {
+                            function: target,
+                            arguments,
+                            ..
+                        }
+                        | InstructionKind::SuspendCall {
+                            function: target,
+                            arguments,
                         } => {
                             self.pay(self.program.instances.len())?;
                             let mut candidates = self.program.instances.iter().filter(|i| matches!(i.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == *target));
@@ -2528,6 +2551,18 @@ impl World<'_, '_> {
                                 ));
                             }
                             let target_function = self.function(*target)?;
+                            let target_definition = self.definition(callee.definition)?;
+                            protocol::header(self, target_definition, target_function)?;
+                            calls::abi(
+                                self,
+                                original,
+                                target_function,
+                                &sites,
+                                block.id,
+                                index,
+                                &instruction.kind,
+                                &unsafe_regions,
+                            )?;
                             if let Some(result) = methods::evaluate(
                                 self,
                                 instance,
@@ -3100,6 +3135,30 @@ impl World<'_, '_> {
                             }
                             None
                         }
+                        InstructionKind::UnsafeEnter { region } => {
+                            self.pay(unsafe_regions.len().saturating_add(1))?;
+                            if unsafe_regions.contains(region) {
+                                return Err(bad(
+                                    "actual unsafe region reenters an active lexical boundary",
+                                ));
+                            }
+                            if unsafe_regions.len() >= self.limits.max_call_depth {
+                                return Err(Diagnostic::limit(
+                                    Phase::Types,
+                                    "actual unsafe region depth exceeded",
+                                    None,
+                                ));
+                            }
+                            unsafe_regions.push(*region);
+                            None
+                        }
+                        InstructionKind::UnsafeExit { region } => {
+                            self.pay(unsafe_regions.len().saturating_add(1))?;
+                            if unsafe_regions.pop() != Some(*region) {
+                                return Err(bad("actual unsafe exit has no reaching region entry"));
+                            }
+                            None
+                        }
                         InstructionKind::ScopeEnter { scope } => {
                             self.pay(scopes.len().saturating_add(1))?;
                             if scopes.contains(scope) {
@@ -3163,9 +3222,13 @@ impl World<'_, '_> {
                             Some(self.zero(ty.ok_or_else(|| bad("scalar producer has no type"))?)?)
                         }
                         _ => {
-                            return Err(pending(
-                                "actual operation requires its complete original class transfer",
-                            ));
+                            return Err(calls::missing(
+                                self,
+                                f,
+                                block.id,
+                                index,
+                                &instruction.kind,
+                            )?);
                         }
                     }
                 };
@@ -3259,6 +3322,7 @@ impl World<'_, '_> {
                 stale_values: std::mem::take(&mut self.stale_values),
                 stale_locals: std::mem::take(&mut self.stale_locals),
                 scopes,
+                unsafe_regions,
                 owners,
                 vacant: std::mem::take(&mut self.vacant),
                 role_sources: std::mem::take(&mut self.role_sources),

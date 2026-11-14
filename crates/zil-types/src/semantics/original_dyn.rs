@@ -270,6 +270,7 @@ impl Check<'_, '_> {
             parameters.push(copy_recipe(&parameter.ty, self.limits, self.left)?);
         }
         let kind = IntrinsicKind::DynCall {
+            receiver_node: object.id,
             declaration: definition.id,
             parent: parent.id,
             member: member_ordinal,
@@ -292,11 +293,9 @@ impl Check<'_, '_> {
             depth + 1,
         )?;
         self.proof.calls.insert((owner, site.id), actuals);
-        // This Name occurrence is the compiler's receiver borrow. The lexical
-        // NameAt binding remains the original owner, with no new equality.
-        self.proof
-            .types
-            .insert((owner, Query::Expression(object.id)), receiver_type);
+        // The source observation still denotes the owner. The independently
+        // emitted receiver borrow has its own outer occurrence and is checked
+        // against parameters[0] at the actual slot boundary.
         Ok(Some(solved.result))
     }
 }

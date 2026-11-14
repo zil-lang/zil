@@ -3,6 +3,7 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum IntrinsicKind {
     DynCall {
+        receiver_node: NodeId,
         declaration: SemanticDefinitionId,
         parent: SemanticDefinitionId,
         member: u32,

@@ -1752,6 +1752,47 @@ pub(super) fn check(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    // An unused foreign call still needs its real original unsafe boundary.
+    // The actual marker/ABI is checked again by the actual world below.
+    for ((caller, site), target) in &proof.call_targets {
+        if proof.protocol_complete.contains(caller) {
+            continue;
+        }
+        *left = left
+            .checked_sub(
+                program
+                    .definitions
+                    .len()
+                    .saturating_mul(2)
+                    .saturating_add(1),
+            )
+            .ok_or_else(|| {
+                Diagnostic::limit(Phase::Types, "original foreign edge work exceeded", None)
+            })?;
+        let target = program
+            .definitions
+            .iter()
+            .find(|d| d.id == *target)
+            .ok_or_else(|| failure("original foreign edge target is absent"))?;
+        if matches!(
+            &target.body,
+            SemanticDefinitionBody::FunctionWithBody {
+                foreign: Some(_),
+                ..
+            }
+        ) {
+            let original = program
+                .definitions
+                .iter()
+                .find(|d| d.id == *caller)
+                .ok_or_else(|| failure("original foreign edge caller is absent"))?;
+            if !unsafe_call(original, *site, limits, left)? {
+                return Err(failure(
+                    "original foreign call is outside its genuine unsafe region",
+                ));
+            }
+        }
+    }
     let mut engine = Engine {
         program,
         proof,
@@ -1820,4 +1861,135 @@ pub(super) fn check(
         }
     }
     Ok(())
+}
+
+/// Read-only original AST authority for a specific original Call site. An
+/// actual unsafe marker, symbol spelling, or same-typed call is never input.
+pub(in crate::semantics) fn unsafe_call(
+    original: &SemanticDefinition,
+    site: SemanticSiteId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    let SemanticDefinitionBody::FunctionWithBody {
+        site_nodes,
+        body: SemanticOriginalFunctionBody::Defined(body),
+        ..
+    } = &original.body
+    else {
+        return Ok(false);
+    };
+    *left = left
+        .checked_sub(site_nodes.len().saturating_add(1))
+        .ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "original unsafe site work exceeded", None)
+        })?;
+    let mut selected = None;
+    for row in site_nodes {
+        if row.site == site {
+            let SemanticOriginalNode::Expression(node) = row.node else {
+                return Err(failure("foreign call source is not an original expression"));
+            };
+            if selected.replace(node).is_some() {
+                return Err(failure(
+                    "foreign call site has multiple original source nodes",
+                ));
+            }
+        }
+    }
+    let target =
+        selected.ok_or_else(|| failure("foreign call has no original source occurrence"))?;
+    crate::dyn_metadata::semantic_operand_snapshot(body, limits, left, 1)?;
+    let mut body = body.clone();
+    let mut scan = UnsafeSource {
+        target,
+        scan: true,
+        count: 0,
+        inside: false,
+        limits,
+        left,
+    };
+    super::super::original_walk::block(&mut body, &mut scan, 0)?;
+    if scan.count != 1 {
+        return Err(failure(
+            "original foreign source expression is absent or duplicated",
+        ));
+    }
+    Ok(scan.inside)
+}
+struct UnsafeSource<'a> {
+    target: NodeId,
+    scan: bool,
+    count: usize,
+    inside: bool,
+    limits: &'a Limits,
+    left: &'a mut usize,
+}
+impl super::super::original_walk::Context for UnsafeSource<'_> {
+    fn node(&mut self, depth: usize) -> R<()> {
+        *self.left = self.left.checked_sub(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "original unsafe traversal work exceeded",
+                None,
+            )
+        })?;
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original unsafe traversal depth exceeded",
+                None,
+            ));
+        }
+        Ok(())
+    }
+    fn ty(&mut self, _: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
+        self.node(depth)
+    }
+    fn descend_closure(&self) -> bool {
+        false
+    }
+    fn expression(&mut self, id: NodeId, _: &SemanticOriginalExprKind, depth: usize) -> R<()> {
+        self.node(depth)?;
+        if id == self.target {
+            self.count = self
+                .count
+                .checked_add(1)
+                .ok_or_else(|| failure("original unsafe occurrence count overflows"))?;
+            if !self.scan {
+                self.inside = true;
+            }
+        }
+        Ok(())
+    }
+    fn statement(
+        &mut self,
+        _: NodeId,
+        kind: &SemanticOriginalStatementKind,
+        depth: usize,
+    ) -> R<()> {
+        self.node(depth)?;
+        if self.scan {
+            if let CoreStatementKind::Unsafe(body) = kind {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    body,
+                    self.limits,
+                    self.left,
+                    depth + 1,
+                )?;
+                let mut body = body.clone();
+                let mut nested = UnsafeSource {
+                    target: self.target,
+                    scan: false,
+                    count: 0,
+                    inside: false,
+                    limits: self.limits,
+                    left: self.left,
+                };
+                super::super::original_walk::block(&mut body, &mut nested, depth + 1)?;
+                self.inside |= nested.inside;
+            }
+        }
+        Ok(())
+    }
 }

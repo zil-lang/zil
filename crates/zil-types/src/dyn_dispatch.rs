@@ -1,5 +1,7 @@
 //! Finite borrowed dyn admission. Core tables and slot claims are untrusted.
 use super::*;
+#[path = "dyn_declarations.rs"]
+mod declarations;
 
 pub(super) fn create_error() -> Type {
     Type::Enum {
@@ -560,7 +562,7 @@ fn inventory_in_modules(
                     .iter()
                     .find(|d| d.id == slot.member.application.declaration)
                     .and_then(|d| d.members.get(slot.member.ordinal as usize))
-                    .is_none_or(|member| !matches!(member.kind, DynMemberKind::Method(_)))
+                    .is_none_or(|member| !matches!(&member.kind, DynMemberKind::Method(parameters) if parameters.is_empty()))
             {
                 return Err(unsupported(
                     Span::default(),
@@ -902,16 +904,7 @@ pub(super) fn inventory_program(
                     "dyn declaration identity is duplicated",
                 ));
             }
-            for member in &declaration.members {
-                spend(&mut left, member.name.len() + 1)?;
-                if !matches!(&member.kind, DynMemberKind::Method(parameters) if parameters.is_empty())
-                {
-                    return Err(unsupported(
-                        Span::default(),
-                        "dyn declaration member is outside fixed method profile",
-                    ));
-                }
-            }
+            declarations::original_declaration(core, declaration, limits, &mut left)?;
         }
         for interface in &core.dyn_interfaces {
             spend(
@@ -984,11 +977,15 @@ pub(super) fn inventory_program(
     {
         return Ok((declarations, interfaces, Vec::new()));
     }
-    if interfaces.is_empty() {
-        return Err(unsupported(
-            Span::default(),
-            "dyn project declaration has no actual interface",
-        ));
+    // Original declarations also describe static traits and impls. Keeping
+    // their directory does not construct a runtime interface or admit a table.
+    if interfaces.is_empty()
+        && program
+            .modules
+            .iter()
+            .all(|module| module.core.dyn_vtables.is_empty())
+    {
+        return Ok((declarations, interfaces, Vec::new()));
     }
     let metadata_work = limits.max_analysis_steps - left;
     let mut tables = Vec::new();

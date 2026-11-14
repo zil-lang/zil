@@ -39,7 +39,7 @@ pub(super) fn borrow(
         _ => {
             return Err(bad(
                 "dynamic owner borrow reads another actual carrier kind",
-            ))
+            ));
         }
     };
     let SemanticTypeValue::Resolved {
@@ -62,6 +62,98 @@ pub(super) fn borrow(
         classes,
     };
     world.address(ty, image, &inner)
+}
+
+/// Bind only the fresh outer receiver role. The Before observation is the
+/// initialized owner; its complete Context domain is preserved by `borrow`.
+pub(super) fn seal_borrow(
+    world: &mut World<'_, '_>,
+    original: &SemanticDefinition,
+    sites: &[&SemanticSite],
+    block: BlockId,
+    index: usize,
+    local: LocalId,
+    image: &SemanticClassExpr,
+    implicit: &mut BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Err(bad("dynamic receiver borrow has no original body"));
+    };
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof
+        .as_ref()
+        .ok_or_else(|| bad("dynamic receiver borrow has no original Gamma"))?;
+    let mut role = None;
+    for site in world.point_sites(sites, block, index)? {
+        if !matches!(
+            site.at,
+            SemanticSiteAddress::Typed {
+                edge: SemanticSiteEdge::Before,
+                ..
+            }
+        ) || !matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Local(target), .. } if target == local)
+        {
+            continue;
+        }
+        let recipe = world.original_recipe(original, site.recipe)?;
+        world.pay(site_nodes.len())?;
+        let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
+        let Some(row) = nodes.next() else {
+            return Err(bad("dynamic receiver observation has no original node"));
+        };
+        if nodes.next().is_some() {
+            return Err(bad(
+                "dynamic receiver observation repeats its original node",
+            ));
+        }
+        let SemanticOriginalNode::Expression(node) = row.node else {
+            return Err(bad("dynamic receiver observation is not an expression"));
+        };
+        world.pay(proof.intrinsics.len())?;
+        for ((owner, _), call) in &proof.intrinsics {
+            if *owner != original.id
+                || !matches!(call.kind, IntrinsicKind::DynCall { receiver_node, .. } if receiver_node == node)
+            {
+                continue;
+            }
+            let Some(SemanticTypeRecipe::Address {
+                lifetime:
+                    SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ordinal,
+                    }),
+                ..
+            }) = call.parameters.first()
+            else {
+                continue;
+            };
+            world.pay(original.implicit_lifetimes.len())?;
+            if !original.implicit_lifetimes.iter().any(|entry| {
+                entry.ordinal == *ordinal && entry.occurrence_path == recipe.occurrence_path
+            }) {
+                return Err(bad(
+                    "dynamic receiver outer role differs from its original borrow occurrence",
+                ));
+            }
+            if role.is_some_and(|previous| previous != *ordinal) {
+                return Err(bad("dynamic receiver borrow has ambiguous original roles"));
+            }
+            role = Some(*ordinal);
+        }
+    }
+    let ordinal = role
+        .ok_or_else(|| bad("dynamic receiver borrow has no complete original occurrence seal"))?;
+    world.pay(implicit.len().saturating_add(1))?;
+    crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+    if let Some(old) = implicit.insert(ordinal, image.clone()) {
+        if old != *image {
+            return Err(bad(
+                "one dynamic receiver occurrence selects different actual heads",
+            ));
+        }
+    }
+    Ok(())
 }
 fn insert(
     world: &mut World<'_, '_>,
@@ -143,6 +235,7 @@ pub(super) fn call(
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     let IntrinsicKind::DynCall {
+        receiver_node: _,
         declaration,
         parent,
         member,
@@ -323,10 +416,10 @@ pub(super) fn call(
             }
             match row.binder {
                 StorageBinder::Fixed(index) if index >= header.fixed_binder_count => {
-                    return Err(bad("dynamic Fixed binder exceeds complete Context"))
+                    return Err(bad("dynamic Fixed binder exceeds complete Context"));
                 }
                 StorageBinder::Invocation(index) if index >= header.invocation_binder_count => {
-                    return Err(bad("dynamic Invocation binder exceeds its original scope"))
+                    return Err(bad("dynamic Invocation binder exceeds its original scope"));
                 }
                 _ => {}
             }
@@ -362,10 +455,10 @@ pub(super) fn call(
             }
             match row.binder {
                 StorageBinder::Fixed(index) if index >= header.fixed_binder_count => {
-                    return Err(bad("dynamic intrinsic Fixed binder exceeds Context"))
+                    return Err(bad("dynamic intrinsic Fixed binder exceeds Context"));
                 }
                 StorageBinder::Invocation(index) if index >= header.invocation_binder_count => {
-                    return Err(bad("dynamic intrinsic Invocation binder exceeds scope"))
+                    return Err(bad("dynamic intrinsic Invocation binder exceeds scope"));
                 }
                 _ => {}
             }
