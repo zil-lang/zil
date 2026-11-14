@@ -184,6 +184,14 @@ fn check_resolved_program_in_context(
     // not conceal a receiver error in this module or a later dependency.
     names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
     let mut closure_state = closures::State::new(count, limits);
+    let source_costs = closure_state.semantic_emission.ordinary_stats.clone();
+    let mut cost_checkpoint = closure_state.remaining_work();
+    let mut mark_cost = |tag: &'static str, remaining: usize| {
+        source_costs
+            .borrow_mut()
+            .record_pass(tag, cost_checkpoint, remaining);
+        cost_checkpoint = remaining;
+    };
     if let Some(source) = frozen {
         closure_state
             .snapshot(1, Span::default())
@@ -215,6 +223,10 @@ fn check_resolved_program_in_context(
             .snapshot(before - remaining, Span::default())
             .map_err(|error| vec![error])?;
     }
+    mark_cost(
+        "program: original ABI and universal source",
+        closure_state.remaining_work(),
+    );
     let mut life_declarations = Vec::new();
     let mut life_instances = Vec::new();
     for source in &program.modules {
@@ -258,6 +270,10 @@ fn check_resolved_program_in_context(
                 .map_err(|e| vec![e])?;
         }
     }
+    mark_cost(
+        "program: actual signatures and dynamic inventory",
+        closure_state.remaining_work(),
+    );
     if program
         .modules
         .iter()
@@ -312,6 +328,10 @@ fn check_resolved_program_in_context(
             helpers::install(core, context, &mut closure_state, limits).map_err(|e| vec![e])?;
         }
     }
+    mark_cost(
+        "program: generic templates and shared contexts",
+        closure_state.remaining_work(),
+    );
     let mut dependency_work = limits.max_analysis_steps;
     let mut factory_graph = BTreeMap::new();
     let mut factory_sources = BTreeMap::new();
@@ -623,16 +643,25 @@ fn check_resolved_program_in_context(
             interface.exports.push(export.signature.clone());
         }
     }
+    mark_cost(
+        "program: all actual body emission and helpers",
+        closure_state.remaining_work(),
+    );
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
     let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
     let deferred_closed = std::mem::take(&mut closure_state.deferred_closed);
+    mark_cost(
+        "program: stored elements and closing transfers",
+        closure_state.remaining_work(),
+    );
     let semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
     let (closures, synthesized, mut remaining) = closure_state
         .finish(&semantic_emission)
         .map_err(|e| vec![e])?;
+    mark_cost("program: emitter closure finish", remaining);
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     tasks::add_definition(&functions, &mut resources, &mut remaining, limits)
@@ -667,6 +696,7 @@ fn check_resolved_program_in_context(
         closures,
         unsupported: Vec::new(),
     };
+    mark_cost("program: resource and output metadata", remaining);
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_local_static_results(&mut module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
@@ -676,6 +706,7 @@ fn check_resolved_program_in_context(
         .map_err(|e| vec![e])?;
     retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
         .map_err(|e| vec![e])?;
+    mark_cost("program: local origins and protocol metadata", remaining);
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     if program

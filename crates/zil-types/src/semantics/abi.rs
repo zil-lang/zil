@@ -35,6 +35,8 @@ pub(crate) fn prepare(
     if cores.iter().all(|core| core.semantic.is_none()) {
         return Ok(());
     }
+    let stats = ledger.ordinary_stats.clone();
+    let origin_start = *left;
     let mut origins = Vec::new();
     for core in cores.iter().filter(|core| core.semantic.is_some()) {
         pay(left, core.functions.len())?;
@@ -55,32 +57,53 @@ pub(crate) fn prepare(
             });
         }
     }
-    let mut input = super::original_context::Input::collect(cores, limits, left)?;
+    stats
+        .borrow_mut()
+        .record_pass("abi: original function heads", origin_start, *left);
+    let mut input =
+        stored::OrdinaryStats::step(&stats, "abi: collect original input", left, |left| {
+            super::original_context::Input::collect(cores, limits, left)
+        })?;
     if let Some(source) = ledger.frozen.as_deref() {
-        input.include_frozen(source, limits, left)?;
+        stored::OrdinaryStats::step(&stats, "abi: include frozen source", left, |left| {
+            input.include_frozen(source, limits, left)
+        })?;
     }
     let proof = if let Some(source) = ledger.frozen.as_deref() {
-        super::original::check_with_frozen(
-            &input.semantic,
-            input.declarations.clone(),
-            source,
-            limits,
+        stored::OrdinaryStats::step(
+            &stats,
+            "abi: universal frozen original body check",
             left,
+            |left| {
+                super::original::check_with_frozen(
+                    &input.semantic,
+                    input.declarations.clone(),
+                    source,
+                    limits,
+                    left,
+                )
+            },
         )?
     } else {
-        super::original::check_with_declarations(
-            &input.semantic,
-            input.declarations.clone(),
-            limits,
-            left,
-        )?
+        stored::OrdinaryStats::step(&stats, "abi: universal original body check", left, |left| {
+            super::original::check_with_declarations(
+                &input.semantic,
+                input.declarations.clone(),
+                limits,
+                left,
+            )
+        })?
     };
-    let context = super::original_context::OriginalContext::checked(
-        input,
-        proof,
-        ledger.frozen.clone(),
-        left,
-    )?;
+    let context =
+        stored::OrdinaryStats::step(&stats, "abi: seal original context", left, |left| {
+            super::original_context::OriginalContext::checked(
+                input,
+                proof,
+                ledger.frozen.clone(),
+                left,
+            )
+        })?;
+    let selection_start = *left;
     let program = &context.semantic;
     let mut choices = Choices::new();
     for instance in &program.instances {
@@ -107,6 +130,9 @@ pub(crate) fn prepare(
             ));
         }
     }
+    stats
+        .borrow_mut()
+        .record_pass("abi: fixed source ABI selection", selection_start, *left);
     ledger.abi_origins = origins;
     ledger.fixed_abis = Some(choices);
     ledger.original.install(context)?;

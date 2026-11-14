@@ -593,6 +593,14 @@ pub fn check(
         })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
+    let source_costs = closure_state.semantic_emission.ordinary_stats.clone();
+    let mut cost_checkpoint = closure_state.remaining_work();
+    let mut mark_cost = |tag: &'static str, remaining: usize| {
+        source_costs
+            .borrow_mut()
+            .record_pass(tag, cost_checkpoint, remaining);
+        cost_checkpoint = remaining;
+    };
     if core.semantic.is_some() {
         let mut remaining = closure_state.remaining_work();
         let before = remaining;
@@ -607,6 +615,10 @@ pub fn check(
             .snapshot(before - remaining, Span::default())
             .map_err(|error| vec![error])?;
     }
+    mark_cost(
+        "single: original ABI and universal source",
+        closure_state.remaining_work(),
+    );
     let (life_declarations, life_instances) = closure_state
         .copy_stored_inventory(core)
         .map_err(|e| vec![e])?;
@@ -621,6 +633,10 @@ pub fn check(
             "dyn declaration has no actual interface",
         )]);
     }
+    mark_cost(
+        "single: signatures and dynamic inventory",
+        closure_state.remaining_work(),
+    );
     let mut resource_definitions =
         resources::definitions(core, &signatures).map_err(|e| vec![e])?;
     let mut enum_work = limits.max_analysis_steps;
@@ -642,6 +658,10 @@ pub fn check(
         .map_err(|e| vec![e])?;
     // Ground each opaque result before its dependents, independent of source
     // declaration order. Concrete environments still use ordinary direct calls.
+    mark_cost(
+        "single: generic templates and shared contexts",
+        closure_state.remaining_work(),
+    );
     let mut work = limits.max_analysis_steps;
     let mut graph = BTreeMap::new();
     let mut factory_functions = BTreeMap::new();
@@ -729,16 +749,25 @@ pub fn check(
             return Err(errors);
         }
     }
+    mark_cost(
+        "single: all actual body emission and helpers",
+        closure_state.remaining_work(),
+    );
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
     let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
     let deferred_closed = std::mem::take(&mut closure_state.deferred_closed);
+    mark_cost(
+        "single: stored elements and closing transfers",
+        closure_state.remaining_work(),
+    );
     let semantic_emission = std::mem::take(&mut closure_state.semantic_emission);
     let (closures, synthesized, mut remaining) = closure_state
         .finish(&semantic_emission)
         .map_err(|e| vec![e])?;
+    mark_cost("single: emitter closure finish", remaining);
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     let has_mutex = tasks::add_definition(
@@ -788,6 +817,7 @@ pub fn check(
         closures,
         unsupported: vec![],
     };
+    mark_cost("single: resource and output metadata", remaining);
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_local_static_results(&mut module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
@@ -798,6 +828,7 @@ pub fn check(
     retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
     retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
         .map_err(|e| vec![e])?;
+    mark_cost("single: local origins and protocol metadata", remaining);
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     module.semantic = semantics::finish::program(

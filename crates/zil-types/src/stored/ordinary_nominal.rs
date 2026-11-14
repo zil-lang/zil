@@ -24,7 +24,42 @@ struct Check<'a, 'b> {
 }
 #[derive(Debug, Default)]
 pub(crate) struct Stats {
+    passes: std::collections::BTreeMap<&'static str, PassStats>,
     phases: std::collections::BTreeMap<&'static str, PhaseStats>,
+}
+#[derive(Debug, Default)]
+struct PassStats {
+    calls: usize,
+    work: usize,
+    first_allowance: usize,
+    last_remaining: usize,
+}
+impl Stats {
+    pub(crate) fn record_pass(&mut self, tag: &'static str, before: usize, after: usize) {
+        let pass = self.passes.entry(tag).or_default();
+        if pass.calls == 0 {
+            pass.first_allowance = before;
+        }
+        pass.calls = pass.calls.saturating_add(1);
+        pass.work = pass.work.saturating_add(before.saturating_sub(after));
+        pass.last_remaining = after;
+    }
+    pub(crate) fn step<T>(
+        stats: &std::rc::Rc<std::cell::RefCell<Self>>,
+        tag: &'static str,
+        left: &mut usize,
+        operation: impl FnOnce(&mut usize) -> R<T>,
+    ) -> R<T> {
+        let before = *left;
+        let result = operation(left);
+        stats.borrow_mut().record_pass(tag, before, *left);
+        result.map_err(|mut diagnostic| {
+            diagnostic
+                .notes
+                .push(format!("Types request pass costs {:?}", stats.borrow()));
+            diagnostic
+        })
+    }
 }
 #[derive(Debug, Default)]
 struct PhaseStats {
