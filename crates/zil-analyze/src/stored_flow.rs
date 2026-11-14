@@ -8245,11 +8245,12 @@ pub(super) fn infer(
     // still has one actual consumption obligation. The stored dispatcher must
     // not bypass the independent SSA/local responsibility ledger.
     fee(b, module.closures.len())?;
-    if b.composition_stored.is_empty()
-        && module
-            .closures
-            .iter()
-            .any(|d| d.kind == CallableKind::FnOnce)
+    if b.generic_mutex
+        || b.composition_stored.is_empty()
+            && module
+                .closures
+                .iter()
+                .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
         || b.stored_compound_values
         || b.owning_environment_captures
