@@ -102,15 +102,17 @@ impl CheckedContext {
             match (formal, actual) {
                 (SemanticFormal::Lifetime, CheckedActual::Life(_)) => {}
                 (SemanticFormal::Type { requirements }, CheckedActual::Type(_)) => {
-                    self.evaluate_requirements(
-                        module,
-                        requirements,
-                        &environment,
-                        RequirementMode::ActualObligation,
-                        external,
-                        active,
-                        b,
-                    )?;
+                    if !self.domain_only.get() {
+                        self.evaluate_requirements(
+                            module,
+                            requirements,
+                            &environment,
+                            RequirementMode::ActualObligation,
+                            external,
+                            active,
+                            b,
+                        )?;
+                    }
                 }
                 (
                     SemanticFormal::Const { carrier },
@@ -127,15 +129,17 @@ impl CheckedContext {
                 _ => return Err(bad("nominal actual changes its full original formal kind")),
             }
         }
-        self.evaluate_requirements(
-            module,
-            &definition.requirements,
-            &environment,
-            RequirementMode::ActualObligation,
-            external,
-            active,
-            b,
-        )?;
+        if !self.domain_only.get() {
+            self.evaluate_requirements(
+                module,
+                &definition.requirements,
+                &environment,
+                RequirementMode::ActualObligation,
+                external,
+                active,
+                b,
+            )?;
+        }
 
         let expected = match body {
             SemanticNominalBody::Product { fields } => {
@@ -220,7 +224,7 @@ impl CheckedContext {
                     continue;
                 }
                 if expected.physical(ty, *kind, b)? {
-                    let candidate = self.checked_value(module, ty, life, vec![], b)?;
+                    let candidate = self.construct_value(module, ty, life, vec![], b)?;
                     retain(&mut selected, candidate, b)?;
                 }
             }

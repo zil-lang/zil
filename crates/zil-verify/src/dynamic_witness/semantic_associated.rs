@@ -1301,6 +1301,11 @@ fn semantic_requirements(
     b: &mut Budget,
     depth: usize,
 ) -> Check<()> {
+    // A domain frame is an untrusted metadata result with a mandatory later
+    // WF obligation. This entry introduces no assumption and returns no proof.
+    if context.domain_only.get() {
+        return Ok(());
+    }
     b.spend(rows.len().saturating_add(1))?;
     if depth >= b.limits.max_call_depth.min(128) {
         return Err(limit("original where quantifier depth exceeded"));
@@ -1556,6 +1561,9 @@ fn check_formals(
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<()> {
+    if context.domain_only.get() {
+        return Ok(());
+    }
     let frame = env
         .lexical
         .first()
@@ -1961,27 +1969,29 @@ fn provider<'a>(
         active,
         b,
     )?;
-    for parent in trait_decl
-        .direct_supertraits
-        .as_ref()
-        .ok_or_else(|| bad("original trait supers are Unknown"))?
-    {
-        let recipe = application_recipe(module, trait_decl.id, parent, b)?;
-        let app = context.application(module, &recipe, &trait_env, proofs, active, b)?;
-        match proofs.query(
-            module,
-            context,
-            &trait_env,
-            &ExternalRequest::Trait {
-                receiver: receiver.clone(),
-                application: app,
-            },
-            RequirementMode::ActualObligation,
-            active,
-            b,
-        )? {
-            ExternalValue::Proved => {}
-            _ => return Err(bad("original super query did not establish satisfaction")),
+    if !context.domain_only.get() {
+        for parent in trait_decl
+            .direct_supertraits
+            .as_ref()
+            .ok_or_else(|| bad("original trait supers are Unknown"))?
+        {
+            let recipe = application_recipe(module, trait_decl.id, parent, b)?;
+            let app = context.application(module, &recipe, &trait_env, proofs, active, b)?;
+            match proofs.query(
+                module,
+                context,
+                &trait_env,
+                &ExternalRequest::Trait {
+                    receiver: receiver.clone(),
+                    application: app,
+                },
+                RequirementMode::ActualObligation,
+                active,
+                b,
+            )? {
+                ExternalValue::Proved => {}
+                _ => return Err(bad("original super query did not establish satisfaction")),
+            }
         }
     }
     Ok(Provider {
@@ -2126,6 +2136,9 @@ fn methods(
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<()> {
+    if context.domain_only.get() {
+        return Ok(());
+    }
     for (ordinal, member) in trait_decl.members.iter().enumerate() {
         let DynMemberKind::Method(formals) = &member.kind else {
             continue;

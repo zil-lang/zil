@@ -4,10 +4,14 @@ use super::*;
 use std::collections::VecDeque;
 mod intrinsics;
 mod capture_values;
+mod ghost_captures;
 mod closed_values;
 mod operations;
 mod products;
+mod aggregate_values;
 mod trait_members;
+mod worlds;
+mod task_operations;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -21,8 +25,9 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
     original.frozen_schemes(module,&context,&mut active,b)?;
     *context.original.borrow_mut()=Some(original);
-    if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut external=dynamic_witness::semantic_external::Proofs::default();
+    context.prepare_task_contexts(module,&mut external,&mut active,b)?;
+    if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut checked_instances=std::collections::BTreeSet::new();
     let mut ordered=Vec::new();
     for instance in &program.instances {
@@ -43,6 +48,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
             let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else {return Err(bad("actual function has no original signature"));};
             let signature=context.evaluate_signature(module,signature,&environment,&mut external,&mut active,b)?;
             context.function(module,instance,function,&signature,&environment,&mut external,&mut active,b)?;
+            context.mark_task_worker_checked(module,instance,&signature,b)?;
             checked_instances.insert(instance.id);
         }
     }
@@ -210,7 +216,7 @@ impl CheckedContext {
                         if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?}
                         else{let source=&value_at(&values,*value)?.ty;if (!source.is_integer()&&!source.is_float())||(!target.is_integer()&&!target.is_float()){return Err(bad("numeric operation has a nonnumeric endpoint"));}Some(atomic(target,b)?)}
                     }
-                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)
@@ -235,9 +241,9 @@ impl CheckedContext {
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{state.locals[local.0 as usize]=None;None},
                     InstructionKind::MakeAggregate{fields}|InstructionKind::MakePackage{fields}|InstructionKind::MakeManaged{fields}|InstructionKind::MakeOwnedArray{elements:fields}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..}));
-                        let site=declarations.next().ok_or_else(||bad("actual aggregate construction has no original semantic site"))?;
+                        let site=declarations.next();
                         if declarations.next().is_some() {return Err(bad("actual aggregate construction has duplicate semantic claims"));}
-                        let value=self.site_expected(module,instance,site,&environment,external,active,b)?;
+                        let value=if let Some(site)=site{self.site_expected(module,instance,site,&environment,external,active,b)?}else{self.internal_copy_aggregate(module,f,instruction,fields,&values,b)?};
                         let mut storage=&value.ty;
                         while let Type::BorrowedStorage{storage:inner,..}|Type::Managed(inner)=storage {storage=inner;}
                         let expected_fields=match storage {
@@ -254,7 +260,7 @@ impl CheckedContext {
                             self.closed_value(module,expected,b)?;
                         }
                         if let Some(result)=instruction.result {self.record(scope,OperandKey::Value(result),&value,b)?;}
-                        if let SemanticSiteAction::Construct{value:claim,..}=&site.action {self.claim(module,claim,&value,&environment,b)?;}
+                        if let Some(site)=site{if let SemanticSiteAction::Construct{value:claim,..}=&site.action {self.claim(module,claim,&value,&environment,b)?;}}
                         Some(value)
                     }
                     InstructionKind::Call{function:callee,arguments}|InstructionKind::SuspendCall{function:callee,arguments}|InstructionKind::ForeignCall{function:callee,arguments,..}=>{
@@ -359,18 +365,23 @@ impl CheckedContext {
         }
         if let Some(previous)=self.seals.borrow().get(&child.id) {for (left,right) in previous.iter().zip(&checked){if !self.actual_same(environment,left,right,b)?{return Err(bad("different actual creation sites do not seal the same child environment"));}}}
         b.spend(checked.len())?;
-        // A class-bearing ghost environment needs its full logical domain
-        // inventory in addition to physical captures. Never infer zero from
-        // an empty Capture list or from a header count.
-        for value in &checked {match value {
-            CheckedActual::Life(_)=>return Err(unsupported("Closure ghost Life domain requires its complete original free-class inventory",None)),
-            CheckedActual::Type(value) if !value.classes.is_empty()=>return Err(unsupported("Closure ghost Type domain requires its complete original free-class inventory",None)),
+        // Logical source selectors keep occurrence identities even when their
+        // constructor images are equal. No phantom occurrence creates data.
+        let mut anchors=Vec::<(SemanticClassExpr,ClassKey)>::new();
+        for(ordinal,value)in checked.iter().enumerate(){match value{
+            CheckedActual::Life(key)=>anchors.push((SemanticClassExpr::Environment{scope:SemanticScopeRef::Ancestor(0),ordinal:ordinal as u32},key.clone())),
+            CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::phantom_only(value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
             _=>{},
         }}
+        for value in &checked{b.spend(1)?;match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{dynamic_metadata::ty(&value.ty,b)?;b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;},CheckedActual::Life(_)=>{}}}
+        let sealed=checked.clone();
         self.seals.borrow_mut().insert(child.id,checked);
         let child_environment=self.environment_for_instance(module,child.id,active,b)?;
         let child_scope=ScopeKey::Instance(child.id);
-        let mut capture_images=Vec::new();
+        let mut capture_images=Vec::new();let mut logical_captures=BTreeMap::new();
+        let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&creator_definition.body else{unreachable!()};
+        let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("Closure creator has no exact original node"))?;
+        let SemanticOriginalNode::Expression(creation_node)=node.node else{return Err(bad("Closure creator original node is not an expression"));};
         for (index,capture) in captures.iter().enumerate() {
             let mut value=value_at(values,*capture)?.clone();
             if let Some(head)=self.capture_implicit(module,child,index as u32,b)? {
@@ -383,11 +394,16 @@ impl CheckedContext {
                 // A constructor-bound existential class names this real head.
                 // The input SSA/loan is unchanged; no global equality equates
                 // the creator activation with the child's persistent domain.
+                let ClassKey::Implicit{ordinal,..}=&head else{unreachable!()};
+                anchors.push((SemanticClassExpr::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal:*ordinal},value.classes[binder].clone()));
                 capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
             }else if value.classes.is_empty()&&value.statics.is_empty(){
                 self.classfree_capture(module,creator,child,index as u32,*capture,b)?;
-            }else{return Err(unsupported("actual capture needs its complete original binding and full class inventory",None));}
+            }else{
+                let ordinal=self.phantom_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
+                logical_captures.insert(index as u32,ordinal);
+            }
             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;
         }
         let mut constructor_environment=child_environment.clone();
@@ -400,15 +416,17 @@ impl CheckedContext {
         if entry.environment!=Some(closure)||entry.storage_life.as_ref()!=Some(relation) {return Err(bad("Closure and actual entry identity/complete header differ"));}
         signature_life::charge(relation,b)?;
         let mut classes=Vec::new();let mut origins=Vec::new();let mut statics=Vec::new();
-        let mut anchored=std::collections::BTreeSet::new();
+        let mut anchored=Vec::new();
         for class in 0..relation.fixed_binder_count {
             let mut rows=child.header_embedding.iter().filter(|row|row.header==StorageBinder::Fixed(class));
             let row=rows.next().ok_or_else(||bad("Closure has an unbound actual free Fixed class"))?;
             if rows.next().is_some(){return Err(bad("Closure Fixed occurrence is ambiguously embedded"));}
-            let key=self.class(module,&row.actual,&child_environment,b)?;
-            let mut anchors=capture_images.iter().filter(|(source,_)|source==&key);
-            let (_,image)=anchors.next().ok_or_else(||unsupported("Closure free Fixed class has no independently checked original capture/ghost source",None))?;
-            if anchors.next().is_some()||!anchored.insert(key.clone()){return Err(bad("Closure free class has conflicting or repeated original source anchors"));}
+            self.class(module,&row.actual,&child_environment,b)?;
+            b.spend(anchors.len().saturating_add(anchored.len()))?;
+            let mut sources=anchors.iter().filter(|(source,_)|source==&row.actual);
+            let (_,image)=sources.next().ok_or_else(||unsupported("Closure free Fixed class has no independently checked original capture/ghost source",None))?;
+            if sources.next().is_some()||anchored.contains(&row.actual){return Err(bad("Closure free class has conflicting or repeated original source anchors"));}
+            anchored.push(row.actual.clone());
             // This is a local constructor-boundary image, never global Γ.
             let key=image.clone();
             let SemanticSiteAction::Closure{result:SemanticOperand::Value(result),..}=&site.action else {return Err(bad("actual Closure result is not its defining SSA value"));};
@@ -418,8 +436,23 @@ impl CheckedContext {
             b.spend(1)?;self.origin_aliases.borrow_mut().insert(origin.clone(),canonical.clone());
             origins.push(canonical.clone());classes.push(key);
         }
-        if anchored.len()!=capture_images.len(){return Err(bad("Closure intrinsic domain omits an actual captured head occurrence"));}
+        if anchored.len()!=anchors.len(){return Err(bad("Closure intrinsic domain omits an actual capture/ghost class occurrence"));}
         for (index,_) in captures.iter().enumerate() {
+            if let Some(ordinal)=logical_captures.get(&(index as u32)){
+                let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
+                for class in 0..value.classes.len(){
+                    b.spend(relation.classes.len().saturating_add(child.header_embedding.len()))?;
+                    let mut rows=relation.classes.iter().filter(|row|row.position.base==StorageBase::Capture(index as u32)&&row.position.path.is_empty()&&row.position.class==class as u32);
+                    let row=rows.next().ok_or_else(||bad("logical capture class lacks its complete actual header occurrence"))?;
+                    if rows.next().is_some(){return Err(bad("logical capture class has repeated header occurrences"));}
+                    let mut embedding=child.header_embedding.iter().filter(|map|map.header==row.binder);
+                    let map=embedding.next().ok_or_else(||bad("logical capture class has no original environment embedding"))?;
+                    let expected=SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(*ordinal as u32),path:vec![],class:class as u32};
+                    if !matches!(row.binder,StorageBinder::Fixed(_))||embedding.next().is_some()||map.actual!=expected{return Err(bad("logical capture class maps another original environment occurrence"));}
+                }
+                continue;
+            }
+            if value_at(values,captures[index])?.classes.is_empty(){continue;}
             let head=self.capture_implicit(module,child,index as u32,b)?.ok_or_else(||bad("actual capture loses its original implicit head"))?;
             let fixed=relation.bindings.iter().filter(|row|row.position.base==StorageBase::Capture(index as u32)&&row.position.path.is_empty()).collect::<Vec<_>>();
             if fixed.len()!=1{return Err(bad("Closure actual captured head lacks its unique complete header occurrence"));}
@@ -570,9 +603,7 @@ impl CheckedContext {
             SemanticSiteAction::BodyCall{actuals}=>actuals,
             _=>return Err(bad("actual Call retains another target or Core specialization")),
         };
-        let mut actual_targets=module.semantic.as_ref().ok_or_else(||bad("actual Call program absent"))?.instances.iter().filter(|instance|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==callee));
-        let selected=actual_targets.next().ok_or_else(||bad("actual Call function has no original instance"))?;
-        if actual_targets.next().is_some()||selected.definition!=*target||actuals.len()!=target_definition.parameters.len()||claims.len()!=actuals.len(){return Err(bad("actual Call changes the independently resolved target/full actual order"));}
+        if actuals.len()!=target_definition.parameters.len()||claims.len()!=actuals.len(){return Err(bad("actual Call changes the independently resolved target/full actual order"));}
         let mut checked=Vec::new();
         for (recipe,claim) in actuals.iter().zip(claims) {
             let expected=self.evaluate_actual(module,recipe,environment,external,active,b)?;
@@ -595,6 +626,7 @@ impl CheckedContext {
         lexical.insert(0,LexicalFrame{definition:*target,key,actuals:checked,environment:vec![],self_type:None});
         if !target_definition.environment.is_empty() {return Err(unsupported("ordinary Call cannot manufacture a closure's sealed ghost environment",None));}
         let call_environment=EvalEnv{lexical,assumptions:environment.assumptions.clone(),images:environment.images.clone(),bounds:environment.bounds.clone(),invocations:vec![],at:environment.at};
+        self.call_worlds(module,callee,*target,&call_environment,environment,active,b)?;
         self.evaluate_requirements(module,&target_definition.requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;
         for formal in &target_definition.parameters {if let SemanticFormal::Type{requirements}=formal {self.evaluate_requirements(module,requirements,&call_environment,RequirementMode::ActualObligation,external,active,b)?;}}
         let SemanticDefinitionBody::FunctionWithBody{signature,..}=&target_definition.body else {return Err(bad("actual Call target is not an original function"));};
@@ -686,7 +718,10 @@ impl CheckedContext {
     pub(super) fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let (ty,life,expressions)=resolved(claim)?;
         let mut classes=Vec::new();for expression in expressions {classes.push(self.class(module,expression,environment,b)?);}
-        let mut actual=self.checked_value(module,ty,life,classes,b)?;
+        // Metadata-only Task frame construction compares the same complete
+        // claim, but cannot re-enter the full Task instruction/WF consumer.
+        // Its later frame/site obligations remain mandatory at module exit.
+        let mut actual=self.construct_value(module,ty,life,classes,b)?;
         for (index,expression) in expressions.iter().enumerate() {
             if let Some(origin)=self.expression_origin(expression,environment,b)? {actual.origins[index]=origin;}
         }

@@ -177,51 +177,11 @@ impl Inventory<'_> {
                     pending_sources: true,
                 })
             }
-            Type::Task { retained_life, .. } => {
-                // The actual frame is indispensable: result-only Type equality
-                // or an empty port list does not prove a worker/frame exists.
-                let mut found = false;
-                for f in &self.module.functions {
-                    b.spend(f.blocks.len())?;
-                    for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
-                        b.spend(1)?;
-                        if !matches!(
-                            instruction.kind,
-                            InstructionKind::TaskCreate { .. }
-                                | InstructionKind::TaskCreateOwned { .. }
-                        ) {
-                            continue;
-                        }
-                        let actual = instruction
-                            .result
-                            .and_then(|v| f.values.get(v.0 as usize))
-                            .ok_or_else(|| bad("Task frame constructor result is absent"))?;
-                        dynamic_metadata::ty(actual, b)?;
-                        let Type::ErrorUnion { result, .. } = actual else {
-                            continue;
-                        };
-                        let Type::Managed(payload) = result.as_ref() else {
-                            continue;
-                        };
-                        if payload.as_ref() != ty {
-                            continue;
-                        }
-                        let inferred = tasks::instruction(self.module, f, instruction, b)?
-                            .ok_or_else(|| bad("Task frame constructor has no actual type"))?;
-                        dynamic_metadata::ty(&inferred, b)?;
-                        if inferred != *actual {
-                            return Err(bad(
-                                "Task frame differs from its exact complete retained type",
-                            ));
-                        }
-                        found = true;
-                    }
-                }
-                if !found {
-                    return Err(bad("opaque Task has no actual worker/frame inventory"));
-                }
+            Type::Task { .. } => {
+                let count =
+                    crate::semantic::task_domains::task_metadata_domain(self.module, ty, b)?;
                 Ok(Domain {
-                    count: retained_life.binder_count,
+                    count,
                     pending_sources: true,
                 })
             }

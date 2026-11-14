@@ -36,6 +36,10 @@ impl CheckedOriginal {
             };
             for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,active,b)?;}return Ok(());
         }
+        // This exact-binder set is published only after the phase engine has
+        // proved every cleanup edge, including all old loop generations.
+        if place.fields.is_empty()&&self.task_closed_cleanups.contains(&(env.current()?,place.binder.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if place.fields.is_empty()&&self.task_async_cleanups.contains(&(env.current()?,place.binder.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
         if self.sync_drop(module,context,ty,env,active,b)?{Ok(())}else{Err(bad("original cleanup edge has no original SyncDrop proof"))}
     }
     pub(super) fn sync_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{

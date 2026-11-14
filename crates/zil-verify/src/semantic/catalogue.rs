@@ -7,7 +7,7 @@ impl CheckedContext {
     pub(super) fn definition_catalogue(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<Self> {
         let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
         dynamic_metadata::recipe(program,b)?;
-        let mut context=Self{definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![]),origin_aliases:RefCell::new(BTreeMap::new()),original:RefCell::new(None),closure_boundaries:RefCell::new(vec![]),frozen_functions:BTreeMap::new()};
+        let mut context=Self{domain_only:Cell::new(false),definitions:BTreeMap::new(),instances:BTreeMap::new(),premises:RefCell::new(BTreeMap::new()),occurrences:RefCell::new(BTreeMap::new()),seals:RefCell::new(BTreeMap::new()),pending_closures:RefCell::new(vec![]),origin_aliases:RefCell::new(BTreeMap::new()),original:RefCell::new(None),closure_boundaries:RefCell::new(vec![]),frozen_functions:BTreeMap::new()};
         let mut identities=BTreeSet::new();
         for (index,definition) in program.definitions.iter().enumerate() {
             b.spend(definition.parameters.len().saturating_add(definition.implicit_lifetimes.len()).saturating_add(2))?;
@@ -68,7 +68,6 @@ impl CheckedContext {
         let mut context=Self::definition_catalogue(module,frozen,b)?;
         let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
         if let Some(frozen)=frozen {context.frozen_functions=frozen.functions(module,b)?;}
-        let mut targets=BTreeSet::new();
         for (index,instance) in program.instances.iter().enumerate() {
             b.spend(instance.actuals.len().saturating_add(instance.header_embedding.len()).saturating_add(1))?;
             if context.instances.insert(instance.id,index).is_some() {return Err(bad("duplicate semantic instance identity"));}
@@ -87,7 +86,7 @@ impl CheckedContext {
             match &instance.target {
                 SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=>{
                     let actual=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
-                    if actual.id!=*function||!targets.insert(*function) {return Err(bad("semantic instance actual function identity is ambiguous"));}
+                    if actual.id!=*function {return Err(bad("semantic instance actual function identity differs"));}
                     if !matches!(definition.body,SemanticDefinitionBody::FunctionWithBody{..}) {return Err(bad("scope instance claims an executable function"));}
                     if let Some(header)=&actual.storage_life {
                         signature_life::charge(header,b)?;
@@ -132,10 +131,13 @@ impl CheckedContext {
         }
         for closure in &module.closures {
             b.spend(program.instances.len())?;
-            let mut rows=program.instances.iter().filter(|instance|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) if function==closure.function));
-            let row=rows.next().ok_or_else(||bad("actual Closure entry has no complete semantic child instance"))?;
-            if rows.next().is_some()||!row.environment.as_ref().is_some_and(|environment|matches!(environment.closure,SemanticClosureTarget::Typed(id) if id==closure.id)) {return Err(bad("actual Closure entry and semantic environment identities differ"));}
-            if context.definition(module,row.definition,b)?.kind!=SemanticDefinitionKind::Closure {return Err(bad("actual Closure entry claims another original definition kind"));}
+            let mut found=false;
+            for row in program.instances.iter().filter(|instance|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) if function==closure.function)){
+                found=true;
+                if !row.environment.as_ref().is_some_and(|environment|matches!(environment.closure,SemanticClosureTarget::Typed(id) if id==closure.id)) {return Err(bad("actual Closure entry and semantic environment identities differ"));}
+                if context.definition(module,row.definition,b)?.kind!=SemanticDefinitionKind::Closure {return Err(bad("actual Closure entry claims another original definition kind"));}
+            }
+            if !found{return Err(bad("actual Closure entry has no complete semantic child instance"));}
         }
         for site in &program.sites {context.site_structure(module,site,b)?;}
         Ok(context)
@@ -147,7 +149,7 @@ impl CheckedContext {
         Ok(true)
     }
     pub(super) fn zero_header_type(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
-        dynamic_metadata::ty(ty,b)?;let mut pending=vec![ty];
+        dynamic_metadata::ty(ty,b)?;let mut pending=vec![ty];let mut has_task=false;
         while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
             // A zero pointee/retained domain does not erase an outer borrow.
             Type::Address{..}|Type::Desc(_)|Type::Dyn{..}|Type::BorrowedFunctionPointer{..}|Type::MutexGuard{..}=>return Ok(false),
@@ -160,9 +162,15 @@ impl CheckedContext {
             Type::Slice{..}=>return Ok(false),
             // Opaque/code inventories retain their own complete domain. Their
             // signature borrows are not physical fields of this runtime value.
-            Type::Closure(_)|Type::Task{..}|Type::OwnedDyn{..}|Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{},
+            Type::Task{..}=>has_task=true,
+            Type::Closure(_)|Type::OwnedDyn{..}|Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{},
             _=>{},
         }}
+        if has_task{
+            // Only a structural ABI cursor. Worker/full-entry and every
+            // constructor obligation must still be discharged at module exit.
+            return task_domains::metadata_zero_type(module,ty,b)?.ok_or_else(||unsupported("Task ABI metadata has no complete zero-domain cursor",None));
+        }
         let(count,pending)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0||pending{return Ok(false);}
         // Missing/unknown nominal or opaque inventory never becomes Known0.
         // This structural ABI fact supplies no constructor, root or permission.
@@ -191,9 +199,11 @@ impl CheckedContext {
                 let SemanticFunctionTarget::Typed(callee)=actual_target else {return Err(bad("semantic Call retains a Core target"));};
                 let row=actual.ok_or_else(||bad("semantic Call selects a terminator"))?;
                 if !matches!(row.kind,InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}|InstructionKind::ForeignCall{function,..} if function==*callee) {return Err(bad("semantic Call target differs from the actual opcode"));}
-                let mut targets=module.semantic.as_ref().ok_or_else(||bad("semantic program is absent"))?.instances.iter().filter(|instance|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) if function==*callee));
-                let target_instance=targets.next().ok_or_else(||bad("semantic Call has no actual target instance"))?;
-                if targets.next().is_some()||target_instance.definition!=*target {return Err(bad("semantic Call selects another original definition"));}
+                let program=module.semantic.as_ref().ok_or_else(||bad("semantic program is absent"))?;
+                b.spend(program.instances.len())?;
+                if !program.instances.iter().any(|instance|instance.definition==*target&&matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==*callee)){return Err(bad("semantic Call selects another original definition"));}
+                // This is only the opcode/source-role catalogue. The actual
+                // flow checks every matching complete lexical world.
                 for actual in actuals {raw_actual(actual,b)?;}
             }
             (SemanticSiteRecipeKind::OriginalCall,SemanticSiteAction::BodyCall{actuals})=>{

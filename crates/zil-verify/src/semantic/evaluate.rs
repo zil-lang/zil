@@ -30,12 +30,28 @@ impl CheckedContext {
         b: &mut Budget,
     ) -> Check<CheckedType> {
         match recipe {
-            SemanticTypeRecipe::OriginalType{scope,source}=>{
-                let frame=self.frame(environment,*scope,b)?;
-                let definition=frame.definition;
-                if let Some(value)=self.original_closure_value(module,definition,source,frame.key,environment,b)? {return Ok(value);}
-                let recipe=self.original.borrow().as_ref().ok_or_else(||bad("original type body has not been independently checked"))?.type_recipe(module,definition,source,environment,b)?;
-                self.evaluate_type(module,&recipe,environment,external,active,b)
+            SemanticTypeRecipe::OriginalType { scope, source } => {
+                let frame = self.frame(environment, *scope, b)?;
+                let definition = frame.definition;
+                if !self.domain_only.get() {
+                    if let Some(value) = self.original_closure_value(
+                        module,
+                        definition,
+                        source,
+                        frame.key,
+                        environment,
+                        b,
+                    )? {
+                        return Ok(value);
+                    }
+                }
+                let recipe = self
+                    .original
+                    .borrow()
+                    .as_ref()
+                    .ok_or_else(|| bad("original type body has not been independently checked"))?
+                    .type_recipe(module, definition, source, environment, b)?;
+                self.evaluate_type(module, &recipe, environment, external, active, b)
             }
             SemanticTypeRecipe::Atom(ty) => {
                 if !(ty.is_b0_scalar()
@@ -63,7 +79,7 @@ impl CheckedContext {
                 for class in &exact.classes {
                     classes.push(self.life(module, class, environment, b)?);
                 }
-                self.checked_value(module, &exact.ty, &exact.life, classes, b)
+                self.construct_value(module, &exact.ty, &exact.life, classes, b)
             }
             SemanticTypeRecipe::Formal(reference) => {
                 match self.formal(environment, reference, b)? {
@@ -263,24 +279,75 @@ impl CheckedContext {
                 value.life.binder_count = value.classes.len() as u32;
                 Ok(value)
             }
-            SemanticTypeRecipe::Task{result,retained}|SemanticTypeRecipe::MutexGuard{payload:result,retained}=>{
-                let child=self.evaluate_type(module,result,environment,external,active,b)?;
-                let checked=self.retained_shape(module,retained,environment,external,active,b)?;
-                if !child.statics.is_empty(){return Err(unsupported("opaque result/payload retains unproved complete static occurrences",None));}
-                if matches!(recipe,SemanticTypeRecipe::Task{..}){
-                    for (class,(key,origin)) in child.classes.iter().zip(&child.origins).enumerate(){
+            SemanticTypeRecipe::Task { result, retained }
+            | SemanticTypeRecipe::MutexGuard {
+                payload: result,
+                retained,
+            } => {
+                let child = self.evaluate_type(module, result, environment, external, active, b)?;
+                let checked =
+                    self.retained_shape(module, retained, environment, external, active, b)?;
+                if !child.statics.is_empty() {
+                    return Err(unsupported(
+                        "opaque result/payload retains unproved complete static occurrences",
+                        None,
+                    ));
+                }
+                if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
+                    for (class, (key, origin)) in
+                        child.classes.iter().zip(&child.origins).enumerate()
+                    {
                         b.spend(checked.shape.retained.len().saturating_add(1))?;
-                        let mut rows=checked.shape.retained.iter().filter(|row|row.path==[LifeTypeProjection::Result]&&row.class==class as u32);
-                        let row=rows.next().ok_or_else(||bad("Task directory omits a complete result class/phantom occurrence"))?;
-                        if rows.next().is_some(){return Err(bad("Task result class occurrence is duplicated"));}
-                        let actual=checked.classes.get(row.binder as usize).ok_or_else(||bad("Task result class maps outside its complete domain"))?;
-                        let actual_origin=checked.origins.get(row.binder as usize).ok_or_else(||bad("Task result intrinsic origin is absent"))?;
-                        if !self.same(environment,key,actual,b)?||!self.same_origin(environment,origin,actual_origin,b)?{return Err(bad("Task result class changes its pre-image identity or outside image"));}
+                        let mut rows = checked.shape.retained.iter().filter(|row| {
+                            row.path == [LifeTypeProjection::Result] && row.class == class as u32
+                        });
+                        let row = rows.next().ok_or_else(|| {
+                            bad("Task directory omits a complete result class/phantom occurrence")
+                        })?;
+                        if rows.next().is_some() {
+                            return Err(bad("Task result class occurrence is duplicated"));
+                        }
+                        let actual = checked.classes.get(row.binder as usize).ok_or_else(|| {
+                            bad("Task result class maps outside its complete domain")
+                        })?;
+                        let actual_origin = checked
+                            .origins
+                            .get(row.binder as usize)
+                            .ok_or_else(|| bad("Task result intrinsic origin is absent"))?;
+                        if !self.same(environment, key, actual, b)?
+                            || !self.same_origin(environment, origin, actual_origin, b)?
+                        {
+                            return Err(bad(
+                                "Task result class changes its pre-image identity or outside image",
+                            ));
+                        }
                     }
-                }else if !child.classes.is_empty(){return Err(unsupported("guard payload requires its complete retained child domain and manager relation",None));}
-                let ty=if matches!(recipe,SemanticTypeRecipe::Task{..}){Type::Task{result:Box::new(child.ty),retained_life:checked.shape}}else{Type::MutexGuard{payload:Box::new(child.ty),retained_life:checked.shape}};
-                let life=StorageLifeShape{binder_count:checked.classes.len() as u32,slots:vec![],retained:vec![],nominal_arguments:vec![]};
-                let mut value=self.checked_value(module,&ty,&life,checked.classes,b)?;value.origins=checked.origins;Ok(value)
+                } else if !child.classes.is_empty() {
+                    return Err(unsupported(
+                        "guard payload requires its complete retained child domain and manager relation",
+                        None,
+                    ));
+                }
+                let ty = if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
+                    Type::Task {
+                        result: Box::new(child.ty),
+                        retained_life: checked.shape,
+                    }
+                } else {
+                    Type::MutexGuard {
+                        payload: Box::new(child.ty),
+                        retained_life: checked.shape,
+                    }
+                };
+                let life = StorageLifeShape {
+                    binder_count: checked.classes.len() as u32,
+                    slots: vec![],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                };
+                let mut value = self.construct_value(module, &ty, &life, checked.classes, b)?;
+                value.origins = checked.origins;
+                Ok(value)
             }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.evaluate_type(module, error, environment, external, active, b)?;
@@ -348,21 +415,49 @@ impl CheckedContext {
                 active,
                 b,
             ),
-            SemanticTypeRecipe::Opaque { definition, arguments, hidden } => self.opaque_type(module, *definition, arguments, hidden, environment, external, active, b),
-            SemanticTypeRecipe::Closure {
+            SemanticTypeRecipe::Opaque {
                 definition,
                 arguments,
-                environment: sealed,
-            } => self.closure_type(
+                hidden,
+            } => self.opaque_type(
                 module,
                 *definition,
                 arguments,
-                sealed,
+                hidden,
                 environment,
                 external,
                 active,
                 b,
             ),
+            SemanticTypeRecipe::Closure {
+                definition,
+                arguments,
+                environment: sealed,
+            } => {
+                if self.domain_only.get() {
+                    self.metadata_closure_type(
+                        module,
+                        *definition,
+                        arguments,
+                        sealed,
+                        environment,
+                        external,
+                        active,
+                        b,
+                    )
+                } else {
+                    self.closure_type(
+                        module,
+                        *definition,
+                        arguments,
+                        sealed,
+                        environment,
+                        external,
+                        active,
+                        b,
+                    )
+                }
+            }
             SemanticTypeRecipe::UnresolvedNamed(_) | SemanticTypeRecipe::Unsupported(_) => {
                 Err(bad("executable semantic recipe retains unresolved syntax"))
             }
@@ -370,6 +465,20 @@ impl CheckedContext {
                 "semantic recipe requires its complete nominal/opaque/qualified interpreter",
                 None,
             )),
+        }
+    }
+    pub(super) fn construct_value(
+        &self,
+        module: &TypedModule,
+        ty: &Type,
+        life: &StorageLifeShape,
+        classes: Vec<ClassKey>,
+        b: &mut Budget,
+    ) -> Check<CheckedType> {
+        if self.domain_only.get() {
+            self.metadata_value(module, ty, life, classes, b)
+        } else {
+            self.checked_value(module, ty, life, classes, b)
         }
     }
     pub(super) fn checked_value(
@@ -399,10 +508,16 @@ impl CheckedContext {
                 source: source.clone(),
             })
             .collect();
-        if let Type::Closure(id)=ty {
-            if let Some(domain)=self.closure_domain(*id,b)? {
-                if domain.life!=*life||domain.origins.len()!=classes.len() {return Err(bad("Closure claim differs from its independently reconstructed complete domain"));}
-                origins=domain.origins;
+        let mut statics = vec![];
+        if let Type::Closure(id) = ty {
+            if let Some(domain) = self.closure_domain(*id, b)? {
+                if domain.life != *life || domain.origins.len() != classes.len() {
+                    return Err(bad(
+                        "Closure claim differs from its independently reconstructed complete domain",
+                    ));
+                }
+                origins = domain.origins;
+                statics = domain.statics;
             }
         }
         Ok(CheckedType {
@@ -410,10 +525,10 @@ impl CheckedContext {
             life: life.clone(),
             classes,
             origins,
-            statics: vec![],
+            statics,
         })
     }
-    fn attach_child(
+    pub(super) fn attach_child(
         &self,
         environment: &EvalEnv,
         parent: &mut CheckedType,
@@ -521,7 +636,12 @@ impl CheckedContext {
     ) -> Check<CheckedActual> {
         b.spend(1)?;
         Ok(match recipe {
-            SemanticActualRecipe::Infer => return Err(unsupported("Infer actual requires its checked original caller body and call/formal slot", None)),
+            SemanticActualRecipe::Infer => {
+                return Err(unsupported(
+                    "Infer actual requires its checked original caller body and call/formal slot",
+                    None,
+                ));
+            }
             SemanticActualRecipe::Type(recipe) => CheckedActual::Type(self.evaluate_type(
                 module,
                 recipe,
@@ -582,13 +702,33 @@ impl CheckedContext {
             .collect::<Vec<_>>();
         environment.invocations = invocation.clone();
         let mut parameters = Vec::new();
-        for (ordinal,parameter) in recipe.parameters.iter().enumerate() {
-            let value=self.evaluate_type(module,&parameter.ty,&environment,external,active,b)?;
-            let value=self.signature_mode_type(module,&parameter.ty,value,parameter.mode,Some(ordinal as u32),&environment,active,b)?;
-            parameters.push((value,parameter.mode));
+        for (ordinal, parameter) in recipe.parameters.iter().enumerate() {
+            let value =
+                self.evaluate_type(module, &parameter.ty, &environment, external, active, b)?;
+            let value = self.signature_mode_type(
+                module,
+                &parameter.ty,
+                value,
+                parameter.mode,
+                Some(ordinal as u32),
+                &environment,
+                active,
+                b,
+            )?;
+            parameters.push((value, parameter.mode));
         }
-        let result=self.evaluate_type(module,&recipe.result,&environment,external,active,b)?;
-        let result=self.signature_mode_type(module,&recipe.result,result,recipe.result_mode,None,&environment,active,b)?;
+        let result =
+            self.evaluate_type(module, &recipe.result, &environment, external, active, b)?;
+        let result = self.signature_mode_type(
+            module,
+            &recipe.result,
+            result,
+            recipe.result_mode,
+            None,
+            &environment,
+            active,
+            b,
+        )?;
         Ok(CheckedSignature {
             parameters,
             result,

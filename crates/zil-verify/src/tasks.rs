@@ -8,12 +8,12 @@ pub(super) use context_work::{
 };
 pub(super) mod input_scope;
 mod owned;
-pub(super) use owned::once_cleanup_resumable;
 pub(super) use drop_sync::{
-    needs_proof as needs_synchronous_proof, once_cleanup_has_no_task, once_cleanup_closed,
+    needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
     require as require_synchronous_drop, require_value as require_synchronous_value,
     require_worker as require_synchronous_worker,
 };
+pub(super) use owned::once_cleanup_resumable;
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
@@ -22,6 +22,55 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
         retained: vec![],
         nominal_arguments: vec![],
     }
+}
+
+pub(super) fn raw_frame_shape(
+    module: &TypedModule,
+    worker: &TypedFunction,
+    b: &mut Budget,
+) -> Check<RetainedLifeShape> {
+    for parameter in &worker.parameters {
+        let ty = local_type(worker, *parameter, Some(worker.span))?;
+        let selected = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        match input_scope::domain(selected, b)? {
+            input_scope::Domain::Known(0) => {}
+            _ => {
+                return Err(unsupported(
+                    "raw Task frame requires its complete original full-class selector metadata",
+                    Some(worker.span),
+                ));
+            }
+        }
+    }
+    let _ = module;
+    owned::borrowed_shape(worker, b)
+}
+pub(super) fn raw_frame_sources(
+    _module: &TypedModule,
+    worker: &TypedFunction,
+    b: &mut Budget,
+) -> Check<Vec<RetainedPortBinding>> {
+    let mut sources = Vec::new();
+    for (ordinal, parameter) in worker.parameters.iter().enumerate() {
+        b.spend(1)?;
+        if matches!(
+            local_type(worker, *parameter, Some(worker.span))?,
+            Type::Address { .. }
+        ) {
+            sources.push(RetainedPortBinding {
+                port: sources.len() as u32,
+                source: StoragePosition {
+                    base: StorageBase::Parameter(ordinal as u32),
+                    path: vec![],
+                },
+            });
+        }
+    }
+    Ok(sources)
 }
 pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()> {
     if let Type::Task {
@@ -545,7 +594,9 @@ fn owned_create_type(
     resources::charge_payload(&tuple, b)?;
     let name = format!("@std.task:v1:TaskCreateFailure:{}", tuple.fingerprint());
     let plain = if let Type::Tuple(fields) = &tuple {
-        fields.iter().all(|t| t.is_copy_value() || matches!(t,Type::Address{..}))
+        fields
+            .iter()
+            .all(|t| t.is_copy_value() || matches!(t, Type::Address { .. }))
     } else {
         false
     };
@@ -717,21 +768,37 @@ pub(super) fn instruction(
                     return Err(bad());
                 }
             }
-            let retained_life = owned::borrowed_shape(target, budget)?;
-            let mut expected = Vec::new();
-            for (parameter, local) in target.parameters.iter().enumerate() {
-                budget.spend(1)?;
-                if matches!(local_type(target, *local, span)?, Type::Address { inner, .. } if owned::retained_pointee(inner))
+            let frames = crate::semantic::task_domains::metadata_candidates(worker, budget)?;
+            let mut selected = None;
+            for frame in frames {
+                if frame.result_type != target.return_type
+                    || frame.parameter_types.len() != target.parameters.len()
                 {
-                    expected.push(zil_ir::RetainedPortBinding {
-                        port: expected.len() as u32,
-                        source: zil_ir::StoragePosition {
-                            base: zil_ir::StorageBase::Parameter(parameter as u32),
-                            path: vec![],
-                        },
-                    });
+                    continue;
+                }
+                let mut compatible = true;
+                for (expected, parameter) in frame.parameter_types.iter().zip(&target.parameters) {
+                    if expected != local_type(target, *parameter, span)? {
+                        compatible = false;
+                        break;
+                    }
+                }
+                if !compatible {
+                    continue;
+                }
+                if let Some((shape, sources)) = &selected {
+                    if *shape != frame.shape || *sources != frame.port_sources {
+                        return Err(reject(
+                            "E-VERIFY-TASK",
+                            span,
+                            "Task constructor has multiple unselected full original frame worlds",
+                        ));
+                    }
+                } else {
+                    selected = Some((frame.shape, frame.port_sources));
                 }
             }
+            let (retained_life, expected) = selected.ok_or_else(bad)?;
             if port_bindings != &expected {
                 return Err(reject(
                     "E-VERIFY-TASK",
@@ -760,6 +827,7 @@ pub(super) fn instruction(
                 unreachable!()
             };
             carrier(module, result, span, budget)?;
+            crate::semantic::task_domains::record_raw_constructor(f, i, &ty, budget)?;
             ty
         }
         InstructionKind::TaskStart { worker, argument } => {

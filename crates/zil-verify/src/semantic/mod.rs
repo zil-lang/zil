@@ -7,7 +7,7 @@ pub(crate) mod api;
 pub(crate) use api::*;
 pub(crate) mod scalar;
 use std::collections::BTreeMap;
-use std::cell::RefCell;
+use std::cell::{RefCell,Cell};
 mod lifetimes;
 mod relations;
 mod evaluate;
@@ -17,6 +17,7 @@ mod nominal;
 mod closures;
 mod opaque;
 mod method_obligations;
+pub(crate) mod task_domains;
 mod catalogue;
 mod instances;
 mod flow;
@@ -42,6 +43,7 @@ fn bad(message: &str) -> Diagnostic {
 /// Indices into the same immutable candidate. No mirrored raw table is a
 /// source of builtin, visibility, ownership or runtime borrow authority.
 pub(crate) struct CheckedContext {
+    pub(super) domain_only:Cell<bool>,
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     instances: BTreeMap<SemanticInstanceId, usize>,
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,

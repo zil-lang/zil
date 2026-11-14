@@ -402,6 +402,8 @@ struct Budget {
     // Immutable replacement declarations/schedules only; no source permission.
     stored_replacement_functions: BTreeSet<FunctionId>,
     stored_replacements: Vec<Option<std::rc::Rc<stored_flow::replacements::Context>>>,
+    task_frames: BTreeMap<semantic::task_domains::FrameKey,semantic::task_domains::FrameState>,
+    task_constructors: BTreeMap<semantic::task_domains::ConstructorKey,semantic::task_domains::ConstructorObligation>,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -516,6 +518,8 @@ impl Budget {
             replacements: false,
             stored_replacement_functions: BTreeSet::new(),
             stored_replacements: Vec::new(),
+            task_frames: BTreeMap::new(),
+            task_constructors: BTreeMap::new(),
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
             task_exports: BTreeSet::new(),
@@ -837,6 +841,7 @@ fn check_module_budget(
         ));
     }
 
+    if module.semantic.is_none(){semantic::task_domains::prepare_raw_task_contexts(module,&mut budget)?;}
     budget.stored_context = true;
     if let Some(frozen)=frozen {
         frozen.check_executable(module,&mut budget)?;
@@ -1409,6 +1414,7 @@ fn check_module_budget(
     resources::check_module(module, &graphs, &mut budget)?;
     tasks::transfer::finish(module, &mut budget)?;
     registration::check_phase(module, &mut budget)?;
+    semantic::task_domains::drain(module,&mut budget)?;
     Ok(CheckedModule {
         fingerprint,
         uses_owned_sum_extension: budget.sums,

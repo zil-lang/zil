@@ -2,6 +2,20 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
+        let index=index::build(module,b)?;
+        let parent=index.definitions.get(&creator).ok_or_else(||bad("logical capture has no original creator body"))?;
+        let function=index.definitions.get(&child).ok_or_else(||bad("logical capture has no original child body"))?;
+        if function.definition.parent!=Some(creator)||parent.closures.get(&node)!=Some(&child){return Err(bad("logical capture environment belongs to another original creation"));}
+        let formal=function.definition.environment.get(ordinal).ok_or_else(||bad("logical capture environment ordinal is absent"))?;
+        let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::NameAt{at:SemanticOriginalNode::Expression(at),name}})=&formal.source else{return Err(unsupported("logical value capture needs its exact original parent NameAt source",None));};
+        if *at!=node{return Err(bad("logical capture source selects another original creation point"));}
+        let binding=self.free_values.get(&child).and_then(|rows|rows.get(name)).ok_or_else(||bad("logical capture name has no checked original creator binding"))?;
+        binding.identity.charge_clone(b)?;
+        let captured=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};
+        if !self.used.get(&child).is_some_and(|rows|rows.contains(&captured)){return Err(bad("physical logical capture is not a checked original free-value use"));}
+        match &binding.identity{Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested logical capture needs its complete parent capture transport",None))}
+    }
     pub(in crate::semantic) fn buffer_place(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(intrinsics::BufferRoot,Vec<String>)>{
         b.spend(1)?;let place=self.value_places.get(&(definition,node)).ok_or_else(||bad("original buffer observation has no complete checked Place"))?;
         b.spend(place.fields.iter().fold(2usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;

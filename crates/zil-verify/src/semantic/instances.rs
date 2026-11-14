@@ -40,13 +40,13 @@ impl CheckedContext {
                             keys.push(ClassKey::Intrinsic{scope:key,operand:OperandKey::TypeArgument{scope:key,ordinal:ordinal as u32},path:vec![],class:class as u32});
                             origins.push(IntrinsicOrigin::Existing{scope:key,operand:OperandKey::TypeArgument{scope:key,ordinal:ordinal as u32},path:vec![],class:class as u32});
                         }
-                        let mut checked=self.checked_value(module,ty,life,keys,b)?;
+                        let mut checked=self.construct_value(module,ty,life,keys,b)?;
                         checked.origins=origins;CheckedActual::Type(checked)
                     }
                     (SemanticFormal::Const{..},SemanticActual::Const{ty,value})=>{
                         let (actual_type,life,classes)=resolved(ty)?;
                         if !classes.is_empty()||value.ty()!=*actual_type {return Err(bad("const actual carrier differs from its complete scalar value type"));}
-                        let carrier=self.checked_value(module,actual_type,life,vec![],b)?;
+                        let carrier=self.construct_value(module,actual_type,life,vec![],b)?;
                         let pattern=DynConstPattern::Value(value.clone());
                         scalar::closed(&pattern,actual_type,module.target.pointer_width,b)?.ok_or_else(||bad("const actual is not a finite scalar"))?;
                         CheckedActual::Const{carrier,value:value.clone()}

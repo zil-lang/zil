@@ -445,6 +445,16 @@ impl ExternalProofs for Proofs {
         active: &mut semantic::ActiveQueries,
         b: &mut Budget,
     ) -> Check<ExternalValue> {
+        if context.domain_only.get()
+            && !matches!(
+                request,
+                ExternalRequest::AssociatedType { .. } | ExternalRequest::AssociatedConst { .. }
+            )
+        {
+            return Err(bad(
+                "Task frame metadata cannot discharge an external WF or capability obligation",
+            ));
+        }
         // An original abstract premise is not a concrete actual implementation.
         // The shared context owns its declaration Γ and caller-side discharge.
         if mode == RequirementMode::DeclarationPremise {

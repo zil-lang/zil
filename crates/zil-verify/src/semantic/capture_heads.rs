@@ -46,6 +46,10 @@ fn origins(f:&TypedFunction,value:ValueId,out:&mut BTreeSet<u32>,b:&mut Budget)-
         match &instruction.kind {
             InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{out.insert(*index);}
             InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressField{address,..}=>pending.push(*address),
+            // A copied/moved captured value may be materialized in a child
+            // local and then borrowed for a field read. That activation head
+            // is not an externally captured borrowed head.
+            InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}=>{},
             InstructionKind::Load(local)|InstructionKind::TakeLocal{local}=>{
                 // All actual stores form an upper. An unrelated/unknown store
                 // is rejected rather than selecting a convenient latest one.

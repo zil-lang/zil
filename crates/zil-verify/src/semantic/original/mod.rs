@@ -35,6 +35,7 @@ mod constructors;
 mod associated;
 mod trait_methods;
 mod trait_calls;
+mod tasks;
 pub(in crate::semantic) use trait_calls::{TraitCallRecipes,MethodActualRecipe};
 mod raw_schemes;
 mod opaque;
@@ -57,6 +58,8 @@ pub(super) struct CheckedOriginal {
     constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
     projection_terms:Vec<(Ty,LifeDeclarationId,Vec<Arg>,u32,Ty)>,
     trait_witnesses:Vec<(LifeDeclarationId,LifeDeclarationId)>,
+    task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Binder)>,
+    task_async_cleanups:BTreeSet<(SemanticDefinitionId,Binder)>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
@@ -110,12 +113,14 @@ impl CheckedOriginal {
         for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
         result.check_trait_witnesses(module,context,active,b)?;
         result.current=None;
-        result.check_cleanups(module,context,active,b)?;
-        result.check_effects(b)?;
+
         // No original protocol claim is usable by the actual bridge until
         // every original body, including uninstantiated bodies, has been
         // checked against its own entry relation.
         result.check_protocols(module,context,&index,b)?;
+        result.check_cleanups(module,context,active,b)?;
+        for(definition,_)in &result.task_async_cleanups{b.spend(1)?;if result.prototypes.get(definition).is_none_or(|prototype|prototype.call_kind!=CallKind::Suspend){return Err(bad("original asynchronous Task cleanup has no complete Suspend head"));}result.executing_effects.insert(*definition,CallKind::Suspend);}
+        result.check_effects(b)?;
         for binding in &result.creation_returns{b.spend(1)?;if result.creation_tainted.contains(binding){return Err(bad("original create result has a reassigned or loop-carried unproved lineage"));}}
         Ok(result)
     }

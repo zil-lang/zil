@@ -6,9 +6,9 @@ const LOCAL:&[u8]=include_bytes!("fixtures/local-closure-missing-child-instance.
 #[test]
 fn actual_source_identity_cannot_invent_its_missing_original_call_site() {
     let limits=Limits::default();
-    let (historical,_)=zil_ir::wire::decode_module_candidate(IDENTITY,&limits).unwrap();
-    let old_error=check_program(&historical,&mut Budget::new(&limits)).unwrap_err();
-    assert!(old_error.message.contains("original definition body disagrees with its declared kind"),"{old_error:?}");
+    // Historical bytes keep their original schema and remain nonexecutable;
+    // current-schema source/identity attacks are checked below.
+    assert!(zil_ir::wire::decode_module_candidate(IDENTITY,&limits).is_err());
     // Preserve the historical bytes above. The closest current attack keeps
     // the genuine original WithBody, actual Call and signature fixed.
     let (mut module,_)=zil_ir::wire::decode_module_candidate(COMPLETE_IDENTITY,&limits).unwrap();
@@ -21,9 +21,7 @@ fn actual_source_identity_cannot_invent_its_missing_original_call_site() {
 #[test]
 fn actual_default_borrowing_closure_requires_its_real_child_instance() {
     let limits=Limits::default();
-    let (historical,_)=zil_ir::wire::decode_module_candidate(LOCAL,&limits).unwrap();
-    let old_error=check_program(&historical,&mut Budget::new(&limits)).unwrap_err();
-    assert!(old_error.message.contains("original definition body disagrees with its declared kind"),"{old_error:?}");
+    assert!(zil_ir::wire::decode_module_candidate(LOCAL,&limits).is_err());
     let (mut module,_)=zil_ir::wire::decode_module_candidate(COMPLETE_LOCAL,&limits).unwrap();
     check_program(&module,&mut Budget::new(&limits)).unwrap();
     let program=module.semantic.as_mut().unwrap();
@@ -35,7 +33,7 @@ fn actual_default_borrowing_closure_requires_its_real_child_instance() {
 
 // This only exercises Verify's independent lexical/SSA sub-proof. The real
 // producer still reports its own proof gap, and the empty plan is not Analyze.
-const COMPLETE_IDENTITY:&[u8]=include_bytes!("fixtures/ordinary-identity-original-body.wire");
+const COMPLETE_IDENTITY:&[u8]=include_bytes!("fixtures/ordinary-identity-complete-head.wire");
 #[test]
 fn source_identity_actual_generic_call_reaches_the_complete_semantic_subproof() {
     let limits=Limits::default();
@@ -80,7 +78,69 @@ fn source_identity_keeps_the_original_full_actual_type_and_site_on_both_routes()
 
 // A genuine WithBody Source/Types output. The embedded empty plan supplies no
 // Analyze evidence: these tests exercise the independent semantic kernel only.
-const COMPLETE_LOCAL:&[u8]=include_bytes!("fixtures/local-closure-complete-creator.wire");
+const COMPLETE_LOCAL:&[u8]=include_bytes!("fixtures/local-closure-complete-head.wire");
+// Genuine current-schema Source probe, byte-identical source to the driver
+// phantom fixture. Its plan is untrusted; this exercises only this kernel.
+const COMPLETE_PHANTOM:&[u8]=include_bytes!("fixtures/phantom-closure-complete-creator.wire");
+#[test]
+fn actual_phantom_capture_keeps_the_complete_logical_domain_and_exact_creator(){
+    let limits=Limits::default();
+    let(original,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();
+    for attack in 0..5{
+        let mut module=original.clone();
+        match attack{
+            0=>{},
+            1=>{
+                let child=module.semantic.as_mut().unwrap().instances.iter_mut().find(|row|row.environment.is_some()).unwrap();
+                let SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal),..}=&mut child.header_embedding[0].actual else{panic!("real phantom environment class")};*ordinal+=1;
+            },
+            2=>{
+                let child=module.semantic.as_mut().unwrap().instances.iter_mut().find(|row|row.environment.is_some()).unwrap();
+                let SemanticActual::Type(SemanticTypeValue::Resolved{life,classes,..})=&mut child.environment.as_mut().unwrap().actuals[0]else{panic!("real complete phantom type")};
+                life.binder_count=0;life.nominal_arguments.clear();classes.clear();
+            },
+            3=>{
+                let program=module.semantic.as_ref().unwrap();
+                let creator=program.instances.iter().find(|row|program.sites.iter().any(|site|site.instance==row.id&&matches!(site.action,SemanticSiteAction::Closure{..}))).unwrap();
+                let creator_id=creator.id;
+                let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{unreachable!()};
+                let f=&mut module.functions[function.0 as usize];
+                let (block,creation)=f.blocks.iter().enumerate().find_map(|(block,row)|row.instructions.iter().position(|row|matches!(row.kind,InstructionKind::MakeClosure{..})).map(|creation|(block,creation))).unwrap();
+                let InstructionKind::MakeClosure{captures,..}=&f.blocks[block].instructions[creation].kind else{unreachable!()};let capture=captures[0];
+                let at=f.blocks[block].instructions.iter().position(|row|row.result==Some(capture)).unwrap();
+                let InstructionKind::Load(source)=f.blocks[block].instructions[at].kind else{panic!("real phantom capture load")};
+                let extra=LocalId(f.locals.len() as u32);let mut local=f.locals[source.0 as usize].clone();local.id=extra;local.name="other_phantom_binding".into();f.locals.push(local);
+                let stored=f.blocks[block].instructions[..at].iter().find_map(|row|match row.kind{InstructionKind::Store{local,value}if local==source=>Some(value),_=>None}).unwrap();
+                let span=f.blocks[block].instructions[at].span;
+                f.blocks[block].instructions[at].kind=InstructionKind::Load(extra);
+                f.blocks[block].instructions.splice(at..at,[Instruction{result:None,kind:InstructionKind::StorageLive(extra),span},Instruction{result:None,kind:InstructionKind::Store{local:extra,value:stored},span}]);
+                let block=f.blocks[block].id;
+                for site in &mut module.semantic.as_mut().unwrap().sites{if site.instance==creator_id{if let SemanticSiteAddress::Typed{block:actual,instruction,..}=&mut site.at{if *actual==block&&*instruction>=at as u32{*instruction+=2;}}}}
+            },
+            4=>{module.closures[0].storage_life.as_mut().unwrap().fixed_binder_count=0;},
+            _=>unreachable!(),
+        }
+        for wire in [false,true]{
+            let decoded;let candidate=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
+            let result=check_program(candidate,&mut Budget::new(&limits));
+            if attack==0{result.unwrap();}else{let error=result.unwrap_err();assert_eq!(error.category,zil_base::ResultCategory::SafeReject,"phantom attack {attack}, wire {wire}: {error:?}");}
+        }
+    }
+}
+#[test]
+fn shared_typed_generic_entry_checks_each_original_world_instead_of_the_first(){
+    let limits=Limits::default();let(mut module,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_IDENTITY,&limits).unwrap();
+    let program=module.semantic.as_mut().unwrap();
+    let mut extra=program.instances.iter().find(|row|!row.actuals.is_empty()).unwrap().clone();let previous=extra.id;
+    extra.id.index=program.instances.iter().map(|row|row.id.index).max().unwrap()+1;
+    let copied=program.sites.iter().filter(|row|row.instance==previous).cloned().map(|mut row|{row.instance=extra.id;row}).collect::<Vec<_>>();
+    let world=extra.id;program.instances.push(extra);program.sites.extend(copied);
+    for attack in [false,true]{
+        let mut module=module.clone();
+        if attack{let extra=module.semantic.as_mut().unwrap().instances.iter_mut().find(|row|row.id==world).unwrap();extra.actuals[0]=SemanticActual::Type(SemanticTypeValue::Resolved{ty:Type::U32,life:empty_life(),classes:vec![]});}
+        for wire in [false,true]{let decoded;let candidate=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};let result=check_program(candidate,&mut Budget::new(&limits));if attack{let error=result.unwrap_err();assert_eq!(error.category,zil_base::ResultCategory::SafeReject,"mismatched shared world, wire {wire}: {error:?}");}else{result.unwrap();}}
+    }
+}
 #[test]
 fn actual_default_capture_has_its_exact_creator_boundary_on_both_routes() {
     let limits=Limits::default();
