@@ -29,7 +29,26 @@ impl Check<'_, '_> {
                 _ => {}
             }
         }
-        if self.resource_head(owner, &ty, depth + 1)? {
+        // A delayed result/query must be solved in its original body or
+        // lexical capture context before its category is inspected. In
+        // particular this header pass runs before a closure's Result equation.
+        let raw = match &ty {
+            SemanticTypeRecipe::Atom(Type::ByteBuffer | Type::TaskI32)
+            | SemanticTypeRecipe::OwnedStore(_)
+            | SemanticTypeRecipe::Mutex(_)
+            | SemanticTypeRecipe::Task { .. }
+            | SemanticTypeRecipe::Registration(_)
+            | SemanticTypeRecipe::AsyncRegistration(_) => true,
+            SemanticTypeRecipe::Nominal { definition, .. } => matches!(
+                self.definition(*definition)?.body,
+                SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Resource,
+                    ..
+                }
+            ),
+            _ => false,
+        };
+        if raw {
             return Err(bad(
                 "original parameter/result has an unselected raw resource category",
             ));
