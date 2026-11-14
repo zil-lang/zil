@@ -136,6 +136,7 @@ fn clone_proof(
             .len()
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
+            .saturating_add(source.protocol_complete.len())
             .saturating_add(source.kinds.len())
             .saturating_add(source.call_targets.len())
             .saturating_add(source.providers.len())
@@ -145,6 +146,8 @@ fn clone_proof(
             .saturating_add(source.direct_calls.len())
             .saturating_add(source.function_values.len())
             .saturating_add(source.call_result_origins.len())
+            .saturating_add(source.call_callees.len())
+            .saturating_add(source.inferred_type_sources.len())
             .saturating_add(source.scope_calls.len())
             .saturating_add(source.local_roles.len())
             .saturating_add(source.environments.len())
@@ -433,5 +436,6 @@ pub(crate) fn check_with_frozen(
         }
     }
     check.finish_effects()?;
+    protocol::check(program, &mut check.proof, check.limits, check.left)?;
     Ok(check.proof)
 }

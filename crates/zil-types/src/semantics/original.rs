@@ -11,6 +11,8 @@ mod dynamic;
 mod effects;
 #[path = "original_places.rs"]
 mod places;
+#[path = "original_protocol.rs"]
+pub(super) mod protocol;
 #[path = "original_results.rs"]
 mod results;
 pub(super) use results::CalleeResultBoundary;
@@ -150,6 +152,7 @@ pub(super) struct Proof {
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
     pub complete: BTreeSet<SemanticDefinitionId>,
+    pub protocol_complete: BTreeSet<SemanticDefinitionId>,
     pub kinds: BTreeMap<SemanticDefinitionId, CallableKind>,
     pub call_targets: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticDefinitionId>,
     pub intrinsics: BTreeMap<(SemanticDefinitionId, SemanticSiteId), IntrinsicCall>,
@@ -166,6 +169,12 @@ pub(super) struct Proof {
     pub scope_calls: BTreeMap<
         (SemanticDefinitionId, SemanticSiteId, SemanticDefinitionId),
         Vec<SemanticActualRecipe>,
+    >,
+    call_callees: BTreeMap<(SemanticDefinitionId, SemanticSiteId), NodeId>,
+    // None preserves ambiguity between independently originating results.
+    inferred_type_sources: BTreeMap<
+        (SemanticDefinitionId, NodeId, u32),
+        Option<(NodeId, SemanticDefinitionId, SemanticSiteId)>,
     >,
     call_result_origins:
         BTreeMap<(SemanticDefinitionId, Query), (SemanticDefinitionId, SemanticSiteId)>,
@@ -290,6 +299,44 @@ impl<'a> Check<'a, '_> {
             }
         }
     }
+    fn same_query_alias(
+        &mut self,
+        owner: SemanticDefinitionId,
+        query: &SemanticTypeRecipe,
+        other: &SemanticTypeRecipe,
+        reverse: bool,
+    ) -> R<()> {
+        self.pay(
+            self.predicate_active.len().saturating_add(1),
+            self.predicate_active.len(),
+        )?;
+        if self
+            .predicate_active
+            .iter()
+            .any(|(domain, kind, active)| *domain == owner && *kind == 8 && active == query)
+        {
+            return Err(pending(
+                "original type query has a cyclic defining equation",
+            ));
+        }
+        let active = copy_recipe(query, self.limits, self.left)?;
+        self.predicate_active.push((owner, 8, active));
+        let answer = (|| {
+            let resolved = self.resolve(owner, query, 1)?;
+            if &resolved == query {
+                return Err(pending(
+                    "original type query has no finite defining equation",
+                ));
+            }
+            if reverse {
+                self.same(other, &resolved)
+            } else {
+                self.same(&resolved, other)
+            }
+        })();
+        self.predicate_active.pop();
+        answer
+    }
     fn same_inner(&mut self, a: &SemanticTypeRecipe, b: &SemanticTypeRecipe) -> R<()> {
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
@@ -301,6 +348,12 @@ impl<'a> Check<'a, '_> {
             return Ok(());
         }
         if let Some(owner) = self.contexts.last().copied() {
+            if matches!(a, SemanticTypeRecipe::OriginalType { .. }) {
+                return self.same_query_alias(owner, a, b, false);
+            }
+            if matches!(b, SemanticTypeRecipe::OriginalType { .. }) {
+                return self.same_query_alias(owner, b, a, true);
+            }
             if self.premise_type_equal(owner, a, b, 0)? {
                 return Ok(());
             }
@@ -1897,6 +1950,14 @@ impl<'a> Check<'a, '_> {
                     "original Copy parameter lacks its caller whole-Type Copy premise",
                 ));
             }
+            self.inferred_type_source(
+                owner,
+                callee.id,
+                &parameter.ty,
+                &actual,
+                argument,
+                depth + 1,
+            )?;
             self.unify(
                 &parameter.ty,
                 &actual,
@@ -1919,12 +1980,13 @@ impl<'a> Check<'a, '_> {
             )?;
         }
         self.pay(solutions.len(), depth)?;
-        let actuals = solutions
+        let mut actuals = solutions
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| {
                 pending("original call's fresh mixed inference variables are not fully determined")
             })?;
+        self.seal_inferred_type_sources(owner, callee.id, &mut actuals, depth + 1)?;
         let frames = [(u32::MAX, actuals.as_slice())];
         let substitution = substitute::Substitution {
             frames: &frames,
@@ -4763,6 +4825,7 @@ fn check_requested(
         }
     }
     check.finish_effects()?;
+    protocol::check(program, &mut check.proof, check.limits, check.left)?;
     Ok(check.proof)
 }
 
@@ -4898,6 +4961,48 @@ impl Proof {
             .and_then(|values| values.get(formal as usize))
             .ok_or_else(|| bad("original call/formal has no derived inference solution"))?;
         crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+        if matches!(
+            value,
+            SemanticActualRecipe::Type(SemanticTypeRecipe::Opaque { .. })
+        ) {
+            *left = left.checked_sub(3).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original inferred type source work exceeded",
+                    None,
+                )
+            })?;
+            if let Some(callee) = self.call_callees.get(&(owner, call)) {
+                if let Some(source) = self.inferred_type_sources.get(&(owner, *callee, formal)) {
+                    let Some((node, _, _)) = source else {
+                        return Err(pending(
+                            "inferred whole Type has several original opaque result boundaries",
+                        ));
+                    };
+                    let original = self
+                        .types
+                        .get(&(owner, Query::Expression(*node)))
+                        .ok_or_else(|| {
+                            bad("inferred Type source loses its original expression equation")
+                        })?;
+                    crate::dyn_metadata::semantic_operand_snapshot(original, limits, left, 1)?;
+                    let SemanticActualRecipe::Type(actual) = value else {
+                        unreachable!()
+                    };
+                    if original != actual {
+                        return Err(bad(
+                            "inferred Type source differs from its complete original solution",
+                        ));
+                    }
+                    return Ok(SemanticActualRecipe::Type(
+                        SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Expression(*node),
+                        },
+                    ));
+                }
+            }
+        }
         Ok(value.clone())
     }
 }

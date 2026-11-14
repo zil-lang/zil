@@ -13,6 +13,139 @@ pub(crate) struct CalleeResultBoundary {
 }
 
 impl Check<'_, '_> {
+    pub(super) fn seal_inferred_type_sources(
+        &mut self,
+        owner: SemanticDefinitionId,
+        callee: NodeId,
+        actuals: &mut [SemanticActualRecipe],
+        depth: usize,
+    ) -> R<()> {
+        self.pay(actuals.len(), depth)?;
+        for (ordinal, actual) in actuals.iter_mut().enumerate() {
+            if !matches!(
+                actual,
+                SemanticActualRecipe::Type(SemanticTypeRecipe::Opaque { .. })
+            ) {
+                continue;
+            }
+            self.pay(1, depth)?;
+            if let Some(source) =
+                self.proof
+                    .inferred_type_sources
+                    .get(&(owner, callee, ordinal as u32))
+            {
+                let Some((node, _, _)) = source else {
+                    return Err(pending(
+                        "inferred whole Type has several original opaque result boundaries",
+                    ));
+                };
+                *actual = SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(*node),
+                });
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn inferred_type_source(
+        &mut self,
+        owner: SemanticDefinitionId,
+        callee: NodeId,
+        template: &SemanticTypeRecipe,
+        actual: &SemanticTypeRecipe,
+        expression: &SemanticOriginalExpr,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        if let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } =
+            &expression.kind
+        {
+            return self.inferred_type_source(owner, callee, template, actual, inner, depth + 1);
+        }
+        if let SemanticTypeRecipe::Formal(SemanticFormalRef {
+            scope: SemanticScopeRef::Ancestor(u32::MAX),
+            ordinal,
+        }) = template
+        {
+            if matches!(actual, SemanticTypeRecipe::Opaque { .. }) {
+                self.pay(3, depth)?;
+                let query = Query::Expression(expression.id);
+                if let Some(&(origin_owner, origin_call)) =
+                    self.proof.call_result_origins.get(&(owner, query.clone()))
+                {
+                    let original = self.proof.types.get(&(owner, query)).ok_or_else(|| {
+                        bad("opaque inference source loses its original type equation")
+                    })?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        original,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        actual,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if original == actual {
+                        let key = (owner, callee, *ordinal);
+                        let candidate = Some((expression.id, origin_owner, origin_call));
+                        match self.proof.inferred_type_sources.get(&key) {
+                            Some(Some((_, old_owner, old_call)))
+                                if (*old_owner, *old_call) != (origin_owner, origin_call) =>
+                            {
+                                self.proof.inferred_type_sources.insert(key, None);
+                            }
+                            None => {
+                                self.proof.inferred_type_sources.insert(key, candidate);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            return Ok(());
+        }
+        match (template, actual, &expression.kind) {
+            (
+                SemanticTypeRecipe::Address {
+                    inner: template, ..
+                },
+                SemanticTypeRecipe::Address { inner: actual, .. },
+                CoreExprKind::Unary {
+                    op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                    operand,
+                },
+            ) => self.inferred_type_source(owner, callee, template, actual, operand, depth + 1)?,
+            (
+                SemanticTypeRecipe::Tuple(template),
+                SemanticTypeRecipe::Tuple(actual),
+                CoreExprKind::Tuple(fields),
+            ) if template.len() == actual.len() && actual.len() == fields.len() => {
+                self.pay(fields.len(), depth)?;
+                for ((template, actual), field) in template.iter().zip(actual).zip(fields) {
+                    self.inferred_type_source(owner, callee, template, actual, field, depth + 1)?;
+                }
+            }
+            (
+                SemanticTypeRecipe::Array {
+                    element: template, ..
+                },
+                SemanticTypeRecipe::Array {
+                    element: actual, ..
+                },
+                CoreExprKind::Array(fields),
+            ) => {
+                self.pay(fields.len(), depth)?;
+                for field in fields {
+                    self.inferred_type_source(owner, callee, template, actual, field, depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
     pub(super) fn alias_result_origin(
         &mut self,
         owner: SemanticDefinitionId,
@@ -52,6 +185,12 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<()> {
         self.pay(1, depth)?;
+        if let CoreExprKind::Call { callee, .. } = &expression.kind {
+            if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
+                self.pay(1, depth)?;
+                self.proof.call_callees.insert((owner, site.id), callee.id);
+            }
+        }
         // This receipt describes a whole opaque value. Aggregates or projections
         // need their own complete component boundary, and cannot borrow a
         // same-shaped call elsewhere in the body.
@@ -177,15 +316,16 @@ impl Proof {
                     None,
                 )
             })?;
-        for actual in actuals {
-            crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+        let mut mapped_actuals = Vec::new();
+        for ordinal in 0..actuals.len() {
+            mapped_actuals.push(self.call_actual(caller, call, ordinal as u32, limits, left)?);
         }
         crate::dyn_metadata::semantic_operand_snapshot(result, limits, left, 1)?;
         Ok(Some(CalleeResultBoundary {
             caller,
             call,
             callee,
-            actuals: actuals.clone(),
+            actuals: mapped_actuals,
             result: result.clone(),
         }))
     }
