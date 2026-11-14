@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T10:12:56.880839+00:00",
+  "updated_at_utc": "2026-11-14T11:37:02.204387+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -274,15 +274,15 @@
     ]
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "e915353bc",
-  "current_candidate_under_validation": "e915353bc",
+  "latest_ready_source": "f871fbb63",
+  "current_candidate_under_validation": "f871fbb63",
   "wip_backup": {
-    "archive_commit": "a6e90846c80f651111ec6eba179990b1b13f1d07",
-    "previous_archive": "e92c2a87500cf594738996415e8c231ca27c65dd",
-    "source_base": "f452266fef4e95ec88f9e85ed7e5104fad2d8b8c",
-    "prefix": "language/20261114T094952Z-active-wip",
-    "changed_files": 10,
-    "artifacts": 9,
+    "archive_commit": "e2e49b02c77466d2b9a2e1d04e557f5ee2add3b5",
+    "previous_archive": "8dbeb1f3eee4261fb7d6b55abd98cf34c2122dca",
+    "source_base": "ccbd117316096f072b3bfd9697e70b5f892632dc",
+    "prefix": "language/20261114T110253Z-active-wip",
+    "changed_files": 45,
+    "artifacts": 18,
     "remote_manifest_and_patch_readback_equal": true,
     "state": "WIP, not functional acceptance"
   },
@@ -305,5 +305,38 @@
     "Task domain identity is original scope/Life formal/whole Type-domain class index; actual worker header is a bridge, not authority to merge caller images. Preserve F.N2 and outer versus intrinsic pointee classes.",
     "All input/result child-index maps must be complete and common with failure owner context; no unknown closure N0"
   ],
-  "native_acceptance_tools_archive": "language/20261114T094952Z-active-wip/supporting-tools"
+  "native_acceptance_tools_archive": "language/20261114T094952Z-active-wip/supporting-tools",
+  "latest_full_profile_with_first_positive": {
+    "candidate": "86e31483744585225871df876c8eaa4846d88692",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-joint-task-verifier-and-foundation-runtime",
+    "accepted": false,
+    "cli_build": 0,
+    "foundation_positives": {
+      "passed": 1,
+      "total": 13
+    },
+    "intended_negatives": {
+      "passed": 4,
+      "total": 4
+    },
+    "passed_families": [
+      "scalars"
+    ],
+    "independent_verify_runs": {
+      "scalars": 1
+    },
+    "native_small_sources": {
+      "passed": 12,
+      "total": 16
+    },
+    "full_regressions": "not run in this feedback candidate",
+    "scalar_native_followup": {
+      "candidate": "df14ee42c59684a628ff2788d497b34fa7781207",
+      "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scalars-native-df14ee42c",
+      "four_zil_backend_opt": "Pass via existing complete_domains_native_o0_o2",
+      "c_abi_companion": "Fail in Expand callback-expression profile; first type-formation profile fixed, next old narrow callback-expression gate remains. Original source/C provider retained."
+    }
+  },
+  "latest_runtime_acceptance_summary": "NOT ACCEPTED: first scalar family has real Source/Types/Analyze/Verify success and four native configurations, but C ABI companion still fails in source callback expression classification. Four intended original-obligation negatives now pass in default budget.",
+  "remaining_alpha_claims": "No complete Alpha, no new PR/merge/release; keep original uninstantiated definitions, independent kernels, default budgets, full native/C/CT/project and restoration acceptance."
 }

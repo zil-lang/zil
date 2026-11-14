@@ -1,0 +1,31 @@
+{
+  "candidate": "86e31483744585225871df876c8eaa4846d88692",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-joint-task-verifier-and-foundation-runtime",
+  "accepted": false,
+  "cli_build": 0,
+  "foundation_positives": {
+    "passed": 1,
+    "total": 13
+  },
+  "intended_negatives": {
+    "passed": 4,
+    "total": 4
+  },
+  "passed_families": [
+    "scalars"
+  ],
+  "independent_verify_runs": {
+    "scalars": 1
+  },
+  "native_small_sources": {
+    "passed": 12,
+    "total": 16
+  },
+  "full_regressions": "not run in this feedback candidate",
+  "scalar_native_followup": {
+    "candidate": "df14ee42c59684a628ff2788d497b34fa7781207",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scalars-native-df14ee42c",
+    "four_zil_backend_opt": "Pass via existing complete_domains_native_o0_o2",
+    "c_abi_companion": "Fail in Expand callback-expression profile; first type-formation profile fixed, next old narrow callback-expression gate remains. Original source/C provider retained."
+  }
+}
