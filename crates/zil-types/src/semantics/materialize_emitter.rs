@@ -473,8 +473,13 @@ pub(crate) fn prepare_task(
         left,
         active: BTreeSet::new(),
     };
-    let (shape, bindings, inputs) =
-        eval.task_inputs(scheme.instance, &scheme.signature, parameters, result)?;
+    let (shape, bindings, inputs) = eval.task_inputs(
+        scheme.instance,
+        &scheme.signature,
+        &scheme.result_sources,
+        parameters,
+        result,
+    )?;
     // Reserve the actual success-context clone, failure input snapshot and
     // canonical failure identity before the builder copies these products.
     crate::dyn_metadata::semantic_operand_snapshot(&inputs, limits, left, 3)?;
@@ -504,6 +509,7 @@ impl Eval<'_, '_, '_> {
         &mut self,
         scope: SemanticInstanceId,
         signature: &SemanticSignatureRecipe,
+        sources: &[super::super::original::TaskReturnSources],
         parameters: &[Type],
         result: &Type,
     ) -> R<(
@@ -518,6 +524,7 @@ impl Eval<'_, '_, '_> {
             ));
         }
         let mut domains = Vec::new();
+        let mut input_maps = Vec::new();
         let mut selectors = Vec::new();
         let mut classes = Vec::new();
         let mut ports = Vec::new();
@@ -590,6 +597,7 @@ impl Eval<'_, '_, '_> {
                     ..projected.port
                 });
             }
+            input_maps.push(map);
             domains.push(domain);
         }
         let output = self.type_domain_at(
@@ -619,11 +627,20 @@ impl Eval<'_, '_, '_> {
         }
         let mut result_map = Vec::new();
         for (class, (selector, image)) in output.selectors.iter().zip(images).enumerate() {
-            let binder = self
-                .find_selector(&selectors, &classes, selector, image)?
-                .ok_or_else(|| {
-                    unknown("Task result awaits its exact original input-domain origin")
-                })?;
+            let binder =
+                if let Some(binder) = self.find_selector(&selectors, &classes, selector, image)? {
+                    binder
+                } else {
+                    self.task_return_class(
+                        scope,
+                        signature,
+                        sources,
+                        &domains,
+                        &input_maps,
+                        &output,
+                        class as u32,
+                    )?
+                };
             self.fee(result_map.len().saturating_add(1))?;
             if result_map.contains(&binder) {
                 return Err(bad("Task result collapses two complete intrinsic indices"));

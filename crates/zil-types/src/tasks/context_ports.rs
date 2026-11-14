@@ -194,6 +194,59 @@ impl<C: Catalog> Project<'_, C> {
                 .saturating_mul(self.limits.max_call_depth.saturating_add(1)),
         )?;
         ports.sort_by(|a, b| a.path.cmp(&b.path));
+        // Canonical ports follow the actual type tree, including an opaque
+        // directory at its declaration position. Metadata paths are not byte
+        // GEPs and never open an address pointee or a Type argument.
+        let maximum = ports.iter().map(|port| port.path.len()).max().unwrap_or(0);
+        self.fee(
+            ports
+                .len()
+                .saturating_mul(ports.len().saturating_add(1).ilog2() as usize + 1)
+                .saturating_mul(maximum.saturating_add(1)),
+        )?;
+        for port in &ports {
+            self.fee(port.path.len().saturating_add(1))?;
+            if port
+                .path
+                .iter()
+                .any(|step| matches!(step, ContractProjection::RetainedClass(_)))
+            {
+                return Err(bad(
+                    "a class-only coordinate cannot become a physical Task port",
+                ));
+            }
+        }
+        ports.sort_by(|left, right| {
+            fn key(step: &ContractProjection) -> (u8, u32, u32) {
+                match step {
+                    ContractProjection::Place(PlaceProjection::Field(index)) => (0, *index, 0),
+                    ContractProjection::Place(PlaceProjection::Variant(part)) => {
+                        (0, part.variant, part.index)
+                    }
+                    ContractProjection::Place(PlaceProjection::ErrorArm(is_error)) => {
+                        (0, u32::from(!*is_error), 0)
+                    }
+                    ContractProjection::Capture(index) => (1, *index, 0),
+                    ContractProjection::RetainedPort(index) => (2, *index, 0),
+                    ContractProjection::RetainedClass(index) => (3, *index, 0),
+                }
+            }
+            left.path.iter().map(key).cmp(right.path.iter().map(key))
+        });
+        for pair in ports.windows(2) {
+            self.fee(
+                pair[0]
+                    .path
+                    .len()
+                    .saturating_add(pair[1].path.len())
+                    .saturating_add(1),
+            )?;
+            if pair[0].path == pair[1].path {
+                return Err(bad(
+                    "one actual Task input occurrence has repeated physical ports",
+                ));
+            }
+        }
         Ok(ports)
     }
     fn opaque(

@@ -48,6 +48,8 @@ mod self_type;
 mod shapes;
 #[path = "materialize_tasks.rs"]
 mod task_domains;
+#[path = "materialize_task_results.rs"]
+mod task_results;
 pub(crate) use emitter::{PreparedTask, prepare_task};
 #[path = "materialize_view.rs"]
 mod view;
@@ -961,7 +963,7 @@ impl<'a> Eval<'a, '_, '_> {
         hint: Option<&Type>,
         depth: usize,
     ) -> R<SemanticTypeValue> {
-        if matches!(recipe, SemanticTypeRecipe::Tuple(_)) {
+        if matches!(recipe, SemanticTypeRecipe::Tuple(_) | SemanticTypeRecipe::ErrorUnion { .. }) {
             Ok(self.type_domain(scope, recipe, hint, depth)?.value)
         } else {
             self.ty_raw(scope, recipe, hint, depth)
@@ -1236,24 +1238,13 @@ impl<'a> Eval<'a, '_, '_> {
                         ..row.clone()
                     });
                 }
-                // An opaque element's classes remain a complete child domain.
-                if matches!(
-                    ty,
-                    Type::BorrowedStorage { .. }
-                        | Type::Closure(_)
-                        | Type::MutexGuard { .. }
-                        | Type::Task { .. }
-                        | Type::Dyn { .. }
-                        | Type::OwnedDyn { .. }
-                ) {
-                    self.fee(classes.len())?;
-                    array_life.retained = (0..life.binder_count)
-                        .map(|class| StorageRetainedBinding {
-                            path: vec![LifeTypeProjection::Element],
-                            class,
-                            binder: class,
-                        })
-                        .collect();
+                // Element is a complete type-domain boundary even when its
+                // classes have no physical slot or only a phantom occurrence.
+                self.fee(classes.len())?;
+                for class in 0..life.binder_count {
+                    array_life.retained.push(StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Element], class, binder: class,
+                    });
                 }
                 for row in &life.nominal_arguments {
                     self.fee(row.path.len().saturating_add(2))?;
@@ -1762,65 +1753,7 @@ impl<'a> Eval<'a, '_, '_> {
             SemanticTypeRecipe::Dyn { owned, interface } => {
                 self.dyn_type(scope, *owned, interface, hint, depth + 1)?
             }
-            SemanticTypeRecipe::ErrorUnion { error, result } => {
-                let (error_hint, result_hint) = match hint {
-                    Some(Type::ErrorUnion { error, result }) => {
-                        (Some(error.as_ref()), Some(result.as_ref()))
-                    }
-                    Some(actual) => {
-                        let actual_kind = match actual {
-                            Type::Managed(_) => "Managed",
-                            Type::Desc(_) => "Desc",
-                            Type::BorrowedStorage { .. } => "BorrowedStorage",
-                            Type::Address { .. } => "Address",
-                            Type::Record { .. } => "Record",
-                            Type::Package { .. } => "Package",
-                            Type::Enum { .. } => "Enum",
-                            Type::Closure(_) => "Closure",
-                            Type::Unit => "Unit",
-                            _ => "scalar or another constructor",
-                        };
-                        let owner = self.instance(scope)?.definition;
-                        return Err(bad(&format!(
-                            "ErrorUnion recipe changes its actual result constructor: instance {scope:?}, definition {owner:?}, actual {actual_kind}"
-                        )));
-                    }
-                    None => (None, None),
-                };
-                let SemanticTypeValue::Resolved {
-                    ty: error,
-                    life: error_life,
-                    classes: error_classes,
-                } = self.ty(scope, error, error_hint, depth + 1)?
-                else {
-                    unreachable!()
-                };
-                let SemanticTypeValue::Resolved {
-                    ty: result,
-                    life: result_life,
-                    classes: result_classes,
-                } = self.ty(scope, result, result_hint, depth + 1)?
-                else {
-                    unreachable!()
-                };
-                if error_life.binder_count != 0
-                    || result_life.binder_count != 0
-                    || !error_classes.is_empty()
-                    || !result_classes.is_empty()
-                {
-                    return Err(unknown(
-                        "ErrorUnion needs its complete arm-to-whole intrinsic class projection",
-                    ));
-                }
-                resolved(
-                    Type::ErrorUnion {
-                        error: Box::new(error),
-                        result: Box::new(result),
-                    },
-                    empty(),
-                    Vec::new(),
-                )
-            }
+            SemanticTypeRecipe::ErrorUnion { .. } => self.ty(scope, recipe, hint, depth + 1)?,
             SemanticTypeRecipe::AssociatedType { .. } => {
                 self.associated_source_type(scope, recipe, hint, depth + 1)?
             }

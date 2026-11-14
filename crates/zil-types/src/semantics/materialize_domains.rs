@@ -39,6 +39,8 @@ pub(super) enum Boundary {
     Element,
 }
 pub(super) struct Domain {
+    /// A complete input boundary keeps every child index when embedded.
+    pub frozen: bool,
     pub value: SemanticTypeValue,
     pub selectors: Vec<Selector>,
 }
@@ -172,6 +174,98 @@ impl Eval<'_, '_, '_> {
         if let SemanticTypeRecipe::Tuple(items) = recipe {
             return self.tuple_domain(scope, items, depth, occurrence);
         }
+        if let SemanticTypeRecipe::ErrorUnion { error, result } = recipe {
+            let (error_hint, result_hint) = match hint {
+                None => (None, None),
+                Some(Type::ErrorUnion { error, result }) => {
+                    (Some(error.as_ref()), Some(result.as_ref()))
+                }
+                Some(actual) => {
+                    let definition = self.instance(scope)?.definition;
+                    return Err(bad(&format!(
+                        "ErrorUnion recipe changes its actual result constructor: instance {scope:?}, definition {definition:?}, actual constructor {:?}",
+                        std::mem::discriminant(actual)
+                    )));
+                }
+            };
+            self.node(depth)?;
+            self.occurrence_snapshot(occurrence)?;
+            let mut left = occurrence.clone();
+            left.path.push(0);
+            self.occurrence_snapshot(occurrence)?;
+            let mut right = occurrence.clone();
+            right.path.push(1);
+            let error = self.type_domain_at(scope, error, error_hint, depth + 1, &left)?;
+            let result = self.type_domain_at(scope, result, result_hint, depth + 1, &right)?;
+            self.fee(2)?;
+            let mut domain = self.compose_tuple(vec![error, result])?;
+            let SemanticTypeValue::Resolved { ty, life, .. } = &mut domain.value else {
+                unreachable!()
+            };
+            let Type::Tuple(fields) = ty else {
+                unreachable!()
+            };
+            let mut fields = std::mem::take(fields).into_iter();
+            *ty = Type::ErrorUnion {
+                error: Box::new(
+                    fields
+                        .next()
+                        .ok_or_else(|| bad("joint ErrorUnion lost its error operand"))?,
+                ),
+                result: Box::new(
+                    fields
+                        .next()
+                        .ok_or_else(|| bad("joint ErrorUnion lost its result operand"))?,
+                ),
+            };
+            for slot in &mut life.slots {
+                self.fee(slot.path.len().saturating_add(1))?;
+                let Some(PlaceProjection::Field(index)) = slot.path.first_mut() else {
+                    return Err(bad("joint ErrorUnion slot lost its actual arm"));
+                };
+                let is_error = match *index {
+                    0 => true,
+                    1 => false,
+                    _ => return Err(bad("joint ErrorUnion slot selects an absent arm")),
+                };
+                slot.path[0] = PlaceProjection::ErrorArm(is_error);
+            }
+            for row in &mut life.retained {
+                self.fee(row.path.len().saturating_add(1))?;
+                let Some(LifeTypeProjection::Place(PlaceProjection::Field(index))) =
+                    row.path.first()
+                else {
+                    return Err(bad("joint ErrorUnion class lost its exact arm"));
+                };
+                let is_error = match *index {
+                    0 => true,
+                    1 => false,
+                    _ => return Err(bad("joint ErrorUnion class selects an absent arm")),
+                };
+                row.path[0] = LifeTypeProjection::Place(PlaceProjection::ErrorArm(is_error));
+            }
+            for row in &mut life.nominal_arguments {
+                self.fee(row.path.len().saturating_add(1))?;
+                let Some(LifeTypeProjection::Place(PlaceProjection::Field(index))) =
+                    row.path.first()
+                else {
+                    return Err(bad(
+                        "joint ErrorUnion nominal occurrence lost its exact arm",
+                    ));
+                };
+                let is_error = match *index {
+                    0 => true,
+                    1 => false,
+                    _ => {
+                        return Err(bad(
+                            "joint ErrorUnion nominal occurrence selects an absent arm",
+                        ));
+                    }
+                };
+                row.path[0] = LifeTypeProjection::Place(PlaceProjection::ErrorArm(is_error));
+            }
+            return Ok(domain);
+        }
         let value = self.ty_raw(scope, recipe, hint, depth)?;
         if let SemanticTypeRecipe::Address {
             lifetime, inner, ..
@@ -193,6 +287,44 @@ impl Eval<'_, '_, '_> {
             let child_count = count - offset;
             self.fee(child_count as usize)?;
             if child_count != 0 {
+                let child = self.type_domain_at(scope, inner, None, depth + 1, occurrence)?;
+                if child.frozen {
+                    let SemanticTypeValue::Resolved {
+                        life: child_life,
+                        classes: child_images,
+                        ..
+                    } = &child.value
+                    else {
+                        unreachable!()
+                    };
+                    let SemanticTypeValue::Resolved {
+                        classes: images, ..
+                    } = &value
+                    else {
+                        unreachable!()
+                    };
+                    for image in child_images.iter().chain(images.iter()) {
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            image,
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                    }
+                    if child_life.binder_count != child_count
+                        || child.selectors.len() != child_count as usize
+                        || child_images.as_slice() != &images[offset as usize..]
+                    {
+                        return Err(bad("outer type changes its complete frozen child domain"));
+                    }
+                    self.fee(child.selectors.len())?;
+                    selectors.extend(child.selectors);
+                    return Ok(Domain {
+                        frozen: false,
+                        value,
+                        selectors,
+                    });
+                }
                 crate::dyn_metadata::semantic_operand_snapshot(
                     inner.as_ref(),
                     self.limits,
@@ -212,7 +344,54 @@ impl Eval<'_, '_, '_> {
                     });
                 }
             }
-            return Ok(Domain { value, selectors });
+            return Ok(Domain {
+                frozen: false,
+                value,
+                selectors,
+            });
+        }
+        let inherited = match recipe {
+            SemanticTypeRecipe::Managed(inner)
+            | SemanticTypeRecipe::Mutex(inner)
+            | SemanticTypeRecipe::Registration(inner)
+            | SemanticTypeRecipe::AsyncRegistration(inner)
+            | SemanticTypeRecipe::OwnedStore(inner)
+            | SemanticTypeRecipe::Slice(inner)
+            | SemanticTypeRecipe::Array { element: inner, .. } => Some(inner.as_ref()),
+            _ => None,
+        };
+        if let Some(inner) = inherited {
+            let child = self.type_domain_at(scope, inner, None, depth + 1, occurrence)?;
+            if child.frozen {
+                let SemanticTypeValue::Resolved { life, classes, .. } = &value else {
+                    unreachable!()
+                };
+                let SemanticTypeValue::Resolved {
+                    life: child_life,
+                    classes: child_images,
+                    ..
+                } = &child.value
+                else {
+                    unreachable!()
+                };
+                self.fee(classes.len().saturating_add(child_images.len()))?;
+                for image in classes.iter().chain(child_images.iter()) {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        image,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                }
+                if life.binder_count != child_life.binder_count || classes != child_images {
+                    return Err(bad("container changes its complete frozen child domain"));
+                }
+                return Ok(Domain {
+                    frozen: true,
+                    value,
+                    selectors: child.selectors,
+                });
+            }
         }
         match recipe {
             SemanticTypeRecipe::Formal(reference) => {
@@ -267,7 +446,15 @@ impl Eval<'_, '_, '_> {
         if life.binder_count != 0 {
             crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
             let ty = Rc::new(recipe.clone());
-            let occurrence = if boundary == Boundary::Whole {
+            let stable = matches!(
+                recipe,
+                SemanticTypeRecipe::Formal(_)
+                    | SemanticTypeRecipe::Environment { .. }
+                    | SemanticTypeRecipe::Nominal { .. }
+                    | SemanticTypeRecipe::Opaque { .. }
+                    | SemanticTypeRecipe::Closure { .. }
+            );
+            let occurrence = if boundary == Boundary::Whole && stable {
                 None
             } else {
                 self.occurrence_snapshot(occurrence)?;
@@ -283,7 +470,11 @@ impl Eval<'_, '_, '_> {
                 });
             }
         }
-        Ok(Domain { value, selectors })
+        Ok(Domain {
+            frozen: true,
+            value,
+            selectors,
+        })
     }
     pub(super) fn join_domain(
         &mut self,
@@ -400,6 +591,7 @@ impl Eval<'_, '_, '_> {
         self.fee(children.len())?;
         if children.is_empty() {
             return Ok(Domain {
+                frozen: false,
                 value: resolved(Type::Unit, empty(), Vec::new()),
                 selectors: Vec::new(),
             });
@@ -412,6 +604,7 @@ impl Eval<'_, '_, '_> {
             let ordinal =
                 u32::try_from(ordinal).map_err(|_| bad("tuple child ordinal overflows"))?;
             let map = self.join_domain(&mut selectors, &mut classes, &child)?;
+            let frozen = child.frozen;
             let SemanticTypeValue::Resolved {
                 ty, life: child, ..
             } = child.value
@@ -433,15 +626,17 @@ impl Eval<'_, '_, '_> {
                     mode: slot.mode,
                 });
             }
-            if matches!(
-                ty,
-                Type::BorrowedStorage { .. }
-                    | Type::Closure(_)
-                    | Type::MutexGuard { .. }
-                    | Type::Task { .. }
-                    | Type::Dyn { .. }
-                    | Type::OwnedDyn { .. }
-            ) {
+            if frozen
+                || matches!(
+                    ty,
+                    Type::BorrowedStorage { .. }
+                        | Type::Closure(_)
+                        | Type::MutexGuard { .. }
+                        | Type::Task { .. }
+                        | Type::Dyn { .. }
+                        | Type::OwnedDyn { .. }
+                )
+            {
                 self.fee(map.len())?;
                 for (class, binder) in map.iter().enumerate() {
                     life.retained.push(StorageRetainedBinding {
@@ -478,6 +673,7 @@ impl Eval<'_, '_, '_> {
         life.binder_count = u32::try_from(selectors.len())
             .map_err(|_| bad("tuple joint original domain overflows"))?;
         Ok(Domain {
+            frozen: false,
             value: resolved(Type::Tuple(fields), life, classes),
             selectors,
         })
