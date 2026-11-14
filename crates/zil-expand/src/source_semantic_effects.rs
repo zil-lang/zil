@@ -756,7 +756,7 @@ mod tests {
             FileId(0),
             ModuleId(0),
             "original-effects.zil",
-            "fn leaf(){task_yield();}fn relay(){leaf();}fn a(){b();}fn b(){a();}fn declared_direct() contract{effects(io);}{task_yield();}fn declared_suspend() contract{effects(suspend);}{}fn creator(){let worker=()=>task_yield();}fn invoked(){let worker=()=>task_yield();worker();}fn through<F:Fn()>(worker:F){worker();}fn deferred(){defer{task_yield();}}fn unknown(){unresolved();}",
+            "fn leaf(){task_yield();}fn relay(){leaf();}fn a(){b();}fn b(){a();}fn declared_direct() contract{effects(io);}{task_yield();}fn declared_suspend() contract{effects(suspend);}{}fn creator(){let worker=()=>task_yield();}fn invoked(){let worker=()=>task_yield();worker();}fn through<F:Fn()->void>(worker:F){worker();}fn deferred(){defer{task_yield();}}fn unknown(){unresolved();}",
         );
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let limits = Limits::default();

@@ -444,9 +444,18 @@ impl Check<'_, '_> {
                         .filter(|definition| definition.id == id)
                         .ok_or_else(|| fail("actual callable has another closure identity"))?;
                     let allowed = match kind {
+                        // This branch has a real Closure type and environment
+                        // entry. Even zero captures do not establish a thin
+                        // function pointer or its distinct call instruction.
+                        CallableKind::FunctionPointer => false,
                         CallableKind::Fn => definition.kind == CallableKind::Fn,
-                        CallableKind::FnMut => definition.kind != CallableKind::FnOnce,
-                        CallableKind::FnOnce => true,
+                        CallableKind::FnMut => {
+                            matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut)
+                        }
+                        CallableKind::FnOnce => matches!(
+                            definition.kind,
+                            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                        ),
                     };
                     if !allowed
                         || signature.bound_lifetimes != 0
