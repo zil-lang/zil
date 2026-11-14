@@ -61,7 +61,7 @@ impl Check<'_, '_> {
         self.pay(1, depth)?;
         let ty = self.observation_type(owner, ty, depth + 1)?;
         Ok(match ty {
-            SemanticTypeRecipe::Atom(Type::ByteBuffer)
+            SemanticTypeRecipe::Atom(Type::ByteBuffer | Type::TaskI32)
             | SemanticTypeRecipe::OwnedStore(_)
             | SemanticTypeRecipe::Mutex(_)
             | SemanticTypeRecipe::Task { .. }
@@ -579,6 +579,17 @@ impl Check<'_, '_> {
                     }
                 }
                 Some(all)
+            }
+            SemanticTypeRecipe::Opaque { .. } => {
+                match self.closed_opaque_result(&ty, depth + 1)? {
+                    Some((definition, result)) => {
+                        self.contexts.push(definition);
+                        let result = self.sealed_capability(definition, &result, kind, depth + 1);
+                        self.contexts.pop();
+                        result?
+                    }
+                    None => None,
+                }
             }
             SemanticTypeRecipe::Exact(exact) => Some(
                 exact.life.binder_count == 0 && exact.classes.is_empty() && exact.ty.is_b0_scalar(),

@@ -28,6 +28,8 @@ mod projection;
 mod protocol;
 #[path = "world_protocol_flow.rs"]
 mod protocol_flow;
+#[path = "world_receiver.rs"]
+mod receiver;
 #[path = "world_roles.rs"]
 mod roles;
 /// Relocation may identify a sealed opcode only by its independently checked
@@ -73,6 +75,7 @@ struct World<'a, 'b> {
     value_roots: BTreeMap<ValueId, std::collections::BTreeSet<arguments::Root>>,
     local_roots: BTreeMap<LocalId, std::collections::BTreeSet<arguments::Root>>,
     argument_witnesses: Vec<arguments::Witness>,
+    receiver_adaptations: Vec<receiver::Adaptation>,
 }
 impl<'a> World<'a, '_> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -1770,6 +1773,22 @@ impl World<'_, '_> {
         }
         let cfg = flow::Cfg::new(self, f)?;
         cfg.check_sites(self, f, &sites)?;
+        let mut incoming_roots = BTreeMap::new();
+        self.pay(f.parameters.len().saturating_mul(2))?;
+        for local in &f.parameters {
+            if matches!(
+                stored::physical(&f.locals[local.0 as usize].ty),
+                Type::Address { .. } | Type::Desc(_)
+            ) {
+                incoming_roots.insert(
+                    *local,
+                    std::collections::BTreeSet::from([arguments::Root {
+                        local: *local,
+                        path: Vec::new(),
+                    }]),
+                );
+            }
+        }
         let initial = flow::State {
             locals,
             values,
@@ -1786,7 +1805,7 @@ impl World<'_, '_> {
             value_role_sources: BTreeMap::new(),
             reborrows: BTreeMap::new(),
             value_roots: BTreeMap::new(),
-            local_roots: BTreeMap::new(),
+            local_roots: incoming_roots,
         };
         let mut reaching: Vec<Vec<flow::State>> = (0..f.blocks.len()).map(|_| Vec::new()).collect();
         let mut work = std::collections::VecDeque::new();
@@ -2987,7 +3006,7 @@ impl World<'_, '_> {
                                 arguments,
                                 &values,
                                 &locals,
-                                &implicit,
+                                &mut implicit,
                             )? {
                                 Some(result)
                             } else if let Some(result) = methods::direct(
@@ -3840,6 +3859,7 @@ pub(super) fn program(
         value_roots: BTreeMap::new(),
         local_roots: BTreeMap::new(),
         argument_witnesses: Vec::new(),
+        receiver_adaptations: Vec::new(),
     };
     world.pay(
         program

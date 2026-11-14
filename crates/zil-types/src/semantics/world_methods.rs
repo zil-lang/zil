@@ -188,7 +188,7 @@ pub(super) fn evaluate(
     arguments: &[ValueId],
     values: &[Option<SemanticTypeValue>],
     locals: &[Option<SemanticTypeValue>],
-    implicit: &BTreeMap<u32, SemanticClassExpr>,
+    implicit: &mut BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let mut selected = None;
     for site in world.point_sites(sites, block, index)? {
@@ -242,6 +242,23 @@ pub(super) fn evaluate(
                 world.left,
                 1,
             )?;
+            if let Some(receiver) = &method.receiver_borrow {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    receiver,
+                    world.limits,
+                    world.left,
+                    1,
+                )?;
+            }
+            if let Some(place) = &method.receiver_place {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    &place.root,
+                    world.limits,
+                    world.left,
+                    1,
+                )?;
+                world.pay(place.fields.len().saturating_add(1))?;
+            }
             if let Some(application) = &method.application {
                 crate::dyn_metadata::semantic_operand_snapshot(
                     application,
@@ -423,6 +440,9 @@ pub(super) fn evaluate(
                 "method actual entry changes its full original signature roles",
             ));
         }
+        super::receiver::seal(
+            world, instance, original, site, &method, arguments, values, locals, implicit,
+        )?;
         for (ordinal, ((argument, parameter), local)) in arguments
             .iter()
             .zip(&signature.parameters)

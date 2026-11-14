@@ -215,7 +215,7 @@ impl Check<'_, '_> {
         Ok(Some(out))
     }
 
-    fn cleanup_capability(
+    pub(super) fn cleanup_capability(
         &mut self,
         owner: SemanticDefinitionId,
         ty: &SemanticTypeRecipe,
@@ -291,6 +291,101 @@ impl Check<'_, '_> {
             }
         }
         match &ty {
+            // These rules release only a genuine initialized owner/view. They
+            // never export a payload SyncDrop premise or a protocol phase.
+            SemanticTypeRecipe::MutexGuard { .. } => return Ok(true),
+            SemanticTypeRecipe::Managed(payload) => {
+                return self.cleanup_owned_payload(owner, payload, depth + 1);
+            }
+            SemanticTypeRecipe::Closure {
+                definition,
+                environment,
+                ..
+            } => {
+                let Some(moved) = self.proof.closure_move.get(definition).copied() else {
+                    return Ok(false);
+                };
+                if !self.proof.complete.contains(definition) {
+                    return Ok(false);
+                }
+                if !moved {
+                    return Ok(true);
+                }
+                let child = self.definition(*definition)?;
+                let names = self.proof.capture_names.get(definition).ok_or_else(|| {
+                    pending("closure cleanup lacks its complete original capture directory")
+                })?;
+                self.pay(
+                    names
+                        .iter()
+                        .fold(names.len(), |n, name| n.saturating_add(name.len())),
+                    depth,
+                )?;
+                let names = self
+                    .proof
+                    .capture_names
+                    .get(definition)
+                    .ok_or_else(|| bad("original closure capture directory disappeared"))?
+                    .clone();
+                for name in names {
+                    self.pay(child.environment.len(), depth)?;
+                    let mut selected = None;
+                    for (slot, formal) in child.environment.iter().enumerate() {
+                        if matches!(&formal.source,SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType{source:SemanticOriginalTypeSource::NameAt{name:source,..},..}) if source==&name)
+                        {
+                            if selected.replace(slot).is_some() {
+                                return Err(bad(
+                                    "one physical capture has ambiguous original whole-Type slots",
+                                ));
+                            }
+                        }
+                    }
+                    let Some(slot) = selected else {
+                        return Ok(false);
+                    };
+                    let Some(SemanticActualRecipe::Type(actual)) = environment.get(slot) else {
+                        return Ok(false);
+                    };
+                    if !self.cleanup_capability(owner, actual, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                return Ok(true);
+            }
+            SemanticTypeRecipe::Opaque {
+                definition,
+                arguments,
+                hidden,
+            } => {
+                let callee = self.definition(*definition)?;
+                if !self.proof.complete.contains(definition) {
+                    return Ok(false);
+                }
+                let result = self
+                    .proof
+                    .types
+                    .get(&(*definition, Query::Result))
+                    .ok_or_else(|| {
+                        pending("opaque cleanup lacks the independently checked defining result")
+                    })?;
+                crate::dyn_metadata::semantic_operand_snapshot(result, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    hidden.as_ref(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                if result != hidden.as_ref() {
+                    return Err(bad(
+                        "opaque cleanup hidden type differs from its original all-return theorem",
+                    ));
+                }
+                self.call_requirements(owner, callee, arguments, depth + 1)?;
+                self.contexts.push(*definition);
+                let result = self.cleanup_capability(*definition, hidden, depth + 1);
+                self.contexts.pop();
+                return result;
+            }
             SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
                 for field in fields {
                     if !self.cleanup_capability(owner, field, depth + 1)? {
@@ -308,6 +403,24 @@ impl Check<'_, '_> {
             }
             SemanticTypeRecipe::Nominal { definition, .. } => {
                 let original = self.definition(*definition)?;
+                if let SemanticDefinitionBody::Nominal {
+                    body: SemanticNominalBody::Enum { variants },
+                    ..
+                } = &original.body
+                {
+                    self.pay(variants.len(), depth)?;
+                    for variant in variants {
+                        let fields = self
+                            .cleanup_variant(owner, &ty, &variant.name, depth + 1)?
+                            .ok_or_else(|| bad("cleanup enum lost its original declaration"))?;
+                        for field in fields {
+                            if !self.cleanup_capability(owner, &field, depth + 1)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    return Ok(true);
+                }
                 if matches!(
                     original.body,
                     SemanticDefinitionBody::Nominal {
@@ -336,6 +449,115 @@ impl Check<'_, '_> {
         }
         Ok(false)
     }
+    fn cleanup_owned_payload(
+        &mut self,
+        owner: SemanticDefinitionId,
+        payload: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        let payload = self.observation_type(owner, payload, depth + 1)?;
+        match &payload {
+            SemanticTypeRecipe::Atom(Type::ByteBuffer) => return Ok(true),
+            SemanticTypeRecipe::OwnedStore(element) | SemanticTypeRecipe::Mutex(element) => {
+                return self.cleanup_capability(owner, element, depth + 1);
+            }
+            // A legal synchronous registration owner preserves the constructor's
+            // callback cleanup invariant. This does not prove SyncDrop(F).
+            SemanticTypeRecipe::Registration(_) => return Ok(true),
+            SemanticTypeRecipe::AsyncRegistration(_)
+            | SemanticTypeRecipe::Task { .. }
+            | SemanticTypeRecipe::Atom(Type::TaskI32) => return Ok(false),
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let declaration = self.definition(*definition)?;
+                let SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Resource,
+                    body: SemanticNominalBody::Product { fields },
+                    ..
+                } = &declaration.body
+                else {
+                    return Ok(false);
+                };
+                self.call_requirements(owner, declaration, arguments, depth + 1)?;
+                self.pay(
+                    fields.len().saturating_add(self.program.definitions.len()),
+                    depth,
+                )?;
+                for field in fields {
+                    let ty = super::super::instantiate::ty(
+                        self.program,
+                        &self.proof,
+                        &field.ty,
+                        super::super::instantiate::DomainMapping {
+                            source: declaration.id,
+                            use_definition: owner,
+                            arguments,
+                            parent_call: None,
+                        },
+                        self.limits,
+                        self.left,
+                    )?;
+                    if !self.cleanup_capability(owner, &ty, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                let mut selected = None;
+                for scope in &self.program.definitions {
+                    if !matches!(
+                        scope.body,
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
+                            trait_kind: SemanticBuiltinTrait::Drop,
+                            ..
+                        })
+                    ) {
+                        continue;
+                    }
+                    match self.solve_parent(owner, scope, &payload, depth + 1) {
+                        Ok(_) => {}
+                        Err(diagnostic)
+                            if diagnostic.category == zil_base::ResultCategory::SafeReject =>
+                        {
+                            continue;
+                        }
+                        Err(diagnostic) => return Err(diagnostic),
+                    }
+                    self.pay(self.program.definitions.len(), depth)?;
+                    let mut methods = self.program.definitions.iter().filter(|method| {
+                        method.parent == Some(scope.id)
+                            && method.kind == SemanticDefinitionKind::Method
+                    });
+                    let Some(method) = methods.next() else {
+                        return Err(bad("original resource Drop provider has no method"));
+                    };
+                    if methods.next().is_some() || selected.replace(scope.id).is_some() {
+                        return Err(bad(
+                            "original resource cleanup has ambiguous Drop providers",
+                        ));
+                    }
+                    let SemanticDefinitionBody::FunctionWithBody {
+                        signature,
+                        body: SemanticOriginalFunctionBody::Defined(_),
+                        ..
+                    } = &method.body
+                    else {
+                        return Ok(false);
+                    };
+                    if signature.call_kind != CallKind::Direct
+                        || !self.proof.complete.contains(&method.id)
+                    {
+                        return Ok(false);
+                    }
+                }
+                return Ok(true);
+            }
+            _ => {}
+        }
+        Ok(false)
+    }
+
     fn cleanup_fields(
         &mut self,
         owner: SemanticDefinitionId,

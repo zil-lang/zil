@@ -132,6 +132,11 @@ pub(super) fn satisfy(
             ));
         }
     }
+    if super::receiver::permits(world, caller.id, site.recipe, operand, &source, &target)? {
+        // This exact source binding/field path and actual producer establish
+        // only this receiver loan. Its whole pointee domain was checked above.
+        return Ok(());
+    }
     let mut parents = Vec::new();
     let mut visited = BTreeSet::new();
     while source != target {
