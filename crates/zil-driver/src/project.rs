@@ -3308,10 +3308,12 @@ pub fn main()->i32=>0",
                 assert_eq!(producer.function_input_binding_hashes, 425);
                 assert_eq!(
                     (producer.lower_modules, producer.reused_lower_modules),
-                    (22, 0)
+                    (0, 22)
                 );
-                assert_eq!(producer.retained_normalized_items, 0);
-                assert_eq!(producer.retained_restored_modules, 0);
+                assert_eq!(producer.retained_normalized_items, 425);
+                assert_eq!(producer.retained_restored_modules, 22);
+                assert_eq!(producer.rebound_frontend_modules, 22);
+                assert_eq!(producer.rebound_source_map_validations, 22);
                 let materializer = report.materialization_work.as_ref().unwrap();
                 assert_eq!(
                     (materializer.executed_modules, materializer.reused_modules),

@@ -144,27 +144,28 @@ def window(path, mode, pins, verify):
     manifest = read(path/'manifest.json')
     completion = read(path/'completion.json')
     args = manifest['arguments']
-    require(args['mode'] == mode and args['blocks'] == 2, 'original two-block mode')
+    blocks = args['blocks']
+    require(args['mode'] == mode and type(blocks) is int and blocks in (2, 6), 'original425 mode/block protocol')
     for key, expected in [('candidate_source', pins['candidate']['source']), ('baseline_source', MAIN),
                           ('tool_source', pins['tool_source']), ('expected_candidate_binary_sha256', pins['candidate']['binary_sha256']),
                           ('expected_baseline_binary_sha256', pins['baseline']['binary_sha256'])]:
         require(args.get(key) == expected, 'manifest pin mismatch: '+key)
-    require(completion.get('valid') is True and completion['rows'] == 102
-            and completion['measured'] == 54 and completion['preparations'] == 48, 'completion matrix')
+    require(completion.get('valid') is True and completion['rows'] == 51 * blocks
+            and completion['measured'] == 27 * blocks and completion['preparations'] == 24 * blocks, 'completion matrix')
     exit_path = path.with_suffix('.exit')
     require(exit_path.read_text().strip() == '0', 'controller exit not zero')
     rows_path = path/'rows.jsonl'
     rows = [json.loads(line) for line in rows_path.read_text().splitlines()]
-    require(len(rows) == 102 and all(x.get('valid') is True and x['mode'] == mode for x in rows), 'raw row validity')
-    require(sum(x.get('measured') is True for x in rows) == 54, 'measured count')
+    require(len(rows) == 51 * blocks and all(x.get('valid') is True and x['mode'] == mode for x in rows), 'raw row validity')
+    require(sum(x.get('measured') is True for x in rows) == 27 * blocks, 'measured count')
     cells = []
     for cell in CELLS:
         selected = {a: sorted([x for x in rows if x['arm'] == a and x.get('measured') is True
                               and x['request'] == x['target_request'] == cell], key=lambda x:x['block']) for a in ARMS}
-        require(all([x['block'] for x in selected[a]] == [0, 1] for a in ARMS), 'measured target_request matching')
+        require(all([x['block'] for x in selected[a]] == list(range(blocks)) for a in ARMS), 'measured target_request matching')
         samples = {a:[x['measurement']['wall_ms'] for x in selected[a]] for a in ARMS}
         require(all(all(type(v) in (int,float) and math.isfinite(v) and v > 0 for v in vs) for vs in samples.values()), 'wall samples')
-        cells.append({'request':cell, 'wall_ms_block0_1':samples,
+        cells.append({'request':cell, 'wall_ms_by_block':samples,
                       'wall_median_ms':{a:statistics.median(vs) for a,vs in samples.items()},
                       'candidate_over_main_paired_GM':math.exp(statistics.mean(math.log(c/b) for c,b in zip(samples['candidate'],samples['baseline']))),
                       'candidate_over_Rust_paired_GM':math.exp(statistics.mean(math.log(c/b) for c,b in zip(samples['candidate'],samples['rust'])))})
@@ -192,14 +193,14 @@ def window(path, mode, pins, verify):
                              'executable':row.get('executable'), 'LLVM':row.get('llvm'),
                              'native_work':native, 'native_sums_observed':aggregate(native['units'])})
     pairs = [read(f) for f in sorted(path.glob('block-*/requests/*/pair-validation.json'))]
-    require(len(pairs) == 34 and all(x.get('valid') is True for x in pairs), 'all parent/measured pair receipts')
+    require(len(pairs) == 17 * blocks and all(x.get('valid') is True for x in pairs), 'all parent/measured pair receipts')
     quality = {'pair_records':pairs, 'native_outcomes':sum(len(x.get('native', [])) for x in rows),
                'full_ELF_equal_pairs':sum(x.get('executable_equal') is True for x in pairs),
                'aggregate_exports_equal_pairs':sum(x.get('aggregate_zil_function_exports_equal') is True for x in pairs),
                'artifact_rehash_executed':verify, 'unique_blobs_rehashed':len(cache),
                'scope':'Existing runner current independent Verify/native/ELF/CGU quality receipts; optional blob rehash does not execute native code.'}
     if mode == 'o2':
-        require(quality['native_outcomes'] == 1080 and quality['full_ELF_equal_pairs'] == 30, 'full original425 native quality count')
+        require(quality['native_outcomes'] == 540 * blocks and quality['full_ELF_equal_pairs'] == 15 * blocks, 'full original425 native quality count')
     # Measured and parent summaries stay separate; no cumulative arena totals
     # are differenced or mistaken for current-request publications.
     cohort_cells = []
@@ -211,7 +212,7 @@ def window(path, mode, pins, verify):
                     cohort_cells.append({'target_request':target,'measured':measured,'arm':arm,
                                          'observed_requests':len(selected),
                                          'sum_current_unit_observations':aggregate([u for x in selected for u in x['native_work']['units']])})
-    return {'mode':mode,'raw':str(path),'raw_hashes':{f:digest(path/f) for f in ('manifest.json','completion.json','rows.jsonl')},
+    return {'mode':mode,'blocks':blocks,'raw':str(path),'raw_hashes':{f:digest(path/f) for f in ('manifest.json','completion.json','rows.jsonl')},
             'manifest':manifest,'completion':completion,'cells':cells,'quality':quality,
             'cohort_request_sums':cohort_cells,'requests':observations}
 
@@ -225,14 +226,14 @@ def main():
     parser.add_argument('--verify-blobs',action='store_true')
     args = parser.parse_args()
     require(not args.output.exists(), 'unique output required')
-    result = {'schema':'completed-two-block-cohort-evidence-v1', 'valid':False,
+    result = {'schema':'completed-matched-cohort-evidence-v2', 'valid':False,
               'script_sha256':digest(Path(__file__)), 'scope':'Read-only evidence aggregation; no build, native execution, measurement or source qualification.',
               'interpretation':['Missing optional cohort/MC/native_products fields remain unknown; observed zero is preserved.',
                 'cohort counters are current-build completed-product events, not arena live-slot totals or prior-history counters.',
                 'Fallback hook observations describe a discarded attempt; uninstrumented ordinary fallback counts remain unknown.',
                 'MC counters are total AsmPrinter observations; no direct per-cohort MC attribution is fabricated.',
                 'Zero MIR/IR cohort replays is a valid observation, not proof of a working reuse consumer.',
-                'Two blocks do not establish significance, stable superiority, main merge or default flag authorization.']}
+                'A finite two/six-block window does not establish universal stable superiority, main merge or default flag authorization.']}
     try:
         pins = read(args.pins)
         require(pins['baseline']['source'] == MAIN, 'exact main9170 pin')

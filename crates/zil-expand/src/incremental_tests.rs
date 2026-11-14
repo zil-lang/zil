@@ -1800,6 +1800,8 @@ fn scalar_placement_preserves_exact_current_work_and_node_boundaries_and_first_e
     let epoch = seed.epoch.clone();
     let mut replayed_failures = 0;
     let mut successful_rebindings = 0;
+    let mut fallback_ranges = Vec::new();
+    let scalar_nodes = seed.entries[&ModuleId(0)].scalar_nodes;
     for nodes in [false, true] {
         let allowance = |amount| {
             if nodes {
@@ -1836,12 +1838,46 @@ fn scalar_placement_preserves_exact_current_work_and_node_boundaries_and_first_e
         for amount in [0, 1, low / 2, low - 1, low, low + 1] {
             let mut session = seed.checkpoint();
             let current = allowance(amount);
-            match (
-                expand(&mut session, &moved, &current),
-                fresh(&moved, &current),
-            ) {
-                (Ok(Some(actual)), Ok(expected)) => {
-                    assert_eq!(actual.modules, expected, "nodes={nodes}, amount={amount}");
+            let actual = match expand(&mut session, &moved, &current) {
+                Ok(Some(actual)) => Ok(actual.modules),
+                Ok(None) => {
+                    // Like the real driver, a declined producer must run the
+                    // complete current raw expansion with the same context and
+                    // allowance. None is eligibility, never a budget diagnostic.
+                    fallback_ranges.push((nodes, amount));
+                    assert!(nodes && (amount as u64) < scalar_nodes);
+                    assert_eq!(session.epoch, epoch, "declining cannot publish an epoch");
+                    assert_eq!(session.last_stats().receipt_hits, 0);
+                    let sources = moved.iter().map(ParsedSource::source).collect::<Vec<_>>();
+                    let syntax = moved
+                        .iter()
+                        .map(|input| &input.parsed().module)
+                        .collect::<Vec<_>>();
+                    let aliases = BTreeMap::new();
+                    expand_program_with_limits_target_context(
+                        &sources,
+                        &syntax,
+                        &vec![vec![]; moved.len()],
+                        &current,
+                        &TargetProfile::default(),
+                        source_context::SourceIdentityContext::ClosedSnapshot {
+                            root: ModuleId(0),
+                            aliases: &aliases,
+                            declarations: source_context::DeclarationPlacement::Original,
+                        },
+                    )
+                    .map(|modules| {
+                        modules
+                            .into_iter()
+                            .map(|(module, map)| (module, Arc::new(map)))
+                            .collect::<Vec<_>>()
+                    })
+                }
+                Err(errors) => Err(errors),
+            };
+            match (actual, fresh(&moved, &current)) {
+                (Ok(actual), Ok(expected)) => {
+                    assert_eq!(actual, expected, "nodes={nodes}, amount={amount}");
                     successful_rebindings += session.last_stats().rebound_frontend_modules;
                 }
                 (Err(actual), Err(expected)) => {
@@ -1862,6 +1898,14 @@ fn scalar_placement_preserves_exact_current_work_and_node_boundaries_and_first_e
     }
     assert!(successful_rebindings > 0);
     assert!(replayed_failures > 0);
+    assert!(
+        fallback_ranges.contains(&(true, 0)),
+        "None ranges: {fallback_ranges:?}"
+    );
+    assert!(
+        fallback_ranges.contains(&(true, 1)),
+        "None ranges: {fallback_ranges:?}"
+    );
     // Source ingress remains a current-request obligation. Even when handed a
     // successful parse made with larger limits, placement cannot carry a file
     // exceeding this request's byte quota into the receipt path.
