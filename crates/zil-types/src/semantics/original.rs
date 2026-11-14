@@ -3186,8 +3186,7 @@ impl<'a> Check<'a, '_> {
                 self.observe_field(owner, expression, field, depth + 1)?
             }
             CoreExprKind::Member { .. } => {
-                let field = self.place(owner, expression, variables, depth + 1)?;
-                self.observe_field(owner, expression, field, depth + 1)?
+                self.observe_member(owner, expression, variables, depth + 1)?
             }
             CoreExprKind::Record { ty, fields } => {
                 self.record_constructor(owner, ty, fields, variables, wanted, depth + 1)?

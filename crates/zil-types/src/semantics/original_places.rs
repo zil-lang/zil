@@ -3,6 +3,50 @@
 use super::*;
 
 impl Check<'_, '_> {
+    /// Ordinary affine fields of a directly owned Package transfer their own
+    /// responsibility. A resource-head field remains an observation unless an
+    /// explicit Give selects it; a projection through a borrowed owner cannot
+    /// acquire an affine field merely because its type happens to match.
+    pub(super) fn observe_member(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        let CoreExprKind::Member { object, member, .. } = &expression.kind else {
+            return Err(bad("original member observation changes its node kind"));
+        };
+        if let Some(field) =
+            self.package_field(owner, object, member, variables, true, depth + 1)?
+        {
+            let value = self.observation_type(owner, &field, depth + 1)?;
+            if !matches!(
+                value,
+                SemanticTypeRecipe::Managed(_) | SemanticTypeRecipe::Desc { .. }
+            ) && !self.copy_type(owner, &value, depth + 1)?
+            {
+                let CoreExprKind::Name(name) = &object.kind else {
+                    unreachable!()
+                };
+                let binding = variables.get_mut(name).ok_or_else(|| {
+                    bad("original Package field transfer loses its owning binder")
+                })?;
+                if binding.borrowed {
+                    return Err(bad(
+                        "original affine field transfer uses a borrowed capture",
+                    ));
+                }
+                self.pay(member.len().saturating_add(1), depth)?;
+                binding.taken_fields.insert(member.clone());
+                self.observe_capture(owner, name, binding, depth + 1)?;
+                return Ok(value);
+            }
+            return self.observe_field(owner, expression, value, depth + 1);
+        }
+        let field = self.place(owner, expression, variables, depth + 1)?;
+        self.observe_field(owner, expression, field, depth + 1)
+    }
     pub(super) fn observe_field(
         &mut self,
         owner: SemanticDefinitionId,
