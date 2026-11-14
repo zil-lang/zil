@@ -455,20 +455,32 @@ impl Check<'_, '_> {
                         ));
                     }
                 }
-                if expected_type
-                    != self.captured_value(
-                        instance,
-                        expected,
-                        subject,
-                        (point.block.id, point.instruction, point.edge),
-                        false,
-                        b,
-                    )?
-                    || self.operand(instance, subject, point, b)? != expected_type
-                {
-                    return Err(fail(
+                let captured = self.captured_value(
+                    instance,
+                    expected,
+                    subject,
+                    (point.block.id, point.instruction, point.edge),
+                    false,
+                    b,
+                )?;
+                let actual_operand = self.operand(instance, subject, point, b)?;
+                if expected_type != captured || actual_operand != expected_type {
+                    crate::dyn_metadata::ty(&actual_operand, b)?;
+                    crate::dyn_metadata::ty(&captured, b)?;
+                    crate::dyn_metadata::recipe(expected, b)?;
+                    b.spend(
+                        original_value
+                            .classes
+                            .len()
+                            .saturating_mul(128)
+                            .saturating_add(256),
+                        WORK,
+                    )?;
+                    let mut errors = fail(
                         "actual type-use occupant differs from its complete original ascription",
-                    ));
+                    );
+                    errors[0].notes.push(format!("original whole value {original_value:?}; emitted claim {expected:?}; captured operand type {captured:?}; actual operand type {actual_operand:?}"));
+                    return Err(errors);
                 }
             }
             (
@@ -607,6 +619,25 @@ impl Check<'_, '_> {
                         .intrinsic(instance, site.recipe, self.inventory, b)?
                 {
                     match intrinsic {
+                        original::sealed::Intrinsic::OwnedDyn => {
+                            let output = self.dyn_owned_operation(
+                                instance,
+                                site.recipe,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            self.result(
+                                instruction.ok_or_else(|| {
+                                    fail("actual owning Dyn construction has no instruction")
+                                })?,
+                                point.function,
+                                &output.ty,
+                            )?;
+                            return Ok(());
+                        }
                         original::sealed::Intrinsic::CCallback => {
                             let outputs = self.original.intrinsic_inputs(
                                 instance,
@@ -1371,7 +1402,7 @@ impl Check<'_, '_> {
                     .iter()
                     .find(|recipe| recipe.id == site.recipe)
                     .ok_or_else(|| fail("actual semantic action has no original recipe"))?;
-                self.operation(
+                let checked = self.operation(
                     instance,
                     site,
                     recipe,
@@ -1383,7 +1414,15 @@ impl Check<'_, '_> {
                         initialization: &initialization,
                     },
                     b,
-                )?;
+                );
+                if let Err(mut errors) = checked {
+                    b.spend(192, WORK)?;
+                    for error in &mut errors {
+                        error.notes.push(format!("actual semantic instance {}:{} original definition {}:{} function {} recipe {} at block {} instruction {} {:?}",
+                            instance.id.module.0,instance.id.index,definition.id.module.0,definition.id.index,function.id.0,site.recipe.0,block.id.0,instruction,edge));
+                    }
+                    return Err(errors);
+                }
             }
             let original_nodes = super::super::original_index::index(definition, b)?;
             for recipe in recipes {

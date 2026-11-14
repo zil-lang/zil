@@ -853,6 +853,20 @@ impl Check<'_, '_> {
                 ));
             };
             let expected = self.resolved(parent, actual, b, 0)?;
+            b.lookup(creator_bindings.len(), WORK)?;
+            if let Some((_, creator_expected)) = creator_bindings.get(&ordinal) {
+                if creator_expected != &expected {
+                    return Err(fail(
+                        "captured name changes its creator-sealed complete environment value",
+                    ));
+                }
+                // The all-creators proof above fixes the physical binding.
+                // A mutable scalar's current value may be a Binary/Call result;
+                // it is not required to remain the initial ReadCapture SSA.
+                // Actual name uses, writes, data/loans and class transport are
+                // still checked at their individual operation boundaries.
+                continue;
+            }
             let weak_mutex = matches!(&expected.ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32));
             if (!expected.life.slots.is_empty() && !weak_mutex)
                 || !expected.life.retained.is_empty()
@@ -1098,15 +1112,6 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> CompileResult<Value> {
         b.spend(1, WORK)?;
-        if depth > b.partial_depth {
-            let mut errors =
-                unknown("semantic value transport exceeds its finite actual SSA depth");
-            errors[0].notes.push(format!(
-                "actual function {} SSA {} original world {}:{}",
-                function.id.0, id.0, instance.id.module.0, instance.id.index
-            ));
-            return Err(errors);
-        }
         let ty = function
             .values
             .get(id.0 as usize)
@@ -1132,8 +1137,17 @@ impl Check<'_, '_> {
             // loans and cleanup remain obligations of each operation/kernel.
             // This is not an empty-shape shortcut: zero_data walks the full
             // nominal/opaque inventory and rejects nonzero or Unknown scopes.
-            self.zero_data(ty, b, depth + 1)?;
+            self.zero_data(ty, b, 0)?;
             return Ok(value::scalar(ty.clone()));
+        }
+        if depth > b.partial_depth {
+            let mut errors =
+                unknown("semantic value transport exceeds its finite actual SSA depth");
+            errors[0].notes.push(format!(
+                "actual function {} SSA {} original world {}:{}",
+                function.id.0, id.0, instance.id.module.0, instance.id.index
+            ));
+            return Err(errors);
         }
         let (block, index, instruction) = self.defining(function, id, b)?;
         match &instruction.kind {

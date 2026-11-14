@@ -2460,10 +2460,22 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     }
     super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
-    if f.reference_return_bound.is_some() || f.foreign.is_some() {
+    if f.reference_return_bound.is_some() {
         return Err(failure(
             "stored signature contradicts another active profile",
         ));
+    }
+    if f.foreign.is_some() {
+        fee(b, f.blocks.len().saturating_add(1))?;
+        if f.call_kind != CallKind::Direct || f.environment.is_some() || !f.blocks.is_empty() {
+            return Err(failure(
+                "foreign signature must retain its actual external Direct ABI and no environment/body",
+            ));
+        }
+        // The complete class header and the foreign ABI are separate
+        // obligations. Continue through the same P/R/class relation below;
+        // actual ForeignCall/ForeignFunctionRef, noescape and provider checks
+        // still run. This does not identify an ordinary pointer with a C one.
     }
     let mut parameters = Vec::with_capacity(f.parameters.len());
     for p in &f.parameters {

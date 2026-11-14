@@ -14,6 +14,7 @@ mod capture_places;
 mod class_origins;
 mod classes;
 mod descriptions;
+mod dyn_owners;
 mod dyn_tables;
 mod function_values;
 mod mutex;
@@ -68,6 +69,9 @@ impl Check<'_, '_> {
             || *ty == crate::generic_mutex::error_type()
             || crate::dyn_dispatch::is_create_error(ty)
         {
+            return Ok(());
+        }
+        if self.dyn_value_type(ty, b, depth + 1)? {
             return Ok(());
         }
         if self.protocol_value_type(ty, b, depth + 1)? {

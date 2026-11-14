@@ -19,6 +19,14 @@ impl Check<'_, '_> {
             return Ok(());
         }
         match ty {
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+                if !self.dyn_value_type(ty, b, depth + 1)? {
+                    return Err(fail(
+                        "dynamic zero-domain type has no complete original formation",
+                    ));
+                }
+                Ok(())
+            }
             Type::Managed(_) => self.resource_zero(ty, b, depth + 1),
             Type::Closure(id) => {
                 if !self.capture_directory(*id, b)?.is_empty() {

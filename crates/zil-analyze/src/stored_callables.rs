@@ -286,6 +286,26 @@ pub(super) fn semantic_copy_capture(
     if !b.semantic_closures_proven.contains(&closure.id) {
         return Ok(false);
     }
+    if matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32))
+    {
+        b.type_work(ty, false, "complete original weak Mutex capture")?;
+        b.spend(module.closures.len(), "completed weak capture owner")?;
+        if closure.storage_life.is_none()
+            || !module
+                .closures
+                .iter()
+                .any(|actual| actual.id == closure.id && std::ptr::eq(actual, closure))
+        {
+            return Err(bad(
+                "completed weak capture is not its immutable actual closure",
+            ));
+        }
+        // Admission selects the existing actual Mutex/epoch consumers. A
+        // descriptor remains weak; this supplies no holding loan or ownership.
+        b.generic_mutex = true;
+        b.owning_environment_captures = true;
+        return Ok(true);
+    }
     let Type::BorrowedStorage { storage, life } = ty else {
         return Ok(false);
     };

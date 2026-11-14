@@ -14,6 +14,19 @@ impl Check<'_, '_> {
             .environment
             .ok_or_else(|| fail("original environment place has no actual closure entry"))?;
         self.capture_directory(id, b)?;
+        let closure = self
+            .module
+            .closures
+            .get(id.0 as usize)
+            .filter(|item| item.id == id && item.function == function.id)
+            .ok_or_else(|| fail("environment binding has another actual closure entry"))?;
+        let creators = self.capture_creator_bindings(instance, closure, b)?;
+        b.lookup(creators.len(), WORK)?;
+        if let Some((capture, _)) = creators.get(&ordinal) {
+            // This is binding identity from every real MakeClosure. It does
+            // not assert that a later occupant still has its initial data.
+            return Ok(*capture);
+        }
         let definition = self.inventory.definition(instance.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
         else {
