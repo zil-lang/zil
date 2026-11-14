@@ -9,6 +9,7 @@ mod capabilities;
 mod captures;
 mod constructors;
 mod dyn_types;
+mod dyn_values;
 mod effects;
 mod enums;
 mod function_values;

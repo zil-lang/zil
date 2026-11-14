@@ -187,9 +187,7 @@ impl Checked {
         match &self.arena[self.root(term, b)?] {
             Kind::Atom(ty) => Ok(value::scalar(ty.clone())),
             Kind::Task(task) => self.task_value(task, context, program, inventory, b, depth + 1),
-            Kind::Dyn(_) => Err(unknown(
-                "original Dyn value requires its complete actual application, Context and member bridge",
-            )),
+            Kind::Dyn(ty) => self.dyn_value(ty, context, program, inventory, b, depth + 1),
             Kind::MutexGuard { payload, life } => {
                 b.spend(6, WORK)?;
                 let payload = self.value(*payload, context, program, inventory, b, depth + 1)?;
