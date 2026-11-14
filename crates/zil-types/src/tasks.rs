@@ -2,7 +2,9 @@
 use super::*;
 pub(crate) mod context_ports;
 pub(super) mod failure;
+mod poll;
 pub(super) use failure::append_inventory as append_failure_inventory;
+pub(super) use poll::append_inventory as append_poll_inventory;
 pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -654,41 +656,84 @@ impl Builder<'_, '_> {
         self.closures.snapshot(before - left, span)?;
         let mut prepared = prepared?;
         if let Some(prepared) = &mut prepared {
-            for (id, header, embedding, values) in std::mem::take(&mut prepared.headers) {
-                let pending = self
-                    .closures
-                    .pending
-                    .iter_mut()
-                    .find(|pending| pending.id == id)
-                    .ok_or_else(|| {
-                        unsupported(
-                            span,
-                            "actual Task closure header lost its real pending entry",
-                        )
-                    })?;
-                let entry = pending.typed.as_mut().ok_or_else(|| {
-                    unsupported(span, "actual Task closure header has no real typed entry")
-                })?;
-                if entry
-                    .storage_life
-                    .as_ref()
-                    .is_some_and(|previous| previous != &header)
-                {
-                    return Err(error(
-                        "E-TASK-CONTEXT",
-                        span,
-                        "actual Task closure header changes its existing directory",
-                    ));
-                }
-                entry.storage_life = Some(header.clone());
-                self.closures
-                    .semantic_emission
-                    .record_formed_header(id, header, embedding, values)?;
-            }
+            self.install_task_headers(std::mem::take(&mut prepared.headers), span)?;
         }
         Ok(prepared)
     }
 
+    fn install_task_headers(
+        &mut self,
+        headers: Vec<(
+            ClosureId,
+            StorageLifeContract,
+            Vec<SemanticHeaderBinding>,
+            Vec<(StorageBase, SemanticTypeValue)>,
+        )>,
+        span: Span,
+    ) -> R<()> {
+        for (id, header, embedding, values) in headers {
+            let pending = self
+                .closures
+                .pending
+                .iter_mut()
+                .find(|pending| pending.id == id)
+                .ok_or_else(|| {
+                    unsupported(
+                        span,
+                        "actual Task closure header lost its real pending entry",
+                    )
+                })?;
+            let entry = pending.typed.as_mut().ok_or_else(|| {
+                unsupported(span, "actual Task closure header has no real typed entry")
+            })?;
+            if entry
+                .storage_life
+                .as_ref()
+                .is_some_and(|previous| previous != &header)
+            {
+                return Err(error(
+                    "E-TASK-CONTEXT",
+                    span,
+                    "actual Task closure header changes its existing directory",
+                ));
+            }
+            entry.storage_life = Some(header.clone());
+            self.closures
+                .semantic_emission
+                .record_formed_header(id, header, embedding, values)?;
+        }
+        Ok(())
+    }
+    fn actual_poll(
+        &mut self,
+        name: &str,
+        task: &Type,
+        span: Span,
+    ) -> R<Option<semantics::materialize::PreparedPoll>> {
+        if !matches!(name, "task_poll" | "task_poll_close") {
+            return Ok(None);
+        }
+        let before = self.closures.remaining_work();
+        let mut left = before;
+        let result = semantics::materialize::prepare_poll(
+            self.closures,
+            self.function.view(),
+            &self.actual_functions,
+            self.life_instances,
+            self.dyn_declarations,
+            self.dyn_interfaces,
+            name,
+            task,
+            self.limits,
+            &mut left,
+        );
+        self.closures.snapshot(before - left, span)?;
+        let mut result = result?;
+        if let Some(prepared) = &mut result {
+            self.install_task_headers(std::mem::take(&mut prepared.headers), span)?;
+        }
+        Ok(result)
+    }
     pub(super) fn task_call(
         &mut self,
         name: &str,
@@ -856,7 +901,15 @@ impl Builder<'_, '_> {
             self.closures.snapshot(before - remaining, span)?;
             if let Some(task) = looked? {
                 let parameter = parameter_for(name, &task);
-                let ty = result_for(name, &task);
+                let poll = self.actual_poll(name, &task, span)?;
+                let ty = match &poll {
+                    Some(poll) if name == "task_poll" => Type::ErrorUnion {
+                        error: Box::new(poll_state()),
+                        result: Box::new(poll.instance.ty.clone()),
+                    },
+                    Some(poll) => poll.instance.ty.clone(),
+                    None => result_for(name, &task),
+                };
                 let (task, t) = self.argument_expr(&arguments[0], &parameter)?;
                 self.same(&t, &parameter, arguments[0].span)?;
                 let kind = match name {
@@ -871,6 +924,31 @@ impl Builder<'_, '_> {
                     self.same(&ty, wanted, span)?;
                 }
                 let v = self.value(kind, ty.clone(), span)?;
+                if let Some(poll) = poll {
+                    self.closures.snapshot(
+                        self.closures
+                            .semantic_emission
+                            .formed_polls
+                            .len()
+                            .saturating_add(1)
+                            .ilog2() as usize
+                            + 1,
+                        span,
+                    )?;
+                    if self
+                        .closures
+                        .semantic_emission
+                        .formed_polls
+                        .insert((self.function.id, v), poll.instance)
+                        .is_some()
+                    {
+                        return Err(error(
+                            "E-TASK-POLL",
+                            span,
+                            "real Task poll result has duplicate formation receipts",
+                        ));
+                    }
+                }
                 return Ok((v, ty));
             }
         }

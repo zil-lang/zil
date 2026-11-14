@@ -50,7 +50,7 @@ mod shapes;
 mod task_domains;
 #[path = "materialize_task_results.rs"]
 mod task_results;
-pub(crate) use emitter::{PreparedTask, prepare_task};
+pub(crate) use emitter::{PreparedPoll, PreparedTask, prepare_poll, prepare_task};
 #[path = "materialize_view.rs"]
 mod view;
 pub(super) use view::ActualDirectory;

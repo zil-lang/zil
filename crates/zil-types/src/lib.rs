@@ -821,6 +821,8 @@ pub fn check(
     };
     mark_cost("single: resource and output metadata", remaining);
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
+    tasks::append_poll_inventory(&mut module, &semantic_emission, limits, &mut remaining)
+        .map_err(|e| vec![e])?;
     retained::populate_local_static_results(&mut module, &mut remaining, limits)
         .map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;

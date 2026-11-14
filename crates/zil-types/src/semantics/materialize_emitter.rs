@@ -242,49 +242,26 @@ fn install_callable_actuals(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare_task(
-    state: &closures::State,
-    caller: crate::FunctionRef<'_>,
-    prior: &[crate::FunctionRef<'_>],
-    life_instances: &[LifeNominalInstance],
-    declarations: &[DynDeclaration],
-    interfaces: &[DynInterface],
-    worker: FunctionId,
-    parameters: &[Type],
-    result: &Type,
+type FormedHeaders = Vec<(
+    ClosureId,
+    StorageLifeContract,
+    Vec<SemanticHeaderBinding>,
+    Vec<(StorageBase, SemanticTypeValue)>,
+)>;
+#[allow(clippy::too_many_arguments)]
+fn emitter_directory<'m>(
+    state: &'m closures::State,
+    caller: crate::FunctionRef<'m>,
+    prior: &[crate::FunctionRef<'m>],
+    life_instances: &'m [LifeNominalInstance],
+    declarations: &'m [DynDeclaration],
+    interfaces: &'m [DynInterface],
+    program: &SemanticModule,
+    caller_instance: SemanticInstanceId,
     limits: &Limits,
     left: &mut usize,
-) -> R<Option<PreparedTask>> {
+) -> R<(ActualDirectory<'m>, FormedHeaders)> {
     let ledger = &state.semantic_emission;
-    let Some(context) = ledger.original.context() else {
-        return Ok(None);
-    };
-    let expression = ledger
-        .active_expression(caller.id, left, caller.span)?
-        .ok_or_else(|| bad("Task worker preparation has no real active Core call"))?;
-    let scheme = ledger
-        .original_task_worker(caller.id, expression, limits, left)?
-        .ok_or_else(|| {
-            unknown("Task worker preparation awaits its exact checked original call scheme")
-        })?;
-    fee(
-        left,
-        ledger
-            .frames
-            .len()
-            .saturating_add(context.semantic.instances.len()),
-    )?;
-    let actual_worker = ledger
-        .frames
-        .get(&worker)
-        .ok_or_else(|| bad("Task worker has no real emitter origin"))?;
-    if !context.semantic.instances.iter().any(|row| {
-        row.definition == scheme.worker && origin_matches(&row.target, actual_worker.origin)
-    }) {
-        return Err(bad(
-            "Task preparation changes its exact original worker target",
-        ));
-    }
     let mut functions = Vec::new();
     fee(
         left,
@@ -325,10 +302,10 @@ pub(crate) fn prepare_task(
     )?;
     bind_instance(
         &mut directory,
-        &context.semantic,
+        program,
         ledger,
         caller.id,
-        Some(scheme.instance),
+        Some(caller_instance),
         limits,
         left,
     )?
@@ -336,7 +313,7 @@ pub(crate) fn prepare_task(
     for function in prior {
         bind_instance(
             &mut directory,
-            &context.semantic,
+            program,
             ledger,
             function.id,
             None,
@@ -352,7 +329,7 @@ pub(crate) fn prepare_task(
     {
         bind_instance(
             &mut directory,
-            &context.semantic,
+            program,
             ledger,
             definition.1,
             None,
@@ -412,7 +389,7 @@ pub(crate) fn prepare_task(
         }
         row.header_embedding = embedding.clone();
     }
-    install_callable_actuals(&mut directory, &context.semantic, state, limits, left)?;
+    install_callable_actuals(&mut directory, program, state, limits, left)?;
     let mut headers = Vec::new();
     // Actual capture dependencies form a finite creation graph. Revisit only
     // when a previous complete directory was formed; missing dependencies are
@@ -435,14 +412,7 @@ pub(crate) fn prepare_task(
                 continue;
             };
             let Some((header, embedding, values)) = super::super::headers::form_emitted_header(
-                &context.semantic,
-                &directory,
-                ledger,
-                instance,
-                closure,
-                function,
-                limits,
-                left,
+                program, &directory, ledger, instance, closure, function, limits, left,
             )?
             else {
                 continue;
@@ -467,11 +437,69 @@ pub(crate) fn prepare_task(
             headers.push((closure, header, embedding, values));
             progress = true;
         }
-        install_callable_actuals(&mut directory, &context.semantic, state, limits, left)?;
+        install_callable_actuals(&mut directory, program, state, limits, left)?;
         if !progress {
             break;
         }
     }
+    Ok((directory, headers))
+}
+
+pub(crate) fn prepare_task(
+    state: &closures::State,
+    caller: crate::FunctionRef<'_>,
+    prior: &[crate::FunctionRef<'_>],
+    life_instances: &[LifeNominalInstance],
+    declarations: &[DynDeclaration],
+    interfaces: &[DynInterface],
+    worker: FunctionId,
+    parameters: &[Type],
+    result: &Type,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<PreparedTask>> {
+    let ledger = &state.semantic_emission;
+    let Some(context) = ledger.original.context() else {
+        return Ok(None);
+    };
+    let expression = ledger
+        .active_expression(caller.id, left, caller.span)?
+        .ok_or_else(|| bad("Task worker preparation has no real active Core call"))?;
+    let scheme = ledger
+        .original_task_worker(caller.id, expression, limits, left)?
+        .ok_or_else(|| {
+            unknown("Task worker preparation awaits its exact checked original call scheme")
+        })?;
+    fee(
+        left,
+        ledger
+            .frames
+            .len()
+            .saturating_add(context.semantic.instances.len()),
+    )?;
+    let actual_worker = ledger
+        .frames
+        .get(&worker)
+        .ok_or_else(|| bad("Task worker has no real emitter origin"))?;
+    if !context.semantic.instances.iter().any(|row| {
+        row.definition == scheme.worker && origin_matches(&row.target, actual_worker.origin)
+    }) {
+        return Err(bad(
+            "Task preparation changes its exact original worker target",
+        ));
+    }
+    let (directory, headers) = emitter_directory(
+        state,
+        caller,
+        prior,
+        life_instances,
+        declarations,
+        interfaces,
+        &context.semantic,
+        scheme.instance,
+        limits,
+        left,
+    )?;
     let mut eval = Eval {
         input: &context.semantic,
         module: &directory,
@@ -673,4 +701,161 @@ impl Eval<'_, '_, '_> {
             inputs.value,
         ))
     }
+}
+
+pub(crate) struct PreparedPoll {
+    pub instance: LifeNominalInstance,
+    pub headers: FormedHeaders,
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_poll(
+    state: &closures::State,
+    caller: crate::FunctionRef<'_>,
+    prior: &[crate::FunctionRef<'_>],
+    life_instances: &[LifeNominalInstance],
+    declarations: &[DynDeclaration],
+    interfaces: &[DynInterface],
+    name: &str,
+    task: &Type,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<PreparedPoll>> {
+    use super::super::original::TaskOp;
+    let ledger = &state.semantic_emission;
+    let Some(context) = ledger.original.context() else {
+        return Ok(None);
+    };
+    let expression = ledger
+        .active_expression(caller.id, left, caller.span)?
+        .ok_or_else(|| bad("Task poll has no real active source call"))?;
+    let (scope, op, recipe) = ledger
+        .original_task_payload(caller.id, expression, limits, left)?
+        .ok_or_else(|| unknown("Task poll awaits its exact original payload scheme"))?;
+    let close = match (name, op) {
+        ("task_poll", TaskOp::Poll) => false,
+        ("task_poll_close", TaskOp::PollClose) => true,
+        _ => return Err(bad("actual Task poll changes the exact original operation")),
+    };
+    let Type::Task { result, .. } = task else {
+        return Err(bad("Task poll lost its actual full carrier"));
+    };
+    let (directory, headers) = emitter_directory(
+        state,
+        caller,
+        prior,
+        life_instances,
+        declarations,
+        interfaces,
+        &context.semantic,
+        scope,
+        limits,
+        left,
+    )?;
+    let mut eval = Eval {
+        input: &context.semantic,
+        module: &directory,
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+    };
+    let mut child = eval.type_domain(scope, &recipe, Some(result), 0)?;
+    if close {
+        child = eval.type_domain(
+            scope,
+            &SemanticTypeRecipe::Atom(Type::Unit),
+            Some(&Type::Unit),
+            0,
+        )?;
+    }
+    // The declared Poll<T> payload is a whole-Type formal boundary. Every
+    // intrinsic child index survives, including classes with equal images.
+    // The nominal TypeArgument map below preserves the entire formal domain.
+    // Physical ordinary wrappers keep their real retained paths; an opaque
+    // qualified child has its own whole boundary in the shared composer.
+    child.frozen = false;
+    let SemanticTypeValue::Resolved {
+        ty: payload,
+        life: payload_life,
+        ..
+    } = &child.value
+    else {
+        unreachable!()
+    };
+    inference::charge_type_snapshot(payload, caller.span, limits, eval.left, 3)?;
+    let payload = payload.clone();
+    let payload_life = eval.copy_shape(payload_life)?;
+    let SemanticTypeValue::Resolved { life: mut life, .. } = eval.compose_tuple(vec![child])?.value
+    else {
+        unreachable!()
+    };
+    let variant = PlaceProjection::Variant(VariantProjection {
+        variant: 1,
+        index: 0,
+    });
+    for slot in &mut life.slots {
+        match slot.path.first_mut() {
+            Some(head @ PlaceProjection::Field(0)) => *head = variant.clone(),
+            _ => {
+                return Err(bad(
+                    "Poll field composition changes its actual payload path",
+                ));
+            }
+        }
+    }
+    for row in &mut life.retained {
+        match row.path.first_mut() {
+            Some(LifeTypeProjection::Place(head @ PlaceProjection::Field(0))) => {
+                *head = variant.clone()
+            }
+            _ => return Err(bad("Poll child domain changes its declared Ready position")),
+        }
+    }
+    for row in &mut life.nominal_arguments {
+        match row.path.first_mut() {
+            Some(LifeTypeProjection::Place(head @ PlaceProjection::Field(0))) => {
+                *head = variant.clone()
+            }
+            _ => {
+                return Err(bad(
+                    "Poll nominal child changes its declared Ready position",
+                ));
+            }
+        }
+    }
+    eval.fee(life.binder_count as usize)?;
+    for class in 0..life.binder_count {
+        life.retained.push(StorageRetainedBinding {
+            path: vec![LifeTypeProjection::TypeArgument(0)],
+            class,
+            binder: class,
+        });
+    }
+    let storage = Type::Enum {
+        name: crate::tasks::poll_name(&payload),
+        variants: vec![
+            ("Pending".into(), Vec::new()),
+            ("Ready".into(), vec![payload.clone()]),
+        ],
+    };
+    let ty = if life.binder_count == 0 {
+        storage
+    } else {
+        Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life,
+        }
+    };
+    inference::charge_type_snapshot(&ty, caller.span, limits, eval.left, 3)?;
+    // The separate root occurrence directory belongs to the actual argument,
+    // even when its erased physical type is Address or Desc.
+    let instance = LifeNominalInstance {
+        declaration: zil_ir::builtin_life::POLL,
+        ty,
+        arguments: vec![LifeNominalActual::QualifiedType {
+            ty: payload,
+            life: payload_life,
+        }],
+    };
+    Ok(Some(PreparedPoll { instance, headers }))
 }

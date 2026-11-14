@@ -59,6 +59,8 @@ pub(crate) struct Ledger {
     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
     pub(super) original: super::original_context::Slot,
     pub frames: BTreeMap<FunctionId, Frame>,
+    /// Full nominal proposals attached only to genuine TaskPoll results.
+    pub(crate) formed_polls: BTreeMap<(FunctionId, ValueId), LifeNominalInstance>,
     /// Bound only by relocation of the exact source request and emitted call.
     pub(super) instance_requests: std::cell::RefCell<
         BTreeMap<SemanticInstanceId, (SemanticInstanceId, SemanticSiteId, FunctionId)>,
