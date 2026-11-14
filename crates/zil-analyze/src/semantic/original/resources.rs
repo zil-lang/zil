@@ -2,7 +2,7 @@
 //! implementation, never by a runtime teardown name or a matching layout.
 use super::*;
 
-pub(super) fn ordinary_drop_absent(
+pub(in crate::semantic) fn ordinary_drop_absent(
     definition: SemanticDefinitionId,
     inventory: &Inventory<'_>,
     b: &mut Budget,

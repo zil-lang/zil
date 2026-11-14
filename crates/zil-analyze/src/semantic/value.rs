@@ -888,9 +888,18 @@ pub(super) fn class(
                 .cloned()
                 .ok_or_else(|| fail("intrinsic environment class is absent"))
         }
-        _ => Err(unknown(
-            "semantic class expression needs its exact actual operand and scope relation",
-        )),
+        _ => {
+            crate::dyn_metadata::recipe(expression, b)?;
+            let mut errors = unknown(
+                "semantic class expression needs its exact actual operand and scope relation",
+            );
+            errors[0].notes.push(format!(
+                "actual semantic instance {}:{}, original definition {}:{}, unresolved class {expression:?}",
+                instance.id.module.0, instance.id.index,
+                instance.definition.module.0, instance.definition.index,
+            ));
+            Err(errors)
+        }
     }
 }
 pub(super) fn resolved(

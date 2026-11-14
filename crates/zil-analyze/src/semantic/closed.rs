@@ -30,6 +30,7 @@ mod resources;
 mod slice_borrows;
 mod slices;
 mod stores;
+mod structural;
 mod tasks;
 mod traits;
 mod worlds;
@@ -588,7 +589,7 @@ impl Check<'_, '_> {
                         DynStructuralBound::SyncDrop => original::Predicate::SyncDrop,
                         DynStructuralBound::StoreElement => original::Predicate::StoreElement,
                     };
-                    if !original::nominal::predicate_actual(&ty, predicate, self.inventory, b, 0)? {
+                    if !self.structural_actual(&ty, predicate, b, 0)? {
                         return Err(fail(
                             "actual type fails its original structural requirement",
                         ));
@@ -617,7 +618,7 @@ impl Check<'_, '_> {
                             ));
                         }
                     };
-                    if !original::nominal::predicate_actual(&ty, predicate, self.inventory, b, 0)? {
+                    if !self.structural_actual(&ty, predicate, b, 0)? {
                         return Err(fail("actual type fails its original sealed requirement"));
                     }
                 }

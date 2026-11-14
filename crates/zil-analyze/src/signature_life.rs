@@ -590,6 +590,30 @@ fn relation_inner(
             Ok(())
         }
         fn ty(&mut self, ty: &Type, base: StorageBase) -> CompileResult<()> {
+            if matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { payload } if **payload == Type::I32))
+            {
+                // The exact sealed scalar Mutex has one weak outer occurrence
+                // and no child class domain. Consuming this header row does
+                // not hold its owner or extend the descriptor's actual epoch.
+                let row = self
+                    .c
+                    .bindings
+                    .get(self.borrow)
+                    .ok_or_else(|| bad("weak Mutex signature omits its outer occurrence"))?;
+                if row.position.base != base
+                    || !row.position.path.is_empty()
+                    || matches!(base, StorageBase::Capture(_))
+                        && !matches!(row.binder, StorageBinder::Fixed(_))
+                {
+                    return Err(bad(
+                        "weak Mutex signature changes its exact outer position or persistence",
+                    ));
+                }
+                let binder = row.binder;
+                self.borrow += 1;
+                self.binder(binder, matches!(base, StorageBase::Capture(_)))?;
+                return Ok(());
+            }
             if matches!(ty, Type::Tuple(_)) && !ty.is_copy_value() {
                 return self.compound_child(ty, base, &mut Vec::new());
             }
@@ -1234,7 +1258,16 @@ mod tests {
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
-        closure_relation(&[], &[], CallableKind::Fn, &[], &[child], &Type::Unit, &contract).unwrap();
+        closure_relation(
+            &[],
+            &[],
+            CallableKind::Fn,
+            &[],
+            &[child],
+            &Type::Unit,
+            &contract,
+        )
+        .unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {
