@@ -749,9 +749,6 @@ impl Writer<'_> {
     ) -> WireResult<()> {
         self.recipe_write(Write::K86(value, depth))
     }
-    pub(super) fn protocol_state(&mut self, value: &ProtocolState, depth: usize) -> WireResult<()> {
-        self.recipe_write(Write::K241(value, depth))
-    }
     pub(super) fn dyn_self_pattern(
         &mut self,
         value: &DynSelfPattern,
@@ -4591,13 +4588,6 @@ impl Reader<'_> {
         let value = self.recipe_read(Kind::K86, depth)?;
         Ok(match value {
             Value::K86(value) => *value,
-            _ => unreachable!("recipe field grammar"),
-        })
-    }
-    pub(super) fn protocol_state(&mut self, depth: usize) -> WireResult<ProtocolState> {
-        let value = self.recipe_read(Kind::K241, depth)?;
-        Ok(match value {
-            Value::K241(value) => *value,
             _ => unreachable!("recipe field grammar"),
         })
     }

@@ -53,7 +53,14 @@ for name,order in {
    n,fs=value.split('(',1);vs.append((n.strip(),'tuple',[(f'value_{i}',t) for i,t in enumerate(split(fs.rsplit(')',1)[0]))]))
   else:vs.append((value.strip(),'unit',[]))
  items[name]=(kind,sorted(vs,key=lambda v:order.index(v[0])))
-def snake(n):return re.sub(r'(?<!^)(?=[A-Z])','_',n).lower()
+def snake(n):
+ name = re.sub(r'(?<!^)(?=[A-Z])','_',n).lower()
+ # Runtime ABI decoding already has a scalar protocol_state reader. Keep
+ # the original-declaration structural codec in its own mechanical namespace.
+ return 'original_' + name if n in {
+     'FunctionProtocolContract', 'ProtocolTransition', 'ProtocolKind',
+     'ProtocolState', 'ProtocolExit',
+ } else name
 existing={
  'String':('text','encode_text'),
  'Type':('ty','encode_type'), 'StorageLifeShape':('storage_shape','encode_storage_shape'),
