@@ -161,6 +161,19 @@ impl<'a> NominalWhere<'a> {
 }
 
 impl Proof {
+    /// Reduce a complete recipe in its explicitly selected original Gamma.
+    /// This never installs specialization equalities or new body facts.
+    pub(in crate::semantics) fn resolve_source_type(
+        &self,
+        program: &SemanticModule,
+        owner: SemanticDefinitionId,
+        recipe: &SemanticTypeRecipe,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<SemanticTypeRecipe> {
+        let mut check = borrowed_check(program, self, owner, limits, left)?;
+        check.resolve(owner, recipe, 0)
+    }
     /// Specialize a universally checked method provider in a real original
     /// source Gamma. The runtime call selects data; it supplies no premise.
     pub(in crate::semantics) fn specialized_parent(

@@ -200,9 +200,16 @@ impl<'a> Check<'a, '_> {
                 }
                 Ok(0)
             }
-            _ => Err(pending(
-                "nominal field requires a complete opaque/callable domain directory",
-            )),
+            _ => {
+                inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 2)?;
+                self.pay(128)?;
+                let mut error =
+                    pending("nominal field requires a complete opaque/callable domain directory");
+                error
+                    .notes
+                    .push(format!("complete actual nominal child type: {ty:?}"));
+                Err(error)
+            }
         }
     }
     fn projected(

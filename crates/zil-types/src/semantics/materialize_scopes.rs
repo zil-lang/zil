@@ -436,6 +436,47 @@ impl<'a> Eval<'a, '_> {
         };
         Ok((source.scope, actuals))
     }
+    pub(super) fn associated_source_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        hint: Option<&Type>,
+        depth: usize,
+    ) -> R<SemanticTypeValue> {
+        self.node(depth)?;
+        if !matches!(recipe, SemanticTypeRecipe::AssociatedType { .. }) {
+            return Err(bad(
+                "associated source reduction changes its original constructor",
+            ));
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+        let source = self.source_specialize(
+            scope,
+            &SemanticActualRecipe::Type(recipe.clone()),
+            &mut BTreeSet::new(),
+            depth + 1,
+        )?;
+        let SemanticActualRecipe::Type(recipe) = source.recipe else {
+            unreachable!()
+        };
+        let owner = self.scope_source_instance(source.scope)?.definition;
+        let reduced = {
+            let proof = self.ledger.original.borrow();
+            proof
+                .as_ref()
+                .ok_or_else(|| bad("associated source has no complete original proof"))?
+                .resolve_source_type(self.input, owner, &recipe, self.limits, self.left)?
+        };
+        crate::dyn_metadata::semantic_operand_snapshot(&recipe, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&reduced, self.limits, self.left, 1)?;
+        if recipe == reduced {
+            return Err(unknown(
+                "associated source has no finite original defining equation in its full specialization domain",
+            ));
+        }
+        self.ty(source.scope, &reduced, hint, depth + 1)
+    }
+
     pub(super) fn inferred_parent_actual(
         &mut self,
         caller: SemanticInstanceId,

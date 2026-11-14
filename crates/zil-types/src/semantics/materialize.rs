@@ -1789,6 +1789,9 @@ impl<'a> Eval<'a, '_> {
                     Vec::new(),
                 )
             }
+            SemanticTypeRecipe::AssociatedType { .. } => {
+                self.associated_source_type(scope, recipe, hint, depth + 1)?
+            }
             SemanticTypeRecipe::Opaque {
                 definition,
                 arguments,
