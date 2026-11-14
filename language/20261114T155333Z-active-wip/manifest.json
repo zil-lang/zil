@@ -1,0 +1,42 @@
+{
+  "source_base": "3c24419bd71438acc731eb3b272e576afd7ebaf2",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T155333Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-analyze/src/semantic/closed/borrow_places.rs": "f0ba4018ee705b8c7afb07616a1a189f183719e5c915e5cd012de4fe11e507d4",
+    "crates/zil-analyze/src/semantic/closed/pattern_places.rs": "0b0dbead85f40558315d47390506fec4de472edc6e4f2193021041b4f0b4d9d3",
+    "crates/zil-analyze/src/semantic/original.rs": "f93dafddbee6eddfc7e4ae511dcd1fca979d23d13cf55c454fb90543403fa847",
+    "crates/zil-analyze/src/semantic/original/borrow_places.rs": "c1346c15208b914a7d9d434a02cd702b5224542bcd86d94d25a5401eb246fd2f",
+    "crates/zil-analyze/src/semantic/original/registration.rs": "8cea846112e00162a053de545e85a277de1571452b4da2fa659412f333066d89",
+    "crates/zil-analyze/src/semantic/original/slice_borrows.rs": "cc0c2dafeca4035ac0f49e97c4885951a49c53f85dc3b8f6e24829e56678f176",
+    "crates/zil-verify/src/lib.rs": "5a948d2018d575f407409232a6838b43c226bdc03882eb09215cfef1b521ebaa",
+    "crates/zil-verify/src/semantic/original/formations.rs": "ef62e0ffadcd1c6d5d70264b744b559f4f170220501072e488504f39faf9a45e",
+    "crates/zil-verify/src/semantic/original/mod.rs": "cff1ad2ca709dd3a8bfebcc50bd7cbd7d98a4beb0b2d73a7d81ce91b9f45f873",
+    "crates/zil-verify/src/semantic/original/schemes.rs": "0bb085bcebe1fd95f72069e3e66435bf70fd8cee71ff8346ae16b2fcada70f6e",
+    "crates/zil-verify/src/semantic/task_domains.rs": "5ba7d170974db5844deb49e30cd1e4d65731ad765d4cad357d283e92a954cb8b",
+    "crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "crates/zil-verify/src/stored_flow.rs": "894434c9b486b36cc4a9c1037e62a1b5ea85cf6739c771ca4d7b19148aa644e6",
+    "crates/zil-verify/src/stored_flow/foreign_calls.rs": "c2d229b14e88378644b50f5f37ecab18ec854c02003b1478c1136c1375062e5d",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "c0377b558d505c3b7c8516048683a446fdd0d9399626501a9f57e8edcd9c4563",
+    "crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d5c8b498d138f518b5f72de664fb0741be454c9690ccb737ff9fde485c1140ba",
+    "crates/zil-verify/src/stored_partition.rs": "cbe78bc4becd236d9c85773a1826ba7f6130ab8486428db889b50485f08cde00",
+    "crates/zil-verify/src/tasks.rs": "b2a460cf109f2f11b990cd32d3f25195ebc7695f99ec968bb3c9add44e50fd93",
+    "crates/zil-verify/src/tasks/owned.rs": "b6b2c877559de3545bc0ee2d62db4a4f0d4097a5879c6e1217d592a12e4a302c",
+    "crates/zil-verify/src/tasks/sabi.rs": "cb6c158091a465c4a1bd39fe29bfce4d70b7cd4f041f29d5433619aa957f86cd"
+  },
+  "artifacts": {
+    "source.patch": "79dea4112046b51d3ab586c41b9d0d1fba70e78409c6cf37edc83d1af553b86b",
+    "untracked/crates/zil-verify/src/semantic/original/formations.rs": "ef62e0ffadcd1c6d5d70264b744b559f4f170220501072e488504f39faf9a45e",
+    "untracked/crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "untracked/crates/zil-verify/src/stored_flow/foreign_calls.rs": "c2d229b14e88378644b50f5f37ecab18ec854c02003b1478c1136c1375062e5d",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d5c8b498d138f518b5f72de664fb0741be454c9690ccb737ff9fde485c1140ba",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "61d16fe88003befb533104778396f774164072088ba88e25fcdd9d677ce47c14"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
