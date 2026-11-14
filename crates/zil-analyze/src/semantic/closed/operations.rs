@@ -1140,8 +1140,11 @@ impl Check<'_, '_> {
     }
 
     pub(super) fn sites(&self, b: &mut Budget) -> CompileResult<()> {
-        for function in &self.module.functions {
-            let instance = self.function_instance(function.id, b)?;
+        for instance in &self.program.instances {
+            let SemanticInstanceTarget::Function(target) = &instance.target else {
+                continue;
+            };
+            let function = self.inventory.function(target, b)?;
             let definition = self.inventory.definition(instance.definition, b)?;
             let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
             else {

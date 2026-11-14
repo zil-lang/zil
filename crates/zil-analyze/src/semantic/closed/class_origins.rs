@@ -5,8 +5,11 @@ use super::*;
 impl Check<'_, '_> {
     pub(super) fn constructor_class_sources(&self, b: &mut Budget) -> CompileResult<()> {
         let mut completed = BTreeMap::new();
-        for function in &self.module.functions {
-            let instance = self.function_instance(function.id, b)?;
+        for instance in &self.program.instances {
+            let SemanticInstanceTarget::Function(target) = &instance.target else {
+                continue;
+            };
+            let function = self.inventory.function(target, b)?;
             for block in &function.blocks {
                 for instruction in &block.instructions {
                     b.spend(1, WORK)?;
@@ -56,8 +59,13 @@ impl Check<'_, '_> {
                         let class = u32::try_from(class)
                             .map_err(|_| fail("original aggregate class ordinal overflow"))?;
                         b.lookup(completed.len(), WORK)?;
-                        if completed.insert((function.id, id, class), header).is_some() {
-                            return Err(fail("original aggregate class source is repeated"));
+                        if completed
+                            .insert((function.id, id, class), header)
+                            .is_some_and(|old| old != header)
+                        {
+                            return Err(fail(
+                                "shared aggregate code has different actual header origins in its original worlds",
+                            ));
                         }
                     }
                 }

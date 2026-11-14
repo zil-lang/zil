@@ -280,10 +280,8 @@ impl<'a> Inventory<'a> {
         for function in self.functions.values() {
             b.spend(program.instances.len().saturating_add(1), WORK)?;
             let count = program.instances.iter().filter(|instance| matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function.id)).count();
-            if count != 1 {
-                return Err(fail(
-                    "actual function does not have exactly one complete original instance",
-                ));
+            if count == 0 {
+                return Err(fail("actual function has no complete original instance"));
             }
         }
         Ok(())

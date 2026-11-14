@@ -780,15 +780,25 @@ impl Check<'_, '_> {
         }
         let (block, index, instruction) = self.defining(function, value, b)?;
         match instruction.kind {
-            InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
-                Ok(index)
+            InstructionKind::ReadCapture { index }
+            | InstructionKind::TakeCapture { index }
+            | InstructionKind::DescribeCapture { index }
+            | InstructionKind::BorrowCapture { index, .. } => Ok(index),
+            InstructionKind::ReborrowAddress { address, .. } => {
+                self.capture_value_origin(function, address, b, depth + 1)
             }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 self.capture_local_origin(function, local, (block, index), b, depth + 1)
             }
-            _ => Err(unknown(
-                "complete captured value needs its actual whole capture transport",
-            )),
+            _ => {
+                b.spend(64, WORK)?;
+                let mut errors =
+                    unknown("complete captured value needs its actual whole capture transport");
+                errors[0]
+                    .notes
+                    .push(format!("actual function {} SSA {}", function.id.0, value.0));
+                Err(errors)
+            }
         }
     }
     pub(super) fn capture_local_origin(

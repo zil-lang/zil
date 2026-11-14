@@ -298,6 +298,14 @@ impl Solver<'_, '_> {
                 Ok(true)
             }
             CorePatternKind::Tuple(patterns) => {
+                if patterns.is_empty()
+                    && matches!(
+                        self.state.arena[self.type_root(subject, b)?],
+                        Kind::Atom(Type::Unit)
+                    )
+                {
+                    return Ok(true);
+                }
                 let Kind::Tuple(fields) = &self.state.arena[self.type_root(subject, b)?] else {
                     return Err(fail(
                         "original tuple pattern has another subject constructor",

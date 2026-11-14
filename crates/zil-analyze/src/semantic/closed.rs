@@ -23,6 +23,7 @@ mod slice_borrows;
 mod slices;
 mod tasks;
 mod traits;
+mod worlds;
 pub(super) use traits::{original_associated, original_self};
 
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
@@ -578,15 +579,7 @@ impl Check<'_, '_> {
         target: FunctionId,
         b: &mut Budget,
     ) -> CompileResult<&SemanticInstance> {
-        b.spend(self.program.instances.len(), WORK)?;
-        let mut matches = self.program.instances.iter().filter(|instance| matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == target));
-        let instance = matches
-            .next()
-            .ok_or_else(|| fail("actual function has no original semantic instance"))?;
-        if matches.next().is_some() {
-            return Err(fail("actual function has ambiguous original instances"));
-        }
-        Ok(instance)
+        self.shared_zero_view(target, b)
     }
     fn instances(&self, b: &mut Budget) -> CompileResult<()> {
         for instance in &self.program.instances {
@@ -882,7 +875,9 @@ impl Check<'_, '_> {
             }
         }
         for function in &self.module.functions {
-            self.function_instance(function.id, b)?;
+            if self.function_worlds(function.id, b)?.is_empty() {
+                return Err(fail("actual function has no complete original world"));
+            }
         }
         Ok(())
     }
