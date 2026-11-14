@@ -35,6 +35,8 @@ impl CheckedOriginal {
             Ty::Tuple(fields)=>{let mut values=Vec::new();for field in fields{values.push(self.map_invocation_type(&field,life,depth+1,b)?);}Ty::Tuple(values)},
             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.map_invocation_type(&error,life,depth+1,b)?),Box::new(self.map_invocation_type(&result,life,depth+1,b)?)),
             Ty::Nominal(id,arguments)=>Ty::Nominal(id,self.map_invocation_arguments(&arguments,life,depth+1,b)?),
+            Ty::Opaque(id,arguments)=>Ty::Opaque(id,self.map_invocation_arguments(&arguments,life,depth+1,b)?),
+            Ty::Projection{receiver,declaration,arguments,member}=>Ty::Projection{receiver:Box::new(self.map_invocation_type(&receiver,life,depth+1,b)?),declaration,arguments:self.map_invocation_arguments(&arguments,life,depth+1,b)?,member},
             Ty::Closure(id,arguments,environment)=>Ty::Closure(id,self.map_invocation_arguments(&arguments,life,depth+1,b)?,self.map_invocation_arguments(&environment,life,depth+1,b)?),
             Ty::Carrier{kind,child,retained}=>{
                 // map()'s two closures cannot simultaneously borrow one life

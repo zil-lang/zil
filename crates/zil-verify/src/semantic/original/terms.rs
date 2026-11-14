@@ -8,6 +8,8 @@ pub(super) enum Ty {
     Variable(SemanticDefinitionId,u32),
     SelfType(SemanticDefinitionId),
     Nominal(SemanticDefinitionId,Vec<Arg>),
+    Opaque(SemanticDefinitionId,Vec<Arg>),
+    Projection{receiver:Box<Ty>,declaration:LifeDeclarationId,arguments:Vec<Arg>,member:u32},
     Tuple(Vec<Ty>),
     Array(Box<Ty>,Box<Const>),
     Slice(Box<Ty>),

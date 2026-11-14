@@ -35,7 +35,7 @@ impl CheckedOriginal {
             Ok(match self.resolved(ty,b)?{
                 Ty::SealedError(_)=>true,
             Ty::Atom(ty)=>ty.is_b0_scalar()||matches!(ty,Type::ByteBuffer|Type::ForeignHandle|Type::CWideString),
-                Ty::Address{..}|Ty::Desc{..}|Ty::Slice(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Infer(_)=>false,
+                Ty::Address{..}|Ty::Desc{..}|Ty::Slice(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Opaque(..)|Ty::Infer(_)=>false,
                 Ty::Tuple(fields)=>{for field in fields{if !self.closed_value(module,context,&field,env,active,b)?{return Ok(false);}}true},
                 Ty::Array(child,_)|Ty::Store(child)|Ty::Managed(child)=>self.closed_value(module,context,&child,env,active,b)?,
                 Ty::Carrier{child,retained,..}=>{if !retained.domain.is_empty()||!retained.ports.is_empty()||!retained.retained.is_empty()||!retained.nominal.is_empty(){return Ok(false);}self.closed_value(module,context,&child,env,active,b)?},

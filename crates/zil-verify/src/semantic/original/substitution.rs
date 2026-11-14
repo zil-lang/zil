@@ -11,6 +11,8 @@ impl CheckedOriginal {
                 if let Some(frame)=env.lexical.iter().find(|frame|frame.definition==definition){match frame.actuals.get(ordinal as usize){Some(Arg::Type(value))=>self.resolved(value,b)?,_=>return Err(bad("original Type substitution changes formal kind"))}}else{Ty::Variable(definition,ordinal)}
             },
             Ty::Nominal(definition,arguments)=>Ty::Nominal(definition,self.apply_arguments(&arguments,env,depth,b)?),
+            Ty::Opaque(definition,arguments)=>Ty::Opaque(definition,self.apply_arguments(&arguments,env,depth,b)?),
+            Ty::Projection{receiver,declaration,arguments,member}=>Ty::Projection{receiver:Box::new(self.apply_type_at(&receiver,env,depth+1,b)?),declaration,arguments:self.apply_arguments(&arguments,env,depth,b)?,member},
             Ty::Closure(definition,arguments,environment)=>Ty::Closure(definition,self.apply_arguments(&arguments,env,depth,b)?,self.apply_arguments(&environment,env,depth,b)?),
             Ty::Tuple(fields)=>{let mut result=Vec::new();for field in fields{result.push(self.apply_type_at(&field,env,depth+1,b)?);}Ty::Tuple(result)},
             Ty::Address{mutable,life,inner}=>Ty::Address{mutable,life:self.apply_life(&life,env,b)?,inner:Box::new(self.apply_type_at(&inner,env,depth+1,b)?)},

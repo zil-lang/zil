@@ -53,6 +53,7 @@ impl CheckedOriginal {
                 Ty::Nominal(id,arguments)=>{let definition=context.definition(module,id,b)?;let SemanticDefinitionBody::Nominal{kind,body,..}=&definition.body else{return Err(bad("original cleanup nominal absent"));};if !matches!(kind,LifeNominalKind::Record|LifeNominalKind::Package|LifeNominalKind::Enum)||self.custom_drop(module,id,b)?{return Ok(false);}let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=arguments;
                     match body{SemanticNominalBody::Product{fields}=>for field in fields{let field=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.sync_drop(module,context,&field,env,active,b)?{return Ok(false);}},SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let field=self.ty(module,context,field,&selected,active,b)?;if !self.sync_drop(module,context,&field,env,active,b)?{return Ok(false);}}}}true
                 },
+                Ty::Opaque(owner,arguments)=>{let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;self.sync_drop(module,context,&hidden,env,active,b)?},
                 Ty::Closure(definition,..)=>{
                     if !self.creator_moves.get(&definition).copied().unwrap_or(false){return Ok(true);}
                     let used=self.used.get(&definition).cloned().unwrap_or_default();let free=self.free_values.get(&definition).cloned().unwrap_or_default();

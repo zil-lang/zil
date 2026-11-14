@@ -2,6 +2,11 @@
 //! This never infers a source type from the Typed value it is checking.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn opaque_result_recipe(&self,module:&TypedModule,owner:SemanticDefinitionId,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
+        if !self.checked.contains(&owner){return Err(bad("opaque result lacks its completed universal original body proof"));}
+        let hidden=self.results.get(&owner).ok_or_else(||bad("opaque original result role is absent"))?;
+        self.reify_type(module,hidden,env,b)
+    }
     pub(in crate::semantic) fn checked_method_body(&self,module:&TypedModule,id:SemanticDefinitionId,b:&mut Budget)->Check<()>{
         let programme=module.semantic.as_ref().ok_or_else(||bad("original method obligation has no complete programme"))?;b.spend(programme.definitions.len().saturating_add(2))?;
         let mut definitions=programme.definitions.iter().filter(|row|row.id==id);let definition=definitions.next().ok_or_else(||bad("selected original method body is absent"))?;
@@ -36,6 +41,8 @@ impl CheckedOriginal {
             Ty::Variable(definition,ordinal)=>SemanticTypeRecipe::Formal(SemanticFormalRef{scope:self.scope(definition,env,b)?,ordinal}),
             Ty::SelfType(definition)=>SemanticTypeRecipe::SelfType{scope:self.scope(definition,env,b)?},
             Ty::Nominal(definition,arguments)=>{let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Nominal{definition,arguments:recipes}},
+            Ty::Opaque(definition,arguments)=>{let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Opaque{definition,arguments:recipes,hidden:Box::new(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result})}},
+            Ty::Projection{receiver,declaration,arguments,member}=>{let receiver=Box::new(self.reify_type_at(module,&receiver,env,depth+1,b)?);let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::AssociatedType{receiver,application:Box::new(SemanticTraitRecipe{declaration,arguments:recipes}),member}},
             Ty::Tuple(fields)=>{let mut recipes=Vec::new();for field in &fields{recipes.push(self.reify_type_at(module,field,env,depth+1,b)?);}SemanticTypeRecipe::Tuple(recipes)},
             Ty::Address{mutable,life,inner}=>SemanticTypeRecipe::Address{mutable,lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)},
             Ty::Desc{life,inner}=>SemanticTypeRecipe::Desc{lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)},

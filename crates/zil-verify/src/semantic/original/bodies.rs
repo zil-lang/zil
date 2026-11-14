@@ -36,7 +36,7 @@ impl CheckedOriginal {
             bindings.insert(parameter.name.clone(),Binding{ty:ty.clone(),mutable:false,identity:Binder::Parameter{definition:id,ordinal:ordinal as u32}});
         }
         let inferred_result=self.results.get(&id).cloned().ok_or_else(||bad("original result inference slot absent"))?;
-        self.unify(&inferred_result,&prototype.result,b)?;
+        if !matches!(&prototype.result,Ty::Opaque(owner,_)if *owner==id){self.unify(&inferred_result,&prototype.result,b)?;}
         self.prototypes.insert(id,prototype.clone());
         for binding in bindings.values(){self.declare(&prototype.environment,binding,b)?;}
         let mut equalities=Vec::new();
@@ -52,8 +52,9 @@ impl CheckedOriginal {
         if prototype.result_mode==PassingMode::Copy{self.require_copy(module,context,&prototype.result,&prototype.environment,active,b)?;}
         match body {
             SemanticOriginalFunctionBody::Defined(body)=>{
-                let returns=self.block(module,context,body,&prototype.environment,&mut bindings,&prototype.result,0,active,b)?;
-                if !returns {self.unify(&prototype.result,&Ty::Atom(Type::Unit),b)?;self.queue_cleanup(&prototype.environment,None,b)?;}
+                let body_result=if matches!(&prototype.result,Ty::Opaque(owner,_)if *owner==id){inferred_result.clone()}else{prototype.result.clone()};
+                let returns=self.block(module,context,body,&prototype.environment,&mut bindings,&body_result,0,active,b)?;
+                if !returns {self.unify(&body_result,&Ty::Atom(Type::Unit),b)?;self.queue_cleanup(&prototype.environment,None,b)?;}
             },
             SemanticOriginalFunctionBody::External=>{
                 let program=module.semantic.as_ref().ok_or_else(||bad("original program absent"))?;
@@ -63,6 +64,7 @@ impl CheckedOriginal {
             },
             SemanticOriginalFunctionBody::Declaration=>return Err(unsupported("abstract original member requires its exact trait declaration/member proof",None)),
         }
+        self.check_opaque_result(module,context,id,&prototype.environment,active,b)?;
         if definition.kind==SemanticDefinitionKind::Closure {
             let consumes=self.uses.get(&id).is_some_and(|uses|uses.moved.iter().any(|place|matches!(place.binder,Binder::Capture{..})));
             let writes=self.written.get(&id).is_some_and(|rows|rows.iter().any(|binder|matches!(binder,Binder::Capture{..})));

@@ -140,13 +140,31 @@ impl CheckedOriginal {
                     }}
                     for requirement in &declaration.requirements{self.obligation(module,context,requirement,&target,caller,active,b)?;}
                 }
+                Ty::Opaque(owner,arguments)=>{let hidden=self.opaque_hidden(module,context,*owner,arguments,active,b)?;self.scheme_term(module,context,&hidden,caller,active,b)?;},
+                Ty::Projection{receiver,declaration,arguments,member}=>{self.scheme_term(module,context,receiver,caller,active,b)?;let _=self.associated_type(module,context,receiver,*declaration,arguments,*member,caller,active,b)?;},
                 Ty::Tuple(fields)=>for field in fields{self.scheme_term(module,context,field,caller,active,b)?;},
                 Ty::Array(field,value)=>{self.scheme_term(module,context,field,caller,active,b)?;self.scheme_carrier(&value.carrier,b)?;if !self.same(&value.carrier,&Ty::Atom(Type::Usize),b)?{return Err(bad("original array length carrier is not usize"));}},
                 Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Slice(inner)|Ty::Managed(inner)|Ty::Store(inner)=>self.scheme_term(module,context,inner,caller,active,b)?,
                 Ty::ErrorUnion(error,result)=>{self.scheme_term(module,context,error,caller,active,b)?;self.scheme_term(module,context,result,caller,active,b)?;},
                 Ty::Code{parameters,result,..}=>{for parameter in parameters{self.scheme_term(module,context,parameter,caller,active,b)?;}self.scheme_term(module,context,result,caller,active,b)?;},
                 Ty::Carrier{child,retained,..}=>{self.scheme_term(module,context,child,caller,active,b)?;let mut types=Vec::new();retained.types(&mut types,b)?;for ty in types{self.scheme_term(module,context,ty,caller,active,b)?;}},
-                Ty::Closure(..)=>return Err(unsupported("original closure scheme needs its complete creator/environment role-domain inventory",None)),
+                Ty::Closure(owner,arguments,sealed)=>{
+                    let original=context.definition(module,*owner,b)?;
+                    if original.kind!=SemanticDefinitionKind::Closure||!self.checked.contains(owner)||original.parameters.len()!=arguments.len()||original.environment.len()!=sealed.len(){return Err(bad("original closure scheme has no complete checked definition/formal/environment domain"));}
+                    let mut target=self.environment(module,context,*owner,active,b)?;
+                    target.lexical[0].actuals=self.resolve_arguments(arguments,0,b)?;
+                    target.lexical[0].environment=self.resolve_arguments(sealed,0,b)?;
+                    for(formal,value)in original.parameters.iter().zip(arguments).chain(original.environment.iter().map(|row|&row.kind).zip(sealed)){
+                        match(formal,value){
+                            (SemanticFormal::Type{requirements},Arg::Type(ty))=>{self.scheme_term(module,context,ty,caller,active,b)?;for requirement in requirements{self.obligation(module,context,requirement,&target,caller,active,b)?;}},
+                            (SemanticFormal::Lifetime,Arg::Life(_))=>{},
+                            (SemanticFormal::Const{..},Arg::Const(value))=>self.scheme_carrier(&value.carrier,b)?,
+                            _=>return Err(bad("original closure scheme changes an ordered argument or sealed environment kind")),
+                        }
+                    }
+                    // Actual free-value identity, complete Fixed image and
+                    // all creator/site seals are separate mandatory gates.
+                },
                 Ty::Infer(_)=>return Err(bad("frozen original scheme retains an unresolved inferred type")),
                 Ty::Variable(..)|Ty::SelfType(_)|Ty::Atom(_)|Ty::SealedError(_)|Ty::Function(_)=>{},
             }Ok(())

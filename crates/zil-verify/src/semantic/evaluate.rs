@@ -348,6 +348,7 @@ impl CheckedContext {
                 active,
                 b,
             ),
+            SemanticTypeRecipe::Opaque { definition, arguments, hidden } => self.opaque_type(module, *definition, arguments, hidden, environment, external, active, b),
             SemanticTypeRecipe::Closure {
                 definition,
                 arguments,

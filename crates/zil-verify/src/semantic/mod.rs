@@ -15,6 +15,7 @@ mod requirements;
 mod constants;
 mod nominal;
 mod closures;
+mod opaque;
 mod catalogue;
 mod instances;
 mod flow;

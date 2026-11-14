@@ -175,7 +175,12 @@ fn has_infer(ty: &Ty, substitutions: &BTreeMap<u64, Ty>, b: &mut Budget) -> Chec
                     pending.push(Term::Type(error));
                     pending.push(Term::Type(result));
                 }
-                Ty::Nominal(_, arguments) => {
+                Ty::Projection { receiver, arguments, .. } => {
+                    pending.push(Term::Type(receiver));
+                    b.spend(arguments.len())?;
+                    pending.extend(arguments.iter().map(Term::Argument));
+                }
+                Ty::Nominal(_, arguments) | Ty::Opaque(_, arguments) => {
                     b.spend(arguments.len())?;
                     pending.extend(arguments.iter().map(Term::Argument));
                 }
