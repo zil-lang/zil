@@ -118,6 +118,26 @@ pub(super) fn callback_error(span: Span, message: &str) -> Diagnostic {
     Diagnostic::error(Phase::Expand, "E-FFI-CALLBACK", Some(span), message)
 }
 
+/// The written scalar C profile is shared by callbacks and direct imports.
+/// Bool, pointers, storage and dependent names need their own explicit rule.
+pub(crate) fn callback_scalar_name(name: &str) -> bool {
+    matches!(
+        name,
+        "u8" | "u16"
+            | "u32"
+            | "u64"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "isize"
+            | "f32"
+            | "f64"
+            | "c_handle"
+    )
+}
+
 /// Check the fixed part of a written callback type before aliases or unused
 /// templates can disappear. With no scope, names may still denote aliases;
 /// after normalization, only actual type parameters may remain unresolved.
@@ -141,9 +161,9 @@ pub(super) fn callback_type_formation(
             s::TypeKind::Named { path, args } if args.is_empty() => {
                 if let [name] = path.as_slice() {
                     match name.as_str() {
-                        "i32" | "i64" | "c_handle" => true,
+                        name if callback_scalar_name(name) => true,
                         "void" => result,
-                        "u8" | "u16" | "u32" | "i8" | "i16" | "isize" | "bool" | "c_wstr" => false,
+                        "bool" | "c_wstr" => false,
                         _ => variables.is_none_or(|names| names.contains(name)),
                     }
                 } else {
@@ -160,7 +180,7 @@ pub(super) fn callback_type_formation(
             Phase::Expand,
             "E-FFI-CALLBACK-TYPE",
             Some(ty.span),
-            "C callback types require the literal C ABI, i32/i64/c_handle parameters and an additional unit result; dependent type parameters must satisfy this profile after instantiation",
+            "C callback types require the literal C ABI, integer/f32/f64/c_handle parameters and an additional unit result; dependent type parameters must satisfy this profile after instantiation",
         ));
     }
     Ok(())

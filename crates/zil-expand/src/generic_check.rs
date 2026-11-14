@@ -5240,7 +5240,7 @@ impl Check<'_, '_, '_> {
             }
             let scalar = |ty: &TypeRef, result: bool| match &group(ty).kind {
                 TypeKind::Named { path, args } if args.is_empty() => {
-                    matches!(path.as_slice(), [name] if matches!(name.as_str(), "i32" | "i64" | "c_handle")
+                    matches!(path.as_slice(), [name] if crate::foreign::callback_scalar_name(name)
                                 || result && name == "void")
                 }
                 TypeKind::Tuple(fields) if result => fields.is_empty(),
