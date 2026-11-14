@@ -1381,6 +1381,13 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.closures
             .inserted_instruction(self.function.id, entry, position + 1, span)?;
         instructions.insert(position + 1, instruction);
+        self.closures.semantic_restored_temporary_live(
+            self.function.id,
+            local,
+            entry,
+            position + 1,
+            span,
+        )?;
         // Earlier exits already emitted in this scope also see the reserved
         // vacant slot. Close its storage there without inventing a cleanup.
         for block in &mut self.function.blocks {

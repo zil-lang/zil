@@ -643,6 +643,22 @@ impl State {
             span,
         )
     }
+    pub(super) fn semantic_restored_temporary_live(
+        &mut self,
+        function: FunctionId,
+        local: LocalId,
+        block: BlockId,
+        instruction: usize,
+        span: Span,
+    ) -> R<()> {
+        self.semantic_emission.restored_temporary_live(
+            function,
+            local,
+            crate::semantics::emission::Point { block, instruction },
+            &mut self.work_left,
+            span,
+        )
+    }
     pub(super) fn semantic_declaration(
         &mut self,
         function: FunctionId,

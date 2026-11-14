@@ -535,6 +535,26 @@ pub(super) fn zero_type(
 /// Compiler IDs only select the full canonical declaration predicate. They
 /// grant no worker, provider, frame or descriptor authority.
 pub(super) fn compiler_declaration(d: &LifeNominalDeclaration) -> bool {
+    if d.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
+        || d.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE
+    {
+        let package = d.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE;
+        return d.identity.package == "@zil.builtin"
+            && d.identity.module_path == ["task"]
+            && d.identity.declaration_path
+                == [
+                    if package { "package" } else { "record" },
+                    "TaskCreateFailure",
+                ]
+            && d.identity.generation_path.is_empty()
+            && d.kind
+                == if package {
+                    LifeNominalKind::Package
+                } else {
+                    LifeNominalKind::Record
+                }
+            && d.parameters == [LifeParameterKind::Type, LifeParameterKind::Type];
+    }
     let name = if d.id == zil_ir::builtin_life::TASK_CREATE_ERROR {
         "TaskCreateError"
     } else if d.id == zil_ir::builtin_life::TASK_POLL_STATE {
@@ -555,6 +575,13 @@ fn compiler_instance(d: &LifeNominalDeclaration, ty: &Type, left: &mut usize) ->
             "E-NOMINAL-DOMAIN",
             Span::default(),
             "compiler nominal has no complete canonical declaration",
+        ));
+    }
+    if d.id != zil_ir::builtin_life::TASK_CREATE_ERROR
+        && d.id != zil_ir::builtin_life::TASK_POLL_STATE
+    {
+        return Err(unknown(
+            "TaskCreateFailure instance requires its complete input/context nominal and actual constructor proof",
         ));
     }
     let Type::Enum { name, variants } = ty else {

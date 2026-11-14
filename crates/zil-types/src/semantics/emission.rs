@@ -310,6 +310,37 @@ impl Ledger {
             .push(at);
         Ok(())
     }
+    /// A compiler temporary's StorageLive was removed and then inserted at
+    /// its real lexical entry. Restore this exact local/point association;
+    /// do not infer it later from an equal opcode or a declaration's type.
+    pub fn restored_temporary_live(
+        &mut self,
+        function: FunctionId,
+        local: LocalId,
+        point: Point,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() {
+            return Ok(());
+        }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else {
+            return Ok(());
+        };
+        pay(
+            left,
+            lookup_cost(frame.live_locals.len()).saturating_add(1),
+            span,
+        )?;
+        if frame.live_locals.insert(local, point).is_some() {
+            return Err(invalid(
+                span,
+                "temporary StorageLive relocation duplicates an actual local",
+            ));
+        }
+        Ok(())
+    }
     pub fn declaration(
         &mut self,
         function: FunctionId,
@@ -423,6 +454,18 @@ impl Ledger {
                         "semantic instruction receipt was not relocated with the actual CFG",
                     ));
                 }
+            }
+        }
+        for (local, at) in &frame.live_locals {
+            pay(left, 1, span)?;
+            if !matches!(function.blocks.get(at.block.0 as usize)
+                .and_then(|block| block.instructions.get(at.instruction))
+                .map(|instruction| &instruction.kind), Some(InstructionKind::StorageLive(actual)) if actual == local)
+            {
+                return Err(invalid(
+                    span,
+                    "actual local receipt lost its exact StorageLive instruction",
+                ));
             }
         }
         for row in frame.declarations.values() {
