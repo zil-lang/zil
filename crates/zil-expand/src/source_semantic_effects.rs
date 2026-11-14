@@ -47,6 +47,104 @@ fn declaration_index(
         .position(|definition| definition.id == id))
 }
 impl<'a> Scan<'a, '_, '_, '_> {
+    // This is an ABI upper, not a cleanup proof. An owning Task may have to
+    // close on a scope/return/overwrite edge even when every explicit call is
+    // Direct. Borrowed heads and code signatures do not own their referents.
+    fn cleanup_candidate(
+        &mut self,
+        ty: &SemanticTypeRecipe,
+        active: &mut Vec<SemanticDefinitionId>,
+        depth: usize,
+        span: Span,
+    ) -> R<bool> {
+        self.budget.node(span, depth)?;
+        use SemanticTypeRecipe as T;
+        match ty {
+            T::Managed(inner) => {
+                if matches!(
+                    inner.as_ref(),
+                    T::Task { .. } | T::AsyncRegistration(_) | T::Atom(Type::TaskI32)
+                ) {
+                    return Ok(true);
+                }
+                self.cleanup_candidate(inner, active, depth + 1, span)
+            }
+            T::Qualified { storage, .. }
+            | T::Opaque {
+                hidden: storage, ..
+            } => self.cleanup_candidate(storage, active, depth + 1, span),
+            T::Tuple(fields) | T::AnonymousSum(fields) => {
+                for field in fields {
+                    if self.cleanup_candidate(field, active, depth + 1, span)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            T::Array { element, .. } => self.cleanup_candidate(element, active, depth + 1, span),
+            T::ErrorUnion { error, result } => {
+                Ok(self.cleanup_candidate(error, active, depth + 1, span)?
+                    || self.cleanup_candidate(result, active, depth + 1, span)?)
+            }
+            T::Nominal {
+                definition,
+                arguments,
+            } => {
+                // Actual type arguments can conservatively enlarge this upper,
+                // including a phantom argument. They never grant an effect or
+                // a type-level synchronous-destruction premise.
+                for argument in arguments {
+                    if let SemanticActualRecipe::Type(ty) = argument
+                        && self.cleanup_candidate(ty, active, depth + 1, span)?
+                    {
+                        return Ok(true);
+                    }
+                }
+                self.budget.identity_work(active.len(), span)?;
+                if active.contains(definition) {
+                    return Ok(false);
+                }
+                let Some(index) =
+                    declaration_index(self.definitions, *definition, self.budget, span)?
+                else {
+                    return Ok(false);
+                };
+                let SemanticDefinitionBody::Nominal { body, .. } = &self.definitions[index].body
+                else {
+                    return Ok(false);
+                };
+                self.budget.lineage_push(active, *definition, span)?;
+                let answer = match body {
+                    SemanticNominalBody::Product { fields } => {
+                        let mut found = false;
+                        for field in fields {
+                            found |= self.cleanup_candidate(&field.ty, active, depth + 1, span)?;
+                        }
+                        found
+                    }
+                    SemanticNominalBody::Enum { variants } => {
+                        let mut found = false;
+                        for variant in variants {
+                            for field in &variant.fields {
+                                found |= self.cleanup_candidate(field, active, depth + 1, span)?;
+                            }
+                        }
+                        found
+                    }
+                };
+                active.pop();
+                Ok(answer)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn note_cleanup(&mut self, ty: &SemanticTypeRecipe, span: Span) -> R<()> {
+        let mut active = Vec::new();
+        if self.cleanup_candidate(ty, &mut active, 0, span)? {
+            self.vertex.suspend = true;
+        }
+        self.budget.drop_lineage_vec(active, span)
+    }
     fn edge(&mut self, target: Target, span: Span) -> R<()> {
         match target {
             Target::Kind(CallKind::Direct) => {}
@@ -452,11 +550,16 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     .map_or(Target::Unknown, Target::Definition)
             } else if let [name] = path.as_slice() {
                 if crate::primitive_name(name) {
-                    Target::Kind(if matches!(*name, "task_yield" | "task_await") {
-                        CallKind::Suspend
-                    } else {
-                        CallKind::Direct
-                    })
+                    Target::Kind(
+                        if matches!(
+                            *name,
+                            "task_yield" | "task_await" | "task_create" | "task_create_owned"
+                        ) {
+                            CallKind::Suspend
+                        } else {
+                            CallKind::Direct
+                        },
+                    )
                 } else {
                     Target::Unknown
                 }
@@ -823,6 +926,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     self.expression(value, depth + 1)?
                 }
                 let target = if let Some(ty) = ty {
+                    self.note_cleanup(ty, statement.span)?;
                     self.callable_type(self.owner, ty, depth + 1, statement.span)?
                 } else if let Some(value) = initializer {
                     self.target(value, depth + 1)?
@@ -1112,12 +1216,14 @@ pub(super) fn propose(
                 vertex: &mut vertex,
                 budget,
             };
+            scan.note_cleanup(&signature.result, Span::default())?;
             for (ordinal, parameter) in parameters.iter().enumerate() {
                 let target = signature
                     .parameters
                     .get(ordinal)
                     .map(|parameter| &parameter.ty);
                 let target = if let Some(ty) = target {
+                    scan.note_cleanup(ty, parameter.span)?;
                     scan.callable_type(index, ty, 0, parameter.span)?
                 } else {
                     Target::Unknown
@@ -1184,6 +1290,54 @@ mod tests {
     use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
     use std::collections::BTreeMap;
     use zil_base::{FileId, SourceUnit};
+
+    #[test]
+    fn cleanup_upper_distinguishes_task_owners_from_views_and_explicit_direct() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "task-cleanup-effects.zil",
+            "fn owned(give task:Task<i32>){}fn view(task:&Task<i32>){}fn fixed(give task:Task<i32>) contract{effects(io);}{}fn create(){task_create(worker);}fn worker()->i32{return 0;}fn shadow<F:Fn()->void>(task_create:F){task_create();}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let (_, program) = super::super::program::prepare(
+            &[&parsed],
+            &origins,
+            &[Vec::new()],
+            &mut limits.clone(),
+        )
+        .unwrap();
+        let kind = |index| {
+            signature(
+                program.modules[0]
+                    .1
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id.index == index)
+                    .unwrap(),
+            )
+            .unwrap()
+            .call_kind
+        };
+        assert_eq!(kind(0), CallKind::Suspend);
+        assert_eq!(kind(1), CallKind::Direct);
+        assert_eq!(kind(2), CallKind::Direct);
+        assert_eq!(kind(3), CallKind::Suspend);
+        assert_eq!(kind(4), CallKind::Direct);
+        assert_eq!(kind(5), CallKind::Direct);
+    }
 
     #[test]
     fn original_effect_candidates_follow_calls_and_preserve_explicit_bounds() {
