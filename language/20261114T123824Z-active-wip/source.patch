@@ -1,0 +1,1584 @@
+diff --git a/crates/zil-analyze/src/semantic/original.rs b/crates/zil-analyze/src/semantic/original.rs
+index 0959afc0f..c2e401af3 100644
+--- a/crates/zil-analyze/src/semantic/original.rs
++++ b/crates/zil-analyze/src/semantic/original.rs
+@@ -29,6 +29,7 @@ pub(super) mod sealed;
+ pub(super) mod slice_borrows;
+ mod slices;
+ mod stores;
++pub(super) mod strings;
+ mod tasks;
+ mod trait_members;
+ mod traits;
+@@ -224,6 +225,7 @@ pub(super) struct Checked {
+     capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
+     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
+     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
++    string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
+ }
+ struct Solver<'a, 'i> {
+     inventory: &'i Inventory<'a>,
+@@ -859,6 +861,20 @@ impl Solver<'_, '_> {
+             SemanticTypeRecipe::Task { result, retained } => {
+                 self.task_type(frame, result, retained, b, depth + 1)
+             }
++            SemanticTypeRecipe::Address {
++                mutable: false,
++                lifetime: SemanticOuterLifeRecipe::Static,
++                inner,
++            } => {
++                let inner = self.recipe(frame, inner, b, depth + 1)?;
++                if !matches!(self.state.arena[self.type_root(inner,b)?],Kind::Slice(element) if matches!(self.state.arena[self.type_root(element,b)?],Kind::Atom(Type::U8)))
++                {
++                    return Err(unknown(
++                        "original static reference needs its complete inner type and occurrence inventory",
++                    ));
++                }
++                self.term(Kind::Atom(strings::byte_type()), b)
++            }
+             SemanticTypeRecipe::Address {
+                 mutable,
+                 lifetime: SemanticOuterLifeRecipe::Class(life),
+@@ -1363,7 +1379,10 @@ impl Solver<'_, '_> {
+         self.receiving
+             .pop()
+             .ok_or_else(|| fail("original receiving context lost its lexical stack"))?;
+-        result
++        match result {
++            Ok(actual) if self.static_byte_role(actual, expected, b, depth + 1)? => Ok(expected),
++            other => other,
++        }
+     }
+     fn expression(
+         &mut self,
+@@ -1394,6 +1413,7 @@ impl Solver<'_, '_> {
+                     self.atom(value.ty(), b)?
+                 }
+                 CoreExprKind::Bool(_) => self.atom(Type::Bool, b)?,
++                CoreExprKind::String(text) => self.string_literal(frame, value.id, text, b)?,
+                 CoreExprKind::Unit => self.atom(Type::Unit, b)?,
+                 CoreExprKind::Name(name) => {
+                     let mut selected = None;
+@@ -3610,6 +3630,7 @@ pub(super) fn check(
+             capture_origins: BTreeMap::new(),
+             function_values: BTreeMap::new(),
+             code_calls: BTreeMap::new(),
++            string_literals: BTreeMap::new(),
+         },
+         active: BTreeSet::new(),
+         creators: BTreeMap::new(),
+diff --git a/crates/zil-analyze/src/semantic/original/protocol.rs b/crates/zil-analyze/src/semantic/original/protocol.rs
+index b6f6e1110..277e24cff 100644
+--- a/crates/zil-analyze/src/semantic/original/protocol.rs
++++ b/crates/zil-analyze/src/semantic/original/protocol.rs
+@@ -2,6 +2,7 @@
+ //! at entry/call boundaries; every original return must independently satisfy
+ //! them. Actual generations, loans, provider drain and cleanup remain separate.
+ use super::*;
++mod canonical;
+ mod control;
+ mod owners;
+ const OPEN: u8 = 1;
+@@ -28,49 +29,10 @@ fn owner(recipe: &SemanticTypeRecipe) -> bool {
+ fn borrow(recipe: &SemanticTypeRecipe) -> bool {
+     matches!(recipe,SemanticTypeRecipe::Address {mutable:true,inner,..} if owner(inner))
+ }
+-fn poll(
+-    recipe: &SemanticTypeRecipe,
+-    inventory: &Inventory<'_>,
+-    b: &mut Budget,
+-) -> CompileResult<bool> {
+-    let SemanticTypeRecipe::Nominal {
+-        definition,
+-        arguments,
+-    } = recipe
+-    else {
+-        return Ok(false);
+-    };
+-    let declaration = inventory.definition(*definition, b)?;
+-    let SemanticDefinitionBody::Nominal {
+-        declaration,
+-        kind: LifeNominalKind::Enum,
+-        body: SemanticNominalBody::Enum { variants },
+-    } = &declaration.body
+-    else {
+-        return Ok(false);
+-    };
+-    b.spend(variants.len().saturating_add(arguments.len() + 1), WORK)?;
+-    if *declaration != zil_ir::builtin_life::POLL {
+-        return Ok(false);
+-    }
+-    if variants.len() != 2
+-        || variants[0].name != "Pending"
+-        || !variants[0].fields.is_empty()
+-        || variants[1].name != "Ready"
+-        || variants[1].fields.len() != 1
+-        || !matches!(
+-            arguments.as_slice(),
+-            [SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(
+-                Type::Unit
+-            ))]
+-        )
+-    {
+-        return Err(fail(
+-            "original protocol Poll has another complete canonical declaration or payload",
+-        ));
+-    }
+-    Ok(true)
++fn poll(recipe:&SemanticTypeRecipe,inventory:&Inventory<'_>,b:&mut Budget)->CompileResult<bool> {
++    Ok(inventory.protocol_poll_recipe(recipe,b)?.is_some())
+ }
++
+ fn shape(
+     definition: &SemanticDefinition,
+     inventory: &Inventory<'_>,
+diff --git a/crates/zil-analyze/src/semantic/original/protocol/control.rs b/crates/zil-analyze/src/semantic/original/protocol/control.rs
+index cb3da06e7..69c860d44 100644
+--- a/crates/zil-analyze/src/semantic/original/protocol/control.rs
++++ b/crates/zil-analyze/src/semantic/original/protocol/control.rs
+@@ -2,6 +2,8 @@
+ //! select post-state relations only after the complete original Poll identity
+ //! was checked; a spelling or a selected runtime branch is never a premise.
+ use super::*;
++#[derive(Clone,Copy)]
++enum Carrier { Poll(SemanticDefinitionId), Error }
+ 
+ pub(super) struct LoopFlow {
+     scope: usize,
+@@ -127,6 +129,7 @@ impl Proof<'_, '_> {
+             }
+             CorePatternKind::ErrorArm { is_error, pattern } => {
+                 let empty = Data::default();
++                let payload=Data { alias:data.alias,outcomes:Vec::new() };
+                 self.bind_pattern(
+                     state,
+                     pattern,
+@@ -148,41 +151,27 @@ impl Proof<'_, '_> {
+             )),
+         }
+     }
+-    fn poll_identity(&self, node: NodeId, b: &mut Budget) -> CompileResult<SemanticDefinitionId> {
+-        b.lookup(self.checked.frames.len(), WORK)?;
+-        let frame = self
+-            .checked
+-            .frames
+-            .get(&self.definition.id)
+-            .ok_or_else(|| fail("original protocol match has no checked type frame"))?;
+-        b.lookup(frame.expressions.len(), WORK)?;
+-        let mut term = *frame
+-            .expressions
+-            .get(&node)
+-            .ok_or_else(|| fail("original protocol match loses its exact expression type"))?;
+-        for _ in 0..=b.partial_depth {
+-            term = self.checked.root(term, b)?;
+-            if let Kind::CallResult { hidden, .. } = self.checked.arena[term] {
+-                term = hidden;
+-                continue;
+-            }
+-            let Kind::Nominal { definition, .. } = self.checked.arena[term] else {
+-                return Err(fail(
+-                    "original protocol outcome has no actual Poll nominal type",
+-                ));
+-            };
+-            let declaration = self.inventory.definition(definition, b)?;
+-            if !matches!(declaration.body, SemanticDefinitionBody::Nominal { declaration, kind: LifeNominalKind::Enum, .. } if declaration == zil_ir::builtin_life::POLL)
+-            {
+-                return Err(fail(
+-                    "original protocol outcome selects another nominal declaration",
+-                ));
+-            }
+-            return Ok(definition);
++    fn outcome_carrier(&self,node:NodeId,b:&mut Budget)->CompileResult<Carrier> {
++        let term=self.expression_term(node,b)?;
++        if let Some(definition)=self.term_poll(term,b)? { return Ok(Carrier::Poll(definition)); }
++        if matches!(self.checked.arena[term],Kind::ErrorUnion { .. }) { return Ok(Carrier::Error); }
++        Err(fail("original protocol outcomes have no matching complete Poll or ErrorUnion carrier"))
++    }
++    fn arm_exit(&self,carrier:Carrier,pattern:&SemanticOriginalPattern,b:&mut Budget)->CompileResult<Option<ProtocolExit>> {
++        match (&pattern.kind,carrier) {
++            (CorePatternKind::Wildcard|CorePatternKind::Name(_),_)=>Ok(None),
++            (CorePatternKind::ErrorArm { is_error,.. },Carrier::Error)=>Ok(Some(if *is_error { ProtocolExit::ErrorErr } else { ProtocolExit::ErrorOk })),
++            (CorePatternKind::Constructor { definition,variant,.. },Carrier::Poll(poll))=>{
++                if definition.is_some_and(|definition|definition!=poll) { return Err(fail("original protocol pattern names another canonical Poll definition")); }
++                match variant.as_str() { "Pending"=>Ok(Some(ProtocolExit::PollPending)),"Ready"=>Ok(Some(ProtocolExit::PollReady)),_=>Err(fail("original protocol pattern selects no complete Poll alternative")) }
++            },
++            (CorePatternKind::Variant { ty,variant,.. },Carrier::Poll(poll))=>{
++                let SemanticTypeRecipe::Nominal { definition,.. }=ty else { return Err(fail("original explicit Poll pattern has no nominal declaration")); };
++                if *definition!=poll || self.inventory.protocol_poll_recipe(ty,b)?.is_none() { return Err(fail("original explicit Poll pattern changes its complete canonical owner")); }
++                match variant.as_str() { "Pending"=>Ok(Some(ProtocolExit::PollPending)),"Ready"=>Ok(Some(ProtocolExit::PollReady)),_=>Err(fail("original protocol pattern selects no complete Poll alternative")) }
++            },
++            _=>Err(unknown("original protocol outcome needs its exact complete carrier pattern")),
+         }
+-        Err(resource(
+-            "original protocol result identity exceeds its finite depth",
+-        ))
+     }
+     pub(super) fn match_block(
+         &self,
+@@ -194,10 +183,10 @@ impl Proof<'_, '_> {
+     ) -> CompileResult<()> {
+         self.step(b, depth)?;
+         let data = self.expression(state, value, b, depth + 1)?;
+-        let poll = if data.outcomes.is_empty() {
++        let carrier = if data.outcomes.is_empty() {
+             None
+         } else {
+-            Some(self.poll_identity(value.id, b)?)
++            Some(self.outcome_carrier(value.id, b)?)
+         };
+         let base = state.copy(b)?;
+         let scope = base.locals.len();
+@@ -205,49 +194,9 @@ impl Proof<'_, '_> {
+         joined.alive = false;
+         let mut covered = BTreeSet::new();
+         for arm in arms {
+-            let selected = if let Some(poll) = poll {
+-                match &arm.pattern.kind {
+-                    CorePatternKind::Wildcard | CorePatternKind::Name(_) => None,
+-                    CorePatternKind::Constructor {
+-                        definition,
+-                        variant,
+-                        ..
+-                    } => {
+-                        if definition.is_some_and(|definition| definition != poll) {
+-                            return Err(fail(
+-                                "original protocol pattern names another actual Poll definition",
+-                            ));
+-                        }
+-                        Some(match variant.as_str() {
+-                            "Pending" => ProtocolExit::PollPending,
+-                            "Ready" => ProtocolExit::PollReady,
+-                            _ => {
+-                                return Err(fail(
+-                                    "original protocol pattern selects no actual Poll variant",
+-                                ));
+-                            }
+-                        })
+-                    }
+-                    CorePatternKind::Variant { variant, .. } => Some(match variant.as_str() {
+-                        "Pending" => ProtocolExit::PollPending,
+-                        "Ready" => ProtocolExit::PollReady,
+-                        _ => {
+-                            return Err(fail(
+-                                "original protocol pattern selects no actual Poll variant",
+-                            ));
+-                        }
+-                    }),
+-                    _ => {
+-                        return Err(unknown(
+-                            "original protocol outcome needs its exact full Poll pattern",
+-                        ));
+-                    }
+-                }
+-            } else {
+-                None
+-            };
++            let selected=if let Some(carrier)=carrier { self.arm_exit(carrier,&arm.pattern,b)? } else { None };
+             let mut branches = Vec::new();
+-            if poll.is_some() {
++            if carrier.is_some() {
+                 for (exit, phases) in &data.outcomes {
+                     b.spend(phases.len().saturating_add(1), WORK)?;
+                     if selected.is_some_and(|selected| selected != *exit) {
+@@ -272,10 +221,11 @@ impl Proof<'_, '_> {
+             }
+             for mut branch in branches {
+                 let empty = Data::default();
++                let payload=Data { alias:data.alias,outcomes:Vec::new() };
+                 self.bind_pattern(
+                     &mut branch,
+                     &arm.pattern,
+-                    if poll.is_none() { &data } else { &empty },
++                    if carrier.is_none() || matches!(selected,Some(ProtocolExit::ErrorOk)) { &payload } else { &empty },
+                     b,
+                     depth + 1,
+                 )?;
+@@ -288,7 +238,7 @@ impl Proof<'_, '_> {
+             b.lookup(covered.len(), WORK)?;
+             if !covered.contains(exit) {
+                 return Err(fail(
+-                    "original protocol match loses a possible actual Poll outcome",
++                    "original protocol match loses a possible actual carrier outcome",
+                 ));
+             }
+         }
+diff --git a/crates/zil-expand/src/source_semantic_builtins.rs b/crates/zil-expand/src/source_semantic_builtins.rs
+index 4950bc04e..5e6bfcf34 100644
+--- a/crates/zil-expand/src/source_semantic_builtins.rs
++++ b/crates/zil-expand/src/source_semantic_builtins.rs
+@@ -268,56 +268,75 @@ impl Builder<'_, '_, '_, '_> {
+         };
+         let mut domain = Vec::new();
+         let mut ports = Vec::new();
++        let mut retained = Vec::new();
++        let mut nominal = Vec::new();
+         for (index, field) in fields.iter().enumerate() {
+-            path.extend([1, index as u32]);
++            let ordinal = u32::try_from(index)
++                .map_err(|_| error(field.span, "Task input Context ordinal overflow"))?;
++            path.extend([1, ordinal]);
+             let value = self.ty(field, path, depth + 1, false);
+             path.pop();
+             path.pop();
+             let value = value?;
+-            let SemanticTypeRecipe::Address {
+-                mutable,
+-                lifetime: SemanticOuterLifeRecipe::Class(class),
+-                ..
+-            } = &value
+-            else {
+-                return Err(unsupported(
+-                    field.span,
+-                    "Task input Context requires its complete actual address ports",
+-                ));
+-            };
+-            self.budget.identity_work(domain.len(), field.span)?;
+-            for old in &domain {
+-                prepay_recipe(old, self.budget, field.span, depth + 1)?;
+-            }
+-            prepay_recipe(class, self.budget, field.span, depth + 1)?;
+-            let part = SemanticClassSequencePart::One(class.clone());
+-            if !domain.contains(&part) {
+-                self.push(&mut domain, part, field.span)?;
+-            }
+-            prepay_recipe(class, self.budget, field.span, depth + 1)?;
+-            let class = class.clone();
+-            let mode = if *mutable {
+-                StoredBorrowMode::ExclusiveAddress
+-            } else {
+-                StoredBorrowMode::SharedAddress
++            // The complete input Type contributes its entire domain, including
++            // classes behind an outer address and phantom nominal arguments.
++            // Ports remain occurrences: equal leaves may be distinct roots.
++            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
++            self.push(
++                &mut domain,
++                SemanticClassSequencePart::AllClasses {
++                    ty: Box::new(value.clone()),
++                    path: Vec::new(),
++                },
++                field.span,
++            )?;
++            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
++            self.budget.lineage_bytes(
++                std::mem::size_of::<SemanticClassSequencePart>()
++                    .saturating_add(std::mem::size_of::<SemanticTypeRecipe>()),
++                field.span,
++            )?;
++            let classes = SemanticClassSequenceRecipe {
++                parts: vec![SemanticClassSequencePart::AllClasses {
++                    ty: Box::new(value.clone()),
++                    path: Vec::new(),
++                }],
+             };
+-            self.budget
+-                .lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), field.span)?;
++            prepay_recipe(&classes, self.budget, field.span, depth + 1)?;
++            prepay_recipe(&value, self.budget, field.span, depth + 1)?;
+             self.push(
+                 &mut ports,
+-                SemanticPortPart::One {
+-                    leaf: Box::new(value),
+-                    mode,
+-                    class,
++                SemanticPortPart::FromType {
++                    ty: Box::new(value.clone()),
++                    classes: classes.clone(),
++                },
++                field.span,
++            )?;
++            prepay_recipe(&classes, self.budget, field.span, depth + 1)?;
++            self.budget
++                .lineage_bytes(std::mem::size_of::<LifeTypeProjection>(), field.span)?;
++            self.push(
++                &mut retained,
++                SemanticRetainedPart::All {
++                    path: vec![LifeTypeProjection::Parameter(ordinal)],
++                    parents: classes.clone(),
++                },
++                field.span,
++            )?;
++            self.budget.lineage_bytes(
++                std::mem::size_of::<LifeTypeProjection>()
++                    .saturating_add(std::mem::size_of::<SemanticTypeRecipe>()),
++                field.span,
++            )?;
++            self.push(
++                &mut nominal,
++                SemanticNominalPart::FromType {
++                    path: vec![LifeTypeProjection::Parameter(ordinal)],
++                    ty: Box::new(value),
++                    classes,
+                 },
+                 field.span,
+             )?;
+-        }
+-        if ports.is_empty() {
+-            return Err(error(
+-                context.span,
+-                "Task explicit Context has no actual port",
+-            ));
+         }
+         // This is an equality obligation into the public input domain, not a
+         // new domain copied from R. Zero result classes emit no rows; nonzero
+@@ -339,11 +358,18 @@ impl Builder<'_, '_, '_, '_> {
+         Ok(SemanticRetainedShapeRecipe {
+             domain: SemanticClassSequenceRecipe { parts: domain },
+             ports,
+-            retained: vec![SemanticRetainedPart::All {
+-                path: vec![LifeTypeProjection::Result],
+-                parents: result_classes,
+-            }],
+-            nominal: Vec::new(),
++            retained: {
++                self.push(
++                    &mut retained,
++                    SemanticRetainedPart::All {
++                        path: vec![LifeTypeProjection::Result],
++                        parents: result_classes,
++                    },
++                    context.span,
++                )?;
++                retained
++            },
++            nominal,
+         })
+     }
+ }
+diff --git a/crates/zil-types/src/closures.rs b/crates/zil-types/src/closures.rs
+index 4ad3da6bf..48c6f3bca 100644
+--- a/crates/zil-types/src/closures.rs
++++ b/crates/zil-types/src/closures.rs
+@@ -408,6 +408,8 @@ pub(super) struct State {
+     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
+     pub helper_tables: std::rc::Rc<helpers::Tables>,
+     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
++    /// Real helper mint bindings, retained while its body is being built.
++    pub prepared_helpers: BTreeMap<FunctionId, helpers::Instance>,
+     pub forward_callers: BTreeSet<helpers::Instance>,
+     pub forward_results: BTreeMap<FunctionId, u32>,
+     pub deferred_closed: BTreeMap<ClosureId, Span>,
+@@ -762,6 +764,7 @@ impl State {
+             active_helpers: std::collections::BTreeSet::new(),
+             helper_tables: std::rc::Rc::new(BTreeMap::new()),
+             helper_instances: BTreeMap::new(),
++            prepared_helpers: BTreeMap::new(),
+             forward_callers: BTreeSet::new(),
+             forward_results: BTreeMap::new(),
+             deferred_closed: BTreeMap::new(),
+diff --git a/crates/zil-types/src/helpers.rs b/crates/zil-types/src/helpers.rs
+index 511b9133e..f1825bf45 100644
+--- a/crates/zil-types/src/helpers.rs
++++ b/crates/zil-types/src/helpers.rs
+@@ -1324,6 +1324,20 @@ impl Builder<'_, '_> {
+             &mut work,
+         )?;
+         self.closures.snapshot(before - work, span)?;
++        self.closures
++            .snapshot(bindings.extra_key_work().saturating_add(1), span)?;
++        if self
++            .closures
++            .prepared_helpers
++            .insert(id, (key, bindings.clone()))
++            .is_some()
++        {
++            return Err(error(
++                "E-TASK-CONTEXT",
++                span,
++                "actual helper repeats its preparation bindings",
++            ));
++        }
+         let mut builder = Builder::new(
+             &function,
+             id,
+@@ -1331,6 +1345,12 @@ impl Builder<'_, '_> {
+             self.limits,
+             self.closures,
+         )?;
++        builder.life_instances = self.life_instances;
++        builder
++            .closures
++            .snapshot(self.actual_functions.len().saturating_add(1), span)?;
++        builder.actual_functions = self.actual_functions.clone();
++        builder.actual_functions.push(&self.function);
+         builder.state_uses = state_uses;
+         builder.closures.snapshot(
+             plan::tree_work(builder.closures.forward_callers.len())
+diff --git a/crates/zil-types/src/lib.rs b/crates/zil-types/src/lib.rs
+index 2d6f801f2..992da2b22 100644
+--- a/crates/zil-types/src/lib.rs
++++ b/crates/zil-types/src/lib.rs
+@@ -689,6 +689,9 @@ pub fn check(
+             &mut closure_state,
+         )
+         .and_then(|mut b| {
++            b.life_instances = &life_instances;
++            b.closures.snapshot(functions.len(), f.span)?;
++            b.actual_functions = functions.iter().collect();
+             b.enums = Some(&enum_types);
+             b.dyn_declarations = &core.dyn_declarations;
+             b.dyn_interfaces = &core.dyn_interfaces;
+@@ -816,6 +819,8 @@ struct Builder<'a, 'c> {
+     state_uses: Option<state_origins::Uses>,
+     factory_bound: Option<CoreCallableReturn>,
+     signatures: &'a BTreeMap<String, Signature>,
++    life_instances: &'a [LifeNominalInstance],
++    actual_functions: Vec<&'a TypedFunction>,
+     dyn_declarations: &'a [DynDeclaration],
+     dyn_interfaces: &'a [DynInterface],
+     dyn_vtables: &'a [DynVtable],
+@@ -1002,6 +1007,8 @@ impl<'a, 'c> Builder<'a, 'c> {
+             state_uses: None,
+             factory_bound: f.callable_return.clone(),
+             signatures,
++            life_instances: &[],
++            actual_functions: Vec::new(),
+             dyn_declarations: &[],
+             dyn_interfaces: &[],
+             dyn_vtables: &[],
+@@ -3467,6 +3474,12 @@ impl<'a, 'c> Builder<'a, 'c> {
+                 self.closures,
+             )?;
+             builder.imports = self.imports;
++            builder.life_instances = self.life_instances;
++            builder
++                .closures
++                .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
++            builder.actual_functions = self.actual_functions.clone();
++            builder.actual_functions.push(&self.function);
+             builder.enums = self.enums;
+             let typed = builder.finish(&function.body)?;
+             self.closures.thin[slot] = Some(typed);
+@@ -3699,6 +3712,12 @@ impl<'a, 'c> Builder<'a, 'c> {
+             self.closures,
+         )?;
+         builder.imports = self.imports;
++        builder.life_instances = self.life_instances;
++        builder
++            .closures
++            .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
++        builder.actual_functions = self.actual_functions.clone();
++        builder.actual_functions.push(&self.function);
+         builder.enums = self.enums;
+         builder.dyn_declarations = self.dyn_declarations;
+         builder.dyn_interfaces = self.dyn_interfaces;
+diff --git a/crates/zil-types/src/program.rs b/crates/zil-types/src/program.rs
+index 01560d722..420f15cd8 100644
+--- a/crates/zil-types/src/program.rs
++++ b/crates/zil-types/src/program.rs
+@@ -359,6 +359,12 @@ fn check_resolved_program_in_context(
+         let mut builder =
+             Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
+         builder.imports = Some(&imports);
++        builder.life_instances = &life_instances;
++        builder
++            .closures
++            .snapshot(factories.len(), f.span)
++            .map_err(|e| vec![e])?;
++        builder.actual_functions = factories.values().collect();
+         builder.enums = Some(&enum_types);
+         builder.dyn_declarations = &dyn_declarations;
+         builder.dyn_interfaces = &dyn_interfaces;
+@@ -457,6 +463,12 @@ fn check_resolved_program_in_context(
+                 let mut builder =
+                     Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
+                 builder.imports = Some(&imports);
++                builder.life_instances = &life_instances;
++                builder
++                    .closures
++                    .snapshot(functions.len().saturating_add(factories.len()), f.span)
++                    .map_err(|e| vec![e])?;
++                builder.actual_functions = functions.iter().chain(factories.values()).collect();
+                 builder.enums = Some(&enum_types);
+                 builder.dyn_declarations = &dyn_declarations;
+                 builder.dyn_interfaces = &dyn_interfaces;
+diff --git a/crates/zil-types/src/semantics/emission.rs b/crates/zil-types/src/semantics/emission.rs
+index bc5713471..7ba55a45e 100644
+--- a/crates/zil-types/src/semantics/emission.rs
++++ b/crates/zil-types/src/semantics/emission.rs
+@@ -64,6 +64,10 @@ pub(crate) struct Ledger {
+     >,
+     /// Lexical selections recorded while emitting this exact MakeClosure.
+     pub(super) closure_captures: BTreeMap<ClosureId, Vec<(String, ValueId)>>,
++    /// Candidate headers formed at real MakeClosure operations. Publication
++    /// rebuilds and compares them; they confer no closedness or permissions.
++    pub(super) formed_headers:
++        BTreeMap<ClosureId, (StorageLifeContract, Vec<SemanticHeaderBinding>)>,
+     /// Actual Core headers deliberately retained for a later callable/value
+     /// specialization. A missing frame by itself is never this fact.
+     pub templates: std::collections::BTreeSet<Origin>,
+@@ -81,6 +85,18 @@ fn lookup_cost(n: usize) -> usize {
+     n.saturating_add(1).ilog2() as usize + 1
+ }
+ impl Ledger {
++    pub(crate) fn active_expression(
++        &self,
++        function: FunctionId,
++        left: &mut usize,
++        span: Span,
++    ) -> R<Option<NodeId>> {
++        pay(left, lookup_cost(self.frames.len()), span)?;
++        Ok(self
++            .frames
++            .get(&function)
++            .and_then(|frame| frame.stack.last().copied()))
++    }
+     pub(crate) fn capture_sources(
+         &mut self,
+         closure: ClosureId,
+diff --git a/crates/zil-types/src/store_templates.rs b/crates/zil-types/src/store_templates.rs
+index b1a5d269f..4d3a7a8d5 100644
+--- a/crates/zil-types/src/store_templates.rs
++++ b/crates/zil-types/src/store_templates.rs
+@@ -591,6 +591,12 @@ impl Builder<'_, '_> {
+                 self.closures,
+             )?;
+             builder.imports = Some(&imports);
++            builder.life_instances = self.life_instances;
++            builder
++                .closures
++                .snapshot(self.actual_functions.len().saturating_add(1), span)?;
++            builder.actual_functions = self.actual_functions.clone();
++            builder.actual_functions.push(&self.function);
+             builder.enums = Some(&template.context.enums);
+             builder.finish(&function.body)
+         })();
+diff --git a/crates/zil-types/src/tasks/failure.rs b/crates/zil-types/src/tasks/failure.rs
+index 7037a2127..70449232e 100644
+--- a/crates/zil-types/src/tasks/failure.rs
++++ b/crates/zil-types/src/tasks/failure.rs
+@@ -87,13 +87,26 @@ pub(super) fn carrier(inputs: &[Type], context: &zil_ir::RetainedLifeShape) -> T
+ /// Keep the implicit actual context in the nominal key. Two equal physical
+ /// input tuples with different fixed class maps are different full instances.
+ pub(super) fn context_actual(context: &zil_ir::RetainedLifeShape) -> Type {
++    // This nominal argument has Unit as its result, while retaining the same
++    // complete input context as both arms of the actual create operation.
++    // Parameter and phantom class maps are not result projections.
+     Type::Task {
+         result: Box::new(Type::Unit),
+         retained_life: zil_ir::RetainedLifeShape {
+             binder_count: context.binder_count,
+             ports: context.ports.clone(),
+-            retained: vec![],
+-            nominal_arguments: vec![],
++            retained: context
++                .retained
++                .iter()
++                .filter(|row| !matches!(row.path.first(), Some(L::Result)))
++                .cloned()
++                .collect(),
++            nominal_arguments: context
++                .nominal_arguments
++                .iter()
++                .filter(|row| !matches!(row.path.first(), Some(L::Result)))
++                .cloned()
++                .collect(),
+         },
+     }
+ }
+diff --git a/crates/zil-verify/src/dynamic_witness/semantic_associated.rs b/crates/zil-verify/src/dynamic_witness/semantic_associated.rs
+index a1d048e56..5e01a3f67 100644
+--- a/crates/zil-verify/src/dynamic_witness/semantic_associated.rs
++++ b/crates/zil-verify/src/dynamic_witness/semantic_associated.rs
+@@ -25,6 +25,7 @@ impl LocalDomain {
+             .map_or_else(|| key.clone(), |(_, outside, _)| outside.clone()))
+     }
+     fn origin(&self, origin: &IntrinsicOrigin, b: &mut Budget) -> Check<IntrinsicOrigin> {
++        if matches!(origin,IntrinsicOrigin::Nominal{..}){return self.nominal_origin(origin,b);}
+         b.spend(self.rows.len())?;
+         if let IntrinsicOrigin::DerivedClass { source } = origin {
+             if let Some((_, _, origin)) = self.rows.iter().find(|(key, _, _)| key == source) {
+@@ -33,6 +34,30 @@ impl LocalDomain {
+         }
+         Ok(origin.clone())
+     }
++    fn nominal_origin(&self,origin:&IntrinsicOrigin,b:&mut Budget)->Check<IntrinsicOrigin>{
++        semantic::charge_intrinsic_origin(origin,b)?;
++        Ok(match origin{
++            IntrinsicOrigin::DerivedClass{source}=>IntrinsicOrigin::DerivedClass{source:self.outside(source,b)?},
++            IntrinsicOrigin::Existing{..}=>origin.clone(),
++            IntrinsicOrigin::Nominal{source,class}=>{
++                let mut actuals=Vec::new();let mut environment=Vec::new();let mut sources=Vec::new();
++                for actual in &source.actuals{actuals.push(self.nominal_actual(actual,b)?);}
++                for actual in &source.environment{environment.push(self.nominal_actual(actual,b)?);}
++                for origin in &source.class_sources{sources.push(self.nominal_origin(origin,b)?);}
++                IntrinsicOrigin::Nominal{source:std::rc::Rc::new(semantic::NominalOrigin{declaration:source.declaration,actuals,environment,domain:source.domain.clone(),class_sources:sources}),class:*class}
++            },
++        })
++    }
++    fn nominal_actual(&self,actual:&CheckedActual,b:&mut Budget)->Check<CheckedActual>{
++        charge_actual(actual,b)?;
++        let mut actual=actual.clone();match &mut actual{
++            CheckedActual::Life(key)=>*key=self.outside(key,b)?,
++            CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{
++                for key in &mut value.classes{*key=self.outside(key,b)?;}
++                for origin in &mut value.origins{*origin=self.nominal_origin(origin,b)?;}
++            },
++        }Ok(actual)
++    }
+     fn value(
+         &mut self,
+         context: &semantic::CheckedContext,
+diff --git a/crates/zil-verify/src/dynamic_witness/semantic_external.rs b/crates/zil-verify/src/dynamic_witness/semantic_external.rs
+index adc8f784e..92ef72408 100644
+--- a/crates/zil-verify/src/dynamic_witness/semantic_external.rs
++++ b/crates/zil-verify/src/dynamic_witness/semantic_external.rs
+@@ -107,6 +107,7 @@ fn charge_type(value: &CheckedType, b: &mut Budget) -> Check<()> {
+         match origin {
+             IntrinsicOrigin::Existing { path, .. } => b.spend(path.len())?,
+             IntrinsicOrigin::DerivedClass { source } => charge_key(source, b)?,
++            IntrinsicOrigin::Nominal { .. } => semantic::charge_intrinsic_origin(origin,b)?,
+         }
+     }
+     for row in &value.statics {
+@@ -358,6 +359,14 @@ pub(crate) fn construct(
+     b: &mut Budget,
+ ) -> Check<CheckedType> {
+     b.spend(children.len())?;
++    let mut normalized_children=Vec::with_capacity(children.len());
++    for child in children{
++        charge_type(child,b)?;
++        let mut child=child.clone();
++        for origin in &mut child.origins{*origin=context.normalized_origin(environment,origin,b)?;}
++        normalized_children.push(child);
++    }
++    let children=normalized_children.as_slice();
+     let mut domain = Domain::new(context, environment, active, b)?;
+     for child in children {
+         domain.value(child, b)?;
+diff --git a/crates/zil-verify/src/dynamic_witness/symbols.rs b/crates/zil-verify/src/dynamic_witness/symbols.rs
+index bab8054c2..fceced3e7 100644
+--- a/crates/zil-verify/src/dynamic_witness/symbols.rs
++++ b/crates/zil-verify/src/dynamic_witness/symbols.rs
+@@ -226,10 +226,11 @@ impl Symbols {
+         }
+         let mut terms = Vec::with_capacity(count);
+         for (class, origin) in value.classes.iter().zip(&value.origins) {
++            crate::semantic::charge_intrinsic_origin(origin,b)?;
+             let image = self.class(class, b)?.image;
+             let origin = match origin {
+                 IntrinsicOrigin::DerivedClass { source } => self.class(source, b)?.origin,
+-                IntrinsicOrigin::Existing { .. } => {
++                IntrinsicOrigin::Existing { .. } | IntrinsicOrigin::Nominal { .. } => {
+                     b.spend(self.origins.len().saturating_add(1))?;
+                     if let Some((_, known)) = self
+                         .origins
+diff --git a/crates/zil-verify/src/semantic/api.rs b/crates/zil-verify/src/semantic/api.rs
+index c75588463..b12dd39ec 100644
+--- a/crates/zil-verify/src/semantic/api.rs
++++ b/crates/zil-verify/src/semantic/api.rs
+@@ -74,8 +74,23 @@ pub(crate) enum IntrinsicOrigin {
+     /// A freshly built nominal/structural class derives from a real scoped
+     /// semantic lifetime, not a fictional TypeArgument(LifeOrdinal).
+     DerivedClass { source: ClassKey },
++    /// One complete nominal intrinsic domain. Its outside Life actuals are
++    /// arguments of this type identity, not identities of its intrinsic κ.
++    Nominal { source: std::rc::Rc<NominalOrigin>, class: u32 },
+ }
+-#[derive(Clone, Debug, PartialEq, Eq)]
++#[derive(Clone, Debug)]
++pub(crate) struct NominalOrigin {
++    pub(crate) declaration: LifeDeclarationId,
++    pub(crate) actuals: Vec<CheckedActual>,
++    pub(crate) environment: Vec<CheckedActual>,
++    pub(crate) domain: StorageLifeShape,
++    pub(crate) class_sources: Vec<IntrinsicOrigin>,
++}
++impl PartialEq for NominalOrigin{fn eq(&self,other:&Self)->bool{self.declaration==other.declaration&&self.actuals==other.actuals&&self.environment==other.environment&&self.domain==other.domain}}
++impl Eq for NominalOrigin{}
++impl PartialOrd for NominalOrigin{fn partial_cmp(&self,other:&Self)->Option<std::cmp::Ordering>{Some(self.cmp(other))}}
++impl Ord for NominalOrigin{fn cmp(&self,other:&Self)->std::cmp::Ordering{(&self.declaration,&self.actuals,&self.environment,&self.domain).cmp(&(&other.declaration,&other.actuals,&other.environment,&other.domain))}}
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(crate) enum StaticOccurrence {
+     Direct {
+         /// Type metadata only, never a physical GEP.
+@@ -92,7 +107,7 @@ pub(crate) enum StaticOccurrence {
+         mode: StoredBorrowMode,
+     },
+ }
+-#[derive(Clone, Debug, PartialEq, Eq)]
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(crate) struct CheckedType {
+     pub(crate) ty: Type,
+     pub(crate) life: StorageLifeShape,
+@@ -102,7 +117,7 @@ pub(crate) struct CheckedType {
+     /// Pending actual-source obligations, not literal or Known0 evidence.
+     pub(crate) statics: Vec<StaticOccurrence>,
+ }
+-#[derive(Clone, Debug, PartialEq, Eq)]
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(crate) enum CheckedActual {
+     Type(CheckedType),
+     Const {
+diff --git a/crates/zil-verify/src/semantic/evaluate.rs b/crates/zil-verify/src/semantic/evaluate.rs
+index a432e8090..1436e9421 100644
+--- a/crates/zil-verify/src/semantic/evaluate.rs
++++ b/crates/zil-verify/src/semantic/evaluate.rs
+@@ -505,12 +505,7 @@ impl CheckedContext {
+             classes: (0..count).map(StorageBinder::Fixed).collect(),
+         };
+         dynamic_witness::check_type_value(module, &value, scope, b)?;
+-        let mut origins = classes
+-            .iter()
+-            .map(|source| IntrinsicOrigin::DerivedClass {
+-                source: source.clone(),
+-            })
+-            .collect();
++        let mut origins = self.typed_origins(module,ty,life,&classes,b)?;
+         let mut statics = vec![];
+         if let Type::Closure(id) = ty {
+             if let Some(domain) = self.closure_domain(*id, b)? {
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index 3eab04f88..7062ab06f 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -732,7 +732,10 @@ impl CheckedContext {
+         // Its later frame/site obligations remain mandatory at module exit.
+         let mut actual=self.construct_value(module,ty,life,classes,b)?;
+         for (index,expression) in expressions.iter().enumerate() {
+-            if let Some(origin)=self.expression_origin(expression,environment,b)? {actual.origins[index]=origin;}
++            let source=self.expression_origin(expression,environment,b)?;
++            let expected_origin=expected.origins.get(index).ok_or_else(||bad("nominal claim original domain is incomplete"))?;
++            if let Some(origin)=self.nominal_claim_origin(&actual.origins[index],expected_origin,source.as_ref(),environment,b)?{actual.origins[index]=origin;}
++            else if let Some(origin)=source{actual.origins[index]=origin;}
+         }
+         if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe"));}
+         Ok(())
+diff --git a/crates/zil-verify/src/semantic/mod.rs b/crates/zil-verify/src/semantic/mod.rs
+index d837ba47d..97d555168 100644
+--- a/crates/zil-verify/src/semantic/mod.rs
++++ b/crates/zil-verify/src/semantic/mod.rs
+@@ -14,6 +14,8 @@ mod evaluate;
+ mod requirements;
+ mod constants;
+ mod nominal;
++mod nominal_origins;
++pub(crate) use nominal_origins::charge_origin as charge_intrinsic_origin;
+ mod closures;
+ mod opaque;
+ mod method_obligations;
+diff --git a/crates/zil-verify/src/semantic/nominal.rs b/crates/zil-verify/src/semantic/nominal.rs
+index 1c1a5c0be..f18d0c6f8 100644
+--- a/crates/zil-verify/src/semantic/nominal.rs
++++ b/crates/zil-verify/src/semantic/nominal.rs
+@@ -229,9 +229,14 @@ impl CheckedContext {
+                 }
+             }
+         }
+-        selected.ok_or_else(|| {
++        let mut selected=selected.ok_or_else(|| {
+             bad("nominal has no exact complete declaration/actual/intrinsic-partition instance")
+-        })
++        })?;
++        if !selected.classes.is_empty(){
++            selected.origins=self.nominal_origins(*declaration,&actuals,&environment.lexical[0].environment,&selected.life,&selected.origins,b)?;
++            for origin in &mut selected.origins{*origin=self.normalized_origin(caller,origin,b)?;}
++        }
++        Ok(selected)
+     }
+ 
+     fn nominal_candidate(
+@@ -334,15 +339,17 @@ impl CheckedContext {
+             life: life.clone(),
+             classes: (0..life.binder_count).map(StorageBinder::Fixed).collect(),
+         };
+-        dynamic_witness::check_type_value(
+-            module,
+-            &raw,
+-            DynInstantiationScope {
+-                fixed_binder_count: life.binder_count,
+-                invocation_binder_count: 0,
+-            },
+-            b,
+-        )?;
++        if !self.domain_only.get(){
++            dynamic_witness::check_type_value(
++                module,
++                &raw,
++                DynInstantiationScope {
++                    fixed_binder_count: life.binder_count,
++                    invocation_binder_count: 0,
++                },
++                b,
++            )?;
++        }
+         Ok(Some(CheckedType {
+             ty: ty.clone(),
+             life,
+diff --git a/crates/zil-verify/src/semantic/relations.rs b/crates/zil-verify/src/semantic/relations.rs
+index 5aa35d8ac..87002d9cc 100644
+--- a/crates/zil-verify/src/semantic/relations.rs
++++ b/crates/zil-verify/src/semantic/relations.rs
+@@ -54,6 +54,7 @@ impl CheckedContext {
+         Ok(true)
+     }
+     pub(crate) fn canonical_origin(&self,origin:&IntrinsicOrigin,b:&mut Budget)->Check<IntrinsicOrigin> {
++        nominal_origins::charge_origin(origin,b)?;
+         let mut current=match origin {
+             IntrinsicOrigin::DerivedClass{source:ClassKey::Intrinsic{scope,operand,path,class}}=>IntrinsicOrigin::Existing{scope:*scope,operand:operand.clone(),path:path.clone(),class:*class},
+             origin=>origin.clone(),
+@@ -69,13 +70,20 @@ impl CheckedContext {
+     }
+     pub(crate) fn same_origin(&self,environment:&EvalEnv,left:&IntrinsicOrigin,right:&IntrinsicOrigin,b:&mut Budget)->Check<bool> {
+         let left=self.canonical_origin(left,b)?;let right=self.canonical_origin(right,b)?;
+-        if matches!((&left,&right),(IntrinsicOrigin::Existing{..},IntrinsicOrigin::Existing{..})) {return Ok(left==right);}
+-        let key=|origin:IntrinsicOrigin|match origin {
+-            IntrinsicOrigin::DerivedClass{source}=>source,
+-            IntrinsicOrigin::Existing{scope,operand,path,class}=>ClassKey::Intrinsic{scope,operand,path,class},
+-        };
+-        // Compare original source identities under original Γ, never the
+-        // already collapsed outside images held in CheckedType.classes.
+-        self.same(environment,&key(left),&key(right),b)
++        match (&left,&right){
++            (IntrinsicOrigin::Nominal{source:a,class:x},IntrinsicOrigin::Nominal{source:z,class:y})=>{
++                nominal_origins::charge_origin(&left,b)?;nominal_origins::charge_origin(&right,b)?;
++                if x!=y||a.declaration!=z.declaration||a.domain!=z.domain||a.actuals.len()!=z.actuals.len()||a.environment.len()!=z.environment.len(){return Ok(false);}
++                for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){
++                    let equal=match(a,z){(CheckedActual::Life(a),CheckedActual::Life(z))=>self.same(environment,a,z,b)?,(CheckedActual::Type(a),CheckedActual::Type(z))=>self.same_type(environment,a,z,b)?,(CheckedActual::Const{carrier:a,value:av},CheckedActual::Const{carrier:z,value:zv})=>av==zv&&self.same_type(environment,a,z,b)?,_=>false};if !equal{return Ok(false);}
++                }
++                Ok(true)
++            },
++            (IntrinsicOrigin::Existing{..},IntrinsicOrigin::Existing{..})=>Ok(left==right),
++            (IntrinsicOrigin::DerivedClass{source:a},IntrinsicOrigin::DerivedClass{source:z})=>self.same(environment,a,z,b),
++            // A type-domain κ is not an outer Life identity. Only an exact
++            // checked occurrence alias above can connect their representations.
++            _=>Ok(false),
++        }
+     }
+ }
+diff --git a/crates/zil-verify/src/semantic/task_domains.rs b/crates/zil-verify/src/semantic/task_domains.rs
+index 8b5c8c920..f0844a0c1 100644
+--- a/crates/zil-verify/src/semantic/task_domains.rs
++++ b/crates/zil-verify/src/semantic/task_domains.rs
+@@ -6,6 +6,7 @@ use super::*;
+ pub(crate) struct FrameKey {
+     pub(crate) worker: FunctionId,
+     pub(crate) instance: Option<SemanticInstanceId>,
++    pub(crate) raw_declaration: Option<u32>,
+ }
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub(crate) enum Selector {
+@@ -30,6 +31,8 @@ pub(crate) struct FrameMetadata {
+     pub(crate) arguments: Vec<CheckedActual>,
+     pub(crate) parameters: Vec<CheckedType>,
+     pub(crate) parameter_types: Vec<Type>,
++    pub(crate) parameter_lives: Vec<StorageLifeShape>,
++    pub(crate) result_life: StorageLifeShape,
+     pub(crate) result: Option<CheckedType>,
+     pub(crate) result_type: Type,
+     pub(crate) shape: RetainedLifeShape,
+@@ -270,6 +273,7 @@ impl CheckedContext {
+                 let key = FrameKey {
+                     worker,
+                     instance: Some(instance.id),
++                    raw_declaration: None,
+                 };
+                 if b.task_frames.contains_key(&key) {
+                     continue;
+@@ -453,6 +457,7 @@ impl CheckedContext {
+         let key = FrameKey {
+             worker,
+             instance: Some(instance.id),
++            raw_declaration: None,
+         };
+         let Some(state) = b.task_frames.get_mut(&key) else {
+             return Ok(());
+@@ -721,6 +726,12 @@ fn build_frame(
+             .iter()
+             .map(|(value, _)| value.clone())
+             .collect(),
++        parameter_lives: signature
++            .parameters
++            .iter()
++            .map(|(value, _)| value.life.clone())
++            .collect(),
++        result_life: signature.result.life.clone(),
+         parameter_types: signature
+             .parameters
+             .iter()
+@@ -743,14 +754,24 @@ pub(super) fn input_ports(
+     value: &CheckedType,
+     b: &mut Budget,
+ ) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
+-    let mut result = Vec::new();
+     if !value.statics.is_empty() {
+         return Err(unsupported(
+             "Task constant-source frame input requires its complete source obligations",
+             None,
+         ));
+     }
+-    for slot in &value.life.slots {
++    let _ = context;
++    raw_input_ports(module, &value.ty, &value.life, b)
++}
++
++pub(crate) fn raw_input_ports(
++    module: &TypedModule,
++    ty: &Type,
++    life: &StorageLifeShape,
++    b: &mut Budget,
++) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
++    let mut result = Vec::new();
++    for slot in &life.slots {
+         b.spend(slot.path.len().saturating_add(1))?;
+         let path = slot
+             .path
+@@ -758,7 +779,7 @@ pub(super) fn input_ports(
+             .copied()
+             .map(LifeTypeProjection::Place)
+             .collect::<Vec<_>>();
+-        let leaf = lifetimes::select(&value.ty, &path, b)?;
++        let leaf = lifetimes::select(ty, &path, b)?;
+         dynamic_metadata::ty(leaf, b)?;
+         result.push((
+             leaf.clone(),
+@@ -771,7 +792,7 @@ pub(super) fn input_ports(
+                 .collect(),
+         ));
+     }
+-    let mut payload = &value.ty;
++    let mut payload = ty;
+     let mut prefix = Vec::new();
+     loop {
+         match payload {
+@@ -806,8 +827,7 @@ pub(super) fn input_ports(
+             let class = if prefix.is_empty() {
+                 port.binder
+             } else {
+-                let mut rows = value
+-                    .life
++                let mut rows = life
+                     .retained
+                     .iter()
+                     .filter(|row| row.path == prefix && row.class == port.binder);
+@@ -873,8 +893,7 @@ pub(super) fn input_ports(
+             let class = if prefix.is_empty() {
+                 class
+             } else {
+-                let mut rows = value
+-                    .life
++                let mut rows = life
+                     .retained
+                     .iter()
+                     .filter(|row| row.path == prefix && row.class == class);
+@@ -895,7 +914,6 @@ pub(super) fn input_ports(
+             result.push((leaf, mode, class, path));
+         }
+     }
+-    let _ = context;
+     Ok(result)
+ }
+ 
+@@ -1061,6 +1079,24 @@ fn register_constructors(module: &TypedModule, b: &mut Budget) -> Check<()> {
+     Ok(())
+ }
+ 
++pub(crate) fn constructor_declaration<'a>(ty: &'a Type, b: &mut Budget) -> Check<&'a Type> {
++    dynamic_metadata::ty(ty, b)?;
++    let Type::ErrorUnion { result, .. } = ty else {
++        return Err(bad(
++            "Task constructor result is not its complete fallible owner",
++        ));
++    };
++    let Type::Managed(task) = result.as_ref() else {
++        return Err(bad("Task constructor success is not an owning frame"));
++    };
++    if !matches!(task.as_ref(), Type::Task { .. }) {
++        return Err(bad(
++            "Task constructor success changes its exact payload kind",
++        ));
++    }
++    Ok(task)
++}
++
+ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) -> Check<()> {
+     if module.semantic.is_some() {
+         return Err(bad(
+@@ -1068,19 +1104,43 @@ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) ->
+         ));
+     }
+     register_constructors(module, b)?;
+-    for worker in workers(module, b)? {
+-        let function = module
++    b.spend(b.task_constructors.len())?;
++    let sites = b.task_constructors.keys().copied().collect::<Vec<_>>();
++    for site in sites {
++        let caller = module
+             .functions
+-            .get(worker.0 as usize)
+-            .ok_or_else(|| bad("raw Task worker absent"))?;
+-        // The mature raw profile remains the authoritative complete worker
+-        // type interpreter. Its frame metadata never records a WF success.
+-        let shape = crate::tasks::raw_frame_shape(module, function, b)?;
++            .get(site.function.0 as usize)
++            .ok_or_else(|| bad("raw Task constructor function absent"))?;
++        let value = caller
++            .values
++            .get(site.result.0 as usize)
++            .ok_or_else(|| bad("raw Task constructor value absent"))?;
++        let declaration = constructor_declaration(value, b)?;
++        let Type::Task {
++            result,
++            retained_life,
++        } = declaration
++        else {
++            unreachable!()
++        };
++        b.spend(b.task_frames.len())?;
++        if b.task_frames.iter().any(|(key,state)|key.worker==site.worker&&key.instance.is_none()&&matches!(state,FrameState::MetadataReady(frame)if frame.result_type==**result&&frame.shape==*retained_life)){continue;}
++        if b.task_frames.len() >= b.limits.max_nodes {
++            return Err(limit("raw Task complete declaration inventory exceeded"));
++        }
+         let key = FrameKey {
+-            worker,
++            worker: site.worker,
+             instance: None,
++            raw_declaration: Some(
++                u32::try_from(b.task_frames.len())
++                    .map_err(|_| limit("raw Task declaration inventory overflow"))?,
++            ),
+         };
+-        let sources = crate::tasks::raw_frame_sources(module, function, b)?;
++        let function = module
++            .functions
++            .get(site.worker.0 as usize)
++            .ok_or_else(|| bad("raw Task worker absent"))?;
++        let frame = crate::tasks::raw_frame_data(module, function, declaration, b)?;
+         let parameter_types = function
+             .parameters
+             .iter()
+@@ -1092,6 +1152,13 @@ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) ->
+                     .ok_or_else(|| bad("raw Task parameter local absent"))
+             })
+             .collect::<Check<Vec<_>>>()?;
++        let result_map = frame
++            .shape
++            .retained
++            .iter()
++            .filter(|row| row.path == [LifeTypeProjection::Result])
++            .map(|row| row.binder)
++            .collect();
+         b.task_frames.insert(
+             key,
+             FrameState::MetadataReady(FrameMetadata {
+@@ -1100,12 +1167,14 @@ pub(crate) fn prepare_raw_task_contexts(module: &TypedModule, b: &mut Budget) ->
+                 arguments: vec![],
+                 parameters: vec![],
+                 parameter_types,
++                parameter_lives: frame.parameters,
++                result_life: frame.result,
+                 result: None,
+                 result_type: function.return_type.clone(),
+-                shape,
+-                port_sources: sources,
+-                input_maps: vec![],
+-                result_map: vec![],
++                shape: frame.shape,
++                port_sources: frame.sources,
++                input_maps: frame.maps,
++                result_map,
+                 selectors: vec![],
+                 worker_checked: false,
+             }),
+@@ -1284,16 +1353,35 @@ pub(crate) fn record_raw_constructor(
+         ));
+     }
+     for key in selected {
++        let raw_frame = if key.caller.is_none() {
++            let declaration = constructor_declaration(expected, b)?;
++            let Type::Task {
++                result,
++                retained_life,
++            } = declaration
++            else {
++                unreachable!()
++            };
++            b.spend(b.task_frames.len())?;
++            let frames=b.task_frames.iter().filter_map(|(frame_key,state)|if frame_key.worker==key.worker&&frame_key.instance.is_none()&&matches!(state,FrameState::MetadataReady(frame)if frame.result_type==**result&&frame.shape==*retained_life){Some(*frame_key)}else{None}).collect::<Vec<_>>();
++            if frames.len() != 1 {
++                return Err(bad(
++                    "raw Task constructor has no unique complete declared frame",
++                ));
++            }
++            Some(frames[0])
++        } else {
++            None
++        };
+         let obligation = b.task_constructors.get_mut(&key).unwrap();
+         if obligation.state == ObligationState::Checking {
+             return Err(bad("Task constructor WF forms an active cycle"));
+         }
+         obligation.raw_checked = true;
+         if key.caller.is_none() {
+-            obligation.frames = vec![FrameKey {
+-                worker: key.worker,
+-                instance: None,
+-            }];
++            obligation.frames = vec![
++                raw_frame.ok_or_else(|| bad("raw Task constructor frame obligation is absent"))?,
++            ];
+             obligation.state = ObligationState::Discharged;
+         }
+     }
+diff --git a/crates/zil-verify/src/semantic/tests.rs b/crates/zil-verify/src/semantic/tests.rs
+index 4f2bc200b..3fe1a52ae 100644
+--- a/crates/zil-verify/src/semantic/tests.rs
++++ b/crates/zil-verify/src/semantic/tests.rs
+@@ -83,6 +83,44 @@ const COMPLETE_LOCAL:&[u8]=include_bytes!("fixtures/local-closure-complete-head.
+ // phantom fixture. Its plan is untrusted; this exercises only this kernel.
+ const COMPLETE_PHANTOM:&[u8]=include_bytes!("fixtures/phantom-closure-complete-creator.wire");
+ #[test]
++fn nominal_pointee_and_outer_life_keep_distinct_intrinsics_with_equal_images(){
++    let limits=Limits::default();let(module,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();
++    let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
++    let program=module.semantic.as_ref().unwrap();
++    let child=program.instances.iter().find(|row|row.environment.is_some()).unwrap();
++    let parent=program.instances.iter().find(|row|Some(row.id)==child.parent).unwrap();
++    let scope=ScopeKey::Instance(parent.id);let a=ClassKey::Formal{scope,ordinal:0};
++    let env=EvalEnv{lexical:vec![LexicalFrame{definition:parent.definition,key:scope,actuals:vec![CheckedActual::Life(a.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
++    let nominal=&module.life_instances[0].ty;let Type::BorrowedStorage{life,..}=nominal else{panic!("real phantom nominal qualification")};
++    let value=context.checked_value(&module,nominal,life,vec![a.clone()],&mut b).unwrap();
++    let mut active=ActiveQueries::new();
++    let address=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(a.clone())},std::slice::from_ref(&value),&mut active,&mut b).unwrap();
++    assert_eq!(address.life.binder_count,2);
++    assert_eq!(address.classes,vec![a.clone(),a.clone()]);
++    let outer=address.life.slots.iter().find(|row|row.path.is_empty()).unwrap().binder as usize;
++    let pointee=address.life.retained.iter().find(|row|row.path==[LifeTypeProjection::Pointee]&&row.class==0).unwrap().binder as usize;
++    assert_ne!(outer,pointee);assert!(!context.same_origin(&env,&address.origins[outer],&address.origins[pointee],&mut b).unwrap());
++    for attack in 0..3{
++        let mut claim=SemanticTypeValue::Resolved{ty:address.ty.clone(),life:address.life.clone(),classes:vec![SemanticClassExpr::Formal{scope:SemanticScopeRef::Ancestor(0),ordinal:0};2]};
++        let SemanticTypeValue::Resolved{life,classes,..}=&mut claim else{unreachable!()};
++        if attack==1{life.binder_count=1;for row in &mut life.slots{row.binder=0;}for row in &mut life.retained{row.binder=0;}for row in &mut life.nominal_arguments{row.binder=0;}classes.truncate(1);}
++        if attack==2{for row in &mut life.slots{row.binder=1-row.binder;}for row in &mut life.retained{row.binder=1-row.binder;}for row in &mut life.nominal_arguments{row.binder=1-row.binder;}}
++        for wire in [false,true]{
++            // This is a transport carrier for the type-value sub-proof only;
++            // the inserted Self claim is not an executable source/ABI ticket.
++            let decoded;let proposed=if wire{let mut carrier=module.clone();carrier.semantic.as_mut().unwrap().instances[0].self_type=Some(claim.clone());let bytes=zil_ir::wire::encode_module_candidate(&carrier,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0.semantic.unwrap().instances.remove(0).self_type.unwrap();&decoded}else{&claim};
++            let result=context.claim(&module,proposed,&address,&env,&mut Budget::new(&limits));
++            if attack==0{result.unwrap();}else{assert_eq!(result.unwrap_err().category,zil_base::ResultCategory::SafeReject,"origin attack {attack}, wire {wire}");}
++        }
++    }
++    // Two direct outer occurrences of the same original Life are fresh
++    // structural rows and may share one class; a nominal κ was not erased.
++    let scalar=CheckedType{ty:Type::I32,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
++    let borrow=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(a)},&[scalar],&mut active,&mut b).unwrap();
++    let tuple=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Tuple,&[borrow.clone(),borrow],&mut active,&mut b).unwrap();
++    assert_eq!(tuple.life.binder_count,1);assert_eq!(tuple.life.slots.len(),2);
++}
++#[test]
+ fn actual_phantom_capture_keeps_the_complete_logical_domain_and_exact_creator(){
+     let limits=Limits::default();
+     let(original,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();
+diff --git a/crates/zil-verify/src/tasks.rs b/crates/zil-verify/src/tasks.rs
+index 2dc29313d..3764a3f67 100644
+--- a/crates/zil-verify/src/tasks.rs
++++ b/crates/zil-verify/src/tasks.rs
+@@ -24,116 +24,26 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
+     }
+ }
+ 
+-pub(super) fn raw_frame_shape(
++pub(crate) mod frame_shape;
++pub(super) fn raw_frame_data(
+     module: &TypedModule,
+     worker: &TypedFunction,
++    declaration: &Type,
+     b: &mut Budget,
+-) -> Check<RetainedLifeShape> {
+-    for parameter in &worker.parameters {
+-        let ty = local_type(worker, *parameter, Some(worker.span))?;
+-        let selected = if let Type::Address { inner, .. } = ty {
+-            inner.as_ref()
+-        } else {
+-            ty
+-        };
+-        match input_scope::domain(selected, b)? {
+-            input_scope::Domain::Known(0) => {}
+-            _ => {
+-                return Err(unsupported(
+-                    "raw Task frame requires its complete original full-class selector metadata",
+-                    Some(worker.span),
+-                ));
+-            }
+-        }
+-    }
+-    let _ = module;
+-    owned::borrowed_shape(worker, b)
++) -> Check<frame_shape::Frame> {
++    frame_shape::frame(module, worker, declaration, b)
+ }
+-pub(super) fn raw_frame_sources(
+-    _module: &TypedModule,
+-    worker: &TypedFunction,
+-    b: &mut Budget,
+-) -> Check<Vec<RetainedPortBinding>> {
+-    let mut sources = Vec::new();
+-    for (ordinal, parameter) in worker.parameters.iter().enumerate() {
+-        b.spend(1)?;
+-        if matches!(
+-            local_type(worker, *parameter, Some(worker.span))?,
+-            Type::Address { .. }
+-        ) {
+-            sources.push(RetainedPortBinding {
+-                port: sources.len() as u32,
+-                source: StoragePosition {
+-                    base: StorageBase::Parameter(ordinal as u32),
+-                    path: vec![],
+-                },
+-            });
+-        }
+-    }
+-    Ok(sources)
+-}
+-pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()> {
+-    if let Type::Task {
+-        result,
+-        retained_life,
+-    } = ty
+-    {
+-        let address_result = matches!(result.as_ref(), Type::Address { mutable: false, .. });
+-        if address_result || !retained_life.retained.is_empty() {
+-            if !address_result {
+-                return Err(reject(
+-                    "E-VERIFY-TASK-RESULT",
+-                    span,
+-                    "shared Task result has no exact shared retained input context",
+-                ));
+-            }
+-            if retained_life.retained.is_empty() {
+-                return Err(unsupported(
+-                    "borrowed Task retained classes require actual implemented frame port mappings",
+-                    span,
+-                ));
+-            }
+-            let result_ok = matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner));
+-            let map_ok = matches!(retained_life.retained.as_slice(), [row]
+-                if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0
+-                && row.binder < retained_life.binder_count
+-                && retained_life.ports.iter().any(|port| port.binder == row.binder && port.leaf == **result)
+-                && retained_life.ports.iter().filter(|port| port.binder == row.binder).all(|port|
+-                    port.mode == zil_ir::StoredBorrowMode::SharedAddress));
+-            if !(result_ok && map_ok && retained_life.nominal_arguments.is_empty()) {
+-                return Err(reject(
+-                    "E-VERIFY-TASK-RESULT",
+-                    span,
+-                    "shared Task result has no exact shared retained input context",
+-                ));
+-            }
+-        }
+-    }
+-    let mut next = 0;
+-    if let Type::Task {
+-        result,
+-        retained_life,
+-    } = ty
+-        && *retained_life != empty_context()
+-        && !((owned::retained_result(result)
+-            || matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner)))
+-            && retained_life.binder_count > 0
+-            && retained_life.nominal_arguments.is_empty()
+-            && !retained_life.ports.is_empty()
+-            && retained_life.ports.iter().all(|port| {
+-                let dense = if port.binder == next { next += 1; true } else { port.binder < next };
+-                dense
+-                    && matches!(&port.leaf, Type::Address { mutable, inner }
+-                        if owned::retained_pointee(inner)
+-                            && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
+-            })
+-            && next == retained_life.binder_count)
+-    {
+-        return Err(unsupported(
+-            "borrowed Task retained classes require actual implemented frame port mappings",
+-            span,
+-        ));
++/// Structural admission of an explicitly declared opaque frame domain. This
++/// grants no Closed state, synchronous destruction or actual port source.
++pub(super) fn require_closed_context(ty:&Type,span:Option<Span>)->Check<()>{
++    let Type::Task{retained_life,..}=ty else{return Ok(());};
++    if retained_life.retained.windows(2).any(|pair|pair[0]>=pair[1])||retained_life.nominal_arguments.windows(2).any(|pair|pair[0]>=pair[1]){return Err(reject("E-VERIFY-TASK",span,"Task full class/phantom directory is not canonical"));}
++    let valid=|binder:u32|binder<retained_life.binder_count;
++    for port in &retained_life.ports{
++        if !valid(port.binder)||!matches!((&port.leaf,port.mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription)|(Type::Mutex{..},StoredBorrowMode::SharedAddress)){return Err(reject("E-VERIFY-TASK",span,"Task port changes its complete declared leaf/mode/domain"));}
+     }
++    for row in &retained_life.retained{if !valid(row.binder)||!matches!(row.path.as_slice(),[LifeTypeProjection::Parameter(_)]|[LifeTypeProjection::Result]){return Err(reject("E-VERIFY-TASK",span,"Task complete child-domain row selects another frame component"));}}
++    for row in &retained_life.nominal_arguments{if !valid(row.binder)||!matches!(row.path.first(),Some(LifeTypeProjection::Parameter(_))){return Err(reject("E-VERIFY-TASK",span,"Task phantom row loses its original whole input occurrence"));}}
+     Ok(())
+ }
+ 
+@@ -160,12 +70,8 @@ pub(super) fn result_binder(ty: &Type) -> Option<u32> {
+     if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
+         return None;
+     }
+-    match retained_life.retained.as_slice() {
+-        [row] if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 => {
+-            Some(row.binder)
+-        }
+-        _ => None,
+-    }
++    let mut rows=retained_life.retained.iter().filter(|row|row.path==[LifeTypeProjection::Result]&&row.class==0);
++    let row=rows.next()?;if rows.next().is_some(){None}else{Some(row.binder)}
+ }
+ pub(super) fn result_port(ty: &Type, port: u32) -> bool {
+     if let Type::ErrorUnion { result, .. } = ty {
+diff --git a/crates/zil-verify/src/tasks/context_work.rs b/crates/zil-verify/src/tasks/context_work.rs
+index 95568fae7..7045c2acf 100644
+--- a/crates/zil-verify/src/tasks/context_work.rs
++++ b/crates/zil-verify/src/tasks/context_work.rs
+@@ -2,87 +2,9 @@
+ //! Ordinary payload walkers intentionally do not traverse opaque Task ports.
+ use super::*;
+ 
+-pub(crate) fn context(ty: &Type, b: &mut Budget) -> Check<()> {
+-    let Type::Task {
+-        result,
+-        retained_life,
+-    } = ty
+-    else {
+-        return Ok(());
+-    };
+-    if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
+-        return Ok(());
+-    }
+-    b.spend(
+-        retained_life
+-            .ports
+-            .len()
+-            .saturating_add(retained_life.retained.len())
+-            .saturating_add(retained_life.nominal_arguments.len())
+-            .saturating_add(1)
+-            .saturating_mul(4),
+-    )?;
+-    for row in &retained_life.retained {
+-        b.spend(row.path.len().saturating_mul(4))?;
+-    }
+-    for row in &retained_life.nominal_arguments {
+-        b.spend(row.path.len().saturating_mul(4))?;
+-    }
+-    // Reserve container growth before building the worklist. Every supported
+-    // leaf node/name pays its walk, admission and complete equality visits.
+-    let mut pending = Vec::new();
+-    pending.push((result.as_ref(), 0usize));
+-    pending.extend(retained_life.ports.iter().map(|p| (&p.leaf, 0usize)));
+-    while let Some((leaf, depth)) = pending.pop() {
+-        b.spend(4)?;
+-        if depth > b.limits.max_call_depth {
+-            return Err(limit(
+-                "Task result context nesting exceeds verification limit",
+-            ));
+-        }
+-        match leaf {
+-            Type::Address { inner, .. }
+-            | Type::Array { element: inner, .. }
+-            | Type::Slice { element: inner } => {
+-                pending.push((inner.as_ref(), depth + 1));
+-            }
+-            Type::Record { name, fields } => {
+-                b.spend(name.len().saturating_add(fields.len()).saturating_mul(4))?;
+-                for (name, child) in fields {
+-                    b.spend(name.len().saturating_mul(4))?;
+-                    pending.push((child, depth + 1));
+-                }
+-            }
+-            Type::Tuple(fields) => {
+-                b.spend(fields.len().saturating_mul(4))?;
+-                pending.extend(fields.iter().map(|child| (child, depth + 1)));
+-            }
+-            Type::Unit
+-            | Type::Bool
+-            | Type::U8
+-            | Type::U16
+-            | Type::U32
+-            | Type::I32
+-            | Type::I8
+-            | Type::I16
+-            | Type::Isize
+-            | Type::I64
+-            | Type::U64
+-            | Type::Usize
+-            | Type::F32
+-            | Type::F64 => {}
+-            // These cannot be a whole retained input/result leaf. Reject before
+-            // an unmetered structural classifier or equality can inspect them.
+-            _ => {
+-                return Err(reject(
+-                    "E-VERIFY-TASK-RESULT",
+-                    None,
+-                    "shared Task result has no exact shared retained input context",
+-                ));
+-            }
+-        }
+-    }
+-    Ok(())
++pub(crate) fn context(ty:&Type,b:&mut Budget)->Check<()>{
++    let Type::Task{result,retained_life}=ty else{return Ok(());};
++    dynamic_metadata::ty(result,b)?;dynamic_metadata::retained_shape(retained_life,b)
+ }
+ 
+ pub(crate) fn selection(mut ty: &Type, b: &mut Budget) -> Check<()> {
+diff --git a/crates/zil-verify/src/tasks/owned.rs b/crates/zil-verify/src/tasks/owned.rs
+index ab46bd51c..cc477e7ca 100644
+--- a/crates/zil-verify/src/tasks/owned.rs
++++ b/crates/zil-verify/src/tasks/owned.rs
+@@ -24,6 +24,7 @@ fn scalar(t: &Type) -> bool {
+ pub(super) fn retained_pointee(ty: &Type) -> bool {
+     match ty {
+         ty if scalar(ty) => true,
++        Type::BorrowedStorage{storage,..}=>retained_pointee(storage),
+         Type::Record { fields, .. } => fields.iter().all(|(_, field)| retained_pointee(field)),
+         Type::Tuple(fields) => fields.iter().all(retained_pointee),
+         Type::Array { element, .. } | Type::Slice { element } => retained_pointee(element),
+@@ -118,6 +119,7 @@ fn record(t: &Type, budget: &mut Budget) -> Check<bool> {
+     while let Some(t) = pending.pop() {
+         budget.spend(1)?;
+         match t {
++            Type::BorrowedStorage{storage,..}=>{dynamic_metadata::ty(t,budget)?;pending.push(storage);},
+             t if scalar(t) => {}
+             Type::Record { fields, .. } => {
+                 budget.spend(fields.len())?;
+@@ -147,6 +149,7 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> Check<bool> {
+     while let Some(t) = work.pop() {
+         budget.spend(1)?;
+         match t {
++            Type::BorrowedStorage{storage,..}=>{dynamic_metadata::ty(t,budget)?;work.push(storage);},
+             t if scalar(t) => {}
+             Type::Managed(payload) => {
+                 if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
+@@ -188,6 +191,7 @@ fn aggregate_resources<'a>(t: &'a Type, budget: &mut Budget) -> Check<Vec<&'a Ty
+     while let Some(t) = work.pop() {
+         budget.spend(1)?;
+         match t {
++            Type::BorrowedStorage{storage,..}=>{dynamic_metadata::ty(t,budget)?;work.push(storage);},
+             Type::Managed(_) => leaves.push(t),
+             Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                 budget.spend(fields.len())?;
+@@ -272,6 +276,7 @@ fn tuple(t: &Type, budget: &mut Budget) -> Check<bool> {
+ fn storage(t: &Type, budget: &mut Budget) -> Check<bool> {
+     budget.spend(1)?;
+     match t {
++        Type::BorrowedStorage{storage:inner,..}=>{dynamic_metadata::ty(t,budget)?;storage(inner,budget)},
+         Type::Managed(p) | Type::Desc(p) => {
+             if p.as_ref() == &Type::ByteBuffer {
+                 Ok(true)
+@@ -295,9 +300,10 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
+     match t {
+         // An owned child head is a real asynchronous cleanup obligation. Its
+         // constructor is separately traced by Task origin/migration checks.
+-        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => {
+-            super::require_closed_context(p,None)?;
+-            Ok(super::input_scope::domain(p,budget)? == super::input_scope::Domain::Known(0))
++        Type::BorrowedStorage{storage:inner,..}=>{dynamic_metadata::ty(t,budget)?;pollable_storage(module,inner,budget)},
++        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{..}) => {
++            super::require_closed_context(p,None)?;dynamic_metadata::ty(p,budget)?;
++            Ok(matches!(super::input_scope::domain(p,budget)?,super::input_scope::Domain::Known(_)))
+         }
+         Type::Managed(p) | Type::Desc(p)
+             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
+@@ -322,7 +328,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
+                     match payload.as_ref() {
+                         Type::Task { .. } => {
+                             super::require_closed_context(payload,None)?;
+-                            if super::input_scope::domain(payload,budget)? != super::input_scope::Domain::Known(0) { return Ok(false); }
++                            if !matches!(super::input_scope::domain(payload,budget)?,super::input_scope::Domain::Known(_)) { return Ok(false); }
+                             continue;
+                         }
+                         Type::AsyncRegistration { .. } => {
