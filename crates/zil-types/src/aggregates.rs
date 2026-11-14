@@ -294,7 +294,12 @@ pub(super) fn project_symbol(name: &str) -> bool {
 
 // Share an actual lifetime-bearing declaration through its complete inventory,
 // rather than recognizing a generated spelling as storage authority.
-fn project_stored_declaration(core: &CoreModule, name: &str, remaining: &mut usize) -> R<bool> {
+fn project_stored_declaration(
+    core: &CoreModule,
+    name: &str,
+    limits: &Limits,
+    remaining: &mut usize,
+) -> R<bool> {
     for instance in &core.life_instances {
         aggregate_templates::spend(remaining, 1, Span::default())?;
         let Type::BorrowedStorage { storage, .. } = &instance.ty else {
@@ -302,7 +307,7 @@ fn project_stored_declaration(core: &CoreModule, name: &str, remaining: &mut usi
         };
         let actual = match storage.as_ref() {
             Type::Record { name, .. } | Type::Package { name, .. } => {
-                &stored::aggregate(&core.aggregates, core.module_id, name, remaining)?.name
+                &stored::aggregate_instance(core, instance, limits, remaining)?.name
             }
             Type::Enum { name, .. } => {
                 &stored::enum_from(&core.enums, core.module_id, name, remaining)?.name
@@ -542,7 +547,7 @@ fn resolve_indexed(
             .map_err(|e| vec![e])?;
             let actual_name = match storage.as_ref() {
                 Type::Record { .. } | Type::Package { .. } => {
-                    stored::aggregate(aggregates, module, name, remaining)
+                    stored::aggregate_instance(source.unwrap_or(&core), instance, limits, remaining)
                         .map_err(|e| vec![e])?
                         .name
                         .as_str()
@@ -592,7 +597,7 @@ fn resolve_indexed(
                     )]
                 })?;
             if project_symbol(&declaration.name)
-                || project_stored_declaration(module, &declaration.name, remaining)
+                || project_stored_declaration(module, &declaration.name, limits, remaining)
                     .map_err(|e| vec![e])?
             {
                 if owners
@@ -648,7 +653,7 @@ fn resolve_indexed(
             }
             if shared_task_error
                 || project_symbol(&declaration.name)
-                || project_stored_declaration(module, &declaration.name, remaining)
+                || project_stored_declaration(module, &declaration.name, limits, remaining)
                     .map_err(|e| vec![e])?
                 || stored::project_option_enum(module, declaration, remaining, limits)
                     .map_err(|e| vec![e])?
@@ -936,15 +941,12 @@ fn resolve_indexed(
         aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
             .map_err(|e| vec![e])?;
         let actual_name = match storage {
-            Type::Record { .. } | Type::Package { .. } => stored::aggregate(
-                &core.aggregates,
-                core.module_id,
-                name,
-                &mut resolver.remaining,
-            )
-            .map_err(|e| vec![e])?
-            .name
-            .as_str(),
+            Type::Record { .. } | Type::Package { .. } => {
+                stored::aggregate_instance(&core, instance, limits, &mut resolver.remaining)
+                    .map_err(|e| vec![e])?
+                    .name
+                    .as_str()
+            }
             Type::Enum { .. } => stored::enum_declaration(&core, name, &mut resolver.remaining)
                 .map_err(|e| vec![e])?
                 .name

@@ -59,9 +59,129 @@ pub(super) fn aggregate<'a>(
         Span::default(),
         format!(
             "stored instance has no actual aggregate declaration: module {module:?}, name {name}, available declarations {:?}",
-            aggregates.iter().map(|row| row.name.as_str()).collect::<Vec<_>>()
+            aggregates
+                .iter()
+                .map(|row| row.name.as_str())
+                .collect::<Vec<_>>()
         ),
     ))
+}
+
+/// Locate a resolved Product through its real application directory. The
+/// canonical spelling is recomputed from the complete actual vector; it is
+/// never parsed to recover a declaration or a lexical owner.
+pub(super) fn aggregate_instance<'a>(
+    core: &'a CoreModule,
+    instance: &LifeNominalInstance,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<&'a CoreAggregate> {
+    let name = match physical(&instance.ty) {
+        Type::Record { name, .. } | Type::Package { name, .. } => name,
+        _ => {
+            return Err(error(
+                "E-STORED-IDENTITY",
+                Span::default(),
+                "aggregate instance is not a complete product",
+            ));
+        }
+    };
+    for row in &core.aggregates {
+        fee(
+            left,
+            row.name.len().saturating_add(name.len()).saturating_add(40),
+            row.span,
+        )?;
+        if name == &row.name || name == &format!("@module{}:{}", core.module_id.0, row.name) {
+            return Ok(row);
+        }
+    }
+    let mut found = None;
+    for application in &core.aggregate_applications {
+        fee(
+            left,
+            application
+                .arguments
+                .len()
+                .saturating_add(core.aggregates.len())
+                .saturating_add(1),
+            Span::default(),
+        )?;
+        if instance.declaration.compiler
+            || instance.declaration.module != application.template_module
+            || instance.declaration.declaration != application.template
+            || application.arguments.len() != instance.arguments.len()
+        {
+            continue;
+        }
+        let mut arguments = Vec::new();
+        let mut complete = true;
+        for (argument, actual) in application.arguments.iter().zip(&instance.arguments) {
+            let (CoreAggregateArgument::Concrete(ty), LifeNominalActual::Type(expected)) =
+                (argument, actual)
+            else {
+                complete = false;
+                break;
+            };
+            inference::charge_type_snapshot(ty, Span::default(), limits, left, 2)?;
+            inference::charge_type_snapshot(expected, Span::default(), limits, left, 1)?;
+            if ty != expected {
+                complete = false;
+                break;
+            }
+            arguments.push(ty.clone());
+        }
+        if !complete {
+            continue;
+        }
+        let canonical = aggregate_templates::canonical(
+            (application.template_module, application.template),
+            &arguments,
+            application
+                .owner
+                .as_ref()
+                .map(|owner| (owner.module, owner.function)),
+            limits,
+            left,
+            Span::default(),
+        )?;
+        fee(
+            left,
+            canonical.len().saturating_add(name.len()),
+            Span::default(),
+        )?;
+        if &canonical != name {
+            continue;
+        }
+        let mut declarations = core
+            .aggregates
+            .iter()
+            .filter(|row| row.id == application.aggregate);
+        let declaration = declarations.next().ok_or_else(|| {
+            error(
+                "E-STORED-IDENTITY",
+                Span::default(),
+                "resolved product application has no actual aggregate",
+            )
+        })?;
+        if declarations.next().is_some() || found.replace(declaration).is_some() {
+            return Err(error(
+                "E-STORED-IDENTITY",
+                declaration.span,
+                "resolved product has ambiguous actual aggregate applications",
+            ));
+        }
+    }
+    found.ok_or_else(|| {
+        error(
+            "E-STORED-IDENTITY",
+            Span::default(),
+            format!(
+                "stored instance has no complete actual product application: {:?}, {name}",
+                instance.declaration
+            ),
+        )
+    })
 }
 
 pub(super) fn enum_declaration<'a>(
@@ -330,7 +450,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 }
             }
         } else if let Type::Record { fields, .. } | Type::Package { fields, .. } = storage {
-            let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
+            let actual = aggregate_instance(core, instance, limits, left)?;
             if !matches!(
                 (actual.kind, storage),
                 (
