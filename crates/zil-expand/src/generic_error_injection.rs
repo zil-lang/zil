@@ -121,7 +121,7 @@ fn wrap(
         result_marker
     } else {
         if payload.semantic.raw_index().is_some() {
-            return Err(error(
+            return Err(super::error(
                 span,
                 "implicit injection marker has no Source producer",
             ));
