@@ -2194,6 +2194,27 @@ pub(super) fn actual_at(
     .actual(scope, &actual, 0)
 }
 
+pub(super) fn parent_actuals_at(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    caller: SemanticInstanceId,
+    call: SemanticSiteId,
+    holder: SemanticInstanceId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<SemanticActual>> {
+    Eval {
+        input: program,
+        module,
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+    }
+    .parent_actuals(caller, call, holder)
+}
+
 pub(super) fn class_at(
     program: &SemanticModule,
     module: &TypedModule,

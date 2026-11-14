@@ -228,16 +228,7 @@ pub(super) fn evaluate(
             let parent = target
                 .parent
                 .ok_or_else(|| bad("actual method provider has no original lexical scope"))?;
-            let parent_definition = world.definition(parent)?;
-            let parent_recipes = match proof.scope_calls.get(&(original.id, site.recipe, parent)) {
-                Some(recipes) => recipes.as_slice(),
-                None if parent_definition.parameters.is_empty() => &[],
-                None => {
-                    return Err(pending(
-                        "generic method provider parent has no independently solved original caller substitution",
-                    ));
-                }
-            };
+            let parent_recipes = proof.scope_calls.get(&(original.id, site.recipe, parent));
             crate::dyn_metadata::semantic_operand_snapshot(
                 &method.self_type,
                 world.limits,
@@ -269,8 +260,12 @@ pub(super) fn evaluate(
                     1,
                 )?;
             }
-            world.pay(recipes.len().saturating_add(parent_recipes.len()))?;
-            for recipe in recipes.iter().chain(parent_recipes) {
+            world.pay(
+                recipes
+                    .len()
+                    .saturating_add(parent_recipes.map_or(0, Vec::len)),
+            )?;
+            for recipe in recipes.iter().chain(parent_recipes.into_iter().flatten()) {
                 crate::dyn_metadata::semantic_operand_snapshot(
                     recipe,
                     world.limits,
@@ -282,7 +277,7 @@ pub(super) fn evaluate(
                 method.clone(),
                 signature,
                 recipes.clone(),
-                parent_recipes.to_vec(),
+                parent_recipes.cloned(),
             )
         };
         if !matches!(
@@ -324,25 +319,43 @@ pub(super) fn evaluate(
                 "method provider actual parent differs from its real original scope",
             ));
         }
-        if parent_recipes.len() != parent.parameters.len()
-            || parent_instance.actuals.len() != parent_recipes.len()
-        {
-            return Err(bad("method parent omits its complete mixed actuals"));
-        }
-        let mut parent_actuals = Vec::new();
-        world.pay(parent_recipes.len())?;
-        for (recipe, actual) in parent_recipes.iter().zip(&parent_instance.actuals) {
-            let expected = super::super::materialize::actual_at(
+        let parent_actuals = if let Some(parent_recipes) = &parent_recipes {
+            let mut expected = Vec::new();
+            world.pay(parent_recipes.len())?;
+            for recipe in parent_recipes {
+                expected.push(super::super::materialize::actual_at(
+                    world.program,
+                    world.module,
+                    world.ledger,
+                    instance.id,
+                    recipe,
+                    world.limits,
+                    world.left,
+                )?);
+            }
+            expected
+        } else {
+            // The abstract declaration supplied a quantified trait premise;
+            // solve the concrete lexical parent in that original source Gamma,
+            // rather than treating its resolved actuals or Self as evidence.
+            super::super::materialize::parent_actuals_at(
                 world.program,
                 world.module,
                 world.ledger,
                 instance.id,
-                recipe,
+                site.recipe,
+                parent_instance.id,
                 world.limits,
                 world.left,
-            )?;
-            actual_specialization(world, actual, &expected)?;
-            parent_actuals.push(expected);
+            )?
+        };
+        if parent_actuals.len() != parent.parameters.len()
+            || parent_instance.actuals.len() != parent_actuals.len()
+        {
+            return Err(bad("method parent omits its complete mixed actuals"));
+        }
+        for (actual, expected) in parent_instance.actuals.iter().zip(&parent_actuals) {
+            actual_specialization(world, actual, expected)?;
         }
         let (actual_self, application, trait_scope) = match &parent.body {
             SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {

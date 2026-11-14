@@ -9,6 +9,26 @@ struct SourceActual {
 }
 impl<'a> Eval<'a, '_> {
     fn scope_source_instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
+        // The publication materializes actuals in place. Their defining
+        // recipes remain in the one immutable original request context.
+        if let Some(context) = self.ledger.original.context() {
+            self.fee(context.semantic.instances.len())?;
+            if let Some(row) = context.semantic.instances.iter().find(|row| row.id == id) {
+                self.fee(self.input.instances.len())?;
+                let actual = self
+                    .input
+                    .instances
+                    .iter()
+                    .find(|actual| actual.id == id)
+                    .ok_or_else(|| bad("parent source request has no actual instance"))?;
+                if row.definition != actual.definition || row.parent != actual.parent {
+                    return Err(bad(
+                        "parent source request changes its original instance identity",
+                    ));
+                }
+                return Ok(row);
+            }
+        }
         self.fee(self.input.instances.len())?;
         if let Some(row) = self.input.instances.iter().find(|row| row.id == id) {
             return Ok(row);
@@ -451,5 +471,47 @@ impl<'a> Eval<'a, '_> {
             .get(formal as usize)
             .ok_or_else(|| bad("inferred parent omits its complete mixed formal"))?;
         self.recipe_actual(source, recipe, depth + 1).map(Some)
+    }
+}
+
+/// Recheck a specialized parent boundary after publication has consumed its
+/// Core requests. Full original provenance comes from the immutable context.
+impl Eval<'_, '_> {
+    pub(super) fn parent_actuals(
+        &mut self,
+        caller: SemanticInstanceId,
+        call: SemanticSiteId,
+        holder: SemanticInstanceId,
+    ) -> R<Vec<SemanticActual>> {
+        let request = self.scope_source_instance(holder)?;
+        if !matches!(
+            self.definition(request.definition)?.body,
+            SemanticDefinitionBody::Scope(_)
+        ) {
+            return Err(bad(
+                "method parent boundary does not name a true original Scope",
+            ));
+        }
+        self.fee(request.actuals.len())?;
+        for (ordinal, actual) in request.actuals.iter().enumerate() {
+            if !matches!(actual, SemanticActual::CoreInferred { scope, call: actual_call, formal }
+                if *scope == caller && *actual_call == call && *formal == ordinal as u32)
+            {
+                return Err(bad(
+                    "method parent boundary changes its full original request provenance",
+                ));
+            }
+        }
+        let (source, recipes) =
+            self.source_parent_solution(caller, call, holder, &mut BTreeSet::new(), 0)?;
+        if recipes.len() != request.actuals.len() {
+            return Err(bad("method parent boundary changes its full mixed arity"));
+        }
+        self.fee(recipes.len())?;
+        let mut result = Vec::new();
+        for recipe in &recipes {
+            result.push(self.recipe_actual(source, recipe, 0)?);
+        }
+        Ok(result)
     }
 }
