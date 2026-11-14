@@ -1,7 +1,7 @@
 //! Self comes from the checked original implementation and its actual parent
 //! instance. The instance's self_type row is only a claim to compare with it.
 use super::*;
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     pub(super) fn self_claim(
         &mut self,
         scope: SemanticInstanceId,

@@ -2,7 +2,7 @@
 //! The table is a candidate for an exact type, never authority for a provider.
 use super::*;
 
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     fn dyn_class(
         &mut self,
         domain: &[SemanticClassExpr],

@@ -10,7 +10,7 @@ struct Pending<'a> {
     rows: Vec<LifeNominalInstance>,
 }
 
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     fn deferred_nominal(
         &mut self,
         scope: SemanticInstanceId,

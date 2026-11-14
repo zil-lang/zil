@@ -10,7 +10,7 @@ struct ClosedContext {
     environment: Vec<SemanticActual>,
 }
 
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     /// A monomorphic opaque with an independently proved closed result has a
     /// fixed defining type, independent of runtime value arguments. Interpret
     /// every emitted defining world; never select a convenient caller image.

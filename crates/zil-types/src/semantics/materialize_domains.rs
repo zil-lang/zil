@@ -42,7 +42,7 @@ pub(super) struct Domain {
     pub value: SemanticTypeValue,
     pub selectors: Vec<Selector>,
 }
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     fn selector_snapshot(&mut self, selector: &Selector) -> R<()> {
         match selector {
             Selector::Outer { life, .. } => {

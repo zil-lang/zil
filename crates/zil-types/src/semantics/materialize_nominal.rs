@@ -1,7 +1,7 @@
 //! Exact actual nominal selection and complete intrinsic class transport. Class
 //! images are derived from original actual recipes, not physical slot order.
 use super::*;
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     fn nominal_arguments_match(
         &mut self,
         expected: &[SemanticActual],

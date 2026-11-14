@@ -17,7 +17,7 @@ fn task_occurrence(path: &[LifeTypeProjection]) -> Occurrence {
         path: Vec::new(),
     }
 }
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     fn task_sequence(
         &mut self,
         scope: SemanticInstanceId,

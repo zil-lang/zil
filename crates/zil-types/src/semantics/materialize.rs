@@ -49,15 +49,15 @@ mod task_domains;
 #[path = "materialize_view.rs"]
 mod view;
 pub(super) use view::ActualDirectory;
-struct Eval<'a, 'b> {
+struct Eval<'a, 'm, 'b> {
     input: &'a SemanticModule,
-    module: &'a ActualDirectory<'a>,
+    module: &'a ActualDirectory<'m>,
     ledger: &'a Ledger,
     limits: &'b Limits,
     left: &'b mut usize,
     active: BTreeSet<(SemanticInstanceId, u32)>,
 }
-impl<'a> Eval<'a, '_> {
+impl<'a> Eval<'a, '_, '_> {
     fn fee(&mut self, count: usize) -> R<()> {
         *self.left = self.left.checked_sub(count).ok_or_else(|| {
             Diagnostic::limit(

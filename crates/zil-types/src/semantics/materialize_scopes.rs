@@ -7,7 +7,7 @@ struct SourceActual {
     scope: SemanticInstanceId,
     recipe: SemanticActualRecipe,
 }
-impl<'a> Eval<'a, '_> {
+impl<'a> Eval<'a, '_, '_> {
     fn scope_source_instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
         // The publication materializes actuals in place. Their defining
         // recipes remain in the one immutable original request context.
@@ -528,7 +528,7 @@ impl<'a> Eval<'a, '_> {
 
 /// Recheck a specialized parent boundary after publication has consumed its
 /// Core requests. Full original provenance comes from the immutable context.
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     pub(super) fn parent_actuals(
         &mut self,
         caller: SemanticInstanceId,

@@ -1,7 +1,7 @@
 //! Whole retained/storage shape recipes. These construct untrusted metadata;
 //! actual nominal, header and CFG checks independently validate the result.
 use super::*;
-impl Eval<'_, '_> {
+impl Eval<'_, '_, '_> {
     pub(super) fn copy_shape(&mut self, life: &StorageLifeShape) -> R<StorageLifeShape> {
         self.fee(1)?;
         for slot in &life.slots {
