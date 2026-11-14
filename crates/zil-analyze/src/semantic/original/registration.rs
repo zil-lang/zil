@@ -51,6 +51,13 @@ impl Solver<'_, '_> {
                 )?;
             }
             let term = local.ty;
+            b.spend(frame.locals.len(), WORK)?;
+            if let Some(index) = frame.locals.iter().rposition(|local| local.name == *name)
+                && index < frame.inherited
+            {
+                b.lookup(frame.captured.len(), WORK)?;
+                frame.captured.insert(index, term);
+            }
             b.lookup(frame.expressions.len(), WORK)?;
             if frame.expressions.insert(value.id, term).is_some() {
                 return Err(fail("original registration argument node is reused"));
@@ -119,37 +126,66 @@ impl Solver<'_, '_> {
                 "original registration operation changes its complete source arity",
             ));
         }
-        let borrowed = matches!(
+        let observing = matches!(
             intrinsic,
-            sealed::Intrinsic::AsyncRequest | sealed::Intrinsic::AsyncPoll
+            sealed::Intrinsic::AsyncValid | sealed::Intrinsic::RegistrationValid
         );
+        let borrowed = observing
+            || matches!(
+                intrinsic,
+                sealed::Intrinsic::AsyncRequest | sealed::Intrinsic::AsyncPoll
+            );
         let input = self.state_argument(frame, &arguments[0], borrowed, b, depth + 1)?;
-        let owned = if borrowed {
-            let Kind::Address {
-                mutable: true,
-                inner,
-                ..
-            } = self.state.arena[self.type_root(input, b)?]
+        let payload = if observing {
+            match self.state.arena[self.type_root(input, b)?] {
+                Kind::Desc { inner, .. } | Kind::Wrapped(Wrapper::Managed, inner) => inner,
+                Kind::Address { inner, .. } => {
+                    let Kind::Wrapped(Wrapper::Managed, payload) =
+                        self.state.arena[self.type_root(inner, b)?]
+                    else {
+                        return Err(fail(
+                            "original registration observation borrows an actual owning head, not a description slot",
+                        ));
+                    };
+                    payload
+                }
+                _ => {
+                    return Err(fail(
+                        "original registration observation has no actual owner or descriptor",
+                    ));
+                }
+            }
+        } else {
+            let owned = if borrowed {
+                let Kind::Address {
+                    mutable: true,
+                    inner,
+                    ..
+                } = self.state.arena[self.type_root(input, b)?]
+                else {
+                    return Err(fail(
+                        "original registration close requires a mutable address of its complete owning head",
+                    ));
+                };
+                inner
+            } else {
+                input
+            };
+            let Kind::Wrapped(Wrapper::Managed, payload) =
+                self.state.arena[self.type_root(owned, b)?]
             else {
                 return Err(fail(
-                    "original registration close requires a mutable address of its complete owning head",
+                    "original registration operation selects a description or another non-owning carrier",
                 ));
             };
-            inner
-        } else {
-            input
+            payload
         };
-        let Kind::Wrapped(Wrapper::Managed, payload) =
-            self.state.arena[self.type_root(owned, b)?]
-        else {
-            return Err(fail(
-                "original registration operation selects a description or another non-owning carrier",
-            ));
-        };
-        if !matches!(
-            self.state.arena[self.type_root(payload, b)?],
-            Kind::Wrapped(Wrapper::AsyncRegistration, _)
-        ) {
+        let synchronous = matches!(
+            intrinsic,
+            sealed::Intrinsic::RegistrationValid | sealed::Intrinsic::RegistrationClose
+        );
+        if !matches!(self.state.arena[self.type_root(payload, b)?], Kind::Wrapped(wrapper, _) if wrapper == if synchronous { Wrapper::Registration } else { Wrapper::AsyncRegistration })
+        {
             return Err(fail(
                 "original registration operation selects another payload family",
             ));
@@ -180,7 +216,7 @@ impl Solver<'_, '_> {
             let unit = self.atom(Type::Unit, b)?;
             self.application(definition, vec![unit], b, depth + 1)?
         } else {
-            self.atom(Type::Unit, b)?
+            self.atom(if observing { Type::Bool } else { Type::Unit }, b)?
         };
         let anchor = self.registration_anchor(frame, &arguments[0], b, depth + 1)?;
         b.lookup(self.state.intrinsic_anchors.len(), WORK)?;

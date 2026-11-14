@@ -1675,7 +1675,10 @@ impl Solver<'_, '_> {
                             id @ (sealed::Intrinsic::AsyncRequest
                             | sealed::Intrinsic::AsyncPoll
                             | sealed::Intrinsic::AsyncFinish
-                            | sealed::Intrinsic::AsyncFinishChecked),
+                            | sealed::Intrinsic::AsyncFinishChecked
+                            | sealed::Intrinsic::AsyncValid
+                            | sealed::Intrinsic::RegistrationValid
+                            | sealed::Intrinsic::RegistrationClose),
                         ) => {
                             let result = self.registration_call(
                                 frame,

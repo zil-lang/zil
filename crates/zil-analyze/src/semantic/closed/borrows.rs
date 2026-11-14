@@ -207,7 +207,7 @@ impl Check<'_, '_> {
         self.outer_role(instance, function, &parent, expected, b, depth + 1)
     }
 
-    fn borrow_root(
+    pub(super) fn borrow_root(
         &self,
         function: &TypedFunction,
         id: ValueId,

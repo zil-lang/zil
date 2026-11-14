@@ -19,6 +19,14 @@ impl Check<'_, '_> {
                 "actual registration operation invents generic actuals",
             ));
         }
+        if matches!(
+            intrinsic,
+            original::sealed::Intrinsic::AsyncValid
+                | original::sealed::Intrinsic::RegistrationValid
+        ) {
+            return self
+                .registration_observation(instance, site, intrinsic, function, block, index, b);
+        }
         let instruction = function
             .blocks
             .get(block.0 as usize)
@@ -26,6 +34,11 @@ impl Check<'_, '_> {
             .and_then(|block| block.instructions.get(index))
             .ok_or_else(|| fail("original registration operation has no actual instruction"))?;
         let input = match (&intrinsic, &instruction.kind) {
+            (
+                original::sealed::Intrinsic::RegistrationClose,
+                InstructionKind::RegistrationClose { registration },
+            ) => *registration,
+
             (
                 original::sealed::Intrinsic::AsyncRequest,
                 InstructionKind::AsyncRegistrationRequestClose { registration },

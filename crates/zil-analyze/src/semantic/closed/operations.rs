@@ -570,7 +570,10 @@ impl Check<'_, '_> {
                         id @ (original::sealed::Intrinsic::AsyncRequest
                         | original::sealed::Intrinsic::AsyncPoll
                         | original::sealed::Intrinsic::AsyncFinish
-                        | original::sealed::Intrinsic::AsyncFinishChecked) => {
+                        | original::sealed::Intrinsic::AsyncFinishChecked
+                        | original::sealed::Intrinsic::AsyncValid
+                        | original::sealed::Intrinsic::RegistrationValid
+                        | original::sealed::Intrinsic::RegistrationClose) => {
                             let output = self.registration_operation(
                                 instance,
                                 site.recipe,

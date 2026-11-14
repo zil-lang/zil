@@ -10,6 +10,7 @@ mod capture_heads;
 mod classes;
 mod operations;
 mod registration;
+mod registration_observe;
 mod registration_start;
 mod resources;
 mod slice_borrows;

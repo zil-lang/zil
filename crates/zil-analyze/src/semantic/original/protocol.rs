@@ -2,6 +2,8 @@
 //! at entry/call boundaries; every original return must independently satisfy
 //! them. Actual generations, loans, provider drain and cleanup remain separate.
 use super::*;
+mod control;
+mod owners;
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
 const CLOSED: u8 = 4;
@@ -195,6 +197,7 @@ struct Proof<'a, 'i> {
     checked: &'i Checked,
     contract: Option<&'a FunctionProtocolContract>,
     input: Option<ProtocolState>,
+    loops: std::cell::RefCell<Vec<control::LoopFlow>>,
 }
 impl State {
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
@@ -251,12 +254,9 @@ impl State {
             ));
         }
         self.cleanup_unknown |= other.cleanup_unknown;
-        for (role, value) in &mut self.phases {
-            b.lookup(other.phases.len(), WORK)?;
-            *value |= *other
-                .phases
-                .get(role)
-                .ok_or_else(|| fail("original protocol branch loses a parameter role"))?;
+        for (role, value) in &other.phases {
+            b.lookup(self.phases.len(), WORK)?;
+            *self.phases.entry(*role).or_insert(0) |= *value;
         }
         for ((name, data), (other_name, other_data)) in self.locals.iter_mut().zip(&other.locals) {
             b.spend(
@@ -552,10 +552,30 @@ impl Proof<'_, '_> {
                             )),
                         }
                     }
-                    sealed::Resolution::Intrinsic(sealed::Intrinsic::NumericConvert(_)) => {
-                        Ok(Data::default())
+                    sealed::Resolution::Intrinsic(
+                        sealed::Intrinsic::NumericConvert(_)
+                        | sealed::Intrinsic::AsyncValid
+                        | sealed::Intrinsic::RegistrationValid
+                        | sealed::Intrinsic::SliceLength,
+                    ) => Ok(Data::default()),
+                    sealed::Resolution::Intrinsic(sealed::Intrinsic::RegisterAsync) => {
+                        state.opaque(b)?;
+                        self.fresh_owner(state, value.id, b)
                     }
-                    sealed::Resolution::Definition(target) => self.call(state, target, &actuals, b),
+                    sealed::Resolution::Definition(target) => {
+                        let data = self.call(state, target, &actuals, b)?;
+                        let frame = self.checked.frames.get(&target).ok_or_else(|| {
+                            fail("original protocol callee has no checked declaration domain")
+                        })?;
+                        if data.alias.is_none()
+                            && data.outcomes.is_empty()
+                            && self.async_owner(frame.result, b)?
+                        {
+                            self.fresh_owner(state, value.id, b)
+                        } else {
+                            Ok(data)
+                        }
+                    }
                     _ => {
                         state.opaque(b)?;
                         Ok(Data::default())
@@ -806,6 +826,20 @@ impl Proof<'_, '_> {
                     }
                     state.join(&other, b)?;
                 }
+                CoreStatementKind::While { condition, body } => {
+                    self.loop_block(state, Some(condition), body, b, depth + 1)?;
+                }
+                CoreStatementKind::Loop(body) => {
+                    self.loop_block(state, None, body, b, depth + 1)?
+                }
+                CoreStatementKind::Break | CoreStatementKind::Continue => self.jump(
+                    state,
+                    matches!(&statement.kind, CoreStatementKind::Break),
+                    b,
+                )?,
+                CoreStatementKind::Match { value, arms } => {
+                    self.match_block(state, value, arms, b, depth + 1)?
+                }
                 CoreStatementKind::Assign { target, value } => {
                     let data = self.expression(state, value, b, depth + 1)?;
                     let CoreExprKind::Name(name) = &target.kind else {
@@ -863,16 +897,33 @@ pub(super) fn check(
             continue;
         };
         if protocol_contracts.is_empty() {
-            let active = checked.intrinsics.iter().any(|((owner, _), id)| {
-                *owner == definition.id
+            let mut active = false;
+            for ((owner, _), id) in &checked.intrinsics {
+                b.spend(1, WORK)?;
+                active |= *owner == definition.id
                     && matches!(
                         id,
-                        sealed::Intrinsic::AsyncRequest
+                        sealed::Intrinsic::RegisterAsync
+                            | sealed::Intrinsic::AsyncRequest
                             | sealed::Intrinsic::AsyncPoll
                             | sealed::Intrinsic::AsyncFinish
                             | sealed::Intrinsic::AsyncFinishChecked
-                    )
-            });
+                    );
+            }
+            for ((owner, _), call) in &checked.calls {
+                b.spend(1, WORK)?;
+                if *owner != definition.id {
+                    continue;
+                }
+                let target = inventory.definition(call.target, b)?;
+                if let SemanticDefinitionBody::FunctionWithBody {
+                    protocol_contracts, ..
+                } = &target.body
+                {
+                    b.spend(protocol_contracts.len(), WORK)?;
+                    active |= !protocol_contracts.is_empty();
+                }
+            }
             if active {
                 let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
                 else {
@@ -919,6 +970,7 @@ pub(super) fn check(
                     checked,
                     contract: None,
                     input: None,
+                    loops: std::cell::RefCell::new(Vec::new()),
                 };
                 proof.block(&mut state, body, b, 0)?;
             }
@@ -958,6 +1010,7 @@ pub(super) fn check(
                     checked,
                     contract: Some(contract),
                     input: Some(*input),
+                    loops: std::cell::RefCell::new(Vec::new()),
                 };
                 let frame = checked.frames.get(&definition.id).ok_or_else(|| {
                     fail("original protocol function lacks its checked value parameters")
