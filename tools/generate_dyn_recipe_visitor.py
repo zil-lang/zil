@@ -21,6 +21,10 @@ pub trait DynRecipeVisitor {
     type Error;
     fn node(&mut self, depth: usize) -> Result<(),Self::Error>;
     fn rows(&mut self, length: usize, depth: usize) -> Result<(),Self::Error>;
+    /// Heap layout cloned by this metadata value; excludes its stack root.
+    fn allocation(&mut self, _bytes: usize, _depth: usize) -> Result<(),Self::Error> { Ok(()) }
+    /// Temporary traversal allocation peak, including old/new Vec growth.
+    fn scratch(&mut self, _bytes: usize, _depth: usize) -> Result<(),Self::Error> { Ok(()) }
     fn ty(&mut self, ty: &Type, depth: usize) -> Result<(),Self::Error>;
     fn life(&mut self, life: &StorageLifeShape, depth: usize) -> Result<(),Self::Error>;
     fn identity(&mut self, identity: &LifeDeclarationIdentity, depth: usize) -> Result<(),Self::Error>;
@@ -35,13 +39,16 @@ pub trait DynRecipeMetadata {
 def visit(t,e):
  t=canonical_type(t)
  if (parts:=tuple_parts(t)) is not None:return '\n'.join(visit(part,f'&({e}).{index}') for index,part in enumerate(parts))
- if t.startswith('Box<'):return visit(t[4:-1],e)
+ if t.startswith('Box<'):
+  inner=t[4:-1]
+  return f'visitor.allocation(std::mem::size_of::<{inner}>(), nesting + 1)?;\n'+visit(inner,e)
  if t.startswith('Vec<'):
-  return 'visitor.rows(('+e+').len(), nesting + 1)?;\nfor item in '+e+' {\n'+visit(t[4:-1],'item')+'\n}'
+  return 'visitor.rows(('+e+').len(), nesting + 1)?;\nvisitor.allocation(std::mem::size_of_val(('+e+').as_slice()), nesting + 1)?;\nfor item in '+e+' {\n'+visit(t[4:-1],'item')+'\n}'
  if t.startswith('Option<'):
   return 'visitor.node(nesting + 1)?;\nif let Some(item) = '+e+' {\n'+visit(t[7:-1],'item')+'\n}'
  hooks={'Type':'ty','StorageLifeShape':'life','StoragePosition':'position','LifeDeclarationIdentity':'identity','Constant':'constant','String':'text'}
- if t in hooks:return f'visitor.{hooks[t]}({e}, nesting + 1)?;'
+ if t in hooks:
+  return (f'visitor.allocation(({e}).len(), nesting + 1)?;\n' if t=='String' else '')+f'visitor.{hooks[t]}({e}, nesting + 1)?;'
  if t in items:return f'({e}).visit_dyn_metadata(visitor, nesting + 1)?;'
  return f'let _ = {e}; visitor.node(nesting + 1)?;'
 out=header
