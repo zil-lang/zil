@@ -137,6 +137,7 @@ fn clone_proof(
             .saturating_add(source.capture_candidates.len())
             .saturating_add(source.view_bounds.len())
             .saturating_add(source.borrow_roles.len())
+            .saturating_add(source.field_reborrows.len())
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
             .saturating_add(source.closed_opaque_domains.len())
@@ -266,6 +267,12 @@ fn clone_proof(
             crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
         }
         crate::dyn_metadata::semantic_operand_snapshot(&role.inner, limits, left, 1)?;
+    }
+    for view in source.field_reborrows.values() {
+        crate::dyn_metadata::semantic_operand_snapshot(&view.place.root, limits, left, 1)?;
+        spend(left, view.place.fields.len(), 0, limits)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&view.source, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&view.result, limits, left, 1)?;
     }
     for names in source.capture_names.values() {
         spend(left, names.len(), 0, limits)?;

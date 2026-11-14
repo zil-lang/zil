@@ -2,6 +2,13 @@
 //! ownership state, and never a type-class or lifetime equality.
 use super::*;
 
+#[derive(Clone)]
+pub(crate) struct FieldReborrow {
+    pub place: calls::MethodReceiverPlace,
+    pub source: SemanticTypeRecipe,
+    pub result: SemanticTypeRecipe,
+}
+
 impl Check<'_, '_> {
     /// Ordinary affine fields of a directly owned Package transfer their own
     /// responsibility. A resource-head field remains an observation unless an
@@ -45,6 +52,49 @@ impl Check<'_, '_> {
             return self.observe_field(owner, expression, value, depth + 1);
         }
         let field = self.place(owner, expression, variables, depth + 1)?;
+        let field = self.observation_type(owner, &field, depth + 1)?;
+        if let SemanticTypeRecipe::Address {
+            mutable: true,
+            inner,
+            ..
+        } = &field
+        {
+            // Reading a stored exclusive address through a holder creates a
+            // child window. It never copies or transfers the stored address.
+            let base = self
+                .proof
+                .types
+                .get(&(owner, Query::Expression(object.id)))
+                .ok_or_else(|| bad("stored address view loses its original holder"))?;
+            let base = copy_recipe(base, self.limits, self.left)?;
+            let base = self.observation_type(owner, &base, depth + 1)?;
+            if !matches!(base, SemanticTypeRecipe::Address { mutable: true, .. }) {
+                return Err(bad(
+                    "exclusive stored field requires a mutable original holder",
+                ));
+            }
+            let place = self
+                .method_receiver_place(owner, expression, variables, depth + 1)?
+                .ok_or_else(|| {
+                    pending("stored address view requires its complete original root path")
+                })?;
+            let result = SemanticTypeRecipe::Address {
+                mutable: true,
+                lifetime: self.borrow_life(owner, expression.id)?,
+                inner: Box::new(copy_recipe(inner, self.limits, self.left)?),
+            };
+            let stored_result = copy_recipe(&result, self.limits, self.left)?;
+            self.pay(1, depth)?;
+            self.proof.proof_mut()?.field_reborrows.insert(
+                (owner, expression.id),
+                FieldReborrow {
+                    place,
+                    source: field,
+                    result: stored_result,
+                },
+            );
+            return Ok(result);
+        }
         self.observe_field(owner, expression, field, depth + 1)
     }
     pub(super) fn observe_field(

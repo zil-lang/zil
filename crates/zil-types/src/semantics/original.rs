@@ -57,6 +57,7 @@ mod values;
 #[path = "original_views.rs"]
 mod views;
 pub(super) use calls::{CallableCall, MethodCall};
+pub(super) use places::FieldReborrow;
 pub(super) use values::FunctionValue;
 pub(super) use views::{BorrowRole, ViewBorrowStep, ViewBorrowStepKind};
 fn bad(message: &str) -> Diagnostic {
@@ -179,6 +180,7 @@ pub(super) struct Proof {
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+    pub field_reborrows: BTreeMap<(SemanticDefinitionId, NodeId), FieldReborrow>,
     pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     pub associated_complete: BTreeSet<LifeDeclarationId>,
     pub capture_names: BTreeMap<SemanticDefinitionId, Vec<String>>,
