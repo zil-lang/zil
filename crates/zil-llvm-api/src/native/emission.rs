@@ -4,7 +4,8 @@
 //! refusal leaves the original optimized module untouched for ordinary emission.
 use super::*;
 use crate::EmissionReuseStats;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, hash_map::DefaultHasher};
+use std::hash::Hasher;
 
 unsafe extern "C" {
     fn LLVMGetFirstFunction(module: Handle) -> Handle;
@@ -111,13 +112,22 @@ unsafe fn primitive(ty: Handle) -> bool {
         && unsafe { LLVMGetTypeKind(ty) } == 8
         && matches!(unsafe { LLVMGetIntTypeWidth(ty) }, 1 | 8 | 16 | 32 | 64)
 }
-unsafe fn eligible_signature(function: Handle) -> bool {
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct Shape {
+    return_width: u8,
+    param_count: u8,
+    param_widths: [u8; 8],
+    blocks: u32,
+    instructions: u16,
+}
+
+unsafe fn eligible_shape(function: Handle) -> Option<Shape> {
     if unsafe { LLVMGetLinkage(function) } != 0
         || unsafe { LLVMGetVisibility(function) } != 0
         || unsafe { LLVMGetDLLStorageClass(function) } != 0
         || unsafe { LLVMGetFunctionCallConv(function) } != 0
     {
-        return false;
+        return None;
     }
     let ty = unsafe { LLVMGlobalGetValueType(function) };
     if ty.is_null()
@@ -125,19 +135,24 @@ unsafe fn eligible_signature(function: Handle) -> bool {
         || unsafe { LLVMIsFunctionVarArg(ty) } != 0
         || !unsafe { primitive(LLVMGetReturnType(ty)) }
     {
-        return false;
+        return None;
     }
     let count = unsafe { LLVMCountParamTypes(ty) } as usize;
     if count > 8 {
-        return false;
+        return None;
     }
-    let mut params = vec![ptr::null_mut(); count];
+    let mut params = [ptr::null_mut(); 8];
     unsafe { LLVMGetParamTypes(ty, params.as_mut_ptr()) };
-    if !params.into_iter().all(|ty| unsafe { primitive(ty) }) {
-        return false;
+    let mut param_widths = [0; 8];
+    for (index, param) in params[..count].iter().copied().enumerate() {
+        if !unsafe { primitive(param) } {
+            return None;
+        }
+        param_widths[index] = unsafe { LLVMGetIntTypeWidth(param) } as u8;
     }
-    if unsafe { LLVMCountBasicBlocks(function) } > 128 {
-        return false;
+    let blocks = unsafe { LLVMCountBasicBlocks(function) };
+    if blocks > 128 {
+        return None;
     }
     let mut block = unsafe { LLVMGetFirstBasicBlock(function) };
     let mut instructions = 0;
@@ -146,13 +161,19 @@ unsafe fn eligible_signature(function: Handle) -> bool {
         while !instruction.is_null() {
             instructions += 1;
             if instructions > 512 {
-                return false;
+                return None;
             }
             instruction = unsafe { LLVMGetNextInstruction(instruction) };
         }
         block = unsafe { LLVMGetNextBasicBlock(block) };
     }
-    true
+    Some(Shape {
+        return_width: unsafe { LLVMGetIntTypeWidth(LLVMGetReturnType(ty)) } as u8,
+        param_count: count as u8,
+        param_widths,
+        blocks,
+        instructions,
+    })
 }
 
 unsafe fn attributes(function: Handle) -> Option<Vec<(u32, u32, u64)>> {
@@ -334,8 +355,71 @@ unsafe fn clear_local_names(function: Handle) {
     }
 }
 
+// Selection-only fingerprint: category and byte length delimit EVERY name,
+// including empty names. A collision can suppress normalization, never prove
+// body equality. Stream names without retaining their potentially long bytes.
+unsafe fn local_name_profile(function: Handle, params: u8) -> Option<u64> {
+    unsafe fn name(
+        value: Handle,
+        category: u8,
+        hash: &mut DefaultHasher,
+        streamed: &mut usize,
+    ) -> Option<()> {
+        let mut len = 0;
+        let bytes = unsafe { LLVMGetValueName2(value, &mut len) };
+        // Bound ALL streamed bytes, including the category/length delimiters,
+        // before hashing or reading a name's bytes. Refusal is ordinary emission.
+        *streamed = streamed
+            .checked_add(1 + std::mem::size_of::<usize>())?
+            .checked_add(len)?;
+        if *streamed > 16 * 1024 {
+            return None;
+        }
+        hash.write_u8(category);
+        hash.write_usize(len);
+        if len != 0 {
+            if bytes.is_null() {
+                return None;
+            }
+            hash.write(unsafe { std::slice::from_raw_parts(bytes.cast(), len) });
+        }
+        Some(())
+    }
+    let mut hash = DefaultHasher::new();
+    let mut streamed = 0usize;
+    for index in 0..u32::from(params) {
+        unsafe { name(LLVMGetParam(function, index), 0, &mut hash, &mut streamed) }?;
+    }
+    let mut block = unsafe { LLVMGetFirstBasicBlock(function) };
+    while !block.is_null() {
+        unsafe { name(LLVMBasicBlockAsValue(block), 1, &mut hash, &mut streamed) }?;
+        let mut instruction = unsafe { LLVMGetFirstInstruction(block) };
+        while !instruction.is_null() {
+            unsafe { name(instruction, 2, &mut hash, &mut streamed) }?;
+            instruction = unsafe { LLVMGetNextInstruction(instruction) };
+        }
+        block = unsafe { LLVMGetNextBasicBlock(block) };
+    }
+    Some(hash.finish())
+}
+
+#[derive(Default)]
+struct ShapeGroup {
+    count: usize,
+    first_profile: Option<u64>,
+    different_names: bool,
+}
+
+struct Candidate {
+    function: Handle,
+    definition: usize,
+    shape: Shape,
+}
+
 fn select(module: &Module, stats: &mut EmissionReuseStats) -> Option<Selection> {
     let mut definitions = Vec::new();
+    let mut candidates = Vec::new();
+    let mut groups = BTreeMap::<Shape, ShapeGroup>::new();
     let mut aliases = BTreeMap::new();
     let mut bodies = BTreeMap::<String, String>::new();
     let mut bytes = 0usize;
@@ -358,45 +442,76 @@ fn select(module: &Module, stats: &mut EmissionReuseStats) -> Option<Selection> 
                 .ok()?
                 .to_owned();
             definitions.push(name.clone());
-            if source_symbol(&name) && unsafe { eligible_signature(function) } {
+            if source_symbol(&name)
+                && let Some(shape) = unsafe { eligible_shape(function) }
+            {
                 stats.considered_functions += 1;
-                // Keep this owner separate from BOTH the original optimized
-                // module and try_emit's later speculative machine producer.
-                // Create it lazily, so modules without candidates do not clone.
-                if print_clone.is_none() {
-                    let clone = Module(unsafe { LLVMCloneModule(module.0) });
-                    if clone.0.is_null() {
-                        return None;
-                    }
-                    print_clone = Some(clone);
-                }
-                let printable = print_clone.as_ref()?;
-                let symbol = CString::new(name.as_str()).ok()?;
-                let printable_function =
-                    unsafe { LLVMGetNamedFunction(printable.0, symbol.as_ptr()) };
-                if printable_function.is_null() {
-                    return None;
-                }
-                unsafe { clear_local_names(printable_function) };
-                let printed = unsafe { take_message(LLVMPrintValueToString(printable_function)) };
-                bytes = bytes.checked_add(printed.len())?;
-                if bytes > MAX_KEY_BYTES {
-                    return None;
-                }
-                if let Some(mut key) = closed_key(&printed, &name)
-                    && let Some(attrs) = unsafe { attributes(function) }
-                {
-                    use std::fmt::Write;
-                    let _ = write!(key, "\n; typed-current-attributes:{attrs:?}");
-                    if let Some(canonical) = bodies.get(&key) {
-                        aliases.insert(name, canonical.clone());
-                    } else {
-                        bodies.insert(key, name);
-                    }
-                }
+                groups.entry(shape).or_default().count += 1;
+                candidates.push(Candidate {
+                    function,
+                    definition: definitions.len() - 1,
+                    shape,
+                });
             }
         }
         function = unsafe { LLVMGetNextFunction(function) };
+    }
+    // Unique shapes need no name walk. Once two profiles differ, the entire
+    // group needs normalization and further profile hashing buys nothing.
+    // Both maps/vectors are bounded by MAX_FUNCTIONS; no pairwise comparison.
+    for candidate in &candidates {
+        let group = groups.get_mut(&candidate.shape)?;
+        if group.count < 2 || group.different_names {
+            continue;
+        }
+        let profile =
+            unsafe { local_name_profile(candidate.function, candidate.shape.param_count) }?;
+        if let Some(first) = group.first_profile {
+            group.different_names = first != profile;
+        } else {
+            group.first_profile = Some(profile);
+        }
+    }
+    for candidate in candidates {
+        let name = &definitions[candidate.definition];
+        let printable_function = if groups.get(&candidate.shape)?.different_names {
+            // Separate from BOTH the original and the speculative producer.
+            // The original print fast path never creates or clears this clone.
+            if print_clone.is_none() {
+                let clone = Module(unsafe { LLVMCloneModule(module.0) });
+                if clone.0.is_null() {
+                    return None;
+                }
+                print_clone = Some(clone);
+            }
+            let printable = print_clone.as_ref()?;
+            let symbol = CString::new(name.as_str()).ok()?;
+            let function = unsafe { LLVMGetNamedFunction(printable.0, symbol.as_ptr()) };
+            if function.is_null() {
+                return None;
+            }
+            unsafe { clear_local_names(function) };
+            stats.normalized_functions += 1;
+            function
+        } else {
+            candidate.function
+        };
+        let printed = unsafe { take_message(LLVMPrintValueToString(printable_function)) };
+        bytes = bytes.checked_add(printed.len())?;
+        if bytes > MAX_KEY_BYTES {
+            return None;
+        }
+        if let Some(mut key) = closed_key(&printed, name)
+            && let Some(attrs) = unsafe { attributes(candidate.function) }
+        {
+            use std::fmt::Write;
+            let _ = write!(key, "\n; typed-current-attributes:{attrs:?}");
+            if let Some(canonical) = bodies.get(&key) {
+                aliases.insert(name.clone(), canonical.clone());
+            } else {
+                bodies.insert(key, name.clone());
+            }
+        }
     }
     stats.distinct_bodies = bodies.len();
     (aliases.len() >= 4).then_some(Selection {
@@ -833,6 +948,7 @@ mod tests {
         assert!(!stats.fallback, "{stats:?}");
         assert_eq!(stats.reused_functions, 9, "{stats:?}");
         assert_eq!(stats.distinct_bodies, 3, "{stats:?}");
+        assert_eq!(stats.normalized_functions, 12, "{stats:?}");
         assert_eq!(
             ordinary.bytes,
             reused.expect("must use reconstructed native object")
@@ -931,6 +1047,7 @@ mod tests {
         assert!(!stats.fallback, "{stats:?}");
         assert_eq!(stats.reused_functions, 9, "{stats:?}");
         assert_eq!(stats.distinct_bodies, 3);
+        assert_eq!(stats.normalized_functions, 0, "{stats:?}");
         assert!(reused.receipt.verify_before_after);
         assert_eq!(reused.receipt.pipeline, "default<O2>");
         let error = super::super::compile_module_with_emission_reuse(

@@ -371,6 +371,7 @@ pub struct EmissionReuseStats {
     pub considered_functions: usize,
     pub distinct_bodies: usize,
     pub reused_functions: usize,
+    pub normalized_functions: usize,
     pub selection_ns: u64,
     pub machine_assembly_ns: u64,
     pub reconstruction_ns: u64,
@@ -380,10 +381,11 @@ pub struct EmissionReuseStats {
 impl EmissionReuseStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"considered_functions\":{},\"distinct_bodies\":{},\"reused_functions\":{},\"selection_ns\":{},\"machine_assembly_ns\":{},\"reconstruction_ns\":{},\"assembly_ns\":{},\"fallback\":{},\"scope\":\"current-post-O2-module; fresh canonical machine producer; distinct function symbols\"}}",
+            "{{\"considered_functions\":{},\"distinct_bodies\":{},\"reused_functions\":{},\"normalized_functions\":{},\"selection_ns\":{},\"machine_assembly_ns\":{},\"reconstruction_ns\":{},\"assembly_ns\":{},\"fallback\":{},\"scope\":\"current-post-O2-module; fresh canonical machine producer; distinct function symbols\"}}",
             self.considered_functions,
             self.distinct_bodies,
             self.reused_functions,
+            self.normalized_functions,
             self.selection_ns,
             self.machine_assembly_ns,
             self.reconstruction_ns,
