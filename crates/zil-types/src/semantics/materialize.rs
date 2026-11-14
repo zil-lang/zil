@@ -1833,14 +1833,28 @@ pub(super) fn program(
                 let proof = proof
                     .as_ref()
                     .ok_or_else(|| bad("call lacks completed original inference"))?;
-                let recipes = proof
+                let count = proof
                     .calls
                     .get(&(owner, site.recipe))
-                    .ok_or_else(|| bad("actual call lacks original fresh-variable solution"))?;
-                for recipe in recipes {
-                    crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, eval.left, 1)?;
+                    .ok_or_else(|| bad("actual call lacks original fresh-variable solution"))?
+                    .len();
+                eval.fee(count)?;
+                let mut recipes = Vec::new();
+                for formal in 0..count {
+                    let formal = u32::try_from(formal)
+                        .map_err(|_| bad("actual call full formal ordinal overflows"))?;
+                    // This accessor preserves the exact original expression
+                    // boundary of an inferred opaque Type. Copying calls[]
+                    // directly loses that provenance after symbolic solving.
+                    recipes.push(proof.call_actual(
+                        owner,
+                        site.recipe,
+                        formal,
+                        limits,
+                        eval.left,
+                    )?);
                 }
-                recipes.clone()
+                recipes
             };
             let mut actuals = Vec::new();
             eval.fee(recipes.len())?;

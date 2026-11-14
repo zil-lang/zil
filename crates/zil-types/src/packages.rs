@@ -571,6 +571,11 @@ impl Builder<'_, '_> {
         let Some((local, index, ty)) = self.package_place(target)? else {
             return Ok(false);
         };
+        if let CoreExprKind::Member { object, .. } = &target.kind {
+            if matches!(object.kind, CoreExprKind::Name(_)) {
+                self.semantic_local_place(object, local)?;
+            }
+        }
         if !self.function.locals[local.0 as usize].mutable {
             return Err(error(
                 "E-IMMUTABLE-ASSIGNMENT",

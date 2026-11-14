@@ -585,6 +585,15 @@ impl State {
                 || !function.type_parameters.is_empty()
                 || !function.state_parameters.is_empty()
             {
+                self.semantic_emission.register_template(
+                    crate::semantics::emission::Origin {
+                        module: core.module_id,
+                        creator: function.id,
+                        closure: None,
+                    },
+                    &mut self.work_left,
+                    function.span,
+                )?;
                 continue; // A later real specialization needs its own binding.
             }
             self.snapshot(

@@ -76,7 +76,8 @@ pub(super) fn program(
         }
         // Other capture families retain their complete input proposals for the
         // general original-domain solver. They are not guessed by this pass.
-        if life.invocation_binder_count != 0
+        if life.fixed_binder_count == 0
+            || life.invocation_binder_count != 0
             || !life.classes.is_empty()
             || !life.static_bindings.is_empty()
             || function.blocks.len() != 1
@@ -124,7 +125,11 @@ pub(super) fn program(
                 ..
             } = site.action
             else {
-                return Err(bad("implicit read has no actual result"));
+                // A declaration/capture place is not a proved scalar data
+                // read. The whole-capture pass may link it using its actual
+                // reaching capture and original sealed type; otherwise the
+                // final Fixed/world obligations remain outstanding.
+                continue;
             };
             let body = &function.blocks[0];
             if block != body.id || instruction as usize > body.instructions.len() {

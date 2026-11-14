@@ -784,15 +784,66 @@ impl<'a> Check<'a, '_> {
                     }
                 }
                 let Some(row) = selected else {
+                    if self.phase == InventoryPhase::Core {
+                        // CT may already have expanded an imported whole Type
+                        // actual, while this Core module contains only its own
+                        // declaration directory. This stage checks structure;
+                        // it cannot prove the imported nominal's domain zero.
+                        // The mandatory merged Typed-module pass below must
+                        // select its exact owner/actual row and discharge it.
+                        inference::charge_type_snapshot(
+                            ty,
+                            Span::default(),
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                        return self.fields(physical(ty), depth + 1);
+                    }
                     let name = match physical(ty) {
                         Type::Record { name, .. }
                         | Type::Package { name, .. }
                         | Type::Enum { name, .. } => name.as_str(),
                         _ => "qualified compound",
                     };
-                    fee(self.left, name.len(), Span::default())?;
+                    inference::charge_type_snapshot(
+                        ty,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        2,
+                    )?;
+                    fee(
+                        self.left,
+                        name.len().saturating_add(self.instances.len()),
+                        Span::default(),
+                    )?;
+                    let mut same_name = Vec::new();
+                    for row in self.instances {
+                        let other = match physical(&row.ty) {
+                            Type::Record { name, .. }
+                            | Type::Package { name, .. }
+                            | Type::Enum { name, .. } => name.as_str(),
+                            _ => continue,
+                        };
+                        fee(
+                            self.left,
+                            name.len().saturating_add(other.len()),
+                            Span::default(),
+                        )?;
+                        if other == name {
+                            inference::charge_type_snapshot(
+                                &row.ty,
+                                Span::default(),
+                                self.limits,
+                                self.left,
+                                2,
+                            )?;
+                            same_name.push((row.declaration, &row.ty));
+                        }
+                    }
                     return Err(unknown(&format!(
-                        "nominal child has no complete original catalogue entry: {name}"
+                        "nominal child has no complete original catalogue entry: {name}; requested {ty:?}; same-name catalogue {same_name:?}"
                     )));
                 };
                 self.row(row, depth + 1)

@@ -3637,6 +3637,7 @@ impl<'a> Builder<'a, '_> {
         let local = self
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", root.span, "unknown assignment root"))?;
+        self.semantic_local_place(root, local)?;
         let decl = self.function.locals[local.0 as usize].clone();
         if matches!(decl.ty, Type::Package { .. }) || packages::owned_array_supported(&decl.ty) {
             return Err(unsupported(
