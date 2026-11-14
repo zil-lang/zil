@@ -1,0 +1,846 @@
+diff --git a/crates/zil-types/src/semantics/abi.rs b/crates/zil-types/src/semantics/abi.rs
+index 9c737cedb..f07b2f684 100644
+--- a/crates/zil-types/src/semantics/abi.rs
++++ b/crates/zil-types/src/semantics/abi.rs
+@@ -60,9 +60,9 @@ pub(crate) fn prepare(
+         input.include_frozen(source, limits, left)?;
+     }
+     let proof = if let Some(source) = ledger.frozen.as_deref() {
+-        super::original::check_with_frozen(&input.semantic, source, limits, left)?
++        super::original::check_with_frozen(&input.semantic, input.declarations.clone(), source, limits, left)?
+     } else {
+-        super::original::check(&input.semantic, limits, left)?
++        super::original::check_with_declarations(&input.semantic, input.declarations.clone(), limits, left)?
+     };
+     let context = super::original_context::OriginalContext::checked(
+         input,
+diff --git a/crates/zil-types/src/semantics/frozen_context.rs b/crates/zil-types/src/semantics/frozen_context.rs
+index ca27b3e40..99dd6e199 100644
+--- a/crates/zil-types/src/semantics/frozen_context.rs
++++ b/crates/zil-types/src/semantics/frozen_context.rs
+@@ -110,7 +110,7 @@ fn source_interface(
+         .find(|row| row.id == instance.definition)
+         .ok_or_else(|| bad("frozen query instance lost its original declaration"))?;
+     let proof =
+-        super::original::check_at(program, definition.id, binding.query.original, limits, left)?;
++        super::original::check_at_with_declarations(program, input.declarations.clone(), definition.id, binding.query.original, limits, left)?;
+     if !proof.complete.contains(&definition.id) {
+         return Err(bad(
+             "frozen query owner has no complete original body proof",
+diff --git a/crates/zil-types/src/semantics/instantiate.rs b/crates/zil-types/src/semantics/instantiate.rs
+index 3e760e898..862b4947f 100644
+--- a/crates/zil-types/src/semantics/instantiate.rs
++++ b/crates/zil-types/src/semantics/instantiate.rs
+@@ -102,7 +102,63 @@ pub(super) fn ty(
+     mapping: DomainMapping<'_>,
+     limits: &Limits,
+     left: &mut usize,
++) -> R<SemanticTypeRecipe> {
++    ty_using_self(program, proof, value, mapping, None, true, limits, left)
++}
++/// Evaluate a real declaration Scope's recipe after the original trait
++/// selection has proved its receiver and all mixed arguments. This operation
++/// supplies data substitution only; it grants no trait or where obligation.
++pub(super) fn ty_with_self(
++    program: &SemanticModule,
++    proof: &Proof,
++    value: &SemanticTypeRecipe,
++    mapping: DomainMapping<'_>,
++    receiver: &SemanticTypeRecipe,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<SemanticTypeRecipe> {
++    ty_using_self(program, proof, value, mapping, Some(receiver), true, limits, left)
++}
++/// Derive a Const actual's carrier before installing the complete carrier
++/// vector. This only evaluates the real source formal's Type expression; the
++/// caller must retain every full mixed actual and then check the value in it.
++pub(super) fn carrier(
++    program: &SemanticModule, proof: &Proof, mapping: DomainMapping<'_>,
++    ordinal: u32, limits: &Limits, left: &mut usize,
+ ) -> R<SemanticTypeRecipe> {
++    let source = definition(program, mapping.source, left)?;
++    let Some(SemanticFormal::Const { carrier }) = source.parameters.get(ordinal as usize) else {
++        return Err(bad("original carrier request does not select a Const formal"));
++    };
++    ty_using_self(program, proof, carrier, mapping, None, false, limits, left)
++}
++fn ty_using_self(
++    program: &SemanticModule,
++    proof: &Proof,
++    value: &SemanticTypeRecipe,
++    mapping: DomainMapping<'_>,
++    receiver: Option<&SemanticTypeRecipe>,
++    check_carriers: bool,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<SemanticTypeRecipe> {
++    in_mapping(program, proof, mapping, receiver, check_carriers, limits, left,
++        |substitution, scopes, allow, left| substitute::ty_in_domains(value, substitution, scopes, allow, limits, left))
++}
++pub(super) fn requirement_with_self(
++    program: &SemanticModule, proof: &Proof, value: &SemanticRequirementRecipe,
++    mapping: DomainMapping<'_>, receiver: &SemanticTypeRecipe,
++    limits: &Limits, left: &mut usize,
++) -> R<SemanticRequirementRecipe> {
++    in_mapping(program, proof, mapping, Some(receiver), true, limits, left,
++        |substitution, scopes, allow, left| substitute::requirement_in_domains(value, substitution, scopes, allow, limits, left))
++}
++fn in_mapping<T>(
++    program: &SemanticModule, proof: &Proof, mapping: DomainMapping<'_>,
++    receiver: Option<&SemanticTypeRecipe>, check_carriers: bool,
++    limits: &Limits, left: &mut usize,
++    run: impl FnOnce(&substitute::Substitution<'_>, &BTreeMap<u32, u32>, bool, &mut usize) -> R<T>,
++) -> R<T> {
+     let source = definition(program, mapping.source, left)?;
+     let source_chain = ancestry(program, mapping.source, limits, left)?;
+     let use_chain = ancestry(program, mapping.use_definition, limits, left)?;
+@@ -122,6 +178,13 @@ pub(super) fn ty(
+     let mut selves = Vec::new();
+     fee(left, source_chain.len().saturating_add(1))?;
+     frames.push((0, mapping.arguments));
++    if let Some(receiver) = receiver {
++        if !matches!(source.body, SemanticDefinitionBody::Scope(_)) {
++            return Err(bad("original Self substitution does not name a real declaration Scope"));
++        }
++        crate::dyn_metadata::semantic_operand_snapshot(receiver, limits, left, 1)?;
++        selves.push((0, receiver));
++    }
+     if let Some(call) = mapping.parent_call {
+         fee(left, source_chain.len().saturating_add(2))?;
+         let method = proof
+@@ -166,6 +229,7 @@ pub(super) fn ty(
+     // Const carriers are checked in the same source-to-use mapping as fields.
+     // A concrete actual image can never discharge a rigid carrier difference.
+     for (hop, actuals) in &frames {
++        if !check_carriers { continue; }
+         let original = definition(program, source_chain[*hop as usize], left)?;
+         for (formal, actual) in original.parameters.iter().zip(*actuals) {
+             if let (
+@@ -198,12 +262,5 @@ pub(super) fn ty(
+             }
+         }
+     }
+-    substitute::ty_in_domains(
+-        value,
+-        &substitution,
+-        &scopes,
+-        mapping.source == mapping.use_definition,
+-        limits,
+-        left,
+-    )
++    run(&substitution, &scopes, mapping.source == mapping.use_definition, left)
+ }
+diff --git a/crates/zil-types/src/semantics/original.rs b/crates/zil-types/src/semantics/original.rs
+index 08fd05a99..e56d39655 100644
+--- a/crates/zil-types/src/semantics/original.rs
++++ b/crates/zil-types/src/semantics/original.rs
+@@ -149,6 +149,8 @@ impl From<SemanticOriginalTypeSource> for Query {
+ }
+ #[derive(Clone, Default)]
+ pub(super) struct Proof {
++    pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
++    pub associated_complete: BTreeSet<LifeDeclarationId>,
+     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
+     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
+     pub complete: BTreeSet<SemanticDefinitionId>,
+@@ -4887,7 +4889,15 @@ impl<'a> Check<'a, '_> {
+     }
+ }
+ pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize) -> R<Proof> {
+-    check_requested(program, None, limits, left)
++    check_requested(program, std::rc::Rc::default(), None, limits, left)
++}
++pub(super) fn check_with_declarations(
++    program: &SemanticModule,
++    declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<Proof> {
++    check_requested(program, declarations, None, limits, left)
+ }
+ pub(super) fn check_at(
+     program: &SemanticModule,
+@@ -4896,10 +4906,21 @@ pub(super) fn check_at(
+     limits: &Limits,
+     left: &mut usize,
+ ) -> R<Proof> {
+-    check_requested(program, Some((owner, node)), limits, left)
++    check_requested(program, std::rc::Rc::default(), Some((owner, node)), limits, left)
++}
++pub(super) fn check_at_with_declarations(
++    program: &SemanticModule,
++    declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
++    owner: SemanticDefinitionId,
++    node: SemanticOriginalNode,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<Proof> {
++    check_requested(program, declarations, Some((owner, node)), limits, left)
+ }
+ fn check_requested(
+     program: &SemanticModule,
++    declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
+     requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
+     limits: &Limits,
+     left: &mut usize,
+@@ -4908,7 +4929,7 @@ fn check_requested(
+         program,
+         limits,
+         left,
+-        proof: Proof::default(),
++        proof: Proof { declarations, ..Proof::default() },
+         active: BTreeSet::new(),
+         captures: BTreeMap::new(),
+         loops: Vec::new(),
+diff --git a/crates/zil-types/src/semantics/original_calls.rs b/crates/zil-types/src/semantics/original_calls.rs
+index aa38a3028..256c7869a 100644
+--- a/crates/zil-types/src/semantics/original_calls.rs
++++ b/crates/zil-types/src/semantics/original_calls.rs
+@@ -1045,13 +1045,26 @@ impl Check<'_, '_> {
+         application: &SemanticTraitRecipe,
+         depth: usize,
+     ) -> R<()> {
+-        self.pay(self.trait_active.len(), depth)?;
++        let ty = self.resolve(owner, ty, depth + 1)?;
++        let application = self.resolve_application(owner, application, depth + 1)?;
+         for requirement in self.original_requirements(owner, depth + 1)? {
+-            if matches!(&requirement, SemanticRequirementRecipe::Trait { ty: premise, application: assumed } if premise == ty && assumed == application)
+-            {
++            if matches!(&requirement, SemanticRequirementRecipe::Trait { ty: premise, application: assumed } if premise == &ty && assumed == &application) {
+                 return Ok(());
+             }
+         }
++        if self.select_trait_provider(owner, &ty, &application, depth + 1)?.is_none() {
++            return Err(bad("original caller lacks a complete trait premise or provider"));
++        }
++        Ok(())
++    }
++    pub(super) fn select_trait_provider(
++        &mut self,
++        owner: SemanticDefinitionId,
++        ty: &SemanticTypeRecipe,
++        application: &SemanticTraitRecipe,
++        depth: usize,
++    ) -> R<Option<(SemanticDefinitionId, Vec<SemanticActualRecipe>)>> {
++        self.pay(self.trait_active.len(), depth)?;
+         if self
+             .trait_active
+             .iter()
+@@ -1187,12 +1200,7 @@ impl Check<'_, '_> {
+             }
+         }
+         self.trait_active.pop();
+-        if selected.is_none() {
+-            return Err(bad(
+-                "original caller lacks a complete trait premise or provider",
+-            ));
+-        }
+-        Ok(())
++        Ok(selected)
+     }
+     pub(super) fn store_element(
+         &mut self,
+diff --git a/crates/zil-types/src/semantics/original_context.rs b/crates/zil-types/src/semantics/original_context.rs
+index e8b4b067d..18fc481c1 100644
+--- a/crates/zil-types/src/semantics/original_context.rs
++++ b/crates/zil-types/src/semantics/original_context.rs
+@@ -17,6 +17,11 @@ fn pay(left: &mut usize, work: usize) -> R<()> {
+ fn search(n: usize) -> usize {
+     n.saturating_add(1).ilog2() as usize + 1
+ }
++#[derive(Clone, PartialEq, Eq)]
++pub(super) struct Declaration {
++    pub(super) row: DynDeclaration,
++    pub(super) scope: SemanticDefinitionId,
++}
+ struct Part {
+     module: ModuleId,
+     present: bool,
+@@ -24,9 +29,11 @@ struct Part {
+     instances: Range<usize>,
+     sites: Range<usize>,
+     dyn_scopes: Range<usize>,
++    declarations: Range<usize>,
+ }
+ pub(super) struct Input {
+     pub(super) semantic: SemanticModule,
++    pub(super) declarations: Rc<Vec<Declaration>>,
+     parts: Vec<Part>,
+ }
+ impl Input {
+@@ -39,12 +46,14 @@ impl Input {
+             dyn_scopes: Vec::new(),
+         };
+         let mut parts = Vec::with_capacity(cores.len());
++        let mut declarations = Vec::new();
+         for core in cores {
+             let start = (
+                 semantic.definitions.len(),
+                 semantic.instances.len(),
+                 semantic.sites.len(),
+                 semantic.dyn_scopes.len(),
++                declarations.len(),
+             );
+             if let Some(program) = &core.semantic {
+                 crate::dyn_metadata::semantic_snapshot(program, limits, left, 1)?;
+@@ -65,6 +74,27 @@ impl Input {
+                 semantic.sites.extend(copy.sites);
+                 semantic.dyn_scopes.extend(copy.dyn_scopes);
+             }
++            pay(left, core.dyn_declarations.len().saturating_add(1))?;
++            for row in &core.dyn_declarations {
++                crate::dyn_metadata::actual_declaration_snapshot(row, limits, left, 1)?;
++                if row.id.module != core.module_id {
++                    return Err(bad("original declaration is outside its actual source Core module"));
++                }
++                let original = core.semantic.as_ref().ok_or_else(|| bad(
++                    "original associated declaration has no source semantic scope",
++                ))?;
++                pay(left, original.dyn_scopes.len().saturating_add(1))?;
++                let mut scopes = original.dyn_scopes.iter().filter(|binding| matches!(
++                    binding.owner, SemanticDynOwner::Declaration(id) if id == row.id
++                ));
++                let scope = scopes.next().ok_or_else(|| bad(
++                    "original associated declaration has no exact declaration Scope binding",
++                ))?.scope;
++                if scopes.next().is_some() {
++                    return Err(bad("original associated declaration has duplicate Scope bindings"));
++                }
++                declarations.push(Declaration { row: row.clone(), scope });
++            }
+             parts.push(Part {
+                 module: core.module_id,
+                 present: core.semantic.is_some(),
+@@ -72,9 +102,10 @@ impl Input {
+                 instances: start.1..semantic.instances.len(),
+                 sites: start.2..semantic.sites.len(),
+                 dyn_scopes: start.3..semantic.dyn_scopes.len(),
++                declarations: start.4..declarations.len(),
+             });
+         }
+-        Ok(Self { semantic, parts })
++        Ok(Self { semantic, declarations: Rc::new(declarations), parts })
+     }
+     /// E can refer to immutable S declarations; S instances/sites remain in S.
+     /// Every duplicate is compared completely before it is accepted as shared.
+@@ -110,11 +141,30 @@ impl Input {
+                 self.semantic.definitions.push(original.clone());
+             }
+         }
++        let mut declarations = Vec::new();
++        pay(left, self.declarations.len().saturating_add(source.declarations.len()).saturating_add(1))?;
++        let mut identities = BTreeMap::new();
++        for declaration in self.declarations.iter().chain(source.declarations.iter()) {
++            crate::dyn_metadata::actual_declaration_snapshot(&declaration.row, limits, left, 1)?;
++            pay(left, search(identities.len()))?;
++            if let Some(index) = identities.get(&declaration.row.id) {
++                let previous: &Declaration = &declarations[*index];
++                crate::dyn_metadata::actual_declaration_snapshot(&previous.row, limits, left, 1)?;
++                if previous != declaration {
++                    return Err(bad("E changes an immutable S original associated declaration or Scope binding"));
++                }
++            } else {
++                identities.insert(declaration.row.id, declarations.len());
++                declarations.push(declaration.clone());
++            }
++        }
++        self.declarations = Rc::new(declarations);
+         Ok(())
+     }
+ }
+ pub(crate) struct OriginalContext {
+     pub(super) semantic: SemanticModule,
++    pub(super) declarations: Rc<Vec<Declaration>>,
+     pub(super) original: super::original::Proof,
+     parts: Vec<Part>,
+     definitions: BTreeMap<SemanticDefinitionId, usize>,
+@@ -128,6 +178,9 @@ impl OriginalContext {
+         frozen: Option<Rc<super::frozen_context::FrozenSource>>,
+         left: &mut usize,
+     ) -> R<Rc<Self>> {
++        if !Rc::ptr_eq(&input.declarations, &proof.declarations) {
++            return Err(bad("checked original proof differs from its immutable declaration input"));
++        }
+         let mut definitions = BTreeMap::new();
+         let mut instances = BTreeMap::new();
+         pay(
+@@ -153,6 +206,7 @@ impl OriginalContext {
+         }
+         Ok(Rc::new(Self {
+             semantic: input.semantic,
++            declarations: input.declarations,
+             original: proof,
+             parts: input.parts,
+             definitions,
+@@ -204,6 +258,16 @@ impl OriginalContext {
+             if core.module_id != part.module || core.semantic.is_some() != part.present {
+                 return Err(bad("original context module identity or Some/None changed"));
+             }
++            pay(left, core.dyn_declarations.len().saturating_add(1))?;
++            for declaration in &core.dyn_declarations {
++                crate::dyn_metadata::actual_declaration_snapshot(declaration, limits, left, 1)?;
++            }
++            let declarations = &self.declarations[part.declarations.clone()];
++            if core.dyn_declarations.len() != declarations.len()
++                || core.dyn_declarations.iter().zip(declarations).any(|(actual, original)| actual != &original.row)
++            {
++                return Err(bad("original associated declaration input changed after symbolic checking"));
++            }
+             let Some(actual) = &core.semantic else {
+                 continue;
+             };
+diff --git a/crates/zil-types/src/semantics/original_frozen.rs b/crates/zil-types/src/semantics/original_frozen.rs
+index 064992627..f4c1f3c73 100644
+--- a/crates/zil-types/src/semantics/original_frozen.rs
++++ b/crates/zil-types/src/semantics/original_frozen.rs
+@@ -137,6 +137,7 @@ fn clone_proof(
+             .saturating_add(source.calls.len())
+             .saturating_add(source.complete.len())
+             .saturating_add(source.protocol_complete.len())
++            .saturating_add(source.associated_complete.len())
+             .saturating_add(source.kinds.len())
+             .saturating_add(source.call_targets.len())
+             .saturating_add(source.providers.len())
+@@ -251,6 +252,7 @@ fn clone_proof(
+ }
+ pub(crate) fn check_with_frozen(
+     program: &SemanticModule,
++    declarations: std::rc::Rc<Vec<super::super::original_context::Declaration>>,
+     source: &FrozenSource,
+     limits: &Limits,
+     left: &mut usize,
+@@ -382,7 +384,8 @@ pub(crate) fn check_with_frozen(
+     if expected != actual {
+         return Err(bad("generated wrapper body differs from the selected original query after true parent relocation"));
+     }
+-    let proof = clone_proof(&source.original, program, limits, left)?;
++    let mut proof = clone_proof(&source.original, program, limits, left)?;
++    proof.declarations = declarations;
+     let mut check = Check {
+         program,
+         limits,
+diff --git a/crates/zil-types/src/semantics/original_resources.rs b/crates/zil-types/src/semantics/original_resources.rs
+index f1698dc26..1522e606b 100644
+--- a/crates/zil-types/src/semantics/original_resources.rs
++++ b/crates/zil-types/src/semantics/original_resources.rs
+@@ -61,7 +61,7 @@ impl Check<'_, '_> {
+         self.pay(1, depth)?;
+         let ty = self.observation_type(owner, ty, depth + 1)?;
+         Ok(match ty {
+-            SemanticTypeRecipe::Atom(Type::ByteBuffer)
++            SemanticTypeRecipe::Atom(Type::ByteBuffer|Type::TaskI32)
+             | SemanticTypeRecipe::OwnedStore(_)
+             | SemanticTypeRecipe::Mutex(_)
+             | SemanticTypeRecipe::Task { .. }
+diff --git a/crates/zil-types/src/semantics/original_substitute.rs b/crates/zil-types/src/semantics/original_substitute.rs
+index 056538880..64ad6c2e5 100644
+--- a/crates/zil-types/src/semantics/original_substitute.rs
++++ b/crates/zil-types/src/semantics/original_substitute.rs
+@@ -12,8 +12,16 @@ pub(crate) struct Substitution<'a> {
+     pub invocation: &'a BTreeMap<u32, SemanticOuterLifeRecipe>,
+     pub shift: u32,
+ }
++pub(crate) struct DelayedType {
++    pub ty: SemanticTypeRecipe,
++    pub bound_depth: u32,
++    pub invocation_depth: u32,
++}
+ struct Apply<'a, 'b> {
+     substitution: &'a Substitution<'a>,
++    type_equations: &'a [(SemanticTypeRecipe, SemanticTypeRecipe)],
++    local_equations: &'a [(DelayedType, SemanticTypeRecipe)],
++    delayed: Option<&'b mut Vec<DelayedType>>,
+     limits: &'b Limits,
+     left: &'b mut usize,
+     bound_depth: u32,
+@@ -305,6 +313,8 @@ impl<'a> Apply<'a, '_> {
+             shift: 0,
+         };
+         Apply {
++            type_equations: &[],
++            local_equations: &[], delayed: None,
+             substitution: &substitution,
+             limits: self.limits,
+             left: self.left,
+@@ -334,6 +344,8 @@ impl<'a> Apply<'a, '_> {
+             shift: 0,
+         };
+         Apply {
++            type_equations: &[],
++            local_equations: &[], delayed: None,
+             substitution: &substitution,
+             limits: self.limits,
+             left: self.left,
+@@ -363,6 +375,8 @@ impl<'a> Apply<'a, '_> {
+             shift: 0,
+         };
+         Apply {
++            type_equations: &[],
++            local_equations: &[], delayed: None,
+             substitution: &substitution,
+             limits: self.limits,
+             left: self.left,
+@@ -638,6 +652,37 @@ impl<'a> Apply<'a, '_> {
+     }
+     fn ty(&mut self, ty: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
+         self.pay(depth)?;
++        for (source, target) in self.local_equations {
++            if source.bound_depth != self.bound_depth || source.invocation_depth != self.invocation_depth { continue; }
++            crate::dyn_metadata::semantic_operand_snapshot(&source.ty, self.limits, self.left, 1)?;
++            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
++            if &source.ty == ty {
++                crate::dyn_metadata::semantic_operand_snapshot(target, self.limits, self.left, 1)?;
++                *ty = target.clone();
++                return Ok(());
++            }
++        }
++        if self.delayed.is_some() && matches!(ty,
++            SemanticTypeRecipe::OriginalType { .. } | SemanticTypeRecipe::SelfType { .. }
++            | SemanticTypeRecipe::AssociatedType { .. }
++            | SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), .. })
++        {
++            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
++            self.delayed.as_mut().unwrap().push(DelayedType {
++                ty: ty.clone(), bound_depth: self.bound_depth, invocation_depth: self.invocation_depth,
++            });
++            return Ok(());
++        }
++        for (source, target) in self.type_equations {
++            crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
++            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
++            if source == ty {
++                crate::dyn_metadata::semantic_operand_snapshot(target, self.limits, self.left, 1)?;
++                *ty = target.clone();
++                self.lift_type(ty, depth + 1)?;
++                return Ok(());
++            }
++        }
+         match ty {
+             SemanticTypeRecipe::Formal(reference) => {
+                 if let Some(actual) = self.selected(reference)? {
+@@ -808,6 +853,8 @@ pub(crate) fn ty(
+     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+     let mut value = value.clone();
+     Apply {
++        type_equations: &[],
++        local_equations: &[], delayed: None,
+         substitution,
+         limits,
+         left,
+@@ -833,6 +880,8 @@ pub(crate) fn signature(
+     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+     let mut value = value.clone();
+     Apply {
++        type_equations: &[],
++        local_equations: &[], delayed: None,
+         substitution,
+         limits,
+         left,
+@@ -859,6 +908,8 @@ pub(crate) fn requirement(
+     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+     let mut value = value.clone();
+     Apply {
++        type_equations: &[],
++        local_equations: &[], delayed: None,
+         substitution,
+         limits,
+         left,
+@@ -885,6 +936,8 @@ pub(crate) fn actual(
+     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+     let mut value = value.clone();
+     Apply {
++        type_equations: &[],
++        local_equations: &[], delayed: None,
+         substitution,
+         limits,
+         left,
+@@ -912,6 +965,8 @@ pub(crate) fn signature_template(
+     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+     let mut value = value.clone();
+     Apply {
++        type_equations: &[],
++        local_equations: &[], delayed: None,
+         substitution,
+         limits,
+         left,
+@@ -937,6 +992,8 @@ pub(crate) fn signature_fresh(
+     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+     let mut value = value.clone();
+     Apply {
++        type_equations: &[],
++        local_equations: &[], delayed: None,
+         substitution,
+         limits,
+         left,
+@@ -967,6 +1024,8 @@ pub(crate) fn ty_in_domains(
+     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+     let mut value = value.clone();
+     Apply {
++        type_equations: &[],
++        local_equations: &[], delayed: None,
+         substitution,
+         limits,
+         left,
+@@ -983,3 +1042,72 @@ pub(crate) fn ty_in_domains(
+     .ty(&mut value, 1)?;
+     Ok(value)
+ }
++
++/// A selected associated definition supplies only its own scoped equation.
++/// Replacing it in declared bounds does not install a caller TypeEqual premise.
++pub(crate) fn requirement_replacing(
++    value: &SemanticRequirementRecipe,
++    equations: &[(SemanticTypeRecipe, SemanticTypeRecipe)],
++    limits: &Limits,
++    left: &mut usize,
++) -> R<SemanticRequirementRecipe> {
++    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
++    let mut value = value.clone();
++    let empty = BTreeMap::new();
++    let substitution = Substitution {
++        frames: &[], selves: &[], environments: &[], implicit: &empty,
++        invocation: &empty, shift: 0,
++    };
++    Apply {
++        substitution: &substitution, type_equations: equations,
++        local_equations: &[], delayed: None, limits, left,
++        bound_depth: 0, bound_delta: 0, bound_cutoff: 0, invocation_depth: 0,
++        fresh_roles: false, template: false, template_implicit: false,
++        scopes: None, allow_root_invocation: true,
++    }.requirement(&mut value, 1)?;
++    Ok(value)
++}
++pub(crate) fn requirement_in_domains(
++    value: &SemanticRequirementRecipe,
++    substitution: &Substitution<'_>,
++    scopes: &BTreeMap<u32, u32>,
++    allow_root_invocation: bool,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<SemanticRequirementRecipe> {
++    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
++    let mut value = value.clone();
++    Apply {
++        substitution, type_equations: &[], local_equations: &[], delayed: None, limits, left,
++        bound_depth: 0, bound_delta: 0, bound_cutoff: 0, invocation_depth: 0,
++        fresh_roles: false, template: false, template_implicit: false,
++        scopes: Some(scopes), allow_root_invocation,
++    }.requirement(&mut value, 1)?;
++    Ok(value)
++}
++
++pub(crate) fn delayed_types(value: &SemanticTypeRecipe, limits: &Limits, left: &mut usize) -> R<Vec<DelayedType>> {
++    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
++    let mut value = value.clone();
++    let empty = BTreeMap::new();
++    let substitution = Substitution { frames: &[], selves: &[], environments: &[], implicit: &empty, invocation: &empty, shift: 0 };
++    let mut delayed = Vec::new();
++    Apply {
++        substitution: &substitution, type_equations: &[], local_equations: &[], delayed: Some(&mut delayed), limits, left,
++        bound_depth: 0, bound_delta: 0, bound_cutoff: 0, invocation_depth: 0,
++        fresh_roles: false, template: false, template_implicit: false, scopes: None, allow_root_invocation: true,
++    }.ty(&mut value, 1)?;
++    Ok(delayed)
++}
++pub(crate) fn replace_delayed(value: &SemanticTypeRecipe, equations: &[(DelayedType, SemanticTypeRecipe)], limits: &Limits, left: &mut usize) -> R<SemanticTypeRecipe> {
++    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
++    let mut value = value.clone();
++    let empty = BTreeMap::new();
++    let substitution = Substitution { frames: &[], selves: &[], environments: &[], implicit: &empty, invocation: &empty, shift: 0 };
++    Apply {
++        substitution: &substitution, type_equations: &[], local_equations: equations, delayed: None, limits, left,
++        bound_depth: 0, bound_delta: 0, bound_cutoff: 0, invocation_depth: 0,
++        fresh_roles: false, template: false, template_implicit: false, scopes: None, allow_root_invocation: true,
++    }.ty(&mut value, 1)?;
++    Ok(value)
++}
+diff --git a/crates/zil-types/src/semantics/well_formed.rs b/crates/zil-types/src/semantics/well_formed.rs
+index 450e4ae9f..e88e7945c 100644
+--- a/crates/zil-types/src/semantics/well_formed.rs
++++ b/crates/zil-types/src/semantics/well_formed.rs
+@@ -1310,3 +1310,38 @@ pub(crate) fn originals_with_frozen(
+     }
+     Ok(())
+ }
++
++/// Validate newly supplied original declaration operands in their own lexical
++/// definitions. The definitions' bodies were checked separately; no runtime
++/// instance, concrete actual or emitted value is needed for these recipes.
++pub(super) fn declaration_operands(
++    program: &SemanticModule,
++    operands: &[(SemanticDefinitionId, SemanticActualRecipe)],
++    requirements: &[(SemanticDefinitionId, SemanticRequirementRecipe)],
++    limits: &Limits,
++    left: &mut usize,
++) -> R<()> {
++    let mut definitions = BTreeMap::new();
++    let mut nodes = BTreeMap::new();
++    for definition in &program.definitions {
++        *left = left.checked_sub(definitions.len().saturating_add(1)).ok_or_else(|| {
++            Diagnostic::limit(Phase::Types, "associated structural index work exceeded", None)
++        })?;
++        if definitions.insert(definition.id, definition).is_some() {
++            return Err(fail("associated recipe context has duplicate original definitions"));
++        }
++        nodes.insert(definition.id, super::original_nodes::definition(definition, limits, left)?);
++    }
++    let mut check = Check {
++        definitions, instances: BTreeMap::new(), nodes, modules: &[], limits, left,
++    };
++    for (owner, value) in operands {
++        crate::dyn_metadata::semantic_operand_snapshot(value, limits, check.left, 1)?;
++        check.actual_recipe(*owner, value, &mut Vec::new(), 0, 0)?;
++    }
++    for (owner, value) in requirements {
++        crate::dyn_metadata::semantic_operand_snapshot(value, limits, check.left, 1)?;
++        check.requirement(*owner, value, &mut Vec::new(), 0, 0)?;
++    }
++    Ok(())
++}
+diff --git a/crates/zil-verify/src/semantic/catalogue.rs b/crates/zil-verify/src/semantic/catalogue.rs
+index eeae3a162..253aa5fea 100644
+--- a/crates/zil-verify/src/semantic/catalogue.rs
++++ b/crates/zil-verify/src/semantic/catalogue.rs
+@@ -194,7 +194,7 @@ impl CheckedContext {
+             }
+             (SemanticSiteRecipeKind::OriginalCall,SemanticSiteAction::BodyCall{actuals})=>{
+                 let row=actual.ok_or_else(||bad("original body Call selects a terminator"))?;
+-                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..})&&original::intrinsics::Intrinsic::actual(&row.kind).is_none(){return Err(bad("original body Call selects another actual operation"));}
++                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}|InstructionKind::MakeVariant{..})&&original::intrinsics::Intrinsic::actual(&row.kind).is_none(){return Err(bad("original body Call selects another actual operation"));}
+                 for actual in actuals {raw_actual(actual,b)?;}
+             }
+             (SemanticSiteRecipeKind::CallableCall{..},SemanticSiteAction::CallableCall{callee})=>{
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index 9f6f5bbf9..98a4527a5 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -6,6 +6,7 @@ mod intrinsics;
+ mod capture_values;
+ mod closed_values;
+ mod operations;
++mod products;
+ #[derive(Clone,PartialEq,Eq)]
+ struct State {locals:Vec<Option<CheckedType>>}
+ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
+@@ -213,6 +214,7 @@ impl CheckedContext {
+                         Some(value)
+                     }
+                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
++                    InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                     InstructionKind::ReadAddress{address}=>{
+                         let address=value_at(&values,*address)?;
+                         let Type::Address{inner,..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
+diff --git a/crates/zil-verify/src/semantic/original/bodies.rs b/crates/zil-verify/src/semantic/original/bodies.rs
+index 714a41fd3..23704372c 100644
+--- a/crates/zil-verify/src/semantic/original/bodies.rs
++++ b/crates/zil-verify/src/semantic/original/bodies.rs
+@@ -7,7 +7,7 @@ impl CheckedOriginal {
+         if self.checked.contains(&id){return Ok(());}
+         if !self.active.insert(id){return Err(bad("original closure/body checking cycle has no established prototype"));}
+         let previous=self.current.replace(id);
+-        let result=self.definition_inner(module,context,id,active,b);
++        let result=self.definition_inner(module,context,id,active,b).map_err(|mut error|{error.message.push_str(&format!(" [original definition {id:?}]"));error});
+         self.current=previous;self.active.remove(&id);
+         if result.is_ok(){self.checked.insert(id);}result
+     }
+diff --git a/crates/zil-verify/src/semantic/original/calls.rs b/crates/zil-verify/src/semantic/original/calls.rs
+index 195361f32..46897f12c 100644
+--- a/crates/zil-verify/src/semantic/original/calls.rs
++++ b/crates/zil-verify/src/semantic/original/calls.rs
+@@ -22,8 +22,10 @@ impl CheckedOriginal {
+             if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+             return Ok(result);
+         }
++        let static_type=self.static_call_type(module,context,base,env,bindings,b)?;
++        if static_type.is_none(){if let Some(result)=self.variant_constructor(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
+         self.callable_nodes.insert((env.current()?,call.id),base.id);
+-        let(callee_type,callee_place)=match self.static_call_type(module,context,base,env,bindings,b)?{Some(ty)=>(ty,None),None=>self.place(module,context,base,env,bindings,active,b)?};if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,false,active,b)?;}
++        let(callee_type,callee_place)=match static_type{Some(ty)=>(ty,None),None=>self.place(module,context,base,env,bindings,active,b)?};if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,false,active,b)?;}
+         match self.resolved(&callee_type,b)?{
+             Ty::Function(target)=>{
+                 let definition=context.definition(module,target,b)?;
+diff --git a/crates/zil-verify/src/semantic/original/expressions.rs b/crates/zil-verify/src/semantic/original/expressions.rs
+index c13341877..6a9f4e4c6 100644
+--- a/crates/zil-verify/src/semantic/original/expressions.rs
++++ b/crates/zil-verify/src/semantic/original/expressions.rs
+@@ -67,7 +67,7 @@ impl CheckedOriginal {
+             if let Some(expected)=expected{self.unify(&actual,expected,b)?;}
+             if self.creation(id,expression,bindings,b)?{b.spend(1)?;self.created.insert((id,expression.id));}
+             self.expressions.insert((id,expression.id),actual.clone());Ok(actual)
+-        })
++        }).map_err(|mut error|{error.message.push_str(&format!(" [original definition {:?}, expression {:?}]",env.current().ok(),expression.id));if error.span.is_none(){error.span=Some(expression.span);}error})
+     }
+     pub(super) fn literal_original(&self,module:&TypedModule,text:&str,floating:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{
+         self.literal_original_sign(module,text,floating,false,expected,b)
+diff --git a/crates/zil-verify/src/semantic/original/mod.rs b/crates/zil-verify/src/semantic/original/mod.rs
+index 52264ecfe..b05d400af 100644
+--- a/crates/zil-verify/src/semantic/original/mod.rs
++++ b/crates/zil-verify/src/semantic/original/mod.rs
+@@ -31,12 +31,14 @@ mod operations;
+ mod elements;
+ mod heads;
+ mod protocol;
++mod constructors;
+ pub(super) mod intrinsics;
+ use usage::{Binder,Place,Uses};
+ use terms::*;
+ use std::collections::{BTreeMap,BTreeSet};
+ #[derive(Clone)]
+ pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) callable_kind:Option<CallableKind>}
++struct VariantConstruction{definition:SemanticDefinitionId,variant:u32,actuals:Vec<Arg>}
+ #[derive(Default)]
+ pub(super) struct CheckedOriginal {
+     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+@@ -45,6 +47,7 @@ pub(super) struct CheckedOriginal {
+     results:BTreeMap<SemanticDefinitionId,Ty>,
+     calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),Vec<Arg>>,
+     call_targets:BTreeMap<(SemanticDefinitionId,SemanticSiteId),SemanticDefinitionId>,
++    constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
+     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
+     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
+     substitutions:BTreeMap<u64,Ty>,
+@@ -150,7 +153,7 @@ impl CheckedOriginal {
+             (Ty::Array(a,n),Ty::Array(c,m)) if n==m=>self.unify(a,c,b),
+             (Ty::Carrier{kind:a,child:x,retained:ar},Ty::Carrier{kind:c,child:y,retained:cr}) if a==c&&ar==cr=>self.unify(x,y,b),
+             (Ty::Nominal(a,aa),Ty::Nominal(c,ca)) if a==c&&aa.len()==ca.len()=>{for(a,c)in aa.iter().zip(ca){match(a,c){(Arg::Type(a),Arg::Type(c))=>self.unify(a,c,b)?,(Arg::Life(a),Arg::Life(c))=>self.unify_life(a,c,b)?,_ if a==c=>{},_=>return Err(bad("original nominal actuals require a proved equality"))}}Ok(())},
+-            _=>Err(bad("original body relates independent rigid type/const identities without an original equality")),
++            _=>Err(bad(&format!("original body relates independent rigid type/const identities without an original equality (actual {}, expected {})",type_category(&left),type_category(&right)))),
+         }
+     }
+     fn environment(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<Env>{
+@@ -173,4 +176,6 @@ impl CheckedOriginal {
+         self.environments.insert(id,environment.clone());Ok(environment)
+     }
+ }
++fn atom_category(ty:&Type)->&'static str{match ty{Type::Unit=>"Unit",Type::Bool=>"Bool",Type::I8=>"i8",Type::I16=>"i16",Type::I32=>"i32",Type::I64=>"i64",Type::Isize=>"isize",Type::U8=>"u8",Type::U16=>"u16",Type::U32=>"u32",Type::U64=>"u64",Type::Usize=>"usize",Type::F32=>"f32",Type::F64=>"f64",Type::ForeignHandle=>"ForeignHandle",Type::CWideString=>"CWideString",Type::ByteBuffer=>"ByteBuffer",Type::SyncCell(_)=>"SyncCell",_=>"NonAtomicType"}}
++fn type_category(ty:&Ty)->String{match ty{Ty::Atom(ty)=>atom_category(ty).into(),Ty::Variable(definition,ordinal)=>format!("TypeFormal({definition:?},{ordinal})"),Ty::SelfType(definition)=>format!("Self({definition:?})"),Ty::Nominal(definition,args)=>format!("Nominal({definition:?},{} actuals)",args.len()),Ty::Tuple(fields)=>format!("Tuple({} fields)",fields.len()),Ty::Array(_,length)=>format!("Array(length carrier {}, {})",match length.carrier.as_ref(){Ty::Atom(ty)=>atom_category(ty),_=>"symbolic"},match &length.value{ConstValue::Value(_)=>"literal",ConstValue::Variable(..)=>"formal",_=>"expression"}),Ty::Address{mutable,..}=>if *mutable{"ExclusiveAddress".into()}else{"SharedAddress".into()},Ty::Desc{..}=>"Description".into(),Ty::Managed(_)=>"Managed".into(),Ty::Store(_)=>"Store".into(),Ty::Carrier{kind,..}=>format!("{kind:?}"),Ty::Closure(definition,..)=>format!("Closure({definition:?})"),Ty::Function(definition)=>format!("Function({definition:?})"),Ty::Code{..}=>"Code".into(),Ty::ErrorUnion(..)=>"ErrorUnion".into(),Ty::Slice(_)=>"Slice".into(),Ty::SealedError(kind)=>format!("{kind:?}"),Ty::Infer(id)=>format!("Infer({id})")}}
+ fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::Carrier{child,retained,..}=>{queue.push(child);retained.types(&mut queue,b)?;},Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)=>for actual in arguments{if let Arg::Type(ty)=actual{queue.push(ty);}},_=>{}}}Ok(false)}
+diff --git a/crates/zil-verify/src/semantic/original/places.rs b/crates/zil-verify/src/semantic/original/places.rs
+index e3ad773a4..cdd1c6e36 100644
+--- a/crates/zil-verify/src/semantic/original/places.rs
++++ b/crates/zil-verify/src/semantic/original/places.rs
+@@ -1,6 +1,7 @@
+ //! Original place observations retain binder identity and ordered field paths.
+ //! They do not create physical addresses or executable borrow permissions.
+ use super::*;
++fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
+ impl CheckedOriginal {
+     #[allow(clippy::too_many_arguments)]
+     pub(super) fn place(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,Option<Place>)>{
+@@ -30,10 +31,13 @@ impl CheckedOriginal {
+                 CoreExprKind::Index{object,index}=>{
+                     let (object,mut place)=self.place(module,context,object,env,bindings,active,b)?;let mut storage=self.resolved(&object,b)?;
+                     if let Ty::Address{inner,..}=storage{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}storage=*inner;place=None;}
+-                    let index_ty=self.expression(module,context,index,env,bindings,Some(&Ty::Atom(Type::Usize)),active,b)?;
++                    // Runtime indices accept every actual integer carrier.
++                    // An existing u32/i16 index is not implicitly a usize, and
++                    // an unsuffixed value keeps normal original inference.
++                    let index_ty=self.expression(module,context,index,env,bindings,None,active,b)?;
+                     if !matches!(self.resolved(&index_ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original index is not integer"));}
+                     let child=match storage{Ty::Array(child,_)|Ty::Slice(child)=>*child,_=>return Err(bad("original indexed place is not an Array/Slice"))};
+-                    if let Some(whole)=&mut place{if let CoreExprKind::Integer(text)=&index.kind{let value=scalar::closed(&DynConstPattern::IntegerLiteral(text.clone()),&Type::Usize,module.target.pointer_width,b)?.ok_or_else(||bad("original constant index unresolved"))?;let Constant::Usize(value)=value else{return Err(bad("original index carrier differs"));};whole.fields.push(format!("[{value}]"));}else{place=None;}}
++                    if let Some(whole)=&mut place{if let CoreExprKind::Integer(text)=&index.kind{let Ty::Atom(carrier)=self.resolved(&index_ty,b)? else{return Err(bad("original constant index has no integer carrier"));};b.spend(text.len())?;let value=scalar::closed(&DynConstPattern::IntegerLiteral(text.clone()),&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("original constant index unresolved"))?;let value=nonnegative_index(&value);if let Some(value)=value{b.spend(24)?;whole.fields.push(format!("[{value}]"));}else{place=None;}}else{place=None;}}
+                     (child,place)
+                 },
+                 _=>(self.expression(module,context,expression,env,bindings,None,active,b)?,None),

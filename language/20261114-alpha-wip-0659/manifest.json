@@ -1,0 +1,141 @@
+{
+  "created_at_utc": "2026-11-14T06:58:22.891391+00:00",
+  "source_base": "77227db31d7b3ee13fb9097a372dc47de5b53b53",
+  "source_branch": "task/language-alpha",
+  "archive_kind": "Unaccepted active source WIP; all writers paused for exact capture",
+  "patch_sha256": "e6813c089c29124aa2422ebd220844c85212feedc635bbb924ffad0c9d4e3f94",
+  "files": [
+    {
+      "path": "crates/zil-types/src/semantics/abi.rs",
+      "status": " M",
+      "sha256": "a09b9165e1f21d331bed5aa2fe48439f628fb5434ec29092afe25dad78d1ae54",
+      "bytes": 7588
+    },
+    {
+      "path": "crates/zil-types/src/semantics/frozen_context.rs",
+      "status": " M",
+      "sha256": "d882d16c2df266ec8bf1b076e7dd5ada6a0cce38479191186fcb0a0392aa2498",
+      "bytes": 13861
+    },
+    {
+      "path": "crates/zil-types/src/semantics/instantiate.rs",
+      "status": " M",
+      "sha256": "1a753dc5310f28182a6346d8c60a2634ae0a759494be81e4f26e36f4a1c67250",
+      "bytes": 10538
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original.rs",
+      "status": " M",
+      "sha256": "1d03bcf35d7d6f48a5d03ba8a5246fd153eb720e692f795dacc91545dd8f1a56",
+      "bytes": 215068
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original_calls.rs",
+      "status": " M",
+      "sha256": "cb9e05aa3d3868459f24d0ccf8a67a31b9b82568a346f5e0dea071849c0a1e95",
+      "bytes": 59777
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original_context.rs",
+      "status": " M",
+      "sha256": "b33356b374770403123fc54583ba07052986d7d2b3314ecc39b8df2d3de8ed17",
+      "bytes": 14724
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original_frozen.rs",
+      "status": " M",
+      "sha256": "cd78555631b3650b459a0bc5975bd99ab5e2ce90c35e7534eb4033b17d005a95",
+      "bytes": 16226
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original_resources.rs",
+      "status": " M",
+      "sha256": "70a8ae238a5f18b9ddec30ee5fd67a7bd46fc87fc3a7e1b9970e2be92fada275",
+      "bytes": 23560
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original_substitute.rs",
+      "status": " M",
+      "sha256": "fb7261f1ad3f68d922825d6d04c9bc3f7dbfeef28aa74b42849fe519e71300aa",
+      "bytes": 42385
+    },
+    {
+      "path": "crates/zil-types/src/semantics/well_formed.rs",
+      "status": " M",
+      "sha256": "7ba6d1d7344b8823244c033cc5eec82c5bc719b8c6f6280dacc4ff3211033017",
+      "bytes": 55834
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/catalogue.rs",
+      "status": " M",
+      "sha256": "c3a30799f7ba4e7370adc23c4800f80b866b2d19ae15006605eae57a19319dbb",
+      "bytes": 30490
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/flow.rs",
+      "status": " M",
+      "sha256": "6a425a32db8afc9bf6028ef0910d3ab7fb036a5f8c3fb958371e20ae7b20e89c",
+      "bytes": 70450
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/original/bodies.rs",
+      "status": " M",
+      "sha256": "f0bdd69f419e390b05c40e20e9234c1bc699c38f8e546eb96fb4f00e072b853c",
+      "bytes": 20399
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/original/calls.rs",
+      "status": " M",
+      "sha256": "b1ae1b43c5a3d354f2e43931dccb231aada525b6cb83b8caae45ea3ef8315136",
+      "bytes": 20748
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/original/expressions.rs",
+      "status": " M",
+      "sha256": "4f2800497014cada7e30eb86b62ac251f09f0c628329cbd6192729fcbfc4b3db",
+      "bytes": 17929
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/original/mod.rs",
+      "status": " M",
+      "sha256": "5d95afde9d5a953f5fedba1fd89006cc165e9dec164f26458f7eadc8af0cb930",
+      "bytes": 15788
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/original/places.rs",
+      "status": " M",
+      "sha256": "26f2f4c2f17d5a8ee43627c174799fbcd316002d896cc63dca60810cf4c3a25f",
+      "bytes": 8703
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original_associated.rs",
+      "status": "??",
+      "sha256": "83c7058467b789f85ccbc6d1779f25c50c8d9ea293636ceee9612c9f9466bae3",
+      "bytes": 33686
+    },
+    {
+      "path": "crates/zil-types/src/semantics/original_cleanup.rs",
+      "status": "??",
+      "sha256": "c3bd6d75457332eb9f1fe30bbcea489f0c6155f6ca9af6f0aa472f76148cdde8",
+      "bytes": 6531
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/flow/products.rs",
+      "status": "??",
+      "sha256": "c8ff02bc321742a9b2c48f600e69e60f464614db71d55bf55bee5ca8165ec50d",
+      "bytes": 6893
+    },
+    {
+      "path": "crates/zil-verify/src/semantic/original/constructors.rs",
+      "status": "??",
+      "sha256": "d4f470c8774eb0a5d0ab845d80c4a71e0f9fb861d95d646c635aed2580f5f70d",
+      "bytes": 8680
+    }
+  ],
+  "restore": "Checkout source_base in an isolated clean tree, apply source.patch, then copy untracked/crates to crates. This is source preservation, not a passing build or feature acceptance.",
+  "owners": {
+    "original_associated": "types_original_chain: private original input, frozen equality and associated solver not fully registered",
+    "scalar_original": "numeric: complete scalar/enum/array original and actual verification in progress",
+    "cleanup": "types_cfg_chain: original_cleanup.rs unregistered pure API and original_resources pending classification"
+  }
+}
