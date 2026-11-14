@@ -253,6 +253,81 @@ impl<'a> Check<'a, '_> {
         }
         Ok(binder)
     }
+    fn field_type_class(
+        &mut self,
+        owner: &LifeNominalInstance,
+        ordinal: u32,
+        path: &[LifeTypeProjection],
+        class: u32,
+        depth: usize,
+    ) -> R<u32> {
+        self.node(depth)?;
+        let Some(LifeNominalActual::QualifiedType {
+            ty: Type::Address { mutable, inner },
+            life,
+        }) = owner.arguments.get(ordinal as usize)
+        else {
+            return self.projected(owner, path, class);
+        };
+        // A physical field slot denotes the child's outer occurrence only.
+        // No phantom/inner intrinsic position can be recovered through it.
+        self.shape_work(life)?;
+        let mode = if *mutable {
+            StoredBorrowMode::ExclusiveAddress
+        } else {
+            StoredBorrowMode::SharedAddress
+        };
+        if life.binder_count != 1
+            || class != 0
+            || !life.retained.is_empty()
+            || !life.nominal_arguments.is_empty()
+            || !matches!(life.slots.as_slice(), [slot] if slot.path.is_empty() && slot.binder == 0 && slot.mode == mode)
+        {
+            return Err(pending(
+                "qualified field outer occurrence requires its complete child domain",
+            ));
+        }
+        self.ordinary.zero(inner, self.limits, self.left)?;
+        self.pay(path.len().saturating_add(1))?;
+        let mut physical_path = Vec::with_capacity(path.len());
+        for step in path {
+            let LifeTypeProjection::Place(place) = step else {
+                return self.projected(owner, path, class);
+            };
+            physical_path.push(*place);
+        }
+        let parent = Self::shape(owner)
+            .ok_or_else(|| bad("plain nominal erases its field address occurrence"))?;
+        self.shape_work(parent)?;
+        let mut selected = None;
+        for slot in &parent.slots {
+            self.pay(slot.path.len().saturating_add(1))?;
+            if slot.path == physical_path {
+                if slot.mode != mode
+                    || slot.binder >= parent.binder_count
+                    || selected.replace(slot.binder).is_some()
+                {
+                    return Err(bad(
+                        "nominal field outer occurrence changes its exact mode or class",
+                    ));
+                }
+            }
+        }
+        let binder = selected
+            .ok_or_else(|| bad("nominal field omits its exact physical outer occurrence"))?;
+        let mut retained = None;
+        for row in &parent.retained {
+            self.pay(row.path.len().saturating_add(1))?;
+            if row.path == path && row.class == class {
+                if retained.replace(row.binder).is_some() || row.binder != binder {
+                    return Err(bad(
+                        "nominal field physical and retained outer occurrences disagree",
+                    ));
+                }
+            }
+        }
+        Ok(binder)
+    }
     fn type_images(
         &mut self,
         owner: &LifeNominalInstance,
@@ -519,7 +594,14 @@ impl<'a> Check<'a, '_> {
                 self.same(expected, actual)?;
                 let images = self.type_images(owner, reference.ordinal, expected, depth + 1)?;
                 for (class, image) in images.into_iter().enumerate() {
-                    if self.projected(owner, path, class as u32)? != image {
+                    if self.field_type_class(
+                        owner,
+                        reference.ordinal,
+                        path,
+                        class as u32,
+                        depth + 1,
+                    )? != image
+                    {
                         return Err(bad(
                             "field changes its whole-Type actual's intrinsic class equation",
                         ));
