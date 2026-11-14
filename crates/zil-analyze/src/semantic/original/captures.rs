@@ -215,7 +215,7 @@ impl Solver<'_, '_> {
 impl Checked {
     /// The original Γ selected this environment slot at the actual Name
     /// operation. A local shadow never enters this map, even with equal Type.
-    pub(super) fn capture_recipe_ordinal(
+    pub(in crate::semantic) fn capture_recipe_ordinal(
         &self,
         definition: SemanticDefinitionId,
         recipe: &SemanticSiteRecipe,

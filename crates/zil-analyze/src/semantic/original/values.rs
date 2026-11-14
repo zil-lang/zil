@@ -4,7 +4,7 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Checked {
-    pub(super) fn description_source(
+    pub(in crate::semantic) fn description_source(
         &self,
         context: &SemanticInstance,
         site: SemanticSiteId,
