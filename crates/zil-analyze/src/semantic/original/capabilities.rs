@@ -40,7 +40,8 @@ impl Solver<'_, '_> {
                 | SemanticBuiltinTrait::Share => Ok(ty.is_b0_scalar()
                     || *ty == Type::ForeignHandle
                     || *ty == Type::ByteBuffer
-                    || *ty == crate::generic_mutex::error_type()),
+                    || *ty == crate::generic_mutex::error_type()
+                    || crate::dyn_dispatch::is_create_error(ty)),
                 SemanticBuiltinTrait::ThreadCallable | SemanticBuiltinTrait::Drop => Ok(false),
                 _ => Err(unknown(
                     "original sealed alias needs its independently specified capability relation",

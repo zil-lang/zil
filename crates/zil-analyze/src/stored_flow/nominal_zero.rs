@@ -305,6 +305,9 @@ fn type_zero(
     // before any structural comparison or directory lookup.
     crate::dyn_metadata::ty(ty, b)?;
     b.type_work(ty, false, "complete zero nominal dependency")?;
+    if crate::dyn_dispatch::is_create_error(ty) {
+        return Ok(());
+    }
     match ty {
         Type::Unit
         | Type::Bool

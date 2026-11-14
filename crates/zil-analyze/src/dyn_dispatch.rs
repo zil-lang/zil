@@ -16,6 +16,10 @@ pub(super) fn create_error() -> Type {
         variants: vec![("Allocation".into(), vec![])],
     }
 }
+pub(crate) fn is_create_error(ty: &Type) -> bool {
+    matches!(ty,Type::Enum{name,variants} if name=="@std.dyn:v1:DynCreateError"
+        && matches!(variants.as_slice(),[(name,fields)] if name=="Allocation"&&fields.is_empty()))
+}
 
 fn plain_value(ty: &Type) -> bool {
     ty.is_b0_scalar()

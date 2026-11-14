@@ -124,7 +124,8 @@ impl Check<'_, '_> {
                 Ok(value::scalar(ty.clone()))
             }
             SemanticTypeRecipe::Exact(exact)
-                if exact.ty == crate::generic_mutex::error_type()
+                if (exact.ty == crate::generic_mutex::error_type()
+                    || crate::dyn_dispatch::is_create_error(&exact.ty))
                     && empty(&exact.life)
                     && exact.classes.is_empty() =>
             {

@@ -14,6 +14,7 @@ impl Check<'_, '_> {
         if ty.is_b0_scalar()
             || *ty == Type::ForeignHandle
             || *ty == crate::generic_mutex::error_type()
+            || crate::dyn_dispatch::is_create_error(ty)
         {
             return Ok(());
         }

@@ -285,6 +285,7 @@ impl Solver<'_, '_> {
         if !ty.is_b0_scalar()
             && !matches!(ty, Type::ForeignHandle | Type::ByteBuffer)
             && ty != crate::generic_mutex::error_type()
+            && !crate::dyn_dispatch::is_create_error(&ty)
         {
             return Err(unknown(
                 "original complete compound type requires its scoped nominal and lifetime proof",
@@ -912,7 +913,9 @@ impl Solver<'_, '_> {
                     .ok_or_else(|| fail("original environment type slot is absent"))
             }
             SemanticTypeRecipe::Exact(exact)
-                if (exact.ty.is_b0_scalar() || exact.ty == crate::generic_mutex::error_type())
+                if (exact.ty.is_b0_scalar()
+                    || exact.ty == crate::generic_mutex::error_type()
+                    || crate::dyn_dispatch::is_create_error(&exact.ty))
                     && exact.life.binder_count == 0
                     && exact.life.slots.is_empty()
                     && exact.life.retained.is_empty()
@@ -4118,8 +4121,10 @@ impl Solver<'_, '_> {
         match &self.state.arena[term] {
             Kind::Atom(ty) => Ok((ty.is_b0_scalar()
                 || *ty == Type::ForeignHandle
-                || *ty == crate::generic_mutex::error_type())
-                && (!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit)),
+                || *ty == crate::generic_mutex::error_type()
+                || crate::dyn_dispatch::is_create_error(ty))
+                && (!matches!(predicate, Predicate::StoreElement)
+                    || (*ty != Type::Unit && !crate::dyn_dispatch::is_create_error(ty)))),
             Kind::CallResult { hidden, .. } => self.satisfies(*hidden, predicate, b, depth + 1),
             Kind::Address { mutable, .. } => Ok(!matches!(predicate, Predicate::StoreElement)
                 && (!matches!(predicate, Predicate::Copy) || !*mutable)),
@@ -4164,7 +4169,8 @@ impl Solver<'_, '_> {
                 Ok(matches!(predicate, Predicate::Value | Predicate::SyncDrop))
             }
             Kind::Wrapped(Wrapper::Managed, payload) => match predicate {
-                Predicate::Copy | Predicate::StoreElement => Ok(false),
+                Predicate::Copy => Ok(false),
+                Predicate::StoreElement => self.owned_sync(*payload, b, depth + 1),
                 Predicate::Value => Ok(true),
                 Predicate::SyncDrop => self.owned_sync(*payload, b, depth + 1),
                 Predicate::Capability(_) => {
