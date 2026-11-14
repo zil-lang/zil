@@ -40,7 +40,7 @@ impl CheckedOriginal {
             Ty::Code{..}|Ty::Function(_)=>return Err(unsupported("original function value requires its complete code-role instantiation",None)),
         })
     }
-    fn reify_argument(&self,module:&TypedModule,argument:&Arg,env:&EvalEnv,b:&mut Budget)->Check<SemanticActualRecipe>{match argument{
+    pub(super) fn reify_argument(&self,module:&TypedModule,argument:&Arg,env:&EvalEnv,b:&mut Budget)->Check<SemanticActualRecipe>{match argument{
         Arg::Type(ty)=>Ok(SemanticActualRecipe::Type(self.reify_type(module,ty,env,b)?)),
         Arg::Life(life)=>Ok(SemanticActualRecipe::Life(self.reify_life(module,life,env,b)?)),
         Arg::Const(value)=>Ok(SemanticActualRecipe::Const{carrier:self.reify_type(module,&value.carrier,env,b)?,value:self.reify_constant(module,value,env,b)?}),

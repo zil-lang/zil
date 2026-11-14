@@ -168,6 +168,13 @@ impl Input {
                 .saturating_add(1),
         )?;
         let mut identities = BTreeMap::new();
+        let mut executable_ids = BTreeSet::new();
+        for declaration in self.declarations.iter() {
+            pay(left, search(executable_ids.len()))?;
+            if !executable_ids.insert(declaration.row.id) {
+                return Err(bad("E repeats an original associated declaration identity"));
+            }
+        }
         for declaration in self.declarations.iter().chain(source.declarations.iter()) {
             crate::dyn_metadata::actual_declaration_snapshot(&declaration.row, limits, left, 1)?;
             pay(left, search(identities.len()))?;

@@ -1068,6 +1068,40 @@ fn check_with(
         }
         None
     };
+    // A phantom constructor has no physical pointer field from which this
+    // equation pass could recover its class. The original semantic consumer
+    // has independently checked its exact constructor, full value and header
+    // occurrence. Transport that relation, without allocating a borrow/root
+    // or replacing the intrinsic class domain by its external image.
+    b.spend(
+        b.semantic_aggregate_classes.len(),
+        "completed original aggregate class origins",
+    )?;
+    for ((function, value, class), binder) in &b.semantic_aggregate_classes.clone() {
+        if *function != f.id {
+            continue;
+        }
+        let vars = header
+            .as_ref()
+            .ok_or_else(|| bad("completed aggregate class source has no actual header"))?;
+        let port = values
+            .get(value.0 as usize)
+            .ok_or_else(|| bad("completed aggregate class source has no actual SSA"))?;
+        let variable = *port
+            .classes
+            .get(*class as usize)
+            .ok_or_else(|| bad("completed aggregate class source omits its intrinsic class"))?;
+        let (path, actual) = port
+            .keys
+            .get(*class as usize)
+            .ok_or_else(|| bad("completed aggregate class source has no full type occurrence"))?;
+        if !port.direct || !path.is_empty() || actual != class {
+            return Err(bad(
+                "completed aggregate class source changes its actual type occurrence",
+            ));
+        }
+        e.equal(variable, select(vars, *binder)?, b)?;
+    }
     // One receiver call region; separate SSA reads get separate loans, rather
     // than distinct rigid declared lifetimes. Pointee classes stay Fixed.
     let receiver_region = if let (Some(contract), Some(variables)) = (assumptions, header.as_ref())

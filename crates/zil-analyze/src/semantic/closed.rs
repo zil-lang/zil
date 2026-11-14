@@ -9,6 +9,7 @@ mod callable_roles;
 mod capabilities;
 mod capture_heads;
 mod capture_places;
+mod class_origins;
 mod classes;
 mod operations;
 mod registration;
@@ -848,6 +849,7 @@ pub(super) fn check(
     }
     checker.instances(b)?;
     checker.sites(b)?;
+    checker.constructor_class_sources(b)?;
     // Publish only a completed intrinsic-domain result. Raw Some(0), an
     // absent environment, or scalar-looking entry ABI alone is not evidence.
     let mut zero = BTreeSet::new();
