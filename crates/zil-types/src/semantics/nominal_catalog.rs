@@ -11,6 +11,7 @@ fn pending(message: &str) -> Diagnostic {
 struct Check<'a, 'b> {
     program: &'a SemanticModule,
     module: &'a TypedModule,
+    ordinary: stored::OrdinaryContext<'a>,
     ledger: &'a super::emission::Ledger,
     where_session: super::original::NominalWhere<'a>,
     requests:
@@ -159,7 +160,7 @@ impl<'a> Check<'a, '_> {
                 // A callable is opaque to physical field counting. Rebuild
                 // its actual definition/entry/capture directory instead of
                 // treating an empty visible layout or Some0 as zero.
-                stored::ordinary_zero_type(self.module, ty, self.limits, self.left)?;
+                self.ordinary.zero(ty, self.limits, self.left)?;
                 Ok(0)
             }
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
@@ -230,8 +231,23 @@ impl<'a> Check<'a, '_> {
                 }
             }
         }
-        let binder = found
-            .ok_or_else(|| pending("nominal field has no complete parent class projection"))?;
+        let binder = match found {
+            Some(binder) => binder,
+            None => {
+                inference::charge_type_snapshot(
+                    &owner.ty,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                self.shape_work(life)?;
+                let mut diagnostic =
+                    pending("nominal field has no complete parent class projection");
+                diagnostic.notes.push(format!("actual nominal declaration {:?}; requested field path {path:?}, child class {class}; complete parent type {:?}; retained projections {:?}; physical slots {:?}; nominal projections {:?}", owner.declaration, owner.ty, life.retained, life.slots, life.nominal_arguments));
+                return Err(diagnostic);
+            }
+        };
         if binder >= life.binder_count {
             return Err(bad("nominal field class exceeds its actual parent domain"));
         }
@@ -1132,6 +1148,7 @@ pub(super) fn program<'a>(
     let mut check = Check {
         program,
         module,
+        ordinary: stored::OrdinaryContext::new(module),
         ledger,
         where_session: super::original::NominalWhere::new(&context.semantic, &context.original),
         requests: std::collections::BTreeMap::new(),

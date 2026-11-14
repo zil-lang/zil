@@ -84,6 +84,7 @@ struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     types: types::Table,
+    ordinary: stored::OrdinaryContext<'a>,
     snapshots: usize,
     snapshot_work: usize,
     comparisons: usize,
@@ -204,7 +205,7 @@ impl<'a> World<'a, '_> {
         match ty {
             ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
-                stored::ordinary_zero_type(self.module, ty, self.limits, self.left)?;
+                self.ordinary.zero(ty, self.limits, self.left)?;
                 self.resolved(ty, empty(), Vec::new())
             }
             Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
@@ -4001,6 +4002,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
+        ordinary: stored::OrdinaryContext::new(module),
         snapshots: 0,
         snapshot_work: 0,
         comparisons: 0,

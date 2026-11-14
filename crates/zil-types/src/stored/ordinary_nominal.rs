@@ -19,6 +19,50 @@ struct Check<'a, 'b> {
     checked_rows: std::collections::BTreeSet<usize>,
     checked_closures: std::collections::BTreeSet<ClosureId>,
 }
+/// A mathematical zero-domain directory for one immutable actual module.
+/// Its borrow prevents reuse across mutation; it stores no live ownership,
+/// capability, protocol phase or permission facts.
+pub(crate) struct Context<'a> {
+    module: &'a TypedModule,
+    type_index:
+        Option<std::collections::BTreeMap<zil_base::Fingerprint, Vec<&'a LifeNominalInstance>>>,
+    checked_rows: std::collections::BTreeSet<usize>,
+    checked_closures: std::collections::BTreeSet<ClosureId>,
+}
+impl<'a> Context<'a> {
+    pub(crate) fn new(module: &'a TypedModule) -> Self {
+        Self {
+            module,
+            type_index: None,
+            checked_rows: Default::default(),
+            checked_closures: Default::default(),
+        }
+    }
+    pub(crate) fn zero(&mut self, ty: &Type, limits: &Limits, left: &mut usize) -> R<()> {
+        fee(left, 1, Span::default())?;
+        let mut check = Check {
+            module: Some(self.module),
+            declarations: &self.module.life_declarations,
+            instances: &self.module.life_instances,
+            limits,
+            left,
+            phase: InventoryPhase::Resolved,
+            active: Vec::new(),
+            active_closures: Vec::new(),
+            type_index: self.type_index.take(),
+            checked_rows: std::mem::take(&mut self.checked_rows),
+            checked_closures: std::mem::take(&mut self.checked_closures),
+        };
+        let result = check.ty(ty, 0);
+        // Only complete successful rows enter these sets. An unrelated error
+        // does not erase those immutable mathematical facts, nor complete the
+        // failed parent. Active recursion stacks are deliberately not retained.
+        self.type_index = check.type_index;
+        self.checked_rows = check.checked_rows;
+        self.checked_closures = check.checked_closures;
+        result
+    }
+}
 fn unknown(message: &str) -> Diagnostic {
     unsupported(Span::default(), message)
 }
@@ -1017,20 +1061,7 @@ pub(super) fn zero_type(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
-    Check {
-        module: Some(module),
-        declarations: &module.life_declarations,
-        instances: &module.life_instances,
-        limits,
-        left,
-        phase: InventoryPhase::Resolved,
-        active: Vec::new(),
-        active_closures: Vec::new(),
-        type_index: None,
-        checked_rows: Default::default(),
-        checked_closures: Default::default(),
-    }
-    .ty(ty, 0)
+    Context::new(module).zero(ty, limits, left)
 }
 
 /// Compiler IDs only select the full canonical declaration predicate. They

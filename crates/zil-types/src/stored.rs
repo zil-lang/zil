@@ -6,6 +6,7 @@ mod enum_address;
 mod nominal;
 mod option_address;
 mod ordinary_nominal;
+pub(crate) use ordinary_nominal::Context as OrdinaryContext;
 mod retained;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

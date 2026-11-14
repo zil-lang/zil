@@ -9,6 +9,7 @@ enum Functions<'a> {
 }
 pub(in crate::semantics) struct ActualDirectory<'a> {
     complete: Option<&'a TypedModule>,
+    ordinary: std::cell::RefCell<Option<stored::OrdinaryContext<'a>>>,
     functions: Functions<'a>,
     pub(in crate::semantics) closures: Cow<'a, [ClosureDefinition]>,
     pub(in crate::semantics) life_instances: &'a [LifeNominalInstance],
@@ -20,6 +21,7 @@ impl<'a> ActualDirectory<'a> {
     pub(in crate::semantics) fn from_module(module: &'a TypedModule) -> Self {
         Self {
             complete: Some(module),
+            ordinary: std::cell::RefCell::new(Some(stored::OrdinaryContext::new(module))),
             functions: Functions::Complete(&module.functions),
             closures: Cow::Borrowed(&module.closures),
             life_instances: &module.life_instances,
@@ -34,6 +36,24 @@ impl<'a> ActualDirectory<'a> {
                 "this whole-module obligation awaits completion of the actual emitter directory",
             )
         })
+    }
+    pub(in crate::semantics) fn ordinary_zero(
+        &self,
+        ty: &Type,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<()> {
+        self.complete()?;
+        let mut context = self
+            .ordinary
+            .try_borrow_mut()
+            .map_err(|_| unknown("ordinary domain context is already active"))?;
+        context
+            .as_mut()
+            .ok_or_else(|| {
+                unknown("ordinary domain awaits the complete immutable actual directory")
+            })?
+            .zero(ty, limits, left)
     }
     pub(in crate::semantics) fn function_count(&self) -> usize {
         match &self.functions {
@@ -105,6 +125,7 @@ impl<'a> ActualDirectory<'a> {
         }
         Ok(Self {
             complete: None,
+            ordinary: std::cell::RefCell::new(None),
             functions: Functions::Building(functions),
             closures: Cow::Owned(closures),
             life_instances,

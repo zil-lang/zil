@@ -329,12 +329,7 @@ impl Eval<'_, '_> {
                         "multiple opaque origins retain a free actual class",
                     ));
                 }
-                crate::stored::ordinary_zero_type(
-                    self.module.complete()?,
-                    ty,
-                    self.limits,
-                    self.left,
-                )?;
+                self.module.ordinary_zero(ty, self.limits, self.left)?;
                 life
             }
             _ => {
@@ -395,12 +390,8 @@ impl Eval<'_, '_> {
                 "multiple opaque origins have a free actual result domain",
             ));
         }
-        crate::stored::ordinary_zero_type(
-            self.module.complete()?,
-            &Type::Closure(*id),
-            self.limits,
-            self.left,
-        )?;
+        self.module
+            .ordinary_zero(&Type::Closure(*id), self.limits, self.left)?;
         self.fee(
             self.module
                 .closures
