@@ -2769,6 +2769,10 @@ impl Solver<'_, '_> {
                     let expected = frame.locals[index].ty;
                     let value = self.expression(frame, value, b, depth + 1)?;
                     self.unify(value, expected, depth + 1, b)?;
+                    b.lookup(frame.expressions.len(), WORK)?;
+                    if frame.expressions.insert(target.id, expected).is_some() {
+                        return Err(fail("original assignment destination node is reused"));
+                    }
                     if frame.alive {
                         let old = &frame.locals[index];
                         if old.initialized && !old.used {
