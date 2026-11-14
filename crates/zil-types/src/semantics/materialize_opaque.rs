@@ -11,6 +11,94 @@ struct ClosedContext {
 }
 
 impl Eval<'_, '_> {
+    /// A monomorphic opaque with an independently proved closed result has a
+    /// fixed defining type, independent of runtime value arguments. Interpret
+    /// every emitted defining world; never select a convenient caller image.
+    pub(super) fn closed_opaque_definition(
+        &mut self,
+        _caller: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        hint: Option<&Type>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeValue>> {
+        self.node(depth)?;
+        let Some((definition, result_recipe)) = ({
+            let proof = self.ledger.original.borrow();
+            let proof = proof
+                .as_ref()
+                .ok_or_else(|| bad("closed opaque lacks its original all-return proof"))?;
+            proof.closed_opaque_result(self.input, recipe, self.limits, self.left)?
+        }) else {
+            return Ok(None);
+        };
+        self.fee(self.input.instances.len())?;
+        let mut result: Option<(SemanticTypeValue, ClosedContext)> = None;
+        for instance in &self.input.instances {
+            if instance.definition != definition {
+                continue;
+            }
+            if !matches!(
+                instance.target,
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_))
+            ) {
+                continue;
+            }
+            if !instance.actuals.is_empty()
+                || instance.parent.is_some()
+                || instance.environment.is_some()
+                || instance.self_type.is_some()
+                || instance.lifetime_instantiation != SemanticLifetimeInstantiation::Rigid
+            {
+                return Err(bad(
+                    "closed opaque defining world changes its original monomorphic context",
+                ));
+            }
+            let value = self.ty(instance.id, &result_recipe, None, depth + 1)?;
+            let context =
+                self.closed_result_context(instance.id, &result_recipe, &value, depth + 1)?;
+            if let Some((previous, previous_context)) = &result {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    previous,
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
+                self.fee(
+                    previous_context
+                        .arguments
+                        .len()
+                        .saturating_add(context.arguments.len())
+                        .saturating_add(previous_context.environment.len())
+                        .saturating_add(context.environment.len())
+                        .saturating_add(1),
+                )?;
+                if previous != &value || previous_context != &context {
+                    return Err(bad(
+                        "closed opaque defining worlds disagree in complete result type or original environment",
+                    ));
+                }
+            } else {
+                result = Some((value, context));
+            }
+        }
+        let Some((value, _)) = result else {
+            return Ok(None);
+        };
+        if let Some(hint) = hint {
+            let SemanticTypeValue::Resolved { ty, .. } = &value else {
+                return Err(bad("closed opaque result remains unresolved"));
+            };
+            inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
+            if ty != hint {
+                return Err(bad(
+                    "closed opaque original defining type differs from actual emitted type",
+                ));
+            }
+        }
+        Ok(Some(value))
+    }
     fn opaque_actuals_match(
         &mut self,
         caller: SemanticInstanceId,

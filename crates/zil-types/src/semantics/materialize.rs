@@ -961,6 +961,11 @@ impl<'a> Eval<'a, '_> {
                 if let SemanticTypeRecipe::Opaque { definition, .. } = &recipe
                     && self.instance(scope)?.definition != *definition
                 {
+                    if let Some(value) =
+                        self.closed_opaque_definition(scope, &recipe, hint, depth + 1)?
+                    {
+                        return Ok(value);
+                    }
                     return Err(unknown(&format!(
                         "opaque original Query has no actual call-result boundary: instance {scope:?}, selector {selector:?}, source {source:?}, opaque definition {definition:?}"
                     )));
@@ -1791,6 +1796,11 @@ impl<'a> Eval<'a, '_> {
                     ));
                 }
                 if self.instance(scope)?.definition != *definition {
+                    if let Some(value) =
+                        self.closed_opaque_definition(scope, recipe, hint, depth + 1)?
+                    {
+                        return Ok(value);
+                    }
                     return Err(unknown(&format!(
                         "opaque hidden type requires its actual original call-result boundary: instance {scope:?}, actual definition {:?}, opaque definition {definition:?}",
                         self.instance(scope)?.definition
