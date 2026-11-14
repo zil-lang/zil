@@ -20,6 +20,46 @@ fn associated_constant_work(row: &DynAssociatedConstant, b: &mut Budget) -> Comp
     )
 }
 impl Checked {
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::semantic) fn dyn_recipe(
+        &self,
+        context: &SemanticInstance,
+        owned: bool,
+        recipe: &SemanticDynInterfaceRecipe,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        crate::dyn_metadata::recipe(recipe, b)?;
+        let mut selected = None;
+        for template in &self.dyn_templates {
+            b.spend(1, WORK)?;
+            if template.owner != context.definition || template.owned != owned {
+                continue;
+            }
+            crate::dyn_metadata::recipe(&template.recipe, b)?;
+            if template.recipe != *recipe {
+                continue;
+            }
+            let Kind::Dyn(ty) = &self.arena[self.root(template.term, b)?] else {
+                return Err(fail("original Dyn template changes its complete term kind"));
+            };
+            if ty.owned != owned {
+                return Err(fail("original Dyn template changes its owning constructor"));
+            }
+            let value = self.dyn_value(ty, context, program, inventory, b, depth + 1)?;
+            if selected.as_ref().is_some_and(|old| old != &value) {
+                return Err(unknown(
+                    "original Dyn recipe has differing complete lexical substitutions",
+                ));
+            }
+            selected = Some(value);
+        }
+        selected.ok_or_else(|| {
+            unknown("Dyn recipe lacks its independently checked original declaration template")
+        })
+    }
     fn dyn_fixed(
         &self,
         class: &Class,
@@ -120,6 +160,25 @@ impl Checked {
                 depth + 1,
             )?,
         };
+        let mut inherited = Vec::new();
+        for row in &ty.inherited {
+            Solver::push(
+                &mut inherited,
+                DynTraitApplication {
+                    declaration: row.declaration,
+                    actuals: self.dyn_actuals(
+                        &row.arguments,
+                        &classes,
+                        context,
+                        program,
+                        inventory,
+                        b,
+                        depth + 1,
+                    )?,
+                },
+                b,
+            )?;
+        }
         let expected_context = match &ty.context {
             dyn_types::Context::Closed => Some(None),
             dyn_types::Context::Type(term) => Some(Some(
@@ -204,6 +263,9 @@ impl Checked {
             for row in &interface.associated_types {
                 associated_type_work(row, b)?;
             }
+            for row in &interface.inherited {
+                crate::dyn_metadata::recipe(row, b)?;
+            }
             for row in &interface.associated_constants {
                 associated_constant_work(row, b)?;
             }
@@ -215,7 +277,30 @@ impl Checked {
             for row in &associated_constants {
                 associated_constant_work(row, b)?;
             }
+            // Inheritance is a complete finite application directory. Its
+            // transport order does not identify a different trait, while its
+            // multiplicity must preserve distinct original applications even
+            // when their actual images happen to coincide.
+            let mut used = Vec::new();
+            let mut inherited_equal = interface.inherited.len() == inherited.len();
+            for expected in &inherited {
+                crate::dyn_metadata::recipe(expected, b)?;
+                let mut found = None;
+                for (index, actual) in interface.inherited.iter().enumerate() {
+                    b.spend(used.len().saturating_add(1), WORK)?;
+                    if !used.contains(&index) && actual == expected {
+                        found = Some(index);
+                        break;
+                    }
+                }
+                if let Some(index) = found {
+                    Solver::push(&mut used, index, b)?;
+                } else {
+                    inherited_equal = false;
+                }
+            }
             if interface.application != application
+                || !inherited_equal
                 || interface.retained_life != retained
                 || interface.associated_types != associated_types
                 || interface.associated_constants != associated_constants

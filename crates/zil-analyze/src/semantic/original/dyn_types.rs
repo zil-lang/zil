@@ -52,10 +52,22 @@ pub(super) struct Associated {
     pub(super) value: AssociatedValue,
 }
 #[derive(Clone)]
+pub(super) struct Application {
+    pub(super) declaration: LifeDeclarationId,
+    pub(super) arguments: Vec<Term>,
+}
+pub(super) struct Template {
+    pub(super) owner: SemanticDefinitionId,
+    pub(super) owned: bool,
+    pub(super) recipe: SemanticDynInterfaceRecipe,
+    pub(super) term: Term,
+}
+#[derive(Clone)]
 pub(super) struct DynType {
     pub(super) owned: bool,
     pub(super) declaration: LifeDeclarationId,
     pub(super) arguments: Vec<Term>,
+    pub(super) inherited: Vec<Application>,
     pub(super) associated: Vec<Associated>,
     pub(super) context: Context,
 }
@@ -74,6 +86,11 @@ impl DynType {
             .iter()
             .copied()
             .chain(
+                self.inherited
+                    .iter()
+                    .flat_map(|row| row.arguments.iter().copied()),
+            )
+            .chain(
                 self.associated
                     .iter()
                     .flat_map(|row| row.arguments.iter().copied().chain(row.value.terms())),
@@ -90,6 +107,9 @@ impl DynType {
     }
     pub(super) fn work(&self) -> usize {
         let mut work = self.arguments.len().saturating_add(1);
+        for row in &self.inherited {
+            work = work.saturating_add(row.arguments.len().saturating_add(1));
+        }
         for row in &self.associated {
             work = work.saturating_add(row.arguments.len().saturating_add(3));
         }
@@ -134,6 +154,11 @@ impl DynType {
         for term in &mut self.arguments {
             *term = map(*term)?;
         }
+        for row in &mut self.inherited {
+            for term in &mut row.arguments {
+                *term = map(*term)?;
+            }
+        }
         for row in &mut self.associated {
             for term in &mut row.arguments {
                 *term = map(*term)?;
@@ -161,6 +186,10 @@ impl DynType {
         self.owned == other.owned
             && self.declaration == other.declaration
             && self.arguments.len() == other.arguments.len()
+            && self.inherited.len() == other.inherited.len()
+            && self.inherited.iter().zip(&other.inherited).all(|(a, z)| {
+                a.declaration == z.declaration && a.arguments.len() == z.arguments.len()
+            })
             && self.associated.len() == other.associated.len()
             && self.associated.iter().zip(&other.associated).all(|(a, z)| {
                 a.declaration == z.declaration
@@ -347,6 +376,15 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         let arguments = self.trait_arguments(original, &recipe.application, b, depth + 1)?;
+        let mut inherited = Vec::new();
+        self.dyn_inherited(
+            recipe.application.declaration,
+            &arguments,
+            &mut Vec::new(),
+            &mut inherited,
+            b,
+            depth + 1,
+        )?;
         let context = match &recipe.context {
             SemanticDynContextRecipe::Closed => Context::Closed,
             SemanticDynContextRecipe::Type(ty) => {
@@ -413,7 +451,7 @@ impl Solver<'_, '_> {
                 _ => {
                     return Err(fail(
                         "original Dyn associated binding changes its declared member kind",
-                    ))
+                    ));
                 }
             };
             for old in &associated {
@@ -436,6 +474,14 @@ impl Solver<'_, '_> {
             )?;
         }
         self.dyn_parameter_needs(recipe.application.declaration, &arguments, b, depth + 1)?;
+        for application in &inherited {
+            self.dyn_parameter_needs(
+                application.declaration,
+                &application.arguments,
+                b,
+                depth + 1,
+            )?;
+        }
         for row in &associated {
             self.dyn_parameter_needs(row.declaration, &row.arguments, b, depth + 1)?;
             self.dyn_associated_needs(row, b, depth + 1)?;
@@ -451,11 +497,143 @@ impl Solver<'_, '_> {
             owned,
             declaration: recipe.application.declaration,
             arguments,
+            inherited,
             associated,
             context,
         };
         self.dyn_domain_covered(&ty, b, depth + 1)?;
-        self.term(Kind::Dyn(ty), b)
+        let term = self.term(Kind::Dyn(ty), b)?;
+        // Cache only the declaration's complete original domain. A concrete
+        // call or a temporary trait Self specialization cannot certify it.
+        if self.dyn_original_frame(original, b)? {
+            crate::dyn_metadata::recipe(recipe, b)?;
+            Self::push(
+                &mut self.state.dyn_templates,
+                Template {
+                    owner: original.definition,
+                    owned,
+                    recipe: recipe.clone(),
+                    term,
+                },
+                b,
+            )?;
+        }
+        Ok(term)
+    }
+    fn dyn_original_frame(&self, context: &Frame, b: &mut Budget) -> CompileResult<bool> {
+        let declaration = self.inventory.definition(context.definition, b)?;
+        if !self.role_frames.is_empty() || declaration.parameters.len() != context.formals.len() {
+            return Ok(false);
+        }
+        for (owner, _) in &self.trait_state.selves {
+            b.spend(self.trait_state.selves.len().saturating_mul(2), WORK)?;
+            let first = self
+                .trait_state
+                .selves
+                .iter()
+                .find(|(scope, _)| scope == owner)
+                .map(|(_, term)| term);
+            let last = self
+                .trait_state
+                .selves
+                .iter()
+                .rev()
+                .find(|(scope, _)| scope == owner)
+                .map(|(_, term)| term);
+            if first != last {
+                return Ok(false);
+            }
+        }
+        for (ordinal, (formal, actual)) in declaration
+            .parameters
+            .iter()
+            .zip(&context.formals)
+            .enumerate()
+        {
+            let ordinal = u32::try_from(ordinal)
+                .map_err(|_| fail("original Dyn template formal ordinal overflows"))?;
+            let original = match (formal, &self.state.arena[self.root(*actual, b)?]) {
+                (SemanticFormal::Type { .. }, Kind::Rigid(owner, index)) => {
+                    *owner == context.definition && *index == ordinal
+                }
+                (SemanticFormal::Lifetime, Kind::Life(Life::Formal(owner, index))) => {
+                    *owner == context.definition && *index == ordinal
+                }
+                (
+                    SemanticFormal::Const { .. },
+                    Kind::ConstRigid {
+                        owner,
+                        ordinal: index,
+                        ..
+                    },
+                ) => *owner == context.definition && *index == ordinal,
+                _ => false,
+            };
+            if !original {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    fn dyn_inherited(
+        &mut self,
+        declaration: LifeDeclarationId,
+        arguments: &[Term],
+        active: &mut Vec<LifeDeclarationId>,
+        result: &mut Vec<Application>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        b.spend(active.len().saturating_add(1), WORK)?;
+        if active.contains(&declaration) {
+            return Err(fail(
+                "original Dyn inheritance contains a declaration cycle",
+            ));
+        }
+        Self::push(active, declaration, b)?;
+        let raw = self.inventory.original_dyn(declaration, b)?;
+        if raw.kind != DynDeclarationKind::Trait {
+            return Err(fail(
+                "original Dyn inherited application selects a nontrait declaration",
+            ));
+        }
+        let scope = declaration_scope(self.program, declaration, self.inventory, b)?;
+        b.spend(arguments.len(), WORK)?;
+        let context = frame(scope, arguments.to_vec());
+        for edge in raw.direct_supertraits.as_ref().ok_or_else(|| {
+            unknown("original Dyn inheritance omits its complete direct declaration recipes")
+        })? {
+            let actuals = self.raw_dyn_application(&context, edge, b, depth + 1)?;
+            b.spend(active.len(), WORK)?;
+            if active.contains(&edge.declaration) {
+                return Err(fail(
+                    "original Dyn inheritance contains a declaration cycle",
+                ));
+            }
+            let mut duplicate = false;
+            for old in result.iter() {
+                if old.declaration == edge.declaration
+                    && self.dyn_same_rows(&old.arguments, &actuals, b, depth + 1)?
+                {
+                    duplicate = true;
+                }
+            }
+            if duplicate {
+                continue;
+            }
+            Self::push(
+                result,
+                Application {
+                    declaration: edge.declaration,
+                    arguments: actuals.clone(),
+                },
+                b,
+            )?;
+            self.dyn_inherited(edge.declaration, &actuals, active, result, b, depth + 1)?;
+        }
+        active.pop();
+        Ok(())
     }
     pub(super) fn dyn_unify(
         &mut self,
@@ -706,7 +884,7 @@ impl Solver<'_, '_> {
                 _ => {
                     return Err(fail(
                         "original raw application changes its full Type/Const/Life actual kind",
-                    ))
+                    ));
                 }
             };
             Self::push(&mut arguments, term, b)?;
@@ -723,18 +901,52 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         match recipe {
-            DynConstPattern::Value(value)=>self.constant(context,&SemanticConstRecipe::Value(value.clone()),carrier,b,depth+1),
-            DynConstPattern::IntegerLiteral(value)=>self.constant(context,&SemanticConstRecipe::IntegerLiteral(value.clone()),carrier,b,depth+1),
-            DynConstPattern::FloatLiteral(value)=>self.constant(context,&SemanticConstRecipe::FloatLiteral(value.clone()),carrier,b,depth+1),
-            DynConstPattern::Parameter(ordinal) | DynConstPattern::MethodParameter(ordinal)=>{
-                let term=self.dyn_raw_formal(context,*ordinal,matches!(recipe,DynConstPattern::MethodParameter(_)),2,b)?;
-                let expected=match &self.state.arena[self.root(term,b)?] { Kind::ConstRigid { carrier,.. }=>*carrier, Kind::ConstValue(value)=>self.atom(value.ty(),b)?, _=>return Err(fail("original raw constant parameter has no constant term")) };
-                self.unify(carrier,expected,depth+1,b)?; Ok(term)
-            },
+            DynConstPattern::Value(value) => self.constant(
+                context,
+                &SemanticConstRecipe::Value(value.clone()),
+                carrier,
+                b,
+                depth + 1,
+            ),
+            DynConstPattern::IntegerLiteral(value) => self.constant(
+                context,
+                &SemanticConstRecipe::IntegerLiteral(value.clone()),
+                carrier,
+                b,
+                depth + 1,
+            ),
+            DynConstPattern::FloatLiteral(value) => self.constant(
+                context,
+                &SemanticConstRecipe::FloatLiteral(value.clone()),
+                carrier,
+                b,
+                depth + 1,
+            ),
+            DynConstPattern::Parameter(ordinal) | DynConstPattern::MethodParameter(ordinal) => {
+                let term = self.dyn_raw_formal(
+                    context,
+                    *ordinal,
+                    matches!(recipe, DynConstPattern::MethodParameter(_)),
+                    2,
+                    b,
+                )?;
+                let expected = match &self.state.arena[self.root(term, b)?] {
+                    Kind::ConstRigid { carrier, .. } => *carrier,
+                    Kind::ConstValue(value) => self.atom(value.ty(), b)?,
+                    _ => return Err(fail("original raw constant parameter has no constant term")),
+                };
+                self.unify(carrier, expected, depth + 1, b)?;
+                Ok(term)
+            }
             // Symbolic arithmetic/projection must first exist in the original
             // constant algebra. Raw structure and an actual folded result do
             // not prove this expression for every original actual.
-            DynConstPattern::Unary { .. } | DynConstPattern::Binary { .. } | DynConstPattern::Convert { .. } | DynConstPattern::AssociatedProjection { .. }=>Err(unknown("original raw constant expression requires its complete symbolic carrier-aware algebra")),
+            DynConstPattern::Unary { .. }
+            | DynConstPattern::Binary { .. }
+            | DynConstPattern::Convert { .. }
+            | DynConstPattern::AssociatedProjection { .. } => Err(unknown(
+                "original raw constant expression requires its complete symbolic carrier-aware algebra",
+            )),
         }
     }
     pub(super) fn raw_dyn_type(
@@ -1191,7 +1403,9 @@ impl Checked {
                             let value = materialize.value(*ty, b, depth + 1)?;
                             let images = materialize.sequence(classes, b, depth + 1)?;
                             if images.len() != value.classes.len() {
-                                return Err(fail("original Dyn Context port expansion changes its complete child domain"));
+                                return Err(fail(
+                                    "original Dyn Context port expansion changes its complete child domain",
+                                ));
                             }
                             for slot in &value.life.slots {
                                 let leaf = physical_leaf(&value.ty, &slot.path, b)?;
@@ -1271,7 +1485,9 @@ impl Checked {
                             let value = materialize.value(*ty, b, depth + 1)?;
                             let images = materialize.sequence(classes, b, depth + 1)?;
                             if images.len() != value.classes.len() {
-                                return Err(fail("original Dyn Context nominal expansion changes its complete child domain"));
+                                return Err(fail(
+                                    "original Dyn Context nominal expansion changes its complete child domain",
+                                ));
                             }
                             for row in value.life.nominal_arguments {
                                 let image = images.get(row.binder as usize).ok_or_else(|| {
@@ -1397,15 +1613,51 @@ impl Solver<'_, '_> {
         self.step(depth, b)?;
         for projection in path {
             self.step(depth.saturating_add(path.len()), b)?;
-            term=match (&self.state.arena[self.type_root(term,b)?],projection) {
-                (Kind::Address { inner,.. }|Kind::Desc { inner,.. },LifeTypeProjection::Pointee)=>*inner,
-                (Kind::Array { element,.. }|Kind::Slice(element)|Kind::Wrapped(_,element),LifeTypeProjection::Element)=>*element,
-                (Kind::Nominal { arguments,.. },LifeTypeProjection::TypeArgument(index))=>*arguments.get(*index as usize).ok_or_else(||fail("original Dyn class projection selects no full mixed argument"))?,
-                (Kind::Tuple(fields)|Kind::Nominal { fields,.. },LifeTypeProjection::Place(PlaceProjection::Field(index)))=>*fields.get(*index as usize).ok_or_else(||fail("original Dyn class projection selects no field"))?,
-                (Kind::ErrorUnion { error,result },LifeTypeProjection::Place(PlaceProjection::ErrorArm(error_arm)))=>if *error_arm { *error } else { *result },
-                (Kind::Code { parameters,.. }|Kind::Closure { parameters,.. },LifeTypeProjection::Parameter(index))=>*parameters.get(*index as usize).ok_or_else(||fail("original Dyn class projection selects no parameter"))?,
-                (Kind::Code { result,.. }|Kind::Closure { result,.. },LifeTypeProjection::Result)=>*result,
-                _=>return Err(unknown("original Dyn projected class domain requires its complete symbolic child signature")),
+            term = match (&self.state.arena[self.type_root(term, b)?], projection) {
+                (
+                    Kind::Address { inner, .. } | Kind::Desc { inner, .. },
+                    LifeTypeProjection::Pointee,
+                ) => *inner,
+                (
+                    Kind::Array { element, .. } | Kind::Slice(element) | Kind::Wrapped(_, element),
+                    LifeTypeProjection::Element,
+                ) => *element,
+                (Kind::Nominal { arguments, .. }, LifeTypeProjection::TypeArgument(index)) => {
+                    *arguments.get(*index as usize).ok_or_else(|| {
+                        fail("original Dyn class projection selects no full mixed argument")
+                    })?
+                }
+                (
+                    Kind::Tuple(fields) | Kind::Nominal { fields, .. },
+                    LifeTypeProjection::Place(PlaceProjection::Field(index)),
+                ) => *fields
+                    .get(*index as usize)
+                    .ok_or_else(|| fail("original Dyn class projection selects no field"))?,
+                (
+                    Kind::ErrorUnion { error, result },
+                    LifeTypeProjection::Place(PlaceProjection::ErrorArm(error_arm)),
+                ) => {
+                    if *error_arm {
+                        *error
+                    } else {
+                        *result
+                    }
+                }
+                (
+                    Kind::Code { parameters, .. } | Kind::Closure { parameters, .. },
+                    LifeTypeProjection::Parameter(index),
+                ) => *parameters
+                    .get(*index as usize)
+                    .ok_or_else(|| fail("original Dyn class projection selects no parameter"))?,
+                (
+                    Kind::Code { result, .. } | Kind::Closure { result, .. },
+                    LifeTypeProjection::Result,
+                ) => *result,
+                _ => {
+                    return Err(unknown(
+                        "original Dyn projected class domain requires its complete symbolic child signature",
+                    ));
+                }
             };
         }
         Ok(term)
@@ -1452,6 +1704,11 @@ impl Solver<'_, '_> {
         for argument in &ty.arguments {
             self.dyn_domain(*argument, &mut required, b, depth + 1)?;
         }
+        for row in &ty.inherited {
+            for argument in &row.arguments {
+                self.dyn_domain(*argument, &mut required, b, depth + 1)?;
+            }
+        }
         for row in &ty.associated {
             for argument in row.arguments.iter().copied().chain(row.value.terms()) {
                 self.dyn_domain(argument, &mut required, b, depth + 1)?;
@@ -1468,7 +1725,9 @@ impl Solver<'_, '_> {
                 }
             }
             if !found {
-                return Err(fail("original Dyn Context omits a persistent trait or associated class domain, including phantom actuals"));
+                return Err(fail(
+                    "original Dyn Context omits a persistent trait or associated class domain, including phantom actuals",
+                ));
             }
         }
         Ok(())
@@ -1522,7 +1781,9 @@ impl Solver<'_, '_> {
                 }
             }
             if !found {
-                return Err(unknown("original Dyn associated member needs its complete fixed equation, including any declaration default"));
+                return Err(unknown(
+                    "original Dyn associated member needs its complete fixed equation, including any declaration default",
+                ));
             }
         }
         let scope = declaration_scope(self.program, declaration, self.inventory, b)?;
@@ -1562,7 +1823,9 @@ impl Solver<'_, '_> {
                 bound,
             } = requirement
             else {
-                return Err(unknown("original Dyn associated equation needs its complete trait, callable or dependent equality theorem"));
+                return Err(unknown(
+                    "original Dyn associated equation needs its complete trait, callable or dependent equality theorem",
+                ));
             };
             if *owner != scope {
                 return Err(fail(
