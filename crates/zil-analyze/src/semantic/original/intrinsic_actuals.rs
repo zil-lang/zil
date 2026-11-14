@@ -40,6 +40,16 @@ impl Checked {
             .get(&(context.definition, node))
             .ok_or_else(|| fail("sealed Type actual omits its complete original inputs"))?;
         use sealed::Intrinsic as I;
+        let registration = matches!(
+            intrinsic,
+            I::RegistrationValid
+                | I::RegistrationClose
+                | I::AsyncValid
+                | I::AsyncRequest
+                | I::AsyncPoll
+                | I::AsyncFinish
+                | I::AsyncFinishChecked
+        );
         let (term, expect_task) = match intrinsic {
             I::StoreNew => (
                 *inputs
@@ -79,6 +89,18 @@ impl Checked {
                     .ok_or_else(|| fail("original Task operation has no selected head"))?,
                 true,
             ),
+            I::RegistrationValid
+            | I::RegistrationClose
+            | I::AsyncValid
+            | I::AsyncRequest
+            | I::AsyncPoll
+            | I::AsyncFinish
+            | I::AsyncFinishChecked => (
+                *inputs
+                    .first()
+                    .ok_or_else(|| fail("original registration operation has no complete head"))?,
+                false,
+            ),
             _ => {
                 return Err(fail(
                     "operation has no sealed Store/Task Type argument scheme",
@@ -98,6 +120,12 @@ impl Checked {
                 | Kind::Desc { inner, .. }
                 | Kind::Wrapped(Wrapper::Managed, inner) => *inner,
                 Kind::ErrorUnion { result, .. } if expect_task => *result,
+                Kind::Wrapped(Wrapper::Registration, environment)
+                | Kind::Wrapped(Wrapper::AsyncRegistration, environment)
+                    if registration =>
+                {
+                    return self.value(*environment, context, program, inventory, b, 0);
+                }
                 Kind::Wrapped(Wrapper::Store, element) if !expect_task => {
                     return self.value(*element, context, program, inventory, b, 0);
                 }

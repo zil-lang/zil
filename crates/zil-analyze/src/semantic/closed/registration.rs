@@ -14,10 +14,24 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Type> {
-        if !actuals.is_empty() {
-            return Err(fail(
-                "actual registration operation invents generic actuals",
-            ));
+        let expected_type =
+            self.original
+                .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
+        match actuals {
+            [] => {}
+            [actual] => {
+                if !matches!(self.actual_value(instance,actual,b,0)?,crate::semantic::value::Argument::Type(value) if value==expected_type)
+                {
+                    return Err(fail(
+                        "registration intrinsic Type actual changes its complete original environment",
+                    ));
+                }
+            }
+            _ => {
+                return Err(fail(
+                    "registration intrinsic changes its complete environment Type actual arity",
+                ));
+            }
         }
         if matches!(
             intrinsic,
