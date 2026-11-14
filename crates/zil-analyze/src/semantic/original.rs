@@ -6,6 +6,7 @@ use zil_base::NodeId;
 mod abstract_calls;
 mod buffers;
 mod capabilities;
+mod captures;
 mod constructors;
 mod effects;
 mod enums;
@@ -218,6 +219,7 @@ struct Solver<'a, 'i> {
     next_role: u32,
     loops: Vec<loops::LoopFrame>,
     trait_state: traits::State,
+    capture_state: captures::CaptureState,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -1286,6 +1288,7 @@ impl Solver<'_, '_> {
                         b.lookup(frame.captured.len(), WORK)?;
                         frame.captured.insert(index, frame.locals[index].ty);
                     }
+                    self.capture_read(frame, index, b)?;
                     let local = &mut frame.locals[index];
                     if frame.alive {
                         if !local.initialized {
@@ -1708,6 +1711,7 @@ impl Solver<'_, '_> {
                                     "original indirect call needs its full callable premise",
                                 ));
                             };
+                            self.known_capture_call(frame, head, target, b)?;
                             let declaration = self.inventory.definition(target, b)?;
                             let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
                                 &declaration.body
@@ -2253,7 +2257,8 @@ impl Solver<'_, '_> {
                     };
                     self.unify(value, frame.result, depth + 1, b)?;
                     if frame.alive {
-                        self.cleanup(&frame.locals, b)?;
+                        self.capture_exit(frame, b)?;
+                        self.cleanup(&frame.locals[frame.inherited..], b)?;
                     }
                     frame.alive = false;
                 }
@@ -2548,8 +2553,9 @@ impl Solver<'_, '_> {
                 self.bind(&mut frame, &local.name, local.ty, local.mutable, b)?;
             }
             frame.inherited = frame.locals.len();
+            let owned = self.owns_captures(id, b)?;
             for local in &mut frame.locals {
-                local.borrowed = true;
+                local.borrowed = !owned;
             }
         }
         if !definition.environment.is_empty() {
@@ -2740,7 +2746,8 @@ impl Solver<'_, '_> {
             }
         }
         if frame.alive && matches!(body, SemanticOriginalFunctionBody::Defined(_)) {
-            self.cleanup(&frame.locals, b)?;
+            self.capture_exit(&frame, b)?;
+            self.cleanup(&frame.locals[frame.inherited..], b)?;
             let unit = self.atom(Type::Unit, b)?;
             self.unify(frame.result, unit, depth + 1, b)?;
         }
@@ -3112,6 +3119,7 @@ pub(super) fn check(
         next_role: 0,
         loops: Vec::new(),
         trait_state: traits::State::default(),
+        capture_state: captures::CaptureState::default(),
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {

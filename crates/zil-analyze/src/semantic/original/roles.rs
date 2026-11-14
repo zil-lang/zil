@@ -262,6 +262,7 @@ impl Solver<'_, '_> {
                 ));
             };
             let declaration = self.inventory.definition(definition, b)?;
+            self.capture_role(definition, need.kind, b)?;
             let SemanticDefinitionBody::FunctionWithBody {
                 signature,
                 parameters: originals,
