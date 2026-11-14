@@ -1250,6 +1250,19 @@ impl Check<'_, '_> {
                 }
             }
         }
+        if let Some((callee, result)) = self.closed_opaque_result(&ty, depth + 1)? {
+            return self.store_element(callee, &result, depth + 1);
+        }
+        if matches!(ty, SemanticTypeRecipe::Closure { .. }) {
+            return Ok(self.original_zero_domain(owner, &ty, depth + 1)?
+                && self.value_recipe(owner, &ty, depth + 1)?
+                && self.sealed_capability(
+                    owner,
+                    &ty,
+                    SemanticBuiltinTrait::SyncDrop,
+                    depth + 1,
+                )? == Some(true));
+        }
         match &ty {
             SemanticTypeRecipe::Formal(reference) => {
                 let SemanticScopeRef::Ancestor(hops) = reference.scope;

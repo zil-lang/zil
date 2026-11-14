@@ -703,3 +703,68 @@ fn zero_original_domain_inner(
         _ => false,
     })
 }
+
+impl Check<'_, '_> {
+    /// Complete original result domain, independent of Mono or claimed class
+    /// counts. The returned value always retains its real callee definition.
+    pub(super) fn closed_opaque_result(
+        &mut self,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Option<(SemanticDefinitionId, SemanticTypeRecipe)>> {
+        let SemanticTypeRecipe::Opaque {
+            definition,
+            arguments,
+            ..
+        } = ty
+        else {
+            return Ok(None);
+        };
+        let source = self.definition(*definition)?;
+        if !arguments.is_empty()
+            || !source.parameters.is_empty()
+            || source.parent.is_some()
+            || !self.proof.complete.contains(definition)
+        {
+            return Ok(None);
+        }
+        if !zero_original_domain(
+            self.program,
+            &self.proof,
+            *definition,
+            ty,
+            self.limits,
+            self.left,
+            depth + 1,
+            &mut Vec::new(),
+        )? {
+            return Ok(None);
+        }
+        let result = self
+            .proof
+            .types
+            .get(&(*definition, Query::Result))
+            .ok_or_else(|| bad("closed opaque body omits its complete all-return result"))?;
+        Ok(Some((
+            *definition,
+            copy_recipe(result, self.limits, self.left)?,
+        )))
+    }
+    pub(super) fn original_zero_domain(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        zero_original_domain(
+            self.program,
+            &self.proof,
+            owner,
+            ty,
+            self.limits,
+            self.left,
+            depth + 1,
+            &mut Vec::new(),
+        )
+    }
+}
