@@ -1686,8 +1686,33 @@ mod tests {
         let core = output.core;
         let semantic = core.semantic.as_ref().unwrap();
         assert_eq!(core.dyn_vtables.len(), 2);
-        assert_eq!(core.dyn_declarations.len(), 3);
+        assert_eq!(core.dyn_declarations.len(), 4);
+        let mut dynamic_scopes = 0;
         for declaration in &core.dyn_declarations {
+            if !semantic
+                .dyn_scopes
+                .iter()
+                .any(|binding| binding.owner == SemanticDynOwner::Declaration(declaration.id))
+            {
+                // The raw collector also preserves the original sealed Drop
+                // impl. It is a BuiltinImpl scope, not a fabricated user Dyn
+                // trait provider. Its complete body remains in Semantic.
+                assert!(semantic.definitions.iter().any(|definition| definition.id
+                    == SemanticDefinitionId {
+                        module: declaration.id.module,
+                        index: declaration.id.declaration.0
+                    }
+                    && matches!(
+                        definition.body,
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
+                            trait_kind: SemanticBuiltinTrait::Drop,
+                            ..
+                        })
+                    )));
+                assert!(declaration.implemented_trait.is_none());
+                continue;
+            }
+            dynamic_scopes += 1;
             assert_eq!(
                 declaration.direct_supertraits.as_deref(),
                 Some([].as_slice())
@@ -1781,6 +1806,7 @@ mod tests {
                 }
             }
         }
+        assert_eq!(dynamic_scopes, 3);
         for table in &core.dyn_vtables {
             let graph = table.implementation_witnesses.as_ref().unwrap();
             assert_eq!(graph.len(), 1);

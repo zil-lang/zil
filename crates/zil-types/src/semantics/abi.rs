@@ -19,7 +19,7 @@ type Key = (
 pub(super) type Choices = std::collections::BTreeMap<Key, CallKind>;
 pub(super) struct SourceOrigin {
     origin: Origin,
-    scope: CoreFunctionSourceScope,
+    scope: Option<CoreFunctionSourceScope>,
 }
 pub(crate) fn prepare(
     ledger: &mut Ledger,
@@ -34,17 +34,19 @@ pub(crate) fn prepare(
     for core in cores.iter().filter(|core| core.semantic.is_some()) {
         pay(left, core.functions.len())?;
         for function in &core.functions {
-            let Some(scope) = &function.source_scope else {
-                continue;
-            };
-            inference::charge_function_scope_snapshot(Some(scope), function.span, limits, left)?;
+            inference::charge_function_scope_snapshot(
+                function.source_scope.as_ref(),
+                function.span,
+                limits,
+                left,
+            )?;
             origins.push(SourceOrigin {
                 origin: Origin {
                     module: core.module_id,
                     creator: function.id,
                     closure: None,
                 },
-                scope: scope.clone(),
+                scope: function.source_scope.clone(),
             });
         }
     }
@@ -145,12 +147,12 @@ pub(crate) fn selected(
                 continue;
             }
             inference::charge_function_scope_snapshot(
-                Some(&source.scope),
+                source.scope.as_ref(),
                 function.span,
                 limits,
                 left,
             )?;
-            if source.scope == *scope {
+            if source.scope.as_ref() == Some(scope) {
                 if found.replace(source.origin).is_some() {
                     return Err(bad(
                         "specialized executable has ambiguous original ABI origins",
@@ -172,4 +174,62 @@ pub(crate) fn selected(
         ));
     }
     Ok(Some(kind))
+}
+
+/// Register an actual specialization at the compiler's real template mint.
+/// The immutable template/context pair, rather than a generated label, supplies
+/// the origin. Full actual specialization/class proof remains mandatory later.
+pub(crate) fn bind_generated(
+    ledger: &mut Ledger,
+    original: &CoreFunction,
+    module: zil_base::ModuleId,
+    actual: FunctionId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let Some(choices) = ledger.fixed_abis.as_ref() else {
+        return Ok(());
+    };
+    let origin = Origin {
+        module,
+        creator: original.id,
+        closure: None,
+    };
+    pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
+    if !choices.contains_key(&(module, original.id, None)) {
+        return Err(bad(
+            "actual specialization template has no checked original ABI candidate",
+        ));
+    }
+    pay(left, ledger.abi_origins.len())?;
+    let mut matched = false;
+    for source in &ledger.abi_origins {
+        if source.origin != origin {
+            continue;
+        }
+        inference::charge_function_scope_snapshot(
+            source.scope.as_ref(),
+            original.span,
+            limits,
+            left,
+        )?;
+        inference::charge_function_scope_snapshot(
+            original.source_scope.as_ref(),
+            original.span,
+            limits,
+            left,
+        )?;
+        if source.scope != original.source_scope || matched {
+            return Err(bad(
+                "actual specialization template has no unique immutable Core origin",
+            ));
+        }
+        matched = true;
+    }
+    if !matched {
+        return Err(bad(
+            "actual specialization was not minted from a registered Core template",
+        ));
+    }
+    ledger.bind(actual, origin, None, left, original.span)
 }

@@ -33,6 +33,8 @@ mod nominal;
 #[path = "materialize_opaque.rs"]
 mod opaque;
 pub(super) use opaque::call_result_at;
+#[path = "materialize_self.rs"]
+mod self_type;
 #[path = "materialize_shapes.rs"]
 mod shapes;
 struct Eval<'a, 'b> {
@@ -783,6 +785,13 @@ impl<'a> Eval<'a, '_> {
                     return Ok(value);
                 }
                 let recipe = self.original_type(scope, *selector, source, depth + 1)?;
+                if let SemanticTypeRecipe::Opaque { definition, .. } = &recipe
+                    && self.instance(scope)?.definition != *definition
+                {
+                    return Err(unknown(&format!(
+                        "opaque original Query has no actual call-result boundary: instance {scope:?}, selector {selector:?}, source {source:?}, opaque definition {definition:?}"
+                    )));
+                }
                 return self.ty(scope, &recipe, hint, depth + 1);
             }
             SemanticTypeRecipe::Environment {
@@ -1517,9 +1526,10 @@ impl<'a> Eval<'a, '_> {
                     ));
                 }
                 if self.instance(scope)?.definition != *definition {
-                    return Err(unknown(
-                        "opaque hidden type requires its actual original call-result boundary",
-                    ));
+                    return Err(unknown(&format!(
+                        "opaque hidden type requires its actual original call-result boundary: instance {scope:?}, actual definition {:?}, opaque definition {definition:?}",
+                        self.instance(scope)?.definition
+                    )));
                 }
                 let value = self.ty(scope, hidden, hint, depth + 1)?;
                 let SemanticTypeValue::Resolved { classes, .. } = &value else {
@@ -1755,10 +1765,8 @@ pub(super) fn program(
                 *value = eval.actual(creator, value, 0)?;
             }
         }
-        if instance.self_type.is_some() {
-            return Err(unknown(
-                "actual Self requires the complete method/receiver and parent impl materializer",
-            ));
+        if let Some(claim) = &mut instance.self_type {
+            *claim = eval.self_claim(instance.id, claim)?;
         }
         eval.fee(instance.header_embedding.len())?;
         for binding in &mut instance.header_embedding {
