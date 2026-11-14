@@ -452,6 +452,96 @@ mod tests {
                 true,
             )
         }
+        fn fresh(&self, limits: &Limits) -> ScalarMaterialization {
+            self.run(&mut ScalarMaterializationSession::default(), limits)
+                .unwrap()
+                .expect("current fresh scalar admission")
+        }
+        fn failure(
+            &self,
+            session: &mut ScalarMaterializationSession,
+            limits: &Limits,
+        ) -> Vec<Diagnostic> {
+            match self.run(session, limits) {
+                Err(errors) => errors,
+                // This is the driver's actual ordinary fallback, not an old
+                // raw fee imposed on a successfully admitted fused request.
+                Ok(None) => self
+                    .full(limits)
+                    .err()
+                    .expect("declined N-1 fallback must reject"),
+                Ok(Some(_)) => panic!("current measured N-1 must reject"),
+            }
+        }
+        fn boundary(&self, maximum: usize, limits: impl Fn(usize) -> Limits) -> usize {
+            let (mut low, mut high) = (0, maximum);
+            while low < high {
+                let middle = low + (high - low) / 2;
+                if matches!(
+                    self.run(
+                        &mut ScalarMaterializationSession::default(),
+                        &limits(middle)
+                    ),
+                    Ok(Some(_))
+                ) {
+                    high = middle;
+                } else {
+                    low = middle + 1;
+                }
+            }
+            assert!(low > 0);
+            low
+        }
+    }
+
+    fn same_current(actual: &ScalarMaterialization, fresh: &ScalarMaterialization) {
+        assert_eq!(actual.usage(), fresh.usage());
+        assert_eq!(actual.remaining(), fresh.remaining());
+    }
+
+    #[test]
+    fn raw_capture_fee_anchor_and_current_fused_savings_keep_complete_scalar_outputs() {
+        let fixture = Fixture::new("return left.emit(1)+right.emit(2);");
+        let limits = Limits::default();
+        let raw = fixture.full(&limits).unwrap();
+        assert_eq!(raw.capture_usage, (137, 68));
+        assert_eq!(raw.usage.generated_nodes, 68);
+        assert_eq!(raw.usage.analysis_work, 1006);
+        assert_eq!(raw.usage.peak_temporary_bytes, 1280);
+        assert_eq!(raw.modules.len(), fixture.parsed.len());
+        assert!(
+            raw.modules
+                .iter()
+                .zip(&fixture.parsed)
+                .all(|(a, b)| a == &b.module)
+        );
+        assert!(
+            raw.runtime_environment.is_none()
+                && raw.previews.is_empty()
+                && raw.required_imports.is_empty()
+        );
+        let fused = fixture.fresh(&limits);
+        // Five actual module/namespace nodes and fourteen binding work units
+        // replace Discovery. The SAME 869 materializer work units remain.
+        assert_eq!(fused.usage().generated_nodes, 5);
+        assert_eq!(
+            fused.usage().analysis_work,
+            14 + (raw.usage.analysis_work - raw.capture_usage.0)
+        );
+        assert_eq!(fused.usage().analysis_work, 883);
+        assert_eq!(raw.usage.analysis_work - fused.usage().analysis_work, 123);
+        assert_eq!(fused.usage().peak_temporary_bytes, 1280);
+        assert_eq!(fused.usage().steps, raw.usage.steps);
+        assert_eq!(fused.usage().peak_call_depth, raw.usage.peak_call_depth);
+        assert_eq!(fused.usage().peak_live_cells, raw.usage.peak_live_cells);
+        assert_eq!(fused.usage().instances, raw.usage.instances);
+        assert_eq!(fused.usage().queries, raw.usage.queries);
+        let remaining = raw.lineage_remaining.as_ref().unwrap();
+        assert_eq!(
+            fused.remaining().max_analysis_steps - remaining.max_analysis_steps,
+            123
+        );
+        assert_eq!(fused.remaining().max_nodes - remaining.max_nodes, 68 - 5);
     }
 
     #[test]
@@ -460,12 +550,11 @@ mod tests {
         let mut session = ScalarMaterializationSession::default();
         let limits = Limits::default();
         let cold = original.run(&mut session, &limits).unwrap().unwrap();
-        let full = original.full(&limits).unwrap();
-        assert_eq!(cold.usage(), &full.usage);
-        assert_eq!(Some(cold.remaining()), full.lineage_remaining.as_ref());
+        let fresh = original.fresh(&limits);
+        same_current(&cold, &fresh);
         assert_eq!(session.last_stats().cloned_modules, 3);
         let warm = original.run(&mut session, &limits).unwrap().unwrap();
-        assert_eq!(warm.usage(), &full.usage);
+        same_current(&warm, &fresh);
         assert_eq!(session.last_stats().reused_modules, 3);
         assert_eq!(session.last_stats().cloned_modules, 0);
 
@@ -476,12 +565,7 @@ mod tests {
             original.inputs[2].clone(),
         ]);
         let incremental = edited.run(&mut session, &limits).unwrap().unwrap();
-        let full = edited.full(&limits).unwrap();
-        assert_eq!(incremental.usage(), &full.usage);
-        assert_eq!(
-            Some(incremental.remaining()),
-            full.lineage_remaining.as_ref()
-        );
+        same_current(&incremental, &edited.fresh(&limits));
         assert_eq!(session.last_stats().reused_modules, 2);
         assert_eq!(session.last_stats().cloned_modules, 1);
         assert_ne!(
@@ -497,49 +581,58 @@ mod tests {
         let generous = Limits::default();
         fixture.run(&mut session, &generous).unwrap().unwrap();
         let checkpoint = session.checkpoint();
-        let mut low = 0;
-        let mut high = generous.max_analysis_steps;
-        while low < high {
-            let middle = low + (high - low) / 2;
-            let limits = Limits {
-                max_analysis_steps: middle,
-                ..generous.clone()
+        for nodes in [false, true] {
+            let allowance = |amount| {
+                let mut limits = generous.clone();
+                if nodes {
+                    limits.max_nodes = amount;
+                } else {
+                    limits.max_analysis_steps = amount;
+                }
+                limits
             };
-            if fixture.full(&limits).is_ok() {
-                high = middle;
-            } else {
-                low = middle + 1;
+            let n = fixture.boundary(
+                if nodes {
+                    generous.max_nodes
+                } else {
+                    generous.max_analysis_steps
+                },
+                &allowance,
+            );
+            let exact = allowance(n);
+            let success = fixture.run(&mut session, &exact).unwrap().unwrap();
+            same_current(&success, &fixture.fresh(&exact));
+            assert_eq!(session.last_stats().reused_modules, 3);
+            let insufficient = allowance(n - 1);
+            let expected =
+                fixture.failure(&mut ScalarMaterializationSession::default(), &insufficient);
+            assert!(!expected.is_empty());
+            let failed_epoch = session.checkpoint();
+            assert_eq!(fixture.failure(&mut session, &insufficient), expected);
+            if !nodes {
+                assert_eq!(n as u64, success.usage().analysis_work);
+                assert_eq!(session.last_stats().receipt_budget_misses, 1);
+                assert_eq!(session.last_stats().cloned_modules, 1);
             }
+            // A node-limit classifier decline is a real fallback; it cannot
+            // be called a receipt hit or publish a partial scalar epoch.
+            assert_eq!(session.entries.len(), failed_epoch.entries.len());
+            assert!(
+                session
+                    .entries
+                    .iter()
+                    .all(|(id, entry)| Arc::ptr_eq(entry, &failed_epoch.entries[id]))
+            );
+            let restored = fixture.run(&mut session, &exact).unwrap().unwrap();
+            same_current(&restored, &success);
+            assert_eq!(session.last_stats().reused_modules, 3);
         }
-        assert!(low > 0);
-        let exact = Limits {
-            max_analysis_steps: low,
-            ..generous.clone()
-        };
-        let success = fixture.run(&mut session, &exact).unwrap().unwrap();
-        assert_eq!(success.usage(), &fixture.full(&exact).unwrap().usage);
-        assert_eq!(session.last_stats().reused_modules, 3);
-        let insufficient = Limits {
-            max_analysis_steps: low - 1,
-            ..generous
-        };
-        let expected = fixture.full(&insufficient).err().expect("N-1 must reject");
-        let actual = fixture
-            .run(&mut session, &insufficient)
-            .err()
-            .expect("N-1 must reject");
-        assert_eq!(actual, expected);
-        assert_eq!(session.last_stats().receipt_budget_misses, 1);
-        assert_eq!(session.last_stats().cloned_modules, 1);
         assert!(
             session
                 .entries
                 .iter()
-                .all(|(module, entry)| Arc::ptr_eq(entry, &checkpoint.entries[module]))
+                .all(|(id, entry)| Arc::ptr_eq(entry, &checkpoint.entries[id]))
         );
-        let restored = fixture.run(&mut session, &exact).unwrap().unwrap();
-        assert_eq!(restored.usage(), success.usage());
-        assert_eq!(session.last_stats().reused_modules, 3);
     }
 
     #[test]
@@ -548,40 +641,40 @@ mod tests {
         let generous = Limits::default();
         let mut session = ScalarMaterializationSession::default();
         fixture.run(&mut session, &generous).unwrap().unwrap();
-        let mut low = 0;
-        let mut high = generous.max_source_bytes;
-        while low < high {
-            let middle = low + (high - low) / 2;
-            let limits = Limits {
-                max_source_bytes: middle,
-                ..generous.clone()
-            };
-            if fixture.full(&limits).is_ok() {
-                high = middle;
-            } else {
-                low = middle + 1;
-            }
-        }
-        assert!(low > 0);
+        let low = fixture.boundary(generous.max_source_bytes, |amount| Limits {
+            max_source_bytes: amount,
+            ..generous.clone()
+        });
         let exact = Limits {
             max_source_bytes: low,
             ..generous.clone()
         };
         let admitted = fixture.run(&mut session, &exact).unwrap().unwrap();
-        assert_eq!(admitted.usage(), &fixture.full(&exact).unwrap().usage);
+        same_current(&admitted, &fixture.fresh(&exact));
+        assert_eq!(low, 1280, "the original actual temporary peak is unchanged");
+        assert_eq!(admitted.usage().peak_temporary_bytes, 1280);
         assert_eq!(session.last_stats().reused_modules, 3);
         let insufficient = Limits {
             max_source_bytes: low - 1,
             ..generous
         };
-        let expected = fixture.full(&insufficient).err().expect("N-1 must reject");
-        let actual = fixture
-            .run(&mut session, &insufficient)
-            .err()
-            .expect("N-1 must reject");
+        let checkpoint = session.checkpoint();
+        let expected = fixture.failure(&mut ScalarMaterializationSession::default(), &insufficient);
+        let actual = fixture.failure(&mut session, &insufficient);
         assert_eq!(actual, expected);
         assert_eq!(session.last_stats().receipt_budget_misses, 1);
         assert_eq!(session.last_stats().cloned_modules, 1);
+        assert!(
+            session
+                .entries
+                .iter()
+                .all(|(id, entry)| Arc::ptr_eq(entry, &checkpoint.entries[id]))
+        );
+        same_current(
+            &fixture.run(&mut session, &exact).unwrap().unwrap(),
+            &admitted,
+        );
+        assert_eq!(session.last_stats().reused_modules, 3);
     }
 
     #[test]
@@ -590,27 +683,16 @@ mod tests {
         let generous = Limits::default();
         let mut session = ScalarMaterializationSession::default();
         fixture.run(&mut session, &generous).unwrap().unwrap();
-        let mut low = 0;
-        let mut high = generous.max_call_depth;
-        while low < high {
-            let middle = low + (high - low) / 2;
-            let limits = Limits {
-                max_call_depth: middle,
-                ..generous.clone()
-            };
-            if fixture.full(&limits).is_ok() {
-                high = middle;
-            } else {
-                low = middle + 1;
-            }
-        }
-        assert!(low > 0);
+        let low = fixture.boundary(generous.max_call_depth, |amount| Limits {
+            max_call_depth: amount,
+            ..generous.clone()
+        });
         let exact = Limits {
             max_call_depth: low,
             ..generous.clone()
         };
         let admitted = fixture.run(&mut session, &exact).unwrap().unwrap();
-        assert_eq!(admitted.usage(), &fixture.full(&exact).unwrap().usage);
+        same_current(&admitted, &fixture.fresh(&exact));
         assert_eq!(session.last_stats().reused_modules, 0);
         fixture.run(&mut session, &exact).unwrap().unwrap();
         assert_eq!(session.last_stats().reused_modules, 3);
@@ -618,17 +700,22 @@ mod tests {
             max_call_depth: low - 1,
             ..generous
         };
-        let expected = fixture.full(&insufficient).err().expect("N-1 must reject");
-        let actual = match fixture.run(&mut session, &insufficient) {
-            Err(errors) => errors,
-            Ok(None) => fixture
-                .full(&insufficient)
-                .err()
-                .expect("fallback must reject"),
-            Ok(Some(_)) => panic!("old depth admission must not survive N-1"),
-        };
+        let checkpoint = session.checkpoint();
+        let expected = fixture.failure(&mut ScalarMaterializationSession::default(), &insufficient);
+        let actual = fixture.failure(&mut session, &insufficient);
         assert_eq!(actual, expected);
         assert_eq!(session.last_stats().reused_modules, 0);
+        assert!(
+            session
+                .entries
+                .iter()
+                .all(|(id, entry)| Arc::ptr_eq(entry, &checkpoint.entries[id]))
+        );
+        same_current(
+            &fixture.run(&mut session, &exact).unwrap().unwrap(),
+            &admitted,
+        );
+        assert_eq!(session.last_stats().reused_modules, 3);
     }
 
     #[test]

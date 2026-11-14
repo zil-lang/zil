@@ -3589,7 +3589,11 @@ pub fn main()->i32=>0",
         let ingress = error.source_ingress.as_ref().unwrap();
         assert_eq!((ingress.parser_executions, ingress.parser_reuses), (1, 2));
         let producer = error.producer_work.as_ref().unwrap();
-        assert_eq!(producer.classified_modules, 1);
+        // The changed module consumes its current sealed admission; the two
+        // unchanged modules retain the reactivated parent's producer entries.
+        assert_eq!(producer.admission_classifier_hits, 1);
+        assert_eq!(producer.classified_modules, 0);
+        assert_eq!(producer.classifier_nodes, 0);
         assert_eq!(
             (producer.lower_modules, producer.reused_lower_modules),
             (1, 2)

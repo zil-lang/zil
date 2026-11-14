@@ -501,8 +501,9 @@ fn producer_filesystem_ordinary_emit_preserves_materializer_budget_n_n_minus_one
         ),
     ]);
     let path = dir.0.join("main.zil");
-    // Core includes the existing conservative materializer's classification
-    // and Expand costs. The no-op producer bridge must not erase either bill.
+    // Keep the original raw materializer's boundary in its own domain. The
+    // fused source producer eliminates real capture/Distribute work, so it has
+    // a separate boundary rather than replaying the removed raw visitor's fee.
     for nodes in [false, true] {
         let mut legacy = CompileOptions {
             stop_after: Stage::Core,
@@ -533,29 +534,114 @@ fn producer_filesystem_ordinary_emit_preserves_materializer_budget_n_n_minus_one
             }
         }
         assert!(high > 0);
+        let raw_n = high;
+        let mut raw_session = CompilationSession::default();
+        for limit in [raw_n, raw_n - 1, raw_n] {
+            set_budget(&mut legacy, nodes, limit);
+            let current = raw_session.compile_path(&path, &legacy);
+            compare_path(&raw_session, &current, &path, &legacy);
+            assert_eq!(current.status == ResultCategory::Success, limit == raw_n);
+            assert_eq!(current.verification_runs, 0);
+            if limit != raw_n {
+                assert_eq!(current.status, ResultCategory::ResourceLimit);
+                assert!(!current.diagnostics.is_empty());
+            }
+        }
+
         for graph in [false, true] {
-            for limit in [high, high - 1, high] {
-                let mut limited = CompileOptions {
-                    stop_after: Stage::Core,
-                    ..options(graph)
-                };
-                set_budget(&mut limited, nodes, limit);
-                // A fresh producer session at each boundary tests the cold
-                // routing cost, without hiding it behind a previous receipt.
-                let mut session = CompilationSession::default();
-                let current = session.compile_path(&path, &limited);
-                let expected = compare_path(&session, &current, &path, &limited);
-                assert_eq!(current.status == ResultCategory::Success, limit == high);
+            let mut fused = CompileOptions {
+                stop_after: Stage::Core,
+                ..options(graph)
+            };
+            let mut low = 0;
+            let mut high = raw_n;
+            set_budget(&mut fused, nodes, high);
+            let at_raw_n = CompilationSession::default().compile_path(&path, &fused);
+            assert_eq!(
+                at_raw_n.status,
+                ResultCategory::Success,
+                "{}",
+                at_raw_n.to_json()
+            );
+            while high - low > 1 {
+                let middle = low + (high - low) / 2;
+                set_budget(&mut fused, nodes, middle);
+                let current = CompilationSession::default().compile_path(&path, &fused);
+                if current.status == ResultCategory::Success {
+                    high = middle;
+                } else {
+                    assert_eq!(
+                        current.status,
+                        ResultCategory::ResourceLimit,
+                        "{}",
+                        current.to_json()
+                    );
+                    low = middle;
+                }
+            }
+            let fused_n = high;
+            assert!(fused_n > 0 && fused_n <= raw_n);
+            if !nodes {
+                assert!(fused_n < raw_n, "fused capture removes actual work");
+            }
+
+            // Seed actual fused products at N, then exercise an unchanged warm
+            // request, N-1 failure and N retry in the SAME session. Every result
+            // is checked against a cold fused request at the identical limit;
+            // raw failure at a larger allowance is not the fused oracle.
+            let mut session = CompilationSession::default();
+            for limit in [fused_n, fused_n, fused_n - 1, fused_n] {
+                set_budget(&mut fused, nodes, limit);
+                let mut fresh = CompilationSession::default();
+                let expected = fresh.compile_path(&path, &fused);
+                let current = session.compile_path(&path, &fused);
                 assert_eq!(
-                    current.phase, expected.phase,
-                    "retain the original first failing phase"
+                    current.status,
+                    expected.status,
+                    "{}\n{}",
+                    current.to_json(),
+                    expected.to_json()
                 );
+                assert_eq!(current.phase, expected.phase);
+                assert_eq!(current.diagnostics, expected.diagnostics);
+                assert_eq!(current.input_fingerprint, expected.input_fingerprint);
+                assert_eq!(current.source_files, expected.source_files);
+                assert_eq!(current.scalar_interfaces, expected.scalar_interfaces);
                 assert_eq!(current.verification_runs, 0);
-                if limit != high {
+                assert_eq!(expected.verification_runs, 0);
+                assert_eq!(session.active_query_count(), 0);
+                assert_eq!(fresh.active_query_count(), 0);
+                assert_eq!(current.status == ResultCategory::Success, limit == fused_n);
+                if limit == fused_n {
+                    let work = expected
+                        .producer_work
+                        .as_deref()
+                        .expect("cold N must execute the fused producer");
+                    assert!(work.admission_classifier_hits > 0);
+                    assert!(work.fused_distributed_items > 0);
+                    assert_eq!(current.diagnostics, full.diagnostics);
+                    assert_eq!(current.input_fingerprint, full.input_fingerprint);
+                    assert_eq!(current.source_files, full.source_files);
+                } else {
                     assert_eq!(current.status, ResultCategory::ResourceLimit);
                     assert!(!current.diagnostics.is_empty());
                 }
             }
+
+            // Retain the old raw N-1 observation too: a fused success here is
+            // legitimate when its independently established boundary is lower.
+            set_budget(&mut fused, nodes, raw_n - 1);
+            let at_raw_n_minus_one = CompilationSession::default().compile_path(&path, &fused);
+            assert_eq!(
+                at_raw_n_minus_one.status,
+                if raw_n > fused_n {
+                    ResultCategory::Success
+                } else {
+                    ResultCategory::ResourceLimit
+                },
+                "{}",
+                at_raw_n_minus_one.to_json()
+            );
         }
     }
 }
