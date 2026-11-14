@@ -231,6 +231,7 @@ pub(super) struct Checked {
     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
     string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
+    dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -3649,6 +3650,7 @@ pub(super) fn check(
             function_values: BTreeMap::new(),
             code_calls: BTreeMap::new(),
             string_literals: BTreeMap::new(),
+            dyn_creations: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),

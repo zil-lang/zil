@@ -1,6 +1,70 @@
 //! Owned erasure consumes its complete original Self on both outcomes. The
 //! owner's cleanup contract cannot be exported as a property of that Self.
 use super::*;
+
+pub(super) struct Creation {
+    provider: SemanticDefinitionId,
+    actuals: Vec<Term>,
+    source: Term,
+    output: Term,
+}
+pub(in crate::semantic) struct DynCreation {
+    pub(in crate::semantic) provider: SemanticDefinitionId,
+    pub(in crate::semantic) actuals: Vec<crate::semantic::value::Argument>,
+    pub(in crate::semantic) source: crate::semantic::value::Value,
+    pub(in crate::semantic) output: crate::semantic::value::Value,
+}
+impl Checked {
+    pub(in crate::semantic) fn dyn_creation(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<DynCreation> {
+        let definition = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail(
+                "actual owning Dyn creation has no complete original body",
+            ));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site {
+                continue;
+            }
+            let SemanticOriginalNode::Expression(node) = link.node else {
+                return Err(fail(
+                    "owning Dyn construction selects an original statement",
+                ));
+            };
+            if selected.replace(node).is_some() {
+                return Err(fail("owning Dyn creation has competing original nodes"));
+            }
+        }
+        b.lookup(self.dyn_creations.len(), WORK)?;
+        let creation = self
+            .dyn_creations
+            .get(&(
+                context.definition,
+                selected.ok_or_else(|| fail("owning Dyn creation has no original node"))?,
+            ))
+            .ok_or_else(|| fail("owning Dyn construction has no original provider/source proof"))?;
+        let mut actuals = Vec::new();
+        for actual in &creation.actuals {
+            let actual = self.argument(*actual, context, program, inventory, b, 0)?;
+            Solver::push(&mut actuals, actual, b)?;
+        }
+        Ok(DynCreation {
+            provider: creation.provider,
+            actuals,
+            source: self.value(creation.source, context, program, inventory, b, 0)?,
+            output: self.value(creation.output, context, program, inventory, b, 0)?,
+        })
+    }
+}
 impl Solver<'_, '_> {
     pub(super) fn owned_dyn_sync(
         &self,
@@ -91,7 +155,7 @@ impl Solver<'_, '_> {
         ty.owned = true;
         self.owned_dyn_sync(&ty, b)?;
         let source = self.expression(frame, source, b, depth + 1)?;
-        let (implementation, _) =
+        let (implementation, provider_actuals) =
             self.original_provider(frame, source, ty.declaration, &ty.arguments, b, depth + 1)?;
         for predicate in [Predicate::Value, Predicate::SyncDrop] {
             Self::push(
@@ -143,12 +207,32 @@ impl Solver<'_, '_> {
         }
         let error = self.atom(crate::dyn_dispatch::create_error(), b)?;
         let owner = self.term(Kind::Dyn(ty), b)?;
-        self.term(
+        let output = self.term(
             Kind::ErrorUnion {
                 error,
                 result: owner,
             },
             b,
-        )
+        )?;
+        b.lookup(self.state.dyn_creations.len(), WORK)?;
+        if self
+            .state
+            .dyn_creations
+            .insert(
+                (frame.definition, node),
+                Creation {
+                    provider: implementation,
+                    actuals: provider_actuals,
+                    source,
+                    output,
+                },
+            )
+            .is_some()
+        {
+            return Err(fail(
+                "owning Dyn construction repeats its original full provider key",
+            ));
+        }
+        Ok(output)
     }
 }
