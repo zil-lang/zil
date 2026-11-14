@@ -588,10 +588,105 @@ impl<'a> Scan<'a, '_, '_, '_> {
             _ => Ok(false),
         }
     }
-    fn invoke(&mut self, callee: &'a SemanticOriginalExpr, depth: usize) -> R<()> {
+    // Construction executes its argument expressions, not an unknown method.
+    // Resolve the original type namespace and actual enum variant; spelling
+    // alone (including compiler-prelude spelling) never selects this case.
+    fn enum_constructor(
+        &mut self,
+        callee: &'a SemanticOriginalExpr,
+        arity: usize,
+        depth: usize,
+    ) -> R<bool> {
+        let mut path = Vec::new();
+        let is_path = self.path(callee, &mut path, depth + 1)?;
+        let result = (|| {
+            let Some((variant, owner)) = path.split_last() else {
+                return Ok(false);
+            };
+            if !is_path || owner.is_empty() {
+                return Ok(false);
+            }
+            self.budget.identity_work(self.locals.len(), callee.span)?;
+            if self
+                .locals
+                .iter()
+                .rev()
+                .any(|(local, _)| *local == owner[0])
+            {
+                return Ok(false);
+            }
+            self.budget.identity_work(
+                self.names().len().saturating_mul(owner.len() + 1),
+                callee.span,
+            )?;
+            let mut selected = None;
+            for binding in self.names() {
+                if binding.namespace != SemanticOriginalNamespace::Type
+                    || !binding
+                        .path
+                        .iter()
+                        .map(String::as_str)
+                        .eq(owner.iter().copied())
+                {
+                    continue;
+                }
+                let id = match &binding.value {
+                    SemanticOriginalNameValue::Definition(id) => *id,
+                    SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                        SemanticTypeRecipe::Nominal { definition, .. },
+                    )) => *definition,
+                    _ => return Ok(false),
+                };
+                // A duplicate/ambiguous original namespace is not repaired by
+                // choosing the first possible declaration.
+                if selected.replace(id).is_some() {
+                    return Ok(false);
+                }
+            }
+            let Some(id) = selected else { return Ok(false) };
+            let Some(index) = declaration_index(self.definitions, id, self.budget, callee.span)?
+            else {
+                return Ok(false);
+            };
+            let SemanticDefinitionBody::Nominal {
+                body: SemanticNominalBody::Enum { variants },
+                ..
+            } = &self.definitions[index].body
+            else {
+                return Ok(false);
+            };
+            self.budget.identity_work(
+                variants.len().saturating_mul(variant.len() + 1),
+                callee.span,
+            )?;
+            let mut found = false;
+            for row in variants {
+                if row.name == *variant {
+                    if found || row.fields.len() != arity {
+                        return Ok(false);
+                    }
+                    found = true;
+                }
+            }
+            Ok(found)
+        })();
+        self.budget.drop_lineage_vec(path, callee.span)?;
+        result
+    }
+    fn invoke(
+        &mut self,
+        callee: &'a SemanticOriginalExpr,
+        arity: Option<usize>,
+        depth: usize,
+    ) -> R<()> {
         let target = self.target(callee, depth + 1)?;
         if target != Target::Unknown {
             return self.edge(target, callee.span);
+        }
+        if let Some(arity) = arity
+            && self.enum_constructor(callee, arity, depth + 1)?
+        {
+            return self.edge(Target::Kind(CallKind::Direct), callee.span);
         }
         let receiver = match &callee.kind {
             CoreExprKind::Member { object, member, .. } => {
@@ -607,7 +702,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
             }
             CoreExprKind::GenericApply { callee, .. }
             | CoreExprKind::TypeApply { callee, .. }
-            | CoreExprKind::Group(callee) => return self.invoke(callee, depth + 1),
+            | CoreExprKind::Group(callee) => return self.invoke(callee, arity, depth + 1),
             _ => None,
         };
         if let Some((target, member)) = receiver
@@ -813,12 +908,18 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 for argument in arguments {
                     self.expression(argument, depth + 1)?
                 }
-                self.invoke(callee, depth + 1)?;
+                self.budget
+                    .identity_work(arguments.len(), expression.span)?;
+                let arity = (!arguments
+                    .iter()
+                    .any(|argument| matches!(argument.kind, E::Spread(_))))
+                .then_some(arguments.len());
+                self.invoke(callee, arity, depth + 1)?;
             }
             E::Pipeline { input, target } => {
                 self.expression(input, depth + 1)?;
                 self.expression(target, depth + 1)?;
-                self.invoke(target, depth + 1)?;
+                self.invoke(target, Some(1), depth + 1)?;
             }
             E::MakeDynBorrow { source: value, .. }
             | E::MakeDynOwned { source: value, .. }
@@ -1110,5 +1211,52 @@ mod tests {
         assert_eq!(kind(3), CallKind::Direct);
         assert_eq!(kind(4), CallKind::Suspend);
         assert_eq!(kind(5), CallKind::Direct);
+    }
+    #[test]
+    fn enum_constructor_candidates_use_original_type_bindings_and_preserve_argument_effects() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "enum-constructor-effects.zil",
+            "enum Choice<T>{Empty,Value(T)}fn empty(){Choice::<i32>.Empty();}fn value(){Choice::<i32>.Value(42);}fn argument(){Choice::<void>.Value(task_yield());}fn wrong_arity(){Choice::<i32>.Value();}fn shadow< F >(Choice:F){Choice.Value(42);}fn unknown(){Other.Value(42);}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let (_, program) = super::super::program::prepare(
+            &[&parsed],
+            &origins,
+            &[Vec::new()],
+            &mut limits.clone(),
+        )
+        .unwrap();
+        let kind = |index| {
+            signature(
+                program.modules[0]
+                    .1
+                    .definitions
+                    .iter()
+                    .find(|row| row.id.index == index)
+                    .unwrap(),
+            )
+            .unwrap()
+            .call_kind
+        };
+        assert_eq!(kind(1), CallKind::Direct);
+        assert_eq!(kind(2), CallKind::Direct);
+        assert_eq!(kind(3), CallKind::Suspend);
+        assert_eq!(kind(4), CallKind::Suspend);
+        assert_eq!(kind(5), CallKind::Suspend);
+        assert_eq!(kind(6), CallKind::Suspend);
     }
 }
