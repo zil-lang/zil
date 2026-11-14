@@ -1005,6 +1005,38 @@ fn type_copy(ty: &Type, budget: &mut Budget<'_>, span: Span) -> R<Type> {
     prepay_recipe(&RawType(ty), budget, span, 0)?;
     Ok(ty.clone())
 }
+/// Complete borrowed comparison prepayment for the nominal catalogue record.
+/// The public recipe grammar has Type/Life/Const hooks but no nominal-instance
+/// root implementation; keep this adapter private rather than omit actuals.
+struct NominalInstance<'a>(&'a LifeNominalInstance);
+impl DynRecipeMetadata for NominalInstance<'_> {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        // declaration.module, declaration.node and declaration.compiler
+        for _ in 0..3 {
+            visitor.node(depth + 1)?;
+        }
+        visitor.ty(&self.0.ty, depth + 1)?;
+        visitor.rows(self.0.arguments.len(), depth + 1)?;
+        for actual in &self.0.arguments {
+            visitor.node(depth + 2)?;
+            match actual {
+                LifeNominalActual::Type(ty) => visitor.ty(ty, depth + 3)?,
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    visitor.ty(ty, depth + 3)?;
+                    visitor.life(life, depth + 3)?;
+                }
+                LifeNominalActual::Const(value) => visitor.constant(value, depth + 3)?,
+                LifeNominalActual::Lifetime(_) => visitor.node(depth + 3)?,
+            }
+        }
+        Ok(())
+    }
+}
 fn zero_shape() -> StorageLifeShape {
     StorageLifeShape {
         binder_count: 0,
@@ -1092,8 +1124,13 @@ fn closed_type(
                         continue;
                     }
                     if let Some((_, _, old)) = selected {
-                        prepay_recipe_work(old, budget, Span::default(), depth)?;
-                        prepay_recipe_work(instance, budget, Span::default(), depth)?;
+                        prepay_recipe_work(&NominalInstance(old), budget, Span::default(), depth)?;
+                        prepay_recipe_work(
+                            &NominalInstance(instance),
+                            budget,
+                            Span::default(),
+                            depth,
+                        )?;
                         if old != instance {
                             return Ok(false);
                         }

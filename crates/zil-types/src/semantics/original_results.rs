@@ -98,7 +98,7 @@ impl Check<'_, '_> {
 }
 
 impl Proof {
-    pub(super) fn call_result_boundary(
+    pub(in crate::semantics) fn call_result_boundary(
         &self,
         current: SemanticDefinitionId,
         owner: SemanticDefinitionId,
