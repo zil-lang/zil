@@ -290,6 +290,44 @@ impl Check<'_, '_> {
 }
 
 impl Proof {
+    pub(in crate::semantics) fn closed_opaque_result(
+        &self,
+        program: &SemanticModule,
+        ty: &SemanticTypeRecipe,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<(SemanticDefinitionId, SemanticTypeRecipe)>> {
+        self.closed_opaque_result_inner(program, ty, limits, left, 0)
+    }
+    fn closed_opaque_result_inner(
+        &self,
+        program: &SemanticModule,
+        ty: &SemanticTypeRecipe,
+        limits: &Limits,
+        left: &mut usize,
+        depth: usize,
+    ) -> R<Option<(SemanticDefinitionId, SemanticTypeRecipe)>> {
+        let Some((definition, result)) = opaque_result(program, self, ty, limits, left, depth + 1)?
+        else {
+            return Ok(None);
+        };
+        if !zero_original_domain(
+            program,
+            self,
+            definition,
+            result,
+            limits,
+            left,
+            depth + 1,
+            &mut Vec::new(),
+        )? {
+            return Ok(None);
+        }
+        Ok(Some((definition, copy_recipe(result, limits, left)?)))
+    }
+}
+
+impl Proof {
     pub(in crate::semantics) fn call_result_boundary(
         &self,
         current: SemanticDefinitionId,
@@ -541,6 +579,64 @@ fn zero_original_domain(
     active.pop();
     result
 }
+fn opaque_result<'a>(
+    program: &'a SemanticModule,
+    proof: &'a Proof,
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+    depth: usize,
+) -> R<Option<(SemanticDefinitionId, &'a SemanticTypeRecipe)>> {
+    let SemanticTypeRecipe::Opaque {
+        definition,
+        arguments,
+        hidden,
+    } = ty
+    else {
+        return Ok(None);
+    };
+    let source = original_definition(program, *definition, limits, left)?;
+    if !arguments.is_empty()
+        || !source.parameters.is_empty()
+        || !source.environment.is_empty()
+        || source.parent.is_some()
+        || !proof.complete.contains(definition)
+        || !matches!(
+            source.body,
+            SemanticDefinitionBody::FunctionWithBody {
+                body: SemanticOriginalFunctionBody::Defined(_),
+                ..
+            }
+        )
+    {
+        return Ok(None);
+    }
+    // Return-role declarations were independently discharged by function().
+    // Other caller obligations cannot silently disappear at this boundary.
+    for requirement in &source.requirements {
+        if !matches!(
+            requirement,
+            SemanticRequirementRecipe::Callable {
+                ty: SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Result
+                },
+                ..
+            }
+        ) {
+            return Ok(None);
+        }
+    }
+    let result = proof
+        .types
+        .get(&(*definition, Query::Result))
+        .ok_or_else(|| bad("closed opaque omits its complete original all-return equation"))?;
+    let mut check =
+        super::nominal_where::borrowed_check(program, proof, *definition, limits, left)?;
+    let hidden = check.resolve(*definition, hidden, depth + 1)?;
+    check.same(&hidden, result)?;
+    Ok(Some((*definition, result)))
+}
 fn zero_original_domain_inner(
     program: &SemanticModule,
     proof: &Proof,
@@ -602,17 +698,11 @@ fn zero_original_domain_inner(
                 .ok_or_else(|| bad("closed type loses its original sealed environment"))?;
             recurse(*parent, value, left, active)?
         }
-        SemanticTypeRecipe::Opaque {
-            definition,
-            arguments,
-            hidden,
-        } => {
-            let source = original_definition(program, *definition, limits, left)?;
-            arguments.is_empty()
-                && source.parameters.is_empty()
-                && source.parent.is_none()
-                && proof.complete.contains(definition)
-                && recurse(*definition, hidden, left, active)?
+        SemanticTypeRecipe::Opaque { .. } => {
+            match opaque_result(program, proof, ty, limits, left, depth + 1)? {
+                Some((definition, result)) => recurse(definition, result, left, active)?,
+                None => false,
+            }
         }
         SemanticTypeRecipe::Closure {
             definition,
@@ -625,6 +715,7 @@ fn zero_original_domain_inner(
                 || !child.parameters.is_empty()
                 || child.environment.len() != environment.len()
                 || !proof.complete.contains(definition)
+                || proof.borrowed_capture_heads.contains(definition)
             {
                 false
             } else {
@@ -732,43 +823,8 @@ impl Check<'_, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<Option<(SemanticDefinitionId, SemanticTypeRecipe)>> {
-        let SemanticTypeRecipe::Opaque {
-            definition,
-            arguments,
-            ..
-        } = ty
-        else {
-            return Ok(None);
-        };
-        let source = self.definition(*definition)?;
-        if !arguments.is_empty()
-            || !source.parameters.is_empty()
-            || source.parent.is_some()
-            || !self.proof.complete.contains(definition)
-        {
-            return Ok(None);
-        }
-        if !zero_original_domain(
-            self.program,
-            &self.proof,
-            *definition,
-            ty,
-            self.limits,
-            self.left,
-            depth + 1,
-            &mut Vec::new(),
-        )? {
-            return Ok(None);
-        }
-        let result = self
-            .proof
-            .types
-            .get(&(*definition, Query::Result))
-            .ok_or_else(|| bad("closed opaque body omits its complete all-return result"))?;
-        Ok(Some((
-            *definition,
-            copy_recipe(result, self.limits, self.left)?,
-        )))
+        self.proof
+            .closed_opaque_result_inner(self.program, ty, self.limits, self.left, depth + 1)
     }
     pub(super) fn original_zero_domain(
         &mut self,
