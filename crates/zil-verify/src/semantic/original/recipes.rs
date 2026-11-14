@@ -8,6 +8,8 @@ impl CheckedOriginal {
     fn ty_inner(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticTypeRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         b.spend(1)?;
         Ok(match recipe {
+            SemanticTypeRecipe::Atom(ty) if SealedError::from_type(ty).is_some()=>Ty::SealedError(SealedError::from_type(ty).unwrap()),
+            SemanticTypeRecipe::Exact(exact) if exact.life==empty_life()&&exact.classes.is_empty()&&SealedError::from_type(&exact.ty).is_some()=>Ty::SealedError(SealedError::from_type(&exact.ty).unwrap()),
             SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar()||matches!(ty,Type::ForeignHandle|Type::CWideString|Type::ByteBuffer|Type::SyncCell(_))=>Ty::Atom(ty.clone()),
             SemanticTypeRecipe::Formal(reference)=>match env.frame(reference.scope)?.actuals.get(reference.ordinal as usize){Some(Arg::Type(ty))=>ty.clone(),_=>return Err(bad("original Type recipe selects a non-Type formal"))},
             SemanticTypeRecipe::Environment{scope,ordinal}=>match env.frame(*scope)?.environment.get(*ordinal as usize){Some(Arg::Type(ty))=>ty.clone(),_=>return Err(bad("original Type recipe selects a non-Type environment"))},
@@ -35,9 +37,13 @@ impl CheckedOriginal {
             SemanticTypeRecipe::Slice(inner)=>Ty::Slice(Box::new(self.ty(module,context,inner,env,active,b)?)),
             SemanticTypeRecipe::Managed(inner)=>{
                 let child=self.ty(module,context,inner,env,active,b)?;
-                let valid=match self.resolved(&child,b)?{Ty::Atom(Type::ByteBuffer)|Ty::Store(_)=>true,Ty::Nominal(id,_)=>matches!(context.definition(module,id,b)?.body,SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Resource,..}),_=>false};
+                let valid=match self.resolved(&child,b)?{Ty::Atom(Type::ByteBuffer)|Ty::Store(_)|Ty::Carrier{kind:CarrierKind::Mutex|CarrierKind::Task|CarrierKind::Registration|CarrierKind::AsyncRegistration,..}=>true,Ty::Nominal(id,_)=>matches!(context.definition(module,id,b)?.body,SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Resource,..}),_=>false};
                 if !valid{return Err(unsupported("original Managed payload is not an independently identified canonical resource",None));}Ty::Managed(Box::new(child))
             },
+            SemanticTypeRecipe::Mutex(inner)=>Ty::Carrier{kind:CarrierKind::Mutex,child:Box::new(self.ty(module,context,inner,env,active,b)?),retained:Box::default()},
+            SemanticTypeRecipe::MutexGuard{payload,retained}=>Ty::Carrier{kind:CarrierKind::MutexGuard,child:Box::new(self.ty(module,context,payload,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
+            SemanticTypeRecipe::Task{result,retained}=>Ty::Carrier{kind:CarrierKind::Task,child:Box::new(self.ty(module,context,result,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
+            SemanticTypeRecipe::Registration(inner)|SemanticTypeRecipe::AsyncRegistration(inner)=>Ty::Carrier{kind:if matches!(recipe,SemanticTypeRecipe::Registration(_)){CarrierKind::Registration}else{CarrierKind::AsyncRegistration},child:Box::new(self.ty(module,context,inner,env,active,b)?),retained:Box::default()},
             SemanticTypeRecipe::OwnedStore(inner)=>Ty::Store(Box::new(self.ty(module,context,inner,env,active,b)?)),
             SemanticTypeRecipe::Array{element,length}=>Ty::Array(Box::new(self.ty(module,context,element,env,active,b)?),Box::new(self.constant(module,context,length,&Ty::Atom(Type::Usize),env,active,b)?)),
             SemanticTypeRecipe::ErrorUnion{error,result}=>Ty::ErrorUnion(Box::new(self.ty(module,context,error,env,active,b)?),Box::new(self.ty(module,context,result,env,active,b)?)),
@@ -89,7 +95,8 @@ impl CheckedOriginal {
         b.spend(signature.bound_lifetimes as usize+signature.invocation_lifetimes as usize)?;
         if signature.bound_lifetimes!=0{env.bounds.insert(0,(0..signature.bound_lifetimes).map(|index|Life::Bound(token,index)).collect());}
         env.invocation=(0..signature.invocation_lifetimes).map(|index|Life::Invocation(token,index)).collect();
-        let mut parameters=Vec::new();for parameter in &signature.parameters{parameters.push(self.ty(module,context,&parameter.ty,&env,active,b)?);}
-        Ok(Prototype{parameters,result:self.ty(module,context,&signature.result,&env,active,b)?,environment:env,modes:signature.parameters.iter().map(|parameter|parameter.mode).collect(),result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes,callable_kind:None})
+        let mut parameters=Vec::new();for(ordinal,parameter)in signature.parameters.iter().enumerate(){let ty=self.ty(module,context,&parameter.ty,&env,active,b)?;parameters.push(self.mode_type(module,context,ty,parameter.mode,Some(ordinal as u32),&env,b)?);}
+        let result=self.ty(module,context,&signature.result,&env,active,b)?;let result=self.mode_type(module,context,result,signature.result_mode,None,&env,b)?;
+        Ok(Prototype{parameters,result,environment:env,modes:signature.parameters.iter().map(|parameter|parameter.mode).collect(),result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes,callable_kind:None})
     }
 }

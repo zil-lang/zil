@@ -14,7 +14,7 @@ impl CheckedOriginal {
         let mut recipes=Vec::new();for argument in arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}Ok((target,recipes))
     }
     fn scope(&self,id:SemanticDefinitionId,env:&EvalEnv,b:&mut Budget)->Check<SemanticScopeRef>{b.spend(env.lexical.len())?;env.lexical.iter().position(|frame|frame.definition==id).map(|depth|SemanticScopeRef::Ancestor(depth as u32)).ok_or_else(||bad("original symbolic term escapes the actual real lexical scope"))}
-    fn reify_type(&self,module:&TypedModule,ty:&Ty,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
+    pub(super) fn reify_type(&self,module:&TypedModule,ty:&Ty,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
         self.reify_type_at(module,ty,env,0,b)
     }
     fn reify_type_at(&self,module:&TypedModule,ty:&Ty,env:&EvalEnv,depth:usize,b:&mut Budget)->Check<SemanticTypeRecipe>{
@@ -22,6 +22,7 @@ impl CheckedOriginal {
         let ty=self.resolved(ty,b)?;
         Ok(match ty{
             Ty::Atom(ty)=>SemanticTypeRecipe::Atom(ty),
+            Ty::SealedError(kind)=>SemanticTypeRecipe::Exact(Box::new(SemanticExactTypeRecipe{ty:kind.ty(),life:empty_life(),classes:vec![]})),
             Ty::Variable(definition,ordinal)=>SemanticTypeRecipe::Formal(SemanticFormalRef{scope:self.scope(definition,env,b)?,ordinal}),
             Ty::SelfType(definition)=>SemanticTypeRecipe::SelfType{scope:self.scope(definition,env,b)?},
             Ty::Nominal(definition,arguments)=>{let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Nominal{definition,arguments:recipes}},
@@ -30,6 +31,7 @@ impl CheckedOriginal {
             Ty::Desc{life,inner}=>SemanticTypeRecipe::Desc{lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)},
             Ty::Slice(inner)=>SemanticTypeRecipe::Slice(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
             Ty::Managed(inner)=>SemanticTypeRecipe::Managed(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
+            Ty::Carrier{kind,child,retained}=>{let child=Box::new(self.reify_type_at(module,&child,env,depth+1,b)?);match kind{CarrierKind::Mutex=>SemanticTypeRecipe::Mutex(child),CarrierKind::MutexGuard=>SemanticTypeRecipe::MutexGuard{payload:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Task=>SemanticTypeRecipe::Task{result:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Registration=>SemanticTypeRecipe::Registration(child),CarrierKind::AsyncRegistration=>SemanticTypeRecipe::AsyncRegistration(child)}},
             Ty::Store(inner)=>SemanticTypeRecipe::OwnedStore(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
             Ty::Array(element,length)=>SemanticTypeRecipe::Array{element:Box::new(self.reify_type_at(module,&element,env,depth+1,b)?),length:Box::new(self.reify_constant(module,&length,env,b)?)},
             Ty::ErrorUnion(error,result)=>SemanticTypeRecipe::ErrorUnion{error:Box::new(self.reify_type_at(module,&error,env,depth+1,b)?),result:Box::new(self.reify_type_at(module,&result,env,depth+1,b)?)},
@@ -51,7 +53,8 @@ impl CheckedOriginal {
         ConstValue::Convert(source)=>SemanticConstRecipe::Convert{source_type:Box::new(self.reify_type(module,&source.carrier,env,b)?),target_type:Box::new(self.reify_type(module,&value.carrier,env,b)?),value:Box::new(self.reify_constant(module,source,env,b)?)},
     })}
     fn reify_outer(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticOuterLifeRecipe>{if *life==Life::Static{Ok(SemanticOuterLifeRecipe::Static)}else{Ok(SemanticOuterLifeRecipe::Class(self.reify_life(module,life,env,b)?))}}
-    fn reify_life(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{let resolved=self.resolved_life(life,b)?;let life=&resolved;b.spend(1)?;Ok(match life{
+    pub(super) fn reify_life(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{let resolved=self.resolved_life(life,b)?;let life=&resolved;b.spend(1)?;Ok(match life{
+        Life::Head(definition,ordinal)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*definition){return Err(bad("original description head was not instantiated at its true call boundary"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Parameter(*ordinal),path:vec![],mode:StoredBorrowMode::ReadOnlyDescription}},
         Life::Formal(definition,ordinal)=>SemanticLifeRecipe::Formal(SemanticFormalRef{scope:self.scope(*definition,env,b)?,ordinal:*ordinal}),
         Life::Implicit(definition,ordinal)=>SemanticLifeRecipe::Implicit{scope:self.scope(*definition,env,b)?,ordinal:*ordinal},
         Life::Invocation(token,index)=>{

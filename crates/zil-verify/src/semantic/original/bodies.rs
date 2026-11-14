@@ -28,7 +28,7 @@ impl CheckedOriginal {
             if parameter.mode!=signature.parameters[ordinal].mode{return Err(bad("original value binder changes its declared passing mode"));}
             let provisional=self.parameters.get(&(id,ordinal as u32)).cloned().ok_or_else(||bad("original parameter inference slot absent"))?;
             self.unify(&provisional,ty,b)?;
-            if let Some(annotation)=&parameter.ty{let expected=self.ty(module,context,annotation,&prototype.environment,active,b)?;self.unify(ty,&expected,b)?;}
+            if let Some(annotation)=&parameter.ty{let expected=self.ty(module,context,annotation,&prototype.environment,active,b)?;let expected=self.mode_type(module,context,expected,parameter.mode,Some(ordinal as u32),&prototype.environment,b)?;self.unify(ty,&expected,b)?;}
             bindings.insert(parameter.name.clone(),Binding{ty:ty.clone(),mutable:false,identity:Binder::Parameter{definition:id,ordinal:ordinal as u32}});
         }
         let inferred_result=self.results.get(&id).cloned().ok_or_else(||bad("original result inference slot absent"))?;
@@ -55,7 +55,7 @@ impl CheckedOriginal {
                 let program=module.semantic.as_ref().ok_or_else(||bad("original program absent"))?;
                 let targets=program.instances.iter().filter(|row|row.definition==id).collect::<Vec<_>>();b.spend(program.instances.len())?;
                 if targets.is_empty(){return Err(unsupported("original external declaration has no complete independently checked ABI",None));}
-                for target in targets {if let Some(source)=context.frozen_functions.get(&target.id){self.frozen_external(module,context,&prototype,source,active,b)?;continue;}let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=target.target else{return Err(bad("original external targets nonfunction"));};if !module.functions.get(function.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("original external body hides a real implementation"));}}
+                for target in targets {if let Some(source)=context.frozen_functions.get(&target.id){self.frozen_external(module,context,&prototype,source,active,b)?;continue;}let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=target.target else{return Err(bad("original external targets nonfunction"));};self.typed_external(module,context,&prototype,function,active,b)?;}
             },
             SemanticOriginalFunctionBody::Declaration=>return Err(unsupported("abstract original member requires its exact trait declaration/member proof",None)),
         }
@@ -87,11 +87,11 @@ impl CheckedOriginal {
                         let expected=match ty{Some(recipe)=>Some(self.ty(module,context,recipe,env,active,b)?),None=>None};
                         let actual=match initializer{Some(value)=>self.expression(module,context,value,env,bindings,expected.as_ref(),active,b)?,None=>match expected{Some(ref ty)=>ty.clone(),None=>return Err(bad("original uninitialized binding lacks its full type"))}};
                         if let Some(expected)=expected{self.unify(&actual,&expected,b)?;}
-                        self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
+                        self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};if let Some(initializer)=initializer{if self.creation(env.current()?,initializer,bindings,b)?{b.spend(1)?;self.created_bindings.insert(binding.identity.clone());}}self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
                     },
                     CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{let expected=ty.as_ref().map(|recipe|self.ty(module,context,recipe,env,active,b)).transpose()?;let actual=self.expression(module,context,initializer,env,bindings,expected.as_ref(),active,b)?;self.pattern_root(module,context,statement.id,&[],pattern,&actual,*mutable,env,bindings,active,b)?;self.bindings.insert((env.current()?,statement.id),actual);false},
                     CoreStatementKind::Expression(expression)=>{let value=self.expression(module,context,expression,env,bindings,None,active,b)?;self.overwrite_cleanup(env,expression.id,&value,None,b)?;false},
-                    CoreStatementKind::Return(expression)=>{if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}let actual=match expression{Some(expression)=>self.expression(module,context,expression,env,bindings,Some(result),active,b)?,None=>Ty::Atom(Type::Unit)};self.unify(&actual,result,b)?;self.queue_cleanup(env,None,b)?;true},
+                    CoreStatementKind::Return(expression)=>{if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}let actual=match expression{Some(expression)=>self.expression(module,context,expression,env,bindings,Some(result),active,b)?,None=>Ty::Atom(Type::Unit)};self.unify(&actual,result,b)?;self.return_resource(expression.as_ref(),&actual,env,b)?;self.queue_cleanup(env,None,b)?;true},
                     CoreStatementKind::Assign{target,value}=>{self.mutable_place(module,context,target,env,bindings,active,b)?;let(expected,place)=self.place(module,context,target,env,bindings,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.unify(&actual,&expected,b)?;self.overwrite_cleanup(env,target.id,&expected,place.as_ref(),b)?;if let Some(place)=place{self.uses.entry(env.current()?).or_default().initialize(&place,b)?;}false},
                     CoreStatementKind::CompoundAssign{target,op,value}=>{self.mutable_place(module,context,target,env,bindings,active,b)?;let expected=self.expression(module,context,target,env,bindings,None,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.numeric_binary_original(*op,&expected,&actual,b)?;false},
                     CoreStatementKind::If{condition,then_body,else_body}=>{
@@ -126,7 +126,8 @@ impl CheckedOriginal {
                         }
                         self.set_uses(env,continuing.unwrap_or(before))?;all
                     },
-                    CoreStatementKind::Block(body)|CoreStatementKind::Unsafe(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b)?,
+                    CoreStatementKind::Block(body)=>self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b)?,
+                    CoreStatementKind::Unsafe(body)=>{let id=env.current()?;*self.unsafe_depth.entry(id).or_default()+=1;let checked=self.block(module,context,body,env,&mut bindings.clone(),result,loops,active,b);*self.unsafe_depth.entry(id).or_default()-=1;checked?},
                     CoreStatementKind::Defer(body)=>{
                         let before=self.use_snapshot(env,b)?;let id=env.current()?;*self.in_defer.entry(id).or_default()+=1;
                         let checked=self.block(module,context,body,env,&mut bindings.clone(),&Ty::Atom(Type::Unit),0,active,b);*self.in_defer.entry(id).or_default()-=1;checked?;

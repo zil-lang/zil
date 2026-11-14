@@ -21,6 +21,12 @@ mod closure_sources;
 mod frozen;
 mod schemes;
 mod effects;
+mod carriers;
+mod capabilities;
+mod thread_graph;
+mod resources;
+mod sealed;
+mod invocation;
 pub(super) mod intrinsics;
 use usage::{Binder,Place,Uses};
 use terms::*;
@@ -58,7 +64,10 @@ pub(super) struct CheckedOriginal {
     names_at:BTreeMap<(SemanticDefinitionId,bool,NodeId,String),Ty>,
     pattern_types:BTreeMap<(SemanticDefinitionId,NodeId,Vec<u32>),Ty>,
     pattern_origin:Option<(NodeId,Vec<u32>)>,
+    unsafe_depth:BTreeMap<SemanticDefinitionId,usize>,
     in_defer:BTreeMap<SemanticDefinitionId,usize>,
+    created:BTreeSet<(SemanticDefinitionId,NodeId)>,
+    created_bindings:BTreeSet<Binder>,
     executing_effects:BTreeMap<SemanticDefinitionId,CallKind>,
     intrinsic_calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),intrinsics::Use>,
 }
@@ -95,6 +104,7 @@ impl CheckedOriginal {
             Ty::Slice(inner)=>Ty::Slice(Box::new(self.resolve_at(inner,depth+1,b)?)),
             Ty::Managed(inner)=>Ty::Managed(Box::new(self.resolve_at(inner,depth+1,b)?)),
             Ty::Store(inner)=>Ty::Store(Box::new(self.resolve_at(inner,depth+1,b)?)),
+            Ty::Carrier{kind,child,retained}=>Ty::Carrier{kind:*kind,child:Box::new(self.resolve_at(child,depth+1,b)?),retained:Box::new(retained.map(|ty,b|self.resolve_at(ty,depth+1,b),|life,b|self.resolved_life(life,b),b)?)},
             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.resolve_at(error,depth+1,b)?),Box::new(self.resolve_at(result,depth+1,b)?)),
             Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{let mut values=Vec::new();for parameter in parameters{values.push(self.resolve_at(parameter,depth+1,b)?);}Ty::Code{kind:*kind,parameters:values,result:Box::new(self.resolve_at(result,depth+1,b)?),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes}},
             Ty::Nominal(id,arguments)=>Ty::Nominal(*id,self.resolve_arguments(arguments,depth,b)?),
@@ -120,6 +130,10 @@ impl CheckedOriginal {
             (Ty::Tuple(a),Ty::Tuple(c)) if a.len()==c.len()=>{for(a,c)in a.iter().zip(c){self.unify(a,c,b)?;}Ok(())},
             (Ty::Address{mutable:a,life:al,inner:ai},Ty::Address{mutable:c,life:cl,inner:ci}) if a==c=>{self.unify_life(al,cl,b)?;self.unify(ai,ci,b)},
             (Ty::Desc{life:al,inner:ai},Ty::Desc{life:cl,inner:ci})=>{self.unify_life(al,cl,b)?;self.unify(ai,ci,b)},
+            (Ty::Managed(a),Ty::Managed(c))|(Ty::Store(a),Ty::Store(c))|(Ty::Slice(a),Ty::Slice(c))=>self.unify(a,c,b),
+            (Ty::ErrorUnion(a,r),Ty::ErrorUnion(c,s))=>{self.unify(a,c,b)?;self.unify(r,s,b)},
+            (Ty::Array(a,n),Ty::Array(c,m)) if n==m=>self.unify(a,c,b),
+            (Ty::Carrier{kind:a,child:x,retained:ar},Ty::Carrier{kind:c,child:y,retained:cr}) if a==c&&ar==cr=>self.unify(x,y,b),
             (Ty::Nominal(a,aa),Ty::Nominal(c,ca)) if a==c&&aa.len()==ca.len()=>{for(a,c)in aa.iter().zip(ca){match(a,c){(Arg::Type(a),Arg::Type(c))=>self.unify(a,c,b)?,(Arg::Life(a),Arg::Life(c))=>self.unify_life(a,c,b)?,_ if a==c=>{},_=>return Err(bad("original nominal actuals require a proved equality"))}}Ok(())},
             _=>Err(bad("original body relates independent rigid type/const identities without an original equality")),
         }
@@ -144,4 +158,4 @@ impl CheckedOriginal {
         self.environments.insert(id,environment.clone());Ok(environment)
     }
 }
-fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)=>for actual in arguments{if let Arg::Type(ty)=actual{queue.push(ty);}},_=>{}}}Ok(false)}
+fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::Carrier{child,retained,..}=>{queue.push(child);retained.types(&mut queue,b)?;},Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)=>for actual in arguments{if let Arg::Type(ty)=actual{queue.push(ty);}},_=>{}}}Ok(false)}

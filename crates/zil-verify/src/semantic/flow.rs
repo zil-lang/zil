@@ -11,6 +11,7 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
 pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<()> {
     let context=CheckedContext::catalogue_mode(module,frozen,b)?;
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
+    crate::foreign::check_declarations(module,b)?;
     let mut active=ActiveQueries::new();
     let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
     if frozen.is_some(){original.frozen_schemes(module,&context,&mut active,b)?;}
@@ -128,7 +129,11 @@ impl CheckedContext {
             self.record(scope,OperandKey::Parameter(index as u32),expected,b)?;
         }
         self.header(module,instance,f,signature,environment,b)?;
-        if f.foreign.is_some() {return Err(unsupported("semantic foreign body requires its complete original external contract",None));}
+        if f.foreign.is_some() {
+            let definition=self.definition(module,instance.definition,b)?;
+            if !matches!(definition.body,SemanticDefinitionBody::FunctionWithBody{body:SemanticOriginalFunctionBody::External,..}){return Err(bad("actual foreign declaration replaces an original user body"));}
+            return Ok(());
+        }
         let mut states=vec![None;f.blocks.len()];
         let entry=f.entry.0 as usize;
         if entry>=states.len() {return Err(bad("actual CFG entry is absent"));}
@@ -190,6 +195,10 @@ impl CheckedContext {
                         }
                         state.locals[local.0 as usize]=None;None
                     }
+                    InstructionKind::ConvertInteger{value,target}|InstructionKind::ConvertNumber{value,target}=>{
+                        if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?}
+                        else{let source=&value_at(&values,*value)?.ty;if (!source.is_integer()&&!source.is_float())||(!target.is_integer()&&!target.is_float()){return Err(bad("numeric operation has a nonnumeric endpoint"));}Some(atomic(target,b)?)}
+                    }
                     InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
@@ -234,11 +243,14 @@ impl CheckedContext {
                         if let SemanticSiteAction::Construct{value:claim,..}=&site.action {self.claim(module,claim,&value,&environment,b)?;}
                         Some(value)
                     }
-                    InstructionKind::Call{function:callee,arguments}|InstructionKind::SuspendCall{function:callee,arguments}=>{
+                    InstructionKind::Call{function:callee,arguments}|InstructionKind::SuspendCall{function:callee,arguments}|InstructionKind::ForeignCall{function:callee,arguments,..}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Call{..}|SemanticSiteAction::BodyCall{..}));
                         let site=declarations.next().ok_or_else(||bad("actual Call has no original semantic specialization site"))?;
                         if declarations.next().is_some() {return Err(bad("actual Call has duplicate semantic specialization claims"));}
-                        self.actual_call(module,instance,site,*callee,arguments,&values,&environment,external,active,b)?
+                        let result=self.actual_call(module,instance,site,*callee,arguments,&values,&environment,external,active,b)?;
+                        if matches!(instruction.kind,InstructionKind::ForeignCall{..}){let expected=crate::foreign::check_call(module,f,*callee,arguments,Some(instruction.span),b)?;if expected.as_ref()!=result.as_ref().map(|value|&value.ty){return Err(bad("actual foreign result differs from its complete original C signature"));}}
+                        else if module.functions.get(callee.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("ordinary Call substitutes for an original foreign execution"));}
+                        result
                     },
                     InstructionKind::MakeClosure{closure,captures}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
@@ -252,7 +264,7 @@ impl CheckedContext {
                         if declarations.next().is_some(){return Err(bad("actual CallableCall has duplicate original claims"));}
                         self.scalar_callable(module,instance,site,&instruction.kind,&state,&values,&environment,external,active,b)?
                     }
-                    InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}=>None,
+                    InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}|InstructionKind::UnsafeEnter{..}|InstructionKind::UnsafeExit{..}=>None,
                     InstructionKind::Unary{operand,..}=>{let value=value_at(&values,*operand)?;if !value.ty.is_b0_scalar() {return Err(bad("unary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("unary result is absent"))?.0 as usize).ok_or_else(||bad("unary result type is absent"))?,b)?)},
                     InstructionKind::Binary{left,right,..}=>{if !value_at(&values,*left)?.ty.is_b0_scalar()||!value_at(&values,*right)?.ty.is_b0_scalar() {return Err(bad("binary operation changes a semantic carrier"));}Some(atomic(f.values.get(instruction.result.ok_or_else(||bad("binary result is absent"))?.0 as usize).ok_or_else(||bad("binary result type is absent"))?,b)?)},
                     _=>return Err(unsupported("actual instruction lacks complete independent semantic transfer",Some(instruction.span))),

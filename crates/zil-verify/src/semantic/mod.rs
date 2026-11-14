@@ -21,6 +21,7 @@ mod flow;
 mod capture_heads;
 mod closure_boundaries;
 mod original;
+mod resources;
 mod frozen;
 pub(super) use frozen::FrozenContext;
 pub(crate) use flow::check_program;

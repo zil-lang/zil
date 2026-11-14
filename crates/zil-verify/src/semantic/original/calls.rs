@@ -16,6 +16,7 @@ impl CheckedOriginal {
             if written_types.is_some()||written_mixed.is_some(){return Err(bad("registered intrinsic does not accept written mixed arguments"));}
             let site=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).find(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall)).ok_or_else(||bad("registered intrinsic has another original call role"))?;
             let result=self.intrinsic_call(module,context,intrinsic,site.id,arguments,env,bindings,active,b)?;
+            if intrinsic==intrinsics::Intrinsic::BytesNew{b.spend(1)?;self.created.insert((env.current()?,call.id));}
             if let Some(expected)=expected{self.unify(&result,expected,b)?;}
             return Ok(result);
         }
@@ -24,7 +25,8 @@ impl CheckedOriginal {
         match self.resolved(&callee_type,b)?{
             Ty::Function(target)=>{
                 let definition=context.definition(module,target,b)?;
-                let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else{return Err(bad("original Call target omits its complete body"));};
+                let SemanticDefinitionBody::FunctionWithBody{signature,body,..}=&definition.body else{return Err(bad("original Call target omits its complete body"));};
+                if matches!(body,SemanticOriginalFunctionBody::External)&&self.unsafe_depth.get(&env.current()?).copied().unwrap_or(0)==0{return Err(bad("original foreign execution is outside its actual unsafe lexical scope"));}
                 let caller=context.definition(module,env.current()?,b)?;
                 let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{return Err(bad("original Call creator has no complete body"));};
                 let rows=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall)).collect::<Vec<_>>();
@@ -46,7 +48,7 @@ impl CheckedOriginal {
                 }
                 let mut selected=self.environment(module,context,target,active,b)?;
                 selected.lexical[0].actuals=checked.clone();
-                let prototype=self.signature(module,context,signature,&selected,active,b)?;
+                let prototype=self.call_signature(module,context,target,signature,&selected,active,b)?;
                 self.execute_effect(env,prototype.call_kind,b)?;
                 if prototype.parameters.len()!=arguments.len(){return Err(bad("original Call value arity differs from the declared signature"));}
                 if let Some(expected)=expected{self.unify(&prototype.result,expected,b)?;}
@@ -59,13 +61,14 @@ impl CheckedOriginal {
                 if let Some(proposed)=proposed{for(recipe,value)in proposed.iter().zip(&checked){if !matches!(recipe,SemanticActualRecipe::Infer){let claim=self.actual(module,context,recipe,env,active,b)?;self.same_argument(&claim,value,b)?;}}}
                 self.calls.insert((env.current()?,site.id),checked);
                 self.call_targets.insert((env.current()?,site.id),target);
+                if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
                 Ok(prototype.result)
             },
             Ty::Closure(definition,actuals,sealed)=>{
                 if written_types.is_some()||written_mixed.is_some(){return Err(bad("original closure invocation has unsupported generic application"));}
                 let original=context.definition(module,definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original Closure has no complete signature/body"));};
                 let mut selected=self.environment(module,context,definition,active,b)?;selected.lexical[0].actuals=actuals;selected.lexical[0].environment=sealed;
-                let prototype=if let Some(prototype)=self.prototypes.get(&definition){prototype.clone()}else{self.signature(module,context,signature,&selected,active,b)?};
+                let rigid=if let Some(prototype)=self.prototypes.get(&definition){prototype.clone()}else{let rigid=self.environment(module,context,definition,active,b)?;self.signature(module,context,signature,&rigid,active,b)?};let prototype=self.instantiate_prototype(&rigid,Some(definition),&selected,b)?;
                 if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,true,active,b)?;}}
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
                 self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
@@ -100,7 +103,7 @@ impl CheckedOriginal {
                 if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}for(actual,wanted)in actual.parameters.iter().zip(&wanted.parameters){if !self.same(actual,wanted,b)?{return Err(bad("original Callable requirement parameters lack their original relation"));}}if !self.same(&actual.result,&wanted.result,b)?{return Err(bad("original Callable requirement result lacks its original relation"));}Ok(())
             },
             SemanticRequirementRecipe::Structural{ty,bound}=>{let ty=self.ty(module,context,ty,target,active,b)?;self.structural_obligation(module,context,&ty,*bound,caller,active,b)},
-            SemanticRequirementRecipe::Builtin{ty,trait_kind}=>{let ty=self.ty(module,context,ty,target,active,b)?;let bound=match trait_kind{SemanticBuiltinTrait::Copy=>DynStructuralBound::Copy,SemanticBuiltinTrait::Value=>DynStructuralBound::Value,SemanticBuiltinTrait::SyncDrop=>DynStructuralBound::SyncDrop,SemanticBuiltinTrait::StoreElement=>DynStructuralBound::StoreElement,_=>return Err(unsupported("original operational builtin requires its exact provider/body proof",None))};self.structural_obligation(module,context,&ty,bound,caller,active,b)},
+            SemanticRequirementRecipe::Builtin{ty,trait_kind}=>{let ty=self.ty(module,context,ty,target,active,b)?;let bound=match trait_kind{SemanticBuiltinTrait::Copy=>DynStructuralBound::Copy,SemanticBuiltinTrait::Value=>DynStructuralBound::Value,SemanticBuiltinTrait::SyncDrop=>DynStructuralBound::SyncDrop,SemanticBuiltinTrait::StoreElement=>DynStructuralBound::StoreElement,_=>return self.builtin_obligation(module,context,&ty,*trait_kind,caller,active,b)};self.structural_obligation(module,context,&ty,bound,caller,active,b)},
             _=>Err(unsupported("original requirement has no complete symbolic caller proof",None)),
         }
     }
@@ -119,7 +122,7 @@ impl CheckedOriginal {
         };
         if proved{Ok(())}else{Err(unsupported("original caller lacks a complete structural/cleanup obligation proof",None))}
     }
-    fn value_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+    pub(super) fn value_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             if self.structural_premise(module,context,ty,DynStructuralBound::Value,env,active,b)?||self.is_copy(module,context,ty,env,active,b)?{return Ok(true);}
             Ok(match self.resolved(ty,b)?{

@@ -188,7 +188,8 @@ fn has_infer(ty: &Ty, substitutions: &BTreeMap<u64, Ty>, b: &mut Budget) -> Chec
                     pending.extend(parameters.iter().map(Term::Type));
                     pending.push(Term::Type(result));
                 }
-                Ty::Atom(_) | Ty::Variable(..) | Ty::SelfType(_) | Ty::Function(_) => {}
+                Ty::Carrier{child,retained,..}=>{pending.push(Term::Type(child));let mut types=Vec::new();retained.types(&mut types,b)?;pending.extend(types.into_iter().map(Term::Type));},
+                Ty::SealedError(_) | Ty::Atom(_) | Ty::Variable(..) | Ty::SelfType(_) | Ty::Function(_) => {}
             },
             Term::Argument(Arg::Type(ty)) => pending.push(Term::Type(ty)),
             Term::Argument(Arg::Const(value)) => pending.push(Term::Constant(value)),

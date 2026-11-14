@@ -32,6 +32,12 @@ impl CheckedOriginal {
         })();
         self.current=previous;result
     }
+    pub(super) fn typed_external(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,function:FunctionId,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let f=module.functions.get(function.0 as usize).ok_or_else(||bad("external original ABI selects an absent actual function"))?;
+        if f.foreign.is_none()||f.call_kind!=prototype.call_kind||f.parameters.len()!=prototype.parameters.len()||f.result_mode!=prototype.result_mode{return Err(bad("original external declaration differs from its exact actual ABI"));}
+        for (local,expected)in f.parameters.iter().zip(&prototype.parameters){let actual=f.locals.get(local.0 as usize).ok_or_else(||bad("external parameter local is absent"))?;if !self.core_abi_type(module,context,expected,&actual.ty,&prototype.environment,active,b)?{return Err(bad("original external parameter differs from its full actual C ABI"));}}
+        if !self.core_abi_type(module,context,&prototype.result,&f.return_type,&prototype.environment,active,b)?{return Err(bad("original external result differs from its actual complete C ABI"));}Ok(())
+    }
     pub(super) fn frozen_external(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,source:&super::super::frozen::FrozenFunction,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         if source.foreign.is_none()||source.parameters.len()!=prototype.parameters.len()||source.result_mode!=prototype.result_mode{return Err(bad("frozen original external declaration lacks its actual complete Core ABI"));}
         for((mode,actual),(expected,expected_mode))in source.parameters.iter().zip(prototype.parameters.iter().zip(&prototype.modes)){
@@ -40,7 +46,7 @@ impl CheckedOriginal {
         if !self.core_abi_type(module,context,&prototype.result,&source.result,&prototype.environment,active,b)?{return Err(bad("frozen external original result differs from its real Core ABI type"));}
         Ok(())
     }
-    fn core_abi_type(&mut self,module:&TypedModule,context:&CheckedContext,expected:&Ty,actual:&Type,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+    pub(super) fn core_abi_type(&mut self,module:&TypedModule,context:&CheckedContext,expected:&Ty,actual:&Type,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             dynamic_metadata::ty(actual,b)?;
             let expected=self.resolved(expected,b)?;

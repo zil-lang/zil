@@ -163,7 +163,7 @@ impl CheckedContext {
             (SemanticSiteRecipeKind::Call{target,..},SemanticSiteAction::Call{target:actual_target,actuals})=>{
                 let SemanticFunctionTarget::Typed(callee)=actual_target else {return Err(bad("semantic Call retains a Core target"));};
                 let row=actual.ok_or_else(||bad("semantic Call selects a terminator"))?;
-                if !matches!(row.kind,InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..} if function==*callee) {return Err(bad("semantic Call target differs from the actual opcode"));}
+                if !matches!(row.kind,InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}|InstructionKind::ForeignCall{function,..} if function==*callee) {return Err(bad("semantic Call target differs from the actual opcode"));}
                 let mut targets=module.semantic.as_ref().ok_or_else(||bad("semantic program is absent"))?.instances.iter().filter(|instance|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) if function==*callee));
                 let target_instance=targets.next().ok_or_else(||bad("semantic Call has no actual target instance"))?;
                 if targets.next().is_some()||target_instance.definition!=*target {return Err(bad("semantic Call selects another original definition"));}
@@ -171,7 +171,7 @@ impl CheckedContext {
             }
             (SemanticSiteRecipeKind::OriginalCall,SemanticSiteAction::BodyCall{actuals})=>{
                 let row=actual.ok_or_else(||bad("original body Call selects a terminator"))?;
-                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..})&&original::intrinsics::Intrinsic::actual(&row.kind).is_none(){return Err(bad("original body Call selects another actual operation"));}
+                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..})&&original::intrinsics::Intrinsic::actual(&row.kind).is_none(){return Err(bad("original body Call selects another actual operation"));}
                 for actual in actuals {raw_actual(actual,b)?;}
             }
             (SemanticSiteRecipeKind::CallableCall{..},SemanticSiteAction::CallableCall{callee})=>{

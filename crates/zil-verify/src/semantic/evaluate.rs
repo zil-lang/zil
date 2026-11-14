@@ -562,14 +562,13 @@ impl CheckedContext {
             .collect::<Vec<_>>();
         environment.invocations = invocation.clone();
         let mut parameters = Vec::new();
-        for parameter in &recipe.parameters {
-            parameters.push((
-                self.evaluate_type(module, &parameter.ty, &environment, external, active, b)?,
-                parameter.mode,
-            ));
+        for (ordinal,parameter) in recipe.parameters.iter().enumerate() {
+            let value=self.evaluate_type(module,&parameter.ty,&environment,external,active,b)?;
+            let value=self.signature_mode_type(module,&parameter.ty,value,parameter.mode,Some(ordinal as u32),&environment,active,b)?;
+            parameters.push((value,parameter.mode));
         }
-        let result =
-            self.evaluate_type(module, &recipe.result, &environment, external, active, b)?;
+        let result=self.evaluate_type(module,&recipe.result,&environment,external,active,b)?;
+        let result=self.signature_mode_type(module,&recipe.result,result,recipe.result_mode,None,&environment,active,b)?;
         Ok(CheckedSignature {
             parameters,
             result,

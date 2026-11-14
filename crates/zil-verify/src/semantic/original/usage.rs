@@ -31,6 +31,7 @@ impl CheckedOriginal {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             let ty=self.resolved(ty,b)?;
             Ok(match &ty {
+                Ty::SealedError(_)=>true,
                 Ty::Atom(ty)=>ty.is_b0_scalar()||matches!(ty,Type::ForeignHandle|Type::CWideString),
                 Ty::Address{mutable,..}=>!*mutable,
                 Ty::Desc{..}|Ty::Code{..}|Ty::Function(_)=>true,
@@ -80,6 +81,7 @@ pub(super) fn has_inference(ty:&Ty,substitutions:&BTreeMap<u64,Ty>,b:&mut Budget
         Ty::Tuple(fields)=>pending.extend(fields),
         Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>pending.push(inner),
         Ty::Nominal(_,arguments)|Ty::Closure(_,arguments,_)=>for argument in arguments{if let Arg::Type(ty)=argument{pending.push(ty);}},
+        Ty::Carrier{child,retained,..}=>{pending.push(child);retained.types(&mut pending,b)?;},
         Ty::ErrorUnion(error,result)=>{pending.push(error);pending.push(result);},
         Ty::Code{parameters,result,..}=>{pending.extend(parameters);pending.push(result);},
         _=>{},

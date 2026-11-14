@@ -14,6 +14,12 @@ impl CheckedContext {
         if !actuals.is_empty(){return Err(bad("nongeneric closed intrinsic adds mixed actuals"));}
         let use_=self.original.borrow().as_ref().ok_or_else(||bad("actual intrinsic lacks universal original proof"))?.intrinsic(caller.definition,site.recipe,b)?;
         if Intrinsic::actual(&instruction.kind)!=Some(use_.kind){return Err(bad("actual opcode differs from its independently resolved original intrinsic"));}
+        if let Intrinsic::Convert(target)=use_.kind{
+            let value=match instruction.kind{InstructionKind::ConvertInteger{value,..}|InstructionKind::ConvertNumber{value,..}=>value,_=>return Err(bad("numeric scheme selects another actual operation"))};
+            let source=&value_at(values,value)?.ty;
+            if !source.is_integer()&&!source.is_float(){return Err(bad("actual conversion lacks its independently defined numeric input"));}
+            return Ok(Some(atomic(&target.ty(),b)?));
+        }
         if use_.kind==Intrinsic::TaskYield{
             if f.call_kind!=CallKind::Suspend{return Err(bad("actual task_yield changes its fixed Suspend convention"));}
             return Ok(Some(atomic(&Type::Unit,b)?));

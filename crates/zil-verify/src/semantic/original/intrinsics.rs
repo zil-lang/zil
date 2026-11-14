@@ -4,13 +4,21 @@
 use super::*;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub(in crate::semantic) enum Intrinsic {TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity}
+pub(in crate::semantic) enum Intrinsic {Convert(Numeric),TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity}
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub(in crate::semantic) enum Numeric {I8,I16,I32,I64,Isize,U8,U16,U32,U64,Usize,F32,F64}
+impl Numeric {
+    pub(in crate::semantic) fn ty(self)->Type{match self{Self::I8=>Type::I8,Self::I16=>Type::I16,Self::I32=>Type::I32,Self::I64=>Type::I64,Self::Isize=>Type::Isize,Self::U8=>Type::U8,Self::U16=>Type::U16,Self::U32=>Type::U32,Self::U64=>Type::U64,Self::Usize=>Type::Usize,Self::F32=>Type::F32,Self::F64=>Type::F64}}
+    fn name(name:&str)->Option<Self>{Some(match name{"i8"=>Self::I8,"i16"=>Self::I16,"i32"=>Self::I32,"i64"=>Self::I64,"isize"=>Self::Isize,"u8"=>Self::U8,"u16"=>Self::U16,"u32"=>Self::U32,"u64"=>Self::U64,"usize"=>Self::Usize,"f32"=>Self::F32,"f64"=>Self::F64,_=>return None})}
+    fn from_type(ty:&Type)->Option<Self>{[Self::I8,Self::I16,Self::I32,Self::I64,Self::Isize,Self::U8,Self::U16,Self::U32,Self::U64,Self::Usize,Self::F32,Self::F64].into_iter().find(|value|value.ty()==*ty)}
+}
 #[derive(Clone,Copy)]
 pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32}}
 #[derive(Clone,Copy)]
 pub(in crate::semantic) struct Use {pub(in crate::semantic) kind:Intrinsic,pub(in crate::semantic) buffer:Option<BufferSource>}
 impl Intrinsic {
     pub(in crate::semantic) fn actual(kind:&InstructionKind)->Option<Self>{Some(match kind{
+        InstructionKind::ConvertInteger{target,..}|InstructionKind::ConvertNumber{target,..}=>Self::Convert(Numeric::from_type(target)?),
         InstructionKind::TaskYield=>Self::TaskYield,
         InstructionKind::ByteBufferNew=>Self::BytesNew,
         InstructionKind::ByteBufferReserve{..}=>Self::BytesReserve,
@@ -20,7 +28,7 @@ impl Intrinsic {
         InstructionKind::ByteBufferCapacity{..}=>Self::BytesCapacity,
         _=>return None,
     })}
-    fn name(name:&str)->Option<Self>{Some(match name{"task_yield"=>Self::TaskYield,"bytes_new"=>Self::BytesNew,"bytes_reserve"=>Self::BytesReserve,"bytes_push"=>Self::BytesPush,"bytes_truncate"=>Self::BytesTruncate,"bytes_len"=>Self::BytesLen,"bytes_capacity"=>Self::BytesCapacity,_=>return None})}
+    fn name(name:&str)->Option<Self>{if let Some(target)=Numeric::name(name){return Some(Self::Convert(target));}Some(match name{"task_yield"=>Self::TaskYield,"bytes_new"=>Self::BytesNew,"bytes_reserve"=>Self::BytesReserve,"bytes_push"=>Self::BytesPush,"bytes_truncate"=>Self::BytesTruncate,"bytes_len"=>Self::BytesLen,"bytes_capacity"=>Self::BytesCapacity,_=>return None})}
 }
 impl CheckedOriginal {
     pub(super) fn intrinsic_name(&self,module:&TypedModule,context:&CheckedContext,base:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<Option<Intrinsic>> {
@@ -43,9 +51,10 @@ impl CheckedOriginal {
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn intrinsic_call(&mut self,module:&TypedModule,context:&CheckedContext,intrinsic:Intrinsic,site:SemanticSiteId,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty> {
-        let arity=match intrinsic{Intrinsic::TaskYield|Intrinsic::BytesNew=>0,Intrinsic::BytesLen|Intrinsic::BytesCapacity=>1,_=>2};
+        let arity=match intrinsic{Intrinsic::TaskYield|Intrinsic::BytesNew=>0,Intrinsic::Convert(_)=>1,Intrinsic::BytesLen|Intrinsic::BytesCapacity=>1,_=>2};
         if arguments.len()!=arity{return Err(bad("registered intrinsic value arity differs from its closed scheme"));}
         self.execute_effect(env,if intrinsic==Intrinsic::TaskYield{CallKind::Suspend}else{CallKind::Direct},b)?;
+        if let Intrinsic::Convert(target)=intrinsic{let source=self.expression(module,context,&arguments[0],env,bindings,None,active,b)?;if !matches!(self.resolved(&source,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion lacks a complete numeric source carrier"));}self.intrinsic_calls.insert((env.current()?,site),Use{kind:intrinsic,buffer:None});return Ok(Ty::Atom(target.ty()));}
         if intrinsic==Intrinsic::TaskYield{self.intrinsic_calls.insert((env.current()?,site),Use{kind:intrinsic,buffer:None});return Ok(Ty::Atom(Type::Unit));}
         if intrinsic==Intrinsic::BytesNew{self.intrinsic_calls.insert((env.current()?,site),Use{kind:intrinsic,buffer:None});return Ok(Ty::Managed(Box::new(Ty::Atom(Type::ByteBuffer))));}
         let (buffer,place)=self.place(module,context,&arguments[0],env,bindings,active,b)?;

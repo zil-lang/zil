@@ -8,6 +8,13 @@ impl CheckedOriginal {
             self.remember_names(env,SemanticOriginalNode::Expression(expression.id),bindings,b)?;
             let result=match &expression.kind{
                 CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>{self.value_bindings.insert((env.current()?,expression.id),binding.identity.clone());(binding.ty.clone(),Some(Place{binder:binding.identity.clone(),fields:vec![]}))},None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>(ty,None),Arg::Const(value)=>(*value.carrier,None),Arg::Life(_)=>return Err(bad("original value place selects a lifetime name"))}},
+                CoreExprKind::ReceiverMember(member)=>{
+                    let definition=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{receiver_parameter:Some(ordinal),..}=&definition.body else{return Err(bad("original receiver shorthand has no true source receiver parameter"));};
+                    let owner=env.current()?;let receiver=bindings.values().find(|row|matches!(row.identity,Binder::Parameter{definition,ordinal:actual} if definition==owner&&actual==*ordinal)).ok_or_else(||bad("original receiver parameter is absent"))?;
+                    self.read_original(module,context,&Place{binder:receiver.identity.clone(),fields:vec![]},&receiver.ty,env,false,active,b)?;
+                    let storage=match self.resolved(&receiver.ty,b)?{Ty::Address{inner,..}|Ty::Desc{inner,..}=>*inner,_=>return Err(bad("original receiver shorthand lacks an actual borrowed/description receiver"))};
+                    (self.field(module,context,&storage,member,env,active,b)?,None)
+                },
                 CoreExprKind::Group(inner)=>self.place(module,context,inner,env,bindings,active,b)?,
                 CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
                     let (pointer,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&pointer,env,false,active,b)?;}
@@ -41,6 +48,10 @@ impl CheckedOriginal {
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn argument(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,expected:&Ty,mode:PassingMode,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        if let Ty::Desc{life:expected_life,inner:payload}=self.resolved(expected,b)?{if matches!(mode,PassingMode::Infer|PassingMode::Describe){
+            let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}
+            return match self.resolved(&actual,b)?{Ty::Managed(inner)=>{self.unify(&inner,&payload,b)?;let life=Life::Local(env.current()?,expression.id);self.unify_life(&life,&expected_life,b)?;Ok(Ty::Desc{life,inner})},Ty::Desc{life,inner}=>{self.unify(&inner,&payload,b)?;self.unify_life(&life,&expected_life,b)?;Ok(Ty::Desc{life,inner})},_=>Err(bad("original description argument has no actual owner or description"))};
+        }}
         match mode{
             PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe=>{
                 let (actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}self.unify(&actual,expected,b)?;Ok(actual)

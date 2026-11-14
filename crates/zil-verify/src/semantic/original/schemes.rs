@@ -145,9 +145,10 @@ impl CheckedOriginal {
                 Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Slice(inner)|Ty::Managed(inner)|Ty::Store(inner)=>self.scheme_term(module,context,inner,caller,active,b)?,
                 Ty::ErrorUnion(error,result)=>{self.scheme_term(module,context,error,caller,active,b)?;self.scheme_term(module,context,result,caller,active,b)?;},
                 Ty::Code{parameters,result,..}=>{for parameter in parameters{self.scheme_term(module,context,parameter,caller,active,b)?;}self.scheme_term(module,context,result,caller,active,b)?;},
+                Ty::Carrier{child,retained,..}=>{self.scheme_term(module,context,child,caller,active,b)?;let mut types=Vec::new();retained.types(&mut types,b)?;for ty in types{self.scheme_term(module,context,ty,caller,active,b)?;}},
                 Ty::Closure(..)=>return Err(unsupported("original closure scheme needs its complete creator/environment role-domain inventory",None)),
                 Ty::Infer(_)=>return Err(bad("frozen original scheme retains an unresolved inferred type")),
-                Ty::Variable(..)|Ty::SelfType(_)|Ty::Atom(_)|Ty::Function(_)=>{},
+                Ty::Variable(..)|Ty::SelfType(_)|Ty::Atom(_)|Ty::SealedError(_)|Ty::Function(_)=>{},
             }Ok(())
         })
     }

@@ -58,9 +58,28 @@ impl CheckedContext {
             }
             for (ordinal,actual) in sealed.iter().enumerate() {if let CheckedActual::Type(value)=actual {self.record(key,OperandKey::Environment{scope:key,ordinal:ordinal as u32},value,b)?;}}
             lexical.insert(0,LexicalFrame{definition:definition.id,key,actuals,environment:sealed,self_type:None});
-            // Self requires original impl-pattern, complete actual receiver and
-            // member embedding. Never initialize it from its own raw claim.
-            if instance.self_type.is_some() {return Err(unsupported("semantic instance Self requires its exact original scope/receiver proof",None));}
+            // Reconstruct Self from the real original impl pattern in its own
+            // full actual/parent environment. A raw Self claim is compared only
+            // afterwards, never used as its own receiver authority.
+            let self_recipe=match &definition.body{
+                SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl{self_type,..}|SemanticScopeRecipe::TraitImpl{self_type,..}|SemanticScopeRecipe::BuiltinImpl{self_type,..})=>Some(self_type),
+                _=>None,
+            };
+            let self_value=if let Some(recipe)=self_recipe{
+                let scope_environment=EvalEnv{assumptions:lexical.iter().map(|frame|frame.key).collect(),lexical:lexical.clone(),images:vec![],bounds:vec![],invocations:vec![],at:None};
+                let mut external=dynamic_witness::semantic_external::Proofs::default();
+                let value=self.evaluate_type(module,recipe,&scope_environment,&mut external,active,b)?;
+                if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty(){return Err(unsupported("impl Self construction retains unproved entry/static obligations",None));}
+                Some(value)
+            }else if matches!(definition.kind,SemanticDefinitionKind::Method){
+                lexical.get(1).and_then(|parent|parent.self_type.clone())
+            }else{None};
+            if let Some(claim)=&instance.self_type{
+                let expected=self_value.as_ref().ok_or_else(||bad("actual Self claim has no real original impl/receiver scope"))?;
+                let scope_environment=EvalEnv{assumptions:lexical.iter().map(|frame|frame.key).collect(),lexical:lexical.clone(),images:vec![],bounds:vec![],invocations:vec![],at:None};
+                self.claim(module,claim,expected,&scope_environment,b)?;
+            }
+            lexical[0].self_type=self_value;
         }
         let frame=active.fresh(b)?;
         let current=self.instance(module,id,b)?;

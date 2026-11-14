@@ -18,6 +18,7 @@ impl CheckedOriginal {
             Ty::Slice(inner)=>Ty::Slice(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
             Ty::Managed(inner)=>Ty::Managed(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
             Ty::Store(inner)=>Ty::Store(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
+            Ty::Carrier{kind,child,retained}=>Ty::Carrier{kind,child:Box::new(self.apply_type_at(&child,env,depth+1,b)?),retained:Box::new(retained.map(|ty,b|self.apply_type_at(ty,env,depth+1,b),|life,b|self.apply_life(life,env,b),b)?)},
             Ty::Array(inner,length)=>Ty::Array(Box::new(self.apply_type_at(&inner,env,depth+1,b)?),Box::new(self.apply_constant(&length,env,depth+1,b)?)),
             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.apply_type_at(&error,env,depth+1,b)?),Box::new(self.apply_type_at(&result,env,depth+1,b)?)),
             Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{let mut values=Vec::new();for parameter in parameters{values.push(self.apply_type_at(&parameter,env,depth+1,b)?);}Ty::Code{kind,parameters:values,result:Box::new(self.apply_type_at(&result,env,depth+1,b)?),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}},
