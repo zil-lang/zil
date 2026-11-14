@@ -1,0 +1,1005 @@
+{
+  "candidate": "e13f41bbd73e8216aaa7693cc56b7eae16438ee6",
+  "stages": [
+    "WORKSPACE_ALLTARGETS_EXIT=0 TYPES_PROBE_EXIT=0 CLI_BUILD_EXIT=0 CORE_CHAIN_EXIT=1",
+    "CORE_COVERAGE_EXIT=1",
+    "SOURCE_LIB_EXIT=101",
+    "ANALYZE_EFFECTS_EXIT=0",
+    "HOSTILE_BODY_EXIT=0"
+  ],
+  "native": {
+    "candidate": "e13f41bbd73e8216aaa7693cc56b7eae16438ee6",
+    "cli_sha256": "d02ef73f3e81a46bd51809d923a09681ef0d0dbbce233e40d0527c383ea69650",
+    "scope": "Original generic-body/closure feature chains, not all Alpha coverage",
+    "rows": [
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/ordinary-generic-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/local-closure-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture class image needs its actual emitted value or initialized occupant",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture class image needs its actual emitted value or initialized occupant",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture class image needs its actual emitted value or initialized occupant",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/semantic-only-phantom-capture-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture class image needs its actual emitted value or initialized occupant",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/chains/unused-generic-identity-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "passed": 12,
+    "failed": 4
+  },
+  "core_coverage": {
+    "candidate": "e13f41bbd73e8216aaa7693cc56b7eae16438ee6",
+    "cli_sha256": "d02ef73f3e81a46bd51809d923a09681ef0d0dbbce233e40d0527c383ea69650",
+    "scope": "Existing13 complete Source capability consumers; check only, not native/Alpha acceptance",
+    "baseline": "/workspace/zil-alpha-candidate/out/runs/alpha-tenth-shared-candidate/core-coverage-configured-env/receipt.json",
+    "rows": [
+      {
+        "family": "scalars",
+        "source": "tests/integers/complete-domains.zil",
+        "source_sha256": "8b4677e668bcb425724ba30599b11d3138121b8818bb25d8379fd1c3fbabeaa3",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/integers/complete-domains.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/scalars/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "ct",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original type constructor requires its complete scoped domain interpretation",
+            "span": null,
+            "notes": [
+              "while compiling a pure #(...) query"
+            ]
+          }
+        ]
+      },
+      {
+        "family": "patterns",
+        "source": "tests/fixtures/ownership/owned-option-session.zil",
+        "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/ownership/owned-option-session.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/patterns/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-WORLD",
+            "message": "original site does not match its actual operation and operand",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "generic-libraries",
+        "source": "examples/mainline/draft_foundations/main.zil",
+        "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/draft_foundations/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/generic-libraries/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "call class requires its complete scoped invocation/outer relation",
+            "span": null,
+            "notes": [
+              "unmapped original call class: Implicit { scope: Ancestor(0), ordinal: 0 }; mixed actual positions: 1; sealed environment: false"
+            ]
+          }
+        ]
+      },
+      {
+        "family": "closures",
+        "source": "examples/mainline/generic-callbacks/main.zil",
+        "source_sha256": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/generic-callbacks/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/closures/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "opaque hidden type requires its actual original call-result boundary: instance SemanticInstanceId { module: ModuleId(0), index: 1 }, actual definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, opaque definition SemanticDefinitionId { module: ModuleId(1), index: 3 }",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "ownership",
+        "source": "examples/mainline/state-replacement/main.zil",
+        "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/state-replacement/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/ownership/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-STORED-IDENTITY",
+            "message": "one complete nominal actual vector has multiple semantic types",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "dynamic-abstraction",
+        "source": "tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+        "source_sha256": "8a5df893801e58386b266191b6c62bcf82a55211e2fbef639ad015db827be8ff",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/dynamic-abstraction/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "original type recipe differs from its actual emitted complete type",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "async-ownership",
+        "source": "tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+        "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/async-ownership/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "nominal recipe has no actual complete declaration/application: instance SemanticInstanceId { module: ModuleId(0), index: 1 }, definition SemanticDefinitionId { module: ModuleId(4294967295), index: 1 }, declaration LifeDeclarationId { module: ModuleId(4294967295), declaration: NodeId(1), compiler: true }, original kind Enum, actual hint Enum, mixed actuals 1",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "threads",
+        "source": "tests/fixtures/threading/mutex-worker-helpers.zil",
+        "source_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/threading/mutex-worker-helpers.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/threads/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "whole closure type has an unknown actual domain",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "foreign-lifecycle",
+        "source": "tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+        "source_sha256": "492843ac3b06c3e1a904e968811e47ebe5047178ea92a3db6be292857d1e7818",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/foreign-lifecycle/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original compound assignment lacks a primitive endpoint premise",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 9 }, expression NodeId(21)"
+            ]
+          }
+        ]
+      },
+      {
+        "family": "owning-collections",
+        "source": "tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+        "source_sha256": "ef8f72781a1e834993cfc9b5ee3b09343a896c1a9fdb212755e00598d55ad870",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/owning-collections/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "nominal child has no complete original catalogue entry",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "buffered-io",
+        "source": "tests/fixtures/buffered-io/short_io.zil",
+        "source_sha256": "25f26e1397071fd97bae5a83ede8eb91e3ceee94c1c1ec27615667143f5bcf5a",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/buffered-io/short_io.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/buffered-io/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-EMISSION",
+            "message": "semantic source expression NodeId(59) in FunctionId(6) was not actually emitted",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "family": "iteration",
+        "source": "tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+        "source_sha256": "bdebeb8bd047fb868889de3e6a4acefa2e615f860192105f2cb5538272ccbfe1",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/iteration/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "ordinary Value premise needs complete original carrier semantics",
+            "span": {
+              "file": 0,
+              "start": 950,
+              "end": 993
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 10 }, expression NodeId(44)"
+            ]
+          }
+        ]
+      },
+      {
+        "family": "project-workflow",
+        "source": "examples/mainline/stream/main.zil",
+        "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/stream/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent/core-coverage/project-workflow/phases",
+          "--json"
+        ],
+        "pass": false,
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original body changes a rigid whole type or lifetime anchor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original type heads: actual OriginalType, wanted Unit",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(11)"
+            ]
+          }
+        ]
+      }
+    ],
+    "passed": 0,
+    "failed": 13
+  },
+  "source_lib": {
+    "passed": 133,
+    "failed": 1,
+    "failure": "Resource Self explicit reference retained a nested descriptor; production fix saved4c0a9ce48 and later Source137 passed at002b19caf."
+  },
+  "analyze_original_effects": {
+    "passed": 4,
+    "failed": 0
+  },
+  "hostile_unused_generic_body": {
+    "passed": 1,
+    "failed": 0
+  },
+  "acceptance": false
+}

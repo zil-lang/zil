@@ -1,0 +1,25 @@
+{
+  "reviewed_at_utc": "2026-11-14T04:09:00.633958+00:00",
+  "reviewer": "Astra; public Source/IR/Types/specs only; no Analyze/Verify algorithm reading",
+  "decision": "Normalize source categories before signature/implicit creation and before generic syntax substitution; no Desc-to-Managed cast.",
+  "matrix": {
+    "ordinary_bare_R": "Desc<rawR>",
+    "give_parameter_create_or_give_result": "Managed<rawR>",
+    "explicit_Managed_R": "Managed<rawR> exactly once",
+    "explicit_reference_R": "Address<Managed<rawR>>",
+    "explicit_reference_Ref_R": "Address<Desc<rawR>>",
+    "reference_ordinary_formal_T": "Address<complete actual T>; default R actual already means Desc, and must remain so"
+  },
+  "identity": "True source resource declaration or sealed builtin identity; Package stays owning ordinary Value.",
+  "self": "Normalize Self occurrence from true implementation scope before replacement; Address<Self>, explicit Desc/Managed payload, bare/default Self and give/create remain distinct. Include nonreceiver arguments, provider conformance, default bodies and where/Callable signatures. Unknown trait Self stays symbolic.",
+  "boundaries": [
+    "Generic specialization must preserve complete actual categories rather than replace T with bare R spelling then reinterpret &R.",
+    "Actual Resolver consumes already classified types; it cannot infer original syntax from resolved Address<Desc<R>>.",
+    "Real borrowed place distinguishes Managed head from Desc variable slot. Borrowing a descriptor slot cannot grant owner responsibility.",
+    "Only the real outer address occurrence is added for &R; &Ref<R> retains both real occurrences and complete inner phantom/retained N.",
+    "Category uniformity does not admit unsupported operation profiles or grant Copy/write/move/Thread/cleanup privileges."
+  ],
+  "normative_spec_commit": "f82decd6f",
+  "resolver_commit": "53b6b7029",
+  "status": "Source specialization and original type/Self/mode matrix in implementation; not jointly accepted."
+}

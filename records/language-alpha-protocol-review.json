@@ -1,0 +1,32 @@
+{
+  "reviewed_at_utc": "2026-11-14T04:09:00.633958+00:00",
+  "reviewer": "Astra; public Source/IR/Types/specs only; no Analyze/Verify algorithm reading",
+  "finding": "Original source protocol, foreign unsafe promises and resume choices must survive in the complete original declaration head; actual Typed metadata cannot fill original premises.",
+  "representation": {
+    "body": "SemanticDefinitionBody::FunctionWithBody",
+    "protocol_contracts": "Vec<FunctionProtocolContract>; original ordered value parameter ordinal including a real receiver and excluding added hidden ABI parameters",
+    "foreign": "Option<ForeignDeclaration>; complete original ABI/symbol/noescape/static callback/scoped role/thread-driver promises",
+    "resume_bound": "TaskResumeBound; original explicit selection or Local default",
+    "runtime_schema": 50,
+    "ct_artifact_schema": 10,
+    "ct_magic": "Existing distinct runtime CT program and CT artifact magic retained; explicit versions reject old content"
+  },
+  "rules": [
+    "Source derives the original head from immutable original declarations, independently of actual Core proposals; normalization errors propagate.",
+    "Original protocol entry is a conditional premise; caller proves true argument state before using a callee exit relation proved from every original exit.",
+    "Missing protocol grants no Closing/Closed and no neutral-state assumption. Unsupported relations reject explicitly.",
+    "Actual head matches the complete original declaration through exact definition/specialization/ABI mapping; actual roots, generations, poll origins and cleanup remain independent.",
+    "Full original body/content identity, runtime wire, CT codec, reification/lifting and metered clone traversals include every new field."
+  ],
+  "commits": [
+    "9b2a11ea5",
+    "38610878c",
+    "fbf4c3916",
+    "9e02390e7",
+    "175f6a101",
+    "a4ee236b0",
+    "5dcc8d7bf",
+    "4dd564585"
+  ],
+  "acceptance": "Real unchanged foreign lifecycle source reaches independent Verify and its C provider/native/failure-cleanup consumer; raw transport or a local control is not feature acceptance."
+}
