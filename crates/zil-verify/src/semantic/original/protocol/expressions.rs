@@ -16,7 +16,7 @@ impl Engine<'_> {
                 match &mut value {
                     Value::Owner {
                         borrowed: actual, ..
-                    } => *actual = borrowed,
+                    } => *actual |= borrowed,
                     Value::Fresh | Value::FreshTask if !borrowed => {}
                     _ => {
                         return Err(unsupported(
@@ -56,6 +56,15 @@ impl Engine<'_> {
             Unary { op, operand } => {
                 let value = self.expression(operand, state, depth + 1, b)?;
                 match (op, value) {
+                    (UnaryOp::Borrow | UnaryOp::BorrowMut, value @ Value::Product(_)) => {
+                        Ok(tasks::task_borrow_value(value))
+                    }
+                    (UnaryOp::Give, value @ Value::Product(_)) => {
+                        if let Some(place) = self.task_place(operand, b)? {
+                            self.task_take_place(state, &place, b)?;
+                        }
+                        Ok(value)
+                    }
                     (UnaryOp::Borrow | UnaryOp::BorrowMut, Value::Owner { root, .. }) => {
                         Ok(Value::Owner {
                             root,
@@ -69,8 +78,8 @@ impl Engine<'_> {
                             borrowed: false,
                         },
                     ) => {
-                        if let Some(binder) = self.binder(operand, b)? {
-                            state.values.remove(&binder);
+                        if let Some(place) = self.task_place(operand, b)? {
+                            self.task_take_place(state, &place, b)?;
                         }
                         Ok(Value::Owner {
                             root,
@@ -130,13 +139,7 @@ impl Engine<'_> {
             } => {
                 let a = self.expression(left, state, depth + 1, b)?;
                 let c = self.expression(right, state, depth + 1, b)?;
-                if matches!(
-                    a,
-                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
-                ) || matches!(
-                    c,
-                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
-                ) {
+                if tasks::owner_value(&a) || tasks::owner_value(&c) {
                     return Err(unsupported(
                         "original registration projection needs its complete owner path ledger",
                         Some(node.span),
@@ -153,6 +156,20 @@ impl Engine<'_> {
             }
             Try(value) => {
                 let value = self.expression(value, state, depth + 1, b)?;
+                if let Value::FallibleTaskOwned(inputs) = &value {
+                    let mut failed = state.copy(b)?;
+                    for input in inputs {
+                        self.task_transfer_value(&mut failed, input, b)?;
+                    }
+                    let pending = self.error_unwind.clone();
+                    let failed = self.unwind(failed, &pending, 0, depth + 1, b)?;
+                    self.error_unwind = pending;
+                    self.check_exit(failed, Value::Plain, b)?;
+                    for input in inputs {
+                        self.task_transfer_value(state, input, b)?;
+                    }
+                    return Ok(Value::FreshTask);
+                }
                 if value == Value::FallibleTask {
                     b.spend(self.error_unwind.len())?;
                     let deferred = self.error_unwind.clone();
@@ -183,32 +200,61 @@ impl Engine<'_> {
                 union_value(&a, &c, b)
             }
             Tuple(fields) | Array(fields) => {
-                for field in fields {
+                let array = matches!(node.kind, Array(_));
+                let mut values = Vec::new();
+                for (index, field) in fields.iter().enumerate() {
                     let value = self.expression(field, state, depth + 1, b)?;
-                    self.reject_packed_owner(&value, node)?;
+                    values.push((
+                        if array {
+                            format!("[{index}]")
+                        } else {
+                            index.to_string()
+                        },
+                        value,
+                    ));
                 }
-                Ok(Value::Plain)
+                Ok(Value::Product(values))
             }
             Record { fields, .. } | RecordConstructor { fields, .. } => {
-                for (_, field) in fields {
-                    let value = self.expression(field, state, depth + 1, b)?;
-                    self.reject_packed_owner(&value, node)?;
+                let mut values = Vec::new();
+                for (name, field) in fields {
+                    values.push((name.clone(), self.expression(field, state, depth + 1, b)?));
                 }
-                Ok(Value::Plain)
+                Ok(Value::Product(values))
             }
             RecordUpdate { base, fields, .. } => {
-                let value = self.expression(base, state, depth + 1, b)?;
-                self.reject_packed_owner(&value, node)?;
-                for (_, field) in fields {
+                let base = self.expression(base, state, depth + 1, b)?;
+                let Value::Product(mut values) = base else {
+                    return Ok(Value::Plain);
+                };
+                for (name, field) in fields {
                     let value = self.expression(field, state, depth + 1, b)?;
-                    self.reject_packed_owner(&value, node)?;
+                    let slot = values
+                        .iter_mut()
+                        .find(|(key, _)| key == name)
+                        .ok_or_else(|| {
+                            bad("Task record update changes its original product field")
+                        })?;
+                    self.task_cleanup_value(state, &slot.1, Some(&value), b)?;
+                    slot.1 = value;
                 }
-                Ok(Value::Plain)
+                Ok(Value::Product(values))
             }
-            Member { object, .. } => {
+            Member { object, member, .. } => {
                 let value = self.expression(object, state, depth + 1, b)?;
-                self.reject_packed_owner(&value, node)?;
-                Ok(Value::Plain)
+                match value {
+                    Value::Product(fields) => fields
+                        .into_iter()
+                        .find(|(name, _)| name == member)
+                        .map(|(_, value)| value)
+                        .ok_or_else(|| {
+                            bad("Task projected read changes its real original product field")
+                        }),
+                    value => {
+                        self.reject_packed_owner(&value, node)?;
+                        Ok(Value::Plain)
+                    }
+                }
             }
             Slice { object, start, end } => {
                 let value = self.expression(object, state, depth + 1, b)?;
@@ -279,10 +325,7 @@ impl Engine<'_> {
         }
     }
     fn reject_packed_owner(&self, value: &Value, node: &SemanticOriginalExpr) -> Check<()> {
-        if matches!(
-            value,
-            Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
-        ) {
+        if tasks::owner_value(value) {
             Err(unsupported(
                 "original aggregate registration needs its complete projected owner/epoch ledger",
                 Some(node.span),
@@ -497,6 +540,42 @@ impl Engine<'_> {
         // Read every actual operand from the same pre-call state before any
         // owner is updated. Two formal roles cannot strong-update one owner.
         for (ordinal, value) in values.iter().enumerate() {
+            if let Value::Product(_) = value {
+                if protocol_contracts
+                    .iter()
+                    .any(|role| role.parameter as usize == ordinal)
+                {
+                    return Err(bad(
+                        "registration protocol role cannot select an aggregate Task source",
+                    ));
+                }
+                let mut leaves = Vec::new();
+                tasks::task_roots(value, &mut leaves, b)?;
+                for root in leaves {
+                    if !seen.insert(root.clone()) {
+                        return Err(bad(
+                            "Task call aliases independently selected owner parameter roles",
+                        ));
+                    }
+                    let owner = state.owner(&root, b)?;
+                    if !owner.task {
+                        return Err(unsupported(
+                            "aggregate registration call lacks its exact original protocol roles",
+                            None,
+                        ));
+                    }
+                    pending.push((
+                        root,
+                        if self.observing_parameter(target, site, ordinal, b)? {
+                            LIVE
+                        } else {
+                            DEAD
+                        },
+                        None,
+                    ));
+                }
+                continue;
+            }
             let Value::Owner { root, .. } = value else {
                 if protocol_contracts
                     .iter()

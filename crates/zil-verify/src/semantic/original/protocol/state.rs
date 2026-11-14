@@ -28,7 +28,7 @@ pub(super) struct Owner {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Conditional {
-    pub(super) root: Binder,
+    pub(super) root: Place,
     pub(super) generation: u64,
     pub(super) pending: u8,
     pub(super) ready: u8,
@@ -37,12 +37,14 @@ pub(super) struct Conditional {
 pub(super) enum Value {
     Plain,
     Owner {
-        root: Binder,
+        root: Place,
         borrowed: bool,
     },
     Fresh,
     FreshTask,
     FallibleTask,
+    FallibleTaskOwned(Vec<Value>),
+    Product(Vec<(String, Value)>),
     Poll {
         relations: Vec<Conditional>,
         tag: Option<ProtocolExit>,
@@ -51,12 +53,27 @@ pub(super) enum Value {
 impl Value {
     fn width(&self) -> usize {
         match self {
-            Self::Owner { root, .. } => binder_width(root),
+            Self::Owner { root, .. } => place_width(root),
+            Self::Product(fields) => fields.iter().fold(1usize, |n, (name, value)| {
+                n.saturating_add(name.len()).saturating_add(value.width())
+            }),
+            Self::FallibleTaskOwned(fields) => fields
+                .iter()
+                .fold(1usize, |n, value| n.saturating_add(value.width())),
             Self::Poll { relations, .. } => relations.iter().fold(1usize, |n, row| {
-                n.saturating_add(binder_width(&row.root)).saturating_add(3)
+                n.saturating_add(place_width(&row.root)).saturating_add(3)
             }),
             _ => 1,
         }
+    }
+}
+fn place_width(place: &Place) -> usize {
+    binder_width(&place.binder).saturating_add(place.fields.iter().map(String::len).sum::<usize>())
+}
+pub(super) fn root_place(binder: &Binder) -> Place {
+    Place {
+        binder: binder.clone(),
+        fields: vec![],
     }
 }
 fn binder_width(binder: &Binder) -> usize {
@@ -69,7 +86,7 @@ fn binder_width(binder: &Binder) -> usize {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct State {
-    pub(super) owners: BTreeMap<Binder, Owner>,
+    pub(super) owners: BTreeMap<Place, Owner>,
     pub(super) values: BTreeMap<Binder, Value>,
 }
 impl State {
@@ -77,7 +94,7 @@ impl State {
         self.owners
             .keys()
             .fold(1usize, |n, key| {
-                n.saturating_add(binder_width(key)).saturating_add(2)
+                n.saturating_add(place_width(key)).saturating_add(2)
             })
             .saturating_add(self.values.iter().fold(0usize, |n, (key, value)| {
                 n.saturating_add(binder_width(key))
@@ -88,10 +105,10 @@ impl State {
         b.spend(self.width())?;
         Ok(self.clone())
     }
-    pub(super) fn invalidate(&mut self, root: &Binder, b: &mut Budget) -> Check<()> {
+    pub(super) fn invalidate(&mut self, root: &Place, b: &mut Budget) -> Check<()> {
         b.spend(
             self.width()
-                .saturating_mul(binder_width(root).saturating_add(1)),
+                .saturating_mul(place_width(root).saturating_add(1)),
         )?;
         for value in self.values.values_mut() {
             if matches!(value,Value::Poll{relations,..}if relations.iter().any(|row|&row.root==root))
@@ -110,8 +127,8 @@ impl State {
         }
         Ok(())
     }
-    pub(super) fn owner(&self, root: &Binder, b: &mut Budget) -> Check<&Owner> {
-        b.spend(binder_width(root).saturating_add(1))?;
+    pub(super) fn owner(&self, root: &Place, b: &mut Budget) -> Check<&Owner> {
+        b.spend(place_width(root).saturating_add(1))?;
         let owner = self
             .owners
             .get(root)
@@ -136,7 +153,7 @@ impl State {
             return Ok(false);
         }
         for row in relations {
-            b.spend(binder_width(&row.root).saturating_add(2))?;
+            b.spend(place_width(&row.root).saturating_add(2))?;
             let owner = self
                 .owners
                 .get_mut(&row.root)
@@ -199,7 +216,7 @@ impl Engine<'_> {
     pub(super) fn update(
         &mut self,
         state: &mut State,
-        root: &Binder,
+        root: &Place,
         states: u8,
         b: &mut Budget,
     ) -> Check<u64> {
@@ -295,7 +312,7 @@ impl Engine<'_> {
         let value = if value == Value::Fresh {
             if state
                 .owners
-                .get(&binder)
+                .get(&root_place(&binder))
                 .is_some_and(|owner| owner.states != DEAD)
             {
                 return Err(unsupported(
@@ -305,7 +322,7 @@ impl Engine<'_> {
             }
             let generation = self.generation(b)?;
             state.owners.insert(
-                binder.clone(),
+                root_place(&binder),
                 Owner {
                     states: LIVE,
                     generation,
@@ -314,7 +331,7 @@ impl Engine<'_> {
                 },
             );
             Value::Owner {
-                root: binder.clone(),
+                root: root_place(&binder),
                 borrowed: false,
             }
         } else {

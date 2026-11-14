@@ -53,7 +53,7 @@ impl CheckedContext {
         }
         Ok(true)
     }
-    fn canonical_origin(&self,origin:&IntrinsicOrigin,b:&mut Budget)->Check<IntrinsicOrigin> {
+    pub(crate) fn canonical_origin(&self,origin:&IntrinsicOrigin,b:&mut Budget)->Check<IntrinsicOrigin> {
         let mut current=match origin {
             IntrinsicOrigin::DerivedClass{source:ClassKey::Intrinsic{scope,operand,path,class}}=>IntrinsicOrigin::Existing{scope:*scope,operand:operand.clone(),path:path.clone(),class:*class},
             origin=>origin.clone(),

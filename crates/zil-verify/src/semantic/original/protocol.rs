@@ -18,8 +18,8 @@ struct Engine<'a> {
     inputs: BTreeMap<u32, ProtocolState>,
     poll: bool,
     next: u64,
-    closed_tasks: BTreeSet<Binder>,
-    async_tasks: BTreeSet<Binder>,
+    closed_tasks: BTreeSet<Place>,
+    async_tasks: BTreeSet<Place>,
     error_unwind: Vec<&'a SemanticOriginalBlock>,
     task_loop_keys: Vec<BTreeSet<Binder>>,
 }
@@ -28,8 +28,9 @@ impl CheckedOriginal {
     pub(super) fn check_protocols<'a>(
         &mut self,
         module: &'a TypedModule,
-        _context: &CheckedContext,
+        context: &CheckedContext,
         index: &'a index::Index<'a>,
+        active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<()> {
         for (&id, function) in &index.definitions {
@@ -42,11 +43,40 @@ impl CheckedOriginal {
             else {
                 return Err(bad("original protocol body inventory is incomplete"));
             };
-            let prototype = self.prototypes.get(&id).ok_or_else(|| {
+            let prototype = self.prototypes.get(&id).cloned().ok_or_else(|| {
                 bad("original protocol replay has no universally checked signature")
             })?;
+            b.spend(prototype.parameters.len())?;
+            let mut parameter_shapes = Vec::new();
+            for ty in &prototype.parameters {
+                parameter_shapes.push(self.task_shape(module, context, ty, false, active, b, 0)?);
+            }
+            let free = self.free_values.get(&id).cloned().unwrap_or_default();
+            b.spend(free.len())?;
+            let mut free_shapes = Vec::new();
+            for binding in free.values() {
+                let root = Binder::Capture {
+                    definition: id,
+                    source: Box::new(binding.identity.clone()),
+                };
+                if !self.used.get(&id).is_some_and(|used| used.contains(&root)) {
+                    continue;
+                }
+                let shape = self.task_shape(
+                    module,
+                    context,
+                    &binding.ty,
+                    !self.creator_moves.get(&id).copied().unwrap_or(false),
+                    active,
+                    b,
+                    0,
+                )?;
+                free_shapes.push((root, shape, binding.ty.clone()));
+            }
             let mut relevant = !protocol_contracts.is_empty()
                 || contains_owner(&self.resolved(&prototype.result, b)?);
+            relevant |= parameter_shapes.iter().any(tasks::Shape::has_task)
+                || free_shapes.iter().any(|(_, shape, _)| shape.has_task());
             for ty in &prototype.parameters {
                 if contains_owner(&self.resolved(ty, b)?) {
                     relevant = true;
@@ -112,14 +142,26 @@ impl CheckedOriginal {
             for (ordinal, ty) in prototype.parameters.iter().enumerate() {
                 b.spend(1)?;
                 let ty = self.resolved(ty, b)?;
-                if let Some(borrowed) = owner_type(&ty) {
+                if parameter_shapes[ordinal].has_task() {
+                    let binder = Binder::Parameter {
+                        definition: id,
+                        ordinal: ordinal as u32,
+                    };
+                    let value = engine.task_entry(
+                        &mut state,
+                        &state::root_place(&binder),
+                        &parameter_shapes[ordinal],
+                        b,
+                    )?;
+                    state.values.insert(binder, value);
+                } else if let Some(borrowed) = owner_type(&ty) {
                     let root = Binder::Parameter {
                         definition: id,
                         ordinal: ordinal as u32,
                     };
                     let generation = engine.generation(b)?;
                     state.owners.insert(
-                        root.clone(),
+                        state::root_place(&root),
                         Owner {
                             states: LIVE,
                             generation,
@@ -127,9 +169,13 @@ impl CheckedOriginal {
                             owned: !borrowed,
                         },
                     );
-                    state
-                        .values
-                        .insert(root.clone(), Value::Owner { root, borrowed });
+                    state.values.insert(
+                        root.clone(),
+                        Value::Owner {
+                            root: state::root_place(&root),
+                            borrowed,
+                        },
+                    );
                 } else if contains_owner(&ty) {
                     return Err(unsupported(
                         "original nested registration needs its complete projected owner identity",
@@ -137,43 +183,16 @@ impl CheckedOriginal {
                     ));
                 }
             }
-            if let Some(free) = self.free_values.get(&id) {
-                for binding in free.values() {
-                    let ty = self.resolved(&binding.ty, b)?;
-                    if !contains_owner(&ty) {
-                        continue;
-                    }
-                    let root = Binder::Capture {
-                        definition: id,
-                        source: Box::new(binding.identity.clone()),
-                    };
-                    if !self.used.get(&id).is_some_and(|used| used.contains(&root)) {
-                        continue;
-                    }
-                    if !tasks::is_task(&ty) {
-                        return Err(unsupported(
-                            "original captured registration requires its sealed owner/epoch transport",
-                            None,
-                        ));
-                    }
-                    let root = Binder::Capture {
-                        definition: id,
-                        source: Box::new(binding.identity.clone()),
-                    };
-                    let borrowed = !self.creator_moves.get(&id).copied().unwrap_or(false);
-                    let generation = engine.generation(b)?;
-                    state.owners.insert(
-                        root.clone(),
-                        Owner {
-                            states: LIVE,
-                            generation,
-                            task: true,
-                            owned: !borrowed,
-                        },
-                    );
-                    state
-                        .values
-                        .insert(root.clone(), Value::Owner { root, borrowed });
+            for (root, shape, ty) in &free_shapes {
+                if shape.has_task() {
+                    let value =
+                        engine.task_entry(&mut state, &state::root_place(root), shape, b)?;
+                    state.values.insert(root.clone(), value);
+                } else if contains_owner(&self.resolved(ty, b)?) {
+                    return Err(unsupported(
+                        "original captured registration needs its complete capture protocol relation",
+                        None,
+                    ));
                 }
             }
             let mut combinations = vec![(state, BTreeMap::new())];
@@ -191,7 +210,7 @@ impl CheckedOriginal {
                         };
                         state
                             .owners
-                            .get_mut(&root)
+                            .get_mut(&state::root_place(&root))
                             .ok_or_else(|| bad("original protocol entry selects no owner"))?
                             .states = bit(*input);
                         next.push((state, inputs));
@@ -461,7 +480,10 @@ impl<'a> Engine<'a> {
                     definition: self.current,
                     ordinal: role.parameter,
                 };
-                let observed = actual.owners.get(&root).map_or(DEAD, |owner| owner.states);
+                let observed = actual
+                    .owners
+                    .get(&state::root_place(&root))
+                    .map_or(DEAD, |owner| owner.states);
                 let allowed = if row.output.is_empty() {
                     DEAD
                 } else {

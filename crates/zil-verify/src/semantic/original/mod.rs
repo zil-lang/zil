@@ -58,8 +58,8 @@ pub(super) struct CheckedOriginal {
     constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
     projection_terms:Vec<(Ty,LifeDeclarationId,Vec<Arg>,u32,Ty)>,
     trait_witnesses:Vec<(LifeDeclarationId,LifeDeclarationId)>,
-    task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Binder)>,
-    task_async_cleanups:BTreeSet<(SemanticDefinitionId,Binder)>,
+    task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
+    task_async_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
@@ -117,7 +117,7 @@ impl CheckedOriginal {
         // No original protocol claim is usable by the actual bridge until
         // every original body, including uninstantiated bodies, has been
         // checked against its own entry relation.
-        result.check_protocols(module,context,&index,b)?;
+        result.check_protocols(module,context,&index,active,b)?;
         result.check_cleanups(module,context,active,b)?;
         for(definition,_)in &result.task_async_cleanups{b.spend(1)?;if result.prototypes.get(definition).is_none_or(|prototype|prototype.call_kind!=CallKind::Suspend){return Err(bad("original asynchronous Task cleanup has no complete Suspend head"));}result.executing_effects.insert(*definition,CallKind::Suspend);}
         result.check_effects(b)?;

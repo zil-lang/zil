@@ -121,14 +121,14 @@ impl<'a> Engine<'a> {
                 self.expression(value, &mut state, depth + 1, b)?;
             }
             Assign { target, value } => {
-                let binder = self.binder(target, b)?.ok_or_else(|| {
+                let place = self.task_place(target, b)?.ok_or_else(|| {
                     unsupported(
                         "original protocol assignment needs its complete projected owner place",
                         Some(target.span),
                     )
                 })?;
                 let value = self.expression(value, &mut state, depth + 1, b)?;
-                self.bind(&mut state, binder, value, b)?;
+                self.task_assign_place(&mut state, &place, value, b)?;
             }
             CompoundAssign { target, value, .. } => {
                 self.expression(target, &mut state, depth + 1, b)?;
@@ -139,13 +139,7 @@ impl<'a> Engine<'a> {
                     Some(value) => self.expression(value, &mut state, depth + 1, b)?,
                     None => Value::Plain,
                 };
-                if let Value::Owner {
-                    root,
-                    borrowed: false,
-                } = &value
-                {
-                    self.update(&mut state, root, DEAD, b)?;
-                }
+                self.task_transfer_value(&mut state, &value, b)?;
                 let state = self.unwind(state, deferred, 0, depth + 1, b)?;
                 self.check_exit(state, value, b)?;
                 return Ok(Outcome::default());
@@ -523,9 +517,16 @@ impl<'a> Engine<'a> {
                 self.bind(state, binder.clone(), value.clone(), b)
             }
             CorePatternKind::Wildcard => {
+                if matches!(value, Value::Product(_)) {
+                    return self.task_cleanup_value(state, value, None, b);
+                }
                 if matches!(
                     value,
-                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
+                    Value::Owner { .. }
+                        | Value::Fresh
+                        | Value::FreshTask
+                        | Value::FallibleTask
+                        | Value::FallibleTaskOwned(_)
                 ) {
                     Err(unsupported(
                         "original wildcard owner cleanup requires a complete owner exit relation",
@@ -540,7 +541,11 @@ impl<'a> Engine<'a> {
             | CorePatternKind::Constructor { fields, .. } => {
                 if matches!(
                     value,
-                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
+                    Value::Owner { .. }
+                        | Value::Fresh
+                        | Value::FreshTask
+                        | Value::FallibleTask
+                        | Value::FallibleTaskOwned(_)
                 ) {
                     return Err(unsupported(
                         "original owner pattern requires its projected generation ledger",
@@ -551,7 +556,14 @@ impl<'a> Engine<'a> {
                     b.spend(path.len().saturating_add(1))?;
                     let mut child = path.to_vec();
                     child.push(index as u32);
-                    self.bind_pattern(statement, &child, field, &Value::Plain, state, b)?;
+                    let actual = if let Value::Product(values) = value {
+                        values.get(index).map(|(_, value)| value).ok_or_else(|| {
+                            bad("Task product pattern changes its complete original arity")
+                        })?
+                    } else {
+                        &Value::Plain
+                    };
+                    self.bind_pattern(statement, &child, field, actual, state, b)?;
                 }
                 Ok(())
             }
@@ -559,30 +571,39 @@ impl<'a> Engine<'a> {
             | CorePatternKind::RecordConstructor { fields, .. } => {
                 if matches!(
                     value,
-                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
+                    Value::Owner { .. }
+                        | Value::Fresh
+                        | Value::FreshTask
+                        | Value::FallibleTask
+                        | Value::FallibleTaskOwned(_)
                 ) {
                     return Err(unsupported(
                         "original owner record pattern requires its projected generation ledger",
                         Some(pattern.span),
                     ));
                 }
-                for (index, (_, field)) in fields.iter().enumerate() {
+                for (index, (name, field)) in fields.iter().enumerate() {
                     let mut child = path.to_vec();
                     child.push(index as u32);
-                    self.bind_pattern(statement, &child, field, &Value::Plain, state, b)?;
+                    let actual = if let Value::Product(values) = value {
+                        values
+                            .iter()
+                            .find(|(key, _)| key == name)
+                            .map(|(_, value)| value)
+                            .ok_or_else(|| {
+                                bad("Task record pattern selects another original field")
+                            })?
+                    } else {
+                        &Value::Plain
+                    };
+                    self.bind_pattern(statement, &child, field, actual, state, b)?;
                 }
                 Ok(())
             }
             CorePatternKind::ErrorArm { is_error, pattern } => {
                 let mut child = path.to_vec();
                 child.push(0);
-                let payload = if !*is_error && *value == Value::FallibleTask {
-                    Value::FreshTask
-                } else if *value == Value::FallibleTask {
-                    Value::Plain
-                } else {
-                    value.clone()
-                };
+                let payload = self.task_failure_payload(state, value, *is_error, b)?;
                 self.bind_pattern(statement, &child, pattern, &payload, state, b)
             }
             CorePatternKind::Reference { pattern, .. } => {

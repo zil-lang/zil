@@ -285,8 +285,11 @@ impl CheckedContext {
                 retained,
             } => {
                 let child = self.evaluate_type(module, result, environment, external, active, b)?;
-                let checked =
-                    self.retained_shape(module, retained, environment, external, active, b)?;
+                let checked = if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
+                    self.retained_task_shape(module, retained, environment, external, active, b)?
+                } else {
+                    self.retained_shape(module, retained, environment, external, active, b)?
+                };
                 if !child.statics.is_empty() {
                     return Err(unsupported(
                         "opaque result/payload retains unproved complete static occurrences",

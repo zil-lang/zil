@@ -53,15 +53,22 @@ impl CheckedOriginal {
                     active,
                     b,
                 )?;
-                self.structural_obligation(
-                    module,
-                    context,
-                    &actual,
-                    DynStructuralBound::SyncDrop,
-                    env,
-                    active,
-                    b,
-                )?;
+                if kind != Intrinsic::TaskCreateOwned
+                    && !self
+                        .task_shape(module, context, &actual, false, active, b, 0)?
+                        .has_task()
+                {
+                    self.structural_obligation(
+                        module,
+                        context,
+                        &actual,
+                        DynStructuralBound::SyncDrop,
+                        env,
+                        active,
+                        b,
+                    )?;
+                }
+
                 // All(T) is kept even if this particular sample happens to be
                 // zero. The actual interpreter expands its full κ directory.
                 if !self.task_zero_domain(module, context, &actual, env, active, b, 0)? {

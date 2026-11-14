@@ -27,19 +27,21 @@ impl CheckedOriginal {
         if uses.definite.iter().any(|moved|moved.binder==place.binder&&place.fields.starts_with(&moved.fields)){return Ok(());}
         if self.is_copy(module,context,ty,env,active,b)?{return Ok(());}
         let partial=uses.definite.iter().any(|moved|moved.binder==place.binder&&moved.fields.starts_with(&place.fields));
-        if partial {
+        b.spend(self.task_closed_cleanups.len().saturating_add(self.task_async_cleanups.len()))?;
+        let nested_task=self.task_closed_cleanups.iter().chain(&self.task_async_cleanups).any(|(definition,child)|Some(*definition)==env.lexical.first().map(|frame|frame.definition)&&child.binder==place.binder&&child.fields.len()>place.fields.len()&&child.fields.starts_with(&place.fields));
+        if partial||nested_task {
             let ty=self.resolved(ty,b)?;
             let fields=match &ty{
                 Ty::Tuple(fields)=>fields.iter().enumerate().map(|(index,field)|(index.to_string(),field.clone())).collect::<Vec<_>>(),
-                Ty::Nominal(id,arguments)=>{if self.custom_drop(module,*id,b)?{return Err(bad("original partial cleanup crosses a custom whole Drop"));}let definition=context.definition(module,*id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(unsupported("original partial cleanup requires exact finite product fields",None));};let mut selected=self.environment(module,context,*id,active,b)?;selected.lexical[0].actuals=arguments.clone();let mut result=Vec::new();for field in fields{result.push((field.name.clone(),self.ty(module,context,&field.ty,&selected,active,b)?));}result},
+                Ty::Nominal(id,arguments)=>{if self.custom_drop(module,*id,b)?{if !partial&&self.sync_drop(module,context,&ty,env,active,b)?{return Ok(());}return Err(bad("original field cleanup cannot replace a custom whole Drop"));}let definition=context.definition(module,*id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(unsupported("original partial cleanup requires exact finite product fields",None));};let mut selected=self.environment(module,context,*id,active,b)?;selected.lexical[0].actuals=arguments.clone();let mut result=Vec::new();for field in fields{result.push((field.name.clone(),self.ty(module,context,&field.ty,&selected,active,b)?));}result},
                 _=>return Err(unsupported("original partial cleanup needs its complete value/array debt ledger",None)),
             };
             for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,active,b)?;}return Ok(());
         }
-        // This exact-binder set is published only after the phase engine has
+        // This exact-place set is published only after the phase engine has
         // proved every cleanup edge, including all old loop generations.
-        if place.fields.is_empty()&&self.task_closed_cleanups.contains(&(env.current()?,place.binder.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
-        if place.fields.is_empty()&&self.task_async_cleanups.contains(&(env.current()?,place.binder.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if self.task_closed_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
         if self.sync_drop(module,context,ty,env,active,b)?{Ok(())}else{Err(bad("original cleanup edge has no original SyncDrop proof"))}
     }
     pub(super) fn sync_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{

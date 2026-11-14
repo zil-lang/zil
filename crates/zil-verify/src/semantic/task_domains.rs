@@ -15,8 +15,7 @@ pub(crate) enum Selector {
     },
     Whole {
         owner: SemanticDefinitionId,
-        recipe: SemanticTypeRecipe,
-        class: u32,
+        origin: IntrinsicOrigin,
     },
     RawOuter(StorageBinder),
     RawWhole {
@@ -563,6 +562,7 @@ fn metadata_actual(
 }
 
 pub(super) fn selector(
+    context: &CheckedContext,
     owner: SemanticDefinitionId,
     recipe: &SemanticTypeRecipe,
     value: &CheckedType,
@@ -601,10 +601,13 @@ pub(super) fn selector(
         _ => {}
     }
     dynamic_metadata::recipe(recipe, b)?;
+    let origin = value
+        .origins
+        .get(class as usize)
+        .ok_or_else(|| bad("Task selector loses its complete source intrinsic occurrence"))?;
     Ok(Selector::Whole {
         owner,
-        recipe: recipe.clone(),
-        class,
+        origin: context.canonical_origin(origin, b)?,
     })
 }
 
@@ -641,7 +644,7 @@ fn build_frame(
         b.spend(input.classes.len().saturating_add(1))?;
         let mut map = Vec::new();
         for class in 0..input.life.binder_count {
-            let selected = selector(owner, &original.ty, input, class, b)?;
+            let selected = selector(context, owner, &original.ty, input, class, b)?;
             b.spend(selectors.len().saturating_add(1))?;
             let binder = match selectors.iter().position(|old| old == &selected) {
                 Some(index) => index as u32,
@@ -690,7 +693,7 @@ fn build_frame(
     }
     let mut result_map = Vec::new();
     for class in 0..signature.result.life.binder_count {
-        let result = selector(owner, &recipe.result, &signature.result, class, b)?;
+        let result = selector(context, owner, &recipe.result, &signature.result, class, b)?;
         b.spend(selectors.len())?;
         let binder = selectors
             .iter()
@@ -734,7 +737,7 @@ fn build_frame(
     })
 }
 
-fn input_ports(
+pub(super) fn input_ports(
     context: &CheckedContext,
     module: &TypedModule,
     value: &CheckedType,
@@ -770,9 +773,15 @@ fn input_ports(
     }
     let mut payload = &value.ty;
     let mut prefix = Vec::new();
-    while let Type::Managed(inner) = payload {
-        payload = inner;
-        prefix.push(LifeTypeProjection::Pointee);
+    loop {
+        match payload {
+            Type::BorrowedStorage { storage, .. } => payload = storage,
+            Type::Managed(inner) => {
+                payload = inner;
+                prefix.push(LifeTypeProjection::Pointee);
+            }
+            _ => break,
+        }
     }
     let opaque = match payload {
         Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
@@ -818,14 +827,159 @@ fn input_ports(
             ));
         }
     }
-    if matches!(payload, Type::Closure(_)) && !value.classes.is_empty() {
-        return Err(unsupported(
-            "Task closure input needs its full logical capture-port source expansion",
-            None,
-        ));
+    if let Type::Closure(id) = payload {
+        b.spend(module.closures.len())?;
+        let mut definitions = module.closures.iter().filter(|row| row.id == *id);
+        let closure = definitions
+            .next()
+            .ok_or_else(|| bad("Task closure input has no exact capture inventory"))?;
+        if definitions.next().is_some() {
+            return Err(bad("Task closure input has duplicate original identity"));
+        }
+        let header = closure
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| bad("Task closure complete capture domain is Unknown"))?;
+        signature_life::charge(header, b)?;
+        for binding in &header.bindings {
+            let StorageBase::Capture(ordinal) = binding.position.base else {
+                continue;
+            };
+            let StorageBinder::Fixed(class) = binding.binder else {
+                return Err(bad(
+                    "Task closure capture port escapes its persistent domain",
+                ));
+            };
+            if class >= header.fixed_binder_count {
+                return Err(bad(
+                    "Task closure capture port exceeds its full fixed domain",
+                ));
+            }
+            let capture = closure
+                .captures
+                .get(ordinal as usize)
+                .ok_or_else(|| bad("Task closure port selects a missing actual capture"))?;
+            let leaf = contract_leaf(module, capture, &binding.position.path, b)?;
+            let mode = match &leaf {
+                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+                Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+                Type::Desc(_) => StoredBorrowMode::ReadOnlyDescription,
+                _ => {
+                    return Err(bad(
+                        "Task closure port does not select a complete borrowed leaf",
+                    ));
+                }
+            };
+            let class = if prefix.is_empty() {
+                class
+            } else {
+                let mut rows = value
+                    .life
+                    .retained
+                    .iter()
+                    .filter(|row| row.path == prefix && row.class == class);
+                let row = rows.next().ok_or_else(|| {
+                    bad("Task closure input loses its exact complete child-domain map")
+                })?;
+                if rows.next().is_some() {
+                    return Err(bad("Task closure child domain map is duplicated"));
+                }
+                row.binder
+            };
+            b.spend(binding.position.path.len().saturating_add(1))?;
+            if result.len() >= b.limits.max_nodes {
+                return Err(limit("Task complete capture-port inventory exceeded"));
+            }
+            let mut path = vec![ContractProjection::Capture(ordinal)];
+            path.extend_from_slice(&binding.position.path);
+            result.push((leaf, mode, class, path));
+        }
     }
     let _ = context;
     Ok(result)
+}
+
+/// Select only a declared logical/physical borrow occurrence. This never
+/// computes a GEP or proves that the selected actual root remains live.
+fn contract_leaf(
+    module: &TypedModule,
+    root: &Type,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<Type> {
+    b.spend(path.len().saturating_add(1))?;
+    let mut current = root;
+    for projection in path {
+        while let Type::BorrowedStorage { storage, .. } = current {
+            current = storage;
+        }
+        match projection {
+            ContractProjection::Place(field) => {
+                current = lifetimes::select(current, &[LifeTypeProjection::Place(*field)], b)?
+            }
+            ContractProjection::Capture(ordinal) => {
+                let Type::Closure(id) = current else {
+                    return Err(bad(
+                        "Task logical capture selector crosses another constructor",
+                    ));
+                };
+                b.spend(module.closures.len())?;
+                let mut definitions = module.closures.iter().filter(|row| row.id == *id);
+                let closure = definitions
+                    .next()
+                    .ok_or_else(|| bad("Task nested capture inventory absent"))?;
+                if definitions.next().is_some() {
+                    return Err(bad("Task nested capture identity duplicated"));
+                }
+                current = closure
+                    .captures
+                    .get(*ordinal as usize)
+                    .ok_or_else(|| bad("Task nested capture ordinal absent"))?;
+            }
+            ContractProjection::RetainedPort(ordinal) => {
+                while let Type::Managed(inner) | Type::Desc(inner) = current {
+                    current = inner;
+                }
+                let shape = match current {
+                    Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
+                        retained_life
+                    }
+                    Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+                        b.spend(module.dyn_interfaces.len())?;
+                        let mut interfaces = module
+                            .dyn_interfaces
+                            .iter()
+                            .filter(|row| row.id == *interface);
+                        let row = interfaces
+                            .next()
+                            .ok_or_else(|| bad("Task nested port interface absent"))?;
+                        if interfaces.next().is_some() {
+                            return Err(bad("Task nested port interface duplicated"));
+                        }
+                        &row.retained_life
+                    }
+                    _ => {
+                        return Err(bad(
+                            "Task retained-port selector crosses another constructor",
+                        ));
+                    }
+                };
+                dynamic_metadata::retained_shape(shape, b)?;
+                current = &shape
+                    .ports
+                    .get(*ordinal as usize)
+                    .ok_or_else(|| bad("Task retained-port ordinal absent"))?
+                    .leaf;
+            }
+            ContractProjection::RetainedClass(_) => {
+                return Err(bad(
+                    "Task class-only selector cannot supply a borrowed port",
+                ));
+            }
+        }
+    }
+    dynamic_metadata::ty(current, b)?;
+    Ok(current.clone())
 }
 
 fn workers(module: &TypedModule, b: &mut Budget) -> Check<BTreeSet<FunctionId>> {
