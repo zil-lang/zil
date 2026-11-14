@@ -3,8 +3,8 @@ use crate::*;
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 #[test]
 fn retained_context_and_ct_transport_preserves_context_and_budgets() {
-    assert_eq!(SCHEMA_VERSION, 49);
-    assert_eq!(wire::WIRE_VERSION, 49);
+    assert_eq!(SCHEMA_VERSION, 50);
+    assert_eq!(wire::WIRE_VERSION, 50);
     let shape = StorageLifeShape {
         binder_count: 1,
         slots: vec![StorageLifeSlot {
