@@ -34,7 +34,9 @@ struct Outcome {
 #[derive(Clone, PartialEq, Eq)]
 enum Value {
     Plain,
-    Root(Root, bool),
+    // Root identity, current occurrence validity, actual owning carrier.
+    // Address/Desc observations retain identity but never cleanup ownership.
+    Root(Root, bool, bool, Option<u8>),
     Valid {
         root: Root,
         fresh: bool,
@@ -62,7 +64,7 @@ impl Value {
     }
     fn roots(&self, out: &mut BTreeSet<Root>) {
         match self {
-            Self::Root(root, true) => {
+            Self::Root(root, true, _, _) => {
                 out.insert(*root);
             }
             Self::Tuple(values) => {
@@ -78,9 +80,14 @@ impl Value {
             _ => {}
         }
     }
-    fn invalidate(&mut self, root: Root, replace: bool) {
+    fn invalidate(&mut self, root: Root, replace: bool, previous: u8) {
         match self {
-            Self::Root(id, live) if *id == root && replace => *live = false,
+            Self::Root(id, live, owning, prior) if *id == root && replace => {
+                if *live && *owning {
+                    *prior = Some(previous);
+                }
+                *live = false;
+            }
             Self::Poll { fresh, outcomes }
                 if outcomes.iter().any(|o| o.phases.contains_key(&root)) =>
             {
@@ -91,12 +98,12 @@ impl Value {
             } if *id == root => *fresh = false,
             Self::Tuple(values) => {
                 for value in values {
-                    value.invalidate(root, replace);
+                    value.invalidate(root, replace, previous);
                 }
             }
             Self::Fields(values) => {
                 for value in values.values_mut() {
-                    value.invalidate(root, replace);
+                    value.invalidate(root, replace, previous);
                 }
             }
             _ => {}
@@ -180,7 +187,7 @@ impl<'a> Engine<'a, '_> {
     fn root(&mut self, value: &Value, state: &State, depth: usize) -> R<Root> {
         self.pay(value.work().saturating_add(state.roots.len()), depth)?;
         match value {
-            Value::Root(root, true) if state.roots.contains_key(root) => Ok(*root),
+            Value::Root(root, true, _, _) if state.roots.contains_key(root) => Ok(*root),
             _ => Err(failure(
                 "protocol operation lacks its live original parameter or owning occurrence",
             )),
@@ -195,14 +202,15 @@ impl<'a> Engine<'a, '_> {
         depth: usize,
     ) -> R<()> {
         self.pay(state.work(), depth)?;
+        let previous = state.roots.get(&root).copied().unwrap_or(UNKNOWN);
         for values in state.names.values_mut() {
             for value in values {
-                value.invalidate(root, replace);
+                value.invalidate(root, replace, previous);
             }
         }
-        state.returned.invalidate(root, replace);
+        state.returned.invalidate(root, replace, previous);
         for value in &mut state.temporaries {
-            value.invalidate(root, replace);
+            value.invalidate(root, replace, previous);
         }
         state.roots.insert(root, phase);
         Ok(())
@@ -219,6 +227,9 @@ impl<'a> Engine<'a, '_> {
             SemanticTypeRecipe::Address { inner, .. }
             | SemanticTypeRecipe::Desc { inner, .. }
             | SemanticTypeRecipe::Managed(inner) => self.async_head(owner, inner, depth + 1),
+            SemanticTypeRecipe::Qualified { storage, .. } => {
+                self.async_head(owner, storage, depth + 1)
+            }
             SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),
                 source,
@@ -254,6 +265,110 @@ impl<'a> Engine<'a, '_> {
         };
         let ty = copy_recipe(ty, self.limits, self.left)?;
         self.async_head(owner, &ty, depth + 1)
+    }
+    fn query_ownership(
+        &mut self,
+        owner: SemanticDefinitionId,
+        query: Query,
+        depth: usize,
+    ) -> R<Option<bool>> {
+        self.pay(
+            query.copy_work().saturating_add(self.proof.types.len()),
+            depth,
+        )?;
+        let Some(ty) = self.proof.types.get(&(owner, query)) else {
+            return Ok(None);
+        };
+        let ty = copy_recipe(ty, self.limits, self.left)?;
+        self.ownership(owner, &ty, depth + 1)
+    }
+    fn ownership(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Option<bool>> {
+        self.pay(1, depth)?;
+        match ty {
+            SemanticTypeRecipe::Managed(_) => Ok(Some(true)),
+            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. } => Ok(Some(false)),
+            SemanticTypeRecipe::Qualified { storage, .. } => {
+                self.ownership(owner, storage, depth + 1)
+            }
+            SemanticTypeRecipe::Opaque {
+                definition, hidden, ..
+            } => self.ownership(*definition, hidden, depth + 1),
+            SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source,
+            } => {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    source,
+                    self.limits,
+                    self.left,
+                    depth + 1,
+                )?;
+                self.query_ownership(owner, Query::from(source.clone()), depth + 1)
+            }
+            _ => Ok(None),
+        }
+    }
+    fn move_place(
+        &mut self,
+        expression: &SemanticOriginalExpr,
+        state: &mut State,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        match &expression.kind {
+            CoreExprKind::Name(name) => {
+                self.pay(name.len().saturating_add(state.names.len()), depth)?;
+                let value = state
+                    .names
+                    .get_mut(name)
+                    .and_then(|s| s.last_mut())
+                    .ok_or_else(|| {
+                        failure("original protocol transfer has no initialized lexical binder")
+                    })?;
+                *value = Value::Plain;
+                Ok(())
+            }
+            CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
+                self.move_place(value, state, depth + 1)
+            }
+            _ => Err(pending(
+                "protocol ownership transfer requires its exact original field/place responsibility",
+            )),
+        }
+    }
+    fn drop_value(&mut self, value: &Value, state: &State, depth: usize) -> R<()> {
+        self.pay(value.work(), depth)?;
+        match value {
+            Value::Root(root, true, true, _) => {
+                if state.roots.get(root).copied() != Some(CLOSED) {
+                    return Err(failure(
+                        "original cleanup discards a live AsyncRegistration owner without a Closed fact for that root",
+                    ));
+                }
+            }
+            Value::Root(_, false, true, prior) if *prior != Some(CLOSED) => {
+                return Err(failure(
+                    "original cleanup loses an earlier registration generation's owning responsibility",
+                ));
+            }
+            Value::Tuple(values) => {
+                for value in values {
+                    self.drop_value(value, state, depth + 1)?;
+                }
+            }
+            Value::Fields(values) => {
+                for value in values.values() {
+                    self.drop_value(value, state, depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
     fn site(
         &mut self,
@@ -393,7 +508,7 @@ impl<'a> Engine<'a, '_> {
                 } => {
                     let root = Root::Created(owner, expression.id);
                     self.change(state, root, OPEN | CLOSED, true, depth)?;
-                    return Ok(Value::Root(root, true));
+                    return Ok(Value::Root(root, true, true, None));
                 }
                 IntrinsicKind::NominalConstructor {
                     definition,
@@ -621,7 +736,7 @@ impl<'a> Engine<'a, '_> {
         if self.query_async(owner, Query::Expression(node), depth)? {
             let root = Root::Created(owner, node);
             self.change(state, root, UNKNOWN, true, depth)?;
-            Ok(Value::Root(root, true))
+            Ok(Value::Root(root, true, true, None))
         } else {
             Ok(Value::Plain)
         }
@@ -648,6 +763,23 @@ impl<'a> Engine<'a, '_> {
         state: &mut State,
         depth: usize,
     ) -> R<Value> {
+        let mut value = self.expr_inner(owner, expr, state, depth)?;
+        if let Value::Root(_, true, owning, _) = &mut value {
+            if let Some(actual) =
+                self.query_ownership(owner, Query::Expression(expr.id), depth + 1)?
+            {
+                *owning = actual;
+            }
+        }
+        Ok(value)
+    }
+    fn expr_inner(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expr: &SemanticOriginalExpr,
+        state: &mut State,
+        depth: usize,
+    ) -> R<Value> {
         self.pay(1, depth)?;
         match &expr.kind {
             CoreExprKind::Name(name) => {
@@ -664,7 +796,22 @@ impl<'a> Engine<'a, '_> {
                 self.call(owner, expr, arguments, &values, state, depth + 1)
             }
             CoreExprKind::Unary { op, operand } => {
-                let value = self.expr(owner, operand, state, depth + 1)?;
+                let mut value = self.expr(owner, operand, state, depth + 1)?;
+                if *op == UnaryOp::Give {
+                    if let Value::Root(_, true, owning, _) = &mut value {
+                        self.move_place(operand, state, depth + 1)?;
+                        *owning = true;
+                    }
+                    return Ok(value);
+                }
+                if matches!(
+                    op,
+                    UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference
+                ) {
+                    if let Value::Root(_, _, owning, _) = &mut value {
+                        *owning = false;
+                    }
+                }
                 if *op == UnaryOp::Not {
                     if let Value::Valid {
                         root,
@@ -1115,6 +1262,15 @@ impl<'a> Engine<'a, '_> {
                 .saturating_mul(state.names.len().saturating_add(1)),
             depth,
         )?;
+        for (name, values) in &state.names {
+            let keep = scope
+                .iter()
+                .find(|(n, _)| n == name)
+                .map_or(0, |(_, len)| *len);
+            for value in values.iter().skip(keep) {
+                self.drop_value(value, state, depth + 1)?;
+            }
+        }
         state.names.retain(|name, values| {
             if let Some((_, len)) = scope.iter().find(|(n, _)| n == name) {
                 values.truncate(*len);
@@ -1133,6 +1289,10 @@ impl<'a> Engine<'a, '_> {
         scope: &[(String, usize)],
         depth: usize,
     ) -> R<Vec<State>> {
+        self.pay(state.roots.len(), depth)?;
+        if state.roots.values().any(|phase| *phase == 0) {
+            return Ok(Vec::new());
+        }
         let control = state.control;
         let mut states = vec![state];
         for cleanup in defers.iter().rev() {
@@ -1212,7 +1372,10 @@ impl<'a> Engine<'a, '_> {
         mut state: State,
         depth: usize,
     ) -> R<Vec<State>> {
-        self.pay(1, depth)?;
+        self.pay(state.roots.len().saturating_add(1), depth)?;
+        if state.roots.values().any(|phase| *phase == 0) {
+            return Ok(Vec::new());
+        }
         match &statement.kind {
             CoreStatementKind::Binding {
                 name, initializer, ..
@@ -1242,7 +1405,8 @@ impl<'a> Engine<'a, '_> {
                 state.control = Control::Return;
             }
             CoreStatementKind::Expression(expr) => {
-                self.expr(owner, expr, &mut state, depth + 1)?;
+                let value = self.expr(owner, expr, &mut state, depth + 1)?;
+                self.drop_value(&value, &state, depth + 1)?;
             }
             CoreStatementKind::Assign { target, value }
             | CoreStatementKind::CompoundAssign { target, value, .. } => {
@@ -1254,7 +1418,14 @@ impl<'a> Engine<'a, '_> {
                             "protocol assignment has no original lexical binding",
                         ));
                     };
-                    *binding = value;
+                    let old = self.value_copy(binding, depth)?;
+                    self.drop_value(&old, &state, depth + 1)?;
+                    *state
+                        .names
+                        .get_mut(name)
+                        .and_then(|s| s.last_mut())
+                        .ok_or_else(|| failure("protocol assignment lost its checked binder"))? =
+                        value;
                 } else {
                     let target = self.expr(owner, target, &mut state, depth + 1)?;
                     let mut roots = BTreeSet::new();
@@ -1546,7 +1717,10 @@ impl<'a> Engine<'a, '_> {
                             .map(bit)
                             .unwrap_or(UNKNOWN),
                     );
-                    Value::Root(root, true)
+                    let owning = self
+                        .query_ownership(owner, Query::Parameter(index as u32), depth + 1)?
+                        .unwrap_or(false);
+                    Value::Root(root, true, owning, None)
                 } else {
                     Value::Plain
                 };
@@ -1557,6 +1731,11 @@ impl<'a> Engine<'a, '_> {
                     return Err(failure(
                         "original protocol loop control escaped its function",
                     ));
+                }
+                for values in state.names.values() {
+                    for value in values {
+                        self.drop_value(value, &state, depth + 1)?;
+                    }
                 }
                 self.output(owner, &state, protocol_contracts, &inputs, depth + 1)?;
             }

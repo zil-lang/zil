@@ -1555,6 +1555,7 @@ impl Check<'_, '_> {
                 &signature,
                 depth + 1,
             )?;
+            self.registration_cleanup(owner, &callback, depth + 1)?;
             if self.sealed_capability(
                 owner,
                 &callback,

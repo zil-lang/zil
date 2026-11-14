@@ -1,6 +1,54 @@
 //! Original nominal/resource construction before actual opcode matching.
 use super::*;
 impl Check<'_, '_> {
+    /// Registration construction may synchronously destroy the transferred
+    /// environment on allocation/install failure and after drain. This proves
+    /// the callback's cleanup obligation in the creator's original Gamma; it
+    /// does not add a premise for that type or for a registration owner.
+    pub(super) fn registration_cleanup(
+        &mut self,
+        owner: SemanticDefinitionId,
+        callback: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        if self.copy_type(owner, callback, depth + 1)? {
+            return Ok(());
+        }
+        if self.sealed_capability(owner, callback, SemanticBuiltinTrait::SyncDrop, depth + 1)?
+            == Some(true)
+        {
+            return Ok(());
+        }
+        for premise in self.original_requirements(owner, depth + 1)? {
+            self.pay(1, depth)?;
+            let ty = match &premise {
+                SemanticRequirementRecipe::Structural {
+                    ty,
+                    bound:
+                        DynStructuralBound::SyncDrop
+                        | DynStructuralBound::Copy
+                        | DynStructuralBound::StoreElement,
+                } => Some(ty),
+                SemanticRequirementRecipe::Builtin {
+                    ty,
+                    trait_kind:
+                        SemanticBuiltinTrait::SyncDrop
+                        | SemanticBuiltinTrait::Copy
+                        | SemanticBuiltinTrait::StoreElement,
+                } => Some(ty),
+                _ => None,
+            };
+            if let Some(ty) = ty {
+                if self.premise_type_equal(owner, callback, ty, depth + 1)? {
+                    return Ok(());
+                }
+            }
+        }
+        Err(bad(
+            "registration construction lacks the callback's independent original SyncDrop premise",
+        ))
+    }
     /// Recognize a language resource head from its original constructor.
     /// This answers only the ownership-carrier question: no shape, lifetime,
     /// cleanup, Transfer or ClosedEnvironment theorem follows from it.

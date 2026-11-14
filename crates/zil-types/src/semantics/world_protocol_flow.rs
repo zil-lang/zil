@@ -31,7 +31,7 @@ struct Outcome {
 enum Value {
     Plain,
     Integer(i64),
-    Root(Root, bool),
+    Root(Root, bool, bool, Option<u8>),
     Poll {
         fresh: bool,
         outcomes: Vec<Outcome>,
@@ -61,9 +61,14 @@ impl Value {
             _ => 1,
         }
     }
-    fn invalidate(&mut self, root: Root, replace: bool) {
+    fn invalidate(&mut self, root: Root, replace: bool, previous: u8) {
         match self {
-            Self::Root(id, live) if *id == root && replace => *live = false,
+            Self::Root(id, live, owning, prior) if *id == root && replace => {
+                if *live && *owning {
+                    *prior = Some(previous);
+                }
+                *live = false;
+            }
             Self::Poll { fresh, outcomes } | Self::Tag { fresh, outcomes }
                 if outcomes.iter().any(|o| o.phases.contains_key(&root)) =>
             {
@@ -79,7 +84,7 @@ impl Value {
             }
             Self::Tuple(values) => {
                 for value in values {
-                    value.invalidate(root, replace);
+                    value.invalidate(root, replace, previous);
                 }
             }
             _ => {}
@@ -87,7 +92,7 @@ impl Value {
     }
     fn roots(&self, output: &mut BTreeSet<Root>) {
         match self {
-            Self::Root(root, true) => {
+            Self::Root(root, true, _, _) => {
                 output.insert(*root);
             }
             Self::Tuple(v) => {
@@ -142,14 +147,15 @@ impl State {
     }
     fn change(&mut self, world: &mut World<'_, '_>, root: Root, phase: u8, replace: bool) -> R<()> {
         world.pay(self.work())?;
+        let previous = self.phases.get(&root).copied().unwrap_or(UNKNOWN);
         for value in self.locals.iter_mut().chain(&mut self.values).flatten() {
-            value.invalidate(root, replace);
+            value.invalidate(root, replace, previous);
         }
         self.phases.insert(root, phase);
         Ok(())
     }
     fn root(&self, value: &Value) -> R<Root> {
-        if let Value::Root(root, true) = value {
+        if let Value::Root(root, true, _, _) = value {
             if self.phases.contains_key(root) {
                 return Ok(*root);
             }
@@ -164,10 +170,57 @@ fn async_head(world: &mut World<'_, '_>, mut ty: &Type) -> R<bool> {
         world.pay(1)?;
         match ty {
             Type::Managed(t) | Type::Desc(t) | Type::Address { inner: t, .. } => ty = t,
+            Type::BorrowedStorage { storage, .. }
+            | Type::Opaque {
+                hidden: storage, ..
+            } => ty = storage,
             Type::AsyncRegistration { .. } => return Ok(true),
             _ => return Ok(false),
         }
     }
+}
+fn owning(world: &mut World<'_, '_>, mut ty: &Type) -> R<bool> {
+    loop {
+        world.pay(1)?;
+        match ty {
+            Type::BorrowedStorage { storage, .. }
+            | Type::Opaque {
+                hidden: storage, ..
+            } => ty = storage,
+            Type::Managed(_) => return Ok(true),
+            _ => return Ok(false),
+        }
+    }
+}
+fn cleanup_roots(
+    world: &mut World<'_, '_>,
+    state: &State,
+    value: &Value,
+    roots: &mut BTreeSet<Root>,
+) -> R<()> {
+    world.pay(value.work())?;
+    match value {
+        Value::Root(root, true, true, _) => {
+            if state.phases.get(root).copied() != Some(CLOSED) {
+                return Err(bad(
+                    "actual lexical registration cleanup lacks Closed for this owning generation",
+                ));
+            }
+            roots.insert(*root);
+        }
+        Value::Root(_, false, true, prior) if *prior != Some(CLOSED) => {
+            return Err(bad(
+                "actual cleanup loses an earlier registration generation's owning responsibility",
+            ));
+        }
+        Value::Tuple(values) => {
+            for value in values {
+                cleanup_roots(world, state, value, roots)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 fn operand_values(
     world: &mut World<'_, '_>,
@@ -403,7 +456,7 @@ fn instruction(
                 .ok_or_else(|| bad("actual registration constructor has no SSA occurrence"))?;
             let root = Root::Created(id);
             state.change(world, root, OPEN | CLOSED, true)?;
-            Value::Root(root, true)
+            Value::Root(root, true, true, None)
         }
         InstructionKind::AsyncRegistrationValid { registration } => {
             let value = state.get(*registration, world)?;
@@ -620,8 +673,7 @@ fn instruction(
         | InstructionKind::DropErrorUnion { local } => {
             let mut roots = BTreeSet::new();
             if let Some(value) = state.locals.get(local.0 as usize).and_then(Option::as_ref) {
-                world.pay(value.work())?;
-                value.roots(&mut roots);
+                cleanup_roots(world, state, value, &mut roots)?;
             }
             for root in roots {
                 if state.phases[&root] != CLOSED {
@@ -682,13 +734,16 @@ fn instruction(
             .values
             .get(result.0 as usize)
             .ok_or_else(|| bad("protocol result has no complete actual type"))?;
-        let value = if matches!(value, Value::Plain) && async_head(world, ty)? {
+        let mut value = if matches!(value, Value::Plain) && async_head(world, ty)? {
             let root = Root::Created(result);
             state.change(world, root, UNKNOWN, true)?;
-            Value::Root(root, true)
+            Value::Root(root, true, true, None)
         } else {
             value
         };
+        if let Value::Root(_, true, owns, _) = &mut value {
+            *owns = owning(world, ty)?;
+        }
         *state
             .values
             .get_mut(result.0 as usize)
@@ -847,7 +902,7 @@ pub(super) fn check(world: &mut World<'_, '_>, f: &TypedFunction) -> R<()> {
                         .map(bit)
                         .unwrap_or(UNKNOWN),
                 );
-                Value::Root(root, true)
+                Value::Root(root, true, owning(world, ty)?, None)
             } else {
                 Value::Plain
             };
