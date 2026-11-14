@@ -364,6 +364,9 @@ impl Solver<'_, '_> {
         let term = self.root(term, b)?;
         let width = match &self.state.arena[term] {
             Kind::Tuple(fields) => fields.len(),
+            Kind::Code {
+                parameters, modes, ..
+            } => parameters.len().saturating_add(modes.len() + 1),
             Kind::Nominal {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
@@ -412,6 +415,37 @@ impl Solver<'_, '_> {
                 let element = self.instantiate(element, owner, actuals, b, depth + 1)?;
                 let length = self.instantiate(length, owner, actuals, b, depth + 1)?;
                 self.term(Kind::Array { element, length }, b)
+            }
+            Kind::ErrorUnion { error, result } => {
+                let error = self.instantiate(error, owner, actuals, b, depth + 1)?;
+                let result = self.instantiate(result, owner, actuals, b, depth + 1)?;
+                self.term(Kind::ErrorUnion { error, result }, b)
+            }
+            Kind::Code {
+                kind,
+                parameters,
+                result,
+                modes,
+                result_mode,
+                call_kind,
+            } => {
+                let mut replaced = Vec::new();
+                for parameter in parameters {
+                    let term = self.instantiate(parameter, owner, actuals, b, depth + 1)?;
+                    Self::push(&mut replaced, term, b)?;
+                }
+                let result = self.instantiate(result, owner, actuals, b, depth + 1)?;
+                self.term(
+                    Kind::Code {
+                        kind,
+                        parameters: replaced,
+                        result,
+                        modes,
+                        result_mode,
+                        call_kind,
+                    },
+                    b,
+                )
             }
             Kind::Slice(element) => {
                 let element = self.instantiate(element, owner, actuals, b, depth + 1)?;

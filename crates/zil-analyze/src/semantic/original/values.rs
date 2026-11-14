@@ -191,6 +191,59 @@ impl Checked {
                 }
                 value::nominal(*definition, &actuals, &physical, inventory, b, depth + 1)
             }
+            Kind::ErrorUnion { error, result } => {
+                let error = self.value(*error, context, program, inventory, b, depth + 1)?;
+                let result = self.value(*result, context, program, inventory, b, depth + 1)?;
+                if !error.classes.is_empty() || !result.classes.is_empty() {
+                    return Err(unknown(
+                        "original ErrorUnion needs complete active-arm class occurrence transport",
+                    ));
+                }
+                Ok(value::scalar(Type::ErrorUnion {
+                    error: Box::new(error.ty),
+                    result: Box::new(result.ty),
+                }))
+            }
+            Kind::Code {
+                kind,
+                parameters,
+                result,
+                ..
+            } => {
+                let mut physical = Vec::new();
+                for parameter in parameters {
+                    let value =
+                        self.value(*parameter, context, program, inventory, b, depth + 1)?;
+                    if !value.classes.is_empty() {
+                        return Err(unknown(
+                            "original code pointer needs its complete input scope relation",
+                        ));
+                    }
+                    Solver::push(&mut physical, value.ty, b)?;
+                }
+                let result = self.value(*result, context, program, inventory, b, depth + 1)?;
+                if !result.classes.is_empty() {
+                    return Err(unknown(
+                        "original code pointer needs its complete output scope relation",
+                    ));
+                }
+                let ty = match kind {
+                    SemanticCodeKind::FunctionPointer => Type::FunctionPointer {
+                        parameters: physical,
+                        result: Box::new(result.ty),
+                    },
+                    SemanticCodeKind::ForeignCallback => Type::ForeignCallback {
+                        parameters: physical,
+                        result: Box::new(result.ty),
+                    },
+                    SemanticCodeKind::BorrowedFunctionPointer => {
+                        return Err(unknown(
+                            "original borrowed code needs its complete invocation contract",
+                        ));
+                    }
+                };
+                Ok(value::scalar(ty))
+            }
             Kind::Array { element, length } => {
                 let element = self.value(*element, context, program, inventory, b, depth + 1)?;
                 if !element.classes.is_empty() {

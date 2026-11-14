@@ -89,7 +89,9 @@ impl Check<'_, '_> {
                 self.inventory,
                 b,
             ),
-            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => Ok(value::scalar(ty.clone())),
+            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() || *ty == Type::ForeignHandle => {
+                Ok(value::scalar(ty.clone()))
+            }
             SemanticTypeRecipe::Slice(element) => {
                 let element = self.recipe_value(instance, element, b, depth + 1)?;
                 if !element.classes.is_empty() {
@@ -171,6 +173,69 @@ impl Check<'_, '_> {
                 // The full original declaration was checked with rigid mixed
                 // formals. Fields are instantiated through the same evaluator.
                 self.nominal_value(*definition, &actuals, b, depth + 1)
+            }
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                let error = self.recipe_value(instance, error, b, depth + 1)?;
+                let result = self.recipe_value(instance, result, b, depth + 1)?;
+                if !error.classes.is_empty() || !result.classes.is_empty() {
+                    return Err(unknown(
+                        "original ErrorUnion requires complete active-arm class transport",
+                    ));
+                }
+                Ok(value::scalar(Type::ErrorUnion {
+                    error: Box::new(error.ty),
+                    result: Box::new(result.ty),
+                }))
+            }
+            SemanticTypeRecipe::Code { kind, signature } => {
+                if signature.bound_lifetimes != 0
+                    || signature.invocation_lifetimes != 0
+                    || signature.call_kind != CallKind::Direct
+                    || !matches!(
+                        signature.result_mode,
+                        PassingMode::Infer | PassingMode::Copy
+                    )
+                {
+                    return Err(unknown(
+                        "original Code requires its complete per-call lifetime and passing relation",
+                    ));
+                }
+                let mut parameters = Vec::new();
+                for parameter in &signature.parameters {
+                    if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
+                        return Err(unknown(
+                            "original Code parameter requires its full resource mode",
+                        ));
+                    }
+                    let parameter = self.recipe_value(instance, &parameter.ty, b, depth + 1)?;
+                    if !parameter.classes.is_empty() {
+                        return Err(unknown(
+                            "original Code parameter requires complete scoped class transport",
+                        ));
+                    }
+                    self.push_value(&mut parameters, parameter.ty, b)?;
+                }
+                let result = self.recipe_value(instance, &signature.result, b, depth + 1)?;
+                if !result.classes.is_empty() {
+                    return Err(unknown(
+                        "original Code result requires complete scoped class transport",
+                    ));
+                }
+                Ok(value::scalar(match kind {
+                    SemanticCodeKind::FunctionPointer => Type::FunctionPointer {
+                        parameters,
+                        result: Box::new(result.ty),
+                    },
+                    SemanticCodeKind::ForeignCallback => Type::ForeignCallback {
+                        parameters,
+                        result: Box::new(result.ty),
+                    },
+                    SemanticCodeKind::BorrowedFunctionPointer => {
+                        return Err(unknown(
+                            "original borrowed code requires complete actual invocation proof",
+                        ));
+                    }
+                }))
             }
             SemanticTypeRecipe::Array { element, length } => {
                 let element = self.recipe_value(instance, element, b, depth + 1)?;

@@ -33,6 +33,18 @@ enum Kind {
         inner: Term,
     },
     Slice(Term),
+    Code {
+        kind: SemanticCodeKind,
+        parameters: Vec<Term>,
+        result: Term,
+        modes: Vec<PassingMode>,
+        result_mode: PassingMode,
+        call_kind: CallKind,
+    },
+    ErrorUnion {
+        error: Term,
+        result: Term,
+    },
     Array {
         element: Term,
         length: Term,
@@ -184,7 +196,7 @@ impl Solver<'_, '_> {
         self.term(Kind::Infer(None), b)
     }
     fn atom(&mut self, ty: Type, b: &mut Budget) -> CompileResult<Term> {
-        if !ty.is_b0_scalar() {
+        if !ty.is_b0_scalar() && ty != Type::ForeignHandle {
             return Err(unknown(
                 "original complete compound type requires its scoped nominal and lifetime proof",
             ));
@@ -257,6 +269,22 @@ impl Solver<'_, '_> {
                     || self.occurs(needle, *length, depth + 1, b)?
                 {
                     return Ok(true);
+                }
+            }
+            Kind::ErrorUnion { error, result } => {
+                if self.occurs(needle, *error, depth + 1, b)?
+                    || self.occurs(needle, *result, depth + 1, b)?
+                {
+                    return Ok(true);
+                }
+            }
+            Kind::Code {
+                parameters, result, ..
+            } => {
+                for term in parameters.iter().chain(std::iter::once(result)) {
+                    if self.occurs(needle, *term, depth + 1, b)? {
+                        return Ok(true);
+                    }
                 }
             }
             Kind::Slice(element) => {
@@ -347,6 +375,9 @@ impl Solver<'_, '_> {
         // rows before allocating them; no complete Type clone hides here.
         let width = |kind: &Kind| match kind {
             Kind::Tuple(fields) => fields.len(),
+            Kind::Code {
+                parameters, modes, ..
+            } => parameters.len().saturating_add(modes.len() + 1),
             Kind::Nominal {
                 arguments, fields, ..
             } => arguments.len().saturating_add(fields.len()),
@@ -365,6 +396,42 @@ impl Solver<'_, '_> {
             self.state.arena[left].clone(),
             self.state.arena[right].clone(),
         ) {
+            (
+                Kind::ErrorUnion {
+                    error: a,
+                    result: ar,
+                },
+                Kind::ErrorUnion {
+                    error: z,
+                    result: zr,
+                },
+            ) => {
+                self.unify(a, z, depth + 1, b)?;
+                self.unify(ar, zr, depth + 1, b)
+            }
+            (
+                Kind::Code {
+                    kind: ak,
+                    parameters: a,
+                    result: ar,
+                    modes: am,
+                    result_mode: arm,
+                    call_kind: ac,
+                },
+                Kind::Code {
+                    kind: zk,
+                    parameters: z,
+                    result: zr,
+                    modes: zm,
+                    result_mode: zrm,
+                    call_kind: zc,
+                },
+            ) if ak == zk && a.len() == z.len() && am == zm && arm == zrm && ac == zc => {
+                for (a, z) in a.iter().zip(z) {
+                    self.unify(*a, z, depth + 1, b)?;
+                }
+                self.unify(ar, zr, depth + 1, b)
+            }
             (
                 Kind::Array {
                     element: a,
@@ -532,7 +599,9 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         match recipe {
-            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => self.atom(ty.clone(), b),
+            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() || *ty == Type::ForeignHandle => {
+                self.atom(ty.clone(), b)
+            }
             SemanticTypeRecipe::Formal(reference) => {
                 let owner = self.original_scope(frame.definition, &reference.scope, b)?;
                 let context = if owner == frame.definition {
@@ -682,9 +751,64 @@ impl Solver<'_, '_> {
                     _ => None,
                 }.ok_or_else(|| unknown("original type inference needs its real expression, binding or dependent call carrier"))
             }
-            SemanticTypeRecipe::ErrorUnion { .. } => Err(unknown(
-                "original ErrorUnion type requires its complete scoped domain interpretation",
-            )),
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                let error = self.recipe(frame, error, b, depth + 1)?;
+                let result = self.recipe(frame, result, b, depth + 1)?;
+                self.term(Kind::ErrorUnion { error, result }, b)
+            }
+            SemanticTypeRecipe::Code { kind, signature } => {
+                if signature.bound_lifetimes != 0
+                    || signature.invocation_lifetimes != 0
+                    || signature.call_kind != CallKind::Direct
+                    || *kind == SemanticCodeKind::BorrowedFunctionPointer
+                {
+                    return Err(unknown(
+                        "original code pointer needs its complete per-call quantified relation",
+                    ));
+                }
+                let mut parameters = Vec::new();
+                let mut modes = Vec::new();
+                for parameter in &signature.parameters {
+                    if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
+                        return Err(unknown(
+                            "original code pointer needs its complete resource passing relation",
+                        ));
+                    }
+                    let term = self.recipe(frame, &parameter.ty, b, depth + 1)?;
+                    if parameter.mode == PassingMode::Copy {
+                        Self::push(
+                            &mut self.needs,
+                            Need {
+                                term,
+                                predicate: Predicate::Copy,
+                            },
+                            b,
+                        )?;
+                    }
+                    Self::push(&mut parameters, term, b)?;
+                    Self::push(&mut modes, parameter.mode, b)?;
+                }
+                if !matches!(
+                    signature.result_mode,
+                    PassingMode::Infer | PassingMode::Copy
+                ) {
+                    return Err(unknown(
+                        "original code pointer needs its complete resource result relation",
+                    ));
+                }
+                let result = self.recipe(frame, &signature.result, b, depth + 1)?;
+                self.term(
+                    Kind::Code {
+                        kind: *kind,
+                        parameters,
+                        result,
+                        modes,
+                        result_mode: signature.result_mode,
+                        call_kind: signature.call_kind,
+                    },
+                    b,
+                )
+            }
             SemanticTypeRecipe::Managed(_) => Err(unknown(
                 "original Managed type requires its complete owner and cleanup interpretation",
             )),
@@ -2657,6 +2781,18 @@ impl Solver<'_, '_> {
                 "original unsized Slice needs a real reference carrier",
             )),
             Kind::Array { element, .. } => self.sized_original(*element, b, depth + 1),
+            Kind::ErrorUnion { error, result } => {
+                self.sized_original(*error, b, depth + 1)?;
+                self.sized_original(*result, b, depth + 1)
+            }
+            Kind::Code {
+                parameters, result, ..
+            } => {
+                for parameter in parameters {
+                    self.sized_original(*parameter, b, depth + 1)?;
+                }
+                self.sized_original(*result, b, depth + 1)
+            }
             Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
                 for field in fields {
                     self.sized_original(*field, b, depth + 1)?;
@@ -2842,7 +2978,7 @@ impl Solver<'_, '_> {
         self.step(depth, b)?;
         let term = self.root(term, b)?;
         match &self.state.arena[term] {
-            Kind::Atom(ty) => Ok(ty.is_b0_scalar()
+            Kind::Atom(ty) => Ok((ty.is_b0_scalar() || *ty == Type::ForeignHandle)
                 && (!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit)),
             Kind::CallResult { hidden, .. } => self.satisfies(*hidden, predicate, b, depth + 1),
             Kind::Address { mutable, .. } => Ok(!matches!(predicate, Predicate::StoreElement)
@@ -2880,6 +3016,11 @@ impl Solver<'_, '_> {
                     ));
                 }
                 self.satisfies(*element, predicate, b, depth + 1)
+            }
+            Kind::Code { .. } => Ok(!matches!(predicate, Predicate::StoreElement)),
+            Kind::ErrorUnion { error, result } => {
+                Ok(self.satisfies(*error, predicate, b, depth + 1)?
+                    && self.satisfies(*result, predicate, b, depth + 1)?)
             }
             Kind::Slice(_) => Ok(false),
             Kind::Tuple(fields) => {
@@ -2983,7 +3124,7 @@ impl Checked {
             Kind::CallResult { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
                 .ty),
-            Kind::Array { .. } => Ok(self
+            Kind::Array { .. } | Kind::Code { .. } | Kind::ErrorUnion { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
                 .ty),
             Kind::Slice(element) => Ok(Type::Slice {

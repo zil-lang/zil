@@ -37,7 +37,7 @@ impl Check<'_, '_> {
         if depth > b.partial_depth {
             return Err(unknown("complete actual type exceeds its bounded depth"));
         }
-        if ty.is_b0_scalar() || *ty == Type::Unit {
+        if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
             return Ok(());
         }
         match ty {
@@ -46,6 +46,17 @@ impl Check<'_, '_> {
             }
             Type::Slice { element } => {
                 return self.ordinary_type_at(element, b, depth + 1);
+            }
+            Type::ErrorUnion { error, result } => {
+                self.ordinary_type_at(error, b, depth + 1)?;
+                return self.ordinary_type_at(result, b, depth + 1);
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for parameter in parameters {
+                    self.ordinary_type_at(parameter, b, depth + 1)?;
+                }
+                return self.ordinary_type_at(result, b, depth + 1);
             }
             Type::Array { element, .. } => {
                 return self.ordinary_type_at(element, b, depth + 1);

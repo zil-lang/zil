@@ -678,7 +678,7 @@ pub(in crate::semantic) fn predicate_actual(
             "nominal structural predicate exceeds its finite depth",
         ));
     }
-    if ty.is_b0_scalar() {
+    if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
         return Ok(!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit);
     }
     let complete = ty;
