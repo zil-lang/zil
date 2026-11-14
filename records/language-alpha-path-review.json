@@ -56,7 +56,9 @@
     "compile time and scale: real scalar CT and owning collections under default budgets"
   ],
   "acceptance": "One exact candidate preserves all existing positive native chains; all thirteen unchanged inputs pass nonzero independent Verify, then their original full native/C consumer and failure-cleanup checks run with nearby negative cases and budget controls. Not merely 13 check successes.",
-  "current_candidate_under_validation": "df924e09b",
+  "current_candidate_under_validation": null,
   "status": "Structural changes implemented, pushed and integrated workspace all-targets checked. Source129, Vsemantic12, Aeffects4 and hostile unused body1 pass; 12 native successes preserved; 13 core consumers still 0/13 before V. No Alpha acceptance.",
-  "updated_at_utc": "2026-11-14T02:21:16.035201+00:00"
+  "updated_at_utc": "2026-11-14T02:21:16.035201+00:00",
+  "latest_receipt": "records/language-alpha-validation/df924e09b.json",
+  "latest_completed_candidate": "df924e09b"
 }

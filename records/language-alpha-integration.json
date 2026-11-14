@@ -1992,5 +1992,8 @@
     "core_independent_verify_runs": 0,
     "accepted": false
   },
-  "path_review": "records/language-alpha-path-review.json"
+  "path_review": "records/language-alpha-path-review.json",
+  "latest_receipt": "records/language-alpha-validation/df924e09b.json",
+  "current_candidate_under_validation": null,
+  "latest_completed_candidate": "df924e09b"
 }
