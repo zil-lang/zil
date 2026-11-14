@@ -122,6 +122,7 @@ impl Solver<'_, '_> {
             }
             Wrapper::Managed => match &self.state.arena[self.type_root(inner, b)?] {
                 Kind::Task(_) => {}
+                Kind::Nominal { .. } if self.resource_payload(inner, b)? => {}
                 Kind::Atom(Type::ByteBuffer)
                 | Kind::Wrapped(
                     Wrapper::Store
@@ -163,6 +164,17 @@ impl Solver<'_, '_> {
                 depth + 1,
             ),
             Kind::Wrapped(Wrapper::AsyncRegistration, _) => Ok(false),
+            Kind::Nominal {
+                definition, fields, ..
+            } if self.resource_payload(payload, b)? => {
+                resources::drop_method(*definition, self.inventory, b)?;
+                for field in fields {
+                    if !self.satisfies(*field, Predicate::SyncDrop, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             _ => Err(unknown(
                 "original resource cleanup needs its actual original Drop and state relation",
             )),

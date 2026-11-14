@@ -87,6 +87,7 @@ fn instance_zero(
     if !matches!(
         (declaration.kind, storage),
         (LifeNominalKind::Record, Type::Record { .. })
+            | (LifeNominalKind::Resource, Type::Record { .. })
             | (LifeNominalKind::Package, Type::Package { .. })
             | (LifeNominalKind::Enum, Type::Enum { .. })
     ) {

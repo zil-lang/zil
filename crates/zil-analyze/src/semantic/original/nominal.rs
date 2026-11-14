@@ -76,9 +76,7 @@ impl Solver<'_, '_> {
             ));
         }
         if *kind == LifeNominalKind::Resource {
-            return Err(unknown(
-                "original resource nominal needs its actual Drop definition and cleanup proof",
-            ));
+            resources::drop_method(definition, self.inventory, b)?;
         }
         if arguments.len() != declaration.parameters.len() {
             return Err(fail("original nominal application omits a formal"));
@@ -391,7 +389,7 @@ pub(super) fn materialize(
     };
     match (kind, body, storage) {
         (
-            LifeNominalKind::Record,
+            LifeNominalKind::Record | LifeNominalKind::Resource,
             SemanticNominalBody::Product { fields },
             Type::Record { fields: actual, .. },
         )
@@ -491,7 +489,6 @@ pub(in crate::semantic) fn actual(
     if declaration.parent.is_some()
         || !declaration.environment.is_empty()
         || !declaration.implicit_lifetimes.is_empty()
-        || *kind == LifeNominalKind::Resource
     {
         return Err(unknown(
             "nominal actual needs its full lexical, lifetime and Drop definition proof",

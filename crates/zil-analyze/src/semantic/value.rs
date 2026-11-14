@@ -445,7 +445,7 @@ pub(super) fn nominal(
         };
         let valid = match (kind, body, storage) {
             (
-                LifeNominalKind::Record,
+                LifeNominalKind::Record | LifeNominalKind::Resource,
                 SemanticNominalBody::Product {
                     fields: source_fields,
                 },

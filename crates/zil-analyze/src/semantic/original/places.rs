@@ -181,7 +181,16 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<(u32, Term)> {
         self.step(depth, b)?;
-        let root = self.type_root(term, b)?;
+        let mut root = self.type_root(term, b)?;
+        for _ in depth..=b.partial_depth {
+            b.spend(1, WORK)?;
+            root = match &self.state.arena[root] {
+                Kind::Address { inner, .. }
+                | Kind::Desc { inner, .. }
+                | Kind::Wrapped(Wrapper::Managed, inner) => self.type_root(*inner, b)?,
+                _ => break,
+            };
+        }
         if let Kind::Tuple(fields) = &self.state.arena[root] {
             b.spend(name.len().saturating_add(fields.len() + 1), WORK)?;
             if name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_digit()) {

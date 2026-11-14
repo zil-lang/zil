@@ -19,6 +19,7 @@ mod places;
 mod protocol;
 mod registration;
 mod registration_start;
+pub(super) mod resources;
 mod roles;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
@@ -2105,7 +2106,11 @@ impl Solver<'_, '_> {
                 CoreExprKind::Record { ty, fields } => {
                     let term = self.recipe(frame, ty, b, depth + 1)?;
                     self.record_fields(frame, term, fields, true, b, depth + 1)?;
-                    term
+                    if self.resource_payload(term, b)? {
+                        self.term(Kind::Wrapped(Wrapper::Managed, term), b)?
+                    } else {
+                        term
+                    }
                 }
                 CoreExprKind::RecordUpdate { ty, base, fields } => {
                     let term = self.expression(frame, base, b, depth + 1)?;
@@ -3781,6 +3786,19 @@ impl Solver<'_, '_> {
                     self.sized_original(*parameter, b, depth + 1)?;
                 }
                 self.sized_original(*result, b, depth + 1)
+            }
+            Kind::Nominal { definition, .. }
+                if matches!(
+                    self.inventory.definition(*definition, b)?.body,
+                    SemanticDefinitionBody::Nominal {
+                        kind: LifeNominalKind::Resource,
+                        ..
+                    }
+                ) =>
+            {
+                Err(fail(
+                    "original resource payload requires its real Managed or Desc carrier",
+                ))
             }
             Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
                 for field in fields {

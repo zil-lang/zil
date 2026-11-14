@@ -104,6 +104,9 @@ impl Check<'_, '_> {
                 Type::Task { .. } => {
                     return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
                 }
+                Type::Record { .. } | Type::BorrowedStorage { .. } => {
+                    return self.resource_nominal(inner, b, depth + 1);
+                }
                 _ => {
                     return Err(unknown(
                         "semantic resource carrier needs its full original environment, Drop and retained scope inventory",

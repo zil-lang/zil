@@ -97,9 +97,12 @@ impl Solver<'_, '_> {
                         ..
                     }
                 ) {
-                    return Err(unknown(
-                        "original resource capability requires its complete Drop body and execution theorem",
-                    ));
+                    resources::drop_method(*definition, self.inventory, b)?;
+                    if !matches!(kind, SemanticBuiltinTrait::ClosedEnvironment) {
+                        return Err(unknown(
+                            "original resource transfer needs its complete cleanup execution capability",
+                        ));
+                    }
                 }
                 if kind == SemanticBuiltinTrait::ClosedEnvironment {
                     for argument in arguments {

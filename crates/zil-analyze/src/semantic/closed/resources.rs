@@ -147,6 +147,9 @@ impl Check<'_, '_> {
                     b,
                 )
             }
+            Type::Record { .. } | Type::BorrowedStorage { .. } => {
+                self.resource_nominal(payload, b, depth + 1)
+            }
             Type::Registration { environment } | Type::AsyncRegistration { environment } => {
                 let Type::Closure(id) = environment.as_ref() else {
                     return Err(unknown(
@@ -180,6 +183,130 @@ impl Check<'_, '_> {
                 "actual resource needs its complete original payload, cleanup and retained inventory",
             )),
         }
+    }
+    pub(super) fn resource_nominal(
+        &self,
+        payload: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual nominal cleanup exceeds its complete inventory depth",
+            ));
+        }
+        crate::stored_flow::validate_plain_nominal_zero(
+            self.module,
+            payload,
+            self.inventory.limits,
+            b,
+        )?;
+        let mut original = None;
+        for instance in &self.module.life_instances {
+            b.spend(1, WORK)?;
+            crate::dyn_metadata::ty(payload, b)?;
+            crate::dyn_metadata::ty(&instance.ty, b)?;
+            if instance.ty != *payload {
+                continue;
+            }
+            let mut found = None;
+            for definition in self.inventory.definitions.values() {
+                b.spend(1, WORK)?;
+                if let SemanticDefinitionBody::Nominal {
+                    declaration,
+                    kind: LifeNominalKind::Resource,
+                    ..
+                } = &definition.body
+                {
+                    if *declaration == instance.declaration
+                        && found.replace(definition.id).is_some()
+                    {
+                        return Err(fail(
+                            "actual resource payload has multiple original definitions",
+                        ));
+                    }
+                }
+            }
+            let definition = found.ok_or_else(|| {
+                fail("actual resource payload is not its original resource declaration")
+            })?;
+            let mut arguments = Vec::new();
+            for actual in &instance.arguments {
+                let LifeNominalActual::Type(ty) = actual else {
+                    return Err(unknown(
+                        "actual resource cleanup needs its complete mixed lifetime and constant substitution",
+                    ));
+                };
+                crate::dyn_metadata::ty(ty, b)?;
+                self.push_value(&mut arguments, ty.clone(), b)?;
+            }
+            let expected =
+                original::nominal::actual(definition, &arguments, self.inventory, b, depth + 1)?;
+            crate::dyn_metadata::ty(&expected, b)?;
+            crate::dyn_metadata::ty(payload, b)?;
+            if expected != *payload {
+                return Err(fail(
+                    "actual resource payload changes its original complete field substitution",
+                ));
+            }
+            if original.replace(definition).is_some() {
+                return Err(fail(
+                    "actual resource payload has multiple complete nominal instances",
+                ));
+            }
+        }
+        let original = original.ok_or_else(|| {
+            fail("actual resource payload omits its complete original nominal identity")
+        })?;
+        let drop = original::resources::drop_method(original, self.inventory, b)?;
+        let mut actual = None;
+        for resource in &self.module.resources {
+            b.spend(1, WORK)?;
+            crate::dyn_metadata::ty(&resource.payload, b)?;
+            crate::dyn_metadata::ty(payload, b)?;
+            if resource.payload == *payload && actual.replace(resource).is_some() {
+                return Err(fail(
+                    "actual resource payload has multiple cleanup definitions",
+                ));
+            }
+        }
+        let actual =
+            actual.ok_or_else(|| fail("actual resource payload has no cleanup definition"))?;
+        match (drop, actual.teardown) {
+            (None, None) => {}
+            (Some(original), Some(target)) => {
+                let worlds = self.function_worlds(target, b)?;
+                if worlds.is_empty() {
+                    return Err(fail(
+                        "actual resource teardown lacks its original method world",
+                    ));
+                }
+                for world in worlds {
+                    if world.definition != original {
+                        return Err(fail(
+                            "actual resource teardown selects another original method",
+                        ));
+                    }
+                }
+                let function = self
+                    .inventory
+                    .functions
+                    .get(&target)
+                    .ok_or_else(|| fail("actual resource teardown has no real function"))?;
+                if function.call_kind != CallKind::Direct || function.return_type != Type::Unit {
+                    return Err(fail(
+                        "actual resource teardown changes its synchronous cleanup ABI",
+                    ));
+                }
+            }
+            _ => {
+                return Err(fail(
+                    "actual resource cleanup presence differs from the original Drop declaration",
+                ));
+            }
+        }
+        Ok(())
     }
     pub(super) fn resolved(
         &self,
