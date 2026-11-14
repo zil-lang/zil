@@ -17,6 +17,7 @@ mod dyn_tables;
 mod function_values;
 mod mutex;
 mod operations;
+mod protocol_values;
 mod registration;
 mod registration_observe;
 mod registration_start;
@@ -64,6 +65,9 @@ impl Check<'_, '_> {
             || *ty == crate::generic_mutex::error_type()
             || crate::dyn_dispatch::is_create_error(ty)
         {
+            return Ok(());
+        }
+        if self.protocol_value_type(ty, b, depth + 1)? {
             return Ok(());
         }
         match ty {
