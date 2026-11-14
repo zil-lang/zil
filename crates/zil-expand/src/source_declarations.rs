@@ -136,7 +136,20 @@ impl crate::ct_selection::Visitor for Budget<'_> {
         Ok(())
     }
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
-        self.work(value.len(), span)
+        self.work(value.len(), span)?;
+        if crate::is_internal_source_type_name(value) {
+            return Err(failure(
+                span,
+                "private resource category is not public Source syntax",
+            ));
+        }
+        Ok(())
+    }
+    fn type_binder(&mut self, name: &str, span: Span) -> CompileResult<()> {
+        if name == "Managed" {
+            return Err(vec![crate::primitive_name_error(name, span)]);
+        }
+        Ok(())
     }
     fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
         if expression.semantic.raw_index().is_some() {

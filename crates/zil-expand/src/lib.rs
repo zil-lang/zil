@@ -1210,6 +1210,7 @@ struct Expander<'a> {
     parent_map: Option<SourceMapId>,
     lexical_receiver: Option<Span>,
     self_type: Option<Type>,
+    resource_type_formals: Vec<String>,
     return_type: Option<Type>,
     drop_implementations: BTreeMap<String, String>,
 }
@@ -1272,6 +1273,7 @@ impl<'a> Expander<'a> {
             parent_map: None,
             lexical_receiver: None,
             self_type: None,
+            resource_type_formals: Vec::new(),
             return_type: None,
             drop_implementations: BTreeMap::new(),
         }
@@ -2269,11 +2271,31 @@ impl Expander<'_> {
         self.expr_node(kind, e.span)
     }
 }
+/// Reject-only predicate for raw Source/CT syntax ingress and reflection.
+/// This name is never a source declaration identity or a permission marker.
+pub fn is_internal_source_type_name(name: &str) -> bool {
+    receivers::internal_resource_carrier(name)
+}
 pub fn type_ref(t: &s::TypeRef) -> Type {
+    type_ref_with_resources(t, &|_| None)
+}
+pub(crate) fn type_ref_with_resources(
+    t: &s::TypeRef,
+    classify: &impl Fn(&s::TypeRef) -> Option<bool>,
+) -> Type {
+    let lower = |ty: &s::TypeRef| type_ref_with_resources(ty, classify);
+    if let s::TypeKind::Named { path, args } = &t.kind
+        && path
+            .iter()
+            .any(|name| receivers::internal_resource_carrier(name))
+        && !(path.len() == 1 && matches!(args.as_slice(), [s::GenericArg::Type(_)]))
+    {
+        return Type::Unsupported("malformed internal resource category carrier".into());
+    }
     match &t.kind {
         s::TypeKind::Named { path, args } if path.as_slice() == ["OwnedDyn"] => {
             if let [s::GenericArg::Type(target)] = args.as_slice() {
-                if let Type::Dyn { interface } = type_ref(target) {
+                if let Type::Dyn { interface } = lower(target) {
                     Type::OwnedDyn { interface }
                 } else {
                     Type::Unsupported("OwnedDyn requires an actual dyn interface".into())
@@ -2282,20 +2304,21 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                 Type::Unsupported("OwnedDyn requires one dyn interface".into())
             }
         }
-        s::TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
+        s::TypeKind::Named { path, args } if matches!(path.as_slice(),[name] if name=="Managed"||name==receivers::REFERENCE_OWNER) => {
             if let [s::GenericArg::Type(resource)] = args.as_slice() {
-                match type_ref(resource) {
+                match lower(resource) {
                     Type::Desc(payload)
-                        if matches!(
-                            payload.as_ref(),
-                            Type::ByteBuffer
-                                | Type::OwnedStore { .. }
-                                | Type::Mutex { .. }
-                                | Type::TaskI32
-                                | Type::Task { .. }
-                                | Type::Registration { .. }
-                                | Type::AsyncRegistration { .. }
-                        ) =>
+                        if receivers::bare_resource_syntax(resource, classify)
+                            && matches!(
+                                payload.as_ref(),
+                                Type::ByteBuffer
+                                    | Type::OwnedStore { .. }
+                                    | Type::Mutex { .. }
+                                    | Type::TaskI32
+                                    | Type::Task { .. }
+                                    | Type::Registration { .. }
+                                    | Type::AsyncRegistration { .. }
+                            ) =>
                     {
                         Type::Managed(payload)
                     }
@@ -2323,7 +2346,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                                 variants: vec![("Allocation".into(), vec![])],
                             },
                         ),
-                        ("inputs".into(), type_ref(inputs)),
+                        ("inputs".into(), lower(inputs)),
                     ],
                 }
             } else {
@@ -2335,7 +2358,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         s::TypeKind::Named { path, args } if path.as_slice() == ["Task"] => {
             if let [s::GenericArg::Type(result)] = args.as_slice() {
                 Type::Desc(Box::new(Type::Task {
-                    result: Box::new(type_ref(result)),
+                    result: Box::new(lower(result)),
                     retained_life: zil_ir::RetainedLifeShape {
                         binder_count: 0,
                         ports: vec![],
@@ -2372,7 +2395,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                     };
                     let leaf = Type::Address {
                         mutable: *mutable,
-                        inner: Box::new(type_ref(inner)),
+                        inner: Box::new(lower(inner)),
                     };
                     ports.push(zil_ir::RetainedBorrowPort {
                         leaf,
@@ -2412,9 +2435,9 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                         inner,
                     } if !retained.is_empty() => Type::Address {
                         mutable: false,
-                        inner: Box::new(type_ref(inner)),
+                        inner: Box::new(lower(inner)),
                     },
-                    _ => type_ref(result),
+                    _ => lower(result),
                 };
                 Type::Desc(Box::new(Type::Task {
                     result: Box::new(actual_result),
@@ -2435,11 +2458,11 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             if let [s::GenericArg::Type(environment)] = args.as_slice() {
                 Type::Desc(Box::new(if path[0] == "AsyncRegistration" {
                     Type::AsyncRegistration {
-                        environment: Box::new(type_ref(environment)),
+                        environment: Box::new(lower(environment)),
                     }
                 } else {
                     Type::Registration {
-                        environment: Box::new(type_ref(environment)),
+                        environment: Box::new(lower(environment)),
                     }
                 }))
             } else {
@@ -2449,7 +2472,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         s::TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
             if let [s::GenericArg::Type(element)] = args.as_slice() {
                 Type::Desc(Box::new(Type::OwnedStore {
-                    element: Box::new(type_ref(element)),
+                    element: Box::new(lower(element)),
                 }))
             } else {
                 Type::Unsupported("Store requires exactly one element type".into())
@@ -2458,7 +2481,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         s::TypeKind::Named { path, args } if path.as_slice() == ["Mutex"] => {
             if let [s::GenericArg::Type(payload)] = args.as_slice() {
                 Type::Desc(Box::new(Type::Mutex {
-                    payload: Box::new(type_ref(payload)),
+                    payload: Box::new(lower(payload)),
                 }))
             } else {
                 Type::Unsupported("Mutex requires one complete payload type".into())
@@ -2466,7 +2489,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         }
         s::TypeKind::Named { path, args } if path.as_slice() == ["MutexGuard"] => {
             if let [s::GenericArg::Type(payload)] = args.as_slice() {
-                let payload = type_ref(payload);
+                let payload = lower(payload);
                 Type::MutexGuard {
                     payload: Box::new(payload.clone()),
                     retained_life: zil_ir::RetainedLifeShape {
@@ -2486,9 +2509,23 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                 Type::Unsupported("MutexGuard requires one complete payload type".into())
             }
         }
-        s::TypeKind::Named { path, args } if path.as_slice() == ["Ref"] && args.len() == 1 => {
+        s::TypeKind::Named { path, args }
+            if matches!(path.as_slice(),[name] if name == "Ref" || name == "Desc" || name == receivers::VALUE_DESCRIPTION)
+                && args.len() == 1 =>
+        {
             match &args[0] {
-                s::GenericArg::Type(inner) => Type::Desc(Box::new(type_ref(inner))),
+                s::GenericArg::Type(inner) => {
+                    let payload = lower(inner);
+                    match payload {
+                        Type::Desc(payload) if receivers::bare_resource_syntax(inner, classify) => {
+                            Type::Desc(payload)
+                        }
+                        Type::Desc(_) | Type::Managed(_) => Type::Unsupported(
+                            "Ref requires a resource payload, not another carrier".into(),
+                        ),
+                        payload => Type::Desc(Box::new(payload)),
+                    }
+                }
                 _ => Type::Unsupported("Ref requires one resource type".into()),
             }
         }
@@ -2529,11 +2566,11 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             variants: members
                 .iter()
                 .enumerate()
-                .map(|(index, member)| (format!("Member{index}"), vec![type_ref(member)]))
+                .map(|(index, member)| (format!("Member{index}"), vec![lower(member)]))
                 .collect(),
         },
         s::TypeKind::Tuple(ts) if ts.is_empty() => Type::Unit,
-        s::TypeKind::Tuple(ts) => Type::Tuple(ts.iter().map(type_ref).collect()),
+        s::TypeKind::Tuple(ts) => Type::Tuple(ts.iter().map(lower).collect()),
         s::TypeKind::Array {
             element,
             length: Some(length),
@@ -2541,7 +2578,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             if let s::ExprKind::Literal(s::Literal::Integer(text)) = &length.kind {
                 if let Ok(length) = text.replace('_', "").parse::<u32>() {
                     Type::Array {
-                        element: Box::new(type_ref(element)),
+                        element: Box::new(lower(element)),
                         length,
                     }
                 } else {
@@ -2555,9 +2592,9 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             element,
             length: None,
         } => Type::Slice {
-            element: Box::new(type_ref(element)),
+            element: Box::new(lower(element)),
         },
-        s::TypeKind::Group(t) => type_ref(t),
+        s::TypeKind::Group(t) => lower(t),
         s::TypeKind::Reference {
             lifetime: Some(_), ..
         } => {
@@ -2567,25 +2604,36 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             mutable,
             inner,
             lifetime: None,
-        } => Type::Address {
-            mutable: *mutable,
-            inner: Box::new(type_ref(inner)),
-        },
+        } => {
+            let referent = lower(inner);
+            let referent = if receivers::bare_resource_syntax(inner, classify) {
+                match referent {
+                    Type::Desc(payload) => Type::Managed(payload),
+                    payload => Type::Managed(Box::new(payload)),
+                }
+            } else {
+                referent
+            };
+            Type::Address {
+                mutable: *mutable,
+                inner: Box::new(referent),
+            }
+        }
         s::TypeKind::Error { error, result } => Type::ErrorUnion {
-            error: Box::new(type_ref(error)),
-            result: Box::new(type_ref(result)),
+            error: Box::new(lower(error)),
+            result: Box::new(lower(result)),
         },
         s::TypeKind::ForeignFunction {
             abi,
             params,
             result,
         } if abi == "\"C\"" => Type::ForeignCallback {
-            parameters: params.iter().map(type_ref).collect(),
-            result: Box::new(type_ref(result)),
+            parameters: params.iter().map(lower).collect(),
+            result: Box::new(lower(result)),
         },
         s::TypeKind::Function { params, result } => {
-            let parameters: Vec<_> = params.iter().map(type_ref).collect();
-            let result = Box::new(type_ref(result));
+            let parameters: Vec<_> = params.iter().map(lower).collect();
+            let result = Box::new(lower(result));
             if parameters.iter().any(|p| matches!(p, Type::Address { .. }))
                 || matches!(result.as_ref(), Type::Address { .. })
             {

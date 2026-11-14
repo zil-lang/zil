@@ -266,6 +266,23 @@ impl Expander<'_> {
         {
             self.unsupported("generic function specialization", f.span);
         }
+        let saved_type_formals = std::mem::take(&mut self.resource_type_formals);
+        for formal in &f.generics {
+            if matches!(formal.kind, s::GenericParamKind::Type(_)) {
+                let amount = formal.name.len().saturating_add(1);
+                let Some(left) = self.callable_work.checked_sub(amount) else {
+                    self.diagnostics.push(Diagnostic::limit(
+                        Phase::Expand,
+                        "resource formal inventory budget exceeded",
+                        Some(formal.span),
+                    ));
+                    self.resource_type_formals = saved_type_formals;
+                    return;
+                };
+                self.callable_work = left;
+                self.resource_type_formals.push(formal.name.clone());
+            }
+        }
         let protocol_contracts = self.resource_protocol_contracts(f);
         let result_mode = self.resource_result_mode(f, !protocol_contracts.is_empty());
         let saved_self = self
@@ -485,6 +502,7 @@ impl Expander<'_> {
         self.current_function = saved_function;
         self.parent_map = saved_parent;
         self.self_type = saved_self;
+        self.resource_type_formals = saved_type_formals;
         self.lexical_receiver = saved_receiver;
         self.return_type = saved_return;
     }
@@ -599,7 +617,43 @@ impl Expander<'_> {
     }
 
     pub(super) fn type_ref(&self, ty: &s::TypeRef) -> Type {
-        substitute_self(type_ref(ty), self.self_type.as_ref())
+        let classify = |referent: &s::TypeRef| {
+            let s::TypeKind::Named { path, args } = &ungroup_resource(referent).kind else {
+                return None;
+            };
+            if let [name] = path.as_slice() {
+                if self
+                    .resource_type_formals
+                    .iter()
+                    .any(|formal| formal == name)
+                {
+                    return Some(false);
+                }
+                if name == "Self" && args.is_empty() {
+                    // This host was selected by actual original impl lowering,
+                    // not a caller hint. Explicit carrier Self remains a value
+                    // carrier, rather than becoming a second Managed wrapper.
+                    let name = match self.self_type.as_ref()? {
+                        Type::Named(name)
+                        | Type::Record { name, .. }
+                        | Type::Package { name, .. } => name,
+                        _ => return Some(false),
+                    };
+                    return self
+                        .declarations
+                        .get(name)
+                        .map(|row| row.kind == s::AggregateKind::Resource);
+                }
+            }
+            let name = path.join(".");
+            self.declarations.get(&name).map(|row| {
+                row.kind == s::AggregateKind::Resource && row.generics.len() == args.len()
+            })
+        };
+        substitute_self(
+            type_ref_with_resources(ty, &classify),
+            self.self_type.as_ref(),
+        )
     }
 }
 
@@ -648,4 +702,45 @@ pub(super) fn substitute_self(ty: Type, host: Option<&Type>) -> Type {
         },
         other => other,
     }
+}
+
+pub(super) fn ungroup_resource(mut ty: &s::TypeRef) -> &s::TypeRef {
+    while let s::TypeKind::Group(inner) = &ty.kind {
+        ty = inner;
+    }
+    ty
+}
+pub(super) fn bare_resource_syntax(
+    ty: &s::TypeRef,
+    classify: &impl Fn(&s::TypeRef) -> Option<bool>,
+) -> bool {
+    let ty = ungroup_resource(ty);
+    if let Some(answer) = classify(ty) {
+        return answer;
+    }
+    let s::TypeKind::Named { path, args } = &ty.kind else {
+        return false;
+    };
+    let [name] = path.as_slice() else {
+        return false;
+    };
+    match name.as_str() {
+        "ByteBuffer" | "TaskI32" => args.is_empty(),
+        "Store" | "Mutex" | "Registration" | "AsyncRegistration" => {
+            matches!(args.as_slice(), [s::GenericArg::Type(_)])
+        }
+        "Task" => matches!(
+            args.as_slice(),
+            [s::GenericArg::Type(_)] | [s::GenericArg::Type(_), s::GenericArg::Type(_)]
+        ),
+        _ => false,
+    }
+}
+
+// Not lexical Source identifiers. Only internal AST normalization emits these
+// shells, and their spelling is never a declaration/capability identity.
+pub(crate) const VALUE_DESCRIPTION: &str = "@source:descriptor:value";
+pub(crate) const REFERENCE_OWNER: &str = "@source:reference:owner";
+pub(crate) fn internal_resource_carrier(name: &str) -> bool {
+    matches!(name, VALUE_DESCRIPTION | REFERENCE_OWNER)
 }

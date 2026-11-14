@@ -149,6 +149,8 @@ mod trait_bounds;
 pub(super) use trait_bounds::dynamic;
 #[path = "generic_nominal_lineage.rs"]
 mod nominal_lineage;
+#[path = "generic_resource_actuals.rs"]
+mod resource_actuals;
 #[path = "generic_trait_static_host.rs"]
 mod static_host;
 #[path = "generic_trait_defaults.rs"]
@@ -218,8 +220,9 @@ pub(super) fn specialize_products_with_runtime<'a>(
     )>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
+    let original_limits = resource_actuals::public_input(module, limits)?;
     let (prepared, remaining) =
-        options::prepare_recorded(module, limits, products.semantic.as_ref())?;
+        options::prepare_recorded(module, &original_limits, products.semantic.as_ref())?;
     match prepared {
         Some(prepared) => specialize_products_prepared(
             &prepared.module,
@@ -1453,6 +1456,7 @@ impl<'a> Engine<'a> {
                 }
             })
             .collect::<R<Vec<_>>>()?;
+        self.preserve_resource_actuals(&parameters, &mut arguments, span)?;
         if dependent {
             return self.retain_store_template(template, item, arguments, span);
         }

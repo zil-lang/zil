@@ -155,17 +155,21 @@ impl Engine<'_> {
         span: Span,
         depth: usize,
     ) -> R<bool> {
-        if matches!(
-            name,
-            "Task"
-                | "Managed"
-                | "Store"
-                | "OwnedDyn"
-                | "TaskCreateFailure"
-                | "Fn"
-                | "FnMut"
-                | "FnOnce"
-        ) || name == options::TASK_THREAD_SCOPE
+        if crate::receivers::internal_resource_carrier(name)
+            || matches!(
+                name,
+                "Ref"
+                    | "Desc"
+                    | "Task"
+                    | "Managed"
+                    | "Store"
+                    | "OwnedDyn"
+                    | "TaskCreateFailure"
+                    | "Fn"
+                    | "FnMut"
+                    | "FnOnce"
+            )
+            || name == options::TASK_THREAD_SCOPE
         {
             // These sealed constructors are not user nominal declarations.
             // Their actual nested types/classes are processed by each builtin

@@ -489,6 +489,7 @@ impl<'a> Engine<'a> {
     ) -> R<bool> {
         let owner = function.semantic.raw_index().map(|_| function.semantic);
         self.with_nominal_owner(owner, |engine| {
+            engine.preserve_resource_header(function)?;
             engine.stored_signature_in_owner(function, callable_parameters)
         })
     }
