@@ -161,6 +161,126 @@ impl<'a> NominalWhere<'a> {
 }
 
 impl Proof {
+    /// A definition's own quantified premises are assumptions only at its
+    /// entry. The complete original check has already checked their scope,
+    /// kinds and uses; this does not install them in any caller's Gamma.
+    pub(in crate::semantics) fn where_entry(
+        &self,
+        program: &SemanticModule,
+        owner: SemanticDefinitionId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<()> {
+        let mut check = borrowed_check(program, self, owner, limits, left)?;
+        let original = check.definition(owner)?;
+        if !matches!(
+            original.body,
+            SemanticDefinitionBody::FunctionWithBody { .. }
+        ) {
+            return Err(bad(
+                "where entry does not select a checked original function",
+            ));
+        }
+        // Include inherited lexical and associated premises using the same
+        // declaration-domain operation used during original body checking.
+        let _ = check.original_requirements(owner, 0)?;
+        Ok(())
+    }
+
+    /// Recheck all callee premises in the caller's original Gamma at the exact
+    /// original operation. The returned mixed vector must still be compared
+    /// against every actual world argument by the executable consumer.
+    pub(in crate::semantics) fn where_call(
+        &self,
+        program: &SemanticModule,
+        caller: SemanticDefinitionId,
+        site: SemanticSiteId,
+        target: SemanticDefinitionId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Vec<SemanticActualRecipe>> {
+        let mut check = borrowed_check(program, self, caller, limits, left)?;
+        if !self.complete.contains(&target) {
+            return Err(bad("where call target lacks complete original typing"));
+        }
+        check.pay(
+            self.calls
+                .len()
+                .saturating_add(self.call_targets.len())
+                .saturating_add(2)
+                .ilog2() as usize
+                + 1,
+            0,
+        )?;
+        let key = (caller, site);
+        if self.call_targets.get(&key) != Some(&target) {
+            return Err(bad("where call changes its exact original target"));
+        }
+        let arguments = self
+            .calls
+            .get(&key)
+            .ok_or_else(|| bad("where call lacks its complete original mixed actuals"))?;
+        let original = check.definition(target)?;
+        if original.parameters.len() != arguments.len() {
+            return Err(bad("where call omits a complete mixed argument position"));
+        }
+        for (formal, actual) in original.parameters.iter().zip(arguments) {
+            check.pay(1, 0)?;
+            if !matches!(
+                (formal, actual),
+                (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(_))
+                    | (SemanticFormal::Lifetime, SemanticActualRecipe::Life(_))
+                    | (
+                        SemanticFormal::Const { .. },
+                        SemanticActualRecipe::Const { .. }
+                    )
+            ) {
+                return Err(bad("where call changes an original mixed argument kind"));
+            }
+        }
+        for requirement in original
+            .requirements
+            .iter()
+            .chain(original.parameters.iter().flat_map(|formal| match formal {
+                SemanticFormal::Type { requirements } => requirements.as_slice(),
+                _ => &[],
+            }))
+        {
+            if matches!(
+                requirement,
+                SemanticRequirementRecipe::Callable {
+                    ty: SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Result,
+                    },
+                    ..
+                }
+            ) {
+                // This is an exit obligation of the independently checked
+                // callee body, never a caller assumption about an arbitrary F.
+                continue;
+            }
+            let mapped = super::super::instantiate::requirement(
+                program,
+                self,
+                requirement,
+                super::super::instantiate::DomainMapping {
+                    source: target,
+                    use_definition: caller,
+                    arguments,
+                    parent_call: Some(site),
+                },
+                limits,
+                check.left,
+            )?;
+            check.satisfy_requirement(caller, &mapped, 0)?;
+        }
+        for argument in arguments {
+            crate::dyn_metadata::semantic_operand_snapshot(argument, limits, check.left, 1)?;
+        }
+        Ok(arguments.clone())
+    }
+
     /// Reduce a complete recipe in its explicitly selected original Gamma.
     /// This never installs specialization equalities or new body facts.
     pub(in crate::semantics) fn resolve_source_type(
