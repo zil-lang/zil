@@ -1,6 +1,8 @@
 //! Conditional protocol relations are proved from original operations. No
 //! runtime layout, instance specialization, or proposed Typed table is input.
 use super::*;
+#[path = "original_type_cache.rs"]
+mod type_cache;
 
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
@@ -203,8 +205,8 @@ struct Engine<'a, 'b> {
     left: &'b mut usize,
     active: BTreeSet<SemanticDefinitionId>,
     relevant: BTreeSet<SemanticDefinitionId>,
-    categories: Vec<(SemanticDefinitionId, SemanticTypeRecipe, cleanup::Category)>,
-    cleanup: Vec<(SemanticDefinitionId, SemanticTypeRecipe, bool)>,
+    categories: type_cache::Table<cleanup::Category>,
+    cleanup: type_cache::Table<bool>,
 }
 impl<'a> Engine<'a, '_> {
     fn category(
@@ -213,21 +215,15 @@ impl<'a> Engine<'a, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<cleanup::Category> {
-        self.pay(self.categories.len().saturating_add(1), depth)?;
-        for (scope, candidate, result) in &self.categories {
-            if *scope != owner {
-                continue;
-            }
-            crate::dyn_metadata::semantic_operand_snapshot(candidate, self.limits, self.left, 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
-            if candidate == ty {
-                return Ok(*result);
-            }
+        self.pay(1, depth)?;
+        let (key, cached) = self.categories.lookup(owner, ty, self.limits, self.left)?;
+        if let Some(result) = cached {
+            return Ok(result);
         }
         let result =
             cleanup::category(self.program, self.proof, owner, ty, self.limits, self.left)?;
         self.categories
-            .push((owner, copy_recipe(ty, self.limits, self.left)?, result));
+            .insert(key, ty, result, self.limits, self.left)?;
         Ok(result)
     }
     fn can_drop(
@@ -236,21 +232,15 @@ impl<'a> Engine<'a, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<bool> {
-        self.pay(self.cleanup.len().saturating_add(1), depth)?;
-        for (scope, candidate, result) in &self.cleanup {
-            if *scope != owner {
-                continue;
-            }
-            crate::dyn_metadata::semantic_operand_snapshot(candidate, self.limits, self.left, 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
-            if candidate == ty {
-                return Ok(*result);
-            }
+        self.pay(1, depth)?;
+        let (key, cached) = self.cleanup.lookup(owner, ty, self.limits, self.left)?;
+        if let Some(result) = cached {
+            return Ok(result);
         }
         let result =
             cleanup::capability(self.program, self.proof, owner, ty, self.limits, self.left)?;
         self.cleanup
-            .push((owner, copy_recipe(ty, self.limits, self.left)?, result));
+            .insert(key, ty, result, self.limits, self.left)?;
         Ok(result)
     }
     fn pay(&mut self, n: usize, depth: usize) -> R<()> {
@@ -3394,8 +3384,8 @@ pub(super) fn check(
         left,
         active: BTreeSet::new(),
         relevant: BTreeSet::new(),
-        categories: Vec::new(),
-        cleanup: Vec::new(),
+        categories: type_cache::Table::new(),
+        cleanup: type_cache::Table::new(),
     };
     engine.pay(
         program
