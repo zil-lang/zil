@@ -556,6 +556,7 @@ impl Proof<'_, '_> {
                     }
                     sealed::Resolution::Intrinsic(
                         sealed::Intrinsic::NumericConvert(_)
+                        | sealed::Intrinsic::CCallback
                         | sealed::Intrinsic::AsyncValid
                         | sealed::Intrinsic::RegistrationValid
                         | sealed::Intrinsic::SliceLength,
