@@ -314,9 +314,7 @@ impl<'a> Check<'a, '_> {
         if !names.iter().any(|old| old == name) {
             names.push(name.to_owned());
         }
-        let observed = if value.used || !value.taken_fields.is_empty() {
-            CallableKind::FnOnce
-        } else if value.written {
+        let observed = if value.written {
             CallableKind::FnMut
         } else {
             CallableKind::Fn
@@ -326,6 +324,32 @@ impl<'a> Check<'a, '_> {
             || observed == CallableKind::FnMut && *kind == CallableKind::Fn
         {
             *kind = observed;
+        }
+        Ok(())
+    }
+    fn capture_exit(
+        &mut self,
+        owner: SemanticDefinitionId,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(variables.len().saturating_add(1), depth)?;
+        for value in variables.values() {
+            let mut value = Some(value);
+            while let Some(binding) = value {
+                self.pay(1, depth)?;
+                if binding.capture
+                    && binding.observed
+                    && (binding.used || !binding.taken_fields.is_empty())
+                {
+                    self.pay(
+                        self.proof.kinds.len().saturating_add(1).ilog2() as usize + 2,
+                        depth,
+                    )?;
+                    self.proof.kinds.insert(owner, CallableKind::FnOnce);
+                }
+                value = binding.shadowed.as_deref();
+            }
         }
         Ok(())
     }
@@ -2911,6 +2935,7 @@ impl<'a> Check<'a, '_> {
                     ));
                 };
                 self.same(&error, &expected)?;
+                self.capture_exit(owner, variables, depth + 1)?;
                 *result
             }
             CoreExprKind::Unary {
@@ -4521,10 +4546,12 @@ impl<'a> Check<'a, '_> {
                     } else {
                         self.same(&value, &expected)?;
                     }
+                    self.capture_exit(owner, variables, depth + 1)?;
                     live = false;
                 }
                 CoreStatementKind::Return(None) => {
                     self.unit_result(owner, result, depth + 1)?;
+                    self.capture_exit(owner, variables, depth + 1)?;
                     live = false;
                 }
                 CoreStatementKind::Expression(value) => {
@@ -5221,6 +5248,7 @@ impl<'a> Check<'a, '_> {
             SemanticOriginalFunctionBody::Defined(body) => {
                 if self.block(definition.id, body, &mut variables, &result, 0)? {
                     self.unit_result(definition.id, &result, 0)?;
+                    self.capture_exit(definition.id, &variables, 0)?;
                 }
             }
             SemanticOriginalFunctionBody::External => {}
@@ -5273,11 +5301,7 @@ impl<'a> Check<'a, '_> {
                 self.pay(1, 0)?;
                 if value.capture && value.observed {
                     captured = true;
-                    if (value.used || !value.taken_fields.is_empty())
-                        && !self.copy_type(definition.id, &value.ty, 0)?
-                    {
-                        kind = CallableKind::FnOnce;
-                    } else if value.written && kind != CallableKind::FnOnce {
+                    if value.written && kind != CallableKind::FnOnce {
                         kind = CallableKind::FnMut;
                     }
                 }
