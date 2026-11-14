@@ -57,7 +57,10 @@ pub(super) fn aggregate<'a>(
     Err(error(
         "E-STORED-IDENTITY",
         Span::default(),
-        "stored instance has no actual aggregate declaration",
+        format!(
+            "stored instance has no actual aggregate declaration: module {module:?}, name {name}, available declarations {:?}",
+            aggregates.iter().map(|row| row.name.as_str()).collect::<Vec<_>>()
+        ),
     ))
 }
 
