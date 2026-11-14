@@ -889,7 +889,7 @@ pub(crate) fn call_slot(
     if interfaces.next().is_some() {
         return Err(bad("Dyn call actual interface repeats"));
     }
-    crate::dyn_metadata::semantic_operand_snapshot(interface, limits, left, 1)?;
+    crate::dyn_metadata::actual_interface_snapshot(interface, limits, left, 1)?;
     let slot = interface
         .slots
         .get(slot_ordinal as usize)
@@ -904,7 +904,7 @@ pub(crate) fn call_slot(
     if declarations.next().is_some() || declaration.kind != DynDeclarationKind::Trait {
         return Err(bad("Dyn call trait declaration repeats or changes kind"));
     }
-    crate::dyn_metadata::semantic_operand_snapshot(declaration, limits, left, 1)?;
+    crate::dyn_metadata::actual_declaration_snapshot(declaration, limits, left, 1)?;
     let parent_scope = exact_scope(program, SemanticDynOwner::Declaration(declaration.id), left)?;
     if parent_scope.id != parent
         || parent_scope.identity != declaration.identity

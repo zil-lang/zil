@@ -171,6 +171,181 @@ impl Work<'_, '_> {
         root.visit_dyn_metadata(self, 0)
     }
 }
+impl Work<'_, '_> {
+    fn declaration(&mut self, d: &DynDeclaration) -> R<()> {
+        self.rows(1)?;
+        if let Some(values) = &d.method_definitions {
+            self.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(self, 0)?;
+            }
+        }
+        self.rows(1)?;
+        if let Some(values) = &d.method_signatures {
+            self.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(self, 0)?;
+            }
+        }
+        self.rows(1)?;
+        if let Some(values) = &d.associated_definitions {
+            self.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(self, 0)?;
+            }
+        }
+        self.rows(1)?;
+        if let Some(values) = &d.requirements {
+            self.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(self, 0)?;
+            }
+        }
+        self.rows(1)?;
+        if let Some(values) = &d.implicit_lifetimes {
+            self.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(self, 0)?;
+            }
+        }
+        self.rows(1)?;
+        if let Some(values) = &d.direct_supertraits {
+            self.rows(values.len())?;
+            for value in values {
+                value.visit_dyn_metadata(self, 0)?;
+            }
+        }
+        self.fee(d.identity.package.len())?;
+        self.rows(
+            d.identity
+                .module_path
+                .len()
+                .saturating_add(d.identity.declaration_path.len())
+                .saturating_add(d.identity.generation_path.len()),
+        )?;
+        for text in d
+            .identity
+            .module_path
+            .iter()
+            .chain(&d.identity.declaration_path)
+        {
+            self.fee(text.len())?;
+        }
+        self.rows(1)?;
+        if let Some(p) = &d.self_pattern {
+            p.visit_dyn_metadata(self, 0)?;
+        }
+        self.rows(1)?;
+        if let Some(p) = &d.implemented_trait {
+            self.pattern(p)?;
+        }
+        self.rows(d.parameters.len().saturating_add(d.members.len()))?;
+        for p in &d.parameters {
+            if let LifeParameterKind::Const(t) = p {
+                self.ty(t)?;
+            }
+        }
+        for m in &d.members {
+            self.fee(m.name.len())?;
+            match &m.kind {
+                DynMemberKind::Type => {}
+                DynMemberKind::Constant => {}
+                DynMemberKind::Method(ps) => {
+                    self.rows(ps.len())?;
+                    for p in ps {
+                        if let LifeParameterKind::Const(t) = p {
+                            self.ty(t)?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    fn interface(&mut self, i: &DynInterface) -> R<()> {
+        self.rows(2)?;
+        if let Some(t) = &i.context {
+            self.ty(t)?;
+        }
+        if let Some(c) = &i.owning_cleanup {
+            self.cleanup(c)?;
+        }
+        self.application(&i.application)?;
+        self.rows(i.inherited.len())?;
+        for a in &i.inherited {
+            self.application(a)?;
+        }
+        self.rows(
+            i.associated_types
+                .len()
+                .saturating_add(i.associated_constants.len()),
+        )?;
+        for a in &i.associated_types {
+            self.application(&a.member.application)?;
+            self.ty(&a.ty)?;
+            DynRecipeVisitor::life(self, &a.life, 0)?;
+            self.rows(a.classes.len())?;
+        }
+        for a in &i.associated_constants {
+            self.application(&a.member.application)?;
+            self.ty(&a.ty)?;
+            self.constant(&a.value)?;
+        }
+        self.rows(
+            i.retained_life
+                .ports
+                .len()
+                .saturating_add(i.retained_life.retained.len())
+                .saturating_add(i.retained_life.nominal_arguments.len()),
+        )?;
+        for p in &i.retained_life.ports {
+            self.ty(&p.leaf)?;
+        }
+        for p in &i.retained_life.retained {
+            self.path(p.path.len())?;
+        }
+        for p in &i.retained_life.nominal_arguments {
+            self.path(p.path.len())?;
+        }
+        self.rows(i.slots.len())?;
+        for s in &i.slots {
+            self.slot(s)?;
+        }
+        Ok(())
+    }
+    fn slot(&mut self, s: &DynSlot) -> R<()> {
+        self.application(&s.member.application)?;
+        self.rows(
+            s.actuals
+                .len()
+                .saturating_add(s.parameters.len())
+                .saturating_add(s.parameter_modes.len()),
+        )?;
+        for a in &s.actuals {
+            self.actual(a)?;
+        }
+        for t in &s.parameters {
+            self.ty(t)?;
+        }
+        self.ty(&s.result)?;
+        if let Some(c) = &s.storage_life {
+            self.fee(borrowed_fp::metadata_work(c))?;
+            for r in &c.bindings {
+                self.path(r.position.path.len())?;
+            }
+            self.rows(c.static_bindings.len())?;
+            for position in &c.static_bindings {
+                self.path(position.path.len())?;
+            }
+            for r in &c.classes {
+                self.path(r.position.path.len())?;
+            }
+        }
+        self.contract(&s.contract)?;
+        Ok(())
+    }
+}
+
 pub(super) fn snapshot(
     core: &CoreModule,
     limits: &Limits,
@@ -213,170 +388,10 @@ pub(super) fn snapshot(
             .saturating_add(core.dyn_vtables.len()),
     )?;
     for d in &core.dyn_declarations {
-        w.rows(1)?;
-        if let Some(values) = &d.method_definitions {
-            w.rows(values.len())?;
-            for value in values {
-                value.visit_dyn_metadata(&mut w, 0)?;
-            }
-        }
-        w.rows(1)?;
-        if let Some(values) = &d.method_signatures {
-            w.rows(values.len())?;
-            for value in values {
-                value.visit_dyn_metadata(&mut w, 0)?;
-            }
-        }
-        w.rows(1)?;
-        if let Some(values) = &d.associated_definitions {
-            w.rows(values.len())?;
-            for value in values {
-                value.visit_dyn_metadata(&mut w, 0)?;
-            }
-        }
-        w.rows(1)?;
-        if let Some(values) = &d.requirements {
-            w.rows(values.len())?;
-            for value in values {
-                value.visit_dyn_metadata(&mut w, 0)?;
-            }
-        }
-        w.rows(1)?;
-        if let Some(values) = &d.implicit_lifetimes {
-            w.rows(values.len())?;
-            for value in values {
-                value.visit_dyn_metadata(&mut w, 0)?;
-            }
-        }
-        w.rows(1)?;
-        if let Some(values) = &d.direct_supertraits {
-            w.rows(values.len())?;
-            for value in values {
-                value.visit_dyn_metadata(&mut w, 0)?;
-            }
-        }
-        w.fee(d.identity.package.len())?;
-        w.rows(
-            d.identity
-                .module_path
-                .len()
-                .saturating_add(d.identity.declaration_path.len())
-                .saturating_add(d.identity.generation_path.len()),
-        )?;
-        for text in d
-            .identity
-            .module_path
-            .iter()
-            .chain(&d.identity.declaration_path)
-        {
-            w.fee(text.len())?;
-        }
-        w.rows(1)?;
-        if let Some(p) = &d.self_pattern {
-            p.visit_dyn_metadata(&mut w, 0)?;
-        }
-        w.rows(1)?;
-        if let Some(p) = &d.implemented_trait {
-            w.pattern(p)?;
-        }
-        w.rows(d.parameters.len().saturating_add(d.members.len()))?;
-        for p in &d.parameters {
-            if let LifeParameterKind::Const(t) = p {
-                w.ty(t)?;
-            }
-        }
-        for m in &d.members {
-            w.fee(m.name.len())?;
-            match &m.kind {
-                DynMemberKind::Type => {}
-                DynMemberKind::Constant => {}
-                DynMemberKind::Method(ps) => {
-                    w.rows(ps.len())?;
-                    for p in ps {
-                        if let LifeParameterKind::Const(t) = p {
-                            w.ty(t)?;
-                        }
-                    }
-                }
-            }
-        }
+        w.declaration(d)?;
     }
     for i in &core.dyn_interfaces {
-        w.rows(2)?;
-        if let Some(t) = &i.context {
-            w.ty(t)?;
-        }
-        if let Some(c) = &i.owning_cleanup {
-            w.cleanup(c)?;
-        }
-        w.application(&i.application)?;
-        w.rows(i.inherited.len())?;
-        for a in &i.inherited {
-            w.application(a)?;
-        }
-        w.rows(
-            i.associated_types
-                .len()
-                .saturating_add(i.associated_constants.len()),
-        )?;
-        for a in &i.associated_types {
-            w.application(&a.member.application)?;
-            w.ty(&a.ty)?;
-            DynRecipeVisitor::life(&mut w, &a.life, 0)?;
-            w.rows(a.classes.len())?;
-        }
-        for a in &i.associated_constants {
-            w.application(&a.member.application)?;
-            w.ty(&a.ty)?;
-            w.constant(&a.value)?;
-        }
-        w.rows(
-            i.retained_life
-                .ports
-                .len()
-                .saturating_add(i.retained_life.retained.len())
-                .saturating_add(i.retained_life.nominal_arguments.len()),
-        )?;
-        for p in &i.retained_life.ports {
-            w.ty(&p.leaf)?;
-        }
-        for p in &i.retained_life.retained {
-            w.path(p.path.len())?;
-        }
-        for p in &i.retained_life.nominal_arguments {
-            w.path(p.path.len())?;
-        }
-        w.rows(i.slots.len())?;
-        for s in &i.slots {
-            w.application(&s.member.application)?;
-            w.rows(
-                s.actuals
-                    .len()
-                    .saturating_add(s.parameters.len())
-                    .saturating_add(s.parameter_modes.len()),
-            )?;
-            for a in &s.actuals {
-                w.actual(a)?;
-            }
-            for t in &s.parameters {
-                w.ty(t)?;
-            }
-            w.ty(&s.result)?;
-            if let Some(c) = &s.storage_life {
-                w.fee(borrowed_fp::metadata_work(c))?;
-                for r in &c.bindings {
-                    w.path(r.position.path.len())?;
-                }
-                w.rows(c.static_bindings.len())?;
-                for position in &c.static_bindings {
-                    w.path(position.path.len())?;
-                }
-                for r in &c.classes {
-                    w.path(r.position.path.len())?;
-                }
-            }
-            w.contract(&s.contract)?;
-        }
+        w.interface(i)?;
     }
     for t in &core.dyn_vtables {
         w.rows(2)?;
@@ -524,4 +539,49 @@ pub(crate) fn semantic_operand_snapshot(
         nodes: 0,
     };
     value.visit_dyn_metadata(&mut work, 0)
+}
+
+/// Bounded snapshots of actual runtime Dyn data use the same traversal as
+/// Core transport. Recipe metadata visitors cannot stand in for these fields.
+pub(crate) fn actual_declaration_snapshot(
+    value: &DynDeclaration,
+    limits: &Limits,
+    left: &mut usize,
+    copies: usize,
+) -> R<()> {
+    Work {
+        limits,
+        left,
+        copies,
+        nodes: 0,
+    }
+    .declaration(value)
+}
+pub(crate) fn actual_interface_snapshot(
+    value: &DynInterface,
+    limits: &Limits,
+    left: &mut usize,
+    copies: usize,
+) -> R<()> {
+    Work {
+        limits,
+        left,
+        copies,
+        nodes: 0,
+    }
+    .interface(value)
+}
+pub(crate) fn actual_slot_snapshot(
+    value: &DynSlot,
+    limits: &Limits,
+    left: &mut usize,
+    copies: usize,
+) -> R<()> {
+    Work {
+        limits,
+        left,
+        copies,
+        nodes: 0,
+    }
+    .slot(value)
 }

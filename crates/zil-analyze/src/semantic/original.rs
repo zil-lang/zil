@@ -929,6 +929,31 @@ impl Solver<'_, '_> {
             CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
                 self.expression(frame, value, b, depth + 1)?
             }
+            CoreExprKind::NumericConvert {
+                value: input,
+                target,
+            } => {
+                let input = self.expression(frame, input, b, depth + 1)?;
+                let output = self.recipe(frame, target, b, depth + 1)?;
+                // Both endpoints must be numeric under the original Γ. A
+                // selected concrete header cannot make an abstract T numeric.
+                // Actual checked conversion and overflow remain kernel facts.
+                Self::push(&mut self.numeric, input, b)?;
+                Self::push(&mut self.numeric, output, b)?;
+                output
+            }
+            CoreExprKind::IntegerConvert {
+                value: input,
+                target,
+            } => {
+                let input = self.expression(frame, input, b, depth + 1)?;
+                let output = self.recipe(frame, target, b, depth + 1)?;
+                Self::push(&mut self.integers, input, b)?;
+                Self::push(&mut self.integers, output, b)?;
+                Self::push(&mut self.numeric, input, b)?;
+                Self::push(&mut self.numeric, output, b)?;
+                output
+            }
             CoreExprKind::Ascribed { ty, value } => {
                 let actual = self.expression(frame, value, b, depth + 1)?;
                 let expected = self.recipe(frame, ty, b, depth + 1)?;

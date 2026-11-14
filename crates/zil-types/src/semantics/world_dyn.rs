@@ -176,7 +176,7 @@ pub(super) fn call(
         .slots
         .get(*slot as usize)
         .ok_or_else(|| bad("dynamic actual slot ordinal is absent"))?;
-    crate::dyn_metadata::semantic_operand_snapshot(target, world.limits, world.left, 1)?;
+    crate::dyn_metadata::actual_slot_snapshot(target, world.limits, world.left, 1)?;
     super::super::materialize::dynamic::call_slot(
         world.program,
         world.module,
