@@ -1946,7 +1946,7 @@ impl Check<'_, '_> {
     pub(super) fn uses_full_value(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         match ty {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
-            Type::Address { .. } => Ok(true),
+            Type::Address { .. } | Type::Desc(_) => Ok(true),
             Type::MutexGuard { .. } => Ok(true),
             Type::Closure(id) => self.has_ghost_capture(*id, b),
             _ => Ok(false),

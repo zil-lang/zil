@@ -131,7 +131,39 @@ impl Solver<'_, '_> {
                 }
             }
         }
+        // Canonical compiler carriers are parameterized schemas, not user
+        // declarations asserting that their unbounded formal already has a
+        // finite inline layout. Authenticate the entire sealed template and
+        // defer only its own rigid placeholder formation. Every application
+        // with actual arguments retains the ordinary field obligations.
+        b.spend(context.formals.len(), WORK)?;
+        let rigid_template = context.formals.iter().enumerate().all(|(ordinal, term)| {
+            matches!(self.state.arena[*term],Kind::Rigid(owner,index)
+                if owner==definition && index as usize==ordinal)
+        });
+        let canonical_template = if rigid_template {
+            let SemanticDefinitionBody::Nominal {
+                declaration: id, ..
+            } = &declaration.body
+            else {
+                return Err(fail("nominal schema loses its original declaration"));
+            };
+            if *id == zil_ir::builtin_life::POLL {
+                self.inventory.protocol_poll_definition(b)? == definition
+            } else if *id == zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
+                || *id == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE
+            {
+                self.inventory.protocol_task_definition(*id, b)? == definition
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         for (index, field) in fields.iter().enumerate() {
+            if canonical_template {
+                continue;
+            }
             Self::push(
                 &mut self.field_needs,
                 (

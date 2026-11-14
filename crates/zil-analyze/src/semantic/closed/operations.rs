@@ -223,9 +223,7 @@ impl Check<'_, '_> {
                     SemanticOperand::Local(local) => {
                         point.local(*local, b)?;
                     }
-                    SemanticOperand::Environment(_) | SemanticOperand::TypeArgument { .. }
-                        if matches!(expression, SemanticClassExpr::IntrinsicClass { .. }) =>
-                    {
+                    SemanticOperand::Environment(_) | SemanticOperand::TypeArgument { .. } => {
                         // This selector reads a complete checked logical type
                         // in the real creator/formal scope; it is not a head
                         // permission. The subject below is still matched to

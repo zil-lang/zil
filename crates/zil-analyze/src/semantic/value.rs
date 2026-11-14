@@ -661,6 +661,98 @@ pub(super) fn class(
         return Err(unknown("semantic class relation exceeds its finite depth"));
     }
     match expression {
+        SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Environment(ordinal),
+            path,
+            mode,
+        } if path.is_empty() => {
+            let definition = inventory.definition(instance.definition, b)?;
+            if !matches!(
+                definition
+                    .environment
+                    .get(*ordinal as usize)
+                    .map(|row| &row.kind),
+                Some(SemanticFormal::Type { .. })
+            ) {
+                return Err(fail(
+                    "outer environment occurrence changes its original Type slot kind",
+                ));
+            }
+            let parent = inventory.instance(
+                instance
+                    .parent
+                    .ok_or_else(|| fail("outer environment occurrence lacks its real creator"))?,
+                b,
+            )?;
+            let Some(SemanticActual::Type(actual)) = instance
+                .environment
+                .as_ref()
+                .and_then(|env| env.actuals.get(*ordinal as usize))
+            else {
+                return Err(fail(
+                    "outer environment occurrence has no sealed actual Type",
+                ));
+            };
+            let source = resolved(parent, actual, inventory, b, depth + 1)?;
+            let mut selected = None;
+            for slot in &source.life.slots {
+                b.spend(slot.path.len().saturating_add(1), WORK)?;
+                if slot.path.is_empty()
+                    && slot.mode == *mode
+                    && selected.replace(slot.binder).is_some()
+                {
+                    return Err(fail(
+                        "outer environment occurrence has several root slot identities",
+                    ));
+                }
+            }
+            source
+                .classes
+                .get(selected.ok_or_else(|| {
+                    fail("outer environment occurrence has no exact typed root slot")
+                })? as usize)
+                .cloned()
+                .ok_or_else(|| fail("outer environment occurrence loses its complete source class"))
+        }
+        SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::TypeArgument { scope, ordinal },
+            path,
+            mode,
+        } if path.is_empty() => {
+            let context = ancestor(instance, *scope, inventory, b)?;
+            if !matches!(
+                inventory
+                    .definition(context.definition, b)?
+                    .parameters
+                    .get(*ordinal as usize),
+                Some(SemanticFormal::Type { .. })
+            ) {
+                return Err(fail(
+                    "outer TypeArgument occurrence changes its full formal kind",
+                ));
+            }
+            let Some(SemanticActual::Type(actual)) = context.actuals.get(*ordinal as usize) else {
+                return Err(fail(
+                    "outer TypeArgument occurrence omits its complete actual",
+                ));
+            };
+            let value = resolved(context, actual, inventory, b, depth + 1)?;
+            let mut selected = None;
+            for slot in &value.life.slots {
+                b.spend(slot.path.len().saturating_add(1), WORK)?;
+                if slot.path.is_empty()
+                    && slot.mode == *mode
+                    && selected.replace(slot.binder).is_some()
+                {
+                    return Err(fail("outer TypeArgument repeats its root occurrence"));
+                }
+            }
+            Ok(Class::TypeArgument(
+                context.id,
+                *ordinal,
+                selected.ok_or_else(|| fail("outer TypeArgument has no exact typed root slot"))?,
+            ))
+        }
         SemanticClassExpr::Formal { scope, ordinal } => {
             let context = ancestor(instance, *scope, inventory, b)?;
             if !matches!(
