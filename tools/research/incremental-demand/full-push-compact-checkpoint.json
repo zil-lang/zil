@@ -1,142 +1,73 @@
 {
-  "compiled_source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
-  "compiled_tree": "27fa5b96c052520ec1aa3d280c092407f050614f",
-  "binary_sha256": "d905664388e30eb3aef415af43fe1ac4c00d5469c537f03308efcb179b29ccef",
-  "tool_source": "0db08422dde4de3c222b2c72c444c9f375476612",
+  "schema": "zil.compiler-pain-continuation.v1",
+  "construction_branch": "research/full-push-native",
+  "latest_pushed_source_parent": "5517e70847dbf89933d3412066ba2f116f2220b1",
+  "working_delta": "test-only FixtureInputs type alias plus this evidence, no production change",
+  "last_fully_accepted_research_compiler_source": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+  "new_production_source": "e005777aa63d8a3031a9024eaa12af5376d6904c",
+  "new_production_status": "Source admission fusion and LIR-cost optional native capture independently reviewed; old f7 driver207/6 retained. 5517 repaired tests7+1+1, Source9, explicit native publication1 passed. Final strict alias/release/5105/full-window acceptance pending.",
+  "stock_candidate": {
+    "source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
+    "binary_sha256": "7826460c9609fc558ac7aac461cfa329ca8f809d11df6e480de30df9881abb6d",
+    "workspace": {
+      "passed": 6122,
+      "failed": 0,
+      "ignored": 0,
+      "targets": 433
+    },
+    "reference_tests": 73,
+    "strict": true,
+    "fmt": true,
+    "release": true,
+    "controlled_window_status": "check/O2 each102rows34pairs full gate pass, only2blocks",
+    "workflow_seconds": {
+      "check": {
+        "main": 11.7371,
+        "candidate": 11.8946,
+        "Rust": 8.0758
+      },
+      "O2": {
+        "main": 32.3104,
+        "candidate": 31.3406,
+        "Rust": 25.8004
+      }
+    },
+    "negative": "O2 unchanged median candidate833.34ms/main553.15/Rust32.52; cold and workflow gains not a stable universal lead. Main merge held."
+  },
   "baseline_source": "9170bb4210554392e36eb7528596612596ebef80",
-  "baseline_binary_sha256": "8d8f7ddbd9bcf9567e042a7a8256a58698897589cafc0961655ba0a24113514e",
-  "status": "Completed cross-CGU cohort consumer plus original425 full check/O2 matrices. Whole-ELF/native gates pass; check cold and native noop remain negative. Only2blocks, no stable/universal lead or main merge.",
-  "analysis": {"path": "/workspace/zil-push-main/out/runs/cohort-three-arm-02-analysis-02.json", "sha256": "50071b193e56efe96ccf9107b3fac6b5d067db89b7f798d13caf997af6101653", "valid": true, "analysis_tool_path": "/workspace/zil-push-main/tools/research/incremental-demand/cohort_window_analysis.py", "analysis_tool_sha256": "0cbe1ff9ec68fbf5259301fe34c21f5f1b827bd769cef599b7353de4a4633603", "binding": "Measurement runner/tool source remains0db084; the analysis artifact schema correction happened after timing and is separately bound by this file SHA. No compiled-source relabeling.", "quality_scope": "Readonly aggregation of runner quality receipts; no new native execution or large artifact rehash."},
-  "receipts": [
-    {"path": "/workspace/zil-push-main/out/runs/native-cohort-scope-batch-10-release.json", "sha256": "4801601272801023874750cb30bfee3abae70d1887965a71ca91e8a8c59cb719"},
-    {"path": "/workspace/zil-push-main/out/runs/native-cohort-scope-batch-10-release.binding.json", "sha256": "fea6bbe4cb173242bd2efe12ec8bfbdd9353db015c9dce1552b4770ea5173b13"},
-    {"path": "/workspace/zil-push-main/out/runs/cohort-three-arm-02-pins.json", "sha256": "f559f6ac50627af2587ab43ff61e2b85882d64246af4bdbfe3408358bc5c1056"},
-    {"path": "/workspace/zil-push-main/out/runs/cohort-functional-receipt-reuse-10.json", "sha256": "d4ffa5a2fdd3f3ac2b0552b28865f49df8bbe4b9b5973ee59f35341007f9ed9a"}
-  ],
-  "gates": [
-    {"gate": "native-cohort-batch-09-backend", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": ["test result: ok. 269 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 31.89s"], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-backend.json", "receipt_sha256": "9c1fefe347b8347cf799a663e38f2d8167fb198191b68677a36cc6bccfa6fa23"},
-    {"gate": "native-cohort-batch-09-clippy", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-clippy.json", "receipt_sha256": "4807a2b410445a24c5ff25fbdcd189e3d4ee900e8763838f06e73293686dbfbd"},
-    {"gate": "native-cohort-batch-09-driver", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": ["test result: ok. 211 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 122.65s"], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-driver.json", "receipt_sha256": "e8e392e6444c4b684fe5a17cb6ccdbad93211e710ea68a34dda9c0ac4490d253"},
-    {"gate": "native-cohort-batch-09-fmt", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-fmt.json", "receipt_sha256": "4e869a9afeb765bcb9fc645534f4205acd8400065782943eee04d93e348b009e"},
-    {"gate": "native-cohort-batch-09-native", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": ["test result: ok. 86 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.33s"], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-native.json", "receipt_sha256": "0d90e1e69a294cbc2fb8730de2ba8c252cba37e199c291fae2897d7308707d13"},
-    {"gate": "native-cohort-batch-09-release", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": [], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-release.json", "receipt_sha256": "34b74ace138de2d716ada2fa80812873b4fc9752800b57d781b172d4b4c0b6a5"},
-    {"gate": "native-cohort-batch-09-retained-source", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": ["test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.64s"], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-retained-source.json", "receipt_sha256": "f86377bc3dd2b8f4eb7e883c6f87c18b3812ab264b925e6329ef055aedf984ab"},
-    {"gate": "native-cohort-batch-09-scalar-source", "compiled_source": "d662fdd802904229ec9f052096cd292c2eb15979", "exit": 0, "test_results": ["test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.91s"], "receipt": "/workspace/zil-push-main/out/runs/native-cohort-batch-09-scalar-source.json", "receipt_sha256": "092fea3c1d0611a7ecd40347e6483a7cc5c01df3128cdadf8e7d6ac2a89fc415"}
-  ],
-  "gate_scope": ["d662fdd802904229ec9f052096cd292c2eb15979 actually passed native86/backend269/driver211/Source9/retained1/strictClippy/fmt and its original release.", "98fa changes only observational IR timer RAII scopes and a tool explanation string. Independent exact source-equivalence review supports reuse of d662 functional/strict/fmt receipts; none are claimed rerun or compiled at98fa.", "98fa release rebuilt successfully; both new formal02 windows use that immutable binary and measurement tools0db084. Full quality evidence is current to this actual pair."],
-  "source_reviews": [
-    {"path": "/workspace/zil-push-main/out/runs/full-push-native-cohort-independent-source-review.json", "sha256": "4a9375a6af73965cb9e57c90b62ce2508736f52455755a1578efb53b84231f0b"},
-    {"path": "/workspace/zil-push-main/out/runs/full-push-native-cohort-target-policy-independent-review.json", "sha256": "0288947c066ccd640aa994a675e689eb92df86d4e2eeed3d31995053344c2ef1"},
-    {"path": "/workspace/zil-push-main/out/runs/full-push-native-cohort-attribute-slots-independent-review.json", "sha256": "002956d34f6e8a75a12d0a815f33c2c3ef4cff7a531cd2a192ac3b7ef5d402e2"},
-    {"path": "/workspace/zil-push-main/out/runs/full-push-native-cohort-timing-source-equivalence-review.json", "sha256": "c8d91b19549cd4bc1d8cf47a4d1bdb10f51fa7b3b3f09198868b8d21687dd5e6"}
-  ],
-  "protocol": {"blocks_per_mode": 2, "fixture": "original425;20modules x20functions x16steps;22files each language; all6nativeinputs twice", "request_order": ["cold", "unchanged", "private", "multi", "broad", "positions", "error", "recovery", "restore"], "parents": "cold:none; recovery:error; restore:private; all other noncold:cold; each parent retained for all3arms", "codegen": "CGU16/O2/jobs1, cacheall/capacity256, Rust incremental=true/lto=false; actual counts and partitions are separate observations", "safety": "Current independent Verify, budget limits, original errors/traps and full optimization remain; unknown/refusal is not Pass.", "output": "Success outputs retained for every arm; error old executable is not a new success and is not executed. No optional output-mutation requests in this window.", "timing": "Zil resident send-to-response excludes startup; each Rust Cargo/rustc process includes startup. Source writes, artifacts/hash/object/symbol capture and native execution outside compile timer; first profile admission/hash inside candidate cold, SDK archive after native window. OS cache not flushed. CPU/RSS scopes differ.", "versions": "Zil runtime LLVM23.1.4 (stock2bf vs SDK18 785 actual mappings); Rust1.99.1 commit58cf8f9c35b355199727627d07ae34a4e2846d67 embedded LLVM23.1.1. Equal CGU counts are not equal partitions/safety work.", "profile_id": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6", "quality_policy": "Full raw LLVM retained; reviewed SSA/compact IR changes are observations. Whole ELF bytes, actual object/layout/exports, current Verify and all native oracles remain hard acceptance; no machine normalization exception."},
-  "measurement": {
-    "check": {
-      "raw": "out/runs/cohort-three-arm-02-check",
-      "raw_sha256": {"manifest.json": "21c611eaa1067b5636b83bc498997493f8265e3a4dc1707aaa5ad77976c92ebb", "completion.json": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f", "rows.jsonl": "95bd4531e41252009bab6f90cd2b2475a4d2edbccf59c0170b93cb27e66e55ad"},
-      "controller_exit": 0,
-      "blocks": 2,
-      "rows": 102,
-      "measured": 54,
-      "parents": 48,
-      "matching_rule": "Only measured=true AND request=target_request, one per block0/1 and arm. Parent cold never enters measured cold.",
-      "cells": [
-        {"request": "cold", "main_median_ms": 1012.042108, "candidate_median_ms": 1150.152475, "rust_median_ms": 1120.832237, "candidate_over_main_paired_GM": 1.189945511, "candidate_over_Rust_paired_GM": 1.04062578},
-        {"request": "unchanged", "main_median_ms": 89.13427, "candidate_median_ms": 3.102879, "rust_median_ms": 16.218843, "candidate_over_main_paired_GM": 0.034803264, "candidate_over_Rust_paired_GM": 0.194636046},
-        {"request": "private", "main_median_ms": 617.767763, "candidate_median_ms": 51.06976, "rust_median_ms": 211.734459, "candidate_over_main_paired_GM": 0.084375541, "candidate_over_Rust_paired_GM": 0.242936814},
-        {"request": "multi", "main_median_ms": 663.494852, "candidate_median_ms": 104.88129, "rust_median_ms": 245.020932, "candidate_over_main_paired_GM": 0.155646173, "candidate_over_Rust_paired_GM": 0.420322183},
-        {"request": "broad", "main_median_ms": 843.212542, "candidate_median_ms": 837.323449, "rust_median_ms": 931.112702, "candidate_over_main_paired_GM": 0.982808322, "candidate_over_Rust_paired_GM": 0.898448997},
-        {"request": "positions", "main_median_ms": 931.412429, "candidate_median_ms": 476.680529, "rust_median_ms": 907.246834, "candidate_over_main_paired_GM": 0.513116275, "candidate_over_Rust_paired_GM": 0.524514247},
-        {"request": "error", "main_median_ms": 361.32135, "candidate_median_ms": 44.781243, "rust_median_ms": 255.690921, "candidate_over_main_paired_GM": 0.124407623, "candidate_over_Rust_paired_GM": 0.179464279},
-        {"request": "recovery", "main_median_ms": 657.390738, "candidate_median_ms": 69.467607, "rust_median_ms": 220.374727, "candidate_over_main_paired_GM": 0.105567046, "candidate_over_Rust_paired_GM": 0.325838998},
-        {"request": "restore", "main_median_ms": 82.212919, "candidate_median_ms": 25.568188, "rust_median_ms": 185.725093, "candidate_over_main_paired_GM": 0.310677283, "candidate_over_Rust_paired_GM": 0.137524179}
-      ],
-      "quality": {"valid_pair_records": 34, "native_outcomes": 0, "whole_ELF_equal_pairs": 0, "aggregate_exports_equal_pairs": 0, "analysis_blob_rehash_executed": false}
-    },
-    "o2": {
-      "raw": "out/runs/cohort-three-arm-02-o2",
-      "raw_sha256": {"manifest.json": "97e68f64fa71e49dc04336f3bf285541239eb906562681d23fc9b06f55e6b28b", "completion.json": "0878a7d62a8778a3d80e024e90d169c247b48de6f14f1bd5fd3a369859bcab6f", "rows.jsonl": "58d6e8a0e5948b9cca37cddc02f17d946af7fecd21f79fe19a975ba2f7232eca"},
-      "controller_exit": 0,
-      "blocks": 2,
-      "rows": 102,
-      "measured": 54,
-      "parents": 48,
-      "matching_rule": "Only measured=true AND request=target_request, one per block0/1 and arm. Parent cold never enters measured cold.",
-      "cells": [
-        {"request": "cold", "main_median_ms": 6068.696073, "candidate_median_ms": 5900.642683, "rust_median_ms": 6610.611044, "candidate_over_main_paired_GM": 0.974755606, "candidate_over_Rust_paired_GM": 0.892610163},
-        {"request": "unchanged", "main_median_ms": 696.980294, "candidate_median_ms": 102.341853, "rust_median_ms": 18.278168, "candidate_over_main_paired_GM": 0.067008356, "candidate_over_Rust_paired_GM": 2.508032096},
-        {"request": "private", "main_median_ms": 1653.883109, "candidate_median_ms": 486.954449, "rust_median_ms": 668.45843, "candidate_over_main_paired_GM": 0.282831777, "candidate_over_Rust_paired_GM": 0.701640926},
-        {"request": "multi", "main_median_ms": 1624.867724, "candidate_median_ms": 496.600941, "rust_median_ms": 982.428149, "candidate_over_main_paired_GM": 0.305322252, "candidate_over_Rust_paired_GM": 0.504179743},
-        {"request": "broad", "main_median_ms": 5014.44425, "candidate_median_ms": 4611.263212, "rust_median_ms": 5557.018574, "candidate_over_main_paired_GM": 0.919475618, "candidate_over_Rust_paired_GM": 0.829946919},
-        {"request": "positions", "main_median_ms": 1282.212949, "candidate_median_ms": 740.425887, "rust_median_ms": 1020.724133, "candidate_over_main_paired_GM": 0.564756657, "candidate_over_Rust_paired_GM": 0.707548128},
-        {"request": "error", "main_median_ms": 361.613696, "candidate_median_ms": 42.047255, "rust_median_ms": 182.844505, "candidate_over_main_paired_GM": 0.116271345, "candidate_over_Rust_paired_GM": 0.229960588},
-        {"request": "recovery", "main_median_ms": 1446.241756, "candidate_median_ms": 325.438925, "rust_median_ms": 448.265461, "candidate_over_main_paired_GM": 0.224034101, "candidate_over_Rust_paired_GM": 0.722325546},
-        {"request": "restore", "main_median_ms": 506.657412, "candidate_median_ms": 74.149811, "rust_median_ms": 575.02901, "candidate_over_main_paired_GM": 0.146509937, "candidate_over_Rust_paired_GM": 0.132320805}
-      ],
-      "quality": {"valid_pair_records": 34, "native_outcomes": 1080, "whole_ELF_equal_pairs": 30, "aggregate_exports_equal_pairs": 30, "analysis_blob_rehash_executed": false},
-      "actual_CGUs": {"baseline": [16], "candidate": [16], "rust": [16]}
-    }
+  "controlled_baseline_binary_sha256": "08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0",
+  "weighted_coverage_report": "tools/research/incremental-demand/large-project-reviews-20261114/large-project-weighted-coverage.md",
+  "raw_evidence_restore": "tools/research/incremental-demand/evidence/large-project-pain-20261114/RESTORE.json",
+  "raw_evidence": {
+    "archive_bytes": 1106226151,
+    "parts": 44,
+    "files": 37635,
+    "raw_bytes": 5206041864,
+    "fresh_verified": true,
+    "complete_windows": 7,
+    "preserved_failed_window": "native1000 full ELF mismatch;3/246rows, comparisons empty"
   },
-  "native_cohort": {
-    "scope": "Current-build completed-peer product events, separate from prior-version history. IR494 counts stage replay events, not494 distinct functions. MC counters are total current AsmPrinter observations, not an invented cohort-only attribution.",
-    "candidate_measured_per_block": [
-      {"block": 0, "request": "cold", "current_unit_reports": 16, "cohort_observed_units": 16, "IR_replay_events": 494, "MIR_replays": 237, "MC_total_replayed_functions": 237, "MC_total_skipped_instructions": 78962, "fresh_context_fallbacks_observed": 0},
-      {"block": 0, "request": "unchanged", "current_unit_reports": 0, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null},
-      {"block": 0, "request": "private", "current_unit_reports": 16, "cohort_observed_units": 1, "IR_replay_events": 0, "MIR_replays": 0, "MC_total_replayed_functions": 39, "MC_total_skipped_instructions": 12998, "fresh_context_fallbacks_observed": 0},
-      {"block": 0, "request": "multi", "current_unit_reports": 16, "cohort_observed_units": 2, "IR_replay_events": 0, "MIR_replays": 0, "MC_total_replayed_functions": 58, "MC_total_skipped_instructions": 19318, "fresh_context_fallbacks_observed": 0},
-      {"block": 0, "request": "broad", "current_unit_reports": 16, "cohort_observed_units": 16, "IR_replay_events": 494, "MIR_replays": 237, "MC_total_replayed_functions": 237, "MC_total_skipped_instructions": 80258, "fresh_context_fallbacks_observed": 0},
-      {"block": 0, "request": "positions", "current_unit_reports": 0, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null},
-      {"block": 0, "request": "error", "current_unit_reports": 0, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null},
-      {"block": 0, "request": "recovery", "current_unit_reports": 16, "cohort_observed_units": 1, "IR_replay_events": 0, "MIR_replays": 0, "MC_total_replayed_functions": 39, "MC_total_skipped_instructions": 12998, "fresh_context_fallbacks_observed": 0},
-      {"block": 0, "request": "restore", "current_unit_reports": 16, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null},
-      {"block": 1, "request": "cold", "current_unit_reports": 16, "cohort_observed_units": 16, "IR_replay_events": 494, "MIR_replays": 237, "MC_total_replayed_functions": 237, "MC_total_skipped_instructions": 78962, "fresh_context_fallbacks_observed": 0},
-      {"block": 1, "request": "unchanged", "current_unit_reports": 0, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null},
-      {"block": 1, "request": "private", "current_unit_reports": 16, "cohort_observed_units": 1, "IR_replay_events": 0, "MIR_replays": 0, "MC_total_replayed_functions": 39, "MC_total_skipped_instructions": 12998, "fresh_context_fallbacks_observed": 0},
-      {"block": 1, "request": "multi", "current_unit_reports": 16, "cohort_observed_units": 2, "IR_replay_events": 0, "MIR_replays": 0, "MC_total_replayed_functions": 58, "MC_total_skipped_instructions": 19318, "fresh_context_fallbacks_observed": 0},
-      {"block": 1, "request": "broad", "current_unit_reports": 16, "cohort_observed_units": 16, "IR_replay_events": 494, "MIR_replays": 237, "MC_total_replayed_functions": 237, "MC_total_skipped_instructions": 80258, "fresh_context_fallbacks_observed": 0},
-      {"block": 1, "request": "positions", "current_unit_reports": 0, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null},
-      {"block": 1, "request": "error", "current_unit_reports": 0, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null},
-      {"block": 1, "request": "recovery", "current_unit_reports": 16, "cohort_observed_units": 1, "IR_replay_events": 0, "MIR_replays": 0, "MC_total_replayed_functions": 39, "MC_total_skipped_instructions": 12998, "fresh_context_fallbacks_observed": 0},
-      {"block": 1, "request": "restore", "current_unit_reports": 16, "cohort_observed_units": 0, "IR_replay_events": null, "MIR_replays": null, "MC_total_replayed_functions": null, "MC_total_skipped_instructions": null, "fresh_context_fallbacks_observed": null}
-    ],
-    "cold_each_block": {"current_units_with_cohort": 16, "IR_candidates": 809, "IR_replay_events": 494, "MIR_candidates": 237, "MIR_replays": 237, "MC_total_replayed_functions": 237, "MC_total_skipped_instructions": 78962, "MC_total_replay_events": 78962, "declines": 162, "disabled": 0, "fresh_context_fallbacks": 0},
-    "limits": "Missing optional/native observations stay null. Object hits/terminal retained producer do not fabricate current unit/cohort work. Prior MIR/MC reuse on private edits is not new cohort reuse."
-  },
-  "negative_observations": {
-    "check_cold": "candidate1150.152/main1012.042/Rust1120.832ms; GM c/main1.189946,c/Rust1.040626.",
-    "native_noop_candidate_samples": [
-      {"block": 0, "wall_ms": 10.513385, "resident_cpu_seconds": 0.009999999999999787, "resident_and_waited_cpu_seconds": 0.009999999999999787, "resident_rss_kib": 355692, "resident_peak_kib": 369508},
-      {"block": 1, "wall_ms": 194.17032, "resident_cpu_seconds": 0.1800000000000006, "resident_and_waited_cpu_seconds": 0.1800000000000006, "resident_rss_kib": 354336, "resident_peak_kib": 368420}
-    ],
-    "native_noop": "candidate10.513/194.170ms vsRust median18.278ms; pairedGM c/Rust2.508032. The slow candidate sample consumed approximately0.18s resident CPU; cause is not attributed. No stable noop lead.",
-    "native_cold": "candidate5900.643/main6068.696/Rust6610.611ms, pairedGM0.974756/0.892610 are this window observations, not significance or cross-window causal gains.",
-    "sampling": "Only2block observations per cell; CPU/RSS scopes and LLVM/process differences remain as protocol states."
-  },
-  "first_failures_preserved": [
-    {
-      "stage": "first native formal01",
-      "source": "d662fdd802904229ec9f052096cd292c2eb15979",
-      "check_exit": 0,
-      "o2_exit": 1,
-      "error": "native_products IR child scope exceeds its enclosing scope",
-      "reason": "Cohort replay retention/repacking was wrongly counted as after-stage ir_pack_ns outside ir_capture_ns. Timer-only98fa corrected scope ownership; strict child<=parent check remained.",
-      "log": {"path": "/workspace/zil-push-main/out/runs/cohort-three-arm-01-o2.log", "sha256": "522d03548482d4904c14bbe8d67766c36d13603058a3012b4341c9d11ba2c844"},
-      "exit_receipt": {"path": "/workspace/zil-push-main/out/runs/cohort-three-arm-01-o2.exit", "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"}
-    },
-    {
-      "stage": "first formal02 aggregation",
-      "error": "KeyError: 'archive'",
-      "reason": "Analyzer incorrectly treated symbol path+sha256 metadata as archive+bytes+sha256 blob references. Explicit distinct schemas now supported, symbols byte count not fabricated.",
-      "receipt": {"path": "/workspace/zil-push-main/out/runs/cohort-three-arm-02-analysis.json", "sha256": "6f7a115ee068e24308c08d8654a9cd84203e6dff39155ad950c482555d56d4e1"},
-      "recovery": "Unique analysis-02 valid receipt above; failed artifact unmodified."
-    }
+  "priority": [
+    "Actual default-budget large-project capacity blockers",
+    "Absolute seconds saved in cold/broad large builds and real edit sequences weighted by observed frequency",
+    "Physical/logical user cache peak and growth over edits",
+    "Millisecond no-op ratio as a regression control"
   ],
-  "remaining_scope": ["Global point-to-point push is unfinished: central ReactiveGraph still evaluates BodyKey; real sparse Types/Analyze/Verify/backend consumers are not one complete global propagation scheduler.", "Current full World/context projections, model preflight, source/partition/object identity, global obligations and assembly costs remain. Completed peer cohorts do not authorize omitting any current dependency, budget, independent Verify or LLVM verification.", "OrdinaryO2 closed admission preserves real current IR/MIR/MC consumers and complete objects. Unsupported/rich domains still use the real fallback; cohort counts do not establish full language generality."],
-  "historical_536": {"compiled_source": "536cf228829064a3b78ac71497effa2a03283cf6", "binary_sha256": "4f01758cb6183a7723425c68556d2d03dad32b611046d4dd76afa31ab3dd7ccc", "checkpoint_git_blob": "0db08422dde4de3c222b2c72c444c9f375476612:tools/research/incremental-demand/full-push-compact-checkpoint.json", "V31_fixed_recovery_commit": "8ee98e6820158865ede7d68dd63e069f62ca076f", "scope": "Original536 full table and cold6700.530/main6136.942/Rust6300.526 negative remain fixed historical evidence. No cross-window causal speedup; earlier44d/124/554 references remain in that old checkpoint."},
-  "custody": {
-    "current_window": {"name": "V32", "status": "overall archive/recovery pending; no unreceived fixed reference fabricated"},
-    "prior_retirement_decision": {"decision_commit": "7ce16d8f828d81c99c0d35a82d76a2be7b991d80", "tracked_decision": "full-push-old-route-convergence-decision.json", "remote_refs": 9, "local_branches": 8, "worktrees": 8, "scope": "Current6+3 round only; old468 had no local/tree; not earlier31/42/45."}
-  },
-  "continuation": {"performance_parent_goal": "open; global push, remaining World cost and comprehensive/stable Rust lead not accepted.", "main_merge": false, "default_research_flags_enabled": false, "next": "Root owns common feature branch, source integration and unified gates; no new unmeasured followup is claimed here."}
+  "coverage_limit": "Synthetic 100-module projects and bounded chain/diamond, not industrial Rust workspace/generic/proc-macro/async success; no minute-scale pain-resolution claim. No invented industrial workload weights.",
+  "unmodified_requirements": [
+    "default numeric limits",
+    "independent current Verify",
+    "complete O2",
+    "full original input/import closure",
+    "full ELF gate for formal native windows",
+    "research flags off by default"
+  ],
+  "main_merge": false,
+  "historical_98fa_results": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.json",
+  "next": [
+    "Finish alias-only strict/fmt and new immutable release",
+    "Original5105 declarations/102files/843875bytes: exact all file hashes, Source→Types→Analyze→independentVerify→native at defaults",
+    "Current main/candidate/Rust large-project check/O2 windows separately,CGU16/O2/jobs1",
+    "Retain negatives; merge only a qualified minimal production version"
+  ]
 }

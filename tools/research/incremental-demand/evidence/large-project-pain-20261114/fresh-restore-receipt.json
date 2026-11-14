@@ -1,0 +1,16 @@
+{
+  "archive_bytes": 1106226151,
+  "files": 37635,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 44,
+  "raw_bytes": 5206041864,
+  "restore_dir": "/workspace/zil-recovery/large-project-pain-fresh-01",
+  "scope": "Eight actual-main/candidate/Rust large-scalar windows; seven complete and one native1000 full-ELF failure; weighted absolute seconds and user disk; no new f7/30c runtime acceptance, no main merge. Includes original probes and stock initial failures.",
+  "sha256": "ead43347eee5bd9b65d5abf9d1bc66eb1b5a55a5b87db7cfe33c4de03a00d3a6",
+  "source_commits": {
+    "research": "8ce584f81a405b8c5aa69e555b80ede276f07143",
+    "stock": "aaa72a6b84c097844d7484280992a1c7e4696ab1",
+    "tools": "ad81486b976634e71bf1c61544d0fd28a783fbae"
+  },
+  "status": "verified"
+}

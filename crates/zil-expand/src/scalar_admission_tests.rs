@@ -3,6 +3,11 @@ use source_context::{DeclarationPlacement, SourceIdentityContext};
 use zil_syntax::attributes::AttributeContext;
 
 type Output = Vec<(ProgramModule, Arc<SourceMap>)>;
+type FixtureInputs = (
+    Vec<ParsedSource>,
+    Vec<Vec<CoreImport>>,
+    BTreeMap<Vec<String>, ModuleId>,
+);
 
 fn parsed(id: u32, text: &str) -> ParsedSource {
     let input = ParsedSource::parse(
@@ -85,13 +90,7 @@ fn run(
     }
 }
 
-fn fixture(
-    prefix: &str,
-) -> (
-    Vec<ParsedSource>,
-    Vec<Vec<CoreImport>>,
-    BTreeMap<Vec<String>, ModuleId>,
-) {
+fn fixture(prefix: &str) -> FixtureInputs {
     let inputs = vec![
         parsed(
             0,
