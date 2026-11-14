@@ -3961,6 +3961,26 @@ pub(super) fn program(
     left: &mut usize,
 ) -> R<()> {
     let entered = *left;
+    let mut stage = ("immutable actual directory", None, None);
+    let result = program_at(program, module, ledger, limits, left, &mut stage);
+    result.map_err(|mut diagnostic| {
+        diagnostic.notes.push(format!("complete actual world pass: stage {}; instance {:?}; definition {:?}; entry allowance {}; consumed {}; remaining {}", stage.0, stage.1, stage.2, entered, entered.saturating_sub(*left), *left));
+        diagnostic
+    })
+}
+fn program_at(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    limits: &Limits,
+    left: &mut usize,
+    stage: &mut (
+        &'static str,
+        Option<SemanticInstanceId>,
+        Option<SemanticDefinitionId>,
+    ),
+) -> R<()> {
+    let entered = *left;
     let index = index::Index::new(program, module, ledger, limits, left)?;
     let mut world = World {
         program,
@@ -3995,6 +4015,11 @@ pub(super) fn program(
     )?;
     let mut targets = BTreeMap::new();
     for instance in &program.instances {
+        *stage = (
+            "instance identity and complete mixed actuals",
+            Some(instance.id),
+            Some(instance.definition),
+        );
         match instance.target {
             SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) => {
                 if let Some(previous) = targets.insert(function, instance.id) {
@@ -4161,6 +4186,11 @@ pub(super) fn program(
                     world.equal(actual, &expected)?;
                 }
             }
+            *stage = (
+                "complete actual CFG",
+                Some(instance.id),
+                Some(instance.definition),
+            );
             let before = *world.left;
             if let Err(mut diagnostic) = world.run(instance) {
                 diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work));
@@ -4168,6 +4198,7 @@ pub(super) fn program(
             }
         }
     }
+    *stage = ("actual constructor inventory", None, None);
     let mut constructed = std::collections::BTreeSet::new();
     for function in &module.functions {
         world.pay(function.blocks.len())?;
