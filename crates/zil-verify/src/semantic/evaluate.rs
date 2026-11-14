@@ -597,7 +597,7 @@ impl CheckedContext {
             invocation,
         })
     }
-    pub(super) fn application(
+    pub(crate) fn application(
         &self,
         module: &TypedModule,
         recipe: &SemanticTraitRecipe,

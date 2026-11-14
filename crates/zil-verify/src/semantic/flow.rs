@@ -467,7 +467,7 @@ impl CheckedContext {
     }
     fn header(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let Some(header)=f.storage_life.as_ref() else {
-            if f.environment.is_none()&&instance.header_embedding.is_empty()&&signature.result.classes.is_empty()&&signature.result.statics.is_empty()&&self.zero_header_type(module,&signature.result.ty,b)?{
+            if instance.header_embedding.is_empty()&&self.zero_header_function(module,f,b)?&&signature.result.classes.is_empty()&&signature.result.statics.is_empty()&&self.zero_header_type(module,&signature.result.ty,b)?{
                 let mut zero=true;for(value,_)in &signature.parameters{if !value.classes.is_empty()||!value.statics.is_empty()||!self.zero_header_type(module,&value.ty,b)?{zero=false;break;}}
                 if zero{return Ok(());}
             }

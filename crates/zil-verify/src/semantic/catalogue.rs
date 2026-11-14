@@ -102,9 +102,7 @@ impl CheckedContext {
                         // Independently reconstruct the complete finite ABI
                         // domain. An absent header is not itself zero, and a
                         // tuple of closed scalars is not a scalar whitelist.
-                        b.spend(actual.parameters.len())?;
-                        if actual.environment.is_some()||!instance.header_embedding.is_empty()||!context.zero_header_type(module,&actual.return_type,b)?{return Err(bad("semantic class-bearing function complete header is Unknown"));}
-                        for local in &actual.parameters{let ty=&actual.locals.get(local.0 as usize).ok_or_else(||bad("semantic function parameter local is absent"))?.ty;if !context.zero_header_type(module,ty,b)?{return Err(bad("semantic class-bearing function complete header is Unknown"));}}
+                        if !instance.header_embedding.is_empty()||!context.zero_header_function(module,actual,b)?{return Err(bad("semantic class-bearing function complete header is Unknown"));}
                     }
                 }
                 SemanticInstanceTarget::Function(_)=>return Err(bad("Typed semantic instance retains a Core function target")),
@@ -142,6 +140,12 @@ impl CheckedContext {
         for site in &program.sites {context.site_structure(module,site,b)?;}
         Ok(context)
     }
+    pub(super) fn zero_header_function(&self,module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<bool>{
+        b.spend(function.parameters.len().saturating_add(1))?;
+        if function.environment.is_some()||!self.zero_header_type(module,&function.return_type,b)?{return Ok(false);}
+        for parameter in &function.parameters{let ty=&function.locals.get(parameter.0 as usize).ok_or_else(||bad("semantic function parameter local is absent"))?.ty;if !self.zero_header_type(module,ty,b)?{return Ok(false);}}
+        Ok(true)
+    }
     pub(super) fn zero_header_type(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
         dynamic_metadata::ty(ty,b)?;let mut pending=vec![ty];
         while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
@@ -159,7 +163,7 @@ impl CheckedContext {
             Type::Closure(_)|Type::Task{..}|Type::OwnedDyn{..}|Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{},
             _=>{},
         }}
-        let(count,_)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0{return Ok(false);}
+        let(count,pending)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0||pending{return Ok(false);}
         // Missing/unknown nominal or opaque inventory never becomes Known0.
         // This structural ABI fact supplies no constructor, root or permission.
         self.checked_value(module,ty,&empty_life(),vec![],b)?;Ok(true)

@@ -12,7 +12,7 @@ impl CheckedContext {
     pub(super) fn environment_actual<'a>(&self, environment: &'a EvalEnv, scope: SemanticScopeRef, ordinal: u32, b: &mut Budget) -> Check<&'a CheckedActual> {
         self.frame(environment,scope,b)?.environment.get(ordinal as usize).ok_or_else(|| bad("semantic environment slot is absent or not sealed"))
     }
-    pub(super) fn life(&self, module: &TypedModule, recipe: &SemanticLifeRecipe, environment: &EvalEnv, b: &mut Budget) -> Check<ClassKey> {
+    pub(crate) fn life(&self, module: &TypedModule, recipe: &SemanticLifeRecipe, environment: &EvalEnv, b: &mut Budget) -> Check<ClassKey> {
         b.spend(1)?;
         let key=match recipe {
             SemanticLifeRecipe::Formal(reference) => match self.formal(environment,reference,b)? {

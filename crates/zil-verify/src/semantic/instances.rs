@@ -86,7 +86,7 @@ impl CheckedContext {
         let invocation_count=match current.target {
             SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=>{
                 let actual=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
-                match &actual.storage_life {Some(life)=>life.invocation_binder_count,None if actual.environment.is_none()&&actual.return_type.is_b0_scalar()&&actual.parameters.iter().all(|id|actual.locals.get(id.0 as usize).is_some_and(|local|local.ty.is_b0_scalar()))=>0,_=>return Err(bad("semantic function invocation domain is Unknown"))}
+                match &actual.storage_life {Some(life)=>life.invocation_binder_count,None if current.header_embedding.is_empty()&&self.zero_header_function(module,actual,b)?=>0,_=>return Err(bad("semantic function invocation domain is Unknown"))}
             },
             SemanticInstanceTarget::Scope=>0,
             SemanticInstanceTarget::Function(SemanticFunctionTarget::Core{..}) if self.frozen_functions.contains_key(&id)=>{
