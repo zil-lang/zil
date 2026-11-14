@@ -272,7 +272,10 @@ impl<'a> Eval<'a, '_> {
         }
         let ordinal = *representatives
             .get(reference.ordinal as usize)
-            .ok_or_else(|| bad("original life formal is outside its definition"))?;
+            .ok_or_else(|| bad(&format!(
+                "original life formal is outside its definition: current instance {scope:?}, selected instance {owner:?}, definition {:?}, mixed formals {}, reference {reference:?}",
+                definition.id, definition.parameters.len()
+            )))?;
         Ok(SemanticClassExpr::Formal {
             scope: reference.scope,
             ordinal,

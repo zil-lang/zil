@@ -593,6 +593,20 @@ pub fn check(
         })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
+    if core.semantic.is_some() {
+        let mut remaining = closure_state.remaining_work();
+        let before = remaining;
+        semantics::abi::prepare(
+            &mut closure_state.semantic_emission,
+            &[core],
+            limits,
+            &mut remaining,
+        )
+        .map_err(|error| vec![error])?;
+        closure_state
+            .snapshot(before - remaining, Span::default())
+            .map_err(|error| vec![error])?;
+    }
     let (life_declarations, life_instances) = closure_state
         .copy_stored_inventory(core)
         .map_err(|e| vec![e])?;
@@ -793,6 +807,7 @@ pub fn check(
 }
 struct Builder<'a, 'c> {
     declared_call_kind: Option<CallKind>,
+    original_call_kind: Option<CallKind>,
     function: TypedFunction,
     helper_bounds: Vec<CoreCallableParameter>,
     // Owning State specialization removes symbolic parameters, but a direct
@@ -863,6 +878,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> R<Self> {
         closures.block(f.span)?;
+        let mut abi_work = closures.remaining_work();
+        let before_abi = abi_work;
+        let original_call_kind =
+            semantics::abi::selected(&closures.semantic_emission, f, id, limits, &mut abi_work)?;
+        closures.snapshot(before_abi - abi_work, f.span)?;
+        let effective_call_kind = original_call_kind
+            .or(f.call_kind)
+            .unwrap_or(CallKind::Direct);
         if let Some(bound) = &f.callable_return
             && (bound.life.is_some() || bound.source_life.is_some())
         {
@@ -905,7 +928,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             );
         }
         let worker_life = if f.storage_life.is_none()
-            && f.call_kind == Some(CallKind::Suspend)
+            && effective_call_kind == CallKind::Suspend
             && f.life.as_ref().is_some_and(|life| {
                 life.parameter_lives.iter().flatten().count() > 1
                     || (life.result_life.is_some()
@@ -925,7 +948,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let storage_life = f.storage_life.clone().or(worker_life);
         closures.array_snapshot(&f.return_type, 1, f.span)?;
         if f.resume_bound == zil_ir::TaskResumeBound::Transfer
-            && f.call_kind != Some(CallKind::Suspend)
+            && effective_call_kind != CallKind::Suspend
         {
             return Err(error(
                 "E-TASK-RESUME",
@@ -937,13 +960,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         let helper_bounds = closures.source_helper_bounds(f)?;
         let mut b = Self {
             declared_call_kind: f.call_kind,
+            original_call_kind,
             function: TypedFunction {
                 dyn_instance: f.dyn_instance.clone(),
                 retained_return_sources: f.retained_return_sources.clone(),
                 storage_life,
-                call_kind: f.call_kind.unwrap_or(CallKind::Direct),
+                call_kind: effective_call_kind,
                 resume_bound: f.resume_bound,
-                reference_return_bound: if f.call_kind == Some(CallKind::Suspend)
+                reference_return_bound: if effective_call_kind == CallKind::Suspend
                     && matches!(f.return_type, Type::Address { mutable: false, .. })
                     && f.life
                         .as_ref()
@@ -1413,13 +1437,20 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn emit(&mut self, kind: InstructionKind, ty: Option<Type>, span: Span) -> R<Option<ValueId>> {
         self.closures.instruction(ty.is_some(), span)?;
-        if self.declared_call_kind.is_none()
-            && matches!(
-                kind,
-                InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }
-            )
-        {
-            self.function.call_kind = CallKind::Suspend;
+        if matches!(
+            kind,
+            InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }
+        ) {
+            if self.original_call_kind == Some(CallKind::Direct) {
+                return Err(error(
+                    "E-SEMANTIC-ABI",
+                    span,
+                    "actual suspension exceeds the checked original Direct candidate",
+                ));
+            }
+            if self.declared_call_kind.is_none() && self.original_call_kind.is_none() {
+                self.function.call_kind = CallKind::Suspend;
+            }
         }
         self.instructions += 1;
         if self.instructions > self.limits.max_instructions {

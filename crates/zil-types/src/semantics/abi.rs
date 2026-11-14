@@ -1,0 +1,175 @@
+//! Choose a real executable ABI from the checked original declaration. The
+//! Core source's explicit Some/None annotation remains unchanged.
+use super::emission::{Ledger, Origin};
+use crate::*;
+fn bad(message: &str) -> Diagnostic {
+    error("E-SEMANTIC-ABI", Span::default(), message)
+}
+fn pay(left: &mut usize, n: usize) -> R<()> {
+    *left = left.checked_sub(n).ok_or_else(|| {
+        Diagnostic::limit(Phase::Types, "original ABI selection work exceeded", None)
+    })?;
+    Ok(())
+}
+type Key = (
+    zil_base::ModuleId,
+    zil_base::NodeId,
+    Option<zil_base::NodeId>,
+);
+pub(super) type Choices = std::collections::BTreeMap<Key, CallKind>;
+pub(super) struct SourceOrigin {
+    origin: Origin,
+    scope: CoreFunctionSourceScope,
+}
+pub(crate) fn prepare(
+    ledger: &mut Ledger,
+    cores: &[&CoreModule],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    if cores.iter().all(|core| core.semantic.is_none()) {
+        return Ok(());
+    }
+    let mut origins = Vec::new();
+    for core in cores.iter().filter(|core| core.semantic.is_some()) {
+        pay(left, core.functions.len())?;
+        for function in &core.functions {
+            let Some(scope) = &function.source_scope else {
+                continue;
+            };
+            inference::charge_function_scope_snapshot(Some(scope), function.span, limits, left)?;
+            origins.push(SourceOrigin {
+                origin: Origin {
+                    module: core.module_id,
+                    creator: function.id,
+                    closure: None,
+                },
+                scope: scope.clone(),
+            });
+        }
+    }
+    let mut program = SemanticModule {
+        definitions: Vec::new(),
+        instances: Vec::new(),
+        sites: Vec::new(),
+        dyn_scopes: Vec::new(),
+    };
+    for core in cores {
+        let Some(source) = &core.semantic else {
+            continue;
+        };
+        crate::dyn_metadata::semantic_snapshot(source, limits, left, 1)?;
+        let copy = source.clone();
+        program.definitions.extend(copy.definitions);
+        program.instances.extend(copy.instances);
+        program.sites.extend(copy.sites);
+        program.dyn_scopes.extend(copy.dyn_scopes);
+    }
+    if let Some(source) = ledger.frozen.as_deref() {
+        crate::dyn_metadata::semantic_snapshot(&source.semantic, limits, left, 1)?;
+        for definition in &source.semantic.definitions {
+            pay(left, program.definitions.len().saturating_add(1))?;
+            if let Some(actual) = program
+                .definitions
+                .iter()
+                .find(|row| row.id == definition.id)
+            {
+                crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+                if actual != definition {
+                    return Err(bad("E ABI selection changes an immutable S declaration"));
+                }
+            } else {
+                program.definitions.push(definition.clone());
+            }
+        }
+    }
+    let proof = if let Some(source) = ledger.frozen.as_deref() {
+        super::original::check_with_frozen(&program, source, limits, left)?
+    } else {
+        super::original::check(&program, limits, left)?
+    };
+    let mut choices = Choices::new();
+    for instance in &program.instances {
+        let key = match &instance.target {
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) => {
+                (*module, *function, None)
+            }
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure {
+                module,
+                creator,
+                expression,
+                occurrence: 0,
+            }) => (*module, *creator, Some(*expression)),
+            SemanticInstanceTarget::Scope => continue,
+            _ => return Err(bad("original ABI selection lacks a real Core origin")),
+        };
+        let kind = proof.fixed_call_kind(&program, instance.definition, limits, left)?;
+        pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
+        if choices.insert(key, kind).is_some_and(|prior| prior != kind) {
+            return Err(bad(
+                "one actual Core origin has conflicting original ABI candidates",
+            ));
+        }
+    }
+    ledger.abi_origins = origins;
+    ledger.fixed_abis = Some(choices);
+    *ledger.original.borrow_mut() = Some(proof);
+    Ok(())
+}
+pub(crate) fn selected(
+    ledger: &Ledger,
+    function: &CoreFunction,
+    actual: FunctionId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<CallKind>> {
+    let Some(choices) = ledger.fixed_abis.as_ref() else {
+        return Ok(None);
+    };
+    pay(
+        left,
+        ledger.frames.len().saturating_add(1).ilog2() as usize + 1,
+    )?;
+    let origin = if let Some(frame) = ledger.frames.get(&actual) {
+        frame.origin
+    } else {
+        let scope = function
+            .source_scope
+            .as_ref()
+            .ok_or_else(|| bad("specialized executable lacks its exact original scope"))?;
+        inference::charge_function_scope_snapshot(Some(scope), function.span, limits, left)?;
+        pay(left, ledger.abi_origins.len())?;
+        let mut found = None;
+        for source in &ledger.abi_origins {
+            if source.origin.creator != function.id {
+                continue;
+            }
+            inference::charge_function_scope_snapshot(
+                Some(&source.scope),
+                function.span,
+                limits,
+                left,
+            )?;
+            if source.scope == *scope {
+                if found.replace(source.origin).is_some() {
+                    return Err(bad(
+                        "specialized executable has ambiguous original ABI origins",
+                    ));
+                }
+            }
+        }
+        found.ok_or_else(|| {
+            bad("specialized executable lacks its exact checked original ABI origin")
+        })?
+    };
+    pay(left, choices.len().saturating_add(1).ilog2() as usize + 1)?;
+    let kind = *choices
+        .get(&(origin.module, origin.creator, origin.closure))
+        .ok_or_else(|| bad("actual executable origin has no checked original ABI candidate"))?;
+    if function.call_kind.is_some_and(|declared| declared != kind) {
+        return Err(bad(
+            "explicit Core ABI selection differs from its checked original declaration",
+        ));
+    }
+    Ok(Some(kind))
+}

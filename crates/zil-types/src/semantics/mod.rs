@@ -1,5 +1,6 @@
 //! Types-owned consumers of the untrusted original semantic program.
 //! Transport/name resolution is distinct from class and executable proofs.
+pub(super) mod abi;
 pub(super) mod creator_headers;
 pub(super) mod emission;
 pub(super) mod finish;

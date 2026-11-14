@@ -41,6 +41,8 @@ pub(crate) struct Frame {
 }
 #[derive(Default)]
 pub(crate) struct Ledger {
+    pub(super) fixed_abis: Option<super::abi::Choices>,
+    pub(super) abi_origins: Vec<super::abi::SourceOrigin>,
     /// Only the explicit frozen-context entry may install this independently
     /// checked immutable source interface. It contributes no emitted frames.
     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
@@ -238,10 +240,19 @@ impl Ledger {
             lookup_cost(frame.expressions.len()).saturating_add(1),
             span,
         )?;
-        if frame.expressions.contains_key(&expression) {
+        if let Some(row) = frame.expressions.get(&expression) {
+            pay(left, frame.stack.len().saturating_add(1), span)?;
             return Err(invalid(
                 span,
-                "a direct place reuses an already emitted expression identity",
+                &format!(
+                    "a direct place reuses an already emitted expression identity: function {function:?}, node {expression:?}, stack {:?}, complete {}, value {:?}, place {:?}, end {:?}, instructions {}, requested {boundary:?}",
+                    frame.stack,
+                    row.complete,
+                    row.value,
+                    row.place,
+                    row.end,
+                    row.instructions.len()
+                ),
             ));
         }
         frame.expressions.insert(

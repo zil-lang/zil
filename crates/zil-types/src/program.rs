@@ -193,6 +193,28 @@ fn check_resolved_program_in_context(
             .install_frozen(source)
             .map_err(|error| vec![error])?;
     }
+    if program
+        .modules
+        .iter()
+        .any(|module| module.core.semantic.is_some())
+    {
+        let mut remaining = closure_state.remaining_work();
+        let before = remaining;
+        remaining = remaining
+            .checked_sub(program.modules.len().saturating_add(1))
+            .ok_or_else(limit)?;
+        let cores: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
+        semantics::abi::prepare(
+            &mut closure_state.semantic_emission,
+            &cores,
+            limits,
+            &mut remaining,
+        )
+        .map_err(|error| vec![error])?;
+        closure_state
+            .snapshot(before - remaining, Span::default())
+            .map_err(|error| vec![error])?;
+    }
     let mut life_declarations = Vec::new();
     let mut life_instances = Vec::new();
     for source in &program.modules {
