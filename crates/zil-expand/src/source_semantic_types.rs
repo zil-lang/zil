@@ -639,7 +639,19 @@ impl Builder<'_, '_, '_, '_> {
             } => {
                 let life = self.life(lifetime.as_deref(), path, ty.span)?;
                 path.push(0);
-                let inner = Box::new(self.ty(inner, path, depth + 1, false)?);
+                // A Self reference explicitly selects its implementation's
+                // payload. Public Resource names retain their head semantics.
+                let mut referent = inner.as_ref();
+                let mut nesting = depth + 1;
+                while let s::TypeKind::Group(group) = &referent.kind {
+                    self.budget.node(referent.span, nesting)?;
+                    nesting = nesting
+                        .checked_add(1)
+                        .ok_or_else(|| error(ty.span, "Self reference depth overflow"))?;
+                    referent = group;
+                }
+                let self_payload = matches!(&referent.kind, s::TypeKind::Named { path, args } if path.as_slice() == ["Self"] && args.is_empty());
+                let inner = Box::new(self.ty(inner, path, depth + 1, self_payload)?);
                 path.pop();
                 Ok(SemanticTypeRecipe::Address {
                     mutable: *mutable,
