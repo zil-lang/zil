@@ -3,6 +3,36 @@
 use super::*;
 
 impl Check<'_, '_> {
+    pub(super) fn observe_field(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        field: SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(1, depth)?;
+        let field = self.observation_type(owner, &field, depth + 1)?;
+        if let SemanticTypeRecipe::Managed(inner) = &field {
+            if !self.resource_head(owner, inner, depth + 1)? {
+                return Err(bad("original managed field has no true resource payload"));
+            }
+            let lifetime = self.borrow_life(owner, expression.id)?;
+            self.pay(1, depth)?;
+            return Ok(SemanticTypeRecipe::Desc {
+                lifetime,
+                inner: Box::new(copy_recipe(inner, self.limits, self.left)?),
+            });
+        }
+        if matches!(field, SemanticTypeRecipe::Desc { .. })
+            || self.copy_type(owner, &field, depth + 1)?
+        {
+            return Ok(field);
+        }
+        Err(pending(
+            "original affine field observation needs its explicit view/transfer rule",
+        ))
+    }
+
     pub(super) fn package_field(
         &mut self,
         owner: SemanticDefinitionId,

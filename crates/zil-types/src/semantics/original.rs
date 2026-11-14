@@ -2784,19 +2784,11 @@ impl<'a> Check<'a, '_> {
                 receiver.observed = true;
                 let receiver_ty = copy_recipe(&receiver.ty, self.limits, self.left)?;
                 let field = self.field(owner, &receiver_ty, member, depth + 1)?;
-                if !self.copy_type(owner, &field, depth + 1)? {
-                    return Err(bad("original receiver field observation requires Copy"));
-                }
-                field
+                self.observe_field(owner, expression, field, depth + 1)?
             }
             CoreExprKind::Member { .. } => {
                 let field = self.place(owner, expression, variables, depth + 1)?;
-                if !self.copy_type(owner, &field, depth + 1)? {
-                    return Err(pending(
-                        "original affine field observation needs its explicit view/transfer rule",
-                    ));
-                }
-                field
+                self.observe_field(owner, expression, field, depth + 1)?
             }
             CoreExprKind::Record { ty, fields } => {
                 self.record_constructor(owner, ty, fields, variables, wanted, depth + 1)?
@@ -3327,7 +3319,12 @@ impl<'a> Check<'a, '_> {
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
-        match &expression.kind {
+        self.snapshot(
+            owner,
+            SemanticOriginalNode::Expression(expression.id),
+            variables,
+        )?;
+        let ty = match &expression.kind {
             CoreExprKind::Name(name) => {
                 let value = variables
                     .get_mut(name)
@@ -3359,6 +3356,10 @@ impl<'a> Check<'a, '_> {
                     self.package_field(owner, object, member, variables, false, depth + 1)?
                 {
                     self.writable(owner, object, variables, depth + 1)?;
+                    let copy = copy_recipe(&field, self.limits, self.left)?;
+                    self.proof
+                        .types
+                        .insert((owner, Query::Expression(expression.id)), copy);
                     return Ok(field);
                 }
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
@@ -3400,7 +3401,13 @@ impl<'a> Check<'a, '_> {
                 self.index_type(owner, &object_ty, index, variables, depth + 1)
             }
             _ => Err(bad("original assignment does not select a writable place")),
-        }
+        }?;
+        let copy = copy_recipe(&ty, self.limits, self.left)?;
+        self.proof
+            .types
+            .insert((owner, Query::Expression(expression.id)), copy);
+        self.expression_result_origin(owner, expression, variables, &ty, depth + 1)?;
+        Ok(ty)
     }
     fn index_type(
         &mut self,
