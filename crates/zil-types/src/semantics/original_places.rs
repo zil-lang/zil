@@ -80,10 +80,11 @@ impl Check<'_, '_> {
         self.proof
             .types
             .insert((owner, Query::Expression(object.id)), copy);
-        variables
+        let binding = variables
             .get_mut(name)
-            .ok_or_else(|| bad("original package place loses its binder"))?
-            .observed = true;
+            .ok_or_else(|| bad("original package place loses its binder"))?;
+        binding.observed = true;
+        self.observe_capture(owner, name, binding, depth + 1)?;
         self.field(owner, &ty, member, depth + 1).map(Some)
     }
 
@@ -199,6 +200,7 @@ impl Check<'_, '_> {
                     self.pay(member.len().saturating_add(1), depth)?;
                     binding.taken_fields.insert(member.clone());
                 }
+                self.observe_capture(owner, name, binding, depth + 1)?;
                 Ok(())
             }
             _ => {
@@ -246,6 +248,7 @@ impl Check<'_, '_> {
                     }
                     self.pay(member.len().saturating_add(1), depth)?;
                     binding.taken_fields.insert(member.clone());
+                    self.observe_capture(owner, name, binding, depth + 1)?;
                     let copy = copy_recipe(&field, self.limits, self.left)?;
                     self.proof
                         .types
@@ -277,6 +280,7 @@ impl Check<'_, '_> {
         }
         value.used = true;
         value.observed = true;
+        self.observe_capture(owner, name, value, depth + 1)?;
         let copy = copy_recipe(&head, self.limits, self.left)?;
         self.proof
             .types

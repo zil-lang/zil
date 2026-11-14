@@ -38,6 +38,8 @@ mod roles;
 mod store;
 #[path = "original_substitute.rs"]
 pub(super) mod substitute;
+#[path = "original_task_bridge.rs"]
+mod task_bridge;
 #[path = "original_value_predicate.rs"]
 mod value_predicate;
 #[path = "original_values.rs"]
@@ -285,6 +287,48 @@ struct LoopFrame {
     continues: Vec<BTreeMap<String, Binding>>,
 }
 impl<'a> Check<'a, '_> {
+    fn observe_capture(
+        &mut self,
+        owner: SemanticDefinitionId,
+        name: &str,
+        value: &Binding,
+        depth: usize,
+    ) -> R<()> {
+        if !value.capture {
+            return Ok(());
+        }
+        let names_work = self.proof.capture_names.get(&owner).map_or(0, |names| {
+            names
+                .iter()
+                .fold(names.len(), |n, old| n.saturating_add(old.len()))
+        });
+        self.pay(
+            name.len()
+                .saturating_add(names_work)
+                .saturating_add(self.proof.capture_names.len().saturating_add(1).ilog2() as usize)
+                .saturating_add(self.proof.kinds.len().saturating_add(1).ilog2() as usize)
+                .saturating_add(4),
+            depth,
+        )?;
+        let names = self.proof.capture_names.entry(owner).or_default();
+        if !names.iter().any(|old| old == name) {
+            names.push(name.to_owned());
+        }
+        let observed = if value.used || !value.taken_fields.is_empty() {
+            CallableKind::FnOnce
+        } else if value.written {
+            CallableKind::FnMut
+        } else {
+            CallableKind::Fn
+        };
+        let kind = self.proof.kinds.entry(owner).or_insert(CallableKind::Fn);
+        if observed == CallableKind::FnOnce
+            || observed == CallableKind::FnMut && *kind == CallableKind::Fn
+        {
+            *kind = observed;
+        }
+        Ok(())
+    }
     fn pay(&mut self, n: usize, depth: usize) -> R<()> {
         *self.left = self.left.checked_sub(n).ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "original symbolic typing work exceeded", None)
@@ -368,6 +412,29 @@ impl<'a> Check<'a, '_> {
             if &resolved == query {
                 if self.premise_type_equal(owner, query, other, 1)? {
                     return Ok(());
+                }
+                // An abstract projection may be equal to another projection
+                // whose unique original provider has a complete RHS. Resolve
+                // both operands before concluding that the equation is absent;
+                // never infer an equation for the abstract side from a layout.
+                if matches!(
+                    other,
+                    SemanticTypeRecipe::AssociatedType { .. }
+                        | SemanticTypeRecipe::OriginalType { .. }
+                        | SemanticTypeRecipe::Environment { .. }
+                ) {
+                    let other_value = if matches!(other, SemanticTypeRecipe::Environment { .. }) {
+                        self.observation_type(owner, other, 1)?
+                    } else {
+                        self.resolve(owner, other, 1)?
+                    };
+                    if &other_value != other {
+                        return if reverse {
+                            self.same(&other_value, query)
+                        } else {
+                            self.same(query, &other_value)
+                        };
+                    }
                 }
                 self.pay(768, 0)?;
                 let mut diagnostic = pending("original type query has no finite defining equation");
@@ -843,6 +910,7 @@ impl<'a> Check<'a, '_> {
                     return Err(bad("original place was already transferred"));
                 }
                 value.observed = true;
+                self.observe_capture(owner, name, value, depth + 1)?;
                 copy_recipe(&value.ty, self.limits, self.left)
             }
             CoreExprKind::Group(inner) => self.place(owner, inner, variables, depth + 1),
@@ -2094,6 +2162,32 @@ impl<'a> Check<'a, '_> {
         }
         let mut implicit = BTreeMap::new();
         let mut invocation = BTreeMap::new();
+        if let Some(wanted) = wanted {
+            let empty = BTreeMap::new();
+            if let Some(context) = substitute::caller_context(
+                wanted,
+                &substitute::Substitution {
+                    frames: &[],
+                    selves: &[],
+                    environments: &[],
+                    implicit: &empty,
+                    invocation: &empty,
+                    shift: 0,
+                },
+                self.limits,
+                self.left,
+            )? {
+                self.unify(
+                    &signature.result,
+                    &context,
+                    formals,
+                    &mut solutions,
+                    &mut implicit,
+                    &mut invocation,
+                    depth + 1,
+                )?;
+            }
+        }
         for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
             // Primitive context fixes unsuffixed literals without importing any
             // unsolved target inference variable into the caller's expression.
@@ -2104,20 +2198,19 @@ impl<'a> Check<'a, '_> {
             let complete_actuals = solutions.iter().cloned().collect::<Option<Vec<_>>>();
             let complete_parameter = if let Some(actuals) = &complete_actuals {
                 let frames = [(u32::MAX, actuals.as_slice())];
-                let empty = BTreeMap::new();
-                Some(substitute::ty(
+                substitute::caller_context(
                     &parameter.ty,
                     &substitute::Substitution {
                         frames: &frames,
                         selves: &[],
                         environments: &[],
-                        implicit: &empty,
-                        invocation: &empty,
+                        implicit: &implicit,
+                        invocation: &invocation,
                         shift: 0,
                     },
                     self.limits,
                     self.left,
-                )?)
+                )?
             } else {
                 None
             };
@@ -2675,7 +2768,7 @@ impl<'a> Check<'a, '_> {
                 }
                 value.observed = true;
                 let observed = self.observation_type(owner, &value.ty, depth + 1)?;
-                if let SemanticTypeRecipe::Managed(inner) = &observed {
+                let result = if let SemanticTypeRecipe::Managed(inner) = &observed {
                     let inner = copy_recipe(inner, self.limits, self.left)?;
                     SemanticTypeRecipe::Desc {
                         lifetime: self.borrow_life(owner, expression.id)?,
@@ -2696,7 +2789,9 @@ impl<'a> Check<'a, '_> {
                     } else {
                         copy_recipe(&value.ty, self.limits, self.left)?
                     }
-                }
+                };
+                self.observe_capture(owner, name, value, depth + 1)?;
+                result
             }
             CoreExprKind::CompileTime(value) => {
                 self.stage_depth = self
@@ -3060,6 +3155,7 @@ impl<'a> Check<'a, '_> {
                     return Err(bad("original receiver was already transferred"));
                 }
                 receiver.observed = true;
+                self.observe_capture(owner, &parameter.name, receiver, depth + 1)?;
                 let receiver_ty = copy_recipe(&receiver.ty, self.limits, self.left)?;
                 let field = self.field(owner, &receiver_ty, member, depth + 1)?;
                 self.observe_field(owner, expression, field, depth + 1)?
@@ -3265,6 +3361,11 @@ impl<'a> Check<'a, '_> {
                             .get_mut(&name)
                             .ok_or_else(|| bad("original capture lost its creator binder"))?;
                         if !self.copy_type(owner, &value.ty, depth + 1)? {
+                            if value.borrowed {
+                                return Err(bad(
+                                    "original move closure cannot transfer a non-Copy shared capture",
+                                ));
+                            }
                             if value.used || !value.initialized || !value.taken_fields.is_empty() {
                                 return Err(bad(
                                     "original closure captures an already transferred affine value",
@@ -3272,6 +3373,8 @@ impl<'a> Check<'a, '_> {
                             }
                             value.used = true;
                         }
+                        value.observed = true;
+                        self.observe_capture(owner, &name, value, depth + 1)?;
                     }
                 }
                 let mut sealed_environment = Vec::new();
@@ -3643,6 +3746,8 @@ impl<'a> Check<'a, '_> {
                     return Err(bad("original assignment targets an immutable binder"));
                 }
                 value.written = true;
+                value.observed = true;
+                self.observe_capture(owner, name, value, depth + 1)?;
                 copy_recipe(&value.ty, self.limits, self.left)
             }
             CoreExprKind::Unary {
@@ -5139,8 +5244,28 @@ impl<'a> Check<'a, '_> {
         self.stage_depth = outer_stage;
         self.cleanup_depth = outer_cleanup;
         self.pay(variables.len(), 0)?;
-        let mut names = Vec::new();
-        let mut kind = CallableKind::Fn;
+        let names_work = self
+            .proof
+            .capture_names
+            .get(&definition.id)
+            .map_or(0, |names| {
+                names
+                    .iter()
+                    .fold(names.len(), |n, name| n.saturating_add(name.len()))
+            });
+        self.pay(names_work, 0)?;
+        let mut names = self
+            .proof
+            .capture_names
+            .get(&definition.id)
+            .cloned()
+            .unwrap_or_default();
+        let mut kind = self
+            .proof
+            .kinds
+            .get(&definition.id)
+            .copied()
+            .unwrap_or(CallableKind::Fn);
         for (name, visible) in &variables {
             let mut current = Some(visible);
             let mut captured = false;
@@ -5159,10 +5284,20 @@ impl<'a> Check<'a, '_> {
                 current = value.shadowed.as_deref();
             }
             if captured {
-                self.pay(name.len(), 0)?;
-                names.push(name.clone());
+                self.pay(name.len().saturating_add(names.len()), 0)?;
+                if !names.contains(name) {
+                    names.push(name.clone());
+                }
             }
         }
+        self.pay(
+            names
+                .iter()
+                .fold(names.len(), |n, name| n.saturating_add(name.len()))
+                .saturating_mul(names.len().saturating_add(1).ilog2() as usize + 1),
+            0,
+        )?;
+        names.sort_unstable();
         self.proof.kinds.insert(definition.id, kind);
         self.pay(names.len(), 0)?;
         for name in &names {

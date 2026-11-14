@@ -34,6 +34,7 @@ struct Apply<'a, 'b> {
     scopes: Option<&'a BTreeMap<u32, u32>>,
     allow_root_invocation: bool,
     forall: Option<(u32, u32)>,
+    inference_seen: Option<&'b mut bool>,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -58,6 +59,11 @@ impl<'a> Apply<'a, '_> {
     }
     fn scope(&mut self, scope: &mut SemanticScopeRef) -> R<()> {
         let SemanticScopeRef::Ancestor(depth) = scope;
+        if *depth == u32::MAX {
+            if let Some(seen) = &mut self.inference_seen {
+                **seen = true;
+            }
+        }
         if let Some(scopes) = self.scopes {
             *self.left = self.left.checked_sub(scopes.len()).ok_or_else(|| {
                 Diagnostic::limit(
@@ -134,12 +140,25 @@ impl<'a> Apply<'a, '_> {
                 if self.scopes.is_some() {
                     if let Some(actual) = self.selected(reference)? {
                         match actual {
-                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(actual)) => { *reference = actual.clone(); },
-                            SemanticActualRecipe::Type(SemanticTypeRecipe::Environment { scope, ordinal }) => {
-                                *operand = SemanticRecipeOperand::Environment { scope: *scope, ordinal: *ordinal };
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(actual)) => {
+                                *reference = actual.clone();
                             }
-                            _ => return Err(Diagnostic::unsupported(Phase::Types,
-                                "original whole-Type class operand needs its complete substituted occurrence mapping", None)),
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Environment {
+                                scope,
+                                ordinal,
+                            }) => {
+                                *operand = SemanticRecipeOperand::Environment {
+                                    scope: *scope,
+                                    ordinal: *ordinal,
+                                };
+                            }
+                            _ => {
+                                return Err(Diagnostic::unsupported(
+                                    Phase::Types,
+                                    "original whole-Type class operand needs its complete substituted occurrence mapping",
+                                    None,
+                                ));
+                            }
                         }
                     } else {
                         self.scope(&mut reference.scope)?;
@@ -351,6 +370,7 @@ impl<'a> Apply<'a, '_> {
             scopes: None,
             allow_root_invocation: true,
             forall: None,
+            inference_seen: None,
         }
         .ty(value, depth)
     }
@@ -384,6 +404,7 @@ impl<'a> Apply<'a, '_> {
             scopes: None,
             allow_root_invocation: true,
             forall: None,
+            inference_seen: None,
         }
         .life(value, depth)
     }
@@ -417,6 +438,7 @@ impl<'a> Apply<'a, '_> {
             scopes: None,
             allow_root_invocation: true,
             forall: None,
+            inference_seen: None,
         }
         .constant(value, depth)
     }
@@ -441,7 +463,7 @@ impl<'a> Apply<'a, '_> {
             SemanticActualRecipe::Infer => {
                 return Err(bad(
                     "original scheme substitution retains an inference hole",
-                ))
+                ));
             }
         }
         Ok(())
@@ -680,6 +702,13 @@ impl<'a> Apply<'a, '_> {
     }
     fn ty(&mut self, ty: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
+        if matches!(ty, SemanticTypeRecipe::OriginalType { .. }) {
+            if let Some(seen) = &mut self.inference_seen {
+                // A query needs its separately checked lexical provenance; a
+                // target-scope query cannot become a caller fact by numbering.
+                **seen = true;
+            }
+        }
         for (source, target) in self.local_equations {
             if source.bound_depth != self.bound_depth
                 || source.invocation_depth != self.invocation_depth
@@ -910,6 +939,7 @@ pub(crate) fn ty(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -939,6 +969,7 @@ pub(crate) fn signature(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -969,6 +1000,7 @@ pub(crate) fn requirement(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -999,6 +1031,7 @@ pub(crate) fn actual(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .actual(&mut value, 1)?;
     Ok(value)
@@ -1030,6 +1063,7 @@ pub(crate) fn signature_template(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -1075,9 +1109,78 @@ pub(crate) fn universal_callable(
         scopes: None,
         allow_root_invocation: true,
         forall: Some((lifetimes, value.invocation_lifetimes)),
+        inference_seen: None,
     }
     .signature(&mut result, 1)?;
     Ok(result)
+}
+/// A contextual operand may enter caller Gamma only after substitution has
+/// removed every target-private inference role from its complete recipe.
+pub(crate) fn caller_context(
+    value: &SemanticTypeRecipe,
+    substitution: &Substitution<'_>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<SemanticTypeRecipe>> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut result = value.clone();
+    let mut inference_seen = false;
+    Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
+        substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: true,
+        template: false,
+        template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
+        forall: None,
+        inference_seen: Some(&mut inference_seen),
+    }
+    .ty(&mut result, 1)?;
+    if inference_seen {
+        return Ok(None);
+    }
+    // Substitutions copy a replacement atomically to avoid variable capture.
+    // Inspect the resulting caller recipe too, so an unresolved variable in a
+    // replacement can never be mistaken for a caller-owned contextual fact.
+    let empty = BTreeMap::new();
+    let identity = Substitution {
+        frames: &[],
+        selves: &[],
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 0,
+    };
+    Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
+        substitution: &identity,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: true,
+        template: false,
+        template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
+        forall: None,
+        inference_seen: Some(&mut inference_seen),
+    }
+    .ty(&mut result, 1)?;
+    Ok((!inference_seen).then_some(result))
 }
 pub(crate) fn signature_fresh(
     value: &SemanticSignatureRecipe,
@@ -1104,6 +1207,7 @@ pub(crate) fn signature_fresh(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -1138,6 +1242,7 @@ pub(crate) fn ty_in_domains(
         scopes: Some(scopes),
         allow_root_invocation,
         forall: None,
+        inference_seen: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -1179,6 +1284,7 @@ pub(crate) fn requirement_replacing(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -1210,6 +1316,7 @@ pub(crate) fn requirement_in_domains(
         scopes: Some(scopes),
         allow_root_invocation,
         forall: None,
+        inference_seen: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -1249,6 +1356,7 @@ pub(crate) fn delayed_types(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .ty(&mut value, 1)?;
     Ok(delayed)
@@ -1287,6 +1395,7 @@ pub(crate) fn replace_delayed(
         scopes: None,
         allow_root_invocation: true,
         forall: None,
+        inference_seen: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)
