@@ -786,6 +786,7 @@ fn pointer_anchors(
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
+    mutex_returns: mutex::Returns,
     pub values: Vec<Vec<Target>>,
     byte_view_values: BTreeSet<ValueId>,
     pointer_values: Vec<Vec<HoldRoot>>,
@@ -1065,6 +1066,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    mutex::work(&f.mutex_returns, b)?;
     if !f.byte_view_values.is_empty() {
         fee(b, f.byte_view_values.len())?;
     }
@@ -4695,6 +4697,7 @@ fn transfer(
                 .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             task_address::call(summary, arguments, values, state, &mut out, b)?;
+            mutex::call(i,callee,&summary.mutex_returns,arguments,values,state,&mut out,loans,b)?;
             for (path, sources) in &summary.returned_environment {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -7276,6 +7279,7 @@ fn derive_cfg(
                 BTreeMap::new()
             };
             let mut actual = Facts {
+                mutex_returns: mutex::Returns::default(),
                 values: Vec::with_capacity(values.len()),
                 byte_view_values: BTreeSet::new(),
                 pointer_values: Vec::new(),
@@ -7541,6 +7545,9 @@ fn derive_cfg(
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
                     mutex::returning(f, value, &loans, b)?;
+                    let mut returned_mutex = mutex::Returns::default();
+                    mutex::summarize(f, value, &loans, &mut returned_mutex, b)?;
+                    mutex::merge(&mut actual.mutex_returns, &returned_mutex, b)?;
                     if let Some(marker) = entry.receiver_loan
                         && f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
@@ -7951,6 +7958,7 @@ fn derive_cfg(
                 }
             }
             grounded &= actual.dyn_return_complete;
+            grounded &= mutex::grounded(f, &actual.mutex_returns, &summaries, b)?;
             actual.complete = grounded;
             if grounded {
                 actual.byte_covered = b.byte_queries;
@@ -8035,6 +8043,7 @@ fn derive_cfg(
             }
             return Err(errors);
         }
+        mutex::returns(f, &facts.mutex_returns, b)?;
         returned_upper::check(module, f, facts, b)?;
         enum_address::projections(f, &graphs[index], facts, b)?;
         returns(module, f, facts, b)?;
@@ -8227,6 +8236,7 @@ pub(super) fn infer(
     }
     super::stored_callables::roles(module, graphs, b)?;
     let facts = derive(module, graphs, b)?;
+    mutex::publish(module, &facts, b)?;
     if b.qualified_package_returns {
         fee(
             b,

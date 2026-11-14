@@ -4,6 +4,41 @@
 use super::*;
 use zil_ir::ContractProjection;
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct Returns {
+    sources: Vec<Target>,
+    missing: bool,
+}
+pub(super) fn work(value: &Returns, b: &mut Budget) -> CompileResult<()> {
+    fee(b, value.sources.len().saturating_add(1))?;
+    for source in &value.sources {
+        fee(b, target_width(source).saturating_add(1))?;
+    }
+    Ok(())
+}
+pub(super) fn merge(to: &mut Returns, from: &Returns, b: &mut Budget) -> CompileResult<bool> {
+    work(from, b)?;
+    let mut changed = false;
+    if from.missing && !to.missing {
+        to.missing = true;
+        changed = true;
+    }
+    for source in &from.sources {
+        fee(
+            b,
+            to.sources
+                .len()
+                .saturating_mul(target_width(source).saturating_add(1)),
+        )?;
+        if !to.sources.contains(source) {
+            fee(b, target_width(source).saturating_add(1))?;
+            to.sources.push(source.clone());
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
 /// The stored-address route returns before the ordinary synchronization
 /// schedule. Keep the complete actual worker graph, supported target, acquire/
 /// release signatures and failure-cleanup checks on this route as well.
@@ -685,26 +720,14 @@ pub(super) fn transfer(
         }
         InstructionKind::MutexValue { guard: head } => {
             let source = get(*head)?;
-            complete(
-                &source.pointer,
-                "Mutex payload has no actual mutable guard storage head",
-                b,
-            )?;
-            complete(
-                &source.held,
-                "Mutex payload has no complete actual locked manager origin",
-                b,
-            )?;
-            out.pointer = select(source, &[], b)?;
+            if !source.pointer.targets.is_empty() && !source.held.targets.is_empty() {
+                out.pointer = select(source, &[], b)?;
+            }
             // The fresh payload loan is published at this opcode's result ID
             // by the common transfer tail, preserving these complete parents.
         }
         InstructionKind::MutexUnlock { guard: head } => {
-            complete(
-                &get(*head)?.held,
-                "Mutex unlock has no complete actual retained manager",
-                b,
-            )?;
+            let _ = get(*head)?; // Final access requires the grounded manager.
         }
         InstructionKind::DropMutexGuard { local } => {
             ordered(b, state.locals.len(), 0)?;
@@ -769,11 +792,6 @@ pub(super) fn propagate(
                 .locals
                 .get(local)
                 .ok_or_else(|| failure("borrowed Mutex guard is unavailable"))?;
-            complete(
-                &original.held,
-                "borrowed Mutex guard omits its actual retained manager",
-                b,
-            )?;
             union(&mut out.held, &original.held, b)?;
             union(&mut out.store_description, &original.store_description, b)?;
         }
@@ -1007,6 +1025,9 @@ pub(super) fn returning(
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if guard(&f.return_type, b)? {
+        return guard_return(f, value, loans, b);
+    }
     if guard_carrier(&f.return_type, b, 0)? {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
@@ -1073,5 +1094,328 @@ pub(super) fn returning(
             ));
         }
     }
+    Ok(())
+}
+
+fn input_type(f: &TypedFunction, index: u32) -> CompileResult<&Type> {
+    let local = f
+        .parameters
+        .get(index as usize)
+        .ok_or_else(|| failure("returned guard manager input is absent"))?;
+    union_local(f, *local)
+}
+fn manager_binding(
+    f: &TypedFunction,
+    base: StorageBase,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<StorageBinder> {
+    let life = f.storage_life.as_ref().ok_or_else(|| {
+        failure("returned guard manager omits its complete actual class signature")
+    })?;
+    crate::signature_life::charge(life, b)?;
+    if description(ty) {
+        return crate::signature_life::outer(life, base).ok_or_else(|| {
+            failure("returned guard descriptor omits its real outer class occurrence")
+        });
+    }
+    if !guard(ty, b)? {
+        return Err(failure(
+            "returned guard source is not an affine guard or a manager descriptor",
+        ));
+    }
+    let mut selected = None;
+    for row in &life.classes {
+        fee(b, row.position.path.len().saturating_add(1))?;
+        if row.position.base == base && row.position.path.is_empty() && row.position.class == 0 {
+            if selected.replace(row.binder).is_some() {
+                return Err(failure(
+                    "returned guard manager repeats its intrinsic class occurrence",
+                ));
+            }
+        }
+    }
+    selected
+        .ok_or_else(|| failure("returned guard manager omits its actual retained class occurrence"))
+}
+fn guard_source(f: &TypedFunction, source: &Target, b: &mut Budget) -> CompileResult<u32> {
+    fee(b, target_width(source).saturating_add(1))?;
+    if !matches!(&source.retained_port,Some(PortOrigin::MutexPayload{carrier}) if carrier.is_empty())
+        || !source.stored.is_empty()
+        || !source.place.is_empty()
+        || !source.heap_parents.is_empty()
+        || source.heap_element.is_some()
+    {
+        return Err(failure(
+            "returned guard manager needs its complete unprojected actual input route",
+        ));
+    }
+    let HoldRoot::Parameter(index) = source.base else {
+        return Err(failure(
+            "returned guard would outlive an activation-local or captured manager",
+        ));
+    };
+    let input = input_type(f, index)?;
+    let result = manager_binding(f, StorageBase::Result, &f.return_type, b)?;
+    if manager_binding(f, StorageBase::Parameter(index), input, b)? != result {
+        return Err(failure(
+            "returned guard manager differs from its complete original input/result class relation",
+        ));
+    }
+    Ok(index)
+}
+fn guard_return(
+    f: &TypedFunction,
+    value: &Value,
+    loans: &[Loan],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !value.pointer.targets.is_empty()
+        || !value.pointer.loans.is_empty()
+        || !value.slots.is_empty()
+        || !value.environment.is_empty()
+        || !value.task_ports.is_empty()
+        || !value.dyn_ports.is_empty()
+    {
+        return Err(failure(
+            "affine guard result carries an unrelated pointer or opaque source directory",
+        ));
+    }
+    // An empty intermediate fixed-point proposal supplies no root or token.
+    // Final returns/grounding below require every actual return to be rooted.
+    if value.held.targets.is_empty() {
+        return Ok(());
+    }
+    if value.held.loans.is_empty() {
+        return Err(failure(
+            "returned guard omits its actual manager-retaining parent loan",
+        ));
+    }
+    for source in &value.held.targets {
+        guard_source(f, source, b)?;
+    }
+    for id in ancestry(&value.held.loans, loans, b)? {
+        let parent = loans
+            .get(id)
+            .ok_or_else(|| failure("returned guard parent is outside the actual loan arena"))?;
+        for source in &parent.targets {
+            fee(b, target_width(source).saturating_add(1))?;
+            let HoldRoot::Parameter(index) = source.base else {
+                return Err(failure(
+                    "returned guard retains activation-local guard storage or a local manager",
+                ));
+            };
+            let input = input_type(f, index)?;
+            if !description(input) && !guard(input, b)? {
+                return Err(failure(
+                    "returned guard retains a borrowed guard head instead of moving its unlock obligation",
+                ));
+            }
+            if !source.stored.is_empty()
+                || !source.place.is_empty()
+                || !source.heap_parents.is_empty()
+                || source.heap_element.is_some()
+            {
+                return Err(failure(
+                    "returned guard parent needs its complete projected manager lifetime transport",
+                ));
+            }
+            if let Some(origin) = &source.retained_port {
+                if !matches!(origin,PortOrigin::MutexPayload{carrier} if carrier.is_empty()) {
+                    return Err(failure(
+                        "returned guard parent changes its manager dependency namespace",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+pub(super) fn summarize(
+    f: &TypedFunction,
+    value: &Value,
+    loans: &[Loan],
+    out: &mut Returns,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !guard(&f.return_type, b)? {
+        return Ok(());
+    }
+    guard_return(f, value, loans, b)?;
+    // Every reachable return is a separate obligation. A rooted branch
+    // cannot cover an empty proposal on another branch.
+    out.missing |= value.held.targets.is_empty();
+    for source in &value.held.targets {
+        guard_source(f, source, b)?;
+        fee(
+            b,
+            out.sources
+                .len()
+                .saturating_mul(target_width(source).saturating_add(1)),
+        )?;
+        if !out.sources.contains(source) {
+            fee(b, target_width(source).saturating_add(1))?;
+            out.sources.push(source.clone());
+        }
+    }
+    Ok(())
+}
+pub(super) fn returns(f: &TypedFunction, summary: &Returns, b: &mut Budget) -> CompileResult<()> {
+    work(summary, b)?;
+    if guard(&f.return_type, b)? {
+        if summary.sources.is_empty() || summary.missing {
+            return Err(failure(
+                "affine guard return has no grounded actual manager source; recursive cycles grant no unlock obligation",
+            ));
+        }
+        for source in &summary.sources {
+            guard_source(f, source, b)?;
+        }
+    } else if !summary.sources.is_empty() {
+        return Err(failure(
+            "nonguard result invents an affine guard source summary",
+        ));
+    }
+    Ok(())
+}
+pub(super) fn grounded(
+    f: &TypedFunction,
+    summary: &Returns,
+    summaries: &[Facts],
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    work(summary, b)?;
+    if guard(&f.return_type, b)? && (summary.sources.is_empty() || summary.missing) {
+        return Ok(false);
+    }
+    for block in &f.blocks {
+        fee(b, block.instructions.len().saturating_add(1))?;
+        for instruction in &block.instructions {
+            if let InstructionKind::Call { function, .. } = instruction.kind
+                && instruction
+                    .result
+                    .and_then(|id| f.values.get(id.0 as usize))
+                    .is_some_and(|ty| matches!(ty, Type::MutexGuard { .. }))
+            {
+                let callee = summaries.get(function.0 as usize).ok_or_else(|| {
+                    failure("guard result call has no complete actual callee summary")
+                })?;
+                work(&callee.mutex_returns, b)?;
+                if !callee.complete
+                    || callee.mutex_returns.sources.is_empty()
+                    || callee.mutex_returns.missing
+                {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+fn manager_from_guard(value: &Value, b: &mut Budget) -> CompileResult<Permission> {
+    let mut result = Permission::default();
+    for source in &value.held.targets {
+        fee(b, target_width(source).saturating_add(1))?;
+        if !matches!(&source.retained_port,Some(PortOrigin::MutexPayload{carrier}) if carrier.is_empty())
+        {
+            return Err(failure("moved guard changes its actual manager namespace"));
+        }
+        let mut manager = source.clone();
+        manager.retained_port = None;
+        ordered(b, result.targets.len(), target_width(&manager))?;
+        result.targets.insert(manager);
+    }
+    fee(b, value.held.loans.len())?;
+    result.loans.extend(&value.held.loans);
+    Ok(result)
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn call(
+    i: &Instruction,
+    callee: &TypedFunction,
+    summary: &Returns,
+    arguments: &[ValueId],
+    values: &[Value],
+    _state: &State,
+    out: &mut Value,
+    loans: &mut [Loan],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !guard(&callee.return_type, b)? {
+        return Ok(());
+    }
+    work(summary, b)?;
+    let mut manager = Permission::default();
+    for source in &summary.sources {
+        let index = guard_source(callee, source, b)?;
+        let id = arguments
+            .get(index as usize)
+            .ok_or_else(|| failure("guard call manager input is absent"))?;
+        let actual = values
+            .get(id.0 as usize)
+            .ok_or_else(|| failure("guard call actual manager SSA is absent"))?;
+        if description(input_type(callee, index)?) {
+            union(&mut manager, &actual.store_description, b)?;
+        } else {
+            union(&mut manager, &manager_from_guard(actual, b)?, b)?;
+        }
+    }
+    if manager.targets.is_empty() {
+        return Ok(());
+    }
+    let id = i
+        .result
+        .ok_or_else(|| failure("guard call omits its actual affine result SSA"))?
+        .0 as usize;
+    let pin = loans
+        .get_mut(id)
+        .ok_or_else(|| failure("guard call manager pin is outside actual SSA loan arena"))?;
+    let mut retained = Permission {
+        targets: std::mem::take(&mut pin.targets),
+        loans: std::mem::take(&mut pin.parents),
+    };
+    union(&mut retained, &manager, b)?;
+    pin.targets = retained.targets;
+    pin.parents = retained.loans;
+    pin.mutable = false;
+    let protected = payload(&manager, b)?;
+    union(&mut out.held, &protected, b)?;
+    fee(b, 1)?;
+    out.held.loans.insert(id);
+    union(&mut out.store_description, &manager, b)?;
+    Ok(())
+}
+/// The ordinary resource kernel consumes this exact selector projection of the
+/// completed source proof. It is not an empty fallback for unknown returns.
+pub(super) fn publish(module: &TypedModule, facts: &[Facts], b: &mut Budget) -> CompileResult<()> {
+    if !b.generic_mutex {
+        return Ok(());
+    }
+    if facts.len() != module.functions.len() {
+        return Err(failure(
+            "Mutex return publication omits actual function summaries",
+        ));
+    }
+    fee(b, module.functions.len())?;
+    let mut rows = Vec::new();
+    for (function, fact) in module.functions.iter().zip(facts) {
+        let mut selectors = BTreeSet::new();
+        if guard(&function.return_type, b)? {
+            if !fact.complete {
+                return Err(failure(
+                    "Mutex guard source publication precedes actual fixed-point completion",
+                ));
+            }
+            returns(function, &fact.mutex_returns, b)?;
+            for source in &fact.mutex_returns.sources {
+                let index = guard_source(function, source, b)?;
+                ordered(b, selectors.len(), 0)?;
+                selectors.insert(index);
+            }
+        }
+        fee(b, 1)?;
+        rows.push(selectors);
+    }
+    b.guard_return_sources = rows;
     Ok(())
 }
