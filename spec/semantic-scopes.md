@@ -105,4 +105,4 @@ CoreInferred 的 scope/call 始终选择真实 caller 实例及其原调用点�
 
 选定 CT 程序分离完整冻结背景 S 与可执行图 E。CtProgram.frozen_context 只运输阶段及原 query 发生的未信任绑定请求；验证必须另外收到实际不可变 CoreProgram 视图 S 和当前 expected binding。摘要或请求本身不代替背景、类型、来源或完成证明。S 保留所有用户原定义、Names、真实 caller Function(Core) 身份及完整参数/要求；未用定义与非活动分支继续全称检查。S 的函数和外部声明只供只读原域/ABI检查，不成为 E 的执行目标。E 的完整调用闭包、全部分支与操作仍须独立满足 CT 能力集合；VM 仅以 E 分发表解析函数。编译器新增 query wrapper 保留真实生成原体及唯一原 query/词法上下文关系，不能用当前具体输入替换用户原体或洗掉原义务。
 
-Core 冻结视图由真实调用者建立不可变 context 和自身阶段 identity，不冒充 AST 冻结阶段的 epoch 或 generation。fresh freeze 的 epoch 由受检单调分配产生；内容/声明/生成摘要均绑定实际 S，并在预付完整节点、深度、字节与工作额度后计算。编译器版本限定的结构内容摘要不能用于 Type 或名义等价。普通无 S 的 CT 验证入口必须拒绝携带 frozen_context 的请求。选定 CT 包使用独立 ZILCTP2 标记；普通 Runtime Wire49 与 CT artifact9 身份域不因此变成执行授权。
+Core 冻结视图由真实调用者建立不可变 context 和自身阶段 identity，不冒充 AST 冻结阶段的 epoch 或 generation。fresh freeze 的 epoch 由受检单调分配产生；内容/声明/生成摘要均绑定实际 S，并在预付完整节点、深度、字节与工作额度后计算。编译器版本限定的结构内容摘要不能用于 Type 或名义等价。普通无 S 的 CT 验证入口必须拒绝携带 frozen_context 的请求。选定 CT 包使用独立 ZILCTP2 标记；普通 Runtime Wire50 与 CT artifact10 身份域不因此变成执行授权。
