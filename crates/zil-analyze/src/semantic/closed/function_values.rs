@@ -24,10 +24,16 @@ impl Check<'_, '_> {
             ));
         };
         let (_, _, instruction) = self.defining(function, *value, b)?;
-        let InstructionKind::FunctionRef { function: target } = &instruction.kind else {
-            return Err(fail(
-                "original function reference is replaced by another actual operation",
-            ));
+        let target = match (expected, &instruction.kind) {
+            (Type::FunctionPointer { .. }, InstructionKind::FunctionRef { function })
+            | (Type::ForeignCallback { .. }, InstructionKind::ForeignFunctionRef { function }) => {
+                function
+            }
+            _ => {
+                return Err(fail(
+                    "original code reference changes its complete pointer family or actual opcode",
+                ));
+            }
         };
         let worlds = self.function_worlds(*target, b)?;
         if worlds.is_empty() {
@@ -53,10 +59,14 @@ impl Check<'_, '_> {
             .functions
             .get(target)
             .ok_or_else(|| fail("actual function reference selects no real function"))?;
-        let Type::FunctionPointer { parameters, result } = expected else {
-            return Err(fail(
-                "original thin code value changes its complete code family",
-            ));
+        let (parameters, result) = match expected {
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => (parameters, result),
+            _ => {
+                return Err(fail(
+                    "original thin code value changes its complete code family",
+                ));
+            }
         };
         if actual.call_kind != CallKind::Direct
             || actual.foreign.is_some()

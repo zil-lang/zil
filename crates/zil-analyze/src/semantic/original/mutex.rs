@@ -310,6 +310,7 @@ impl Solver<'_, '_> {
                     && !matches!(
                         intrinsic,
                         sealed::Intrinsic::NumericConvert(_)
+                            | sealed::Intrinsic::CCallback
                             | sealed::Intrinsic::SliceLength
                             | sealed::Intrinsic::MutexLock
                             | sealed::Intrinsic::MutexValue

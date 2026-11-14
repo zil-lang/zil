@@ -609,6 +609,45 @@ impl Check<'_, '_> {
                         .intrinsic(instance, site.recipe, self.inventory, b)?
                 {
                     match intrinsic {
+                        original::sealed::Intrinsic::CCallback => {
+                            let outputs = self.original.intrinsic_inputs(
+                                instance,
+                                site.recipe,
+                                self.program,
+                                self.inventory,
+                                b,
+                            )?;
+                            let [output] = outputs.as_slice() else {
+                                return Err(fail(
+                                    "original callback conversion loses its complete output scheme",
+                                ));
+                            };
+                            if !actuals.is_empty()
+                                || !matches!(output.ty, Type::ForeignCallback { .. })
+                                || !empty(&output.life)
+                                || !output.classes.is_empty()
+                            {
+                                return Err(fail(
+                                    "actual callback conversion changes its original fixed ABI scheme",
+                                ));
+                            }
+                            let instruction = instruction.ok_or_else(|| {
+                                fail("original callback conversion has no actual instruction")
+                            })?;
+                            let result = instruction.result.ok_or_else(|| {
+                                fail("actual callback conversion has no code SSA")
+                            })?;
+                            self.function_reference(
+                                instance,
+                                site.recipe,
+                                point.function,
+                                &SemanticOperand::Value(result),
+                                &output.ty,
+                                b,
+                            )?;
+                            self.result(instruction, point.function, &output.ty)?;
+                            return Ok(());
+                        }
                         original::sealed::Intrinsic::StoreNew
                         | original::sealed::Intrinsic::StoreReserve
                         | original::sealed::Intrinsic::StorePush

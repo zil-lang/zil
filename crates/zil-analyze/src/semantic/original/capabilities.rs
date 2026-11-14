@@ -476,6 +476,7 @@ impl Solver<'_, '_> {
                 }
                 match intrinsic {
                     sealed::Intrinsic::NumericConvert(_)
+                    | sealed::Intrinsic::CCallback
                     | sealed::Intrinsic::SliceLength
                     | sealed::Intrinsic::BytesLen
                     | sealed::Intrinsic::BytesCapacity => {}

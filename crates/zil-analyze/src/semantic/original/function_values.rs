@@ -3,6 +3,105 @@
 use super::*;
 
 impl Solver<'_, '_> {
+    pub(super) fn callback_value(
+        &mut self,
+        frame: &mut Frame,
+        node: NodeId,
+        written: &[CoreGenericArgument<SemanticTypeRecipe>],
+        arguments: &[SemanticOriginalExpr],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        let [argument] = arguments else {
+            return Err(fail(
+                "c_callback requires exactly one original static function",
+            ));
+        };
+        if !written.is_empty() {
+            return Err(fail("c_callback has no generic actuals"));
+        }
+        let Some(pointer) = self.function_value(frame, argument, b, depth + 1)? else {
+            return Err(unknown(
+                "c_callback needs its exact original closed static declaration",
+            ));
+        };
+        let Kind::Code {
+            kind: SemanticCodeKind::FunctionPointer,
+            parameters,
+            result,
+            modes,
+            result_mode,
+            call_kind: CallKind::Direct,
+        } = &self.state.arena[self.type_root(pointer, b)?]
+        else {
+            return Err(fail(
+                "c_callback changes its complete original static code family or ABI",
+            ));
+        };
+        b.spend(parameters.len().saturating_add(modes.len() + 1), WORK)?;
+        let parameters = parameters.clone();
+        let modes = modes.clone();
+        let (result, result_mode) = (*result, *result_mode);
+        // C callback transport is restricted to the registered fixed numeric
+        // ABI. A generic Copy premise or same machine size is not this proof.
+        for term in parameters.iter().chain(std::iter::once(&result)) {
+            if !matches!(&self.state.arena[self.type_root(*term,b)?],Kind::Atom(ty)
+                if ty.is_b0_scalar() && !matches!(ty,Type::Unit|Type::Bool))
+            {
+                return Err(unknown(
+                    "c_callback needs the complete fixed supported C scalar ABI",
+                ));
+            }
+        }
+        b.lookup(self.state.function_values.len(), WORK)?;
+        let target = *self
+            .state
+            .function_values
+            .get(&(frame.definition, argument.id))
+            .ok_or_else(|| fail("original c_callback loses its exact static function identity"))?;
+        let output = self.term(
+            Kind::Code {
+                kind: SemanticCodeKind::ForeignCallback,
+                parameters,
+                result,
+                modes,
+                result_mode,
+                call_kind: CallKind::Direct,
+            },
+            b,
+        )?;
+        b.lookup(frame.expressions.len(), WORK)?;
+        if frame.expressions.insert(argument.id, output).is_some() {
+            return Err(fail("original callback operand node is reused"));
+        }
+        b.lookup(self.state.function_values.len(), WORK)?;
+        if self
+            .state
+            .function_values
+            .insert((frame.definition, node), target)
+            .is_some()
+        {
+            return Err(fail(
+                "original callback conversion node has competing targets",
+            ));
+        }
+        b.lookup(self.state.intrinsics.len(), WORK)?;
+        if self
+            .state
+            .intrinsics
+            .insert((frame.definition, node), sealed::Intrinsic::CCallback)
+            .is_some()
+        {
+            return Err(fail("original callback conversion has competing schemes"));
+        }
+        b.lookup(self.state.intrinsic_inputs.len(), WORK)?;
+        self.state
+            .intrinsic_inputs
+            .insert((frame.definition, node), vec![output]);
+        Ok(output)
+    }
+
     pub(super) fn function_value(
         &mut self,
         frame: &Frame,

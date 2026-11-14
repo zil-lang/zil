@@ -1952,6 +1952,21 @@ impl Solver<'_, '_> {
                         let resolution =
                             sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
                         match resolution {
+                            sealed::Resolution::Intrinsic(sealed::Intrinsic::CCallback) => {
+                                let output = self.callback_value(
+                                    frame,
+                                    value.id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, output).is_some() {
+                                    return Err(fail("original callback call node is reused"));
+                                }
+                                return Ok(output);
+                            }
                             sealed::Resolution::Intrinsic(sealed::Intrinsic::OwnedDyn) => {
                                 let result = self.owned_dyn_call(
                                     frame,
