@@ -22,6 +22,8 @@ pub(crate) struct FrozenContext<'s> {
     definitions:BTreeMap<SemanticDefinitionId,&'s SemanticDefinition>,
     instances:BTreeMap<SemanticInstanceId,&'s SemanticInstance>,
     core:BTreeMap<(ModuleId,NodeId),&'s CoreFunction>,
+    dyn_declarations:BTreeMap<LifeDeclarationId,&'s DynDeclaration>,
+    dyn_scopes:Vec<&'s SemanticDynScopeBinding>,
     query:(&'s SemanticDefinition,&'s SemanticInstance,&'s CoreExpr),
 }
 impl<'s> FrozenContext<'s> {
@@ -30,10 +32,21 @@ impl<'s> FrozenContext<'s> {
         b.spend(source.modules.len())?;
         if source.modules.len()>b.limits.max_nodes{return Err(limit("frozen CT module inventory exceeded"));}
         let mut definitions=BTreeMap::new();let mut instances=BTreeMap::new();let mut core=BTreeMap::new();let mut modules=BTreeSet::new();
+        let mut dyn_declarations=BTreeMap::<LifeDeclarationId,&DynDeclaration>::new();let mut dyn_scopes=Vec::<&SemanticDynScopeBinding>::new();
         for module in &source.modules {
             if module.core.schema_version!=SCHEMA_VERSION||!modules.insert(module.core.module_id){return Err(bad("frozen source module identity/schema is invalid or duplicated"));}
             let semantic=module.core.semantic.as_ref().ok_or_else(||unsupported("frozen source has no complete original semantic programme",None))?;
             dynamic_metadata::recipe(semantic,b)?;
+            b.spend(module.core.dyn_declarations.len().saturating_add(semantic.dyn_scopes.len()))?;
+            for declaration in &module.core.dyn_declarations {
+                dynamic_metadata::declaration(declaration,b)?;
+                if let Some(previous)=dyn_declarations.insert(declaration.id,declaration){if previous!=declaration{return Err(bad("frozen source changes a complete original trait/impl declaration identity"));}}
+            }
+            for scope in &semantic.dyn_scopes {
+                b.spend(dyn_scopes.len().saturating_add(1))?;
+                if let Some(previous)=dyn_scopes.iter().find(|row|row.owner==scope.owner){if **previous!=*scope{return Err(bad("frozen source changes an original dynamic owner's exact lexical scope"));}}
+                else{dyn_scopes.push(scope);}
+            }
             for definition in &semantic.definitions {if definition.id.module!=module.core.module_id||definitions.insert(definition.id,definition).is_some(){return Err(bad("frozen original definition has another module or duplicate identity"));}}
             for instance in &semantic.instances {if instance.id.module!=module.core.module_id||instances.insert(instance.id,instance).is_some(){return Err(bad("frozen original instance has another module or duplicate identity"));}}
             for function in &module.core.functions {
@@ -75,7 +88,7 @@ impl<'s> FrozenContext<'s> {
             count+=1;
         }
         if count!=1{return Err(bad("frozen CT query occurrence is absent or ambiguous"));}
-        Ok(Self{source,expected,definitions,instances,core,query:(definition,instance,payload)})
+        Ok(Self{source,expected,definitions,instances,core,dyn_declarations,dyn_scopes,query:(definition,instance,payload)})
     }
     pub(super) fn background(&self,instance:&SemanticInstance)->bool {
         !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_)))&&self.instances.contains_key(&instance.id)
@@ -105,7 +118,22 @@ impl<'s> FrozenContext<'s> {
         self.check_foreign_declarations(execution,b)?;
         let Some(raw)=&execution.semantic else{return Err(bad("contextual CT execution cannot erase its semantic programme"));};
         let mut view=execution.clone();
-        let mut semantic=SemanticModule{definitions:self.definitions.values().map(|row|(*row).clone()).collect(),instances:self.instances.values().map(|row|(*row).clone()).collect(),sites:raw.sites.clone(),dyn_scopes:raw.dyn_scopes.clone()};
+        let mut semantic=SemanticModule{definitions:self.definitions.values().map(|row|(*row).clone()).collect(),instances:self.instances.values().map(|row|(*row).clone()).collect(),sites:raw.sites.clone(),dyn_scopes:self.dyn_scopes.iter().map(|row|(**row).clone()).collect()};
+        // These are original read-only definitions, not execution targets.
+        // E may carry equal publication copies but cannot replace S's owner,
+        // full signature, associated RHS, premises or lexical scope.
+        let mut seen=BTreeSet::new();
+        for declaration in &execution.dyn_declarations {
+            dynamic_metadata::declaration(declaration,b)?;
+            if !seen.insert(declaration.id)||!self.dyn_declarations.get(&declaration.id).is_some_and(|source|**source==*declaration){return Err(bad("CT execution replaces or invents a frozen original trait/impl declaration"));}
+        }
+        let mut scopes=Vec::new();
+        for scope in &raw.dyn_scopes {
+            b.spend(scopes.len().saturating_add(self.dyn_scopes.len()).saturating_add(1))?;
+            if scopes.contains(&scope.owner)||!self.dyn_scopes.iter().any(|source|**source==*scope){return Err(bad("CT execution replaces or invents an original dynamic lexical owner"));}
+            scopes.push(scope.owner.clone());
+        }
+        view.dyn_declarations=self.dyn_declarations.values().map(|row|(*row).clone()).collect();
         let mut originals=BTreeSet::new();
         for definition in &raw.definitions {
             b.spend(1)?;
@@ -133,8 +161,9 @@ impl<'s> FrozenContext<'s> {
     }
     fn charge_execution(&self,module:&TypedModule,b:&mut Budget)->Check<()> {
         b.spend(module.functions.len())?;
-        if !module.closures.is_empty()||!module.resources.is_empty()||!module.dyn_interfaces.is_empty()||!module.dyn_vtables.is_empty()||!module.dyn_declarations.is_empty(){return Err(bad("CT execution package carries a runtime environment/provider inventory"));}
+        if !module.closures.is_empty()||!module.resources.is_empty()||!module.dyn_interfaces.is_empty()||!module.dyn_vtables.is_empty(){return Err(bad("CT execution package carries a runtime environment/provider inventory"));}
         if let Some(semantic)=&module.semantic{dynamic_metadata::recipe(semantic,b)?;}
+        for declaration in &module.dyn_declarations{dynamic_metadata::declaration(declaration,b)?;}
         if !module.unsupported.is_empty(){return Err(bad("CT executable contains unsupported capability metadata"));}
         b.spend(module.life_declarations.len().saturating_add(module.life_instances.len()))?;
         for declaration in &module.life_declarations {

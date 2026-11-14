@@ -61,6 +61,7 @@ impl CheckedOriginal {
                     SemanticDefinitionBody::Function{..}=>return Err(bad("frozen original scheme omits its complete body")),
                 }
             }
+            self.raw_source_schemes(module,context,active,b)?;
             Ok(())
         })();
         self.current=previous;
@@ -75,7 +76,7 @@ impl CheckedOriginal {
             SemanticFormal::Const{carrier}=>{let ty=self.ty(module,context,carrier,env,active,b)?;self.scheme_term(module,context,&ty,env,active,b)?;self.scheme_carrier(&ty,b)},
         }
     }
-    fn scheme_carrier(&self,ty:&Ty,b:&mut Budget)->Check<()> {
+    pub(super) fn scheme_carrier(&self,ty:&Ty,b:&mut Budget)->Check<()> {
         let ty=self.resolved(ty,b)?;
         if matches!(&ty,Ty::Atom(ty)if ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool)){return Ok(());}
         for scalar in [Type::Unit,Type::Bool,Type::I8,Type::I16,Type::I32,Type::I64,Type::Isize,Type::U8,Type::U16,Type::U32,Type::U64,Type::Usize,Type::F32,Type::F64]{if self.same(&ty,&Ty::Atom(scalar),b)?{return Ok(());}}
@@ -84,7 +85,7 @@ impl CheckedOriginal {
             _=>Err(bad("original Const carrier is a non-scalar type")),
         }
     }
-    fn scheme_requirement(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticRequirementRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(super) fn scheme_requirement(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticRequirementRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Requirement,token},b,|active,b|{
             dynamic_metadata::recipe(recipe,b)?;
             match recipe {
@@ -102,7 +103,7 @@ impl CheckedOriginal {
             }Ok(())
         })
     }
-    fn scheme_application(&mut self,module:&TypedModule,context:&CheckedContext,application:&SemanticTraitRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(super) fn scheme_application(&mut self,module:&TypedModule,context:&CheckedContext,application:&SemanticTraitRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let program=module.semantic.as_ref().ok_or_else(||bad("original trait application has no declaration programme"))?;
         b.spend(program.definitions.len())?;
         let mut rows=program.definitions.iter().filter(|row|matches!(row.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration})if declaration==application.declaration));
@@ -124,7 +125,7 @@ impl CheckedOriginal {
         for requirement in &definition.requirements{self.obligation(module,context,requirement,&target,env,active,b)?;}
         Ok(())
     }
-    fn scheme_term(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    pub(super) fn scheme_term(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             let ty=self.resolved(ty,b)?;
             match &ty {
