@@ -41,6 +41,29 @@ struct Outcome {
     exit: ProtocolExit,
     phases: BTreeMap<Root, u8>,
 }
+// Canonical only within this Engine's immutable original Gamma. The pool
+// verifies complete owner+recipe equality before sharing; state equality can
+// then compare these stable identities without traversing a static type tree.
+#[derive(Clone)]
+struct CleanupType(std::rc::Rc<SemanticTypeRecipe>);
+impl std::ops::Deref for CleanupType {
+    type Target = SemanticTypeRecipe;
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+impl std::fmt::Debug for CleanupType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.0.as_ref(), f)
+    }
+}
+impl PartialEq for CleanupType {
+    fn eq(&self, other: &Self) -> bool {
+        std::rc::Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for CleanupType {}
+
 #[derive(Clone, PartialEq, Eq)]
 enum Value {
     Plain,
@@ -54,7 +77,7 @@ enum Value {
     // It is neither an initialized protocol root nor a capability receipt.
     Cleanup {
         owner: SemanticDefinitionId,
-        ty: SemanticTypeRecipe,
+        ty: CleanupType,
     },
     Choice(Vec<Value>),
     Variant {
@@ -214,8 +237,41 @@ struct Engine<'a, 'b> {
     relevant: BTreeSet<SemanticDefinitionId>,
     categories: type_cache::Table<cleanup::Category>,
     cleanup: type_cache::Table<bool>,
+    type_ids: type_cache::Table<usize>,
+    type_values: Vec<CleanupType>,
 }
 impl<'a> Engine<'a, '_> {
+    fn cleanup_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<Value> {
+        self.pay(1, depth)?;
+        let (key, found) = self.type_ids.lookup(owner, ty, self.limits, self.left)?;
+        let handle = if let Some(index) = found {
+            self.type_values
+                .get(index)
+                .ok_or_else(|| failure("original cleanup type identity is absent"))?
+                .clone()
+        } else {
+            if self.type_values.len() >= self.limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "original cleanup type directory limit exceeded",
+                    None,
+                ));
+            }
+            let index = self.type_values.len();
+            let handle = CleanupType(std::rc::Rc::new(copy_recipe(ty, self.limits, self.left)?));
+            self.type_ids
+                .insert(key, ty, index, self.limits, self.left)?;
+            self.pay(1, depth)?;
+            self.type_values.push(handle.clone());
+            handle
+        };
+        Ok(Value::Cleanup { owner, ty: handle })
+    }
     fn category(
         &mut self,
         owner: SemanticDefinitionId,
@@ -277,9 +333,9 @@ impl<'a> Engine<'a, '_> {
             Value::Error { payload, .. } | Value::Boxed(payload) => {
                 self.charge_value(payload, depth + 1)?
             }
-            Value::Cleanup { ty, .. } => {
-                crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?
-            }
+            // Copying/comparing a canonical type handle is constant work.
+            // All dynamic Value/State fields are still visited below.
+            Value::Cleanup { .. } => {}
             Value::Tuple(values)
             | Value::Choice(values)
             | Value::Variant { fields: values, .. } => {
@@ -681,10 +737,7 @@ impl<'a> Engine<'a, '_> {
                     }
                     return Ok(Value::Fields(values));
                 }
-                Ok(Value::Cleanup {
-                    owner,
-                    ty: copy_recipe(ty, self.limits, self.left)?,
-                })
+                self.cleanup_value(owner, ty, depth + 1)
             }
             Value::Choice(values) => {
                 let values = values
@@ -699,10 +752,7 @@ impl<'a> Engine<'a, '_> {
                 {
                     Ok(Value::Fields(values))
                 } else {
-                    Ok(Value::Cleanup {
-                        owner,
-                        ty: copy_recipe(ty, self.limits, self.left)?,
-                    })
+                    self.cleanup_value(owner, ty, depth + 1)
                 }
             }
             other => Ok(other),
@@ -910,7 +960,12 @@ impl<'a> Engine<'a, '_> {
                         Span::default(),
                         "live original value has no independent SyncDrop proof",
                     );
-                    crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        &**ty,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
                     error.notes.push(format!(
                         "original cleanup owner {:?}, complete type recipe {:?}",
                         owner, ty
@@ -3401,6 +3456,8 @@ pub(super) fn check(
         relevant: BTreeSet::new(),
         categories: type_cache::Table::new(),
         cleanup: type_cache::Table::new(),
+        type_ids: type_cache::Table::new(),
+        type_values: Vec::new(),
     };
     engine.pay(
         program
