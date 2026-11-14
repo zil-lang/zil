@@ -83,7 +83,7 @@ impl Write for Sink<'_> {
         Ok(())
     }
 }
-fn digest(
+pub(super) fn digest(
     recipe: &SemanticTypeRecipe,
     limits: &Limits,
     left: &mut usize,

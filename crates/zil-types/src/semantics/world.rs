@@ -16,6 +16,8 @@ mod dynamic;
 mod flow;
 #[path = "world_values.rs"]
 mod function_values;
+#[path = "world_index.rs"]
+mod index;
 #[path = "world_intrinsics.rs"]
 mod intrinsics;
 #[path = "world_methods.rs"]
@@ -34,6 +36,8 @@ mod receiver;
 mod roles;
 #[path = "world_sourcecall.rs"]
 mod sourcecall;
+#[path = "world_types.rs"]
+mod types;
 /// Relocation may identify a sealed opcode only by its independently checked
 /// original scheme. This authenticates operation correspondence, not W/classes.
 pub(super) fn intrinsic_operation_matches(
@@ -78,6 +82,8 @@ struct World<'a, 'b> {
     local_roots: BTreeMap<LocalId, std::collections::BTreeSet<arguments::Root>>,
     argument_witnesses: Vec<arguments::Witness>,
     receiver_adaptations: Vec<receiver::Adaptation>,
+    index: index::Index,
+    types: types::Table,
 }
 impl<'a> World<'a, '_> {
     fn pay(&mut self, n: usize) -> R<()> {
@@ -91,15 +97,15 @@ impl<'a> World<'a, '_> {
         Ok(())
     }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
-        self.pay(self.program.instances.len())?;
-        if let Some(instance) = self.program.instances.iter().find(|row| row.id == id) {
-            return Ok(instance);
+        self.pay(index::search(self.index.instances.len()))?;
+        if let Some(offset) = self.index.instances.get(&id) {
+            return Ok(&self.program.instances[*offset]);
         }
         let ledger = self.ledger;
         if let Some(source) = &ledger.frozen {
-            self.pay(source.semantic.instances.len())?;
-            if let Some(instance) = source.semantic.instances.iter().find(|row| row.id == id) {
-                return Ok(instance);
+            self.pay(index::search(self.index.frozen_instances.len()))?;
+            if let Some(offset) = self.index.frozen_instances.get(&id) {
+                return Ok(&source.semantic.instances[*offset]);
             }
         }
         Err(bad(
@@ -107,15 +113,15 @@ impl<'a> World<'a, '_> {
         ))
     }
     fn definition(&mut self, id: SemanticDefinitionId) -> R<&'a SemanticDefinition> {
-        self.pay(self.program.definitions.len())?;
-        if let Some(definition) = self.program.definitions.iter().find(|row| row.id == id) {
-            return Ok(definition);
+        self.pay(index::search(self.index.definitions.len()))?;
+        if let Some(offset) = self.index.definitions.get(&id) {
+            return Ok(&self.program.definitions[*offset]);
         }
         let ledger = self.ledger;
         if let Some(source) = &ledger.frozen {
-            self.pay(source.semantic.definitions.len())?;
-            if let Some(definition) = source.semantic.definitions.iter().find(|row| row.id == id) {
-                return Ok(definition);
+            self.pay(index::search(self.index.frozen_definitions.len()))?;
+            if let Some(offset) = self.index.frozen_definitions.get(&id) {
+                return Ok(&source.semantic.definitions[*offset]);
             }
         }
         Err(bad(
@@ -123,11 +129,11 @@ impl<'a> World<'a, '_> {
         ))
     }
     fn function(&mut self, id: FunctionId) -> R<&'a TypedFunction> {
-        self.pay(self.module.functions.len())?;
-        self.module
+        self.pay(index::search(self.index.functions.len()))?;
+        self.index
             .functions
-            .iter()
-            .find(|f| f.id == id)
+            .get(&id)
+            .map(|offset| &self.module.functions[*offset])
             .ok_or_else(|| bad("world has no actual function"))
     }
     fn child(&mut self, id: ClosureId) -> R<(&'a ClosureDefinition, &'a SemanticInstance)> {
@@ -328,7 +334,13 @@ impl<'a> World<'a, '_> {
         recipe: &SemanticTypeRecipe,
         hint: &Type,
     ) -> R<SemanticTypeValue> {
-        super::materialize::type_at(
+        let (key, cached) = self
+            .types
+            .lookup(scope, recipe, hint, self.limits, self.left)?;
+        if let Some(value) = cached {
+            return Ok(value);
+        }
+        let value = super::materialize::type_at(
             self.program,
             self.module,
             self.ledger,
@@ -337,7 +349,10 @@ impl<'a> World<'a, '_> {
             Some(hint),
             self.limits,
             self.left,
-        )
+        )?;
+        self.types
+            .insert(key, recipe, hint, &value, self.limits, self.left)?;
+        Ok(value)
     }
     fn parameter_value(
         &mut self,
@@ -932,8 +947,29 @@ impl World<'_, '_> {
         block: BlockId,
         instruction: usize,
     ) -> R<Vec<&'a SemanticSite>> {
-        self.pay(sites.len())?;
-        Ok(sites.iter().copied().filter(|s| matches!(s.at, SemanticSiteAddress::Typed { block: b, instruction: i, .. } if b == block && i as usize == instruction)).collect())
+        let Some(first) = sites.first() else {
+            return Ok(Vec::new());
+        };
+        self.pay(index::search(self.index.points.len()))?;
+        let Some(positions) = self.index.points.get(&(first.instance, block, instruction)) else {
+            return Ok(Vec::new());
+        };
+        index::pay(self.left, positions.len())?;
+        let mut result = Vec::with_capacity(positions.len());
+        for position in positions {
+            let row = sites
+                .get(*position)
+                .ok_or_else(|| bad("actual point index has another instance site directory"))?;
+            if row.instance != first.instance
+                || !matches!(row.at, SemanticSiteAddress::Typed { block: b, instruction: i, .. } if b == block && i as usize == instruction)
+            {
+                return Err(bad(
+                    "actual point index changes its exact instance or instruction",
+                ));
+            }
+            result.push(*row);
+        }
+        Ok(result)
     }
     fn constraints(
         &mut self,
@@ -1724,18 +1760,19 @@ impl World<'_, '_> {
         protocol::header(self, original, f)?;
         self.requirements(instance, original, None, &BTreeMap::new())?;
         self.pay(
-            self.program
-                .sites
-                .len()
+            index::search(self.index.sites.len())
                 .saturating_add(f.locals.len())
                 .saturating_add(f.values.len()),
         )?;
         let sites: Vec<_> = self
-            .program
+            .index
             .sites
-            .iter()
-            .filter(|s| s.instance == instance.id)
+            .get(&instance.id)
+            .into_iter()
+            .flatten()
+            .map(|offset| &self.program.sites[*offset])
             .collect();
+        self.pay(sites.len())?;
         let mut locals = vec![None; f.locals.len()];
         let values = vec![None; f.values.len()];
         let mut declared = BTreeMap::new();
@@ -3876,6 +3913,7 @@ pub(super) fn program(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    let index = index::Index::new(program, module, ledger, limits, left)?;
     let mut world = World {
         program,
         module,
@@ -3893,6 +3931,8 @@ pub(super) fn program(
         local_roots: BTreeMap::new(),
         argument_witnesses: Vec::new(),
         receiver_adaptations: Vec::new(),
+        index,
+        types: types::Table::default(),
     };
     world.pay(
         program

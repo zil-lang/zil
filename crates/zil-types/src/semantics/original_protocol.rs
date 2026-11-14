@@ -3,6 +3,13 @@
 use super::*;
 #[path = "original_type_cache.rs"]
 mod type_cache;
+pub(in crate::semantics) fn recipe_key(
+    value: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<zil_base::Fingerprint> {
+    type_cache::digest(value, limits, left)
+}
 
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
