@@ -61,6 +61,12 @@ pub(super) fn carrier(
         matches!(p.as_ref(), Type::AsyncRegistration { .. }),
     )
 }
+pub(super) fn semantic_closed_environment(module:&TypedModule,closure:ClosureId,budget:&mut Budget)->Check<()>{
+    closed(module,closure,None,budget,false)
+}
+pub(super) fn semantic_thread_callable(module:&TypedModule,closure:ClosureId,budget:&mut Budget)->Check<()>{
+    threaded::actual(module,closure,None,budget)
+}
 fn closed(
     module: &TypedModule,
     root: ClosureId,

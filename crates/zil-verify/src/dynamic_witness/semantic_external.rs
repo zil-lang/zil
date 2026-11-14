@@ -477,15 +477,15 @@ impl ExternalProofs for Proofs {
                 trait_kind,
             } => {
                 let bound = match trait_kind {
-                    SemanticBuiltinTrait::Copy => DynStructuralBound::Copy,
-                    SemanticBuiltinTrait::Value => DynStructuralBound::Value,
-                    SemanticBuiltinTrait::SyncDrop => DynStructuralBound::SyncDrop,
-                    SemanticBuiltinTrait::StoreElement => DynStructuralBound::StoreElement,
-                    SemanticBuiltinTrait::Drop
-                    | SemanticBuiltinTrait::Transfer
-                    | SemanticBuiltinTrait::Share
+                    SemanticBuiltinTrait::Copy => Some(DynStructuralBound::Copy),
+                    SemanticBuiltinTrait::Value => Some(DynStructuralBound::Value),
+                    SemanticBuiltinTrait::SyncDrop => Some(DynStructuralBound::SyncDrop),
+                    SemanticBuiltinTrait::StoreElement => Some(DynStructuralBound::StoreElement),
+                    SemanticBuiltinTrait::Transfer
                     | SemanticBuiltinTrait::ThreadCallable
-                    | SemanticBuiltinTrait::ClosedEnvironment
+                    | SemanticBuiltinTrait::ClosedEnvironment => None,
+                    SemanticBuiltinTrait::Drop
+                    | SemanticBuiltinTrait::Share
                     | SemanticBuiltinTrait::Send
                     | SemanticBuiltinTrait::Sync => {
                         return Err(bad(
@@ -502,7 +502,8 @@ impl ExternalProofs for Proofs {
                         .into_iter()
                         .map(|row| (StorageBase::Receiver, row)),
                 );
-                structural::check(module, &receiver, bound, b)?;
+                if let Some(bound)=bound{structural::check(module,&receiver,bound,b)?;}
+                else{super::semantic_capabilities::check(module,&receiver,*trait_kind,b)?;}
                 Ok(ExternalValue::Proved)
             }
             ExternalRequest::Structural { receiver, bound } => {

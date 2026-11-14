@@ -46,6 +46,7 @@ mod signatures;
 mod symbols;
 
 pub(crate) mod semantic_external;
+mod semantic_capabilities;
 
 /// Complete actual Typed domain only. Pending sources remain pending; neither
 /// the cardinality nor successful shape validation grants memory authority.
