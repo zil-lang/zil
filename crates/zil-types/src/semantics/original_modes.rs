@@ -6,33 +6,27 @@ impl Check<'_, '_> {
         &mut self,
         owner: SemanticDefinitionId,
         mode: PassingMode,
-        mut ty: SemanticTypeRecipe,
+        ty: SemanticTypeRecipe,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
+        // Source selects resource categories before allocating description
+        // occurrences. Passing modes cannot erase a real descriptor occurrence.
         if matches!(mode, PassingMode::Create | PassingMode::Give) {
             match ty {
-                SemanticTypeRecipe::Desc { inner, .. } => ty = SemanticTypeRecipe::Managed(inner),
-                SemanticTypeRecipe::ErrorUnion { error, result } if mode == PassingMode::Create => {
-                    ty = SemanticTypeRecipe::ErrorUnion {
+                SemanticTypeRecipe::Desc { .. } => {
+                    return Err(bad(
+                        "create/give requires an owning category, not an explicit descriptor",
+                    ));
+                }
+                SemanticTypeRecipe::ErrorUnion { error, result } => {
+                    let result = self.mode_type(owner, mode, *result, depth + 1)?;
+                    return Ok(SemanticTypeRecipe::ErrorUnion {
                         error,
-                        result: Box::new(self.mode_type(owner, mode, *result, depth + 1)?),
-                    };
+                        result: Box::new(result),
+                    });
                 }
                 _ => {}
-            }
-        }
-        if matches!(mode, PassingMode::Borrow | PassingMode::BorrowMut) {
-            if let SemanticTypeRecipe::Address { inner, .. } = &mut ty {
-                if let SemanticTypeRecipe::Desc {
-                    inner: resource, ..
-                } = inner.as_ref()
-                {
-                    if self.resource_head(owner, resource, depth + 1)? {
-                        let resource = copy_recipe(resource, self.limits, self.left)?;
-                        *inner = Box::new(SemanticTypeRecipe::Managed(Box::new(resource)));
-                    }
-                }
             }
         }
         Ok(ty)
@@ -79,8 +73,10 @@ impl Check<'_, '_> {
                     Ok(path.len() == 1 && matches!(path[0].as_str(), "store_new" | "bytes_new"))
                 }
             }
-            CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
-                self.initializer_owns(owner, value, variables, depth + 1)
+            CoreExprKind::Group(value) => self.initializer_owns(owner, value, variables, depth + 1),
+            CoreExprKind::Ascribed { ty, .. } => {
+                let ty = self.resolve(owner, ty, depth + 1)?;
+                Ok(matches!(ty, SemanticTypeRecipe::Managed(_)))
             }
             _ => Ok(false),
         }

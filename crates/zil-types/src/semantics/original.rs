@@ -322,7 +322,11 @@ impl<'a> Check<'a, '_> {
         let active = copy_recipe(query, self.limits, self.left)?;
         self.predicate_active.push((owner, 8, active));
         let answer = (|| {
-            let resolved = self.resolve(owner, query, 1)?;
+            let resolved = if matches!(query, SemanticTypeRecipe::Environment { .. }) {
+                self.observation_type(owner, query, 1)?
+            } else {
+                self.resolve(owner, query, 1)?
+            };
             if &resolved == query {
                 return Err(pending(
                     "original type query has no finite defining equation",
@@ -348,10 +352,24 @@ impl<'a> Check<'a, '_> {
             return Ok(());
         }
         if let Some(owner) = self.contexts.last().copied() {
-            if matches!(a, SemanticTypeRecipe::OriginalType { .. }) {
+            if matches!(
+                a,
+                SemanticTypeRecipe::OriginalType { .. }
+                    | SemanticTypeRecipe::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ..
+                    }
+            ) {
                 return self.same_query_alias(owner, a, b, false);
             }
-            if matches!(b, SemanticTypeRecipe::OriginalType { .. }) {
+            if matches!(
+                b,
+                SemanticTypeRecipe::OriginalType { .. }
+                    | SemanticTypeRecipe::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ..
+                    }
+            ) {
                 return self.same_query_alias(owner, b, a, true);
             }
             if self.premise_type_equal(owner, a, b, 0)? {
@@ -1328,24 +1346,7 @@ impl<'a> Check<'a, '_> {
         value: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
-        self.pay(1, depth)?;
-        if let SemanticTypeRecipe::Environment {
-            scope: SemanticScopeRef::Ancestor(0),
-            ordinal,
-        } = value
-        {
-            let (parent, value) =
-                self.proof
-                    .environments
-                    .get(&(owner, *ordinal))
-                    .ok_or_else(|| {
-                        pending("original operation needs its checked whole-Type environment")
-                    })?;
-            let parent = *parent;
-            let value = copy_recipe(value, self.limits, self.left)?;
-            return self.logical(parent, &value, depth + 1);
-        }
-        self.resolve(owner, value, depth + 1)
+        self.observation_type(owner, value, depth + 1)
     }
     fn observation_type(
         &mut self,
@@ -2528,6 +2529,7 @@ impl<'a> Check<'a, '_> {
             }
             CoreExprKind::Slice { object, start, end } => {
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
+                let object_ty = self.logical(owner, &object_ty, depth + 1)?;
                 let element = match object_ty {
                     SemanticTypeRecipe::Array { element, .. }
                     | SemanticTypeRecipe::Slice(element) => element,
@@ -2540,6 +2542,7 @@ impl<'a> Check<'a, '_> {
                 };
                 for index in start.iter().chain(end.iter()) {
                     let ty = self.expr(owner, index, variables, None, depth + 1)?;
+                    let ty = self.logical(owner, &ty, depth + 1)?;
                     if !matches!(ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer()) {
                         return Err(bad("original slice bound is not an integer"));
                     }
@@ -2550,6 +2553,7 @@ impl<'a> Check<'a, '_> {
             | CoreExprKind::IntegerConvert { value, target } => {
                 let target = self.resolve(owner, target, depth + 1)?;
                 let value = self.expr(owner, value, variables, None, depth + 1)?;
+                let value = self.logical(owner, &value, depth + 1)?;
                 if !matches!((&value, &target), (SemanticTypeRecipe::Atom(a), SemanticTypeRecipe::Atom(b)) if (a.is_integer() || a.is_float()) && (b.is_integer() || b.is_float()))
                 {
                     return Err(bad(
@@ -2560,6 +2564,7 @@ impl<'a> Check<'a, '_> {
             }
             CoreExprKind::Try(value) => {
                 let value = self.expr(owner, value, variables, None, depth + 1)?;
+                let value = self.logical(owner, &value, depth + 1)?;
                 let SemanticTypeRecipe::ErrorUnion { error, result } = value else {
                     return Err(bad("original propagation operand is not an error union"));
                 };
@@ -2655,6 +2660,7 @@ impl<'a> Check<'a, '_> {
             }
             CoreExprKind::Unary { op, operand } => {
                 let value = self.expr(owner, operand, variables, wanted, depth + 1)?;
+                let value = self.logical(owner, &value, depth + 1)?;
                 let SemanticTypeRecipe::Atom(ty) = &value else {
                     return Err(pending(
                         "original unary operation lacks its declared symbolic primitive premise",
@@ -3405,6 +3411,7 @@ impl<'a> Check<'a, '_> {
     ) -> R<SemanticTypeRecipe> {
         self.pay(1, depth)?;
         let index_ty = self.expr(owner, index, variables, None, depth + 1)?;
+        let index_ty = self.logical(owner, &index_ty, depth + 1)?;
         let SemanticTypeRecipe::Atom(index_ty) = index_ty else {
             return Err(bad("original index is not a primitive integer"));
         };
@@ -3414,7 +3421,7 @@ impl<'a> Check<'a, '_> {
         let mut ty = self.logical(owner, ty, depth + 1)?;
         while let SemanticTypeRecipe::Address { inner, .. } = ty {
             self.pay(1, depth)?;
-            ty = *inner;
+            ty = self.logical(owner, &inner, depth + 1)?;
         }
         match ty {
             SemanticTypeRecipe::Array { element, .. } | SemanticTypeRecipe::Slice(element) => {

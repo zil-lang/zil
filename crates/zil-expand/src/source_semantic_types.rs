@@ -228,12 +228,13 @@ impl Builder<'_, '_, '_, '_> {
                                 name.as_str(),
                                 "ByteBuffer"
                                     | "TaskI32"
-                                    | "OwnedStore"
+                                    | "Store"
                                     | "Mutex"
                                     | "Task"
                                     | "Registration"
                                     | "AsyncRegistration"
-                            ) {
+                            ) && !self.builtin_shadow(path, target.span)?
+                            {
                                 return Ok(true);
                             }
                             if name == "Self" {
@@ -257,6 +258,80 @@ impl Builder<'_, '_, '_, '_> {
             }
         }
         Ok(false)
+    }
+    fn reference_resource(
+        &mut self,
+        recipe: &SemanticTypeRecipe,
+        span: Span,
+        depth: usize,
+    ) -> R<bool> {
+        self.budget.node(span, depth)?;
+        Ok(match recipe {
+            SemanticTypeRecipe::Atom(Type::ByteBuffer | Type::TaskI32)
+            | SemanticTypeRecipe::OwnedStore(_)
+            | SemanticTypeRecipe::Mutex(_)
+            | SemanticTypeRecipe::Task { .. }
+            | SemanticTypeRecipe::Registration(_)
+            | SemanticTypeRecipe::AsyncRegistration(_) => true,
+            SemanticTypeRecipe::SelfType { .. } => self.self_is_resource(span, depth + 1)?,
+            SemanticTypeRecipe::Nominal { definition, .. } => {
+                let mut resource = false;
+                for (index, row) in self.inventory.declarations.iter().enumerate() {
+                    self.budget.node(span, depth + 1)?;
+                    if self.id(index) == *definition {
+                        resource = matches!(&row.item.kind,s::ItemKind::Aggregate(aggregate) if aggregate.kind==s::AggregateKind::Resource);
+                        break;
+                    }
+                }
+                resource
+            }
+            _ => false,
+        })
+    }
+    pub(super) fn declared_mode_type(
+        &mut self,
+        ty: &s::TypeRef,
+        mode: PassingMode,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.budget.node(ty.span, depth)?;
+        if !matches!(mode, PassingMode::Create | PassingMode::Give) {
+            return self.ty(ty, path, depth + 1, false);
+        }
+        if let s::TypeKind::Group(inner) = &ty.kind {
+            return self.declared_mode_type(inner, mode, path, depth + 1);
+        }
+        if let s::TypeKind::Error { error, result } = &ty.kind {
+            path.push(0);
+            let error = self.ty(error, path, depth + 1, false);
+            path.pop();
+            path.push(1);
+            let result = self.declared_mode_type(result, mode, path, depth + 1);
+            path.pop();
+            self.budget.lineage_bytes(
+                std::mem::size_of::<SemanticTypeRecipe>().saturating_mul(3),
+                ty.span,
+            )?;
+            return Ok(SemanticTypeRecipe::ErrorUnion {
+                error: Box::new(error?),
+                result: Box::new(result?),
+            });
+        }
+        let value = self.ty(ty, path, depth + 1, true)?;
+        if matches!(value, SemanticTypeRecipe::Desc { .. }) {
+            return Err(error(
+                ty.span,
+                "create/give cannot upgrade an explicit Ref/Desc into an owning carrier",
+            ));
+        }
+        if self.reference_resource(&value, ty.span, depth + 1)? {
+            self.budget
+                .lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), ty.span)?;
+            Ok(SemanticTypeRecipe::Managed(Box::new(value)))
+        } else {
+            Ok(value)
+        }
     }
     pub(super) fn actuals(
         &mut self,
@@ -539,6 +614,7 @@ impl Builder<'_, '_, '_, '_> {
                         name.as_str(),
                         "Managed"
                             | "Desc"
+                            | "Ref"
                             | "Store"
                             | "Mutex"
                             | "Registration"
@@ -555,12 +631,38 @@ impl Builder<'_, '_, '_, '_> {
                             inner,
                             path,
                             depth + 1,
-                            name == "Managed" || name == "Desc",
+                            name == "Managed" || name == "Desc" || name == "Ref",
                         )?);
                         path.pop();
                         let result = match name.as_str() {
-                            "Managed" => SemanticTypeRecipe::Managed(inner),
-                            "Desc" => SemanticTypeRecipe::Desc {
+                            "Managed" => {
+                                if matches!(
+                                    inner.as_ref(),
+                                    SemanticTypeRecipe::Managed(_)
+                                        | SemanticTypeRecipe::Desc { .. }
+                                ) {
+                                    return Err(error(
+                                        ty.span,
+                                        "Managed cannot wrap another Managed carrier or an explicit description",
+                                    ));
+                                }
+                                if !self.reference_resource(&inner, ty.span, depth + 1)?
+                                    && !matches!(
+                                        inner.as_ref(),
+                                        SemanticTypeRecipe::Formal(_)
+                                            | SemanticTypeRecipe::AssociatedType { .. }
+                                            | SemanticTypeRecipe::SelfType { .. }
+                                            | SemanticTypeRecipe::OriginalType { .. }
+                                    )
+                                {
+                                    return Err(error(
+                                        ty.span,
+                                        "Managed requires a real resource payload type",
+                                    ));
+                                }
+                                SemanticTypeRecipe::Managed(inner)
+                            }
+                            "Desc" | "Ref" => SemanticTypeRecipe::Desc {
                                 lifetime: SemanticOuterLifeRecipe::Class(
                                     self.implicit(path, ty.span)?,
                                 ),
@@ -571,16 +673,18 @@ impl Builder<'_, '_, '_, '_> {
                             "Registration" => SemanticTypeRecipe::Registration(inner),
                             _ => SemanticTypeRecipe::AsyncRegistration(inner),
                         };
-                        return Ok(if payload || matches!(name.as_str(), "Managed" | "Desc") {
-                            result
-                        } else {
-                            SemanticTypeRecipe::Desc {
-                                lifetime: SemanticOuterLifeRecipe::Class(
-                                    self.implicit(path, ty.span)?,
-                                ),
-                                inner: Box::new(result),
-                            }
-                        });
+                        return Ok(
+                            if payload || matches!(name.as_str(), "Managed" | "Desc" | "Ref") {
+                                result
+                            } else {
+                                SemanticTypeRecipe::Desc {
+                                    lifetime: SemanticOuterLifeRecipe::Class(
+                                        self.implicit(path, ty.span)?,
+                                    ),
+                                    inner: Box::new(result),
+                                }
+                            },
+                        );
                     }
                     if name == "OwnedDyn" {
                         let (interface, context) = match args.as_slice() {
@@ -639,24 +743,19 @@ impl Builder<'_, '_, '_, '_> {
             } => {
                 let life = self.life(lifetime.as_deref(), path, ty.span)?;
                 path.push(0);
-                // A Self reference explicitly selects its implementation's
-                // payload. Public Resource names retain their head semantics.
-                let mut referent = inner.as_ref();
-                let mut nesting = depth + 1;
-                while let s::TypeKind::Group(group) = &referent.kind {
-                    self.budget.node(referent.span, nesting)?;
-                    nesting = nesting
-                        .checked_add(1)
-                        .ok_or_else(|| error(ty.span, "Self reference depth overflow"))?;
-                    referent = group;
-                }
-                let self_payload = matches!(&referent.kind, s::TypeKind::Named { path, args } if path.as_slice() == ["Self"] && args.is_empty());
-                let inner = Box::new(self.ty(inner, path, depth + 1, self_payload)?);
+                let referent = self.ty(inner, path, depth + 1, true)?;
+                let referent = if self.reference_resource(&referent, inner.span, depth + 1)? {
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), ty.span)?;
+                    SemanticTypeRecipe::Managed(Box::new(referent))
+                } else {
+                    referent
+                };
                 path.pop();
                 Ok(SemanticTypeRecipe::Address {
                     mutable: *mutable,
                     lifetime: SemanticOuterLifeRecipe::Class(life),
-                    inner,
+                    inner: Box::new(referent),
                 })
             }
             s::TypeKind::Tuple(fields) | s::TypeKind::Union(fields) => {
@@ -940,7 +1039,12 @@ impl Builder<'_, '_, '_, '_> {
                 }
                 let mut inputs = Vec::new();
                 for (ordinal, input) in function.params.iter().enumerate() {
-                    let ty = self.ty(&input.ty, &mut vec![1, ordinal as u32], 0, false)?;
+                    let ty = self.declared_mode_type(
+                        &input.ty,
+                        crate::mode(input),
+                        &mut vec![1, ordinal as u32],
+                        0,
+                    )?;
                     self.push(
                         &mut inputs,
                         SemanticParameterRecipe {
@@ -950,8 +1054,9 @@ impl Builder<'_, '_, '_, '_> {
                         input.span,
                     )?;
                 }
+                let result_mode = self.result_mode(function)?;
                 let result = match &function.return_type {
-                    Some(ty) => self.ty(ty, &mut vec![2], 0, false)?,
+                    Some(ty) => self.declared_mode_type(ty, result_mode, &mut vec![2], 0)?,
                     None => SemanticTypeRecipe::Atom(Type::Unit),
                 };
                 if let Some(s::TypeRef {
@@ -1040,13 +1145,15 @@ impl Builder<'_, '_, '_, '_> {
                     },
                     SemanticDefinitionBody::FunctionWithBody {
                         protocol_contracts: self.original_protocol_contracts(function)?,
+                        foreign: self.original_foreign(row.item)?,
+                        resume_bound: self.original_resume_bound(function)?,
                         names: self.original_names()?,
                         signature: SemanticSignatureRecipe {
                             bound_lifetimes: 0,
                             invocation_lifetimes: 0,
                             parameters: inputs,
                             result,
-                            result_mode: self.result_mode(function)?,
+                            result_mode,
                             call_kind: CallKind::Direct,
                         },
                         sites: Vec::new(),
@@ -1362,7 +1469,9 @@ mod self_header_tests {
             unreachable!()
         };
         assert!(
-            matches!(&signature.parameters[0].ty, SemanticTypeRecipe::Address { inner,.. } if matches!(inner.as_ref(), SemanticTypeRecipe::SelfType { .. }))
+            matches!(&signature.parameters[0].ty, SemanticTypeRecipe::Address { inner,.. }
+                if matches!(inner.as_ref(), SemanticTypeRecipe::Managed(payload)
+                    if matches!(payload.as_ref(),SemanticTypeRecipe::SelfType{scope:SemanticScopeRef::Ancestor(1)})))
         );
         for name in ["take", "unknown"] {
             let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &find(name).body
