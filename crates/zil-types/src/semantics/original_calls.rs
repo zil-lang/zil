@@ -395,6 +395,21 @@ impl Check<'_, '_> {
                     self.left,
                 )?);
             }
+            if let SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }) =
+                &definition.body
+            {
+                let arguments = self.original_arguments(id, hops, depth + 1)?;
+                self.pay(1, depth)?;
+                requirements.push(SemanticRequirementRecipe::Trait {
+                    ty: SemanticTypeRecipe::SelfType {
+                        scope: SemanticScopeRef::Ancestor(hops),
+                    },
+                    application: SemanticTraitRecipe {
+                        declaration: *declaration,
+                        arguments,
+                    },
+                });
+            }
             // Closure free semantic operands cross their explicit environment
             // boundary, never a guessed implicit ancestor substitution.
             if definition.kind == SemanticDefinitionKind::Closure {
@@ -405,6 +420,7 @@ impl Check<'_, '_> {
                 .checked_add(1)
                 .ok_or_else(|| bad("original premise ancestry overflows"))?;
         }
+        self.extend_associated_requirements(owner, &mut requirements, depth + 1)?;
         Ok(requirements)
     }
     fn trait_application(
@@ -1045,13 +1061,32 @@ impl Check<'_, '_> {
         application: &SemanticTraitRecipe,
         depth: usize,
     ) -> R<()> {
-        self.pay(self.trait_active.len(), depth)?;
+        let ty = self.resolve(owner, ty, depth + 1)?;
+        let application = self.resolve_application(owner, application, depth + 1)?;
         for requirement in self.original_requirements(owner, depth + 1)? {
-            if matches!(&requirement, SemanticRequirementRecipe::Trait { ty: premise, application: assumed } if premise == ty && assumed == application)
+            if matches!(&requirement, SemanticRequirementRecipe::Trait { ty: premise, application: assumed } if premise == &ty && assumed == &application)
             {
                 return Ok(());
             }
         }
+        if self
+            .select_trait_provider(owner, &ty, &application, depth + 1)?
+            .is_none()
+        {
+            return Err(bad(
+                "original caller lacks a complete trait premise or provider",
+            ));
+        }
+        Ok(())
+    }
+    pub(super) fn select_trait_provider(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        application: &SemanticTraitRecipe,
+        depth: usize,
+    ) -> R<Option<(SemanticDefinitionId, Vec<SemanticActualRecipe>)>> {
+        self.pay(self.trait_active.len(), depth)?;
         if self
             .trait_active
             .iter()
@@ -1187,12 +1222,7 @@ impl Check<'_, '_> {
             }
         }
         self.trait_active.pop();
-        if selected.is_none() {
-            return Err(bad(
-                "original caller lacks a complete trait premise or provider",
-            ));
-        }
-        Ok(())
+        Ok(selected)
     }
     pub(super) fn store_element(
         &mut self,

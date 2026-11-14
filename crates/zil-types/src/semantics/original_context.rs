@@ -17,6 +17,11 @@ fn pay(left: &mut usize, work: usize) -> R<()> {
 fn search(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct Declaration {
+    pub(super) row: DynDeclaration,
+    pub(super) scope: SemanticDefinitionId,
+}
 struct Part {
     module: ModuleId,
     present: bool,
@@ -24,9 +29,11 @@ struct Part {
     instances: Range<usize>,
     sites: Range<usize>,
     dyn_scopes: Range<usize>,
+    declarations: Range<usize>,
 }
 pub(super) struct Input {
     pub(super) semantic: SemanticModule,
+    pub(super) declarations: Rc<Vec<Declaration>>,
     parts: Vec<Part>,
 }
 impl Input {
@@ -39,12 +46,14 @@ impl Input {
             dyn_scopes: Vec::new(),
         };
         let mut parts = Vec::with_capacity(cores.len());
+        let mut declarations = Vec::new();
         for core in cores {
             let start = (
                 semantic.definitions.len(),
                 semantic.instances.len(),
                 semantic.sites.len(),
                 semantic.dyn_scopes.len(),
+                declarations.len(),
             );
             if let Some(program) = &core.semantic {
                 crate::dyn_metadata::semantic_snapshot(program, limits, left, 1)?;
@@ -65,6 +74,41 @@ impl Input {
                 semantic.sites.extend(copy.sites);
                 semantic.dyn_scopes.extend(copy.dyn_scopes);
             }
+            pay(left, core.dyn_declarations.len().saturating_add(1))?;
+            for row in &core.dyn_declarations {
+                crate::dyn_metadata::actual_declaration_snapshot(row, limits, left, 1)?;
+                if row.id.module != core.module_id {
+                    return Err(bad(
+                        "original declaration is outside its actual source Core module",
+                    ));
+                }
+                let original = core.semantic.as_ref().ok_or_else(|| {
+                    bad("original associated declaration has no source semantic scope")
+                })?;
+                pay(left, original.dyn_scopes.len().saturating_add(1))?;
+                let mut scopes = original.dyn_scopes.iter().filter(|binding| {
+                    matches!(
+                        binding.owner, SemanticDynOwner::Declaration(id) if id == row.id
+                    )
+                });
+                let scope = scopes
+                    .next()
+                    .ok_or_else(|| {
+                        bad(
+                    "original associated declaration has no exact declaration Scope binding",
+                )
+                    })?
+                    .scope;
+                if scopes.next().is_some() {
+                    return Err(bad(
+                        "original associated declaration has duplicate Scope bindings",
+                    ));
+                }
+                declarations.push(Declaration {
+                    row: row.clone(),
+                    scope,
+                });
+            }
             parts.push(Part {
                 module: core.module_id,
                 present: core.semantic.is_some(),
@@ -72,9 +116,14 @@ impl Input {
                 instances: start.1..semantic.instances.len(),
                 sites: start.2..semantic.sites.len(),
                 dyn_scopes: start.3..semantic.dyn_scopes.len(),
+                declarations: start.4..declarations.len(),
             });
         }
-        Ok(Self { semantic, parts })
+        Ok(Self {
+            semantic,
+            declarations: Rc::new(declarations),
+            parts,
+        })
     }
     /// E can refer to immutable S declarations; S instances/sites remain in S.
     /// Every duplicate is compared completely before it is accepted as shared.
@@ -110,11 +159,38 @@ impl Input {
                 self.semantic.definitions.push(original.clone());
             }
         }
+        let mut declarations = Vec::new();
+        pay(
+            left,
+            self.declarations
+                .len()
+                .saturating_add(source.declarations.len())
+                .saturating_add(1),
+        )?;
+        let mut identities = BTreeMap::new();
+        for declaration in self.declarations.iter().chain(source.declarations.iter()) {
+            crate::dyn_metadata::actual_declaration_snapshot(&declaration.row, limits, left, 1)?;
+            pay(left, search(identities.len()))?;
+            if let Some(index) = identities.get(&declaration.row.id) {
+                let previous: &Declaration = &declarations[*index];
+                crate::dyn_metadata::actual_declaration_snapshot(&previous.row, limits, left, 1)?;
+                if previous != declaration {
+                    return Err(bad(
+                        "E changes an immutable S original associated declaration or Scope binding",
+                    ));
+                }
+            } else {
+                identities.insert(declaration.row.id, declarations.len());
+                declarations.push(declaration.clone());
+            }
+        }
+        self.declarations = Rc::new(declarations);
         Ok(())
     }
 }
 pub(crate) struct OriginalContext {
     pub(super) semantic: SemanticModule,
+    pub(super) declarations: Rc<Vec<Declaration>>,
     pub(super) original: super::original::Proof,
     parts: Vec<Part>,
     definitions: BTreeMap<SemanticDefinitionId, usize>,
@@ -128,6 +204,11 @@ impl OriginalContext {
         frozen: Option<Rc<super::frozen_context::FrozenSource>>,
         left: &mut usize,
     ) -> R<Rc<Self>> {
+        if !Rc::ptr_eq(&input.declarations, &proof.declarations) {
+            return Err(bad(
+                "checked original proof differs from its immutable declaration input",
+            ));
+        }
         let mut definitions = BTreeMap::new();
         let mut instances = BTreeMap::new();
         pay(
@@ -153,6 +234,7 @@ impl OriginalContext {
         }
         Ok(Rc::new(Self {
             semantic: input.semantic,
+            declarations: input.declarations,
             original: proof,
             parts: input.parts,
             definitions,
@@ -203,6 +285,22 @@ impl OriginalContext {
         for (core, part) in cores.iter().zip(&self.parts) {
             if core.module_id != part.module || core.semantic.is_some() != part.present {
                 return Err(bad("original context module identity or Some/None changed"));
+            }
+            pay(left, core.dyn_declarations.len().saturating_add(1))?;
+            for declaration in &core.dyn_declarations {
+                crate::dyn_metadata::actual_declaration_snapshot(declaration, limits, left, 1)?;
+            }
+            let declarations = &self.declarations[part.declarations.clone()];
+            if core.dyn_declarations.len() != declarations.len()
+                || core
+                    .dyn_declarations
+                    .iter()
+                    .zip(declarations)
+                    .any(|(actual, original)| actual != &original.row)
+            {
+                return Err(bad(
+                    "original associated declaration input changed after symbolic checking",
+                ));
             }
             let Some(actual) = &core.semantic else {
                 continue;

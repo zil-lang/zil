@@ -103,6 +103,105 @@ pub(super) fn ty(
     limits: &Limits,
     left: &mut usize,
 ) -> R<SemanticTypeRecipe> {
+    ty_using_self(program, proof, value, mapping, None, true, limits, left)
+}
+/// Evaluate a real declaration Scope's recipe after the original trait
+/// selection has proved its receiver and all mixed arguments. This operation
+/// supplies data substitution only; it grants no trait or where obligation.
+pub(super) fn ty_with_self(
+    program: &SemanticModule,
+    proof: &Proof,
+    value: &SemanticTypeRecipe,
+    mapping: DomainMapping<'_>,
+    receiver: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    ty_using_self(
+        program,
+        proof,
+        value,
+        mapping,
+        Some(receiver),
+        true,
+        limits,
+        left,
+    )
+}
+/// Derive a Const actual's carrier before installing the complete carrier
+/// vector. This only evaluates the real source formal's Type expression; the
+/// caller must retain every full mixed actual and then check the value in it.
+pub(super) fn carrier(
+    program: &SemanticModule,
+    proof: &Proof,
+    mapping: DomainMapping<'_>,
+    ordinal: u32,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    let source = definition(program, mapping.source, left)?;
+    let Some(SemanticFormal::Const { carrier }) = source.parameters.get(ordinal as usize) else {
+        return Err(bad(
+            "original carrier request does not select a Const formal",
+        ));
+    };
+    ty_using_self(program, proof, carrier, mapping, None, false, limits, left)
+}
+fn ty_using_self(
+    program: &SemanticModule,
+    proof: &Proof,
+    value: &SemanticTypeRecipe,
+    mapping: DomainMapping<'_>,
+    receiver: Option<&SemanticTypeRecipe>,
+    check_carriers: bool,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    in_mapping(
+        program,
+        proof,
+        mapping,
+        receiver,
+        check_carriers,
+        limits,
+        left,
+        |substitution, scopes, allow, left| {
+            substitute::ty_in_domains(value, substitution, scopes, allow, limits, left)
+        },
+    )
+}
+pub(super) fn requirement_with_self(
+    program: &SemanticModule,
+    proof: &Proof,
+    value: &SemanticRequirementRecipe,
+    mapping: DomainMapping<'_>,
+    receiver: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticRequirementRecipe> {
+    in_mapping(
+        program,
+        proof,
+        mapping,
+        Some(receiver),
+        true,
+        limits,
+        left,
+        |substitution, scopes, allow, left| {
+            substitute::requirement_in_domains(value, substitution, scopes, allow, limits, left)
+        },
+    )
+}
+fn in_mapping<T>(
+    program: &SemanticModule,
+    proof: &Proof,
+    mapping: DomainMapping<'_>,
+    receiver: Option<&SemanticTypeRecipe>,
+    check_carriers: bool,
+    limits: &Limits,
+    left: &mut usize,
+    run: impl FnOnce(&substitute::Substitution<'_>, &BTreeMap<u32, u32>, bool, &mut usize) -> R<T>,
+) -> R<T> {
     let source = definition(program, mapping.source, left)?;
     let source_chain = ancestry(program, mapping.source, limits, left)?;
     let use_chain = ancestry(program, mapping.use_definition, limits, left)?;
@@ -122,6 +221,15 @@ pub(super) fn ty(
     let mut selves = Vec::new();
     fee(left, source_chain.len().saturating_add(1))?;
     frames.push((0, mapping.arguments));
+    if let Some(receiver) = receiver {
+        if !matches!(source.body, SemanticDefinitionBody::Scope(_)) {
+            return Err(bad(
+                "original Self substitution does not name a real declaration Scope",
+            ));
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(receiver, limits, left, 1)?;
+        selves.push((0, receiver));
+    }
     if let Some(call) = mapping.parent_call {
         fee(left, source_chain.len().saturating_add(2))?;
         let method = proof
@@ -166,6 +274,9 @@ pub(super) fn ty(
     // Const carriers are checked in the same source-to-use mapping as fields.
     // A concrete actual image can never discharge a rigid carrier difference.
     for (hop, actuals) in &frames {
+        if !check_carriers {
+            continue;
+        }
         let original = definition(program, source_chain[*hop as usize], left)?;
         for (formal, actual) in original.parameters.iter().zip(*actuals) {
             if let (
@@ -198,12 +309,10 @@ pub(super) fn ty(
             }
         }
     }
-    substitute::ty_in_domains(
-        value,
+    run(
         &substitution,
         &scopes,
         mapping.source == mapping.use_definition,
-        limits,
         left,
     )
 }

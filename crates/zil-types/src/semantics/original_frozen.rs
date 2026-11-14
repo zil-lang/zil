@@ -137,6 +137,10 @@ fn clone_proof(
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
             .saturating_add(source.protocol_complete.len())
+            .saturating_add(source.associated_complete.len())
+            .saturating_add(source.capture_names.len())
+            .saturating_add(source.closure_move.len())
+            .saturating_add(source.injections.len())
             .saturating_add(source.kinds.len())
             .saturating_add(source.call_targets.len())
             .saturating_add(source.providers.len())
@@ -213,6 +217,15 @@ fn clone_proof(
         }
         crate::dyn_metadata::semantic_operand_snapshot(&function.signature, limits, left, 1)?;
     }
+    for injection in source.injections.values() {
+        crate::dyn_metadata::semantic_operand_snapshot(&injection.payload, limits, left, 1)?;
+    }
+    for names in source.capture_names.values() {
+        spend(left, names.len(), 0, limits)?;
+        for name in names {
+            spend(left, name.len(), 0, limits)?;
+        }
+    }
     for signature in source.direct_calls.values() {
         crate::dyn_metadata::semantic_operand_snapshot(signature, limits, left, 1)?;
     }
@@ -251,6 +264,7 @@ fn clone_proof(
 }
 pub(crate) fn check_with_frozen(
     program: &SemanticModule,
+    declarations: std::rc::Rc<Vec<super::super::original_context::Declaration>>,
     source: &FrozenSource,
     limits: &Limits,
     left: &mut usize,
@@ -382,7 +396,8 @@ pub(crate) fn check_with_frozen(
     if expected != actual {
         return Err(bad("generated wrapper body differs from the selected original query after true parent relocation"));
     }
-    let proof = clone_proof(&source.original, program, limits, left)?;
+    let mut proof = clone_proof(&source.original, program, limits, left)?;
+    proof.declarations = declarations;
     let mut check = Check {
         program,
         limits,
@@ -399,6 +414,7 @@ pub(crate) fn check_with_frozen(
         requested_snapshot: None,
         escape_active: Vec::new(),
     };
+    check.associated_inventory(0)?;
     let mut variables = check.clone_variables(environment)?;
     let empty = BTreeMap::new();
     let substitution = substitute::Substitution {
@@ -436,6 +452,7 @@ pub(crate) fn check_with_frozen(
         }
     }
     check.finish_effects()?;
+    check.associated_obligations(0)?;
     protocol::check(program, &mut check.proof, check.limits, check.left)?;
     Ok(check.proof)
 }

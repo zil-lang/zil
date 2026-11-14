@@ -60,9 +60,20 @@ pub(crate) fn prepare(
         input.include_frozen(source, limits, left)?;
     }
     let proof = if let Some(source) = ledger.frozen.as_deref() {
-        super::original::check_with_frozen(&input.semantic, source, limits, left)?
+        super::original::check_with_frozen(
+            &input.semantic,
+            input.declarations.clone(),
+            source,
+            limits,
+            left,
+        )?
     } else {
-        super::original::check(&input.semantic, limits, left)?
+        super::original::check_with_declarations(
+            &input.semantic,
+            input.declarations.clone(),
+            limits,
+            left,
+        )?
     };
     let context = super::original_context::OriginalContext::checked(
         input,

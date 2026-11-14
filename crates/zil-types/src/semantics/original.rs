@@ -3,8 +3,12 @@
 use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::NodeId;
+#[path = "original_associated.rs"]
+mod associated;
 #[path = "original_calls.rs"]
 mod calls;
+#[path = "original_cleanup.rs"]
+pub(super) mod cleanup;
 #[path = "original_dyn.rs"]
 mod dynamic;
 #[path = "original_effects.rs"]
@@ -147,8 +151,18 @@ impl From<SemanticOriginalTypeSource> for Query {
         }
     }
 }
+#[derive(Clone)]
+pub(super) struct Injection {
+    pub is_error: bool,
+    pub payload: SemanticTypeRecipe,
+}
 #[derive(Clone, Default)]
 pub(super) struct Proof {
+    pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
+    pub associated_complete: BTreeSet<LifeDeclarationId>,
+    pub capture_names: BTreeMap<SemanticDefinitionId, Vec<String>>,
+    pub closure_move: BTreeMap<SemanticDefinitionId, bool>,
+    pub injections: BTreeMap<(SemanticDefinitionId, NodeId), Injection>,
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
     pub complete: BTreeSet<SemanticDefinitionId>,
@@ -328,6 +342,9 @@ impl<'a> Check<'a, '_> {
                 self.resolve(owner, query, 1)?
             };
             if &resolved == query {
+                if self.premise_type_equal(owner, query, other, 1)? {
+                    return Ok(());
+                }
                 return Err(pending(
                     "original type query has no finite defining equation",
                 ));
@@ -355,6 +372,7 @@ impl<'a> Check<'a, '_> {
             if matches!(
                 a,
                 SemanticTypeRecipe::OriginalType { .. }
+                    | SemanticTypeRecipe::AssociatedType { .. }
                     | SemanticTypeRecipe::Environment {
                         scope: SemanticScopeRef::Ancestor(0),
                         ..
@@ -365,6 +383,7 @@ impl<'a> Check<'a, '_> {
             if matches!(
                 b,
                 SemanticTypeRecipe::OriginalType { .. }
+                    | SemanticTypeRecipe::AssociatedType { .. }
                     | SemanticTypeRecipe::Environment {
                         scope: SemanticScopeRef::Ancestor(0),
                         ..
@@ -1168,6 +1187,26 @@ impl<'a> Check<'a, '_> {
         if matches!(ty, SemanticTypeRecipe::Tuple(fields) if fields.is_empty()) {
             return Ok(SemanticTypeRecipe::Atom(Type::Unit));
         }
+        if matches!(
+            ty,
+            SemanticTypeRecipe::Atom(_)
+                | SemanticTypeRecipe::Formal(_)
+                | SemanticTypeRecipe::Exact(_)
+                | SemanticTypeRecipe::Environment {
+                    scope: SemanticScopeRef::Ancestor(1..),
+                    ..
+                }
+        ) {
+            return copy_recipe(ty, self.limits, self.left);
+        }
+        if let SemanticTypeRecipe::AssociatedType {
+            receiver,
+            application,
+            member,
+        } = ty
+        {
+            return self.resolve_associated(owner, receiver, application, *member, depth + 1);
+        }
         if let SemanticTypeRecipe::SelfType {
             scope: SemanticScopeRef::Ancestor(hops),
         } = ty
@@ -1250,6 +1289,7 @@ impl<'a> Check<'a, '_> {
                     "original Self does not name a trait or implementation scope",
                 ));
             }
+            return copy_recipe(ty, self.limits, self.left);
         }
         if let SemanticTypeRecipe::OriginalType { scope, source } = ty {
             let mut target = owner;
@@ -1291,53 +1331,36 @@ impl<'a> Check<'a, '_> {
             return Ok(value);
         }
         let mut value = copy_recipe(ty, self.limits, self.left)?;
-        match &mut value {
-            SemanticTypeRecipe::Opaque {
-                definition,
-                arguments,
-                hidden,
-            } => {
-                for actual in arguments {
-                    *actual = self.resolved_actual(owner, actual, depth + 1)?;
-                }
-                // The hidden recipe belongs to its defining function. Its
-                // explicit arguments live at this use; the body domain never
-                // becomes a same-numbered caller domain.
-                if *definition == owner {
-                    **hidden = self.resolve(owner, hidden, depth + 1)?;
-                }
+        if let SemanticTypeRecipe::Opaque {
+            definition, hidden, ..
+        } = &mut value
+        {
+            if *definition == owner {
+                **hidden = self.resolve(owner, hidden, depth + 1)?;
             }
-            SemanticTypeRecipe::Address { inner, .. }
-            | SemanticTypeRecipe::Desc { inner, .. }
-            | SemanticTypeRecipe::Slice(inner)
-            | SemanticTypeRecipe::Managed(inner)
-            | SemanticTypeRecipe::OwnedStore(inner)
-            | SemanticTypeRecipe::Mutex(inner)
-            | SemanticTypeRecipe::Registration(inner)
-            | SemanticTypeRecipe::AsyncRegistration(inner) => {
-                **inner = self.resolve(owner, inner, depth + 1)?
-            }
-            SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
-                for field in fields {
-                    *field = self.resolve(owner, field, depth + 1)?;
-                }
-            }
-            SemanticTypeRecipe::Array { element, .. } => {
-                **element = self.resolve(owner, element, depth + 1)?
-            }
-            SemanticTypeRecipe::ErrorUnion { error, result } => {
-                **error = self.resolve(owner, error, depth + 1)?;
-                **result = self.resolve(owner, result, depth + 1)?;
-            }
-            SemanticTypeRecipe::Nominal { arguments, .. }
-            | SemanticTypeRecipe::Closure { arguments, .. } => {
-                for actual in arguments {
-                    *actual = self.resolved_actual(owner, actual, depth + 1)?;
-                }
-            }
-            _ => {}
         }
-        Ok(value)
+        let delayed = substitute::delayed_types(&value, self.limits, self.left)?;
+        self.pay(delayed.len(), depth)?;
+        let mut equations = Vec::new();
+        for occurrence in delayed {
+            let resolved = if matches!(occurrence.ty, SemanticTypeRecipe::Environment { .. }) {
+                self.observation_type(owner, &occurrence.ty, depth + 1)?
+            } else {
+                self.resolve(owner, &occurrence.ty, depth + 1)?
+            };
+            if resolved != occurrence.ty {
+                if occurrence.bound_depth != 0 || occurrence.invocation_depth != 0 {
+                    return Err(pending("associated/query normalization requires its complete nested quantifier occurrence context"));
+                }
+                self.pay(1, depth)?;
+                equations.push((occurrence, resolved));
+            }
+        }
+        if equations.is_empty() {
+            Ok(value)
+        } else {
+            substitute::replace_delayed(&value, &equations, self.limits, self.left)
+        }
     }
     // Unfold only a whole-Type environment already sealed from the immutable
     // lexical creator. This is a logical view, not a runtime read or a new premise.
@@ -2377,6 +2400,11 @@ impl<'a> Check<'a, '_> {
                     if is_error == is_result {
                         return Err(bad("original implicit error injection is ambiguous or changes its payload type"));
                     }
+                    let payload = copy_recipe(&actual, self.limits, self.left)?;
+                    self.pay(1, depth)?;
+                    self.proof
+                        .injections
+                        .insert((owner, expression.id), Injection { is_error, payload });
                     copy_recipe(union, self.limits, self.left)?
                 };
                 let copy = copy_recipe(&value, self.limits, self.left)?;
@@ -2811,6 +2839,15 @@ impl<'a> Check<'a, '_> {
                 else {
                     return Err(bad("original closure site changes operation kind"));
                 };
+                self.pay(1, depth)?;
+                if self
+                    .proof
+                    .closure_move
+                    .insert(*definition, *move_capture)
+                    .is_some_and(|old| old != *move_capture)
+                {
+                    return Err(bad("one original closure changes its true capture mode"));
+                }
                 let child = self.definition(*definition)?;
                 if child.parent != Some(owner) {
                     return Err(bad("original closure has a different lexical creator"));
@@ -4844,6 +4881,13 @@ impl<'a> Check<'a, '_> {
             }
         }
         self.proof.kinds.insert(definition.id, kind);
+        self.pay(names.len(), 0)?;
+        for name in &names {
+            self.pay(name.len(), 0)?;
+        }
+        self.proof
+            .capture_names
+            .insert(definition.id, names.clone());
         self.captures.insert(definition.id, names);
         if !self
             .proof
@@ -4887,7 +4931,15 @@ impl<'a> Check<'a, '_> {
     }
 }
 pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize) -> R<Proof> {
-    check_requested(program, None, limits, left)
+    check_requested(program, std::rc::Rc::default(), None, limits, left)
+}
+pub(super) fn check_with_declarations(
+    program: &SemanticModule,
+    declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Proof> {
+    check_requested(program, declarations, None, limits, left)
 }
 pub(super) fn check_at(
     program: &SemanticModule,
@@ -4896,10 +4948,27 @@ pub(super) fn check_at(
     limits: &Limits,
     left: &mut usize,
 ) -> R<Proof> {
-    check_requested(program, Some((owner, node)), limits, left)
+    check_requested(
+        program,
+        std::rc::Rc::default(),
+        Some((owner, node)),
+        limits,
+        left,
+    )
+}
+pub(super) fn check_at_with_declarations(
+    program: &SemanticModule,
+    declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
+    owner: SemanticDefinitionId,
+    node: SemanticOriginalNode,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Proof> {
+    check_requested(program, declarations, Some((owner, node)), limits, left)
 }
 fn check_requested(
     program: &SemanticModule,
+    declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
     limits: &Limits,
     left: &mut usize,
@@ -4908,7 +4977,10 @@ fn check_requested(
         program,
         limits,
         left,
-        proof: Proof::default(),
+        proof: Proof {
+            declarations,
+            ..Proof::default()
+        },
         active: BTreeSet::new(),
         captures: BTreeMap::new(),
         loops: Vec::new(),
@@ -4920,6 +4992,7 @@ fn check_requested(
         requested_snapshot,
         escape_active: Vec::new(),
     };
+    check.associated_inventory(0)?;
     for definition in &program.definitions {
         if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
             check.canonical_carrier(definition, 0)?;
@@ -4947,6 +5020,7 @@ fn check_requested(
         }
     }
     check.finish_effects()?;
+    check.associated_obligations(0)?;
     protocol::check(program, &mut check.proof, check.limits, check.left)?;
     Ok(check.proof)
 }

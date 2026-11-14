@@ -1310,3 +1310,54 @@ pub(crate) fn originals_with_frozen(
     }
     Ok(())
 }
+
+/// Validate newly supplied original declaration operands in their own lexical
+/// definitions. The definitions' bodies were checked separately; no runtime
+/// instance, concrete actual or emitted value is needed for these recipes.
+pub(super) fn declaration_operands(
+    program: &SemanticModule,
+    operands: &[(SemanticDefinitionId, SemanticActualRecipe)],
+    requirements: &[(SemanticDefinitionId, SemanticRequirementRecipe)],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let mut definitions = BTreeMap::new();
+    let mut nodes = BTreeMap::new();
+    for definition in &program.definitions {
+        *left = left
+            .checked_sub(definitions.len().saturating_add(1))
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "associated structural index work exceeded",
+                    None,
+                )
+            })?;
+        if definitions.insert(definition.id, definition).is_some() {
+            return Err(fail(
+                "associated recipe context has duplicate original definitions",
+            ));
+        }
+        nodes.insert(
+            definition.id,
+            super::original_nodes::definition(definition, limits, left)?,
+        );
+    }
+    let mut check = Check {
+        definitions,
+        instances: BTreeMap::new(),
+        nodes,
+        modules: &[],
+        limits,
+        left,
+    };
+    for (owner, value) in operands {
+        crate::dyn_metadata::semantic_operand_snapshot(value, limits, check.left, 1)?;
+        check.actual_recipe(*owner, value, &mut Vec::new(), 0, 0)?;
+    }
+    for (owner, value) in requirements {
+        crate::dyn_metadata::semantic_operand_snapshot(value, limits, check.left, 1)?;
+        check.requirement(*owner, value, &mut Vec::new(), 0, 0)?;
+    }
+    Ok(())
+}

@@ -109,8 +109,14 @@ fn source_interface(
         .iter()
         .find(|row| row.id == instance.definition)
         .ok_or_else(|| bad("frozen query instance lost its original declaration"))?;
-    let proof =
-        super::original::check_at(program, definition.id, binding.query.original, limits, left)?;
+    let proof = super::original::check_at_with_declarations(
+        program,
+        input.declarations.clone(),
+        definition.id,
+        binding.query.original,
+        limits,
+        left,
+    )?;
     if !proof.complete.contains(&definition.id) {
         return Err(bad(
             "frozen query owner has no complete original body proof",

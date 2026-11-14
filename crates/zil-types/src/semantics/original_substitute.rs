@@ -12,8 +12,16 @@ pub(crate) struct Substitution<'a> {
     pub invocation: &'a BTreeMap<u32, SemanticOuterLifeRecipe>,
     pub shift: u32,
 }
+pub(crate) struct DelayedType {
+    pub ty: SemanticTypeRecipe,
+    pub bound_depth: u32,
+    pub invocation_depth: u32,
+}
 struct Apply<'a, 'b> {
     substitution: &'a Substitution<'a>,
+    type_equations: &'a [(SemanticTypeRecipe, SemanticTypeRecipe)],
+    local_equations: &'a [(DelayedType, SemanticTypeRecipe)],
+    delayed: Option<&'b mut Vec<DelayedType>>,
     limits: &'b Limits,
     left: &'b mut usize,
     bound_depth: u32,
@@ -305,6 +313,9 @@ impl<'a> Apply<'a, '_> {
             shift: 0,
         };
         Apply {
+            type_equations: &[],
+            local_equations: &[],
+            delayed: None,
             substitution: &substitution,
             limits: self.limits,
             left: self.left,
@@ -334,6 +345,9 @@ impl<'a> Apply<'a, '_> {
             shift: 0,
         };
         Apply {
+            type_equations: &[],
+            local_equations: &[],
+            delayed: None,
             substitution: &substitution,
             limits: self.limits,
             left: self.left,
@@ -363,6 +377,9 @@ impl<'a> Apply<'a, '_> {
             shift: 0,
         };
         Apply {
+            type_equations: &[],
+            local_equations: &[],
+            delayed: None,
             substitution: &substitution,
             limits: self.limits,
             left: self.left,
@@ -638,6 +655,50 @@ impl<'a> Apply<'a, '_> {
     }
     fn ty(&mut self, ty: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
+        for (source, target) in self.local_equations {
+            if source.bound_depth != self.bound_depth
+                || source.invocation_depth != self.invocation_depth
+            {
+                continue;
+            }
+            crate::dyn_metadata::semantic_operand_snapshot(&source.ty, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+            if &source.ty == ty {
+                crate::dyn_metadata::semantic_operand_snapshot(target, self.limits, self.left, 1)?;
+                *ty = target.clone();
+                return Ok(());
+            }
+        }
+        if self.delayed.is_some()
+            && matches!(
+                ty,
+                SemanticTypeRecipe::OriginalType { .. }
+                    | SemanticTypeRecipe::SelfType { .. }
+                    | SemanticTypeRecipe::AssociatedType { .. }
+                    | SemanticTypeRecipe::Environment {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ..
+                    }
+            )
+        {
+            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+            self.delayed.as_mut().unwrap().push(DelayedType {
+                ty: ty.clone(),
+                bound_depth: self.bound_depth,
+                invocation_depth: self.invocation_depth,
+            });
+            return Ok(());
+        }
+        for (source, target) in self.type_equations {
+            crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+            if source == ty {
+                crate::dyn_metadata::semantic_operand_snapshot(target, self.limits, self.left, 1)?;
+                *ty = target.clone();
+                self.lift_type(ty, depth + 1)?;
+                return Ok(());
+            }
+        }
         match ty {
             SemanticTypeRecipe::Formal(reference) => {
                 if let Some(actual) = self.selected(reference)? {
@@ -808,6 +869,9 @@ pub(crate) fn ty(
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
         substitution,
         limits,
         left,
@@ -833,6 +897,9 @@ pub(crate) fn signature(
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
         substitution,
         limits,
         left,
@@ -859,6 +926,9 @@ pub(crate) fn requirement(
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
         substitution,
         limits,
         left,
@@ -885,6 +955,9 @@ pub(crate) fn actual(
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
         substitution,
         limits,
         left,
@@ -912,6 +985,9 @@ pub(crate) fn signature_template(
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
         substitution,
         limits,
         left,
@@ -937,6 +1013,9 @@ pub(crate) fn signature_fresh(
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
         substitution,
         limits,
         left,
@@ -967,6 +1046,9 @@ pub(crate) fn ty_in_domains(
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
         substitution,
         limits,
         left,
@@ -979,6 +1061,151 @@ pub(crate) fn ty_in_domains(
         template_implicit: false,
         scopes: Some(scopes),
         allow_root_invocation,
+    }
+    .ty(&mut value, 1)?;
+    Ok(value)
+}
+
+/// A selected associated definition supplies only its own scoped equation.
+/// Replacing it in declared bounds does not install a caller TypeEqual premise.
+pub(crate) fn requirement_replacing(
+    value: &SemanticRequirementRecipe,
+    equations: &[(SemanticTypeRecipe, SemanticTypeRecipe)],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticRequirementRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    let empty = BTreeMap::new();
+    let substitution = Substitution {
+        frames: &[],
+        selves: &[],
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 0,
+    };
+    Apply {
+        substitution: &substitution,
+        type_equations: equations,
+        local_equations: &[],
+        delayed: None,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
+    }
+    .requirement(&mut value, 1)?;
+    Ok(value)
+}
+pub(crate) fn requirement_in_domains(
+    value: &SemanticRequirementRecipe,
+    substitution: &Substitution<'_>,
+    scopes: &BTreeMap<u32, u32>,
+    allow_root_invocation: bool,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticRequirementRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    Apply {
+        substitution,
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: Some(scopes),
+        allow_root_invocation,
+    }
+    .requirement(&mut value, 1)?;
+    Ok(value)
+}
+
+pub(crate) fn delayed_types(
+    value: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<DelayedType>> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    let empty = BTreeMap::new();
+    let substitution = Substitution {
+        frames: &[],
+        selves: &[],
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 0,
+    };
+    let mut delayed = Vec::new();
+    Apply {
+        substitution: &substitution,
+        type_equations: &[],
+        local_equations: &[],
+        delayed: Some(&mut delayed),
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
+    }
+    .ty(&mut value, 1)?;
+    Ok(delayed)
+}
+pub(crate) fn replace_delayed(
+    value: &SemanticTypeRecipe,
+    equations: &[(DelayedType, SemanticTypeRecipe)],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    let empty = BTreeMap::new();
+    let substitution = Substitution {
+        frames: &[],
+        selves: &[],
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 0,
+    };
+    Apply {
+        substitution: &substitution,
+        type_equations: &[],
+        local_equations: equations,
+        delayed: None,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
     }
     .ty(&mut value, 1)?;
     Ok(value)
