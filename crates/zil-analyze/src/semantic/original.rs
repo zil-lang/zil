@@ -8,6 +8,7 @@ mod capabilities;
 mod constructors;
 mod effects;
 mod enums;
+mod invocations;
 pub(super) mod mixed;
 pub(super) mod nominal;
 mod protocol;
@@ -1022,7 +1023,6 @@ impl Solver<'_, '_> {
         if definition.parent.is_some()
             || !definition.environment.is_empty()
             || signature.bound_lifetimes != 0
-            || signature.invocation_lifetimes != 0
         {
             return Err(unknown(
                 "original lexical/member call needs its complete declared scope and quantifier instantiation",
@@ -1111,11 +1111,12 @@ impl Solver<'_, '_> {
                 ));
             }
         }
+        let lifetimes = self.invocation_actuals(signature.invocation_lifetimes, b)?;
         Self::push(
             &mut self.role_frames,
             roles::RoleFrame {
                 owner: target,
-                lifetimes: Vec::new(),
+                lifetimes,
                 implicits,
             },
             b,
@@ -1585,6 +1586,23 @@ impl Solver<'_, '_> {
                                 "original indirect call needs its full callable premise",
                             ));
                         };
+                        let declaration = self.inventory.definition(target, b)?;
+                        let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                            &declaration.body
+                        else {
+                            return Err(fail(
+                                "original local callable has no full declared invocation signature",
+                            ));
+                        };
+                        let lives = self.invocation_actuals(signature.invocation_lifetimes, b)?;
+                        let mut opened = Vec::new();
+                        for parameter in parameters {
+                            let parameter =
+                                self.open_invocations(parameter, target, &lives, b, depth + 1)?;
+                            Self::push(&mut opened, parameter, b)?;
+                        }
+                        let parameters = opened;
+                        let result = self.open_invocations(result, target, &lives, b, depth + 1)?;
                         b.spend(
                             self.state.calls.len().saturating_add(parameters.len() + 1),
                             WORK,
@@ -1722,8 +1740,7 @@ impl Solver<'_, '_> {
                     ));
                 }
                 for (argument, parameter) in arguments.iter().zip(parameters) {
-                    let argument = self.expression(frame, argument, b, depth + 1)?;
-                    self.unify(argument, parameter, depth + 1, b)?;
+                    self.call_argument(frame, argument, parameter, b, depth + 1)?;
                 }
                 self.finish_abstract_call(frame.definition, value.id, b)?;
                 b.lookup(self.state.intrinsics.len(), WORK)?;
@@ -1862,6 +1879,7 @@ impl Solver<'_, '_> {
                 }
                 let SemanticDefinitionBody::FunctionWithBody {
                     parameters: child_parameters,
+                    signature: child_signature,
                     ..
                 } = &child.body
                 else {
@@ -1875,16 +1893,40 @@ impl Solver<'_, '_> {
                         ));
                     }
                 }
-                for (parameter, expected) in parameters.iter().zip(expected) {
-                    if let Some(annotation) = &parameter.ty {
-                        let annotation = self.recipe(frame, annotation, b, depth + 1)?;
-                        self.unify(annotation, expected, depth + 1, b)?;
+                // The literal's Invocation words belong to this closure
+                // signature, while its ordinary lexical names stay in the
+                // creator. Compare by a local alpha map, never a parent Inv0.
+                let mut lives = Vec::new();
+                for ordinal in 0..child_signature.invocation_lifetimes {
+                    let life = self.term(Kind::Life(Life::Invocation(target, ordinal)), b)?;
+                    Self::push(&mut lives, life, b)?;
+                }
+                Self::push(
+                    &mut self.role_frames,
+                    roles::RoleFrame {
+                        owner: frame.definition,
+                        lifetimes: lives,
+                        implicits: BTreeMap::new(),
+                    },
+                    b,
+                )?;
+                let annotations: CompileResult<()> = (|| {
+                    for (parameter, expected) in parameters.iter().zip(expected) {
+                        if let Some(annotation) = &parameter.ty {
+                            let annotation = self.recipe(frame, annotation, b, depth + 1)?;
+                            self.unify(annotation, expected, depth + 1, b)?;
+                        }
                     }
-                }
-                if let Some(annotation) = return_type {
-                    let annotation = self.recipe(frame, annotation, b, depth + 1)?;
-                    self.unify(annotation, result, depth + 1, b)?;
-                }
+                    if let Some(annotation) = return_type {
+                        let annotation = self.recipe(frame, annotation, b, depth + 1)?;
+                        self.unify(annotation, result, depth + 1, b)?;
+                    }
+                    Ok(())
+                })();
+                self.role_frames
+                    .pop()
+                    .ok_or_else(|| fail("original closure literal lost its own signature frame"))?;
+                annotations?;
                 self.same_body(body, target, b)?;
                 term
             }
@@ -2221,7 +2263,6 @@ impl Solver<'_, '_> {
             definition.kind,
             SemanticDefinitionKind::Function | SemanticDefinitionKind::Closure
         ) || signature.bound_lifetimes != 0
-            || signature.invocation_lifetimes != 0
         {
             return Err(unknown(
                 "original method, task or quantified declaration needs its complete rigid context",

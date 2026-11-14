@@ -647,7 +647,7 @@ impl Check<'_, '_> {
                     "actual protocol table differs from its complete original declaration",
                 ));
             }
-            if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
+            if signature.bound_lifetimes != 0 {
                 return Err(unknown(
                     "original function binder frames require scoped class interpretation",
                 ));

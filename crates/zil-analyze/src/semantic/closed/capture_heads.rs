@@ -138,8 +138,12 @@ impl Check<'_, '_> {
         };
         if definition.kind != SemanticDefinitionKind::Closure
             || function.environment != Some(id)
-            || life.invocation_binder_count != 0
-            || !life.classes.is_empty()
+            || life.classes.iter().any(|row| {
+                !matches!(
+                    row.position.base,
+                    StorageBase::Parameter(_) | StorageBase::Result
+                )
+            })
             || !life.static_bindings.is_empty()
             || function.storage_life.as_ref() != Some(life)
             || !closure.lending_captures.is_empty()
@@ -236,6 +240,13 @@ impl Check<'_, '_> {
         }
         let mut seen_capture = BTreeSet::new();
         for binding in &life.bindings {
+            if matches!(
+                binding.position.base,
+                StorageBase::Parameter(_) | StorageBase::Result
+            ) {
+                b.spend(binding.position.path.len().saturating_add(1), WORK)?;
+                continue;
+            }
             b.spend(
                 directory
                     .len()
@@ -280,7 +291,14 @@ impl Check<'_, '_> {
                 ));
             }
         }
-        if instance.header_embedding.len() != directory.len() {
+        b.spend(instance.header_embedding.len(), WORK)?;
+        if instance
+            .header_embedding
+            .iter()
+            .filter(|row| matches!(row.header, StorageBinder::Fixed(_)))
+            .count()
+            != directory.len()
+        {
             return Err(fail(
                 "closure header omits its complete actual implicit head domain",
             ));
