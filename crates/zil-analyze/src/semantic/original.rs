@@ -1994,6 +1994,7 @@ impl Solver<'_, '_> {
                                 | sealed::Intrinsic::BytesPush
                                 | sealed::Intrinsic::BytesTruncate
                                 | sealed::Intrinsic::BytesLen
+                                | sealed::Intrinsic::BytesView
                                 | sealed::Intrinsic::BytesCapacity),
                             ) => {
                                 let result = self.buffer_call(
@@ -3060,6 +3061,12 @@ impl Solver<'_, '_> {
             let term = self.rigid_formal(id, ordinal, formal, &frame.formals, b)?;
             Self::push(&mut frame.formals, term, b)?;
         }
+        // A nested nominal application may ask about this declaration's own
+        // rigid where-context while its body is still being checked. Preserve
+        // the real lexical header, without marking its body complete: active
+        // recursion remains rejected and only the final snapshot is returned
+        // from a successful whole-program proof.
+        self.snapshot(&frame, b)?;
         self.original_trait_facts(&frame, b)?;
         if let Some(inherited) = inherited {
             for local in inherited {

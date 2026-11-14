@@ -135,6 +135,19 @@ impl Solver<'_, '_> {
         if new {
             let payload = self.atom(Type::ByteBuffer, b)?;
             self.term(Kind::Wrapped(Wrapper::Managed, payload), b)
+        } else if intrinsic == sealed::Intrinsic::BytesView {
+            let ordinal = self.borrow_occurrence(frame.definition, node, b)?;
+            let life = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+            let element = self.atom(Type::U8, b)?;
+            let inner = self.term(Kind::Slice(element), b)?;
+            self.term(
+                Kind::Address {
+                    mutable: false,
+                    life,
+                    inner,
+                },
+                b,
+            )
         } else {
             self.atom(if writing { Type::Bool } else { Type::I64 }, b)
         }

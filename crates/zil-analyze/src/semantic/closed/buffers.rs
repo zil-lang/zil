@@ -250,6 +250,13 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("actual ByteBuffer operation has no instruction"))?;
         let (descriptor, extra) = match (&intrinsic, &instruction.kind) {
             (original::sealed::Intrinsic::BytesNew, InstructionKind::ByteBufferNew) => (None, None),
+            (
+                original::sealed::Intrinsic::BytesView,
+                InstructionKind::ByteBufferBorrow {
+                    buffer,
+                    mutable: false,
+                },
+            ) => (Some(*buffer), None),
             (original::sealed::Intrinsic::BytesLen, InstructionKind::ByteBufferLen { buffer })
             | (
                 original::sealed::Intrinsic::BytesCapacity,
@@ -328,5 +335,66 @@ impl Check<'_, '_> {
                 .intrinsic_output(instance, site, self.program, self.inventory, b)?;
         self.actual_type(&output.ty, b)?;
         Ok(output.ty)
+    }
+}
+
+impl Check<'_, '_> {
+    pub(super) fn buffer_result(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        block: BlockId,
+        index: usize,
+        b: &mut Budget,
+    ) -> CompileResult<Value> {
+        let mut selected = None;
+        for site in &self.program.sites {
+            b.spend(1, WORK)?;
+            if site.instance != instance.id
+                || !matches!(site.at,SemanticSiteAddress::Typed{block:actual,instruction,edge:SemanticSiteEdge::After} if actual==block && instruction as usize==index)
+            {
+                continue;
+            }
+            let SemanticSiteAction::BodyCall { actuals } = &site.action else {
+                continue;
+            };
+            if self
+                .original
+                .intrinsic(instance, site.recipe, self.inventory, b)?
+                != Some(original::sealed::Intrinsic::BytesView)
+            {
+                continue;
+            }
+            let ty = self.buffer_operation(
+                instance,
+                site.recipe,
+                original::sealed::Intrinsic::BytesView,
+                function,
+                block,
+                index,
+                actuals,
+                b,
+            )?;
+            let output = self.original.intrinsic_output(
+                instance,
+                site.recipe,
+                self.program,
+                self.inventory,
+                b,
+            )?;
+            if output.ty != ty {
+                return Err(fail(
+                    "ByteBuffer view changes its complete independently checked original output",
+                ));
+            }
+            if selected.replace(output).is_some() {
+                return Err(fail(
+                    "ByteBuffer view has competing original operation occurrences",
+                ));
+            }
+        }
+        selected.ok_or_else(|| {
+            unknown("actual ByteBuffer view lacks its exact original manager and output occurrence")
+        })
     }
 }

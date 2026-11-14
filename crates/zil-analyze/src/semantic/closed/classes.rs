@@ -1224,6 +1224,9 @@ impl Check<'_, '_> {
             | InstructionKind::OwnedStoreBorrowMut { .. } => {
                 self.store_result(instance, function, block, index, b)
             }
+            InstructionKind::ByteBufferBorrow { .. } => {
+                self.buffer_result(instance, function, block, index, b)
+            }
             InstructionKind::DescribeLocal { .. } | InstructionKind::DescribeAddress { .. } => {
                 self.source_description(instance, function, id, b, depth + 1)
             }

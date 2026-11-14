@@ -780,6 +780,7 @@ impl Check<'_, '_> {
                         | original::sealed::Intrinsic::BytesPush
                         | original::sealed::Intrinsic::BytesTruncate
                         | original::sealed::Intrinsic::BytesLen
+                        | original::sealed::Intrinsic::BytesView
                         | original::sealed::Intrinsic::BytesCapacity) => {
                             let output = self.buffer_operation(
                                 instance,
