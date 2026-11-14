@@ -149,9 +149,11 @@ pub(super) fn satisfy(
             ..
         }) = &source
         else {
-            return Err(bad(
-                "call outer role has no real reborrow path to its original argument role",
-            ));
+            world.pay(256)?;
+            let mut error =
+                bad("call outer role has no real reborrow path to its original argument role");
+            error.notes.push(format!("caller {:?}, callee {:?}, site {:?}, parameter {}, operand {:?}; source {:?}, target {:?}",caller.id,callee.map(|callee|callee.id),site.recipe,parameter,operand,source,target));
+            return Err(error);
         };
         if !path.is_empty() || !visited.insert(*head) {
             return Err(bad(
@@ -229,6 +231,9 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
             .ok_or_else(|| bad("argument role witness names an absent instruction"))?;
         let argument_cost = match &actual.kind {
             InstructionKind::Call { arguments, .. }
+            | InstructionKind::ForeignCall { arguments, .. }
+            | InstructionKind::SuspendCall { arguments, .. }
+            | InstructionKind::CallIndirect { arguments, .. }
             | InstructionKind::CallClosure { arguments, .. }
             | InstructionKind::CallClosureOnce { arguments, .. }
             | InstructionKind::CallClosureBorrowed { arguments, .. }
@@ -242,6 +247,15 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
                 InstructionKind::Call {
                     function: target,
                     arguments,
+                }
+                | InstructionKind::ForeignCall {
+                    function: target,
+                    arguments,
+                    ..
+                }
+                | InstructionKind::SuspendCall {
+                    function: target,
+                    arguments,
                 } if *target == callee => arguments.clone(),
                 InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureOnce { arguments, .. }
@@ -251,7 +265,7 @@ pub(super) fn audit(world: &mut World<'_, '_>) -> R<()> {
                 _ => {
                     return Err(bad(
                         "argument role witness does not belong to its actual call opcode",
-                    ))
+                    ));
                 }
             }
         } else {

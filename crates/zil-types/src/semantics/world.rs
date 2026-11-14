@@ -2318,9 +2318,9 @@ impl World<'_, '_> {
                             match (Self::type_of(&value)?, output) {
                                 (source, target)
                                     if source == target
-                                        && (source.is_copy_value()
+                                        && (stored::physical(source).is_copy_value()
                                             || matches!(
-                                                source,
+                                                stored::physical(source),
                                                 Type::Address { .. } | Type::Desc(_)
                                             )) =>
                                 {

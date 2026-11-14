@@ -84,7 +84,7 @@ fn parent_class(
         _ => {
             return Err(pending(
                 "method parent class needs its complete lexical boundary substitution",
-            ))
+            ));
         }
     })
 }
@@ -227,10 +227,14 @@ pub(super) fn evaluate(
                 .parent
                 .ok_or_else(|| bad("actual method provider has no original lexical scope"))?;
             let parent_definition = world.definition(parent)?;
-            let parent_recipes=match proof.scope_calls.get(&(original.id,site.recipe,parent)){
-                Some(recipes)=>recipes.as_slice(),
-                None if parent_definition.parameters.is_empty()=>&[],
-                None=>return Err(pending("generic method provider parent has no independently solved original caller substitution")),
+            let parent_recipes = match proof.scope_calls.get(&(original.id, site.recipe, parent)) {
+                Some(recipes) => recipes.as_slice(),
+                None if parent_definition.parameters.is_empty() => &[],
+                None => {
+                    return Err(pending(
+                        "generic method provider parent has no independently solved original caller substitution",
+                    ));
+                }
             };
             crate::dyn_metadata::semantic_operand_snapshot(
                 &method.self_type,
@@ -347,7 +351,7 @@ pub(super) fn evaluate(
             _ => {
                 return Err(bad(
                     "actual ordinary method provider has another lexical scope kind",
-                ))
+                ));
             }
         };
         if method.application.is_none()
@@ -407,7 +411,7 @@ pub(super) fn evaluate(
             _ => {
                 return Err(bad(
                     "method provider changes the complete original trait application",
-                ))
+                ));
             }
         }
         if arguments.len() != signature.parameters.len()
@@ -540,9 +544,21 @@ fn invocation_inputs(
                     .zip(&row.position.path)
                     .all(|(a, b)| *b == ContractProjection::Place(*a))
         });
-        let slot = slots.next().ok_or_else(|| {
-            pending("invocation outer role requires its complete actual argument occurrence")
-        })?;
+        let slot = if let Some(slot) = slots.next() {
+            slot
+        } else {
+            crate::dyn_metadata::semantic_operand_snapshot(
+                &parameters[index as usize],
+                world.limits,
+                world.left,
+                1,
+            )?;
+            world.pay(256)?;
+            let mut error =
+                pending("invocation outer role requires its complete actual argument occurrence");
+            error.notes.push(format!("caller {:?}, callee {:?} definition {:?}, parameter {}, header position {:?}, source {:?}; argument slots {:?}, N={}",instance.id,child.id,child.definition,index,row.position,source,life.slots.iter().take(4).collect::<Vec<_>>(),classes.len()));
+            return Err(error);
+        };
         if slots.next().is_some() {
             return Err(bad("invocation argument repeats an outer occurrence"));
         }
