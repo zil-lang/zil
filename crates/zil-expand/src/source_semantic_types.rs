@@ -1271,6 +1271,7 @@ impl Builder<'_, '_, '_, '_> {
 mod self_header_tests {
     use super::*;
     use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
+    use std::collections::BTreeMap;
     use zil_base::{FileId, SourceUnit};
 
     #[test]
