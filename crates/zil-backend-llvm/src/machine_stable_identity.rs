@@ -403,7 +403,10 @@ fn prepare_inner(
                     | Op::AtomicCompareExchange { .. }
                     | Op::Gep { .. }
                     | Op::Insert { .. } => return None,
-                    Op::Binary { ty, .. } | Op::Compare { ty, .. } | Op::Phi { ty, .. } => {
+                    Op::Binary { ty, .. }
+                    | Op::Compare { ty, .. }
+                    | Op::Phi { ty, .. }
+                    | Op::Select { ty, .. } => {
                         if !integer(ty) {
                             return None;
                         }
@@ -574,6 +577,13 @@ fn rename_op(op: &mut Op, names: &BTreeMap<String, String>) {
             for (value, _) in incoming {
                 rename_value(value, names);
             }
+        }
+        Op::Select {
+            condition, yes, no, ..
+        } => {
+            rename_value(condition, names);
+            rename_value(yes, names);
+            rename_value(no, names);
         }
         Op::CondBranch { condition, .. } => rename_value(condition, names),
     }

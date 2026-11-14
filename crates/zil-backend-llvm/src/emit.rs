@@ -7,6 +7,7 @@ mod copy_slots;
 mod drop_plan;
 mod dyn_dispatch;
 mod dynamic_store;
+mod early_scalar;
 mod enums;
 mod floating;
 mod large_copy_abi;
@@ -701,6 +702,7 @@ fn lower_function_batch(
             };
             if let m::Item::Function(machine) = &mut item {
                 scalar_locals::promote(function, machine);
+                early_scalar::optimize(function, machine);
             }
             body.push(item);
         }

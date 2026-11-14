@@ -341,7 +341,8 @@ impl<'a> World<'a> {
             Op::Load { ty, .. }
             | Op::AtomicLoad { ty, .. }
             | Op::Binary { ty, .. }
-            | Op::Phi { ty, .. } => Some(ty),
+            | Op::Phi { ty, .. }
+            | Op::Select { ty, .. } => Some(ty),
             Op::AtomicRmw { arg, .. } => Some(&arg.ty),
             Op::AtomicCompareExchange { result, .. } => Some(result),
             Op::Compare { .. } => Some(&COMPARISON_RESULT),
@@ -582,6 +583,20 @@ impl<'a> World<'a> {
                 } else if vararg.is_some() {
                     return fail("indirect variadic calls are outside current profile");
                 }
+            }
+            Op::Select {
+                ty,
+                condition,
+                yes,
+                no,
+            } => {
+                if !matches!(ty, Ty::Int(_)) {
+                    return fail("select requires a scalar integer result");
+                }
+                self.check_ty(ty, false)?;
+                value(condition, &Ty::Int(1))?;
+                value(yes, ty)?;
+                value(no, ty)?;
             }
             Op::Phi { ty, incoming } => {
                 self.check_ty(ty, false)?;
