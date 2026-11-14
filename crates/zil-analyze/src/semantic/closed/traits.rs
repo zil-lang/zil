@@ -49,6 +49,183 @@ impl Check<'_, '_> {
             .filter(|item| item.id == block)
             .and_then(|item| item.instructions.get(index))
             .ok_or_else(|| fail("original trait invocation has no actual operation"))?;
+        if let Some(owned) = boundary.dynamic {
+            let Type::Dyn {
+                interface: expected,
+            } = &boundary.receiver.ty
+            else {
+                return Err(fail(
+                    "original dynamic receiver lost its complete interface application",
+                ));
+            };
+            if !empty(&boundary.receiver.life)
+                || !boundary.receiver.classes.is_empty()
+                || !boundary.result.classes.is_empty()
+                || !actuals.is_empty()
+                || !boundary.method_actuals.is_empty()
+                || boundary.call_kind != CallKind::Direct
+            {
+                return Err(unknown(
+                    "dynamic invocation needs its complete nonzero or quantified result/receiver role transport",
+                ));
+            }
+            let InstructionKind::CallDynSlot {
+                callee,
+                interface,
+                slot,
+                arguments,
+            } = &instruction.kind
+            else {
+                return Err(fail(
+                    "original dynamic member is replaced by another actual opcode",
+                ));
+            };
+            if interface != expected {
+                return Err(fail(
+                    "actual dynamic call changes its original complete interface",
+                ));
+            }
+            let mut directory = None;
+            for candidate in &self.module.dyn_interfaces {
+                b.spend(1, WORK)?;
+                if candidate.id == *interface && directory.replace(candidate).is_some() {
+                    return Err(fail("actual dynamic interface identity is repeated"));
+                }
+            }
+            let directory = directory
+                .ok_or_else(|| fail("actual dynamic call selects no complete interface"))?;
+            let slot = directory
+                .slots
+                .get(*slot as usize)
+                .ok_or_else(|| fail("actual dynamic call selects an absent slot"))?;
+            b.spend(
+                slot.parameters.len().saturating_add(arguments.len() + 1),
+                WORK,
+            )?;
+            if slot.member.application.declaration != boundary.declaration
+                || slot.member.application != directory.application
+                || slot.member.ordinal != boundary.member
+                || !slot.actuals.is_empty()
+                || slot.call_kind != boundary.call_kind
+                || slot.parameters.len() != boundary.parameters.len()
+                || arguments.len() != boundary.parameters.len()
+                || slot.result != boundary.result.ty
+                || slot.receiver.mutable
+            {
+                return Err(fail(
+                    "actual dynamic slot changes its exact original member, signature or receiver",
+                ));
+            }
+            let anchor = boundary
+                .receiver_anchor
+                .ok_or_else(|| fail("original dynamic receiver has no lexical head"))?;
+            let local = self.anchored_local(instance, function, anchor, b)?;
+            operations::available_before(
+                function,
+                (block, index, SemanticSiteEdge::Before),
+                *callee,
+                b,
+            )?;
+            let expected_callee = Type::Address {
+                mutable: false,
+                inner: Box::new(Type::Dyn {
+                    interface: *interface,
+                }),
+            };
+            if function.values.get(callee.0 as usize) != Some(&expected_callee) {
+                return Err(fail(
+                    "actual dynamic receiver changes its complete borrowed type",
+                ));
+            }
+            if owned {
+                if function.locals.get(local.0 as usize).map(|item| &item.ty)
+                    != Some(&Type::OwnedDyn {
+                        interface: *interface,
+                    })
+                {
+                    return Err(fail(
+                        "dynamic owner invocation selects another complete owner type",
+                    ));
+                }
+                let mut head = *callee;
+                let mut found = false;
+                for _ in 0..=b.partial_depth {
+                    let (at, ordinal, borrow) = self.defining(function, head, b)?;
+                    match &borrow.kind {
+                        InstructionKind::ReborrowAddress {
+                            address,
+                            mutable: false,
+                        } => {
+                            operations::available_before(
+                                function,
+                                (at, ordinal, SemanticSiteEdge::Before),
+                                *address,
+                                b,
+                            )?;
+                            head = *address;
+                        }
+                        InstructionKind::BorrowDynOwned {
+                            local: actual,
+                            mutable: false,
+                        } if *actual == local => {
+                            found = true;
+                            break;
+                        }
+                        _ => {
+                            return Err(fail(
+                                "actual dynamic receiver is borrowed from another original owning head",
+                            ));
+                        }
+                    }
+                }
+                if !found {
+                    return Err(unknown(
+                        "dynamic owner receiver chain exceeds its finite depth",
+                    ));
+                }
+            } else if function.locals.get(local.0 as usize).map(|item| &item.ty)
+                != Some(&expected_callee)
+                || self.receiver_local(function, *callee, b, 0)? != local
+            {
+                return Err(fail(
+                    "actual dynamic receiver selects another original borrowed input",
+                ));
+            }
+            for ((argument, parameter), slot_type) in arguments
+                .iter()
+                .zip(&boundary.parameters)
+                .zip(&slot.parameters)
+            {
+                operations::available_before(
+                    function,
+                    (block, index, SemanticSiteEdge::Before),
+                    *argument,
+                    b,
+                )?;
+                if slot_type != &parameter.ty
+                    || function.values.get(argument.0 as usize) != Some(&parameter.ty)
+                {
+                    return Err(fail(
+                        "actual dynamic parameter changes its complete original type",
+                    ));
+                }
+                if self.uses_full_value(&parameter.ty, b)?
+                    && self.ssa_value(instance, function, *argument, b, 0)? != *parameter
+                {
+                    return Err(fail(
+                        "actual dynamic argument changes its original full class relation",
+                    ));
+                }
+            }
+            if let Some(result) = instruction.result {
+                if function.values.get(result.0 as usize) != Some(&boundary.result.ty) {
+                    return Err(fail("actual dynamic result changes its full original type"));
+                }
+            } else if boundary.result.ty != Type::Unit {
+                return Err(fail("actual dynamic call omits its declared result"));
+            }
+            return Ok(Some(boundary.result));
+        }
         let (target, arguments) = match &instruction.kind {
             InstructionKind::Call {
                 function,

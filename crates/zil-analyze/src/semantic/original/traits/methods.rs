@@ -9,6 +9,7 @@ pub(in crate::semantic) struct TraitCall {
     pub(in crate::semantic) method: SemanticDefinitionId,
     pub(in crate::semantic) receiver: Term,
     pub(in crate::semantic) receiver_anchor: Option<LocalAnchor>,
+    pub(in crate::semantic) dynamic: Option<bool>,
     pub(in crate::semantic) arguments: Vec<Term>,
     pub(in crate::semantic) method_actuals: Vec<Term>,
     pub(in crate::semantic) parameters: Vec<Term>,
@@ -22,6 +23,7 @@ pub(in crate::semantic) struct TraitBoundary {
     pub(in crate::semantic) method: SemanticDefinitionId,
     pub(in crate::semantic) receiver: crate::semantic::value::Value,
     pub(in crate::semantic) receiver_anchor: Option<LocalAnchor>,
+    pub(in crate::semantic) dynamic: Option<bool>,
     pub(in crate::semantic) arguments: Vec<crate::semantic::value::Argument>,
     pub(in crate::semantic) method_actuals: Vec<crate::semantic::value::Argument>,
     pub(in crate::semantic) parameters: Vec<crate::semantic::value::Value>,
@@ -81,7 +83,11 @@ impl Checked {
                 b,
             )?;
         }
-        for parameter in &call.parameters {
+        for parameter in call
+            .parameters
+            .iter()
+            .skip(usize::from(call.dynamic.is_some()))
+        {
             Solver::push(
                 &mut parameters,
                 self.value(*parameter, context, program, inventory, b, 0)?,
@@ -94,6 +100,7 @@ impl Checked {
             method: call.method,
             receiver: self.value(call.receiver, context, program, inventory, b, 0)?,
             receiver_anchor: call.receiver_anchor,
+            dynamic: call.dynamic,
             arguments,
             method_actuals,
             parameters,
@@ -166,6 +173,10 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Vec<(LifeDeclarationId, Vec<Term>)>> {
         self.step(depth, b)?;
         let receiver = self.type_root(receiver, b)?;
+        if let Kind::Dyn(ty) = &self.state.arena[receiver] {
+            b.spend(ty.work(), WORK)?;
+            return Ok(vec![(ty.declaration, ty.arguments.clone())]);
+        }
         let (owner, ordinal) = match self.state.arena[receiver] {
             Kind::Rigid(owner, ordinal) => (owner, Some(ordinal)),
             Kind::SelfType(owner) => (owner, None),
@@ -368,25 +379,43 @@ impl Solver<'_, '_> {
             return Ok(None);
         };
         let place = self.place(frame, object, false, b, depth + 1)?;
-        let (receiver, actual_receiver, anchor) = if let Some(place) = &place {
+        let (receiver, actual_receiver, anchor, dynamic) = if let Some(place) = &place {
             if !place.path.is_empty() {
                 return Err(unknown(
                     "projected original trait receiver needs its complete physical head relation",
                 ));
             }
             let actual = self.type_root(place.selected, b)?;
-            let Kind::Address { inner, .. } = self.state.arena[actual] else {
-                return Ok(None);
+            let (inner, address, dynamic) = match &self.state.arena[actual] {
+                Kind::Address { inner, .. } => {
+                    let child = self.type_root(*inner, b)?;
+                    (
+                        *inner,
+                        Some(actual),
+                        if matches!(self.state.arena[child], Kind::Dyn(_)) {
+                            Some(false)
+                        } else {
+                            None
+                        },
+                    )
+                }
+                Kind::Dyn(ty) if ty.owned => {
+                    b.spend(ty.work(), WORK)?;
+                    let mut borrowed = ty.clone();
+                    borrowed.owned = false;
+                    (self.term(Kind::Dyn(borrowed), b)?, None, Some(true))
+                }
+                _ => return Ok(None),
             };
             let anchor = place.anchor.ok_or_else(|| {
                 unknown("original trait receiver has no exact original place anchor")
             })?;
-            (inner, Some(actual), Some(anchor))
+            (inner, address, Some(anchor), dynamic)
         } else {
             let Some(receiver) = self.static_trait_receiver(frame, object, b, depth + 1)? else {
                 return Ok(None);
             };
-            (receiver, None, None)
+            (receiver, None, None, None)
         };
         if let Some(owner) = owner {
             let expected = self.recipe(frame, owner, b, depth + 1)?;
@@ -448,6 +477,21 @@ impl Solver<'_, '_> {
                 "original method argument count differs from its complete signature",
             ));
         }
+        if dynamic.is_some() {
+            let Kind::Address {
+                mutable: false,
+                inner,
+                ..
+            } = self.state.arena[self.type_root(parameters[0], b)?]
+            else {
+                return Err(unknown(
+                    "original dynamic receiver needs its complete mutable or owning mode theorem",
+                ));
+            };
+            if !self.same_original(inner, receiver, b, depth + 1)? {
+                return Err(fail("original dynamic method changes its erased Self type"));
+            }
+        }
         // Only the fresh call-local outer life is solved by this boundary.
         // Pointee identities are ordinary full type equations and stay rigid.
         if let Some(actual_receiver) = actual_receiver {
@@ -501,6 +545,7 @@ impl Solver<'_, '_> {
                     method,
                     receiver,
                     receiver_anchor: anchor,
+                    dynamic,
                     arguments: trait_actuals,
                     method_actuals,
                     parameters,
