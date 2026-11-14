@@ -8,6 +8,7 @@ mod effects;
 mod enums;
 pub(super) mod mixed;
 pub(super) mod nominal;
+mod protocol;
 mod roles;
 pub(super) mod sealed;
 mod values;
@@ -2370,11 +2371,6 @@ pub(super) fn check(
                     "original transfer resume bound requires its universal body and environment capability proof",
                 ));
             }
-            if !protocol_contracts.is_empty() {
-                return Err(unknown(
-                    "original protocol entry/exit contracts require their complete universal state-flow proof",
-                ));
-            }
         }
     }
     let effects = effects::collect(program, inventory, b)?;
@@ -2536,6 +2532,7 @@ pub(super) fn check(
         }
     }
     effects.finish(&solver.state, inventory, b)?;
+    protocol::check(&solver.state, inventory, b)?;
     b.spend(module.functions.len(), WORK)?;
     Ok(solver.state)
 }
