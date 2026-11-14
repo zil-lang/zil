@@ -1,0 +1,56 @@
+{
+  "reviewed_at_utc": "2026-11-14T01:51:44.338609+00:00",
+  "reviewer": "Astra; public contracts, IR, Source, Types, driver and exact receipts only; no Analyze/Verify algorithm reading",
+  "assessment": "Substantial semantic safety architecture work, but no broad core-language usability breakthrough. Twelve native executions cover three programs; latest breadth remains zero of thirteen before independent Verify.",
+  "evidence": {
+    "native_and_breadth_candidate": "cb69e7a32",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-scoped-types-boundaries",
+    "types_positive_sources": 4,
+    "native_successes": 12,
+    "breadth_check_successes": 0,
+    "breadth_cases": 13
+  },
+  "root_causes": [
+    "Existing operational language paths were blocked by an incomplete whole-original-semantics migration.",
+    "Several narrow recipe substitution entry points duplicated incomplete type and lexical-domain interpretations.",
+    "Types ABI and final publication repeated full original directory construction and checking.",
+    "Component counts and host compilation speed were being mistaken for evidence of release readiness."
+  ],
+  "adopted_actions": [
+    {
+      "action": "One immutable request-local OriginalContext with complete input identity, original directory/indexes and this Types request proof; keep full actual emission/header/CFG checks and independent A/V",
+      "commits": [
+        "08beed579"
+      ],
+      "limits": "No cross-request or cross-kernel proof reuse. Each public in-context CT API still checks S once per API call; compile-wide multi-query S reuse remains separate, not claimed done."
+    },
+    {
+      "action": "One complete explicit lexical-domain substitution visitor, preserving full mixed arguments, Task/Self/shape and Bound/Invocation scope; opaque hidden stays callee-local",
+      "commits": [
+        "7a11a01b6",
+        "7bc4d8ae2"
+      ],
+      "limits": "All seven known call sites migrated; missing domain mappings reject. No public schema or new certificate IR."
+    },
+    {
+      "action": "Repair real emission families together: assignment targets after actual store, owning Dyn receivers at actual borrow, whole tuple declarations from true parent local",
+      "commits": [
+        "d7852c7be"
+      ],
+      "limits": "No Source event deletion, same-type guessing or duplicate identity bypass."
+    }
+  ],
+  "stopped": [
+    "No new proof certificate/fourth IR migration.",
+    "No unrelated type generalization outside the thirteen inputs and their entire imported original definition closure.",
+    "No per-constructor narrow substitute patches or feature claims based on raw directory presence."
+  ],
+  "delivery_groups": [
+    "ordinary programs and complete types: patterns, generic libraries, closures, ownership, stream, phantom",
+    "resources and lifecycles: dynamic dispatch, Task, threads, foreign lifecycle, buffered I/O, iteration",
+    "compile time and scale: real scalar CT and owning collections under default budgets"
+  ],
+  "acceptance": "One exact candidate preserves all existing positive native chains; all thirteen unchanged inputs pass nonzero independent Verify, then their original full native/C consumer and failure-cleanup checks run with nearby negative cases and budget controls. Not merely 13 check successes.",
+  "current_candidate_under_validation": "1fec68654",
+  "status": "Structural changes implemented and pushed; initial integrated build found and fixed a formal-reference move error. Full new candidate validation running, not accepted."
+}

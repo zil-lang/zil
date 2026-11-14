@@ -35,3 +35,9 @@
 阶段 WIP 和退役分支仅用固定 [`archive/source-history`](https://github.com/zil-lang/zil/tree/archive/source-history) 保全，manifest 记录原 ref、源码/暂存/工作树提交及可达关系。确认远端真实 SHA、完整对象和无唯一修改后才能退役旧 ref。归档不等于验收；正在构建的工作树不切分支，禁止 reset/clean。细节见 [交付与恢复](coordination/delivery.md)。
 
 环境恢复后先核实际进程、运行日志、工作树和代理状态。已暂停READY批立即精确提交并回执；不能让暂停的负责人等待新设计。代理不在运行列表时用followup恢复，send_message不视为已启动。无人写入的云恢复窗口可做明确未验收的WIP保全；不据保全提交提升功能状态。
+
+## Alpha 路径审核后的收口
+
+2026-11-14 Astra审核确认：真实13消费者仍0/13，不能用组件计数或宿主check加速代替可用性。当前只围绕这13份原输入及其完整导入原定义闭包施工，仍核未用定义/全部原分支，不以裁源、关闭Some、提高默认预算恢复。按普通程序与完整类型、资源与生命周期、编译期与规模三条整链集中交付，保持单功能分支、模块不相交、A/V独立。停止新增不相关泛化、第四IR/全套新证书迁移、每个类型构造子独立窄代入。Types内一次请求持有不可变OriginalContext，完整域代入统一入口；全实际检查和两独立核不省。当前具体证据及已实施提交见records/language-alpha-path-review.json。
+
+对已经final停驻的代理，新增施工任务必须用followup_task明确恢复；send_message仅协调，不能当任务已经运行。READY必须立即精确保存并回执，避免调度与备份等待造成串行空档。
