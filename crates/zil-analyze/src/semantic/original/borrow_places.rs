@@ -62,14 +62,15 @@ impl Solver<'_, '_> {
                     b.lookup(frame.captured.len(), WORK)?;
                     frame.captured.insert(index, inner);
                 }
-                let anchor = match anchor {
-                    Some(anchor) => anchor,
-                    None if index < frame.inherited => self.environment_anchor(frame, name, b)?,
-                    None => {
-                        return Err(unknown(
-                            "original borrow needs its exact parameter or binding anchor",
-                        ));
-                    }
+                let anchor = if index < frame.inherited {
+                    // A parent's lexical slot is not a local of the child.
+                    // The actual capture is selected by its sealed NameAt
+                    // source, including non-move captures of Copy data.
+                    self.environment_anchor(frame, name, b)?
+                } else {
+                    anchor.ok_or_else(|| {
+                        unknown("original borrow needs its exact parameter or binding anchor")
+                    })?
                 };
                 Place {
                     anchor,
