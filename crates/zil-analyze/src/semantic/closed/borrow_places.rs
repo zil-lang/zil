@@ -5,10 +5,12 @@ use super::*;
 enum Root {
     Local(LocalId, BlockId, usize, bool), // bool: loaded an existing address
     Capture(u32, bool),
+    Expression(ValueId),
 }
 struct Origin {
     root: Root,
     path: Vec<u32>,
+    index: Option<ValueId>,
     fresh: bool,
 }
 
@@ -82,6 +84,7 @@ impl Check<'_, '_> {
                 Ok(Origin {
                     root: Root::Local(*local, block, index, false),
                     path: Vec::new(),
+                    index: None,
                     fresh: true,
                 })
             }
@@ -113,6 +116,7 @@ impl Check<'_, '_> {
                 Ok(Origin {
                     root: Root::Local(*local, block, index, false),
                     path: fields,
+                    index: None,
                     fresh: true,
                 })
             }
@@ -127,6 +131,7 @@ impl Check<'_, '_> {
                 Ok(Origin {
                     root: Root::Local(*local, block, index, true),
                     path: Vec::new(),
+                    index: None,
                     fresh: false,
                 })
             }
@@ -137,12 +142,14 @@ impl Check<'_, '_> {
                 Ok(Origin {
                     root: Root::Capture(*index, false),
                     path: Vec::new(),
+                    index: None,
                     fresh: true,
                 })
             }
             InstructionKind::ReadCapture { index } => Ok(Origin {
                 root: Root::Capture(*index, true),
                 path: Vec::new(),
+                index: None,
                 fresh: false,
             }),
             InstructionKind::ReborrowAddress { address, mutable } => {
@@ -165,6 +172,54 @@ impl Check<'_, '_> {
                     ));
                 }
                 let mut origin = self.projected_borrow_origin(function, *address, b, depth + 1)?;
+                origin.fresh = true;
+                Ok(origin)
+            }
+            InstructionKind::AddressIndex {
+                address,
+                index: offset,
+            } => {
+                operations::available_before(
+                    function,
+                    (block, index, SemanticSiteEdge::Before),
+                    *address,
+                    b,
+                )?;
+                operations::available_before(
+                    function,
+                    (block, index, SemanticSiteEdge::Before),
+                    *offset,
+                    b,
+                )?;
+                if function.values.get(offset.0 as usize) != Some(&Type::I64) {
+                    return Err(fail(
+                        "actual indexed borrow has another checked index carrier",
+                    ));
+                }
+                let Some(Type::Address { mutable, inner }) =
+                    function.values.get(address.0 as usize)
+                else {
+                    return Err(fail("actual indexed borrow has no backing reference"));
+                };
+                let element = match inner.as_ref() {
+                    Type::Array { element, .. } | Type::Slice { element } => element,
+                    _ => {
+                        return Err(fail(
+                            "actual indexed borrow crosses another backing category",
+                        ));
+                    }
+                };
+                if mutable != output_mutable || element != output_inner {
+                    return Err(fail(
+                        "actual indexed borrow changes its element type or access mode",
+                    ));
+                }
+                let mut origin = self.projected_borrow_origin(function, *address, b, depth + 1)?;
+                if origin.index.replace(*offset).is_some() {
+                    return Err(unknown(
+                        "actual indexed borrow needs its complete multidimensional source",
+                    ));
+                }
                 origin.fresh = true;
                 Ok(origin)
             }
@@ -191,13 +246,21 @@ impl Check<'_, '_> {
                     ));
                 }
                 let mut origin = self.projected_borrow_origin(function, *address, b, depth + 1)?;
+                if origin.index.is_some() {
+                    return Err(unknown(
+                        "actual field borrow needs its complete post-index source mapping",
+                    ));
+                }
                 self.push_value(&mut origin.path, *field, b)?;
                 origin.fresh = true;
                 Ok(origin)
             }
-            _ => Err(unknown(
-                "original field borrow lacks its exact actual physical root operation",
-            )),
+            _ => Ok(Origin {
+                root: Root::Expression(id),
+                path: Vec::new(),
+                index: None,
+                fresh: false,
+            }),
         }
     }
 
@@ -222,7 +285,15 @@ impl Check<'_, '_> {
         }
         let (root, indirect) = match origin.root {
             Root::Local(local, block, index, indirect) => {
-                if self.anchored_local(instance, function, source.anchor, b)? != local {
+                if self.anchored_local(
+                    instance,
+                    function,
+                    source.anchor.ok_or_else(|| {
+                        fail("actual local borrow replaces an original emitted reference")
+                    })?,
+                    b,
+                )? != local
+                {
                     return Err(fail("actual field borrow selects another original root"));
                 }
                 (
@@ -231,7 +302,7 @@ impl Check<'_, '_> {
                 )
             }
             Root::Capture(capture, indirect) => {
-                let original::LocalAnchor::Environment(ordinal) = source.anchor else {
+                let Some(original::LocalAnchor::Environment(ordinal)) = source.anchor else {
                     return Err(fail(
                         "actual field borrow replaces a lexical root by a capture",
                     ));
@@ -242,6 +313,20 @@ impl Check<'_, '_> {
                 (
                     self.capture_whole_value(instance, function, capture, b, depth + 1)?,
                     indirect,
+                )
+            }
+            Root::Expression(actual) => {
+                let node = source.expression.ok_or_else(|| {
+                    fail("actual returned reference replaces an original lexical place")
+                })?;
+                if self.original_subject_value(instance, function, node, b)? != Some(actual) {
+                    return Err(fail(
+                        "actual indexed borrow selects another original returned reference",
+                    ));
+                }
+                (
+                    self.ssa_value(instance, function, actual, b, depth + 1)?,
+                    true,
                 )
             }
         };
@@ -260,7 +345,30 @@ impl Check<'_, '_> {
         } else {
             &root.ty
         };
-        let leaf = self.borrow_field_type(whole, &origin.path, b)?;
+        let mut leaf = self.borrow_field_type(whole, &origin.path, b)?;
+        match (source.index, origin.index) {
+            (None, None) => {}
+            (Some(node), Some(actual)) => {
+                if self.original_subject_value(instance, function, node, b)? != Some(actual) {
+                    return Err(unknown(
+                        "actual indexed borrow lacks its exact original emitted index operand",
+                    ));
+                }
+                leaf = match leaf {
+                    Type::Array { element, .. } | Type::Slice { element } => element.as_ref(),
+                    _ => {
+                        return Err(fail(
+                            "original indexed borrow loses its complete backing element",
+                        ));
+                    }
+                };
+            }
+            _ => {
+                return Err(fail(
+                    "actual indexed borrow adds or omits an original index projection",
+                ));
+            }
+        }
         let required = if address_input {
             let Type::Address { inner, .. } = &source.inner.ty else {
                 return Err(fail(

@@ -101,7 +101,7 @@ impl Solver<'_, '_> {
                 self.state
                     .borrows
                     .get(&(frame.definition, value.id))
-                    .map(|borrow| borrow.anchor)
+                    .and_then(|borrow| borrow.anchor)
                     .ok_or_else(|| {
                         fail(
                             "original registration borrow loses its exact initialized source place",

@@ -4,7 +4,7 @@
 use super::*;
 
 impl Check<'_, '_> {
-    fn original_subject_value(
+    pub(super) fn original_subject_value(
         &self,
         instance: &SemanticInstance,
         function: &TypedFunction,

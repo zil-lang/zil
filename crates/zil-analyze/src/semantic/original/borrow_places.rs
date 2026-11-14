@@ -3,7 +3,9 @@
 use super::*;
 
 pub(super) struct Place {
-    pub anchor: LocalAnchor,
+    pub anchor: Option<LocalAnchor>,
+    pub expression: Option<NodeId>,
+    pub index: Option<NodeId>,
     pub root: Term,
     pub path: Vec<u32>,
     pub inner: Term,
@@ -12,7 +14,9 @@ pub(super) struct Place {
 }
 
 pub(in crate::semantic) struct Source {
-    pub anchor: LocalAnchor,
+    pub anchor: Option<LocalAnchor>,
+    pub expression: Option<NodeId>,
+    pub index: Option<NodeId>,
     pub root: crate::semantic::value::Value,
     pub path: Vec<u32>,
     pub inner: crate::semantic::value::Value,
@@ -73,7 +77,9 @@ impl Solver<'_, '_> {
                     })?
                 };
                 Place {
-                    anchor,
+                    anchor: Some(anchor),
+                    expression: None,
+                    index: None,
                     root: inner,
                     path: Vec::new(),
                     inner,
@@ -95,6 +101,11 @@ impl Solver<'_, '_> {
                 owner,
             } => {
                 let mut place = self.borrow_place(frame, object, b, depth + 1)?;
+                if place.index.is_some() {
+                    return Err(unknown(
+                        "original borrowed indexed field requires its complete post-index place mapping",
+                    ));
+                }
                 self.borrow_head(&mut place, b, depth + 1)?;
                 if let Some(owner) = owner {
                     let expected = self.recipe(frame, owner, b, depth + 1)?;
@@ -103,6 +114,61 @@ impl Solver<'_, '_> {
                 let (ordinal, inner) = self.field(place.inner, member, b, depth + 1)?;
                 Self::push(&mut place.path, ordinal, b)?;
                 place.inner = inner;
+                place
+            }
+            CoreExprKind::Index { object, index } => {
+                let mut place = if matches!(
+                    object.kind,
+                    CoreExprKind::Name(_)
+                        | CoreExprKind::Member { .. }
+                        | CoreExprKind::Group(_)
+                        | CoreExprKind::Ascribed { .. }
+                ) {
+                    self.borrow_place(frame, object, b, depth + 1)?
+                } else {
+                    let term = self.expression(frame, object, b, depth + 1)?;
+                    let Kind::Address { mutable, inner, .. } =
+                        self.state.arena[self.type_root(term, b)?]
+                    else {
+                        return Err(fail(
+                            "original indexed borrow has no returned reference source",
+                        ));
+                    };
+                    Place {
+                        anchor: None,
+                        expression: Some(object.id),
+                        index: None,
+                        root: term,
+                        path: Vec::new(),
+                        inner,
+                        indirect: true,
+                        mutable,
+                    }
+                };
+                if place.index.is_some() {
+                    return Err(unknown(
+                        "original indexed borrow needs its full multidimensional source mapping",
+                    ));
+                }
+                if matches!(
+                    self.state.arena[self.type_root(place.inner, b)?],
+                    Kind::Address { .. }
+                ) {
+                    self.borrow_head(&mut place, b, depth + 1)?;
+                }
+                let element = match self.state.arena[self.type_root(place.inner, b)?] {
+                    Kind::Array { element, .. } | Kind::Slice(element) => element,
+                    _ => {
+                        return Err(fail(
+                            "original indexed borrow selects another complete backing type",
+                        ));
+                    }
+                };
+                let offset = self.expression(frame, index, b, depth + 1)?;
+                Self::push(&mut self.integers, offset, b)?;
+                Self::push(&mut self.numeric, offset, b)?;
+                place.index = Some(index.id);
+                place.inner = element;
                 place
             }
             CoreExprKind::Unary {

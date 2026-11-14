@@ -25,6 +25,11 @@ impl Solver<'_, '_> {
             return Err(fail("original range borrow has no original slice place"));
         };
         let place = self.borrow_place(frame, object, b, depth + 1)?;
+        if place.index.is_some() {
+            return Err(unknown(
+                "original range borrow needs its complete indexed backing occurrence",
+            ));
+        }
         let input = place.inner;
         let (address, element) = match self.state.arena[self.type_root(input, b)?] {
             Kind::Address {
@@ -92,6 +97,8 @@ impl Solver<'_, '_> {
                 (frame.definition, node),
                 Borrow {
                     anchor: place.anchor,
+                    expression: place.expression,
+                    index: place.index,
                     root: place.root,
                     path: place.path,
                     indirect: place.indirect,

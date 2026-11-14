@@ -342,6 +342,34 @@ impl Check<'_, '_> {
         Ok(())
     }
 
+    fn original_claim(
+        &self,
+        instance: &SemanticInstance,
+        claim: &SemanticTypeValue,
+        original: &crate::semantic::value::Value,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let actual = self.resolved(instance, claim, b, 0)?;
+        if actual == *original {
+            return Ok(());
+        }
+        crate::dyn_metadata::recipe(claim, b)?;
+        crate::dyn_metadata::ty(&original.ty, b)?;
+        crate::dyn_metadata::shape(&original.life, b)?;
+        b.spend(
+            original
+                .classes
+                .len()
+                .saturating_add(actual.classes.len())
+                .saturating_mul(128)
+                .saturating_add(256),
+            WORK,
+        )?;
+        let mut errors = fail("actual semantic claim changes its complete original class value");
+        errors[0].notes.push(format!("independent original value {original:?}; independently resolved actual claim {actual:?}; input claim {claim:?}"));
+        Err(errors)
+    }
+
     fn operation(
         &self,
         instance: &SemanticInstance,
@@ -361,12 +389,8 @@ impl Check<'_, '_> {
             ) => {
                 let expected = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
-                if self.uses_full_value(&original_value.ty, b)?
-                    && self.resolved(instance, value, b, 0)? != original_value
-                {
-                    return Err(fail(
-                        "actual semantic claim changes its complete original class value",
-                    ));
+                if self.uses_full_value(&original_value.ty, b)? {
+                    self.original_claim(instance, value, &original_value, b)?;
                 }
 
                 self.image_operands(instance, value, point, Some(*result), b)?;
@@ -396,12 +420,8 @@ impl Check<'_, '_> {
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
-                if self.uses_full_value(&original_value.ty, b)?
-                    && self.resolved(instance, expected, b, 0)? != original_value
-                {
-                    return Err(fail(
-                        "actual semantic claim changes its complete original class value",
-                    ));
+                if self.uses_full_value(&original_value.ty, b)? {
+                    self.original_claim(instance, expected, &original_value, b)?;
                 }
 
                 self.image_operands(instance, expected, point, None, b)?;
@@ -492,12 +512,8 @@ impl Check<'_, '_> {
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
-                if self.uses_full_value(&original_value.ty, b)?
-                    && self.resolved(instance, expected, b, 0)? != original_value
-                {
-                    return Err(fail(
-                        "actual semantic claim changes its complete original class value",
-                    ));
+                if self.uses_full_value(&original_value.ty, b)? {
+                    self.original_claim(instance, expected, &original_value, b)?;
                 }
 
                 self.image_operands(instance, expected, point, None, b)?;

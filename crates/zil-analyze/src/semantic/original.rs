@@ -148,7 +148,9 @@ pub(super) enum LocalAnchor {
     Pattern(u32),
 }
 struct Borrow {
-    anchor: LocalAnchor,
+    anchor: Option<LocalAnchor>,
+    expression: Option<NodeId>,
+    index: Option<NodeId>,
     root: Term,
     path: Vec<u32>,
     indirect: bool,
@@ -1647,6 +1649,8 @@ impl Solver<'_, '_> {
                             (frame.definition, value.id),
                             Borrow {
                                 anchor: place.anchor,
+                                expression: place.expression,
+                                index: place.index,
                                 root: place.root,
                                 path: place.path,
                                 indirect: place.indirect,
@@ -4648,6 +4652,8 @@ impl Checked {
                     b.spend(source.path.len(), WORK)?;
                     found = Some(borrow_places::Source {
                         anchor: source.anchor,
+                        expression: source.expression,
+                        index: source.index,
                         root: self.value(source.root, context, program, inventory, b, 0)?,
                         path: source.path.clone(),
                         inner: self.value(source.inner, context, program, inventory, b, 0)?,
