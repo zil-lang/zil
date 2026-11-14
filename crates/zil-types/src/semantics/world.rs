@@ -1441,60 +1441,94 @@ impl World<'_, '_> {
         instance: &SemanticInstance,
         original: &SemanticDefinition,
         actuals: Option<&[SemanticActual]>,
+        source: Option<SemanticSiteId>,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
-        self.pay(original.requirements.len())?;
-        for requirement in &original.requirements {
-            match requirement {
-                SemanticRequirementRecipe::LifeEqual { left, right } => {
-                    if let Some(actuals) = actuals {
-                        // No callee equality assumption participates in the
-                        // caller's proof of the same premise.
-                        let select = |recipe: &SemanticLifeRecipe| -> R<SemanticClassExpr> {
-                            let SemanticLifeRecipe::Formal(SemanticFormalRef {
-                                scope: SemanticScopeRef::Ancestor(0),
-                                ordinal,
-                            }) = recipe
-                            else {
-                                return Err(pending(
-                                    "where equality needs its checked lexical selector map",
-                                ));
-                            };
-                            let Some(SemanticActual::Life(image)) = actuals.get(*ordinal as usize)
-                            else {
-                                return Err(bad("where equality selects a non-Life actual"));
-                            };
-                            Ok(image.clone())
-                        };
-                        let a = select(left)?;
-                        let b = select(right)?;
-                        self.same_class(instance.id, &a, &b, implicit)?;
-                    }
+        let recipes = {
+            let original_proof = self.ledger.original.borrow();
+            let proof = original_proof
+                .as_ref()
+                .ok_or_else(|| bad("where requirement lacks independent original Gamma"))?;
+            if let Some(site) = source {
+                Some(proof.where_call(
+                    self.program,
+                    instance.definition,
+                    site,
+                    original.id,
+                    self.limits,
+                    self.left,
+                )?)
+            } else {
+                proof.where_entry(self.program, original.id, self.limits, self.left)?;
+                None
+            }
+        };
+        match (recipes.as_ref(), actuals) {
+            (Some(recipes), Some(actuals)) => {
+                if recipes.len() != actuals.len() {
+                    return Err(bad("actual where boundary changes full mixed arity"));
                 }
-                SemanticRequirementRecipe::Callable {
-                    ty:
-                        SemanticTypeRecipe::OriginalType {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            source: SemanticOriginalTypeSource::Result,
-                        },
-                    ..
-                } => {
-                    let proof = self.ledger.original.borrow();
-                    if !proof
-                        .as_ref()
-                        .is_some_and(|proof| proof.complete.contains(&original.id))
-                    {
+                for (recipe, actual) in recipes.iter().zip(actuals) {
+                    let expected = super::materialize::actual_in_view(
+                        self.program,
+                        &self.view,
+                        self.ledger,
+                        instance.id,
+                        recipe,
+                        self.limits,
+                        self.left,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        actual,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        &expected,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if actual != &expected {
                         return Err(bad(
-                            "result callable goal lacks complete original code/capture proof",
+                            "actual where boundary changes independently solved original mixed argument",
                         ));
                     }
-                    // Every real target instance, its complete header and every
-                    // operation are independently interpreted by this World.
                 }
-                _ => {
-                    return Err(pending(
-                        "original where premise requires its complete rigid-role proof",
-                    ));
+            }
+            (None, None) => {}
+            _ => {
+                return Err(bad(
+                    "actual where boundary omits its exact original call site or arguments",
+                ));
+            }
+        }
+        // Original Gamma establishes the entire requirement grammar in the
+        // caller domain. Independently retain the actual rigid Life equality
+        // check when both sides select full mixed arguments directly.
+        self.pay(original.requirements.len())?;
+        if let Some(actuals) = actuals {
+            for requirement in &original.requirements {
+                if let SemanticRequirementRecipe::LifeEqual {
+                    left:
+                        SemanticLifeRecipe::Formal(SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal: a,
+                        }),
+                    right:
+                        SemanticLifeRecipe::Formal(SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal: b,
+                        }),
+                } = requirement
+                {
+                    let (Some(SemanticActual::Life(left)), Some(SemanticActual::Life(right))) =
+                        (actuals.get(*a as usize), actuals.get(*b as usize))
+                    else {
+                        return Err(bad("where Life equality selects a non-Life actual"));
+                    };
+                    self.same_class(instance.id, left, right, implicit)?;
                 }
             }
         }
@@ -1783,7 +1817,7 @@ impl World<'_, '_> {
             ));
         }
         protocol::header(self, original, f)?;
-        self.requirements(instance, original, None, &BTreeMap::new())?;
+        self.requirements(instance, original, None, None, &BTreeMap::new())?;
         self.pay(
             index::search(self.index.sites.len())
                 .saturating_add(f.locals.len())
@@ -3198,6 +3232,7 @@ impl World<'_, '_> {
                                             instance,
                                             target_original,
                                             Some(actuals),
+                                            Some(site.recipe),
                                             &implicit,
                                         )?;
                                         if arguments.len() != target_signature.parameters.len()
