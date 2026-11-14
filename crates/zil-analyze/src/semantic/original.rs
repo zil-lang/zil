@@ -19,6 +19,7 @@ mod loops;
 pub(super) mod mixed;
 mod mutex;
 pub(super) mod nominal;
+mod place_writes;
 mod places;
 mod protocol;
 mod registration;
@@ -2751,6 +2752,9 @@ impl Solver<'_, '_> {
                     )?;
                 }
                 CoreStatementKind::CompoundAssign { target, op, value } => {
+                    if self.projected_compound(frame, target, *op, value, b, depth + 1)? {
+                        continue;
+                    }
                     if let CoreExprKind::Unary {
                         op: UnaryOp::Dereference,
                         operand,
@@ -2898,6 +2902,9 @@ impl Solver<'_, '_> {
                     }
                 }
                 CoreStatementKind::Assign { target, value } => {
+                    if self.projected_assign(frame, target, value, b, depth + 1)? {
+                        continue;
+                    }
                     let CoreExprKind::Name(name) = &target.kind else {
                         return Err(unknown(
                             "original projected assignment needs its complete place interpretation",
