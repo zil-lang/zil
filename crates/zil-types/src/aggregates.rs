@@ -915,6 +915,9 @@ fn resolve_indexed(
                 r.mode = PassingMode::Describe;
             }
         }
+        if let Some(instance) = &mut f.dyn_instance {
+            dyn_metadata::function_instance(instance, &mut resolver).map_err(|e| vec![e])?;
+        }
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
         resolver.ordinary_parameter = None;
         resolver.active_callable_parameters = &[];
