@@ -8,6 +8,7 @@ mod buffers;
 mod capabilities;
 mod captures;
 mod constructors;
+mod dyn_owned;
 mod dyn_types;
 mod dyn_values;
 mod effects;
@@ -1909,6 +1910,21 @@ impl Solver<'_, '_> {
                         let resolution =
                             sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
                         match resolution {
+                            sealed::Resolution::Intrinsic(sealed::Intrinsic::OwnedDyn) => {
+                                let result = self.owned_dyn_call(
+                                    frame,
+                                    value.id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail("original owned Dyn call node is reused"));
+                                }
+                                return Ok(result);
+                            }
                             sealed::Resolution::Intrinsic(
                                 id @ (sealed::Intrinsic::StoreNew
                                 | sealed::Intrinsic::StoreReserve
@@ -4185,7 +4201,11 @@ impl Solver<'_, '_> {
             }
             Kind::Slice(_) => Ok(false),
             Kind::Task(_) => Ok(false),
-            Kind::Dyn(ty) => Ok(ty.owned && matches!(predicate, Predicate::Value)),
+            Kind::Dyn(ty) => match predicate {
+                Predicate::Value => Ok(ty.owned),
+                Predicate::SyncDrop if ty.owned => self.owned_dyn_sync(ty, b),
+                _ => Ok(false),
+            },
             Kind::Tuple(fields) => {
                 if matches!(predicate, Predicate::StoreElement) {
                     return Err(unknown(

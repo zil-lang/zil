@@ -7,6 +7,7 @@ use super::*;
 pub(in crate::semantic) enum Intrinsic {
     NumericConvert(Number),
     SliceLength,
+    OwnedDyn,
     TaskYield,
     TaskCreate,
     TaskPoll,
@@ -88,6 +89,7 @@ impl Intrinsic {
             "u32" => Self::NumericConvert(Number::U32),
             "u64" => Self::NumericConvert(Number::U64),
             "usize" => Self::NumericConvert(Number::Usize),
+            "owned_dyn" => Self::OwnedDyn,
             "f32" => Self::NumericConvert(Number::F32),
             "f64" => Self::NumericConvert(Number::F64),
             "task_yield" => Self::TaskYield,
