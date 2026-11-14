@@ -917,6 +917,21 @@ impl Check<'_, '_> {
         let mut mapped = BTreeSet::new();
         let mut used_rows = BTreeSet::new();
         let mut used_slots = BTreeSet::new();
+        let creator_bindings = self.capture_creator_bindings(instance, closure, b)?;
+        for (capture, expected) in creator_bindings.values() {
+            self.ghost_capture_rows(
+                instance,
+                closure,
+                contract,
+                *capture,
+                expected,
+                &mut directory,
+                &mut mapped,
+                &mut used_rows,
+                &mut used_slots,
+                b,
+            )?;
+        }
         for recipe in recipes {
             let Some(ordinal) =
                 self.original
@@ -976,89 +991,25 @@ impl Check<'_, '_> {
                         ));
                     }
                 };
-                let ty = closure
-                    .captures
-                    .get(capture as usize)
-                    .ok_or_else(|| fail("captured name selects an absent actual capture"))?;
-                if *ty != expected.ty {
-                    return Err(fail("captured name has another complete environment type"));
+                if let Some((original, _)) = creator_bindings.get(&ordinal)
+                    && *original != capture
+                {
+                    return Err(fail(
+                        "actual captured read selects another original lexical binding",
+                    ));
                 }
-                b.lookup(mapped.len(), WORK)?;
-                mapped.insert(capture);
-                let mut fixed = BTreeSet::new();
-                for (child, class) in expected.classes.iter().enumerate() {
-                    let mut selected = None;
-                    if weak_mutex {
-                        if expected.classes.len() != 1
-                            || expected.life.binder_count != 1
-                            || !expected.life.nominal_arguments.is_empty()
-                            || !matches!(expected.life.slots.as_slice(),[slot] if slot.path.is_empty() && slot.binder==0 && slot.mode==StoredBorrowMode::WritableDescription)
-                        {
-                            return Err(fail(
-                                "captured mutex description loses its complete outer weak occurrence",
-                            ));
-                        }
-                        for (row_index, row) in contract.bindings.iter().enumerate() {
-                            b.spend(row.position.path.len() + 1, WORK)?;
-                            if row.position.base == StorageBase::Capture(capture)
-                                && row.position.path.is_empty()
-                            {
-                                if selected.replace((row_index, row.binder)).is_some() {
-                                    return Err(fail(
-                                        "captured mutex repeats its actual outer occurrence",
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    for (row_index, row) in contract.classes.iter().enumerate() {
-                        b.spend(row.position.path.len() + 1, WORK)?;
-                        if row.position.base == StorageBase::Capture(capture)
-                            && row.position.path.is_empty()
-                            && row.position.class == child as u32
-                        {
-                            if weak_mutex || selected.replace((row_index, row.binder)).is_some() {
-                                return Err(fail(
-                                    "capture class repeats its actual header occurrence",
-                                ));
-                            }
-                        }
-                    }
-                    let (row, binder) = selected.ok_or_else(|| {
-                        fail("capture class omits a full original child occurrence")
-                    })?;
-                    let StorageBinder::Fixed(index) = binder else {
-                        return Err(fail("capture persistent class is not Fixed"));
-                    };
-                    b.lookup(fixed.len(), WORK)?;
-                    if !fixed.insert(index) {
-                        return Err(fail(
-                            "capture collapses two intrinsic child classes into one Fixed class",
-                        ));
-                    }
-                    let header = self.header_class(instance, binder, b)?;
-                    if header != *class {
-                        return Err(fail(
-                            "captured class differs from the sealed original environment",
-                        ));
-                    }
-                    let slot = directory
-                        .get_mut(index as usize)
-                        .ok_or_else(|| fail("capture Fixed class is out of range"))?;
-                    if slot.is_some_and(|old| old != capture) {
-                        return Err(unknown(
-                            "several captures need their complete original intrinsic equality proof",
-                        ));
-                    }
-                    *slot = Some(capture);
-                    if weak_mutex {
-                        b.lookup(used_slots.len(), WORK)?;
-                        used_slots.insert(row);
-                    } else {
-                        b.lookup(used_rows.len(), WORK)?;
-                        used_rows.insert(row);
-                    }
-                }
+                self.ghost_capture_rows(
+                    instance,
+                    closure,
+                    contract,
+                    capture,
+                    &expected,
+                    &mut directory,
+                    &mut mapped,
+                    &mut used_rows,
+                    &mut used_slots,
+                    b,
+                )?;
             }
         }
         for (index, ty) in closure.captures.iter().enumerate() {
@@ -1109,6 +1060,102 @@ impl Check<'_, '_> {
             )?;
         }
         Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn ghost_capture_rows(
+        &self,
+        instance: &SemanticInstance,
+        closure: &ClosureDefinition,
+        contract: &StorageLifeContract,
+        capture: u32,
+        expected: &Value,
+        directory: &mut [Option<u32>],
+        mapped: &mut BTreeSet<u32>,
+        used_rows: &mut BTreeSet<usize>,
+        used_slots: &mut BTreeSet<usize>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let weak_mutex = matches!(&expected.ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32));
+        let ty = closure
+            .captures
+            .get(capture as usize)
+            .ok_or_else(|| fail("captured name selects an absent actual capture"))?;
+        if *ty != expected.ty {
+            return Err(fail("captured name has another complete environment type"));
+        }
+        b.lookup(mapped.len(), WORK)?;
+        mapped.insert(capture);
+        let mut fixed = BTreeSet::new();
+        for (child, class) in expected.classes.iter().enumerate() {
+            let mut selected = None;
+            if weak_mutex {
+                if expected.classes.len() != 1
+                    || expected.life.binder_count != 1
+                    || !expected.life.nominal_arguments.is_empty()
+                    || !matches!(expected.life.slots.as_slice(),[slot] if slot.path.is_empty() && slot.binder==0 && slot.mode==StoredBorrowMode::WritableDescription)
+                {
+                    return Err(fail(
+                        "captured mutex description loses its complete outer weak occurrence",
+                    ));
+                }
+                for (row_index, row) in contract.bindings.iter().enumerate() {
+                    b.spend(row.position.path.len() + 1, WORK)?;
+                    if row.position.base == StorageBase::Capture(capture)
+                        && row.position.path.is_empty()
+                    {
+                        if selected.replace((row_index, row.binder)).is_some() {
+                            return Err(fail("captured mutex repeats its actual outer occurrence"));
+                        }
+                    }
+                }
+            }
+            for (row_index, row) in contract.classes.iter().enumerate() {
+                b.spend(row.position.path.len() + 1, WORK)?;
+                if row.position.base == StorageBase::Capture(capture)
+                    && row.position.path.is_empty()
+                    && row.position.class == child as u32
+                {
+                    if weak_mutex || selected.replace((row_index, row.binder)).is_some() {
+                        return Err(fail("capture class repeats its actual header occurrence"));
+                    }
+                }
+            }
+            let (row, binder) = selected
+                .ok_or_else(|| fail("capture class omits a full original child occurrence"))?;
+            let StorageBinder::Fixed(index) = binder else {
+                return Err(fail("capture persistent class is not Fixed"));
+            };
+            b.lookup(fixed.len(), WORK)?;
+            if !fixed.insert(index) {
+                return Err(fail(
+                    "capture collapses two intrinsic child classes into one Fixed class",
+                ));
+            }
+            let header = self.header_class(instance, binder, b)?;
+            if header != *class {
+                return Err(fail(
+                    "captured class differs from the sealed original environment",
+                ));
+            }
+            let slot = directory
+                .get_mut(index as usize)
+                .ok_or_else(|| fail("capture Fixed class is out of range"))?;
+            if slot.is_some_and(|old| old != capture) {
+                return Err(unknown(
+                    "several captures need their complete original intrinsic equality proof",
+                ));
+            }
+            *slot = Some(capture);
+            if weak_mutex {
+                b.lookup(used_slots.len(), WORK)?;
+                used_slots.insert(row);
+            } else {
+                b.lookup(used_rows.len(), WORK)?;
+                used_rows.insert(row);
+            }
+        }
+        Ok(())
     }
     pub(super) fn header_class(
         &self,

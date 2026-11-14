@@ -13,8 +13,18 @@ pub(super) enum Node<'a> {
 }
 pub(super) struct Index<'a> {
     nodes: BTreeMap<NodeId, Node<'a>>,
+    erased: BTreeSet<NodeId>,
+    navigation: BTreeSet<NodeId>,
 }
 impl<'a> Index<'a> {
+    pub(super) fn erased(&self, id: NodeId, b: &mut Budget) -> CompileResult<bool> {
+        b.lookup(self.erased.len(), WORK)?;
+        Ok(self.erased.contains(&id))
+    }
+    pub(super) fn navigation(&self, id: NodeId, b: &mut Budget) -> CompileResult<bool> {
+        b.lookup(self.navigation.len(), WORK)?;
+        Ok(self.navigation.contains(&id))
+    }
     pub(super) fn node(&self, id: NodeId, b: &mut Budget) -> CompileResult<Node<'a>> {
         b.lookup(self.nodes.len(), WORK)?;
         self.nodes
@@ -44,6 +54,7 @@ impl<'a> Index<'a> {
     }
 }
 enum Work<'a> {
+    EndErase,
     Block(&'a SemanticOriginalBlock),
     Expr(&'a SemanticOriginalExpr),
     Stmt(&'a SemanticOriginalStatement),
@@ -72,17 +83,29 @@ fn insert<'a>(
 }
 fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<Index<'a>> {
     let mut nodes = BTreeMap::new();
+    let mut erased = BTreeSet::new();
+    let mut navigation = BTreeSet::new();
+    let mut erased_depth = 0usize;
     let mut stack = Vec::new();
     push(&mut stack, Work::Block(body), b)?;
     while let Some(next) = stack.pop() {
         b.spend(1, WORK)?;
         match next {
+            Work::EndErase => {
+                erased_depth = erased_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| bad("original phase stack loses its enclosing stage"))?;
+            }
             Work::Block(block) => {
                 for statement in block.statements.iter().rev() {
                     push(&mut stack, Work::Stmt(statement), b)?;
                 }
             }
             Work::Stmt(statement) => {
+                if erased_depth > 0 {
+                    b.lookup(erased.len(), WORK)?;
+                    erased.insert(statement.id);
+                }
                 insert(&mut nodes, statement.id, Node::Statement(statement), b)?;
                 match &statement.kind {
                     CoreStatementKind::Binding { initializer, .. } => {
@@ -163,6 +186,10 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
                     | CoreStatementKind::Unsafe(body)
                     | CoreStatementKind::Loop(body) => push(&mut stack, Work::Block(body), b)?,
                     CoreStatementKind::CompileTime(inner) => {
+                        erased_depth = erased_depth
+                            .checked_add(1)
+                            .ok_or_else(|| bad("original phase depth overflow"))?;
+                        push(&mut stack, Work::EndErase, b)?;
                         push(&mut stack, Work::Stmt(inner), b)?
                     }
                     CoreStatementKind::Break
@@ -171,6 +198,10 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
                 }
             }
             Work::Expr(expression) => {
+                if erased_depth > 0 {
+                    b.lookup(erased.len(), WORK)?;
+                    erased.insert(expression.id);
+                }
                 insert(&mut nodes, expression.id, Node::Expression(expression), b)?;
                 match &expression.kind {
                     CoreExprKind::MakeDynBorrow { source, .. }
@@ -180,13 +211,28 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
                     CoreExprKind::Ascribed { value, .. }
                     | CoreExprKind::NumericConvert { value, .. }
                     | CoreExprKind::IntegerConvert { value, .. }
-                    | CoreExprKind::CompileTime(value)
                     | CoreExprKind::Try(value)
                     | CoreExprKind::Spread(value)
                     | CoreExprKind::Group(value)
                     | CoreExprKind::Splice(value)
                     | CoreExprKind::Unary { operand: value, .. } => {
+                        if matches!(
+                            expression.kind,
+                            CoreExprKind::Unary {
+                                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                                ..
+                            }
+                        ) {
+                            navigation_node(value, &mut navigation, b)?;
+                        }
                         push(&mut stack, Work::Expr(value), b)?
+                    }
+                    CoreExprKind::CompileTime(value) => {
+                        erased_depth = erased_depth
+                            .checked_add(1)
+                            .ok_or_else(|| bad("original phase depth overflow"))?;
+                        push(&mut stack, Work::EndErase, b)?;
+                        push(&mut stack, Work::Expr(value), b)?;
                     }
                     CoreExprKind::Binary { left, right, .. } => {
                         push(&mut stack, Work::Expr(right), b)?;
@@ -231,10 +277,12 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
                         }
                     }
                     CoreExprKind::Index { object, index } => {
+                        navigation_node(object, &mut navigation, b)?;
                         push(&mut stack, Work::Expr(index), b)?;
                         push(&mut stack, Work::Expr(object), b)?;
                     }
                     CoreExprKind::Slice { object, start, end } => {
+                        navigation_node(object, &mut navigation, b)?;
                         if let Some(value) = end {
                             push(&mut stack, Work::Expr(value), b)?;
                         }
@@ -243,7 +291,10 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
                         }
                         push(&mut stack, Work::Expr(object), b)?;
                     }
-                    CoreExprKind::Member { object, .. } => push(&mut stack, Work::Expr(object), b)?,
+                    CoreExprKind::Member { object, .. } => {
+                        navigation_node(object, &mut navigation, b)?;
+                        push(&mut stack, Work::Expr(object), b)?;
+                    }
                     CoreExprKind::Record { fields, .. }
                     | CoreExprKind::RecordConstructor { fields, .. } => {
                         for (_, value) in fields.iter().rev() {
@@ -271,7 +322,13 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
                         push(&mut stack, Work::Expr(then_value), b)?;
                         push(&mut stack, Work::Expr(condition), b)?;
                     }
-                    CoreExprKind::CompileTimeBlock(body) => push(&mut stack, Work::Block(body), b)?,
+                    CoreExprKind::CompileTimeBlock(body) => {
+                        erased_depth = erased_depth
+                            .checked_add(1)
+                            .ok_or_else(|| bad("original phase depth overflow"))?;
+                        push(&mut stack, Work::EndErase, b)?;
+                        push(&mut stack, Work::Block(body), b)?;
+                    }
                     CoreExprKind::SyntaxQuote { template, .. } => {
                         for hole in template.holes.iter().rev() {
                             push(&mut stack, Work::Expr(&hole.value), b)?;
@@ -295,7 +352,28 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
             }
         }
     }
-    Ok(Index { nodes })
+    Ok(Index {
+        nodes,
+        erased,
+        navigation,
+    })
+}
+
+fn navigation_node(
+    mut expression: &SemanticOriginalExpr,
+    rows: &mut BTreeSet<NodeId>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    loop {
+        b.lookup(rows.len(), WORK)?;
+        rows.insert(expression.id);
+        if let CoreExprKind::Group(inner) = &expression.kind {
+            expression = inner;
+        } else {
+            break;
+        }
+    }
+    Ok(())
 }
 
 // Names are not an inference context. An Infer hidden in a nominal argument,
@@ -681,6 +759,8 @@ pub(super) fn index<'a>(
         SemanticOriginalFunctionBody::External | SemanticOriginalFunctionBody::Declaration => {
             Index {
                 nodes: BTreeMap::new(),
+                erased: BTreeSet::new(),
+                navigation: BTreeSet::new(),
             }
         }
     };

@@ -213,6 +213,15 @@ impl Solver<'_, '_> {
 }
 
 impl Checked {
+    pub(in crate::semantic) fn capture_origin(
+        &self,
+        definition: SemanticDefinitionId,
+        ordinal: u32,
+        b: &mut Budget,
+    ) -> CompileResult<Option<LocalAnchor>> {
+        b.lookup(self.capture_origins.len(), WORK)?;
+        Ok(self.capture_origins.get(&(definition, ordinal)).copied())
+    }
     /// The original Γ selected this environment slot at the actual Name
     /// operation. A local shadow never enters this map, even with equal Type.
     pub(in crate::semantic) fn capture_recipe_ordinal(

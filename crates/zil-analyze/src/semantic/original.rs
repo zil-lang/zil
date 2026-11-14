@@ -126,7 +126,7 @@ enum Kind {
         environment: Vec<Term>,
     },
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum LocalAnchor {
     Parameter(u32),
     Binding(NodeId),
@@ -210,6 +210,7 @@ pub(super) struct Checked {
     patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
     environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
+    capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -679,9 +680,40 @@ impl Solver<'_, '_> {
                 }
                 self.unify(ar, zr, depth + 1, b)
             }
-            _ => Err(fail(
-                "original operation does not typecheck under its rigid declaration",
-            )),
+            _ => {
+                let describe = |kind: &Kind| match kind {
+                    Kind::Rigid(owner, ordinal) => format!(
+                        "Type formal {}:{} ordinal {}",
+                        owner.module.0, owner.index, ordinal
+                    ),
+                    Kind::SelfType(owner) => format!("Self {}:{}", owner.module.0, owner.index),
+                    Kind::Nominal { definition, .. } => {
+                        format!("nominal {}:{}", definition.module.0, definition.index)
+                    }
+                    Kind::Atom(ty) => format!("atom {ty:?}"),
+                    Kind::Desc { .. } => "description".into(),
+                    Kind::Address { mutable, .. } => format!("address mutable={mutable}"),
+                    Kind::Wrapped(wrapper, _) => match wrapper {
+                        Wrapper::Managed => "owning manager",
+                        Wrapper::Store => "Store payload",
+                        Wrapper::Mutex => "Mutex payload",
+                        Wrapper::Registration => "Registration payload",
+                        Wrapper::AsyncRegistration => "AsyncReg payload",
+                    }
+                    .into(),
+                    Kind::Life(life) => format!("life {life:?}"),
+                    _ => "complete compound/role term".into(),
+                };
+                b.spend(256, WORK)?;
+                let mut errors =
+                    fail("original operation does not typecheck under its rigid declaration");
+                errors[0].notes.push(format!(
+                    "left {}; right {}",
+                    describe(&self.state.arena[left]),
+                    describe(&self.state.arena[right])
+                ));
+                Err(errors)
+            }
         }
     }
     fn local(&self, frame: &Frame, name: &str, b: &mut Budget) -> CompileResult<Option<Term>> {
@@ -2168,6 +2200,62 @@ impl Solver<'_, '_> {
                         .iter()
                         .map(|(index, ty)| (*index, *ty))
                         .collect::<Vec<_>>();
+                    for (ordinal, environment) in child.environment.iter().enumerate() {
+                        crate::dyn_metadata::recipe(&environment.source, b)?;
+                        let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source:
+                                SemanticOriginalTypeSource::NameAt {
+                                    at: SemanticOriginalNode::Expression(at),
+                                    name,
+                                },
+                        }) = &environment.source
+                        else {
+                            continue;
+                        };
+                        if *at != value.id {
+                            return Err(fail(
+                                "captured lexical value is queried at another original creator",
+                            ));
+                        }
+                        let index=frame.locals.iter().rposition(|local|local.name==*name)
+                            .ok_or_else(||fail("captured lexical value has no original name binding at its creator"))?;
+                        b.spend(
+                            frame
+                                .locals
+                                .iter()
+                                .map(|local| local.name.len() + name.len() + 1)
+                                .sum(),
+                            WORK,
+                        )?;
+                        if !captures.iter().any(|(captured, _)| *captured == index) {
+                            continue;
+                        }
+                        let anchor = match frame.locals[index].anchor {
+                            Some(anchor) => anchor,
+                            None if index < frame.inherited => {
+                                self.environment_anchor(frame, name, b)?
+                            }
+                            None => {
+                                return Err(unknown(
+                                    "captured lexical binding needs its complete original pattern projection",
+                                ));
+                            }
+                        };
+                        let ordinal = u32::try_from(ordinal)
+                            .map_err(|_| resource("original capture ordinal overflow"))?;
+                        b.lookup(self.state.capture_origins.len(), WORK)?;
+                        if self
+                            .state
+                            .capture_origins
+                            .insert((target, ordinal), anchor)
+                            .is_some()
+                        {
+                            return Err(fail(
+                                "one original environment value has several creator bindings",
+                            ));
+                        }
+                    }
                     for (index, ty) in captures {
                         if index < frame.inherited {
                             b.lookup(frame.captured.len(), WORK)?;
@@ -2453,6 +2541,65 @@ impl Solver<'_, '_> {
                     )?;
                 }
                 CoreStatementKind::CompoundAssign { target, op, value } => {
+                    if let CoreExprKind::Unary {
+                        op: UnaryOp::Dereference,
+                        operand,
+                    } = &target.kind
+                    {
+                        let address = self.borrowed_argument(frame, operand, b, depth + 1)?;
+                        let Kind::Address {
+                            mutable: true,
+                            inner: expected,
+                            ..
+                        } = self.state.arena[self.type_root(address, b)?]
+                        else {
+                            return Err(fail(
+                                "original compound write requires its actual exclusive pointee",
+                            ));
+                        };
+                        Self::push(
+                            &mut self.needs,
+                            Need {
+                                term: expected,
+                                predicate: Predicate::Copy,
+                            },
+                            b,
+                        )?;
+                        let actual = self.expression(frame, value, b, depth + 1)?;
+                        self.unify(actual, expected, depth + 1, b)?;
+                        Self::push(&mut self.numeric, expected, b)?;
+                        if matches!(
+                            op,
+                            BinaryOp::Remainder
+                                | BinaryOp::BitAnd
+                                | BinaryOp::BitOr
+                                | BinaryOp::BitXor
+                                | BinaryOp::ShiftLeft
+                                | BinaryOp::ShiftRight
+                        ) {
+                            Self::push(&mut self.integers, expected, b)?;
+                        }
+                        if matches!(
+                            op,
+                            BinaryOp::And
+                                | BinaryOp::Or
+                                | BinaryOp::Equal
+                                | BinaryOp::NotEqual
+                                | BinaryOp::Less
+                                | BinaryOp::LessEqual
+                                | BinaryOp::Greater
+                                | BinaryOp::GreaterEqual
+                        ) {
+                            return Err(fail(
+                                "original compound write uses a non-assignment operator",
+                            ));
+                        }
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(target.id, expected).is_some() {
+                            return Err(fail("original compound pointee node is reused"));
+                        }
+                        continue;
+                    }
                     if matches!(target.kind, CoreExprKind::Index { .. }) {
                         self.index_compound(frame, target, *op, value, b, depth + 1)?;
                         continue;
@@ -3264,6 +3411,7 @@ pub(super) fn check(
             patterns: BTreeMap::new(),
             names_at: BTreeMap::new(),
             environment_reads: BTreeMap::new(),
+            capture_origins: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),

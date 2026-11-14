@@ -96,16 +96,19 @@ fn instance_zero(
     }
     if declaration.id.compiler {
         fee(b, 96)?;
-        if !matches!(instance.ty, Type::BorrowedStorage { .. })
-            || (!option_address::declaration(declaration)
+        if matches!(instance.ty, Type::BorrowedStorage { .. }) {
+            if !option_address::declaration(declaration)
                 && !enum_address::poll_declaration(declaration)
-                && !task_failure::declaration(declaration))
-        {
-            return Err(failure(
-                "zero nominal compiler declaration has no authentic consumer",
-            ));
+                && !task_failure::declaration(declaration)
+            {
+                return Err(failure(
+                    "zero nominal compiler declaration has no authentic complete role",
+                ));
+            }
+            nominal::rows(module, instance, limits, b)?;
+        } else {
+            compiler_zero(declaration, instance, storage, b)?;
         }
-        nominal::rows(module, instance, limits, b)?;
     }
     fee(
         b,
@@ -171,6 +174,85 @@ fn instance_zero(
     }
     physical_zero(module, storage, limits, b, active, depth + 1)?;
     active.pop();
+    Ok(())
+}
+
+fn compiler_zero(
+    declaration: &LifeNominalDeclaration,
+    instance: &LifeNominalInstance,
+    storage: &Type,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let Type::Enum { name, variants } = storage else {
+        return Err(failure(
+            "plain compiler nominal has no supported complete enum body",
+        ));
+    };
+    fee(b, name.len().saturating_add(variants.len() + 1))?;
+    if option_address::declaration(declaration) || enum_address::poll_declaration(declaration) {
+        let child = match instance.arguments.as_slice() {
+            [LifeNominalActual::Type(ty)] => ty,
+            [LifeNominalActual::QualifiedType { ty, life }] if empty(life) => ty,
+            _ => {
+                return Err(failure(
+                    "plain compiler enum loses its complete original Type actual",
+                ));
+            }
+        };
+        crate::dyn_metadata::ty(child, b)?;
+        let (empty_name, value_name) = if declaration.id == zil_ir::builtin_life::OPTION {
+            ("None", "Some")
+        } else {
+            ("Pending", "Ready")
+        };
+        if name.is_empty()
+            || !matches!(variants.as_slice(),[(none,empty),(some,fields)] if none==empty_name && empty.is_empty() && some==value_name && matches!(fields.as_slice(),[payload] if payload==child))
+        {
+            return Err(failure(
+                "plain compiler enum changes its canonical original variants or complete payload",
+            ));
+        }
+        return Ok(());
+    }
+    let (source, physical, expected): (&str, &str, &[&str]) = match declaration.id {
+        zil_ir::builtin_life::TASK_CREATE_ERROR => (
+            "TaskCreateError",
+            "@std.task:v1:TaskCreateError",
+            &["Allocation"],
+        ),
+        zil_ir::builtin_life::TASK_POLL_STATE => (
+            "TaskPollState",
+            "@std.task:v1:TaskPollState",
+            &["Complete", "Cancelled", "Invalid"],
+        ),
+        _ => {
+            return Err(failure(
+                "plain compiler nominal has no authentic sealed role",
+            ));
+        }
+    };
+    if declaration.kind != LifeNominalKind::Enum
+        || !declaration.parameters.is_empty()
+        || !instance.arguments.is_empty()
+        || declaration.identity.package != "@zil.builtin"
+        || declaration.identity.module_path != ["task"]
+        || declaration.identity.declaration_path != ["enum", source]
+        || !declaration.identity.generation_path.is_empty()
+        || name != physical
+        || variants.len() != expected.len()
+    {
+        return Err(failure(
+            "plain Task enum changes its original role identity, formals or physical declaration",
+        ));
+    }
+    for ((actual, fields), expected) in variants.iter().zip(expected) {
+        fee(b, actual.len().saturating_add(fields.len() + 1))?;
+        if actual.as_str() != *expected || !fields.is_empty() {
+            return Err(failure(
+                "plain Task enum changes its exact tag order or nullary payload",
+            ));
+        }
+    }
     Ok(())
 }
 

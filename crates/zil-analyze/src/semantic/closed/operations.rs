@@ -1230,6 +1230,7 @@ impl Check<'_, '_> {
                     b,
                 )?;
             }
+            let original_nodes = super::super::original_index::index(definition, b)?;
             for recipe in recipes {
                 b.spend(self.program.sites.len(), WORK)?;
                 if !self
@@ -1238,7 +1239,47 @@ impl Check<'_, '_> {
                     .iter()
                     .any(|site| site.instance == instance.id && site.recipe == recipe.id)
                 {
-                    return Err(fail("original emission recipe has no actual operation"));
+                    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
+                        &definition.body
+                    else {
+                        return Err(fail("emission coverage loses its original body"));
+                    };
+                    let mut selected = None;
+                    for link in site_nodes {
+                        b.spend(1, WORK)?;
+                        if link.site == recipe.id {
+                            let node = match link.node {
+                                SemanticOriginalNode::Expression(node)
+                                | SemanticOriginalNode::Statement(node) => node,
+                            };
+                            if selected.replace(node).is_some() {
+                                return Err(fail(
+                                    "emission coverage has duplicate original node links",
+                                ));
+                            }
+                        }
+                    }
+                    let node = selected
+                        .ok_or_else(|| fail("emission recipe has no original operation node"))?;
+                    // A raw source stage is proved universally as well. Its
+                    // selected CT execution is checked in the frozen context;
+                    // it is not an extra executable operation in this runtime.
+                    if original_nodes.erased(node, b)? {
+                        continue;
+                    }
+                    if let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind
+                        && original_nodes.navigation(node, b)?
+                    {
+                        let value = self.recipe_value(instance, expected, b, 0)?;
+                        self.actual_type(&value.ty, b)?;
+                        continue;
+                    }
+                    let mut errors = fail("original emission recipe has no actual operation");
+                    errors[0].notes.push(format!(
+                        "original module {} definition {} recipe {} node {}",
+                        definition.id.module.0, definition.id.index, recipe.id.0, node.0
+                    ));
+                    return Err(errors);
                 }
             }
             for block in &function.blocks {
