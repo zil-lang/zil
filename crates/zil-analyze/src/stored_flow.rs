@@ -4133,6 +4133,7 @@ fn transfer(
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let mutex_transfer = mutex::transfer(module, f, i, state, values, loans, b)?;
+    let mutex_operation = mutex_transfer.is_some();
     let failure_view = failure_projection(f, i, b)?;
     let failure_wrapper = task_failure::wrapper(f, i, state, values, b)?;
     let unpack_failure = failure_unpack(f, i, b)?;
@@ -5549,7 +5550,8 @@ fn transfer(
                     .is_some_and(super::stored_callables::exclusive_capture))
             || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_package_borrow(module, f, i, b)?
-            || owned_byte_views::instruction(module, f, i, b)?)
+            || owned_byte_views::instruction(module, f, i, b)?
+            || mutex_operation)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
         let id = result.0 as usize;
@@ -8814,7 +8816,9 @@ fn actual_instructions(
                         "borrowed Enum operation has no authenticated complete nominal instance",
                     ));
                 }
-                if !pure_copy::ordinary_owned_union(f, i, b)? {
+                if !pure_copy::ordinary_owned_union(f, i, b)?
+                    && !mutex::instruction(module, f, i, b)?
+                {
                     pure_copy::types(f, i, b)?;
                 }
             }

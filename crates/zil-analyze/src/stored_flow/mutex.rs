@@ -165,6 +165,31 @@ fn owner(ty: &Type) -> bool {
 fn description(ty: &Type) -> bool {
     matches!(ty,Type::Desc(payload) if manager(payload))
 }
+fn create_union(ty: &Type) -> bool {
+    matches!(ty,Type::ErrorUnion{error,result} if error.as_ref()==&crate::generic_mutex::error_type() && owner(result))
+}
+fn union_local<'a>(f: &'a TypedFunction, local: LocalId) -> CompileResult<&'a Type> {
+    f.locals
+        .get(local.0 as usize)
+        .filter(|row| row.id == local)
+        .map(|row| &row.ty)
+        .ok_or_else(|| failure("Mutex allocation union local is absent"))
+}
+fn union_arm(ty: &Type, is_error: bool) -> CompileResult<&Type> {
+    let Type::ErrorUnion { error, result } = ty else {
+        return Err(failure("Mutex allocation arm has no complete union"));
+    };
+    if !create_union(ty) {
+        return Err(failure(
+            "Mutex allocation arm selects another complete error/result family",
+        ));
+    }
+    Ok(if is_error {
+        error.as_ref()
+    } else {
+        result.as_ref()
+    })
+}
 fn guard_head(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     match ty {
         Type::Address { inner, .. } => guard(inner, b),
@@ -210,7 +235,7 @@ pub(super) fn admitted(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compi
         || guard(ty, b)?
         || guard_head(ty, b)?
         || matches!(ty,Type::Address{inner,..} if owner(inner))
-        || matches!(ty,Type::ErrorUnion{error,result} if error.as_ref()==&crate::generic_mutex::error_type() && owner(result));
+        || create_union(ty);
     if selected {
         resource(module, b)?;
     }
@@ -240,6 +265,73 @@ pub(super) fn instruction(
         },
     };
     let expected = match &i.kind {
+        InstructionKind::ErrorTag { value } if create_union(value_type(f, *value)?) => {
+            Some(Type::Bool)
+        }
+        InstructionKind::ReadErrorUnion { value, is_error }
+            if create_union(value_type(f, *value)?) =>
+        {
+            if !*is_error {
+                return Err(failure(
+                    "Mutex allocation success owner cannot be copied by ReadErrorUnion",
+                ));
+            }
+            Some(union_arm(value_type(f, *value)?, true)?.clone())
+        }
+        InstructionKind::TakeErrorUnion { value, is_error }
+            if create_union(value_type(f, *value)?) =>
+        {
+            Some(union_arm(value_type(f, *value)?, *is_error)?.clone())
+        }
+        InstructionKind::MakeErrorUnion { value, is_error } if output.is_some_and(create_union) => {
+            let union =
+                output.ok_or_else(|| failure("Mutex allocation union constructor omits result"))?;
+            if value_type(f, *value)? != union_arm(union, *is_error)? {
+                return Err(failure(
+                    "Mutex allocation union input changes its selected full arm",
+                ));
+            }
+            Some(union.clone())
+        }
+        InstructionKind::PlaceTagLocal { local, path } if create_union(union_local(f, *local)?) => {
+            if !path.is_empty() {
+                return Err(failure(
+                    "Mutex allocation tag observation changes its actual root place",
+                ));
+            }
+            Some(Type::I32)
+        }
+        InstructionKind::TakeVariantField { local, path }
+            if create_union(union_local(f, *local)?) =>
+        {
+            let [PlaceProjection::ErrorArm(is_error)] = path.as_slice() else {
+                return Err(failure(
+                    "Mutex allocation extraction changes its exact complete selected arm",
+                ));
+            };
+            Some(union_arm(union_local(f, *local)?, *is_error)?.clone())
+        }
+        InstructionKind::BorrowPlaceLocal {
+            local,
+            path,
+            mutable,
+        } if create_union(union_local(f, *local)?) => {
+            let [PlaceProjection::ErrorArm(is_error)] = path.as_slice() else {
+                return Err(failure(
+                    "Mutex allocation borrow changes its exact complete selected arm",
+                ));
+            };
+            if *mutable && !f.locals[local.0 as usize].mutable {
+                return Err(failure(
+                    "Mutex allocation place borrow upgrades an immutable actual local",
+                ));
+            }
+            Some(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(union_arm(union_local(f, *local)?, *is_error)?.clone()),
+            })
+        }
+        InstructionKind::DropErrorUnion { local } if create_union(union_local(f, *local)?) => None,
         InstructionKind::WithScopedThread { .. } if thread_scope(module, f, i, b)? => {
             Some(Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]))
         }
@@ -394,6 +486,40 @@ fn complete(permission: &Permission, text: &str, b: &mut Budget) -> CompileResul
     }
     Ok(())
 }
+fn allocation_value(value: &Value, b: &mut Budget) -> CompileResult<()> {
+    // The exact I32 allocation carrier has no embedded address, opaque class
+    // or environment. This checks the actual transfer fact as well as its
+    // type; unknown/nonempty rows cannot disappear under an error-tag test.
+    fee(
+        b,
+        value
+            .slots
+            .len()
+            .saturating_add(value.environment.len())
+            .saturating_add(value.task_ports.len())
+            .saturating_add(value.dyn_ports.len())
+            .saturating_add(1),
+    )?;
+    for permission in [&value.pointer, &value.held, &value.store_description] {
+        target_work(&permission.targets, b)?;
+        fee(b, permission.loans.len())?;
+        if !permission.targets.is_empty() || !permission.loans.is_empty() {
+            return Err(failure(
+                "Mutex allocation carrier unexpectedly retains actual stored permissions",
+            ));
+        }
+    }
+    if !value.slots.is_empty()
+        || !value.environment.is_empty()
+        || !value.task_ports.is_empty()
+        || !value.dyn_ports.is_empty()
+    {
+        return Err(failure(
+            "Mutex allocation carrier has an unproved intrinsic source directory",
+        ));
+    }
+    Ok(())
+}
 pub(super) fn seed(
     module: &TypedModule,
     ty: &Type,
@@ -477,6 +603,46 @@ pub(super) fn transfer(
     };
     let mut out = Value::default();
     match &i.kind {
+        InstructionKind::ErrorTag { value }
+        | InstructionKind::ReadErrorUnion { value, .. }
+        | InstructionKind::TakeErrorUnion { value, .. }
+            if create_union(value_type(f, *value)?) =>
+        {
+            allocation_value(get(*value)?, b)?;
+        }
+        InstructionKind::MakeErrorUnion { value, .. }
+            if i.result
+                .map(|id| value_type(f, id))
+                .transpose()?
+                .is_some_and(create_union) =>
+        {
+            allocation_value(get(*value)?, b)?;
+        }
+        InstructionKind::PlaceTagLocal { local, .. } if create_union(union_local(f, *local)?) => {
+            if let Some(value) = state.locals.get(local) {
+                allocation_value(value, b)?;
+            }
+        }
+        InstructionKind::TakeVariantField { local, .. }
+        | InstructionKind::DropErrorUnion { local }
+            if create_union(union_local(f, *local)?) =>
+        {
+            if let Some(value) = state.locals.remove(local) {
+                allocation_value(&value, b)?;
+            }
+            clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::BorrowPlaceLocal { local, path, .. }
+            if create_union(union_local(f, *local)?) =>
+        {
+            if let Some(value) = state.locals.get(local) {
+                allocation_value(value, b)?;
+            }
+            fee(b, path.len().saturating_add(1))?;
+            let mut root = target(local_capture_base(state, *local, b)?);
+            root.place = path.clone();
+            out.pointer.targets.insert(root);
+        }
         InstructionKind::WithScopedThread { .. } if thread_scope(module, f, i, b)? => {
             // Joining the actual worker is proved by the synchronization
             // kernel; this scalar result exports neither a guard nor data.
@@ -642,6 +808,35 @@ pub(super) fn accesses(
     };
     let mut out = Vec::new();
     match &i.kind {
+        InstructionKind::BorrowPlaceLocal {
+            local,
+            path,
+            mutable,
+        } if create_union(union_local(f, *local)?) => {
+            fee(b, path.len().saturating_add(1))?;
+            let mut root = target(local_capture_base(state, *local, b)?);
+            root.place = path.clone();
+            out.push((
+                Permission {
+                    targets: Targets::from([root]),
+                    loans: Loans::new(),
+                },
+                *mutable,
+            ));
+        }
+        InstructionKind::TakeVariantField { local, .. }
+        | InstructionKind::DropErrorUnion { local }
+            if create_union(union_local(f, *local)?) =>
+        {
+            fee(b, 1)?;
+            out.push((
+                Permission {
+                    targets: Targets::from([target(local_capture_base(state, *local, b)?)]),
+                    loans: Loans::new(),
+                },
+                true,
+            ));
+        }
         InstructionKind::WithScopedThread { argument, .. } if thread_scope(module, f, i, b)? => {
             let manager = &get(*argument)?.store_description;
             complete(
