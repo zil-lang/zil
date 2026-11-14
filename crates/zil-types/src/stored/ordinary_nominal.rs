@@ -882,6 +882,17 @@ impl<'a> Check<'a, '_> {
         self.node(depth)?;
         match ty {
             Type::Closure(id) => self.closure(*id, depth + 1),
+            Type::Opaque { hidden, .. } => {
+                // The actual Type carries its complete hidden representation;
+                // identity is preserved, never replaced by the child Type.
+                // This visitor counts only that persistent representation. It
+                // grants no original opaque equality, capability or where
+                // fact. Full source-definition/actual/call-result transport is
+                // separately mandatory in materialization and nominal_catalog.
+                // Any retained class in a qualified child or closure directory
+                // still prevents this zero-domain conclusion.
+                self.ty(hidden, depth + 1)
+            }
             ty if ty.is_b0_scalar() => Ok(()),
             Type::TaskI32
             | Type::ByteBuffer
@@ -1120,9 +1131,21 @@ impl<'a> Check<'a, '_> {
             }
             // Missing opaque, callable, address, declaration or phantom
             // inventories are Unknown. Empty visible fields are no substitute.
-            _ => Err(unknown(
-                "ordinary nominal child has no complete known-zero persistent domain",
-            )),
+            _ => {
+                inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
+                fee(
+                    self.left,
+                    self.active.len().saturating_add(32),
+                    Span::default(),
+                )?;
+                let mut diagnostic =
+                    unknown("ordinary nominal child has no complete known-zero persistent domain");
+                diagnostic.notes.push(format!(
+                    "actual persistent child type {:?}; active nominal row indices {:?}",
+                    ty, self.active
+                ));
+                Err(diagnostic)
+            }
         }
     }
 }
