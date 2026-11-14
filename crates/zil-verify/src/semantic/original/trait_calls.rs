@@ -3,7 +3,7 @@
 use super::*;
 mod applications;
 mod materialize;
-pub(in crate::semantic) use materialize::TraitCallRecipes;
+pub(in crate::semantic) use materialize::{TraitCallRecipes,MethodActualRecipe};
 
 #[derive(Clone)]
 pub(super) struct TraitCall{pub receiver:Ty,pub declaration:LifeDeclarationId,pub arguments:Vec<Arg>,pub member:u32,pub actuals:Vec<Arg>,pub node:NodeId,pub receiver_mode:Option<StoredBorrowMode>}

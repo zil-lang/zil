@@ -8,7 +8,7 @@ impl CheckedContext {
     pub(super) fn actual_trait_member(&self,module:&TypedModule,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let receiver=self.evaluate_type(module,&original.receiver,environment,external,active,b)?;
         let application=self.application(module,&original.application,environment,external,active,b)?;
-        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(self.evaluate_actual(module,recipe,environment,external,active,b)?);}
+        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,environment,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,environment,b)?)});}
         let receipt=select_original_member(external,module,self,environment,&receiver,&application,original.member,&actuals,active,b)?;
         if receipt.member!=original.member||receipt.application!=application||receipt.receiver!=receiver{return Err(bad("actual member selection changes its complete requested identity"));}
         let programme=module.semantic.as_ref().ok_or_else(||bad("actual member call lacks the original programme"))?;

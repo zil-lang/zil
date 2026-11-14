@@ -35,7 +35,7 @@ mod constructors;
 mod associated;
 mod trait_methods;
 mod trait_calls;
-pub(in crate::semantic) use trait_calls::TraitCallRecipes;
+pub(in crate::semantic) use trait_calls::{TraitCallRecipes,MethodActualRecipe};
 mod raw_schemes;
 mod opaque;
 pub(super) mod intrinsics;
