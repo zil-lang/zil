@@ -126,6 +126,11 @@ enum Work<'a> {
     SemanticOriginalQuoteNameSite(&'a SemanticOriginalQuoteNameSite),
     SemanticOriginalSyntaxTree(&'a SemanticOriginalSyntaxTree),
     SemanticOriginalSyntaxTreeEntry(&'a SemanticOriginalSyntaxTreeEntry),
+    ProtocolState(&'a ProtocolState),
+    ProtocolKind(&'a ProtocolKind),
+    ProtocolExit(&'a ProtocolExit),
+    ProtocolTransition(&'a ProtocolTransition),
+    FunctionProtocolContract(&'a FunctionProtocolContract),
     DynOwnedStorage(&'a DynOwnedStorage),
     DynSelfPattern(&'a DynSelfPattern),
     DynPatternActual(&'a DynPatternActual),
@@ -819,6 +824,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
                 SemanticDefinitionBody::FunctionWithBody {
                     signature,
+                    protocol_contracts,
                     sites,
                     parameters,
                     receiver_parameter,
@@ -847,6 +853,10 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                         pending.push(Work::SemanticSiteRecipe(item));
                     }
                     pending.push(Work::Length((sites).len()));
+                    for item in (protocol_contracts).iter().rev() {
+                        pending.push(Work::FunctionProtocolContract(item));
+                    }
+                    pending.push(Work::Length((protocol_contracts).len()));
                     pending.push(Work::SemanticSignatureRecipe(signature));
                     b.push(3);
                 }
@@ -2827,6 +2837,59 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     b.push(2);
                 }
             },
+            Work::ProtocolState(value) => match value {
+                ProtocolState::Open => {
+                    b.push(0);
+                }
+                ProtocolState::Closing => {
+                    b.push(1);
+                }
+                ProtocolState::Closed => {
+                    b.push(2);
+                }
+            },
+            Work::ProtocolKind(value) => match value {
+                ProtocolKind::AsyncRegistrationV1 => {
+                    b.push(0);
+                }
+            },
+            Work::ProtocolExit(value) => match value {
+                ProtocolExit::Return => {
+                    b.push(0);
+                }
+                ProtocolExit::ErrorOk => {
+                    b.push(1);
+                }
+                ProtocolExit::ErrorErr => {
+                    b.push(2);
+                }
+                ProtocolExit::PollPending => {
+                    b.push(3);
+                }
+                ProtocolExit::PollReady => {
+                    b.push(4);
+                }
+            },
+            Work::ProtocolTransition(value) => {
+                for item in value.output.iter().rev() {
+                    pending.push(Work::ProtocolState(item));
+                }
+                pending.push(Work::Length(value.output.len()));
+                pending.push(Work::ProtocolExit(&value.exit));
+                pending.push(Work::ProtocolState(&value.input));
+            }
+            Work::FunctionProtocolContract(value) => {
+                for item in value.exits.iter().rev() {
+                    pending.push(Work::ProtocolTransition(item));
+                }
+                pending.push(Work::Length(value.exits.len()));
+                for item in value.entry.iter().rev() {
+                    pending.push(Work::ProtocolState(item));
+                }
+                pending.push(Work::Length(value.entry.len()));
+                pending.push(Work::Word(value.parameter));
+                pending.push(Work::ProtocolKind(&value.protocol));
+            }
             Work::DynOwnedStorage(value) => match value {
                 DynOwnedStorage::Heap => {
                     b.push(0);

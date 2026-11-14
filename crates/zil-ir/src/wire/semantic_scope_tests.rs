@@ -187,6 +187,16 @@ fn original_body_and_parameter_bindings_survive_without_a_typed_instance() {
     signature.result = ty.clone();
     raw.definitions[0].body = SemanticDefinitionBody::FunctionWithBody {
         signature,
+        protocol_contracts: vec![FunctionProtocolContract {
+            protocol: ProtocolKind::AsyncRegistrationV1,
+            parameter: 1,
+            entry: vec![ProtocolState::Closing, ProtocolState::Closed],
+            exits: vec![ProtocolTransition {
+                input: ProtocolState::Closing,
+                exit: ProtocolExit::PollReady,
+                output: vec![ProtocolState::Closed],
+            }],
+        }],
         sites: vec![],
         parameters: ["x", "y"]
             .into_iter()
@@ -219,6 +229,33 @@ fn original_body_and_parameter_bindings_survive_without_a_typed_instance() {
     assert_eq!(decode(&bytes, &limits).unwrap(), raw);
     let mut fingerprint = Vec::new();
     crate::encode_semantic_module(&mut fingerprint, &raw);
+    let original = raw.clone();
+    // This is raw transport, including untrusted protocol claims. None of
+    // these records can establish a resource state without semantic checking.
+    for mutation in 0..6 {
+        let mut changed = original.clone();
+        let SemanticDefinitionBody::FunctionWithBody {
+            protocol_contracts, ..
+        } = &mut changed.definitions[0].body
+        else {
+            unreachable!()
+        };
+        let row = &mut protocol_contracts[0];
+        match mutation {
+            0 => row.parameter = 0,
+            1 => row.entry[0] = ProtocolState::Open,
+            2 => row.exits[0].input = ProtocolState::Closed,
+            3 => row.exits[0].exit = ProtocolExit::PollPending,
+            4 => row.exits[0].output[0] = ProtocolState::Closing,
+            _ => protocol_contracts.clear(),
+        }
+        let changed_bytes = encode(&changed, &limits).unwrap();
+        assert_ne!(changed_bytes, bytes);
+        assert_eq!(decode(&changed_bytes, &limits).unwrap(), changed);
+        let mut identity = Vec::new();
+        crate::encode_semantic_module(&mut identity, &changed);
+        assert_ne!(identity, fingerprint);
+    }
     let SemanticDefinitionBody::FunctionWithBody { parameters, .. } = &mut raw.definitions[0].body
     else {
         unreachable!()

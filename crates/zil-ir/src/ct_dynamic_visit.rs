@@ -2318,6 +2318,7 @@ impl CtDynamicMetadata for CtSemanticDefinitionBody {
             }
             Self::FunctionWithBody {
                 signature: field_signature,
+                protocol_contracts: field_protocol_contracts,
                 sites: field_sites,
                 parameters: field_parameters,
                 receiver_parameter: field_receiver_parameter,
@@ -2326,6 +2327,15 @@ impl CtDynamicMetadata for CtSemanticDefinitionBody {
                 body: field_body,
             } => {
                 (field_signature).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.vector_storage(
+                    (field_protocol_contracts).len(),
+                    (field_protocol_contracts).capacity(),
+                    std::mem::size_of::<CtFunctionProtocolContract>(),
+                    depth + 1,
+                )?;
+                for item in field_protocol_contracts {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
                 visitor.vector_storage(
                     (field_sites).len(),
                     (field_sites).capacity(),
@@ -5710,6 +5720,103 @@ impl CtDynamicMetadata for CtSemanticOriginalSyntaxTreeEntry {
                 let _ = field_span;
                 visitor.node(depth + 1)?;
             }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtProtocolState {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Open => {}
+            Self::Closing => {}
+            Self::Closed => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtProtocolKind {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::AsyncRegistrationV1 => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtProtocolExit {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Return => {}
+            Self::ErrorOk => {}
+            Self::ErrorErr => {}
+            Self::PollPending => {}
+            Self::PollReady => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtProtocolTransition {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.input).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.exit).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.vector_storage(
+            (self.output).len(),
+            (self.output).capacity(),
+            std::mem::size_of::<CtProtocolState>(),
+            depth + 1,
+        )?;
+        for item in &self.output {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtFunctionProtocolContract {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.protocol).visit_ct_dynamic(visitor, depth + 1)?;
+        let _ = &self.parameter;
+        visitor.node(depth + 1)?;
+        visitor.vector_storage(
+            (self.entry).len(),
+            (self.entry).capacity(),
+            std::mem::size_of::<CtProtocolState>(),
+            depth + 1,
+        )?;
+        for item in &self.entry {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.vector_storage(
+            (self.exits).len(),
+            (self.exits).capacity(),
+            std::mem::size_of::<CtProtocolTransition>(),
+            depth + 1,
+        )?;
+        for item in &self.exits {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         Ok(())
     }

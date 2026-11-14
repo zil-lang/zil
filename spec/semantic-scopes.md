@@ -83,7 +83,9 @@ Bound depth 只计算实际非零量词 frame：ForAll.lifetimes 或 Signature.b
 
 ## 运输与资源
 
-Runtime schema/Wire 和 Typed 身份域为 49，CT artifact 与依赖身份域为 9。完整原始记录进入 Wire、指纹、遍历、CT 类型 DAG、克隆和重定位；不支持的可执行消费者明确拒绝，不得抹掉 Some 目录继续处理。旧版本和未知版本拒绝，历史固定字节保留。
+Runtime schema/Wire 和 Typed 身份域为 50，CT artifact 与依赖身份域为 10。完整原始记录进入 Wire、指纹、遍历、CT 类型 DAG、克隆和重定位；不支持的可执行消费者明确拒绝，不得抹掉 Some 目录继续处理。旧版本和未知版本拒绝，历史固定字节保留。
+
+FunctionWithBody.protocol_contracts 直接保留原函数声明的完整有限协议关系，复用 FunctionProtocolContract。parameter 是该定义原有序 value parameters 的序号，包含真实 receiver，不包含之后增加的隐藏 ABI 参数。原入口状态是条件证明的假设；每个原调用须先证明真实对应位置满足入口，再使用已从所有原 body 出口证明的关系。缺表不提供 Closing/Closed，也不证明调用没有状态影响。原表从变换前的源声明独立生产，实际 Typed 表只能用于完整桥接比较及实际 CFG 核验，不能补原前提。原/实际参数通过真实 ABI 对应，不能按名字、相同类型或首个 owner 猜测。所有实际根、代次、Poll 来源、状态失效和清理仍独立检查。
 
 不可信输入在分配、克隆、哈希和缓存前支付完整节点、字节、深度与工作费用。冷、热、失败重试和重新请求均遵守实际请求预算；结构运输与语义解释分别收费，不能把运输费用测试当成 Analyze/Verify 语义预算证明。
 

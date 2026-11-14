@@ -713,7 +713,7 @@
     },
     "lexical_semantic_program": {
       "authority": "spec/semantic-scopes.md",
-      "representation": "Runtime/Wire49, Typed identity V49 and CT9 complete untrusted lexical semantic program; deferred Core types and full actual recipes must be entirely materialized before Typed execution.",
+      "representation": "Runtime/Wire50, Typed identity V50 and CT10 complete untrusted lexical semantic program; deferred Core types and full actual recipes must be entirely materialized before Typed execution.",
       "independence": "Source original emission ledger; Types complete resolution and WF; Analyze and Verify independent original recipe, rigid/partition, actual site and full value/resource flow checks. Unknown or unresolved inputs never become an empty proven domain.",
       "acceptance": "Exact Source, raw/Wire and actual native consumers with nearest identity/class/source/cycle/cleanup negatives and unchanged default budget boundaries. Public transport success alone grants no capability."
     }

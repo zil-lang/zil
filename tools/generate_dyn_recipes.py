@@ -7,6 +7,12 @@ original_items = original_ast_items(Path(root) / 'lib.rs')
 items = declarations(Path(root) / 'dynamic_recipes.rs')
 items.update(declarations(Path(root) / 'semantic_scopes.rs'))
 items.update(original_items)
+# Original function phase obligations reuse the complete finite public
+# protocol grammar; no execution identity or proof is transported here.
+items.update(declarations(Path(root) / 'lib.rs', {
+    'FunctionProtocolContract', 'ProtocolTransition', 'ProtocolKind',
+    'ProtocolState', 'ProtocolExit',
+}))
 # The shared original AST has a real owning-erasure route, not an opaque byte.
 items.update(declarations(Path(root) / 'dynamic.rs', {'DynOwnedStorage'}))
 # The declaration-scoped pattern tags retain existing variant order; all new

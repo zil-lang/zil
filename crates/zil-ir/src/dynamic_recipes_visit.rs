@@ -145,141 +145,149 @@ enum Work<'a> {
     W110(&'a LifeNominalKind, usize),
     W111(&'a SemanticNominalBody, usize),
     W112(&'a SemanticScopeRecipe, usize),
-    W113(&'a Vec<SemanticOriginalClosureParameter>, usize),
-    W114(&'a SemanticOriginalClosureParameter, usize),
-    W115(&'a Option<u32>, usize),
-    W116(&'a Vec<SemanticOriginalNameBinding>, usize),
-    W117(&'a SemanticOriginalNameBinding, usize),
-    W118(&'a Vec<SemanticOriginalSiteNode>, usize),
-    W119(&'a SemanticOriginalSiteNode, usize),
-    W120(&'a SemanticOriginalFunctionBody, usize),
-    W121(&'a SemanticOriginalBlock, usize),
-    W122(&'a SemanticOriginalTypeSource, usize),
-    W123(&'a SemanticOriginalNode, usize),
-    W124(&'a String, usize),
-    W125(&'a SemanticOriginalNamespace, usize),
-    W126(&'a Vec<String>, usize),
-    W127(&'a SemanticOriginalNameValue, usize),
-    W128(&'a SemanticActualRecipe, usize),
-    W129(&'a SemanticSiteId, usize),
-    W130(&'a SemanticTypeRecipe, usize),
-    W131(&'a SemanticTraitRecipe, usize),
-    W132(&'a SemanticBuiltinTrait, usize),
-    W133(&'a Vec<SemanticFieldRecipe>, usize),
-    W134(&'a SemanticFieldRecipe, usize),
-    W135(&'a Vec<SemanticVariantRecipe>, usize),
-    W136(&'a SemanticVariantRecipe, usize),
-    W137(&'a Vec<SemanticTypeRecipe>, usize),
-    W138(&'a SemanticInstanceTarget, usize),
-    W139(&'a SemanticLifetimeInstantiation, usize),
-    W140(&'a Option<SemanticInstanceId>, usize),
-    W141(&'a Vec<SemanticActual>, usize),
-    W142(&'a SemanticActual, usize),
-    W143(&'a Vec<SemanticHeaderBinding>, usize),
-    W144(&'a SemanticHeaderBinding, usize),
-    W145(&'a Option<SemanticEnvironmentInstance>, usize),
-    W146(&'a SemanticEnvironmentInstance, usize),
-    W147(&'a Option<SemanticTypeValue>, usize),
-    W148(&'a SemanticTypeValue, usize),
-    W149(&'a SemanticFunctionTarget, usize),
-    W150(&'a SemanticClosureTarget, usize),
-    W151(&'a ClosureId, usize),
-    W152(&'a SemanticClassExpr, usize),
-    W153(&'a SemanticCoreTypeSource, usize),
-    W154(&'a Vec<SemanticClassExpr>, usize),
-    W155(&'a SemanticScopeRef, usize),
-    W156(&'a SemanticOperand, usize),
-    W157(&'a Vec<LifeTypeProjection>, usize),
-    W158(&'a LifeTypeProjection, usize),
-    W159(&'a ValueId, usize),
-    W160(&'a LocalId, usize),
-    W161(&'a SemanticSiteRecipeKind, usize),
-    W162(&'a Vec<SemanticActualRecipe>, usize),
-    W163(&'a SemanticSiteAddress, usize),
-    W164(&'a SemanticSiteAction, usize),
-    W165(&'a SemanticEmissionRole, usize),
-    W166(&'a BlockId, usize),
-    W167(&'a SemanticSiteEdge, usize),
-    W168(&'a SemanticLocalTarget, usize),
-    W169(&'a SemanticRecipeOperand, usize),
-    W170(&'a SemanticFormalRef, usize),
-    W171(&'a SemanticLifeRecipe, usize),
-    W172(&'a SemanticOuterLifeRecipe, usize),
-    W173(&'a SemanticExactTypeRecipe, usize),
-    W174(&'a SemanticConstRecipe, usize),
-    W175(&'a SemanticRetainedShapeRecipe, usize),
-    W176(&'a SemanticStorageShapeRecipe, usize),
-    W177(&'a SemanticCodeKind, usize),
-    W178(&'a SemanticDynInterfaceRecipe, usize),
-    W179(&'a Vec<SemanticLifeRecipe>, usize),
-    W180(&'a SemanticClassSequenceRecipe, usize),
-    W181(&'a Vec<SemanticClassSequencePart>, usize),
-    W182(&'a SemanticClassSequencePart, usize),
-    W183(&'a Vec<SemanticSlotRecipe>, usize),
-    W184(&'a SemanticSlotRecipe, usize),
-    W185(&'a Vec<SemanticRetainedPart>, usize),
-    W186(&'a SemanticRetainedPart, usize),
-    W187(&'a Vec<SemanticNominalPart>, usize),
-    W188(&'a SemanticNominalPart, usize),
-    W189(&'a Vec<PlaceProjection>, usize),
-    W190(&'a PlaceProjection, usize),
-    W191(&'a Vec<SemanticPortPart>, usize),
-    W192(&'a SemanticPortPart, usize),
-    W193(&'a UnaryOp, usize),
-    W194(&'a BinaryOp, usize),
-    W195(&'a Vec<SemanticParameterRecipe>, usize),
-    W196(&'a SemanticParameterRecipe, usize),
-    W197(&'a SemanticDynContextRecipe, usize),
-    W198(&'a Vec<SemanticAssociatedBindingRecipe>, usize),
-    W199(&'a SemanticAssociatedBindingRecipe, usize),
-    W200(&'a SemanticAssociatedRecipe, usize),
-    W201(&'a Option<SemanticTypeRecipe>, usize),
-    W202(&'a Span, usize),
-    W203(&'a SemanticOriginalPattern, usize),
-    W204(&'a SemanticOriginalPatternKind, usize),
-    W205(&'a Vec<SemanticOriginalPattern>, usize),
-    W206(&'a Vec<(String, SemanticOriginalPattern)>, usize),
-    W207(&'a (String, SemanticOriginalPattern), usize),
-    W208(&'a SemanticOriginalMatchArm, usize),
-    W209(&'a Vec<SemanticOriginalStatement>, usize),
-    W210(&'a SemanticOriginalStatement, usize),
-    W211(&'a SemanticOriginalStatementKind, usize),
-    W212(&'a Option<SemanticOriginalExpr>, usize),
-    W213(&'a SemanticOriginalExpr, usize),
-    W214(&'a Option<SemanticOriginalBlock>, usize),
-    W215(&'a Vec<SemanticOriginalMatchArm>, usize),
-    W216(&'a SemanticOriginalExprKind, usize),
-    W217(&'a DynInterfaceId, usize),
-    W218(&'a DynVtableId, usize),
-    W219(&'a DynOwnedStorage, usize),
-    W220(&'a Vec<SemanticOriginalExpr>, usize),
-    W221(&'a Option<Box<SemanticOriginalExpr>>, usize),
-    W222(&'a Vec<(String, SemanticOriginalExpr)>, usize),
-    W223(&'a (String, SemanticOriginalExpr), usize),
-    W224(&'a SemanticOriginalSyntaxCategory, usize),
-    W225(&'a SemanticOriginalQuoteTemplate, usize),
-    W226(&'a SemanticOriginalSyntaxTree, usize),
-    W227(&'a Vec<SemanticOriginalGenericArgument>, usize),
-    W228(&'a SemanticOriginalGenericArgument, usize),
-    W229(&'a SemanticOriginalQuoteHole, usize),
-    W230(&'a SemanticOriginalQuoteHoleKind, usize),
-    W231(&'a Vec<SemanticOriginalQuoteHole>, usize),
-    W232(&'a Vec<SemanticOriginalQuoteNameSite>, usize),
-    W233(&'a SemanticOriginalQuoteNameSite, usize),
-    W234(&'a SemanticOriginalSyntaxDelimiter, usize),
-    W235(&'a SemanticOriginalQuoteNameNamespace, usize),
-    W236(&'a SemanticOriginalQuoteNameRole, usize),
-    W237(&'a Vec<SemanticOriginalSyntaxTreeEntry>, usize),
-    W238(&'a SemanticOriginalSyntaxTreeEntry, usize),
-    W239(&'a Vec<DynPatternActual>, usize),
-    W240(&'a DynPatternActual, usize),
-    W241(&'a Option<DynLifePattern>, usize),
-    W242(&'a Vec<DynTypePattern>, usize),
-    W243(&'a VariantProjection, usize),
-    W244(&'a StorageSourceBinding, usize),
-    W245(&'a Vec<StorageSource>, usize),
-    W246(&'a StorageSource, usize),
-    W247(&'a DynResultSource, usize),
+    W113(&'a Vec<FunctionProtocolContract>, usize),
+    W114(&'a FunctionProtocolContract, usize),
+    W115(&'a Vec<SemanticOriginalClosureParameter>, usize),
+    W116(&'a SemanticOriginalClosureParameter, usize),
+    W117(&'a Option<u32>, usize),
+    W118(&'a Vec<SemanticOriginalNameBinding>, usize),
+    W119(&'a SemanticOriginalNameBinding, usize),
+    W120(&'a Vec<SemanticOriginalSiteNode>, usize),
+    W121(&'a SemanticOriginalSiteNode, usize),
+    W122(&'a SemanticOriginalFunctionBody, usize),
+    W123(&'a SemanticOriginalBlock, usize),
+    W124(&'a SemanticOriginalTypeSource, usize),
+    W125(&'a SemanticOriginalNode, usize),
+    W126(&'a String, usize),
+    W127(&'a SemanticOriginalNamespace, usize),
+    W128(&'a Vec<String>, usize),
+    W129(&'a SemanticOriginalNameValue, usize),
+    W130(&'a SemanticActualRecipe, usize),
+    W131(&'a SemanticSiteId, usize),
+    W132(&'a SemanticTypeRecipe, usize),
+    W133(&'a SemanticTraitRecipe, usize),
+    W134(&'a SemanticBuiltinTrait, usize),
+    W135(&'a Vec<SemanticFieldRecipe>, usize),
+    W136(&'a SemanticFieldRecipe, usize),
+    W137(&'a Vec<SemanticVariantRecipe>, usize),
+    W138(&'a SemanticVariantRecipe, usize),
+    W139(&'a Vec<SemanticTypeRecipe>, usize),
+    W140(&'a SemanticInstanceTarget, usize),
+    W141(&'a SemanticLifetimeInstantiation, usize),
+    W142(&'a Option<SemanticInstanceId>, usize),
+    W143(&'a Vec<SemanticActual>, usize),
+    W144(&'a SemanticActual, usize),
+    W145(&'a Vec<SemanticHeaderBinding>, usize),
+    W146(&'a SemanticHeaderBinding, usize),
+    W147(&'a Option<SemanticEnvironmentInstance>, usize),
+    W148(&'a SemanticEnvironmentInstance, usize),
+    W149(&'a Option<SemanticTypeValue>, usize),
+    W150(&'a SemanticTypeValue, usize),
+    W151(&'a SemanticFunctionTarget, usize),
+    W152(&'a SemanticClosureTarget, usize),
+    W153(&'a ClosureId, usize),
+    W154(&'a SemanticClassExpr, usize),
+    W155(&'a SemanticCoreTypeSource, usize),
+    W156(&'a Vec<SemanticClassExpr>, usize),
+    W157(&'a SemanticScopeRef, usize),
+    W158(&'a SemanticOperand, usize),
+    W159(&'a Vec<LifeTypeProjection>, usize),
+    W160(&'a LifeTypeProjection, usize),
+    W161(&'a ValueId, usize),
+    W162(&'a LocalId, usize),
+    W163(&'a SemanticSiteRecipeKind, usize),
+    W164(&'a Vec<SemanticActualRecipe>, usize),
+    W165(&'a SemanticSiteAddress, usize),
+    W166(&'a SemanticSiteAction, usize),
+    W167(&'a SemanticEmissionRole, usize),
+    W168(&'a BlockId, usize),
+    W169(&'a SemanticSiteEdge, usize),
+    W170(&'a SemanticLocalTarget, usize),
+    W171(&'a SemanticRecipeOperand, usize),
+    W172(&'a SemanticFormalRef, usize),
+    W173(&'a SemanticLifeRecipe, usize),
+    W174(&'a SemanticOuterLifeRecipe, usize),
+    W175(&'a SemanticExactTypeRecipe, usize),
+    W176(&'a SemanticConstRecipe, usize),
+    W177(&'a SemanticRetainedShapeRecipe, usize),
+    W178(&'a SemanticStorageShapeRecipe, usize),
+    W179(&'a SemanticCodeKind, usize),
+    W180(&'a SemanticDynInterfaceRecipe, usize),
+    W181(&'a Vec<SemanticLifeRecipe>, usize),
+    W182(&'a SemanticClassSequenceRecipe, usize),
+    W183(&'a Vec<SemanticClassSequencePart>, usize),
+    W184(&'a SemanticClassSequencePart, usize),
+    W185(&'a Vec<SemanticSlotRecipe>, usize),
+    W186(&'a SemanticSlotRecipe, usize),
+    W187(&'a Vec<SemanticRetainedPart>, usize),
+    W188(&'a SemanticRetainedPart, usize),
+    W189(&'a Vec<SemanticNominalPart>, usize),
+    W190(&'a SemanticNominalPart, usize),
+    W191(&'a Vec<PlaceProjection>, usize),
+    W192(&'a PlaceProjection, usize),
+    W193(&'a Vec<SemanticPortPart>, usize),
+    W194(&'a SemanticPortPart, usize),
+    W195(&'a UnaryOp, usize),
+    W196(&'a BinaryOp, usize),
+    W197(&'a Vec<SemanticParameterRecipe>, usize),
+    W198(&'a SemanticParameterRecipe, usize),
+    W199(&'a SemanticDynContextRecipe, usize),
+    W200(&'a Vec<SemanticAssociatedBindingRecipe>, usize),
+    W201(&'a SemanticAssociatedBindingRecipe, usize),
+    W202(&'a SemanticAssociatedRecipe, usize),
+    W203(&'a Option<SemanticTypeRecipe>, usize),
+    W204(&'a Span, usize),
+    W205(&'a SemanticOriginalPattern, usize),
+    W206(&'a SemanticOriginalPatternKind, usize),
+    W207(&'a Vec<SemanticOriginalPattern>, usize),
+    W208(&'a Vec<(String, SemanticOriginalPattern)>, usize),
+    W209(&'a (String, SemanticOriginalPattern), usize),
+    W210(&'a SemanticOriginalMatchArm, usize),
+    W211(&'a Vec<SemanticOriginalStatement>, usize),
+    W212(&'a SemanticOriginalStatement, usize),
+    W213(&'a SemanticOriginalStatementKind, usize),
+    W214(&'a Option<SemanticOriginalExpr>, usize),
+    W215(&'a SemanticOriginalExpr, usize),
+    W216(&'a Option<SemanticOriginalBlock>, usize),
+    W217(&'a Vec<SemanticOriginalMatchArm>, usize),
+    W218(&'a SemanticOriginalExprKind, usize),
+    W219(&'a DynInterfaceId, usize),
+    W220(&'a DynVtableId, usize),
+    W221(&'a DynOwnedStorage, usize),
+    W222(&'a Vec<SemanticOriginalExpr>, usize),
+    W223(&'a Option<Box<SemanticOriginalExpr>>, usize),
+    W224(&'a Vec<(String, SemanticOriginalExpr)>, usize),
+    W225(&'a (String, SemanticOriginalExpr), usize),
+    W226(&'a SemanticOriginalSyntaxCategory, usize),
+    W227(&'a SemanticOriginalQuoteTemplate, usize),
+    W228(&'a SemanticOriginalSyntaxTree, usize),
+    W229(&'a Vec<SemanticOriginalGenericArgument>, usize),
+    W230(&'a SemanticOriginalGenericArgument, usize),
+    W231(&'a SemanticOriginalQuoteHole, usize),
+    W232(&'a SemanticOriginalQuoteHoleKind, usize),
+    W233(&'a Vec<SemanticOriginalQuoteHole>, usize),
+    W234(&'a Vec<SemanticOriginalQuoteNameSite>, usize),
+    W235(&'a SemanticOriginalQuoteNameSite, usize),
+    W236(&'a SemanticOriginalSyntaxDelimiter, usize),
+    W237(&'a SemanticOriginalQuoteNameNamespace, usize),
+    W238(&'a SemanticOriginalQuoteNameRole, usize),
+    W239(&'a Vec<SemanticOriginalSyntaxTreeEntry>, usize),
+    W240(&'a SemanticOriginalSyntaxTreeEntry, usize),
+    W241(&'a ProtocolState, usize),
+    W242(&'a ProtocolKind, usize),
+    W243(&'a ProtocolExit, usize),
+    W244(&'a ProtocolTransition, usize),
+    W245(&'a Vec<ProtocolState>, usize),
+    W246(&'a Vec<ProtocolTransition>, usize),
+    W247(&'a Vec<DynPatternActual>, usize),
+    W248(&'a DynPatternActual, usize),
+    W249(&'a Option<DynLifePattern>, usize),
+    W250(&'a Vec<DynTypePattern>, usize),
+    W251(&'a VariantProjection, usize),
+    W252(&'a StorageSourceBinding, usize),
+    W253(&'a Vec<StorageSource>, usize),
+    W254(&'a StorageSource, usize),
+    W255(&'a DynResultSource, usize),
 }
 fn reserve_work<'a, V: DynRecipeVisitor>(
     pending: &mut Vec<Work<'a>>,
@@ -527,12 +535,12 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         visitor.allocation(std::mem::size_of::<DynTypePattern>(), nesting + 1)?;
                         pending.push(Work::W16(field_inner, nesting + 1));
-                        pending.push(Work::W241(field_lifetime, nesting + 1));
+                        pending.push(Work::W249(field_lifetime, nesting + 1));
                         pending.push(Work::W33(field_mutable, nesting + 1));
                     }
                     DynTypePattern::Tuple(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W242(field_value_0, nesting + 1));
+                        pending.push(Work::W250(field_value_0, nesting + 1));
                     }
                     DynTypePattern::Array {
                         element: field_element,
@@ -560,7 +568,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor.allocation(std::mem::size_of::<DynTypePattern>(), nesting + 1)?;
                         pending.push(Work::W16(field_inner, nesting + 1));
-                        pending.push(Work::W241(field_lifetime, nesting + 1));
+                        pending.push(Work::W249(field_lifetime, nesting + 1));
                     }
                     DynTypePattern::OwnedStore(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -603,7 +611,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                         pending.push(Work::W84(field_scope, nesting + 1));
                     }
                 }
@@ -628,7 +636,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W18(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W239(&value.arguments, nesting + 1));
+                pending.push(Work::W247(&value.arguments, nesting + 1));
                 pending.push(Work::W74(&value.declaration, nesting + 1));
             }
             Work::W19(value, nesting) => {
@@ -670,7 +678,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W16(field_ty, nesting + 1));
                         visitor.allocation(std::mem::size_of::<DynConstPattern>(), nesting + 1)?;
                         pending.push(Work::W21(field_value, nesting + 1));
-                        pending.push(Work::W193(field_op, nesting + 1));
+                        pending.push(Work::W195(field_op, nesting + 1));
                     }
                     DynConstPattern::Binary {
                         op: field_op,
@@ -685,7 +693,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W21(field_right, nesting + 1));
                         visitor.allocation(std::mem::size_of::<DynConstPattern>(), nesting + 1)?;
                         pending.push(Work::W21(field_left, nesting + 1));
-                        pending.push(Work::W194(field_op, nesting + 1));
+                        pending.push(Work::W196(field_op, nesting + 1));
                     }
                     DynConstPattern::Convert {
                         value: field_value,
@@ -711,11 +719,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     DynConstPattern::IntegerLiteral(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     DynConstPattern::FloatLiteral(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                 }
             }
@@ -1387,13 +1395,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W90(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 9, visitor, nesting)?;
-                pending.push(Work::W147(&value.self_type, nesting + 1));
-                pending.push(Work::W145(&value.environment, nesting + 1));
-                pending.push(Work::W143(&value.header_embedding, nesting + 1));
-                pending.push(Work::W141(&value.actuals, nesting + 1));
-                pending.push(Work::W140(&value.parent, nesting + 1));
-                pending.push(Work::W139(&value.lifetime_instantiation, nesting + 1));
-                pending.push(Work::W138(&value.target, nesting + 1));
+                pending.push(Work::W149(&value.self_type, nesting + 1));
+                pending.push(Work::W147(&value.environment, nesting + 1));
+                pending.push(Work::W145(&value.header_embedding, nesting + 1));
+                pending.push(Work::W143(&value.actuals, nesting + 1));
+                pending.push(Work::W142(&value.parent, nesting + 1));
+                pending.push(Work::W141(&value.lifetime_instantiation, nesting + 1));
+                pending.push(Work::W140(&value.target, nesting + 1));
                 pending.push(Work::W84(&value.definition, nesting + 1));
                 pending.push(Work::W85(&value.id, nesting + 1));
             }
@@ -1408,9 +1416,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W92(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 4, visitor, nesting)?;
-                pending.push(Work::W164(&value.action, nesting + 1));
-                pending.push(Work::W163(&value.at, nesting + 1));
-                pending.push(Work::W129(&value.recipe, nesting + 1));
+                pending.push(Work::W166(&value.action, nesting + 1));
+                pending.push(Work::W165(&value.at, nesting + 1));
+                pending.push(Work::W131(&value.recipe, nesting + 1));
                 pending.push(Work::W85(&value.instance, nesting + 1));
             }
             Work::W93(value, nesting) => {
@@ -1499,7 +1507,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         carrier: field_carrier,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_carrier, nesting + 1));
+                        pending.push(Work::W132(field_carrier, nesting + 1));
                     }
                     SemanticFormal::Lifetime => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
@@ -1537,15 +1545,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W17(field_bound, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                     SemanticRequirementRecipe::Trait {
                         ty: field_ty,
                         application: field_application,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W131(field_application, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W133(field_application, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                     SemanticRequirementRecipe::Callable {
                         ty: field_ty,
@@ -1559,15 +1567,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         )?;
                         pending.push(Work::W107(field_signature, nesting + 1));
                         pending.push(Work::W19(field_kind, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                     SemanticRequirementRecipe::TypeEqual {
                         left: field_left,
                         right: field_right,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W130(field_right, nesting + 1));
-                        pending.push(Work::W130(field_left, nesting + 1));
+                        pending.push(Work::W132(field_right, nesting + 1));
+                        pending.push(Work::W132(field_left, nesting + 1));
                     }
                     SemanticRequirementRecipe::ConstEqual {
                         carrier: field_carrier,
@@ -1575,25 +1583,25 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         right: field_right,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W174(field_right, nesting + 1));
-                        pending.push(Work::W174(field_left, nesting + 1));
-                        pending.push(Work::W130(field_carrier, nesting + 1));
+                        pending.push(Work::W176(field_right, nesting + 1));
+                        pending.push(Work::W176(field_left, nesting + 1));
+                        pending.push(Work::W132(field_carrier, nesting + 1));
                     }
                     SemanticRequirementRecipe::LifeEqual {
                         left: field_left,
                         right: field_right,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W171(field_right, nesting + 1));
-                        pending.push(Work::W171(field_left, nesting + 1));
+                        pending.push(Work::W173(field_right, nesting + 1));
+                        pending.push(Work::W173(field_left, nesting + 1));
                     }
                     SemanticRequirementRecipe::Outlives {
                         longer: field_longer,
                         shorter: field_shorter,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W171(field_shorter, nesting + 1));
-                        pending.push(Work::W171(field_longer, nesting + 1));
+                        pending.push(Work::W173(field_shorter, nesting + 1));
+                        pending.push(Work::W173(field_longer, nesting + 1));
                     }
                     SemanticRequirementRecipe::ForAll {
                         lifetimes: field_lifetimes,
@@ -1608,8 +1616,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         trait_kind: field_trait_kind,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W132(field_trait_kind, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W134(field_trait_kind, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                 }
             }
@@ -1624,7 +1632,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W105(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W128(&value.source, nesting + 1));
+                pending.push(Work::W130(&value.source, nesting + 1));
                 pending.push(Work::W99(&value.kind, nesting + 1));
             }
             Work::W106(value, nesting) => {
@@ -1654,6 +1662,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticDefinitionBody::FunctionWithBody {
                         signature: field_signature,
+                        protocol_contracts: field_protocol_contracts,
                         sites: field_sites,
                         parameters: field_parameters,
                         receiver_parameter: field_receiver_parameter,
@@ -1661,13 +1670,14 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         site_nodes: field_site_nodes,
                         body: field_body,
                     } => {
-                        reserve_work(&mut pending, 7, visitor, nesting)?;
-                        pending.push(Work::W120(field_body, nesting + 1));
-                        pending.push(Work::W118(field_site_nodes, nesting + 1));
-                        pending.push(Work::W116(field_names, nesting + 1));
-                        pending.push(Work::W115(field_receiver_parameter, nesting + 1));
-                        pending.push(Work::W113(field_parameters, nesting + 1));
+                        reserve_work(&mut pending, 8, visitor, nesting)?;
+                        pending.push(Work::W122(field_body, nesting + 1));
+                        pending.push(Work::W120(field_site_nodes, nesting + 1));
+                        pending.push(Work::W118(field_names, nesting + 1));
+                        pending.push(Work::W117(field_receiver_parameter, nesting + 1));
+                        pending.push(Work::W115(field_parameters, nesting + 1));
                         pending.push(Work::W108(field_sites, nesting + 1));
+                        pending.push(Work::W113(field_protocol_contracts, nesting + 1));
                         pending.push(Work::W107(field_signature, nesting + 1));
                     }
                 }
@@ -1677,8 +1687,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                 reserve_work(&mut pending, 6, visitor, nesting)?;
                 pending.push(Work::W25(&value.call_kind, nesting + 1));
                 pending.push(Work::W23(&value.result_mode, nesting + 1));
-                pending.push(Work::W130(&value.result, nesting + 1));
-                pending.push(Work::W195(&value.parameters, nesting + 1));
+                pending.push(Work::W132(&value.result, nesting + 1));
+                pending.push(Work::W197(&value.parameters, nesting + 1));
                 pending.push(Work::W6(&value.invocation_lifetimes, nesting + 1));
                 pending.push(Work::W6(&value.bound_lifetimes, nesting + 1));
             }
@@ -1693,9 +1703,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W109(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W161(&value.kind, nesting + 1));
+                pending.push(Work::W163(&value.kind, nesting + 1));
                 pending.push(Work::W11(&value.occurrence_path, nesting + 1));
-                pending.push(Work::W129(&value.id, nesting + 1));
+                pending.push(Work::W131(&value.id, nesting + 1));
             }
             Work::W110(value, nesting) => {
                 visitor.node(nesting)?;
@@ -1721,13 +1731,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W133(field_fields, nesting + 1));
+                        pending.push(Work::W135(field_fields, nesting + 1));
                     }
                     SemanticNominalBody::Enum {
                         variants: field_variants,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W135(field_variants, nesting + 1));
+                        pending.push(Work::W137(field_variants, nesting + 1));
                     }
                 }
             }
@@ -1745,7 +1755,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         self_type: field_self_type,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W130(field_self_type, nesting + 1));
+                        pending.push(Work::W132(field_self_type, nesting + 1));
                         pending.push(Work::W74(field_declaration, nesting + 1));
                     }
                     SemanticScopeRecipe::TraitImpl {
@@ -1754,8 +1764,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         trait_application: field_trait_application,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W131(field_trait_application, nesting + 1));
-                        pending.push(Work::W130(field_self_type, nesting + 1));
+                        pending.push(Work::W133(field_trait_application, nesting + 1));
+                        pending.push(Work::W132(field_self_type, nesting + 1));
                         pending.push(Work::W74(field_declaration, nesting + 1));
                     }
                     SemanticScopeRecipe::BuiltinImpl {
@@ -1763,8 +1773,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         trait_kind: field_trait_kind,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W132(field_trait_kind, nesting + 1));
-                        pending.push(Work::W130(field_self_type, nesting + 1));
+                        pending.push(Work::W134(field_trait_kind, nesting + 1));
+                        pending.push(Work::W132(field_self_type, nesting + 1));
                     }
                 }
             }
@@ -1779,32 +1789,33 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W114(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 4, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
-                pending.push(Work::W23(&value.mode, nesting + 1));
-                pending.push(Work::W201(&value.ty, nesting + 1));
-                pending.push(Work::W124(&value.name, nesting + 1));
+                pending.push(Work::W246(&value.exits, nesting + 1));
+                pending.push(Work::W245(&value.entry, nesting + 1));
+                pending.push(Work::W6(&value.parameter, nesting + 1));
+                pending.push(Work::W242(&value.protocol, nesting + 1));
             }
             Work::W115(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W116(item, nesting));
+                }
+            }
+            Work::W116(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 4, visitor, nesting)?;
+                pending.push(Work::W204(&value.span, nesting + 1));
+                pending.push(Work::W23(&value.mode, nesting + 1));
+                pending.push(Work::W203(&value.ty, nesting + 1));
+                pending.push(Work::W126(&value.name, nesting + 1));
+            }
+            Work::W117(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
                     reserve_work(&mut pending, 1, visitor, nesting)?;
                     pending.push(Work::W6(item, nesting));
                 }
-            }
-            Work::W116(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W117(item, nesting));
-                }
-            }
-            Work::W117(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W127(&value.value, nesting + 1));
-                pending.push(Work::W125(&value.namespace, nesting + 1));
-                pending.push(Work::W126(&value.path, nesting + 1));
             }
             Work::W118(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
@@ -1816,16 +1827,31 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W119(value, nesting) => {
                 visitor.node(nesting)?;
-                reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W123(&value.node, nesting + 1));
-                pending.push(Work::W129(&value.site, nesting + 1));
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W129(&value.value, nesting + 1));
+                pending.push(Work::W127(&value.namespace, nesting + 1));
+                pending.push(Work::W128(&value.path, nesting + 1));
             }
             Work::W120(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W121(item, nesting));
+                }
+            }
+            Work::W121(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 2, visitor, nesting)?;
+                pending.push(Work::W125(&value.node, nesting + 1));
+                pending.push(Work::W131(&value.site, nesting + 1));
+            }
+            Work::W122(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalFunctionBody::Defined(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W121(field_value_0, nesting + 1));
+                        pending.push(Work::W123(field_value_0, nesting + 1));
                     }
                     SemanticOriginalFunctionBody::External => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
@@ -1835,13 +1861,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W121(value, nesting) => {
+            Work::W123(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
-                pending.push(Work::W209(&value.statements, nesting + 1));
+                pending.push(Work::W204(&value.span, nesting + 1));
+                pending.push(Work::W211(&value.statements, nesting + 1));
             }
-            Work::W122(value, nesting) => {
+            Work::W124(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalTypeSource::Expression(field_value_0) => {
@@ -1880,12 +1906,12 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         name: field_name,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W124(field_name, nesting + 1));
-                        pending.push(Work::W123(field_at, nesting + 1));
+                        pending.push(Work::W126(field_name, nesting + 1));
+                        pending.push(Work::W125(field_at, nesting + 1));
                     }
                 }
             }
-            Work::W123(value, nesting) => {
+            Work::W125(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalNode::Expression(field_value_0) => {
@@ -1898,11 +1924,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W124(value, nesting) => {
+            Work::W126(value, nesting) => {
                 visitor.allocation(value.len(), nesting)?;
                 visitor.text(value, nesting)?;
             }
-            Work::W125(value, nesting) => {
+            Work::W127(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalNamespace::Value => {
@@ -1916,20 +1942,20 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W126(value, nesting) => {
+            Work::W128(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W124(item, nesting));
+                    pending.push(Work::W126(item, nesting));
                 }
             }
-            Work::W127(value, nesting) => {
+            Work::W129(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalNameValue::Recipe(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W128(field_value_0, nesting + 1));
+                        pending.push(Work::W130(field_value_0, nesting + 1));
                     }
                     SemanticOriginalNameValue::Definition(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -1937,35 +1963,35 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W128(value, nesting) => {
+            Work::W130(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticActualRecipe::Type(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticActualRecipe::Const {
                         carrier: field_carrier,
                         value: field_value,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W174(field_value, nesting + 1));
-                        pending.push(Work::W130(field_carrier, nesting + 1));
+                        pending.push(Work::W176(field_value, nesting + 1));
+                        pending.push(Work::W132(field_carrier, nesting + 1));
                     }
                     SemanticActualRecipe::Life(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W171(field_value_0, nesting + 1));
+                        pending.push(Work::W173(field_value_0, nesting + 1));
                     }
                     SemanticActualRecipe::Infer => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
                     }
                 }
             }
-            Work::W129(value, nesting) => {
+            Work::W131(value, nesting) => {
                 let _ = value;
                 visitor.node(nesting)?;
             }
-            Work::W130(value, nesting) => {
+            Work::W132(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticTypeRecipe::Atom(field_value_0) => {
@@ -1978,11 +2004,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticExactTypeRecipe>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W173(field_value_0, nesting + 1));
+                        pending.push(Work::W175(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::Formal(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W170(field_value_0, nesting + 1));
+                        pending.push(Work::W172(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::Environment {
                         scope: field_scope,
@@ -1990,18 +2016,18 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticTypeRecipe::SelfType { scope: field_scope } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticTypeRecipe::Nominal {
                         definition: field_definition,
                         arguments: field_arguments,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W162(field_arguments, nesting + 1));
+                        pending.push(Work::W164(field_arguments, nesting + 1));
                         pending.push(Work::W84(field_definition, nesting + 1));
                     }
                     SemanticTypeRecipe::AssociatedType {
@@ -2013,14 +2039,14 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W6(field_member, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTraitRecipe>(), nesting + 1)?;
-                        pending.push(Work::W131(field_application, nesting + 1));
+                        pending.push(Work::W133(field_application, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_receiver, nesting + 1));
+                        pending.push(Work::W132(field_receiver, nesting + 1));
                     }
                     SemanticTypeRecipe::Tuple(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W137(field_value_0, nesting + 1));
+                        pending.push(Work::W139(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::Array {
                         element: field_element,
@@ -2029,16 +2055,16 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticConstRecipe>(), nesting + 1)?;
-                        pending.push(Work::W174(field_length, nesting + 1));
+                        pending.push(Work::W176(field_length, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_element, nesting + 1));
+                        pending.push(Work::W132(field_element, nesting + 1));
                     }
                     SemanticTypeRecipe::Slice(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::Address {
                         mutable: field_mutable,
@@ -2048,8 +2074,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_inner, nesting + 1));
-                        pending.push(Work::W172(field_lifetime, nesting + 1));
+                        pending.push(Work::W132(field_inner, nesting + 1));
+                        pending.push(Work::W174(field_lifetime, nesting + 1));
                         pending.push(Work::W33(field_mutable, nesting + 1));
                     }
                     SemanticTypeRecipe::Desc {
@@ -2059,26 +2085,26 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_inner, nesting + 1));
-                        pending.push(Work::W172(field_lifetime, nesting + 1));
+                        pending.push(Work::W132(field_inner, nesting + 1));
+                        pending.push(Work::W174(field_lifetime, nesting + 1));
                     }
                     SemanticTypeRecipe::Managed(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::OwnedStore(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::Mutex(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::MutexGuard {
                         payload: field_payload,
@@ -2089,22 +2115,22 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticRetainedShapeRecipe>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W175(field_retained, nesting + 1));
+                        pending.push(Work::W177(field_retained, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_payload, nesting + 1));
+                        pending.push(Work::W132(field_payload, nesting + 1));
                     }
                     SemanticTypeRecipe::Registration(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::AsyncRegistration(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::Task {
                         result: field_result,
@@ -2115,10 +2141,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticRetainedShapeRecipe>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W175(field_retained, nesting + 1));
+                        pending.push(Work::W177(field_retained, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_result, nesting + 1));
+                        pending.push(Work::W132(field_result, nesting + 1));
                     }
                     SemanticTypeRecipe::ErrorUnion {
                         error: field_error,
@@ -2127,10 +2153,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_result, nesting + 1));
+                        pending.push(Work::W132(field_result, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_error, nesting + 1));
+                        pending.push(Work::W132(field_error, nesting + 1));
                     }
                     SemanticTypeRecipe::Qualified {
                         storage: field_storage,
@@ -2141,10 +2167,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticStorageShapeRecipe>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W176(field_life, nesting + 1));
+                        pending.push(Work::W178(field_life, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_storage, nesting + 1));
+                        pending.push(Work::W132(field_storage, nesting + 1));
                     }
                     SemanticTypeRecipe::Code {
                         kind: field_kind,
@@ -2156,7 +2182,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             nesting + 1,
                         )?;
                         pending.push(Work::W107(field_signature, nesting + 1));
-                        pending.push(Work::W177(field_kind, nesting + 1));
+                        pending.push(Work::W179(field_kind, nesting + 1));
                     }
                     SemanticTypeRecipe::Closure {
                         definition: field_definition,
@@ -2164,8 +2190,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         environment: field_environment,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W162(field_environment, nesting + 1));
-                        pending.push(Work::W162(field_arguments, nesting + 1));
+                        pending.push(Work::W164(field_environment, nesting + 1));
+                        pending.push(Work::W164(field_arguments, nesting + 1));
                         pending.push(Work::W84(field_definition, nesting + 1));
                     }
                     SemanticTypeRecipe::Dyn {
@@ -2177,7 +2203,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticDynInterfaceRecipe>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W178(field_interface, nesting + 1));
+                        pending.push(Work::W180(field_interface, nesting + 1));
                         pending.push(Work::W33(field_owned, nesting + 1));
                     }
                     SemanticTypeRecipe::Opaque {
@@ -2188,39 +2214,39 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_hidden, nesting + 1));
-                        pending.push(Work::W162(field_arguments, nesting + 1));
+                        pending.push(Work::W132(field_hidden, nesting + 1));
+                        pending.push(Work::W164(field_arguments, nesting + 1));
                         pending.push(Work::W84(field_definition, nesting + 1));
                     }
                     SemanticTypeRecipe::AnonymousSum(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W137(field_value_0, nesting + 1));
+                        pending.push(Work::W139(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::UnresolvedNamed(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::Unsupported(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticTypeRecipe::OriginalType {
                         scope: field_scope,
                         source: field_source,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W122(field_source, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W124(field_source, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                 }
             }
-            Work::W131(value, nesting) => {
+            Work::W133(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W162(&value.arguments, nesting + 1));
+                pending.push(Work::W164(&value.arguments, nesting + 1));
                 pending.push(Work::W74(&value.declaration, nesting + 1));
             }
-            Work::W132(value, nesting) => {
+            Work::W134(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticBuiltinTrait::Drop => {
@@ -2258,20 +2284,6 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W133(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W134(item, nesting));
-                }
-            }
-            Work::W134(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W130(&value.ty, nesting + 1));
-                pending.push(Work::W124(&value.name, nesting + 1));
-            }
             Work::W135(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
@@ -2283,30 +2295,44 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W136(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W137(&value.fields, nesting + 1));
-                pending.push(Work::W124(&value.name, nesting + 1));
+                pending.push(Work::W132(&value.ty, nesting + 1));
+                pending.push(Work::W126(&value.name, nesting + 1));
             }
             Work::W137(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W130(item, nesting));
+                    pending.push(Work::W138(item, nesting));
                 }
             }
             Work::W138(value, nesting) => {
                 visitor.node(nesting)?;
+                reserve_work(&mut pending, 2, visitor, nesting)?;
+                pending.push(Work::W139(&value.fields, nesting + 1));
+                pending.push(Work::W126(&value.name, nesting + 1));
+            }
+            Work::W139(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W132(item, nesting));
+                }
+            }
+            Work::W140(value, nesting) => {
+                visitor.node(nesting)?;
                 match value {
                     SemanticInstanceTarget::Function(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W149(field_value_0, nesting + 1));
+                        pending.push(Work::W151(field_value_0, nesting + 1));
                     }
                     SemanticInstanceTarget::Scope => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
                     }
                 }
             }
-            Work::W139(value, nesting) => {
+            Work::W141(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticLifetimeInstantiation::Rigid => {
@@ -2318,60 +2344,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W140(value, nesting) => {
+            Work::W142(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
                     reserve_work(&mut pending, 1, visitor, nesting)?;
                     pending.push(Work::W85(item, nesting));
-                }
-            }
-            Work::W141(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W142(item, nesting));
-                }
-            }
-            Work::W142(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    SemanticActual::Type(field_value_0) => {
-                        reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W148(field_value_0, nesting + 1));
-                    }
-                    SemanticActual::Const {
-                        ty: field_ty,
-                        value: field_value,
-                    } => {
-                        reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W76(field_value, nesting + 1));
-                        pending.push(Work::W148(field_ty, nesting + 1));
-                    }
-                    SemanticActual::Life(field_value_0) => {
-                        reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W152(field_value_0, nesting + 1));
-                    }
-                    SemanticActual::CoreRecipe {
-                        scope: field_scope,
-                        recipe: field_recipe,
-                    } => {
-                        reserve_work(&mut pending, 2, visitor, nesting)?;
-                        visitor
-                            .allocation(std::mem::size_of::<SemanticActualRecipe>(), nesting + 1)?;
-                        pending.push(Work::W128(field_recipe, nesting + 1));
-                        pending.push(Work::W85(field_scope, nesting + 1));
-                    }
-                    SemanticActual::CoreInferred {
-                        scope: field_scope,
-                        call: field_call,
-                        formal: field_formal,
-                    } => {
-                        reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W6(field_formal, nesting + 1));
-                        pending.push(Work::W129(field_call, nesting + 1));
-                        pending.push(Work::W85(field_scope, nesting + 1));
-                    }
                 }
             }
             Work::W143(value, nesting) => {
@@ -2384,22 +2361,58 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W144(value, nesting) => {
                 visitor.node(nesting)?;
-                reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W152(&value.actual, nesting + 1));
-                pending.push(Work::W4(&value.header, nesting + 1));
+                match value {
+                    SemanticActual::Type(field_value_0) => {
+                        reserve_work(&mut pending, 1, visitor, nesting)?;
+                        pending.push(Work::W150(field_value_0, nesting + 1));
+                    }
+                    SemanticActual::Const {
+                        ty: field_ty,
+                        value: field_value,
+                    } => {
+                        reserve_work(&mut pending, 2, visitor, nesting)?;
+                        pending.push(Work::W76(field_value, nesting + 1));
+                        pending.push(Work::W150(field_ty, nesting + 1));
+                    }
+                    SemanticActual::Life(field_value_0) => {
+                        reserve_work(&mut pending, 1, visitor, nesting)?;
+                        pending.push(Work::W154(field_value_0, nesting + 1));
+                    }
+                    SemanticActual::CoreRecipe {
+                        scope: field_scope,
+                        recipe: field_recipe,
+                    } => {
+                        reserve_work(&mut pending, 2, visitor, nesting)?;
+                        visitor
+                            .allocation(std::mem::size_of::<SemanticActualRecipe>(), nesting + 1)?;
+                        pending.push(Work::W130(field_recipe, nesting + 1));
+                        pending.push(Work::W85(field_scope, nesting + 1));
+                    }
+                    SemanticActual::CoreInferred {
+                        scope: field_scope,
+                        call: field_call,
+                        formal: field_formal,
+                    } => {
+                        reserve_work(&mut pending, 3, visitor, nesting)?;
+                        pending.push(Work::W6(field_formal, nesting + 1));
+                        pending.push(Work::W131(field_call, nesting + 1));
+                        pending.push(Work::W85(field_scope, nesting + 1));
+                    }
+                }
             }
             Work::W145(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    reserve_work(&mut pending, 1, visitor, nesting)?;
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
                     pending.push(Work::W146(item, nesting));
                 }
             }
             Work::W146(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W141(&value.actuals, nesting + 1));
-                pending.push(Work::W150(&value.closure, nesting + 1));
+                pending.push(Work::W154(&value.actual, nesting + 1));
+                pending.push(Work::W4(&value.header, nesting + 1));
             }
             Work::W147(value, nesting) => {
                 visitor.node(nesting)?;
@@ -2410,6 +2423,19 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W148(value, nesting) => {
                 visitor.node(nesting)?;
+                reserve_work(&mut pending, 2, visitor, nesting)?;
+                pending.push(Work::W143(&value.actuals, nesting + 1));
+                pending.push(Work::W152(&value.closure, nesting + 1));
+            }
+            Work::W149(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    reserve_work(&mut pending, 1, visitor, nesting)?;
+                    pending.push(Work::W150(item, nesting));
+                }
+            }
+            Work::W150(value, nesting) => {
+                visitor.node(nesting)?;
                 match value {
                     SemanticTypeValue::Resolved {
                         ty: field_ty,
@@ -2417,7 +2443,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         classes: field_classes,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W154(field_classes, nesting + 1));
+                        pending.push(Work::W156(field_classes, nesting + 1));
                         pending.push(Work::W2(field_life, nesting + 1));
                         pending.push(Work::W1(field_ty, nesting + 1));
                     }
@@ -2426,12 +2452,12 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         source: field_source,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W153(field_source, nesting + 1));
+                        pending.push(Work::W155(field_source, nesting + 1));
                         pending.push(Work::W85(field_scope, nesting + 1));
                     }
                 }
             }
-            Work::W149(value, nesting) => {
+            Work::W151(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticFunctionTarget::Core {
@@ -2460,7 +2486,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W150(value, nesting) => {
+            Work::W152(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticClosureTarget::Core {
@@ -2477,15 +2503,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticClosureTarget::Typed(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W151(field_value_0, nesting + 1));
+                        pending.push(Work::W153(field_value_0, nesting + 1));
                     }
                 }
             }
-            Work::W151(value, nesting) => {
+            Work::W153(value, nesting) => {
                 let _ = value;
                 visitor.node(nesting)?;
             }
-            Work::W152(value, nesting) => {
+            Work::W154(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticClassExpr::Formal {
@@ -2494,7 +2520,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticClassExpr::Implicit {
                         scope: field_scope,
@@ -2502,7 +2528,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticClassExpr::Bound {
                         depth: field_depth,
@@ -2519,8 +2545,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         pending.push(Work::W52(field_mode, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
-                        pending.push(Work::W156(field_operand, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
+                        pending.push(Work::W158(field_operand, nesting + 1));
                     }
                     SemanticClassExpr::IntrinsicClass {
                         operand: field_operand,
@@ -2529,8 +2555,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         pending.push(Work::W6(field_class, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
-                        pending.push(Work::W156(field_operand, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
+                        pending.push(Work::W158(field_operand, nesting + 1));
                     }
                     SemanticClassExpr::Environment {
                         scope: field_scope,
@@ -2538,18 +2564,18 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                 }
             }
-            Work::W153(value, nesting) => {
+            Work::W155(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticCoreTypeSource::OriginalRecipe(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticCoreTypeSource::Expression {
                         module: field_module,
@@ -2561,7 +2587,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 5, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_recipe, nesting + 1));
+                        pending.push(Work::W132(field_recipe, nesting + 1));
                         pending.push(Work::W6(field_occurrence, nesting + 1));
                         pending.push(Work::W56(field_expression, nesting + 1));
                         pending.push(Work::W56(field_function, nesting + 1));
@@ -2575,7 +2601,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         source: field_source,
                     } => {
                         reserve_work(&mut pending, 5, visitor, nesting)?;
-                        pending.push(Work::W122(field_source, nesting + 1));
+                        pending.push(Work::W124(field_source, nesting + 1));
                         pending.push(Work::W6(field_occurrence, nesting + 1));
                         pending.push(Work::W56(field_expression, nesting + 1));
                         pending.push(Work::W56(field_function, nesting + 1));
@@ -2583,15 +2609,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W154(value, nesting) => {
+            Work::W156(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W152(item, nesting));
+                    pending.push(Work::W154(item, nesting));
                 }
             }
-            Work::W155(value, nesting) => {
+            Work::W157(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticScopeRef::Ancestor(field_value_0) => {
@@ -2600,7 +2626,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W156(value, nesting) => {
+            Work::W158(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOperand::Parameter(field_value_0) => {
@@ -2616,11 +2642,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticOperand::Value(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W159(field_value_0, nesting + 1));
+                        pending.push(Work::W161(field_value_0, nesting + 1));
                     }
                     SemanticOperand::Local(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W160(field_value_0, nesting + 1));
+                        pending.push(Work::W162(field_value_0, nesting + 1));
                     }
                     SemanticOperand::TypeArgument {
                         scope: field_scope,
@@ -2628,7 +2654,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticOperand::Environment(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -2644,20 +2670,20 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W157(value, nesting) => {
+            Work::W159(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W158(item, nesting));
+                    pending.push(Work::W160(item, nesting));
                 }
             }
-            Work::W158(value, nesting) => {
+            Work::W160(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     LifeTypeProjection::Place(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W190(field_value_0, nesting + 1));
+                        pending.push(Work::W192(field_value_0, nesting + 1));
                     }
                     LifeTypeProjection::TypeArgument(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -2686,55 +2712,55 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W159(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W160(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
             Work::W161(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W162(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W163(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticSiteRecipeKind::Construct {
                         result: field_result,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_result, nesting + 1));
+                        pending.push(Work::W132(field_result, nesting + 1));
                     }
                     SemanticSiteRecipeKind::Call {
                         target: field_target,
                         actuals: field_actuals,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W162(field_actuals, nesting + 1));
+                        pending.push(Work::W164(field_actuals, nesting + 1));
                         pending.push(Work::W84(field_target, nesting + 1));
                     }
                     SemanticSiteRecipeKind::CallableCall {
                         callee: field_callee,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_callee, nesting + 1));
+                        pending.push(Work::W132(field_callee, nesting + 1));
                     }
                     SemanticSiteRecipeKind::TypeUse {
                         expected: field_expected,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_expected, nesting + 1));
+                        pending.push(Work::W132(field_expected, nesting + 1));
                     }
                     SemanticSiteRecipeKind::DeclareLocal {
                         expected: field_expected,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_expected, nesting + 1));
+                        pending.push(Work::W132(field_expected, nesting + 1));
                     }
                     SemanticSiteRecipeKind::Closure {
                         definition: field_definition,
                         environment: field_environment,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W162(field_environment, nesting + 1));
+                        pending.push(Work::W164(field_environment, nesting + 1));
                         pending.push(Work::W84(field_definition, nesting + 1));
                     }
                     SemanticSiteRecipeKind::OriginalCall => {
@@ -2742,15 +2768,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W162(value, nesting) => {
+            Work::W164(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W128(item, nesting));
+                    pending.push(Work::W130(item, nesting));
                 }
             }
-            Work::W163(value, nesting) => {
+            Work::W165(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticSiteAddress::Core {
@@ -2759,7 +2785,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         role: field_role,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W165(field_role, nesting + 1));
+                        pending.push(Work::W167(field_role, nesting + 1));
                         pending.push(Work::W6(field_occurrence, nesting + 1));
                         pending.push(Work::W56(field_expression, nesting + 1));
                     }
@@ -2769,13 +2795,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         edge: field_edge,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W167(field_edge, nesting + 1));
+                        pending.push(Work::W169(field_edge, nesting + 1));
                         pending.push(Work::W6(field_instruction, nesting + 1));
-                        pending.push(Work::W166(field_block, nesting + 1));
+                        pending.push(Work::W168(field_block, nesting + 1));
                     }
                 }
             }
-            Work::W164(value, nesting) => {
+            Work::W166(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticSiteAction::Construct {
@@ -2783,38 +2809,38 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         value: field_value,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W148(field_value, nesting + 1));
-                        pending.push(Work::W156(field_result, nesting + 1));
+                        pending.push(Work::W150(field_value, nesting + 1));
+                        pending.push(Work::W158(field_result, nesting + 1));
                     }
                     SemanticSiteAction::Call {
                         target: field_target,
                         actuals: field_actuals,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W141(field_actuals, nesting + 1));
-                        pending.push(Work::W149(field_target, nesting + 1));
+                        pending.push(Work::W143(field_actuals, nesting + 1));
+                        pending.push(Work::W151(field_target, nesting + 1));
                     }
                     SemanticSiteAction::CallableCall {
                         callee: field_callee,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W156(field_callee, nesting + 1));
+                        pending.push(Work::W158(field_callee, nesting + 1));
                     }
                     SemanticSiteAction::TypeUse {
                         subject: field_subject,
                         expected: field_expected,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W148(field_expected, nesting + 1));
-                        pending.push(Work::W156(field_subject, nesting + 1));
+                        pending.push(Work::W150(field_expected, nesting + 1));
+                        pending.push(Work::W158(field_subject, nesting + 1));
                     }
                     SemanticSiteAction::DeclareLocal {
                         local: field_local,
                         expected: field_expected,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W148(field_expected, nesting + 1));
-                        pending.push(Work::W168(field_local, nesting + 1));
+                        pending.push(Work::W150(field_expected, nesting + 1));
+                        pending.push(Work::W170(field_local, nesting + 1));
                     }
                     SemanticSiteAction::Closure {
                         result: field_result,
@@ -2822,9 +2848,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         environment: field_environment,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W141(field_environment, nesting + 1));
-                        pending.push(Work::W150(field_closure, nesting + 1));
-                        pending.push(Work::W156(field_result, nesting + 1));
+                        pending.push(Work::W143(field_environment, nesting + 1));
+                        pending.push(Work::W152(field_closure, nesting + 1));
+                        pending.push(Work::W158(field_result, nesting + 1));
                     }
                     SemanticSiteAction::CoreBodyCall => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
@@ -2833,11 +2859,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         actuals: field_actuals,
                     } => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W141(field_actuals, nesting + 1));
+                        pending.push(Work::W143(field_actuals, nesting + 1));
                     }
                 }
             }
-            Work::W165(value, nesting) => {
+            Work::W167(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticEmissionRole::Construct => {
@@ -2857,11 +2883,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W166(value, nesting) => {
+            Work::W168(value, nesting) => {
                 let _ = value;
                 visitor.node(nesting)?;
             }
-            Work::W167(value, nesting) => {
+            Work::W169(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticSiteEdge::Before => {
@@ -2872,7 +2898,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W168(value, nesting) => {
+            Work::W170(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticLocalTarget::Core {
@@ -2885,16 +2911,16 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticLocalTarget::Typed(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W160(field_value_0, nesting + 1));
+                        pending.push(Work::W162(field_value_0, nesting + 1));
                     }
                 }
             }
-            Work::W169(value, nesting) => {
+            Work::W171(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticRecipeOperand::TypeFormal(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W170(field_value_0, nesting + 1));
+                        pending.push(Work::W172(field_value_0, nesting + 1));
                     }
                     SemanticRecipeOperand::Environment {
                         scope: field_scope,
@@ -2902,7 +2928,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticRecipeOperand::Parameter(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -2913,18 +2939,18 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W170(value, nesting) => {
+            Work::W172(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
                 pending.push(Work::W6(&value.ordinal, nesting + 1));
-                pending.push(Work::W155(&value.scope, nesting + 1));
+                pending.push(Work::W157(&value.scope, nesting + 1));
             }
-            Work::W171(value, nesting) => {
+            Work::W173(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticLifeRecipe::Formal(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W170(field_value_0, nesting + 1));
+                        pending.push(Work::W172(field_value_0, nesting + 1));
                     }
                     SemanticLifeRecipe::Implicit {
                         scope: field_scope,
@@ -2932,7 +2958,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticLifeRecipe::Environment {
                         scope: field_scope,
@@ -2940,7 +2966,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticLifeRecipe::Bound {
                         depth: field_depth,
@@ -2961,8 +2987,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         pending.push(Work::W52(field_mode, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
-                        pending.push(Work::W169(field_operand, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
+                        pending.push(Work::W171(field_operand, nesting + 1));
                     }
                     SemanticLifeRecipe::IntrinsicClass {
                         operand: field_operand,
@@ -2971,31 +2997,31 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         pending.push(Work::W6(field_class, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
-                        pending.push(Work::W169(field_operand, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
+                        pending.push(Work::W171(field_operand, nesting + 1));
                     }
                 }
             }
-            Work::W172(value, nesting) => {
+            Work::W174(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOuterLifeRecipe::Class(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W171(field_value_0, nesting + 1));
+                        pending.push(Work::W173(field_value_0, nesting + 1));
                     }
                     SemanticOuterLifeRecipe::Static => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
                     }
                 }
             }
-            Work::W173(value, nesting) => {
+            Work::W175(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W179(&value.classes, nesting + 1));
+                pending.push(Work::W181(&value.classes, nesting + 1));
                 pending.push(Work::W2(&value.life, nesting + 1));
                 pending.push(Work::W1(&value.ty, nesting + 1));
             }
-            Work::W174(value, nesting) => {
+            Work::W176(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticConstRecipe::Value(field_value_0) => {
@@ -3004,15 +3030,15 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticConstRecipe::IntegerLiteral(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticConstRecipe::FloatLiteral(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticConstRecipe::Formal(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W170(field_value_0, nesting + 1));
+                        pending.push(Work::W172(field_value_0, nesting + 1));
                     }
                     SemanticConstRecipe::Environment {
                         scope: field_scope,
@@ -3020,7 +3046,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W6(field_ordinal, nesting + 1));
-                        pending.push(Work::W155(field_scope, nesting + 1));
+                        pending.push(Work::W157(field_scope, nesting + 1));
                     }
                     SemanticConstRecipe::Unary {
                         op: field_op,
@@ -3030,11 +3056,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticConstRecipe>(), nesting + 1)?;
-                        pending.push(Work::W174(field_value, nesting + 1));
+                        pending.push(Work::W176(field_value, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_operand_type, nesting + 1));
-                        pending.push(Work::W193(field_op, nesting + 1));
+                        pending.push(Work::W132(field_operand_type, nesting + 1));
+                        pending.push(Work::W195(field_op, nesting + 1));
                     }
                     SemanticConstRecipe::Binary {
                         op: field_op,
@@ -3045,14 +3071,14 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 4, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticConstRecipe>(), nesting + 1)?;
-                        pending.push(Work::W174(field_right, nesting + 1));
+                        pending.push(Work::W176(field_right, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticConstRecipe>(), nesting + 1)?;
-                        pending.push(Work::W174(field_left, nesting + 1));
+                        pending.push(Work::W176(field_left, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_operand_type, nesting + 1));
-                        pending.push(Work::W194(field_op, nesting + 1));
+                        pending.push(Work::W132(field_operand_type, nesting + 1));
+                        pending.push(Work::W196(field_op, nesting + 1));
                     }
                     SemanticConstRecipe::Convert {
                         source_type: field_source_type,
@@ -3062,13 +3088,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticConstRecipe>(), nesting + 1)?;
-                        pending.push(Work::W174(field_value, nesting + 1));
+                        pending.push(Work::W176(field_value, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_target_type, nesting + 1));
+                        pending.push(Work::W132(field_target_type, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_source_type, nesting + 1));
+                        pending.push(Work::W132(field_source_type, nesting + 1));
                     }
                     SemanticConstRecipe::AssociatedConst {
                         receiver: field_receiver,
@@ -3079,30 +3105,30 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W6(field_member, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTraitRecipe>(), nesting + 1)?;
-                        pending.push(Work::W131(field_application, nesting + 1));
+                        pending.push(Work::W133(field_application, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_receiver, nesting + 1));
+                        pending.push(Work::W132(field_receiver, nesting + 1));
                     }
                 }
             }
-            Work::W175(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 4, visitor, nesting)?;
-                pending.push(Work::W187(&value.nominal, nesting + 1));
-                pending.push(Work::W185(&value.retained, nesting + 1));
-                pending.push(Work::W191(&value.ports, nesting + 1));
-                pending.push(Work::W180(&value.domain, nesting + 1));
-            }
-            Work::W176(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 4, visitor, nesting)?;
-                pending.push(Work::W187(&value.nominal, nesting + 1));
-                pending.push(Work::W185(&value.retained, nesting + 1));
-                pending.push(Work::W183(&value.slots, nesting + 1));
-                pending.push(Work::W180(&value.domain, nesting + 1));
-            }
             Work::W177(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 4, visitor, nesting)?;
+                pending.push(Work::W189(&value.nominal, nesting + 1));
+                pending.push(Work::W187(&value.retained, nesting + 1));
+                pending.push(Work::W193(&value.ports, nesting + 1));
+                pending.push(Work::W182(&value.domain, nesting + 1));
+            }
+            Work::W178(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 4, visitor, nesting)?;
+                pending.push(Work::W189(&value.nominal, nesting + 1));
+                pending.push(Work::W187(&value.retained, nesting + 1));
+                pending.push(Work::W185(&value.slots, nesting + 1));
+                pending.push(Work::W182(&value.domain, nesting + 1));
+            }
+            Work::W179(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticCodeKind::FunctionPointer => {
@@ -3116,52 +3142,25 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W178(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W198(&value.associated, nesting + 1));
-                pending.push(Work::W197(&value.context, nesting + 1));
-                pending.push(Work::W131(&value.application, nesting + 1));
-            }
-            Work::W179(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W171(item, nesting));
-                }
-            }
             Work::W180(value, nesting) => {
                 visitor.node(nesting)?;
-                reserve_work(&mut pending, 1, visitor, nesting)?;
-                pending.push(Work::W181(&value.parts, nesting + 1));
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W200(&value.associated, nesting + 1));
+                pending.push(Work::W199(&value.context, nesting + 1));
+                pending.push(Work::W133(&value.application, nesting + 1));
             }
             Work::W181(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W182(item, nesting));
+                    pending.push(Work::W173(item, nesting));
                 }
             }
             Work::W182(value, nesting) => {
                 visitor.node(nesting)?;
-                match value {
-                    SemanticClassSequencePart::One(field_value_0) => {
-                        reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W171(field_value_0, nesting + 1));
-                    }
-                    SemanticClassSequencePart::AllClasses {
-                        ty: field_ty,
-                        path: field_path,
-                    } => {
-                        reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W157(field_path, nesting + 1));
-                        visitor
-                            .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_ty, nesting + 1));
-                    }
-                }
+                reserve_work(&mut pending, 1, visitor, nesting)?;
+                pending.push(Work::W183(&value.parts, nesting + 1));
             }
             Work::W183(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
@@ -3173,10 +3172,22 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W184(value, nesting) => {
                 visitor.node(nesting)?;
-                reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W171(&value.class, nesting + 1));
-                pending.push(Work::W52(&value.mode, nesting + 1));
-                pending.push(Work::W189(&value.path, nesting + 1));
+                match value {
+                    SemanticClassSequencePart::One(field_value_0) => {
+                        reserve_work(&mut pending, 1, visitor, nesting)?;
+                        pending.push(Work::W173(field_value_0, nesting + 1));
+                    }
+                    SemanticClassSequencePart::AllClasses {
+                        ty: field_ty,
+                        path: field_path,
+                    } => {
+                        reserve_work(&mut pending, 2, visitor, nesting)?;
+                        pending.push(Work::W159(field_path, nesting + 1));
+                        visitor
+                            .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
+                        pending.push(Work::W132(field_ty, nesting + 1));
+                    }
+                }
             }
             Work::W185(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
@@ -3188,26 +3199,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W186(value, nesting) => {
                 visitor.node(nesting)?;
-                match value {
-                    SemanticRetainedPart::One {
-                        path: field_path,
-                        child_class: field_child_class,
-                        parent: field_parent,
-                    } => {
-                        reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W171(field_parent, nesting + 1));
-                        pending.push(Work::W6(field_child_class, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
-                    }
-                    SemanticRetainedPart::All {
-                        path: field_path,
-                        parents: field_parents,
-                    } => {
-                        reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W180(field_parents, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
-                    }
-                }
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W173(&value.class, nesting + 1));
+                pending.push(Work::W52(&value.mode, nesting + 1));
+                pending.push(Work::W191(&value.path, nesting + 1));
             }
             Work::W187(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
@@ -3220,29 +3215,23 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W188(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
-                    SemanticNominalPart::One {
+                    SemanticRetainedPart::One {
                         path: field_path,
-                        declaration: field_declaration,
-                        argument: field_argument,
-                        class: field_class,
-                    } => {
-                        reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W171(field_class, nesting + 1));
-                        pending.push(Work::W6(field_argument, nesting + 1));
-                        pending.push(Work::W74(field_declaration, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
-                    }
-                    SemanticNominalPart::FromType {
-                        path: field_path,
-                        ty: field_ty,
-                        classes: field_classes,
+                        child_class: field_child_class,
+                        parent: field_parent,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W180(field_classes, nesting + 1));
-                        visitor
-                            .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_ty, nesting + 1));
-                        pending.push(Work::W157(field_path, nesting + 1));
+                        pending.push(Work::W173(field_parent, nesting + 1));
+                        pending.push(Work::W6(field_child_class, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
+                    }
+                    SemanticRetainedPart::All {
+                        path: field_path,
+                        parents: field_parents,
+                    } => {
+                        reserve_work(&mut pending, 2, visitor, nesting)?;
+                        pending.push(Work::W182(field_parents, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
                     }
                 }
             }
@@ -3257,17 +3246,29 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W190(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
-                    PlaceProjection::Field(field_value_0) => {
-                        reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    SemanticNominalPart::One {
+                        path: field_path,
+                        declaration: field_declaration,
+                        argument: field_argument,
+                        class: field_class,
+                    } => {
+                        reserve_work(&mut pending, 4, visitor, nesting)?;
+                        pending.push(Work::W173(field_class, nesting + 1));
+                        pending.push(Work::W6(field_argument, nesting + 1));
+                        pending.push(Work::W74(field_declaration, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
                     }
-                    PlaceProjection::Variant(field_value_0) => {
-                        reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W243(field_value_0, nesting + 1));
-                    }
-                    PlaceProjection::ErrorArm(field_value_0) => {
-                        reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W33(field_value_0, nesting + 1));
+                    SemanticNominalPart::FromType {
+                        path: field_path,
+                        ty: field_ty,
+                        classes: field_classes,
+                    } => {
+                        reserve_work(&mut pending, 3, visitor, nesting)?;
+                        pending.push(Work::W182(field_classes, nesting + 1));
+                        visitor
+                            .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
+                        pending.push(Work::W132(field_ty, nesting + 1));
+                        pending.push(Work::W159(field_path, nesting + 1));
                     }
                 }
             }
@@ -3282,53 +3283,78 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             Work::W192(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
+                    PlaceProjection::Field(field_value_0) => {
+                        reserve_work(&mut pending, 1, visitor, nesting)?;
+                        pending.push(Work::W6(field_value_0, nesting + 1));
+                    }
+                    PlaceProjection::Variant(field_value_0) => {
+                        reserve_work(&mut pending, 1, visitor, nesting)?;
+                        pending.push(Work::W251(field_value_0, nesting + 1));
+                    }
+                    PlaceProjection::ErrorArm(field_value_0) => {
+                        reserve_work(&mut pending, 1, visitor, nesting)?;
+                        pending.push(Work::W33(field_value_0, nesting + 1));
+                    }
+                }
+            }
+            Work::W193(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W194(item, nesting));
+                }
+            }
+            Work::W194(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
                     SemanticPortPart::One {
                         leaf: field_leaf,
                         mode: field_mode,
                         class: field_class,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W171(field_class, nesting + 1));
+                        pending.push(Work::W173(field_class, nesting + 1));
                         pending.push(Work::W52(field_mode, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_leaf, nesting + 1));
+                        pending.push(Work::W132(field_leaf, nesting + 1));
                     }
                     SemanticPortPart::FromType {
                         ty: field_ty,
                         classes: field_classes,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W180(field_classes, nesting + 1));
+                        pending.push(Work::W182(field_classes, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                 }
             }
-            Work::W193(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W194(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
             Work::W195(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W196(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W197(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W196(item, nesting));
+                    pending.push(Work::W198(item, nesting));
                 }
             }
-            Work::W196(value, nesting) => {
+            Work::W198(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
                 pending.push(Work::W23(&value.mode, nesting + 1));
-                pending.push(Work::W130(&value.ty, nesting + 1));
+                pending.push(Work::W132(&value.ty, nesting + 1));
             }
-            Work::W197(value, nesting) => {
+            Work::W199(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticDynContextRecipe::Closed => {
@@ -3338,7 +3364,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticTypeRecipe>(), nesting + 1)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticDynContextRecipe::Shape(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -3346,80 +3372,80 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticRetainedShapeRecipe>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W175(field_value_0, nesting + 1));
+                        pending.push(Work::W177(field_value_0, nesting + 1));
                     }
                 }
             }
-            Work::W198(value, nesting) => {
+            Work::W200(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W199(item, nesting));
+                    pending.push(Work::W201(item, nesting));
                 }
             }
-            Work::W199(value, nesting) => {
+            Work::W201(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W200(&value.value, nesting + 1));
+                pending.push(Work::W202(&value.value, nesting + 1));
                 pending.push(Work::W6(&value.member, nesting + 1));
-                pending.push(Work::W131(&value.application, nesting + 1));
+                pending.push(Work::W133(&value.application, nesting + 1));
             }
-            Work::W200(value, nesting) => {
+            Work::W202(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticAssociatedRecipe::Type(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticAssociatedRecipe::Const {
                         carrier: field_carrier,
                         value: field_value,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W174(field_value, nesting + 1));
-                        pending.push(Work::W130(field_carrier, nesting + 1));
+                        pending.push(Work::W176(field_value, nesting + 1));
+                        pending.push(Work::W132(field_carrier, nesting + 1));
                     }
                 }
             }
-            Work::W201(value, nesting) => {
+            Work::W203(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
                     reserve_work(&mut pending, 1, visitor, nesting)?;
-                    pending.push(Work::W130(item, nesting));
+                    pending.push(Work::W132(item, nesting));
                 }
             }
-            Work::W202(value, nesting) => {
+            Work::W204(value, nesting) => {
                 let _ = value;
                 visitor.node(nesting)?;
             }
-            Work::W203(value, nesting) => {
+            Work::W205(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
-                pending.push(Work::W204(&value.kind, nesting + 1));
+                pending.push(Work::W204(&value.span, nesting + 1));
+                pending.push(Work::W206(&value.kind, nesting + 1));
             }
-            Work::W204(value, nesting) => {
+            Work::W206(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalPatternKind::Name(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Wildcard => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
                     }
                     SemanticOriginalPatternKind::Tuple(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W205(field_value_0, nesting + 1));
+                        pending.push(Work::W207(field_value_0, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Record {
                         ty: field_ty,
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W206(field_fields, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W208(field_fields, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Reference {
                         mutable: field_mutable,
@@ -3430,7 +3456,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticOriginalPattern>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W203(field_pattern, nesting + 1));
+                        pending.push(Work::W205(field_pattern, nesting + 1));
                         pending.push(Work::W33(field_mutable, nesting + 1));
                     }
                     SemanticOriginalPatternKind::ErrorArm {
@@ -3442,7 +3468,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticOriginalPattern>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W203(field_pattern, nesting + 1));
+                        pending.push(Work::W205(field_pattern, nesting + 1));
                         pending.push(Work::W33(field_is_error, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Variant {
@@ -3451,13 +3477,13 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W205(field_fields, nesting + 1));
-                        pending.push(Work::W124(field_variant, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W207(field_fields, nesting + 1));
+                        pending.push(Work::W126(field_variant, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Integer(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Bool(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -3469,8 +3495,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W205(field_fields, nesting + 1));
-                        pending.push(Work::W124(field_variant, nesting + 1));
+                        pending.push(Work::W207(field_fields, nesting + 1));
+                        pending.push(Work::W126(field_variant, nesting + 1));
                         pending.push(Work::W96(field_definition, nesting + 1));
                     }
                     SemanticOriginalPatternKind::RecordConstructor {
@@ -3478,68 +3504,68 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W206(field_fields, nesting + 1));
+                        pending.push(Work::W208(field_fields, nesting + 1));
                         pending.push(Work::W96(field_definition, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Float(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalPatternKind::String(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalPatternKind::Character(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                 }
             }
-            Work::W205(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W203(item, nesting));
-                }
-            }
-            Work::W206(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W207(item, nesting));
-                }
-            }
             Work::W207(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W203(&value.1, nesting + 1));
-                pending.push(Work::W124(&value.0, nesting + 1));
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W205(item, nesting));
+                }
             }
             Work::W208(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
-                pending.push(Work::W121(&value.body, nesting + 1));
-                pending.push(Work::W203(&value.pattern, nesting + 1));
-            }
-            Work::W209(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W210(item, nesting));
+                    pending.push(Work::W209(item, nesting));
                 }
+            }
+            Work::W209(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 2, visitor, nesting)?;
+                pending.push(Work::W205(&value.1, nesting + 1));
+                pending.push(Work::W126(&value.0, nesting + 1));
             }
             Work::W210(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
-                pending.push(Work::W211(&value.kind, nesting + 1));
-                pending.push(Work::W56(&value.id, nesting + 1));
+                pending.push(Work::W204(&value.span, nesting + 1));
+                pending.push(Work::W123(&value.body, nesting + 1));
+                pending.push(Work::W205(&value.pattern, nesting + 1));
             }
             Work::W211(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W212(item, nesting));
+                }
+            }
+            Work::W212(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W204(&value.span, nesting + 1));
+                pending.push(Work::W213(&value.kind, nesting + 1));
+                pending.push(Work::W56(&value.id, nesting + 1));
+            }
+            Work::W213(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalStatementKind::Binding {
@@ -3549,10 +3575,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         initializer: field_initializer,
                     } => {
                         reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W212(field_initializer, nesting + 1));
-                        pending.push(Work::W201(field_ty, nesting + 1));
+                        pending.push(Work::W214(field_initializer, nesting + 1));
+                        pending.push(Work::W203(field_ty, nesting + 1));
                         pending.push(Work::W33(field_mutable, nesting + 1));
-                        pending.push(Work::W124(field_name, nesting + 1));
+                        pending.push(Work::W126(field_name, nesting + 1));
                     }
                     SemanticOriginalStatementKind::TupleBinding {
                         pattern: field_pattern,
@@ -3561,26 +3587,26 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         initializer: field_initializer,
                     } => {
                         reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W213(field_initializer, nesting + 1));
-                        pending.push(Work::W201(field_ty, nesting + 1));
+                        pending.push(Work::W215(field_initializer, nesting + 1));
+                        pending.push(Work::W203(field_ty, nesting + 1));
                         pending.push(Work::W33(field_mutable, nesting + 1));
-                        pending.push(Work::W203(field_pattern, nesting + 1));
+                        pending.push(Work::W205(field_pattern, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Assign {
                         target: field_target,
                         value: field_value,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W213(field_value, nesting + 1));
-                        pending.push(Work::W213(field_target, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
+                        pending.push(Work::W215(field_target, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Expression(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Return(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W212(field_value_0, nesting + 1));
+                        pending.push(Work::W214(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::If {
                         condition: field_condition,
@@ -3588,9 +3614,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         else_body: field_else_body,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W214(field_else_body, nesting + 1));
-                        pending.push(Work::W121(field_then_body, nesting + 1));
-                        pending.push(Work::W213(field_condition, nesting + 1));
+                        pending.push(Work::W216(field_else_body, nesting + 1));
+                        pending.push(Work::W123(field_then_body, nesting + 1));
+                        pending.push(Work::W215(field_condition, nesting + 1));
                     }
                     SemanticOriginalStatementKind::IfLet {
                         pattern: field_pattern,
@@ -3599,18 +3625,18 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         else_body: field_else_body,
                     } => {
                         reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W214(field_else_body, nesting + 1));
-                        pending.push(Work::W121(field_then_body, nesting + 1));
-                        pending.push(Work::W213(field_value, nesting + 1));
-                        pending.push(Work::W203(field_pattern, nesting + 1));
+                        pending.push(Work::W216(field_else_body, nesting + 1));
+                        pending.push(Work::W123(field_then_body, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
+                        pending.push(Work::W205(field_pattern, nesting + 1));
                     }
                     SemanticOriginalStatementKind::While {
                         condition: field_condition,
                         body: field_body,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W121(field_body, nesting + 1));
-                        pending.push(Work::W213(field_condition, nesting + 1));
+                        pending.push(Work::W123(field_body, nesting + 1));
+                        pending.push(Work::W215(field_condition, nesting + 1));
                     }
                     SemanticOriginalStatementKind::WhileLet {
                         pattern: field_pattern,
@@ -3618,9 +3644,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         body: field_body,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W121(field_body, nesting + 1));
-                        pending.push(Work::W213(field_value, nesting + 1));
-                        pending.push(Work::W203(field_pattern, nesting + 1));
+                        pending.push(Work::W123(field_body, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
+                        pending.push(Work::W205(field_pattern, nesting + 1));
                     }
                     SemanticOriginalStatementKind::ForRange {
                         name: field_name,
@@ -3629,30 +3655,30 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         body: field_body,
                     } => {
                         reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W121(field_body, nesting + 1));
-                        pending.push(Work::W213(field_end, nesting + 1));
-                        pending.push(Work::W213(field_start, nesting + 1));
-                        pending.push(Work::W124(field_name, nesting + 1));
+                        pending.push(Work::W123(field_body, nesting + 1));
+                        pending.push(Work::W215(field_end, nesting + 1));
+                        pending.push(Work::W215(field_start, nesting + 1));
+                        pending.push(Work::W126(field_name, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Match {
                         value: field_value,
                         arms: field_arms,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W215(field_arms, nesting + 1));
-                        pending.push(Work::W213(field_value, nesting + 1));
+                        pending.push(Work::W217(field_arms, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Block(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W121(field_value_0, nesting + 1));
+                        pending.push(Work::W123(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Defer(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W121(field_value_0, nesting + 1));
+                        pending.push(Work::W123(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Unsafe(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W121(field_value_0, nesting + 1));
+                        pending.push(Work::W123(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Break => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
@@ -3662,7 +3688,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticOriginalStatementKind::Unsupported(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::ForEach {
                         pattern: field_pattern,
@@ -3670,9 +3696,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         body: field_body,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W121(field_body, nesting + 1));
-                        pending.push(Work::W213(field_iterator, nesting + 1));
-                        pending.push(Work::W203(field_pattern, nesting + 1));
+                        pending.push(Work::W123(field_body, nesting + 1));
+                        pending.push(Work::W215(field_iterator, nesting + 1));
+                        pending.push(Work::W205(field_pattern, nesting + 1));
                     }
                     SemanticOriginalStatementKind::CompoundAssign {
                         target: field_target,
@@ -3680,17 +3706,17 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         value: field_value,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W213(field_value, nesting + 1));
-                        pending.push(Work::W194(field_op, nesting + 1));
-                        pending.push(Work::W213(field_target, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
+                        pending.push(Work::W196(field_op, nesting + 1));
+                        pending.push(Work::W215(field_target, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Yield(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::Loop(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W121(field_value_0, nesting + 1));
+                        pending.push(Work::W123(field_value_0, nesting + 1));
                     }
                     SemanticOriginalStatementKind::With {
                         name: field_name,
@@ -3698,9 +3724,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         body: field_body,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W121(field_body, nesting + 1));
-                        pending.push(Work::W213(field_value, nesting + 1));
-                        pending.push(Work::W124(field_name, nesting + 1));
+                        pending.push(Work::W123(field_body, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
+                        pending.push(Work::W126(field_name, nesting + 1));
                     }
                     SemanticOriginalStatementKind::CompileTime(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -3708,40 +3734,40 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                             std::mem::size_of::<SemanticOriginalStatement>(),
                             nesting + 1,
                         )?;
-                        pending.push(Work::W210(field_value_0, nesting + 1));
+                        pending.push(Work::W212(field_value_0, nesting + 1));
                     }
                 }
-            }
-            Work::W212(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    reserve_work(&mut pending, 1, visitor, nesting)?;
-                    pending.push(Work::W213(item, nesting));
-                }
-            }
-            Work::W213(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
-                pending.push(Work::W216(&value.kind, nesting + 1));
-                pending.push(Work::W56(&value.id, nesting + 1));
             }
             Work::W214(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
                     reserve_work(&mut pending, 1, visitor, nesting)?;
-                    pending.push(Work::W121(item, nesting));
+                    pending.push(Work::W215(item, nesting));
                 }
             }
             Work::W215(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W204(&value.span, nesting + 1));
+                pending.push(Work::W218(&value.kind, nesting + 1));
+                pending.push(Work::W56(&value.id, nesting + 1));
+            }
+            Work::W216(value, nesting) => {
+                visitor.node(nesting)?;
+                if let Some(item) = value {
+                    reserve_work(&mut pending, 1, visitor, nesting)?;
+                    pending.push(Work::W123(item, nesting));
+                }
+            }
+            Work::W217(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W208(item, nesting));
+                    pending.push(Work::W210(item, nesting));
                 }
             }
-            Work::W216(value, nesting) => {
+            Work::W218(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalExprKind::MakeDynBorrow {
@@ -3754,9 +3780,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         pending.push(Work::W33(field_mutable, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_source, nesting + 1));
-                        pending.push(Work::W218(field_vtable, nesting + 1));
-                        pending.push(Work::W217(field_interface, nesting + 1));
+                        pending.push(Work::W215(field_source, nesting + 1));
+                        pending.push(Work::W220(field_vtable, nesting + 1));
+                        pending.push(Work::W219(field_interface, nesting + 1));
                     }
                     SemanticOriginalExprKind::MakeDynOwned {
                         interface: field_interface,
@@ -3765,12 +3791,12 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         route: field_route,
                     } => {
                         reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W219(field_route, nesting + 1));
+                        pending.push(Work::W221(field_route, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_source, nesting + 1));
-                        pending.push(Work::W218(field_vtable, nesting + 1));
-                        pending.push(Work::W217(field_interface, nesting + 1));
+                        pending.push(Work::W215(field_source, nesting + 1));
+                        pending.push(Work::W220(field_vtable, nesting + 1));
+                        pending.push(Work::W219(field_interface, nesting + 1));
                     }
                     SemanticOriginalExprKind::CallDynSlot {
                         callee: field_callee,
@@ -3779,12 +3805,12 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         arguments: field_arguments,
                     } => {
                         reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W220(field_arguments, nesting + 1));
+                        pending.push(Work::W222(field_arguments, nesting + 1));
                         pending.push(Work::W6(field_slot, nesting + 1));
-                        pending.push(Work::W217(field_interface, nesting + 1));
+                        pending.push(Work::W219(field_interface, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_callee, nesting + 1));
+                        pending.push(Work::W215(field_callee, nesting + 1));
                     }
                     SemanticOriginalExprKind::Literal(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -3797,36 +3823,36 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                     SemanticOriginalExprKind::Integer(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Float(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::NumericConvert {
                         value: field_value,
                         target: field_target,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W130(field_target, nesting + 1));
+                        pending.push(Work::W132(field_target, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
                     }
                     SemanticOriginalExprKind::IntegerConvert {
                         value: field_value,
                         target: field_target,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W130(field_target, nesting + 1));
+                        pending.push(Work::W132(field_target, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
                     }
                     SemanticOriginalExprKind::Bool(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
@@ -3834,14 +3860,14 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticOriginalExprKind::String(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Unit => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
                     }
                     SemanticOriginalExprKind::Name(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Unary {
                         op: field_op,
@@ -3850,8 +3876,8 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_operand, nesting + 1));
-                        pending.push(Work::W193(field_op, nesting + 1));
+                        pending.push(Work::W215(field_operand, nesting + 1));
+                        pending.push(Work::W195(field_op, nesting + 1));
                     }
                     SemanticOriginalExprKind::Binary {
                         op: field_op,
@@ -3861,39 +3887,39 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_right, nesting + 1));
+                        pending.push(Work::W215(field_right, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_left, nesting + 1));
-                        pending.push(Work::W194(field_op, nesting + 1));
+                        pending.push(Work::W215(field_left, nesting + 1));
+                        pending.push(Work::W196(field_op, nesting + 1));
                     }
                     SemanticOriginalExprKind::TypeApply {
                         callee: field_callee,
                         type_arguments: field_type_arguments,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W137(field_type_arguments, nesting + 1));
+                        pending.push(Work::W139(field_type_arguments, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_callee, nesting + 1));
+                        pending.push(Work::W215(field_callee, nesting + 1));
                     }
                     SemanticOriginalExprKind::Call {
                         callee: field_callee,
                         arguments: field_arguments,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W220(field_arguments, nesting + 1));
+                        pending.push(Work::W222(field_arguments, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_callee, nesting + 1));
+                        pending.push(Work::W215(field_callee, nesting + 1));
                     }
                     SemanticOriginalExprKind::Tuple(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W220(field_value_0, nesting + 1));
+                        pending.push(Work::W222(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Array(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W220(field_value_0, nesting + 1));
+                        pending.push(Work::W222(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Index {
                         object: field_object,
@@ -3902,10 +3928,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_index, nesting + 1));
+                        pending.push(Work::W215(field_index, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_object, nesting + 1));
+                        pending.push(Work::W215(field_object, nesting + 1));
                     }
                     SemanticOriginalExprKind::Slice {
                         object: field_object,
@@ -3913,11 +3939,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         end: field_end,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W221(field_end, nesting + 1));
-                        pending.push(Work::W221(field_start, nesting + 1));
+                        pending.push(Work::W223(field_end, nesting + 1));
+                        pending.push(Work::W223(field_start, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_object, nesting + 1));
+                        pending.push(Work::W215(field_object, nesting + 1));
                     }
                     SemanticOriginalExprKind::Member {
                         object: field_object,
@@ -3925,23 +3951,23 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         owner: field_owner,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W201(field_owner, nesting + 1));
-                        pending.push(Work::W124(field_member, nesting + 1));
+                        pending.push(Work::W203(field_owner, nesting + 1));
+                        pending.push(Work::W126(field_member, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_object, nesting + 1));
+                        pending.push(Work::W215(field_object, nesting + 1));
                     }
                     SemanticOriginalExprKind::ReceiverMember(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Record {
                         ty: field_ty,
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W222(field_fields, nesting + 1));
-                        pending.push(Work::W130(field_ty, nesting + 1));
+                        pending.push(Work::W224(field_fields, nesting + 1));
+                        pending.push(Work::W132(field_ty, nesting + 1));
                     }
                     SemanticOriginalExprKind::RecordUpdate {
                         ty: field_ty,
@@ -3949,11 +3975,11 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 3, visitor, nesting)?;
-                        pending.push(Work::W222(field_fields, nesting + 1));
+                        pending.push(Work::W224(field_fields, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_base, nesting + 1));
-                        pending.push(Work::W201(field_ty, nesting + 1));
+                        pending.push(Work::W215(field_base, nesting + 1));
+                        pending.push(Work::W203(field_ty, nesting + 1));
                     }
                     SemanticOriginalExprKind::Sequence {
                         bindings: field_bindings,
@@ -3962,20 +3988,20 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value, nesting + 1));
-                        pending.push(Work::W222(field_bindings, nesting + 1));
+                        pending.push(Work::W215(field_value, nesting + 1));
+                        pending.push(Work::W224(field_bindings, nesting + 1));
                     }
                     SemanticOriginalExprKind::CompileTime(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Try(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Closure {
                         move_capture: field_move_capture,
@@ -3984,9 +4010,9 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         body: field_body,
                     } => {
                         reserve_work(&mut pending, 4, visitor, nesting)?;
-                        pending.push(Work::W121(field_body, nesting + 1));
-                        pending.push(Work::W201(field_return_type, nesting + 1));
-                        pending.push(Work::W113(field_parameters, nesting + 1));
+                        pending.push(Work::W123(field_body, nesting + 1));
+                        pending.push(Work::W203(field_return_type, nesting + 1));
+                        pending.push(Work::W115(field_parameters, nesting + 1));
                         pending.push(Work::W33(field_move_capture, nesting + 1));
                     }
                     SemanticOriginalExprKind::If {
@@ -3997,33 +4023,33 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 3, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_else_value, nesting + 1));
+                        pending.push(Work::W215(field_else_value, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_then_value, nesting + 1));
+                        pending.push(Work::W215(field_then_value, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_condition, nesting + 1));
+                        pending.push(Work::W215(field_condition, nesting + 1));
                     }
                     SemanticOriginalExprKind::Unsupported(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Spread(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Group(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Character(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::Range {
                         start: field_start,
@@ -4032,10 +4058,10 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_end, nesting + 1));
+                        pending.push(Work::W215(field_end, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_start, nesting + 1));
+                        pending.push(Work::W215(field_start, nesting + 1));
                     }
                     SemanticOriginalExprKind::Pipeline {
                         input: field_input,
@@ -4044,66 +4070,66 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_target, nesting + 1));
+                        pending.push(Work::W215(field_target, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_input, nesting + 1));
+                        pending.push(Work::W215(field_input, nesting + 1));
                     }
                     SemanticOriginalExprKind::RecordConstructor {
                         definition: field_definition,
                         fields: field_fields,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W222(field_fields, nesting + 1));
+                        pending.push(Work::W224(field_fields, nesting + 1));
                         pending.push(Work::W96(field_definition, nesting + 1));
                     }
                     SemanticOriginalExprKind::Splice(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::CompileTimeBlock(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W121(field_value_0, nesting + 1));
+                        pending.push(Work::W123(field_value_0, nesting + 1));
                     }
                     SemanticOriginalExprKind::SyntaxQuote {
                         category: field_category,
                         template: field_template,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W225(field_template, nesting + 1));
-                        pending.push(Work::W224(field_category, nesting + 1));
+                        pending.push(Work::W227(field_template, nesting + 1));
+                        pending.push(Work::W226(field_category, nesting + 1));
                     }
                     SemanticOriginalExprKind::SyntaxIsland {
                         path: field_path,
                         tree: field_tree,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W226(field_tree, nesting + 1));
-                        pending.push(Work::W126(field_path, nesting + 1));
+                        pending.push(Work::W228(field_tree, nesting + 1));
+                        pending.push(Work::W128(field_path, nesting + 1));
                     }
                     SemanticOriginalExprKind::GenericApply {
                         callee: field_callee,
                         arguments: field_arguments,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W227(field_arguments, nesting + 1));
+                        pending.push(Work::W229(field_arguments, nesting + 1));
                         visitor
                             .allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                        pending.push(Work::W213(field_callee, nesting + 1));
+                        pending.push(Work::W215(field_callee, nesting + 1));
                     }
                 }
             }
-            Work::W217(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
-            Work::W218(value, nesting) => {
-                let _ = value;
-                visitor.node(nesting)?;
-            }
             Work::W219(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W220(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
+            Work::W221(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynOwnedStorage::Heap => {
@@ -4111,37 +4137,37 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W220(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W213(item, nesting));
-                }
-            }
-            Work::W221(value, nesting) => {
-                visitor.node(nesting)?;
-                if let Some(item) = value {
-                    reserve_work(&mut pending, 1, visitor, nesting)?;
-                    visitor.allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting)?;
-                    pending.push(Work::W213(item, nesting));
-                }
-            }
             Work::W222(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W223(item, nesting));
+                    pending.push(Work::W215(item, nesting));
                 }
             }
             Work::W223(value, nesting) => {
                 visitor.node(nesting)?;
-                reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W213(&value.1, nesting + 1));
-                pending.push(Work::W124(&value.0, nesting + 1));
+                if let Some(item) = value {
+                    reserve_work(&mut pending, 1, visitor, nesting)?;
+                    visitor.allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting)?;
+                    pending.push(Work::W215(item, nesting));
+                }
             }
             Work::W224(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W225(item, nesting));
+                }
+            }
+            Work::W225(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 2, visitor, nesting)?;
+                pending.push(Work::W215(&value.1, nesting + 1));
+                pending.push(Work::W126(&value.0, nesting + 1));
+            }
+            Work::W226(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalSyntaxCategory::Expr => {
@@ -4158,54 +4184,54 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W225(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W232(&value.name_sites, nesting + 1));
-                pending.push(Work::W231(&value.holes, nesting + 1));
-                pending.push(Work::W226(&value.tree, nesting + 1));
-            }
-            Work::W226(value, nesting) => {
-                visitor.node(nesting)?;
-                reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
-                pending.push(Work::W237(&value.children, nesting + 1));
-                pending.push(Work::W234(&value.delimiter, nesting + 1));
-            }
             Work::W227(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W234(&value.name_sites, nesting + 1));
+                pending.push(Work::W233(&value.holes, nesting + 1));
+                pending.push(Work::W228(&value.tree, nesting + 1));
+            }
+            Work::W228(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W204(&value.span, nesting + 1));
+                pending.push(Work::W239(&value.children, nesting + 1));
+                pending.push(Work::W236(&value.delimiter, nesting + 1));
+            }
+            Work::W229(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W228(item, nesting));
+                    pending.push(Work::W230(item, nesting));
                 }
             }
-            Work::W228(value, nesting) => {
+            Work::W230(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalGenericArgument::Type(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W130(field_value_0, nesting + 1));
+                        pending.push(Work::W132(field_value_0, nesting + 1));
                     }
                     SemanticOriginalGenericArgument::Const(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W213(field_value_0, nesting + 1));
+                        pending.push(Work::W215(field_value_0, nesting + 1));
                     }
                     SemanticOriginalGenericArgument::Lifetime(field_value_0) => {
                         reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W124(field_value_0, nesting + 1));
+                        pending.push(Work::W126(field_value_0, nesting + 1));
                     }
                 }
             }
-            Work::W229(value, nesting) => {
+            Work::W231(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 3, visitor, nesting)?;
-                pending.push(Work::W202(&value.span, nesting + 1));
+                pending.push(Work::W204(&value.span, nesting + 1));
                 visitor.allocation(std::mem::size_of::<SemanticOriginalExpr>(), nesting + 1)?;
-                pending.push(Work::W213(&value.value, nesting + 1));
-                pending.push(Work::W230(&value.kind, nesting + 1));
+                pending.push(Work::W215(&value.value, nesting + 1));
+                pending.push(Work::W232(&value.kind, nesting + 1));
             }
-            Work::W230(value, nesting) => {
+            Work::W232(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalQuoteHoleKind::Expr => {
@@ -4225,34 +4251,34 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         role: field_role,
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W236(field_role, nesting + 1));
-                        pending.push(Work::W235(field_namespace, nesting + 1));
+                        pending.push(Work::W238(field_role, nesting + 1));
+                        pending.push(Work::W237(field_namespace, nesting + 1));
                     }
                 }
             }
-            Work::W231(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W229(item, nesting));
-                }
-            }
-            Work::W232(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W233(item, nesting));
-                }
-            }
             Work::W233(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W231(item, nesting));
+                }
+            }
+            Work::W234(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W235(item, nesting));
+                }
+            }
+            Work::W235(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
                 pending.push(Work::W6(&value.token_index, nesting + 1));
-                pending.push(Work::W202(&value.span, nesting + 1));
+                pending.push(Work::W204(&value.span, nesting + 1));
             }
-            Work::W234(value, nesting) => {
+            Work::W236(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalSyntaxDelimiter::Parenthesis => {
@@ -4266,7 +4292,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W235(value, nesting) => {
+            Work::W237(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalQuoteNameNamespace::Value => {
@@ -4286,7 +4312,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W236(value, nesting) => {
+            Work::W238(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     SemanticOriginalQuoteNameRole::Binding => {
@@ -4294,39 +4320,6 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                     SemanticOriginalQuoteNameRole::Reference => {
                         reserve_work(&mut pending, 0, visitor, nesting)?;
-                    }
-                }
-            }
-            Work::W237(value, nesting) => {
-                visitor.rows(value.len(), nesting)?;
-                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
-                reserve_work(&mut pending, value.len(), visitor, nesting)?;
-                for item in value.iter().rev() {
-                    pending.push(Work::W238(item, nesting));
-                }
-            }
-            Work::W238(value, nesting) => {
-                visitor.node(nesting)?;
-                match value {
-                    SemanticOriginalSyntaxTreeEntry::Token {
-                        text: field_text,
-                        span: field_span,
-                    } => {
-                        reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W202(field_span, nesting + 1));
-                        pending.push(Work::W124(field_text, nesting + 1));
-                    }
-                    SemanticOriginalSyntaxTreeEntry::Tree(field_value_0) => {
-                        reserve_work(&mut pending, 1, visitor, nesting)?;
-                        pending.push(Work::W226(field_value_0, nesting + 1));
-                    }
-                    SemanticOriginalSyntaxTreeEntry::Hole {
-                        index: field_index,
-                        span: field_span,
-                    } => {
-                        reserve_work(&mut pending, 2, visitor, nesting)?;
-                        pending.push(Work::W202(field_span, nesting + 1));
-                        pending.push(Work::W6(field_index, nesting + 1));
                     }
                 }
             }
@@ -4339,6 +4332,104 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                 }
             }
             Work::W240(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    SemanticOriginalSyntaxTreeEntry::Token {
+                        text: field_text,
+                        span: field_span,
+                    } => {
+                        reserve_work(&mut pending, 2, visitor, nesting)?;
+                        pending.push(Work::W204(field_span, nesting + 1));
+                        pending.push(Work::W126(field_text, nesting + 1));
+                    }
+                    SemanticOriginalSyntaxTreeEntry::Tree(field_value_0) => {
+                        reserve_work(&mut pending, 1, visitor, nesting)?;
+                        pending.push(Work::W228(field_value_0, nesting + 1));
+                    }
+                    SemanticOriginalSyntaxTreeEntry::Hole {
+                        index: field_index,
+                        span: field_span,
+                    } => {
+                        reserve_work(&mut pending, 2, visitor, nesting)?;
+                        pending.push(Work::W204(field_span, nesting + 1));
+                        pending.push(Work::W6(field_index, nesting + 1));
+                    }
+                }
+            }
+            Work::W241(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    ProtocolState::Open => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                    ProtocolState::Closing => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                    ProtocolState::Closed => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                }
+            }
+            Work::W242(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    ProtocolKind::AsyncRegistrationV1 => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                }
+            }
+            Work::W243(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    ProtocolExit::Return => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                    ProtocolExit::ErrorOk => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                    ProtocolExit::ErrorErr => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                    ProtocolExit::PollPending => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                    ProtocolExit::PollReady => {
+                        reserve_work(&mut pending, 0, visitor, nesting)?;
+                    }
+                }
+            }
+            Work::W244(value, nesting) => {
+                visitor.node(nesting)?;
+                reserve_work(&mut pending, 3, visitor, nesting)?;
+                pending.push(Work::W245(&value.output, nesting + 1));
+                pending.push(Work::W243(&value.exit, nesting + 1));
+                pending.push(Work::W241(&value.input, nesting + 1));
+            }
+            Work::W245(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W241(item, nesting));
+                }
+            }
+            Work::W246(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W244(item, nesting));
+                }
+            }
+            Work::W247(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
+                reserve_work(&mut pending, value.len(), visitor, nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W248(item, nesting));
+                }
+            }
+            Work::W248(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynPatternActual::Type(field_value_0) => {
@@ -4355,14 +4446,14 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W241(value, nesting) => {
+            Work::W249(value, nesting) => {
                 visitor.node(nesting)?;
                 if let Some(item) = value {
                     reserve_work(&mut pending, 1, visitor, nesting)?;
                     pending.push(Work::W14(item, nesting));
                 }
             }
-            Work::W242(value, nesting) => {
+            Work::W250(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
@@ -4370,27 +4461,27 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     pending.push(Work::W16(item, nesting));
                 }
             }
-            Work::W243(value, nesting) => {
+            Work::W251(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
                 pending.push(Work::W6(&value.index, nesting + 1));
                 pending.push(Work::W6(&value.variant, nesting + 1));
             }
-            Work::W244(value, nesting) => {
+            Work::W252(value, nesting) => {
                 visitor.node(nesting)?;
                 reserve_work(&mut pending, 2, visitor, nesting)?;
-                pending.push(Work::W245(&value.sources, nesting + 1));
+                pending.push(Work::W253(&value.sources, nesting + 1));
                 pending.push(Work::W28(&value.position, nesting + 1));
             }
-            Work::W245(value, nesting) => {
+            Work::W253(value, nesting) => {
                 visitor.rows(value.len(), nesting)?;
                 visitor.allocation(std::mem::size_of_val(value.as_slice()), nesting)?;
                 reserve_work(&mut pending, value.len(), visitor, nesting)?;
                 for item in value.iter().rev() {
-                    pending.push(Work::W246(item, nesting));
+                    pending.push(Work::W254(item, nesting));
                 }
             }
-            Work::W246(value, nesting) => {
+            Work::W254(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     StorageSource::Exact(field_value_0) => {
@@ -4433,7 +4524,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     }
                 }
             }
-            Work::W247(value, nesting) => {
+            Work::W255(value, nesting) => {
                 visitor.node(nesting)?;
                 match value {
                     DynResultSource::Value => {
@@ -4451,7 +4542,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     } => {
                         reserve_work(&mut pending, 2, visitor, nesting)?;
                         pending.push(Work::W33(field_mutable, nesting + 1));
-                        pending.push(Work::W245(field_sources, nesting + 1));
+                        pending.push(Work::W253(field_sources, nesting + 1));
                     }
                 }
             }
@@ -4834,7 +4925,7 @@ impl DynRecipeMetadata for SemanticOriginalFunctionBody {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W120(self, nesting), visitor)
+        visit(Work::W122(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalTypeSource {
@@ -4843,7 +4934,7 @@ impl DynRecipeMetadata for SemanticOriginalTypeSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W122(self, nesting), visitor)
+        visit(Work::W124(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalNamespace {
@@ -4852,7 +4943,7 @@ impl DynRecipeMetadata for SemanticOriginalNamespace {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W125(self, nesting), visitor)
+        visit(Work::W127(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalNameBinding {
@@ -4861,7 +4952,7 @@ impl DynRecipeMetadata for SemanticOriginalNameBinding {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W117(self, nesting), visitor)
+        visit(Work::W119(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalNameValue {
@@ -4870,7 +4961,7 @@ impl DynRecipeMetadata for SemanticOriginalNameValue {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W127(self, nesting), visitor)
+        visit(Work::W129(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalNode {
@@ -4879,7 +4970,7 @@ impl DynRecipeMetadata for SemanticOriginalNode {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W123(self, nesting), visitor)
+        visit(Work::W125(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalSiteNode {
@@ -4888,7 +4979,7 @@ impl DynRecipeMetadata for SemanticOriginalSiteNode {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W119(self, nesting), visitor)
+        visit(Work::W121(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticScopeRecipe {
@@ -4906,7 +4997,7 @@ impl DynRecipeMetadata for SemanticBuiltinTrait {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W132(self, nesting), visitor)
+        visit(Work::W134(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticNominalBody {
@@ -4924,7 +5015,7 @@ impl DynRecipeMetadata for SemanticFieldRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W134(self, nesting), visitor)
+        visit(Work::W136(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticVariantRecipe {
@@ -4933,7 +5024,7 @@ impl DynRecipeMetadata for SemanticVariantRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W136(self, nesting), visitor)
+        visit(Work::W138(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticFormal {
@@ -4978,7 +5069,7 @@ impl DynRecipeMetadata for SemanticLifetimeInstantiation {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W139(self, nesting), visitor)
+        visit(Work::W141(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticFunctionTarget {
@@ -4987,7 +5078,7 @@ impl DynRecipeMetadata for SemanticFunctionTarget {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W149(self, nesting), visitor)
+        visit(Work::W151(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticInstanceTarget {
@@ -4996,7 +5087,7 @@ impl DynRecipeMetadata for SemanticInstanceTarget {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W138(self, nesting), visitor)
+        visit(Work::W140(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticClosureTarget {
@@ -5005,7 +5096,7 @@ impl DynRecipeMetadata for SemanticClosureTarget {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W150(self, nesting), visitor)
+        visit(Work::W152(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticHeaderBinding {
@@ -5014,7 +5105,7 @@ impl DynRecipeMetadata for SemanticHeaderBinding {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W144(self, nesting), visitor)
+        visit(Work::W146(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticEnvironmentInstance {
@@ -5023,7 +5114,7 @@ impl DynRecipeMetadata for SemanticEnvironmentInstance {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W146(self, nesting), visitor)
+        visit(Work::W148(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticActual {
@@ -5032,7 +5123,7 @@ impl DynRecipeMetadata for SemanticActual {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W142(self, nesting), visitor)
+        visit(Work::W144(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticCoreTypeSource {
@@ -5041,7 +5132,7 @@ impl DynRecipeMetadata for SemanticCoreTypeSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W153(self, nesting), visitor)
+        visit(Work::W155(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticTypeValue {
@@ -5050,7 +5141,7 @@ impl DynRecipeMetadata for SemanticTypeValue {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W148(self, nesting), visitor)
+        visit(Work::W150(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticScopeRef {
@@ -5059,7 +5150,7 @@ impl DynRecipeMetadata for SemanticScopeRef {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W155(self, nesting), visitor)
+        visit(Work::W157(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticClassExpr {
@@ -5068,7 +5159,7 @@ impl DynRecipeMetadata for SemanticClassExpr {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W152(self, nesting), visitor)
+        visit(Work::W154(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOperand {
@@ -5077,7 +5168,7 @@ impl DynRecipeMetadata for SemanticOperand {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W156(self, nesting), visitor)
+        visit(Work::W158(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticSiteRecipe {
@@ -5095,7 +5186,7 @@ impl DynRecipeMetadata for SemanticSiteRecipeKind {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W161(self, nesting), visitor)
+        visit(Work::W163(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticSite {
@@ -5113,7 +5204,7 @@ impl DynRecipeMetadata for SemanticSiteAddress {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W163(self, nesting), visitor)
+        visit(Work::W165(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticEmissionRole {
@@ -5122,7 +5213,7 @@ impl DynRecipeMetadata for SemanticEmissionRole {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W165(self, nesting), visitor)
+        visit(Work::W167(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticSiteEdge {
@@ -5131,7 +5222,7 @@ impl DynRecipeMetadata for SemanticSiteEdge {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W167(self, nesting), visitor)
+        visit(Work::W169(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticSiteAction {
@@ -5140,7 +5231,7 @@ impl DynRecipeMetadata for SemanticSiteAction {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W164(self, nesting), visitor)
+        visit(Work::W166(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticLocalTarget {
@@ -5149,7 +5240,7 @@ impl DynRecipeMetadata for SemanticLocalTarget {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W168(self, nesting), visitor)
+        visit(Work::W170(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticRecipeOperand {
@@ -5158,7 +5249,7 @@ impl DynRecipeMetadata for SemanticRecipeOperand {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W169(self, nesting), visitor)
+        visit(Work::W171(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticFormalRef {
@@ -5167,7 +5258,7 @@ impl DynRecipeMetadata for SemanticFormalRef {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W170(self, nesting), visitor)
+        visit(Work::W172(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticLifeRecipe {
@@ -5176,7 +5267,7 @@ impl DynRecipeMetadata for SemanticLifeRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W171(self, nesting), visitor)
+        visit(Work::W173(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOuterLifeRecipe {
@@ -5185,7 +5276,7 @@ impl DynRecipeMetadata for SemanticOuterLifeRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W172(self, nesting), visitor)
+        visit(Work::W174(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticTypeRecipe {
@@ -5194,7 +5285,7 @@ impl DynRecipeMetadata for SemanticTypeRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W130(self, nesting), visitor)
+        visit(Work::W132(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticExactTypeRecipe {
@@ -5203,7 +5294,7 @@ impl DynRecipeMetadata for SemanticExactTypeRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W173(self, nesting), visitor)
+        visit(Work::W175(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticCodeKind {
@@ -5212,7 +5303,7 @@ impl DynRecipeMetadata for SemanticCodeKind {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W177(self, nesting), visitor)
+        visit(Work::W179(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticActualRecipe {
@@ -5221,7 +5312,7 @@ impl DynRecipeMetadata for SemanticActualRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W128(self, nesting), visitor)
+        visit(Work::W130(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticClassSequenceRecipe {
@@ -5230,7 +5321,7 @@ impl DynRecipeMetadata for SemanticClassSequenceRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W180(self, nesting), visitor)
+        visit(Work::W182(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticClassSequencePart {
@@ -5239,7 +5330,7 @@ impl DynRecipeMetadata for SemanticClassSequencePart {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W182(self, nesting), visitor)
+        visit(Work::W184(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticStorageShapeRecipe {
@@ -5248,7 +5339,7 @@ impl DynRecipeMetadata for SemanticStorageShapeRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W176(self, nesting), visitor)
+        visit(Work::W178(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticSlotRecipe {
@@ -5257,7 +5348,7 @@ impl DynRecipeMetadata for SemanticSlotRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W184(self, nesting), visitor)
+        visit(Work::W186(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticRetainedPart {
@@ -5266,7 +5357,7 @@ impl DynRecipeMetadata for SemanticRetainedPart {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W186(self, nesting), visitor)
+        visit(Work::W188(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticNominalPart {
@@ -5275,7 +5366,7 @@ impl DynRecipeMetadata for SemanticNominalPart {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W188(self, nesting), visitor)
+        visit(Work::W190(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticRetainedShapeRecipe {
@@ -5284,7 +5375,7 @@ impl DynRecipeMetadata for SemanticRetainedShapeRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W175(self, nesting), visitor)
+        visit(Work::W177(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticPortPart {
@@ -5293,7 +5384,7 @@ impl DynRecipeMetadata for SemanticPortPart {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W192(self, nesting), visitor)
+        visit(Work::W194(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticConstRecipe {
@@ -5302,7 +5393,7 @@ impl DynRecipeMetadata for SemanticConstRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W174(self, nesting), visitor)
+        visit(Work::W176(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticTraitRecipe {
@@ -5311,7 +5402,7 @@ impl DynRecipeMetadata for SemanticTraitRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W131(self, nesting), visitor)
+        visit(Work::W133(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticRequirementRecipe {
@@ -5338,7 +5429,7 @@ impl DynRecipeMetadata for SemanticParameterRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W196(self, nesting), visitor)
+        visit(Work::W198(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticDynContextRecipe {
@@ -5347,7 +5438,7 @@ impl DynRecipeMetadata for SemanticDynContextRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W197(self, nesting), visitor)
+        visit(Work::W199(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticDynInterfaceRecipe {
@@ -5356,7 +5447,7 @@ impl DynRecipeMetadata for SemanticDynInterfaceRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W178(self, nesting), visitor)
+        visit(Work::W180(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticAssociatedBindingRecipe {
@@ -5365,7 +5456,7 @@ impl DynRecipeMetadata for SemanticAssociatedBindingRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W199(self, nesting), visitor)
+        visit(Work::W201(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticAssociatedRecipe {
@@ -5374,7 +5465,7 @@ impl DynRecipeMetadata for SemanticAssociatedRecipe {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W200(self, nesting), visitor)
+        visit(Work::W202(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalClosureParameter {
@@ -5383,7 +5474,7 @@ impl DynRecipeMetadata for SemanticOriginalClosureParameter {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W114(self, nesting), visitor)
+        visit(Work::W116(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalPattern {
@@ -5392,7 +5483,7 @@ impl DynRecipeMetadata for SemanticOriginalPattern {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W203(self, nesting), visitor)
+        visit(Work::W205(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalPatternKind {
@@ -5401,7 +5492,7 @@ impl DynRecipeMetadata for SemanticOriginalPatternKind {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W204(self, nesting), visitor)
+        visit(Work::W206(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalMatchArm {
@@ -5410,7 +5501,7 @@ impl DynRecipeMetadata for SemanticOriginalMatchArm {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W208(self, nesting), visitor)
+        visit(Work::W210(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalBlock {
@@ -5419,7 +5510,7 @@ impl DynRecipeMetadata for SemanticOriginalBlock {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W121(self, nesting), visitor)
+        visit(Work::W123(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalStatement {
@@ -5428,7 +5519,7 @@ impl DynRecipeMetadata for SemanticOriginalStatement {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W210(self, nesting), visitor)
+        visit(Work::W212(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalStatementKind {
@@ -5437,7 +5528,7 @@ impl DynRecipeMetadata for SemanticOriginalStatementKind {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W211(self, nesting), visitor)
+        visit(Work::W213(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalExpr {
@@ -5446,7 +5537,7 @@ impl DynRecipeMetadata for SemanticOriginalExpr {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W213(self, nesting), visitor)
+        visit(Work::W215(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalExprKind {
@@ -5455,7 +5546,7 @@ impl DynRecipeMetadata for SemanticOriginalExprKind {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W216(self, nesting), visitor)
+        visit(Work::W218(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalQuoteHole {
@@ -5464,7 +5555,7 @@ impl DynRecipeMetadata for SemanticOriginalQuoteHole {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W229(self, nesting), visitor)
+        visit(Work::W231(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalQuoteTemplate {
@@ -5473,7 +5564,7 @@ impl DynRecipeMetadata for SemanticOriginalQuoteTemplate {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W225(self, nesting), visitor)
+        visit(Work::W227(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalGenericArgument {
@@ -5482,7 +5573,7 @@ impl DynRecipeMetadata for SemanticOriginalGenericArgument {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W228(self, nesting), visitor)
+        visit(Work::W230(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalSyntaxCategory {
@@ -5491,7 +5582,7 @@ impl DynRecipeMetadata for SemanticOriginalSyntaxCategory {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W224(self, nesting), visitor)
+        visit(Work::W226(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalSyntaxDelimiter {
@@ -5500,7 +5591,7 @@ impl DynRecipeMetadata for SemanticOriginalSyntaxDelimiter {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W234(self, nesting), visitor)
+        visit(Work::W236(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalQuoteNameNamespace {
@@ -5509,7 +5600,7 @@ impl DynRecipeMetadata for SemanticOriginalQuoteNameNamespace {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W235(self, nesting), visitor)
+        visit(Work::W237(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalQuoteNameRole {
@@ -5518,7 +5609,7 @@ impl DynRecipeMetadata for SemanticOriginalQuoteNameRole {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W236(self, nesting), visitor)
+        visit(Work::W238(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalQuoteHoleKind {
@@ -5527,7 +5618,7 @@ impl DynRecipeMetadata for SemanticOriginalQuoteHoleKind {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W230(self, nesting), visitor)
+        visit(Work::W232(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalQuoteNameSite {
@@ -5536,7 +5627,7 @@ impl DynRecipeMetadata for SemanticOriginalQuoteNameSite {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W233(self, nesting), visitor)
+        visit(Work::W235(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalSyntaxTree {
@@ -5545,7 +5636,7 @@ impl DynRecipeMetadata for SemanticOriginalSyntaxTree {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W226(self, nesting), visitor)
+        visit(Work::W228(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for SemanticOriginalSyntaxTreeEntry {
@@ -5554,7 +5645,52 @@ impl DynRecipeMetadata for SemanticOriginalSyntaxTreeEntry {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W238(self, nesting), visitor)
+        visit(Work::W240(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for ProtocolState {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W241(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for ProtocolKind {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W242(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for ProtocolExit {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W243(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for ProtocolTransition {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W244(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for FunctionProtocolContract {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W114(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynOwnedStorage {
@@ -5563,7 +5699,7 @@ impl DynRecipeMetadata for DynOwnedStorage {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W219(self, nesting), visitor)
+        visit(Work::W221(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynSelfPattern {
@@ -5581,7 +5717,7 @@ impl DynRecipeMetadata for DynPatternActual {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W240(self, nesting), visitor)
+        visit(Work::W248(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynConstPattern {
@@ -5626,7 +5762,7 @@ impl DynRecipeMetadata for LifeTypeProjection {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W158(self, nesting), visitor)
+        visit(Work::W160(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for PlaceProjection {
@@ -5635,7 +5771,7 @@ impl DynRecipeMetadata for PlaceProjection {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W190(self, nesting), visitor)
+        visit(Work::W192(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for VariantProjection {
@@ -5644,7 +5780,7 @@ impl DynRecipeMetadata for VariantProjection {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W243(self, nesting), visitor)
+        visit(Work::W251(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for StorageSourceBinding {
@@ -5653,7 +5789,7 @@ impl DynRecipeMetadata for StorageSourceBinding {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W244(self, nesting), visitor)
+        visit(Work::W252(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for StorageSource {
@@ -5662,7 +5798,7 @@ impl DynRecipeMetadata for StorageSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W246(self, nesting), visitor)
+        visit(Work::W254(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynGenericActual {
@@ -5707,7 +5843,7 @@ impl DynRecipeMetadata for DynResultSource {
         visitor: &mut V,
         nesting: usize,
     ) -> Result<(), V::Error> {
-        visit(Work::W247(self, nesting), visitor)
+        visit(Work::W255(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynThreadRequirements {

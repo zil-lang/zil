@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 49;
+pub const WIRE_VERSION: u32 = 50;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 #[path = "dynamic_recipes_wire.rs"]

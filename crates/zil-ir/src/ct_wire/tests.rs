@@ -39,6 +39,127 @@ fn program() -> CtArtifactProgram {
 }
 
 #[test]
+fn original_protocols_survive_reification_wire_lifting_and_bind_content_identity() {
+    use crate::*;
+    // No Type DAG nodes are needed for these raw tuple recipes. Transport
+    // preserves protocol claims; it does not certify their applicability.
+    struct NoTypes;
+    macro_rules! meter {
+        () => {
+            type Error = ();
+            fn node(&mut self, _: usize) -> Result<(), ()> {
+                Ok(())
+            }
+            fn rows(&mut self, _: usize, _: usize, _: usize) -> Result<(), ()> {
+                Ok(())
+            }
+            fn text(&mut self, value: &str, _: usize) -> Result<String, ()> {
+                Ok(value.to_owned())
+            }
+            fn constant(&mut self, value: &Constant, _: usize) -> Result<Constant, ()> {
+                Ok(value.clone())
+            }
+        };
+    }
+    impl CtDynamicReifier for NoTypes {
+        meter!();
+        fn store_type(&mut self, _: CtDynamicTypeNode, _: usize) -> Result<CtDynamicTypeId, ()> {
+            unreachable!()
+        }
+    }
+    impl CtDynamicLifter for NoTypes {
+        meter!();
+        fn load_type(&mut self, _: CtDynamicTypeId, _: usize) -> Result<Type, ()> {
+            unreachable!()
+        }
+    }
+    let unit = SemanticTypeRecipe::Tuple(vec![]);
+    let original = SemanticModule {
+        definitions: vec![SemanticDefinition {
+            id: SemanticDefinitionId::default(),
+            identity: LifeDeclarationIdentity {
+                package: "raw".into(),
+                module_path: vec![],
+                declaration_path: vec!["closed".into()],
+                generation_path: vec![],
+            },
+            parent: None,
+            kind: SemanticDefinitionKind::Function,
+            parameters: vec![],
+            implicit_lifetimes: vec![],
+            requirements: vec![],
+            environment: vec![],
+            body: SemanticDefinitionBody::FunctionWithBody {
+                signature: SemanticSignatureRecipe {
+                    bound_lifetimes: 0,
+                    invocation_lifetimes: 0,
+                    parameters: vec![SemanticParameterRecipe {
+                        ty: unit.clone(),
+                        mode: PassingMode::Infer,
+                    }],
+                    result: unit.clone(),
+                    result_mode: PassingMode::Infer,
+                    call_kind: CallKind::Direct,
+                },
+                protocol_contracts: vec![FunctionProtocolContract {
+                    protocol: ProtocolKind::AsyncRegistrationV1,
+                    parameter: 0,
+                    entry: vec![ProtocolState::Closing, ProtocolState::Closed],
+                    exits: vec![ProtocolTransition {
+                        input: ProtocolState::Closing,
+                        exit: ProtocolExit::PollReady,
+                        output: vec![ProtocolState::Closed],
+                    }],
+                }],
+                sites: vec![],
+                parameters: vec![CoreClosureParameter {
+                    name: "owner".into(),
+                    ty: Some(unit),
+                    mode: PassingMode::Infer,
+                    span: Span::default(),
+                }],
+                receiver_parameter: None,
+                names: vec![],
+                site_nodes: vec![],
+                body: SemanticOriginalFunctionBody::Declaration,
+            },
+        }],
+        instances: vec![],
+        sites: vec![],
+        dyn_scopes: vec![],
+    };
+    let mut raw = program();
+    raw.dynamic_catalogue.semantic =
+        Some(reify_semantic_module(&original, &mut NoTypes, 0).unwrap());
+    let limits = Limits::default();
+    let bytes = encode_program(&raw, &limits).unwrap();
+    let decoded = decode_program(&bytes, &limits).unwrap();
+    assert_eq!(decoded, raw);
+    assert_eq!(
+        lift_semantic_module(
+            decoded.dynamic_catalogue.semantic.as_ref().unwrap(),
+            &mut NoTypes,
+            0
+        )
+        .unwrap(),
+        original
+    );
+    let fingerprint = program_fingerprint(&raw, &limits).unwrap();
+    let CtSemanticDefinitionBody::FunctionWithBody {
+        protocol_contracts, ..
+    } = &mut raw.dynamic_catalogue.semantic.as_mut().unwrap().definitions[0].body
+    else {
+        unreachable!()
+    };
+    protocol_contracts[0].exits[0].output = vec![CtProtocolState::Closing];
+    assert_ne!(program_fingerprint(&raw, &limits).unwrap(), fingerprint);
+    let mut stale = bytes;
+    stale[8..12].copy_from_slice(&9u32.to_le_bytes());
+    resign(&mut stale, CT_ARTIFACT_FINGERPRINT_DOMAIN);
+    assert_eq!(decode_program(&stale, &limits), Err(WireError::BadVersion));
+}
+
+#[test]
 fn ct6_contextual_type_instruction_transports_the_complete_graph() {
     let limits = Limits::default();
     let graph = CtTypeRef {

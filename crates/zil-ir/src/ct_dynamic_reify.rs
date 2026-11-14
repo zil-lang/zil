@@ -2642,6 +2642,7 @@ pub fn reify_semantic_definition_body<R: CtDynamicReifier>(
         ),
         SemanticDefinitionBody::FunctionWithBody {
             signature: field_signature,
+            protocol_contracts: field_protocol_contracts,
             sites: field_sites,
             parameters: field_parameters,
             receiver_parameter: field_receiver_parameter,
@@ -2650,6 +2651,18 @@ pub fn reify_semantic_definition_body<R: CtDynamicReifier>(
             body: field_body,
         } => CtSemanticDefinitionBody::FunctionWithBody {
             signature: reify_semantic_signature_recipe(field_signature, reifier, depth + 1)?,
+            protocol_contracts: {
+                reifier.rows(
+                    (field_protocol_contracts).len(),
+                    std::mem::size_of::<CtFunctionProtocolContract>(),
+                    depth + 1,
+                )?;
+                let mut output = Vec::with_capacity((field_protocol_contracts).len());
+                for item in field_protocol_contracts {
+                    output.push(reify_function_protocol_contract(item, reifier, depth + 1)?);
+                }
+                output
+            },
             sites: {
                 reifier.rows(
                     (field_sites).len(),
@@ -6733,6 +6746,103 @@ pub fn reify_semantic_original_syntax_tree_entry<R: CtDynamicReifier>(
         },
     })
 }
+pub fn reify_protocol_state<R: CtDynamicReifier>(
+    value: &ProtocolState,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtProtocolState, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        ProtocolState::Open => CtProtocolState::Open,
+        ProtocolState::Closing => CtProtocolState::Closing,
+        ProtocolState::Closed => CtProtocolState::Closed,
+    })
+}
+pub fn reify_protocol_kind<R: CtDynamicReifier>(
+    value: &ProtocolKind,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtProtocolKind, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        ProtocolKind::AsyncRegistrationV1 => CtProtocolKind::AsyncRegistrationV1,
+    })
+}
+pub fn reify_protocol_exit<R: CtDynamicReifier>(
+    value: &ProtocolExit,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtProtocolExit, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        ProtocolExit::Return => CtProtocolExit::Return,
+        ProtocolExit::ErrorOk => CtProtocolExit::ErrorOk,
+        ProtocolExit::ErrorErr => CtProtocolExit::ErrorErr,
+        ProtocolExit::PollPending => CtProtocolExit::PollPending,
+        ProtocolExit::PollReady => CtProtocolExit::PollReady,
+    })
+}
+pub fn reify_protocol_transition<R: CtDynamicReifier>(
+    value: &ProtocolTransition,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtProtocolTransition, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtProtocolTransition {
+        input: reify_protocol_state(&value.input, reifier, depth + 1)?,
+        exit: reify_protocol_exit(&value.exit, reifier, depth + 1)?,
+        output: {
+            reifier.rows(
+                (value.output).len(),
+                std::mem::size_of::<CtProtocolState>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.output).len());
+            for item in &value.output {
+                output.push(reify_protocol_state(item, reifier, depth + 1)?);
+            }
+            output
+        },
+    })
+}
+pub fn reify_function_protocol_contract<R: CtDynamicReifier>(
+    value: &FunctionProtocolContract,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtFunctionProtocolContract, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtFunctionProtocolContract {
+        protocol: reify_protocol_kind(&value.protocol, reifier, depth + 1)?,
+        parameter: {
+            reifier.node(depth + 1)?;
+            value.parameter
+        },
+        entry: {
+            reifier.rows(
+                (value.entry).len(),
+                std::mem::size_of::<CtProtocolState>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.entry).len());
+            for item in &value.entry {
+                output.push(reify_protocol_state(item, reifier, depth + 1)?);
+            }
+            output
+        },
+        exits: {
+            reifier.rows(
+                (value.exits).len(),
+                std::mem::size_of::<CtProtocolTransition>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.exits).len());
+            for item in &value.exits {
+                output.push(reify_protocol_transition(item, reifier, depth + 1)?);
+            }
+            output
+        },
+    })
+}
 pub fn reify_storage_source<R: CtDynamicReifier>(
     value: &StorageSource,
     reifier: &mut R,
@@ -10399,6 +10509,7 @@ pub fn lift_semantic_definition_body<L: CtDynamicLifter>(
         ),
         CtSemanticDefinitionBody::FunctionWithBody {
             signature: field_signature,
+            protocol_contracts: field_protocol_contracts,
             sites: field_sites,
             parameters: field_parameters,
             receiver_parameter: field_receiver_parameter,
@@ -10407,6 +10518,18 @@ pub fn lift_semantic_definition_body<L: CtDynamicLifter>(
             body: field_body,
         } => SemanticDefinitionBody::FunctionWithBody {
             signature: lift_semantic_signature_recipe(field_signature, lifter, depth + 1)?,
+            protocol_contracts: {
+                lifter.rows(
+                    (field_protocol_contracts).len(),
+                    std::mem::size_of::<FunctionProtocolContract>(),
+                    depth + 1,
+                )?;
+                let mut output = Vec::with_capacity((field_protocol_contracts).len());
+                for item in field_protocol_contracts {
+                    output.push(lift_function_protocol_contract(item, lifter, depth + 1)?);
+                }
+                output
+            },
             sites: {
                 lifter.rows(
                     (field_sites).len(),
@@ -14458,6 +14581,103 @@ pub fn lift_semantic_original_syntax_tree_entry<L: CtDynamicLifter>(
                 lifter.node(depth + 1)?;
                 *(field_span)
             },
+        },
+    })
+}
+pub fn lift_protocol_state<L: CtDynamicLifter>(
+    value: &CtProtocolState,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<ProtocolState, L::Error> {
+    lifter.node(depth)?;
+    Ok(match value {
+        CtProtocolState::Open => ProtocolState::Open,
+        CtProtocolState::Closing => ProtocolState::Closing,
+        CtProtocolState::Closed => ProtocolState::Closed,
+    })
+}
+pub fn lift_protocol_kind<L: CtDynamicLifter>(
+    value: &CtProtocolKind,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<ProtocolKind, L::Error> {
+    lifter.node(depth)?;
+    Ok(match value {
+        CtProtocolKind::AsyncRegistrationV1 => ProtocolKind::AsyncRegistrationV1,
+    })
+}
+pub fn lift_protocol_exit<L: CtDynamicLifter>(
+    value: &CtProtocolExit,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<ProtocolExit, L::Error> {
+    lifter.node(depth)?;
+    Ok(match value {
+        CtProtocolExit::Return => ProtocolExit::Return,
+        CtProtocolExit::ErrorOk => ProtocolExit::ErrorOk,
+        CtProtocolExit::ErrorErr => ProtocolExit::ErrorErr,
+        CtProtocolExit::PollPending => ProtocolExit::PollPending,
+        CtProtocolExit::PollReady => ProtocolExit::PollReady,
+    })
+}
+pub fn lift_protocol_transition<L: CtDynamicLifter>(
+    value: &CtProtocolTransition,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<ProtocolTransition, L::Error> {
+    lifter.node(depth)?;
+    Ok(ProtocolTransition {
+        input: lift_protocol_state(&value.input, lifter, depth + 1)?,
+        exit: lift_protocol_exit(&value.exit, lifter, depth + 1)?,
+        output: {
+            lifter.rows(
+                (value.output).len(),
+                std::mem::size_of::<ProtocolState>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.output).len());
+            for item in &value.output {
+                output.push(lift_protocol_state(item, lifter, depth + 1)?);
+            }
+            output
+        },
+    })
+}
+pub fn lift_function_protocol_contract<L: CtDynamicLifter>(
+    value: &CtFunctionProtocolContract,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<FunctionProtocolContract, L::Error> {
+    lifter.node(depth)?;
+    Ok(FunctionProtocolContract {
+        protocol: lift_protocol_kind(&value.protocol, lifter, depth + 1)?,
+        parameter: {
+            lifter.node(depth + 1)?;
+            value.parameter
+        },
+        entry: {
+            lifter.rows(
+                (value.entry).len(),
+                std::mem::size_of::<ProtocolState>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.entry).len());
+            for item in &value.entry {
+                output.push(lift_protocol_state(item, lifter, depth + 1)?);
+            }
+            output
+        },
+        exits: {
+            lifter.rows(
+                (value.exits).len(),
+                std::mem::size_of::<ProtocolTransition>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.exits).len());
+            for item in &value.exits {
+                output.push(lift_protocol_transition(item, lifter, depth + 1)?);
+            }
+            output
         },
     })
 }

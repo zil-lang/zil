@@ -4613,6 +4613,7 @@ pub(super) fn wrapper(
         requirements: Vec::new(),
         environment: Vec::new(),
         body: SemanticDefinitionBody::FunctionWithBody {
+            protocol_contracts: Vec::new(),
             signature: SemanticSignatureRecipe {
                 bound_lifetimes: 0,
                 invocation_lifetimes: 0,

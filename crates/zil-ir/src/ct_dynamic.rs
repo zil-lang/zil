@@ -765,6 +765,7 @@ pub enum CtSemanticDefinitionBody {
     Scope(CtSemanticScopeRecipe),
     FunctionWithBody {
         signature: CtSemanticSignatureRecipe,
+        protocol_contracts: Vec<CtFunctionProtocolContract>,
         sites: Vec<CtSemanticSiteRecipe>,
         parameters: Vec<CtSemanticOriginalClosureParameter>,
         receiver_parameter: Option<u32>,
@@ -1919,6 +1920,42 @@ pub enum CtSemanticOriginalSyntaxTreeEntry {
     Token { text: String, span: Span },
     Tree(CtSemanticOriginalSyntaxTree),
     Hole { index: u32, span: Span },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtProtocolState {
+    Open,
+    Closing,
+    Closed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtProtocolKind {
+    AsyncRegistrationV1,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtProtocolExit {
+    Return,
+    ErrorOk,
+    ErrorErr,
+    PollPending,
+    PollReady,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtProtocolTransition {
+    pub input: CtProtocolState,
+    pub exit: CtProtocolExit,
+    pub output: Vec<CtProtocolState>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtFunctionProtocolContract {
+    pub protocol: CtProtocolKind,
+    pub parameter: u32,
+    pub entry: Vec<CtProtocolState>,
+    pub exits: Vec<CtProtocolTransition>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

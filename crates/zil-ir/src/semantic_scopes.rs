@@ -82,6 +82,11 @@ pub enum SemanticDefinitionBody {
     /// Complete original operations, including unused and unspecialized arms.
     FunctionWithBody {
         signature: SemanticSignatureRecipe,
+        /// Original source protocol relations. Parameter ordinals refer to
+        /// this definition's ordered value parameters, including a real
+        /// receiver and excluding any compiler-added hidden ABI parameters.
+        /// These are untrusted conditional obligations, never state proofs.
+        protocol_contracts: Vec<FunctionProtocolContract>,
         sites: Vec<SemanticSiteRecipe>,
         /// Original ordered value binders. Their stable identities are this
         /// definition plus ordinal, never names guessed from Typed locals.
