@@ -902,15 +902,20 @@ impl Check<'_, '_> {
             });
             self.pay(5, depth)?;
         }
-        shape.retained.push(SemanticRetainedPart::All {
-            path: vec![LifeTypeProjection::Result],
-            parents: SemanticClassSequenceRecipe {
-                parts: vec![SemanticClassSequencePart::AllClasses {
-                    ty: Box::new(copy_recipe(result, self.limits, self.left)?),
-                    path: Vec::new(),
-                }],
-            },
-        });
+        // An empty result projection is the identity on this input domain.
+        // Only the independent complete original N=0 theorem can remove it;
+        // Closed, a concrete hint or an equal outside image cannot do so.
+        if !self.original_zero_domain(owner, result, depth + 1)? {
+            shape.retained.push(SemanticRetainedPart::All {
+                path: vec![LifeTypeProjection::Result],
+                parents: SemanticClassSequenceRecipe {
+                    parts: vec![SemanticClassSequencePart::AllClasses {
+                        ty: Box::new(copy_recipe(result, self.limits, self.left)?),
+                        path: Vec::new(),
+                    }],
+                },
+            });
+        }
         Ok(shape)
     }
     fn task_failure(

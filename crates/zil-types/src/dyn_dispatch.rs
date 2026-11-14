@@ -710,11 +710,15 @@ fn inventory_in_modules(
                     ));
                 }
             };
+            inference::charge_type_snapshot(&table.self_type, function.span, limits, &mut left, 1)?;
+            inference::charge_type_snapshot(inner, function.span, limits, &mut left, 3)?;
             let matches_self = match &table.self_type {
                 Type::Named(raw_self) => {
                     *name == format!("@module{}:{}", table.id.module.0, raw_self)
                 }
-                Type::BorrowedStorage { .. } => table.self_type == **inner,
+                Type::Record { .. } | Type::Package { .. } | Type::BorrowedStorage { .. } => {
+                    table.self_type == **inner
+                }
                 _ => false,
             };
             let qualified = matches!(inner.as_ref(), Type::BorrowedStorage { .. });
@@ -731,11 +735,13 @@ fn inventory_in_modules(
                     .as_ref()
                     .is_some_and(|previous| previous != inner.as_ref())
             {
-                return Err(error(
+                let mut diagnostic = error(
                     "E-DYN-SELF",
                     function.span,
                     "dyn provider Self differs from actual table declaration",
-                ));
+                );
+                diagnostic.notes.push(format!("actual Dyn table {:?}; provider Core function {:?}; original scope {:?}; expected complete Self {:?}; actual receiver payload {:?}", table.id, function.id, function.source_scope.as_ref().map(|scope| scope.declaration), table.self_type, inner));
+                return Err(diagnostic);
             }
             canonical_self = Some(inner.as_ref().clone());
             let slot = &interface.slots[ordinal];
