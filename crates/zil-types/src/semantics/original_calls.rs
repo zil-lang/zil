@@ -998,7 +998,7 @@ impl Check<'_, '_> {
         if receiver.is_none() {
             match kind {
                 CallableKind::FnOnce => {
-                    self.expr(owner, base, variables, None, depth + 1)?;
+                    self.consume_callable_place(owner, base, variables, depth + 1)?;
                 }
                 CallableKind::FnMut => {
                     self.writable(owner, base, variables, depth + 1)?;

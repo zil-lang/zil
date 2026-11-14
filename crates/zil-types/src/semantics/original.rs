@@ -723,6 +723,7 @@ impl<'a> Check<'a, '_> {
                 value.observed = true;
                 copy_recipe(&value.ty, self.limits, self.left)
             }
+            CoreExprKind::Group(inner) => self.place(owner, inner, variables, depth + 1),
             CoreExprKind::Member { object, member, .. } => {
                 if let Some(field) =
                     self.package_field(owner, object, member, variables, true, depth + 1)?
@@ -3783,6 +3784,22 @@ impl<'a> Check<'a, '_> {
         }
         Ok(())
     }
+    fn original_bool(
+        &mut self,
+        expression: &SemanticOriginalExpr,
+        depth: usize,
+    ) -> R<Option<bool>> {
+        self.pay(1, depth)?;
+        match &expression.kind {
+            CoreExprKind::Bool(value) => Ok(Some(*value)),
+            CoreExprKind::Group(inner) => self.original_bool(inner, depth + 1),
+            CoreExprKind::Unary {
+                op: UnaryOp::Not,
+                operand,
+            } => Ok(self.original_bool(operand, depth + 1)?.map(|value| !value)),
+            _ => Ok(None),
+        }
+    }
     fn loop_body(
         &mut self,
         owner: SemanticDefinitionId,
@@ -3790,6 +3807,8 @@ impl<'a> Check<'a, '_> {
         variables: &mut BTreeMap<String, Binding>,
         result: &SemanticTypeRecipe,
         may_skip: bool,
+        repeat_entry: Option<&BTreeMap<String, Binding>>,
+        may_enter: bool,
         depth: usize,
     ) -> R<bool> {
         self.pay(1, depth)?;
@@ -3805,10 +3824,16 @@ impl<'a> Check<'a, '_> {
             self.pay(1, depth)?;
             frame.continues.push(inner);
         }
-        // Every actual back edge must be usable again in the same rigid Gamma.
-        // A later iteration cannot restore a value transferred on this edge.
+        // An impossible original literal condition still receives full typing,
+        // but its hypothetical edges are not runtime ownership transfers.
+        if !may_enter {
+            return Ok(true);
+        }
+        // The next condition executes in the incoming loop Gamma as well.
+        // Include its transfers when checking every real back edge.
+        let repeated = repeat_entry.unwrap_or(&entry);
         for edge in &frame.continues {
-            for (name, before) in &entry {
+            for (name, before) in repeated {
                 self.pay(1, depth)?;
                 let after = self.binding_at(
                     edge.get(name)
@@ -4339,6 +4364,8 @@ impl<'a> Check<'a, '_> {
                     }
                 }
                 CoreStatementKind::While { condition, body } => {
+                    let known = self.original_bool(condition, depth + 1)?;
+                    let entry = self.clone_variables(variables)?;
                     let condition = self.expr(
                         owner,
                         condition,
@@ -4347,7 +4374,18 @@ impl<'a> Check<'a, '_> {
                         depth + 1,
                     )?;
                     self.same(&condition, &SemanticTypeRecipe::Atom(Type::Bool))?;
-                    self.loop_body(owner, body, variables, result, true, depth + 1)?;
+                    if !self.loop_body(
+                        owner,
+                        body,
+                        variables,
+                        result,
+                        known != Some(true),
+                        Some(&entry),
+                        known != Some(false),
+                        depth + 1,
+                    )? {
+                        live = false;
+                    }
                 }
                 CoreStatementKind::WhileLet {
                     pattern,
@@ -4367,7 +4405,16 @@ impl<'a> Check<'a, '_> {
                         &mut BTreeSet::new(),
                         depth + 1,
                     )?;
-                    self.loop_body(owner, body, &mut iteration, result, true, depth + 1)?;
+                    self.loop_body(
+                        owner,
+                        body,
+                        &mut iteration,
+                        result,
+                        true,
+                        None,
+                        true,
+                        depth + 1,
+                    )?;
                     self.merge_variables(variables, &[iteration])?;
                 }
                 CoreStatementKind::ForRange {
@@ -4386,11 +4433,29 @@ impl<'a> Check<'a, '_> {
                     }
                     let mut iteration = self.clone_variables(variables)?;
                     self.bind_iteration(owner, statement.id, name, ty, &mut iteration, depth + 1)?;
-                    self.loop_body(owner, body, &mut iteration, result, true, depth + 1)?;
+                    self.loop_body(
+                        owner,
+                        body,
+                        &mut iteration,
+                        result,
+                        true,
+                        None,
+                        true,
+                        depth + 1,
+                    )?;
                     self.merge_variables(variables, &[iteration])?;
                 }
                 CoreStatementKind::Loop(body) => {
-                    if !self.loop_body(owner, body, variables, result, false, depth + 1)? {
+                    if !self.loop_body(
+                        owner,
+                        body,
+                        variables,
+                        result,
+                        false,
+                        None,
+                        true,
+                        depth + 1,
+                    )? {
                         live = false;
                     }
                 }
@@ -4464,7 +4529,16 @@ impl<'a> Check<'a, '_> {
                         &mut BTreeSet::new(),
                         depth + 1,
                     )?;
-                    self.loop_body(owner, body, &mut iteration, result, true, depth + 1)?;
+                    self.loop_body(
+                        owner,
+                        body,
+                        &mut iteration,
+                        result,
+                        true,
+                        None,
+                        true,
+                        depth + 1,
+                    )?;
                     self.merge_variables(variables, &[iteration])?;
                 }
                 CoreStatementKind::CompileTime(_)
@@ -4747,7 +4821,9 @@ impl<'a> Check<'a, '_> {
                 self.pay(1, 0)?;
                 if value.capture && value.observed {
                     captured = true;
-                    if value.used && !self.copy_type(definition.id, &value.ty, 0)? {
+                    if (value.used || !value.taken_fields.is_empty())
+                        && !self.copy_type(definition.id, &value.ty, 0)?
+                    {
                         kind = CallableKind::FnOnce;
                     } else if value.written && kind != CallableKind::FnOnce {
                         kind = CallableKind::FnMut;
@@ -4885,10 +4961,33 @@ impl Proof {
                 "original query owner has no complete symbolic body proof",
             ));
         }
-        let value = self
-            .types
-            .get(&(owner, query))
-            .ok_or_else(|| bad("original type query has no derived symbolic solution"))?;
+        let value = self.types.get(&(owner, query)).ok_or_else(|| {
+            let mut diagnostic = bad("original type query has no derived symbolic solution");
+            if let Some(rest) = left.checked_sub(256) {
+                *left = rest;
+                let (kind, node) = match source {
+                    SemanticOriginalTypeSource::Expression(node) => ("Expression", node.0),
+                    SemanticOriginalTypeSource::Binding(node) => ("Binding", node.0),
+                    SemanticOriginalTypeSource::Parameter(ordinal) => ("Parameter", *ordinal),
+                    SemanticOriginalTypeSource::Result => ("Result", 0),
+                    SemanticOriginalTypeSource::CallConstCarrier { call, .. } => {
+                        ("CallConstCarrier", call.0)
+                    }
+                    SemanticOriginalTypeSource::BindingProjection { statement, .. } => {
+                        ("BindingProjection", statement.0)
+                    }
+                    SemanticOriginalTypeSource::NameAt { at, .. } => match at {
+                        SemanticOriginalNode::Expression(node) => ("NameAtExpression", node.0),
+                        SemanticOriginalNode::Statement(node) => ("NameAtStatement", node.0),
+                    },
+                };
+                diagnostic.notes.push(format!(
+                    "original query: current {:?}, owner {:?}, {} {}",
+                    current, owner, kind, node
+                ));
+            }
+            diagnostic
+        })?;
         if owner != current {
             *left = left.checked_sub(program.definitions.len()).ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "original query rehoming work exceeded", None)

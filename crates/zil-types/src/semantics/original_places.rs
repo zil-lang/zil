@@ -125,6 +125,61 @@ impl Check<'_, '_> {
         answer
     }
 
+    /// Invoke a proved FnOnce role by transferring exactly its owning place.
+    /// Field transfers leave the remaining Package inventory available.
+    pub(super) fn consume_callable_place(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        match &expression.kind {
+            CoreExprKind::Group(inner) => {
+                self.consume_callable_place(owner, inner, variables, depth + 1)
+            }
+            CoreExprKind::Name(_) => {
+                self.expr(owner, expression, variables, None, depth + 1)?;
+                Ok(())
+            }
+            CoreExprKind::Member { object, member, .. } => {
+                let CoreExprKind::Name(name) = &object.kind else {
+                    return Err(pending(
+                        "FnOnce projection needs its complete owning place path",
+                    ));
+                };
+                let Some(field) =
+                    self.package_field(owner, object, member, variables, true, depth + 1)?
+                else {
+                    return Err(bad(
+                        "FnOnce field transfer requires its owning Package binder",
+                    ));
+                };
+                let copy = self.copy_type(owner, &field, depth + 1)?;
+                let binding = variables.get_mut(name).ok_or_else(|| {
+                    bad("FnOnce field transfer loses its original Package binder")
+                })?;
+                if !copy && binding.borrowed {
+                    return Err(bad(
+                        "FnOnce field transfer consumes a borrowed Package field",
+                    ));
+                }
+                if !copy {
+                    self.pay(member.len().saturating_add(1), depth)?;
+                    binding.taken_fields.insert(member.clone());
+                }
+                Ok(())
+            }
+            _ => {
+                // Rvalues still undergo their complete original expression
+                // typing; no field or owner is inferred from a matching type.
+                self.expr(owner, expression, variables, None, depth + 1)?;
+                Ok(())
+            }
+        }
+    }
+
     pub(super) fn give_place(
         &mut self,
         owner: SemanticDefinitionId,

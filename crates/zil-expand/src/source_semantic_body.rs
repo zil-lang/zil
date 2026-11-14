@@ -1176,7 +1176,15 @@ mod resource_annotation_tests {
             FileId(0),
             ModuleId(3),
             "resource-categories.zil",
-            "resource R{value:i32}fn sample<T>(x:R,shared:&R,exclusive:&mut R,slot:&Ref<R>,generic:&T,give owned:R,t:T)->R contract{result(create)}{let owner:R=R{value:1}let view:R=x let explicit:Ref<R>=x let whole:T=t let pair:(R,R)=(x,x) return R{value:2}}",
+            "resource R{value:i32}
+fn sample<T>(x:R,shared:&R,exclusive:&mut R,slot:&Ref<R>,generic:&T,give owned:R,t:T)->R contract{result(create)}{
+let owner:R=R{value:1}
+let view:R=x
+let explicit:Ref<R>=x
+let whole:T=t
+let pair:(R,R)=(x,x)
+return R{value:2}
+}",
         );
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let limits = Limits::default();

@@ -29,6 +29,11 @@ impl Check<'_, '_> {
                 _ => {}
             }
         }
+        if self.resource_head(owner, &ty, depth + 1)? {
+            return Err(bad(
+                "original parameter/result has an unselected raw resource category",
+            ));
+        }
         Ok(ty)
     }
     pub(super) fn initializer_owns(
