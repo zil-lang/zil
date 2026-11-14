@@ -1172,6 +1172,15 @@ pub(super) fn check(
                 };
                 let mut phases = BTreeMap::new();
                 let mut locals = Vec::new();
+                let proof = Proof {
+                    definition,
+                    inventory,
+                    checked,
+                    contract: None,
+                    input: None,
+                    loops: std::cell::RefCell::new(Vec::new()),
+                };
+                proof.captured_heads(&mut phases, &mut locals, b)?;
                 for (ordinal, (parameter, recipe)) in
                     parameters.iter().zip(&signature.parameters).enumerate()
                 {
@@ -1203,14 +1212,6 @@ pub(super) fn check(
                     locals,
                     alive: true,
                     cleanup_unknown: true,
-                };
-                let proof = Proof {
-                    definition,
-                    inventory,
-                    checked,
-                    contract: None,
-                    input: None,
-                    loops: std::cell::RefCell::new(Vec::new()),
                 };
                 proof.block(&mut state, body, b, 0)?;
             }
