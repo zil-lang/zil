@@ -1,0 +1,31 @@
+{
+  "source_base": "394d5e94c3dffad42946b1531c61804725f8f862",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T153508Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-analyze/src/stored_flow/mutex.rs": "b36b0527b8c5a3fc157141022b947151796a8d5c107a1b09990b251d8c2630ac",
+    "crates/zil-types/src/semantics/abi.rs": "46b2e4279c47991e52c4852d48878a33fccdea0d48d2c94ac89c5efa7bc14786",
+    "crates/zil-types/src/semantics/original.rs": "f35695afd415e7109f61f10e169acd4a3a0825492f892f8ab5023fd4a3346fff",
+    "crates/zil-types/src/semantics/original_frozen.rs": "80e7f5b745e032004fc08a7fd33dbc3ab4e3d9f7fbc0b0d48c5f44bf741ea92f",
+    "crates/zil-types/src/semantics/original_protocol.rs": "68dca6504e3dbb01a497c09ee094aac3301080fdf1ecdd23f8af48644fa8cfe3",
+    "crates/zil-types/src/stored/ordinary_nominal.rs": "53b3e7649b24140613e28e1ccdeb6bd01dae6f8ee5589afedc9a4f070f60ba13",
+    "crates/zil-verify/src/semantic/task_domains.rs": "5ba7d170974db5844deb49e30cd1e4d65731ad765d4cad357d283e92a954cb8b",
+    "crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "c0377b558d505c3b7c8516048683a446fdd0d9399626501a9f57e8edcd9c4563",
+    "crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d5c8b498d138f518b5f72de664fb0741be454c9690ccb737ff9fde485c1140ba"
+  },
+  "artifacts": {
+    "source.patch": "7499f920aa46a0c0adeaa46e6f6bfb1f1e3b0ff41042a3815747c460c5b9732a",
+    "untracked/crates/zil-analyze/src/stored_flow/mutex.rs": "b36b0527b8c5a3fc157141022b947151796a8d5c107a1b09990b251d8c2630ac",
+    "untracked/crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/inputs.rs": "d5c8b498d138f518b5f72de664fb0741be454c9690ccb737ff9fde485c1140ba",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "61d16fe88003befb533104778396f774164072088ba88e25fcdd9d677ce47c14"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
