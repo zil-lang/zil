@@ -147,6 +147,7 @@ fn clone_proof(
             .saturating_add(source.local_roles.len())
             .saturating_add(source.environments.len())
             .saturating_add(source.effective_call_kind.len())
+            .saturating_add(source.borrowed_capture_heads.len())
             .saturating_add(source.compile_time_calls.len())
             .saturating_add(source.cleanup_calls.len())
             .saturating_add(source.frozen_environments.len()),
@@ -169,6 +170,16 @@ fn clone_proof(
             crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1)?;
         }
         crate::dyn_metadata::semantic_operand_snapshot(&call.result, limits, left, 1)?;
+        if let Some((signature, actuals)) = &call.worker_scheme {
+            crate::dyn_metadata::semantic_operand_snapshot(signature, limits, left, 1)?;
+            spend(left, actuals.len(), 0, limits)?;
+            for actual in actuals {
+                crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+            }
+        }
+        if let IntrinsicKind::RegistrationStart { providers, .. } = &call.kind {
+            spend(left, providers.len(), 0, limits)?;
+        }
     }
     for call in source.method_calls.values() {
         crate::dyn_metadata::semantic_operand_snapshot(&call.self_type, limits, left, 1)?;
@@ -210,6 +221,7 @@ fn clone_proof(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot: None,
+        escape_active: Vec::new(),
     };
     for environment in source.frozen_environments.values() {
         checker.charge_variables(environment)?;
@@ -364,6 +376,7 @@ pub(crate) fn check_with_frozen(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot: None,
+        escape_active: Vec::new(),
     };
     let mut variables = check.clone_variables(environment)?;
     let empty = BTreeMap::new();

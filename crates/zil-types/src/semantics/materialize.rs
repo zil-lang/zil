@@ -1377,7 +1377,7 @@ impl<'a> Eval<'a, '_> {
                 if signature.call_kind != CallKind::Direct
                     || !matches!(
                         signature.result_mode,
-                        PassingMode::Infer | PassingMode::Value
+                        PassingMode::Infer | PassingMode::Copy
                     )
                 {
                     return Err(unknown(
@@ -1387,7 +1387,7 @@ impl<'a> Eval<'a, '_> {
                 self.fee(signature.parameters.len())?;
                 let mut parameters = Vec::new();
                 for parameter in &signature.parameters {
-                    if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Value) {
+                    if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {
                         return Err(unknown(
                             "code pointer parameter needs its exact transfer-mode representation",
                         ));

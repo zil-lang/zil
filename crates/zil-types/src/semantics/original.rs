@@ -107,6 +107,7 @@ pub(super) struct Proof {
     pub providers: BTreeMap<SemanticDefinitionId, SemanticDefinitionId>,
     pub direct_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticSignatureRecipe>,
     pub effective_call_kind: BTreeMap<SemanticDefinitionId, CallKind>,
+    pub borrowed_capture_heads: BTreeSet<SemanticDefinitionId>,
     compile_time_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
@@ -183,6 +184,7 @@ struct Check<'a, 'b> {
     stage_depth: usize,
     cleanup_depth: usize,
     requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
+    escape_active: Vec<SemanticTypeRecipe>,
 }
 #[derive(Default)]
 struct LoopFrame {
@@ -2557,7 +2559,43 @@ impl<'a> Check<'a, '_> {
                     captured.insert(name.clone(), value);
                 }
                 self.function(child, Some(captured))?;
+                if !*move_capture {
+                    let cost = self
+                        .captures
+                        .get(definition)
+                        .ok_or_else(|| bad("original closure has no completed capture set"))?
+                        .iter()
+                        .map(|name| name.len().saturating_add(1))
+                        .sum::<usize>();
+                    self.pay(cost, depth)?;
+                    let names = self
+                        .captures
+                        .get(definition)
+                        .ok_or_else(|| bad("original closure has no completed capture set"))?
+                        .clone();
+                    for name in names {
+                        let source = variables.get(&name).ok_or_else(|| {
+                            bad("original borrowed capture loses its creator binder")
+                        })?;
+                        let ty = self.observation_type(owner, &source.ty, depth + 1)?;
+                        if !matches!(
+                            ty,
+                            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+                        ) {
+                            self.pay(1, depth)?;
+                            self.proof.borrowed_capture_heads.insert(child.id);
+                        }
+                    }
+                }
                 if *move_capture {
+                    let cost = self
+                        .captures
+                        .get(definition)
+                        .ok_or_else(|| bad("original closure has no completed capture set"))?
+                        .iter()
+                        .map(|name| name.len().saturating_add(1))
+                        .sum::<usize>();
+                    self.pay(cost, depth)?;
                     let captures = self.captures.get(definition).cloned().ok_or_else(|| {
                         bad("original closure lacks a completed lexical capture set")
                     })?;
@@ -4316,8 +4354,12 @@ fn check_requested(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot,
+        escape_active: Vec::new(),
     };
     for definition in &program.definitions {
+        if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
+            check.canonical_carrier(definition, 0)?;
+        }
         if matches!(
             definition.body,
             SemanticDefinitionBody::FunctionWithBody { .. }

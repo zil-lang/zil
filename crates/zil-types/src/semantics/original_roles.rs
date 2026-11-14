@@ -424,6 +424,22 @@ impl Check<'_, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<()> {
+        self.pay(self.escape_active.len().saturating_add(1), depth)?;
+        if self.escape_active.iter().any(|active| active == ty) {
+            return Ok(());
+        }
+        self.escape_active
+            .push(copy_recipe(ty, self.limits, self.left)?);
+        let result = self.ensure_escape_inner(owner, ty, depth + 1);
+        self.escape_active.pop();
+        result
+    }
+    fn ensure_escape_inner(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<()> {
         self.pay(1, depth)?;
         match ty {
             SemanticTypeRecipe::Address {
@@ -482,7 +498,55 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::Opaque { hidden, .. } => {
                 self.ensure_escape(owner, hidden, depth + 1)?
             }
-            SemanticTypeRecipe::Closure { environment, .. } => {
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let definition = self.definition(*definition)?;
+                let frames = [(0, arguments.as_slice())];
+                let empty = BTreeMap::new();
+                let substitution = substitute::Substitution {
+                    frames: if arguments.is_empty() { &[] } else { &frames },
+                    selves: &[],
+                    environments: &[],
+                    implicit: &empty,
+                    invocation: &empty,
+                    shift: 0,
+                };
+                let SemanticDefinitionBody::Nominal { body, .. } = &definition.body else {
+                    return Err(bad(
+                        "original escaping nominal has no complete declared body",
+                    ));
+                };
+                match body {
+                    SemanticNominalBody::Product { fields } => {
+                        for field in fields {
+                            let ty =
+                                substitute::ty(&field.ty, &substitution, self.limits, self.left)?;
+                            self.ensure_escape(owner, &ty, depth + 1)?;
+                        }
+                    }
+                    SemanticNominalBody::Enum { variants } => {
+                        for variant in variants {
+                            for field in &variant.fields {
+                                let ty =
+                                    substitute::ty(field, &substitution, self.limits, self.left)?;
+                                self.ensure_escape(owner, &ty, depth + 1)?;
+                            }
+                        }
+                    }
+                }
+            }
+            SemanticTypeRecipe::Closure {
+                definition,
+                environment,
+                ..
+            } => {
+                if self.proof.borrowed_capture_heads.contains(definition) {
+                    return Err(bad(
+                        "original escaping closure borrows its creator's local storage",
+                    ));
+                }
                 for actual in environment {
                     if let SemanticActualRecipe::Type(ty) = actual {
                         self.ensure_escape(owner, ty, depth + 1)?;
