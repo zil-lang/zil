@@ -1,0 +1,295 @@
+{
+  "candidate": "5c195d0413de3cacfc7a3f942ebaf5b02847aa5b",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-receiver-full-path",
+  "acceptance": "NOT ACCEPTED",
+  "cli_build": 0,
+  "workspace_alltargets": 0,
+  "foundation_positives": {
+    "passed": 0,
+    "total": 13
+  },
+  "intended_negatives": {
+    "passed": 2,
+    "total": 4
+  },
+  "native_small_sources": {
+    "passed": 12,
+    "total": 16
+  },
+  "types_probe": {
+    "passed": 1,
+    "failed": 1
+  },
+  "failures": [
+    {
+      "group": "positive_cases",
+      "family": "scalars",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original numeric conversion is replaced by another actual opcode",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "patterns",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "ErrorUnion recipe changes its actual result constructor",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "generic-libraries",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original operation does not typecheck under its rigid declaration",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "closures",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "original type recipe differs from its actual emitted complete type: instance SemanticInstanceId { module: ModuleId(1), index: 6 }, expected Managed(ByteBuffer), actual Desc(ByteBuffer)",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "ownership",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ABI",
+          "message": "specialized executable lacks its exact original scope",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "dynamic-abstraction",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "Dyn method specialization changes Self or complete actuals",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "async-ownership",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original type constructor requires its complete scoped domain interpretation",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "threads",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original core operation needs its complete parameter, mode and cleanup scheme",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 0, expression 1"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "foreign-lifecycle",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual call has ambiguous original callee worlds",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "owning-collections",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-STORED-IDENTITY",
+          "message": "stored instance has no actual aggregate declaration",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "buffered-io",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "ErrorUnion recipe changes its actual result constructor",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "iteration",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ORIGINAL",
+          "message": "original dereference cannot transfer a non-Copy pointee",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 9 }, expression NodeId(9)",
+            "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 9 }, expression NodeId(5)"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "positive_cases",
+      "family": "project-workflow",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "array element requires its complete qualified occurrence and intrinsic-class composition",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-original",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-ABI",
+          "message": "specialized executable lacks its exact original scope",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "group": "negative_cases",
+      "family": "ownership-unused",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-MATERIALIZE",
+          "message": "ErrorUnion recipe changes its actual result constructor",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T08:13:54.946778+00:00",
+  "updated_at_utc": "2026-11-14T09:10:39.725058+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,8 +9,11 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "cca0d4c93",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-full-emission-static-queries",
+    "candidate": "5c195d0413de3cacfc7a3f942ebaf5b02847aa5b",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-receiver-full-path",
+    "acceptance": "NOT ACCEPTED",
+    "cli_build": 0,
+    "workspace_alltargets": 0,
     "foundation_positives": {
       "passed": 0,
       "total": 13
@@ -23,15 +26,286 @@
       "passed": 12,
       "total": 16
     },
-    "source_lib": {
-      "passed": 152,
-      "failed": 0
+    "types_probe": {
+      "passed": 1,
+      "failed": 1
     },
-    "warning": "These are not Alpha acceptance or new broad feature delivery."
+    "failures": [
+      {
+        "group": "positive_cases",
+        "family": "scalars",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "semantic program: original numeric conversion is replaced by another actual opcode",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "patterns",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "ErrorUnion recipe changes its actual result constructor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "generic-libraries",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "semantic program: original operation does not typecheck under its rigid declaration",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "closures",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "original type recipe differs from its actual emitted complete type: instance SemanticInstanceId { module: ModuleId(1), index: 6 }, expected Managed(ByteBuffer), actual Desc(ByteBuffer)",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "ownership",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ABI",
+            "message": "specialized executable lacks its exact original scope",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "dynamic-abstraction",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "Dyn method specialization changes Self or complete actuals",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "async-ownership",
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original type constructor requires its complete scoped domain interpretation",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "threads",
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original core operation needs its complete parameter, mode and cleanup scheme",
+            "span": null,
+            "notes": [
+              "original definition module 0 index 0, expression 1"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "foreign-lifecycle",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-WORLD",
+            "message": "actual call has ambiguous original callee worlds",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "owning-collections",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-STORED-IDENTITY",
+            "message": "stored instance has no actual aggregate declaration",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "buffered-io",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "ErrorUnion recipe changes its actual result constructor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "iteration",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original dereference cannot transfer a non-Copy pointee",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 9 }, expression NodeId(9)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 9 }, expression NodeId(5)"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "positive_cases",
+        "family": "project-workflow",
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "array element requires its complete qualified occurrence and intrinsic-class composition",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "negative_cases",
+        "family": "ownership-original",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ABI",
+            "message": "specialized executable lacks its exact original scope",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "group": "negative_cases",
+        "family": "ownership-unused",
+        "status": "SafeReject",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "ErrorUnion recipe changes its actual result constructor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ]
+      }
+    ]
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "785a0c85b",
-  "current_candidate_under_validation": "785a0c85b",
+  "latest_ready_source": "0673fad9b",
+  "current_candidate_under_validation": "0673fad9b",
   "wip_backup": {
     "commit": "38de856da623862dbde8361295335e0b357f5b00",
     "source_base": "77227db31d7b3ee13fb9097a372dc47de5b53b53",
@@ -46,5 +320,6 @@
     "Whole nominal, opaque boundary origin sets, actual role and all-exit cleanup proof",
     "Real foundation native/C/failure cleanup plus existing generated-source/ready-query/project consumers"
   ],
-  "workflow": "One shared branch; exact READY writes committed immediately; immutable candidate and one build lock; Sol workers; Astra on hard public-contract questions; independent A/V algorithms; do not end work at08:06."
+  "workflow": "One shared branch; exact READY writes committed immediately; immutable candidate and one build lock; Sol workers; Astra on hard public-contract questions; independent A/V algorithms; do not end work at08:06.",
+  "path_review": "Astra independently reviewed 543c34f75: freeze schema and close original obligation to actual emission mapping as one migration; no promise of a single fix solving all failures."
 }
