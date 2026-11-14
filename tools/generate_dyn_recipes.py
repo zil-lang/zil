@@ -11,7 +11,8 @@ items.update(original_items)
 # protocol grammar; no execution identity or proof is transported here.
 items.update(declarations(Path(root) / 'lib.rs', {
     'FunctionProtocolContract', 'ProtocolTransition', 'ProtocolKind',
-    'ProtocolState', 'ProtocolExit',
+    'ProtocolState', 'ProtocolExit', 'ForeignDeclaration',
+    'ScopedCallbackRole', 'TaskResumeBound',
 }))
 # The shared original AST has a real owning-erasure route, not an opaque byte.
 items.update(declarations(Path(root) / 'dynamic.rs', {'DynOwnedStorage'}))
@@ -59,7 +60,8 @@ def snake(n):
  # the original-declaration structural codec in its own mechanical namespace.
  return 'original_' + name if n in {
      'FunctionProtocolContract', 'ProtocolTransition', 'ProtocolKind',
-     'ProtocolState', 'ProtocolExit',
+     'ProtocolState', 'ProtocolExit', 'ForeignDeclaration',
+     'ScopedCallbackRole', 'TaskResumeBound',
  } else name
 existing={
  'String':('text','encode_text'),

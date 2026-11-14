@@ -80,6 +80,10 @@ def declarations(path, only=None):
             continue
         rows = []
         for value in split(body):
+            # Derive(Default)'s marker is not part of the variant identity.
+            # Other attributes remain visible rather than silently guessing
+            # the target-dependent Rust declaration selected by a cfg.
+            value = re.sub(r'^\s*#\[\s*default\s*\]\s*', '', value)
             if '{' in value:
                 variant, raw = value.split('{', 1)
                 rows.append((variant.strip(), 'struct', fields(raw.rsplit('}', 1)[0])))

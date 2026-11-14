@@ -98,6 +98,15 @@ fn original_protocols_survive_reification_wire_lifting_and_bind_content_identity
             requirements: vec![],
             environment: vec![],
             body: SemanticDefinitionBody::FunctionWithBody {
+                foreign: Some(ForeignDeclaration {
+                    abi: "C".into(),
+                    symbol: "raw_closed".into(),
+                    noescape_parameters: vec![0],
+                    static_callbacks: false,
+                    thread_driver_transfer: true,
+                    scoped_callback: Some(ScopedCallbackRole::ThreadAsyncPollDrain),
+                }),
+                resume_bound: TaskResumeBound::Transfer,
                 signature: SemanticSignatureRecipe {
                     bound_lifetimes: 0,
                     invocation_lifetimes: 0,

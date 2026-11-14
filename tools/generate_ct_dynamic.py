@@ -16,7 +16,8 @@ items.update(declarations(IR/'semantic_scopes.rs'))
 items.update(original_items)
 items.update(declarations(IR/'lib.rs', {
     'FunctionProtocolContract', 'ProtocolTransition', 'ProtocolKind',
-    'ProtocolState', 'ProtocolExit',
+    'ProtocolState', 'ProtocolExit', 'ForeignDeclaration',
+    'ScopedCallbackRole', 'TaskResumeBound',
 }))
 items.update(declarations(IR/'storage_sources.rs'))
 items.update(declarations(IR/'lib.rs',{'StorageSourceBinding','RetainedBorrowPort','RetainedLifeShape','LifeParameterKind','LifeNominalKind','LifeNominalDeclaration','LifeNominalActual','LifeNominalInstance','Type'}))

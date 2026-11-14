@@ -87,6 +87,8 @@ Runtime schema/Wire 和 Typed 身份域为 50，CT artifact 与依赖身份域�
 
 FunctionWithBody.protocol_contracts 直接保留原函数声明的完整有限协议关系，复用 FunctionProtocolContract。parameter 是该定义原有序 value parameters 的序号，包含真实 receiver，不包含之后增加的隐藏 ABI 参数。原入口状态是条件证明的假设；每个原调用须先证明真实对应位置满足入口，再使用已从所有原 body 出口证明的关系。缺表不提供 Closing/Closed，也不证明调用没有状态影响。原表从变换前的源声明独立生产，实际 Typed 表只能用于完整桥接比较及实际 CFG 核验，不能补原前提。原/实际参数通过真实 ABI 对应，不能按名字、相同类型或首个 owner 猜测。所有实际根、代次、Poll 来源、状态失效和清理仍独立检查。
 
+同一原声明头的 foreign 完整保留原 ABI、符号、noescape、静态 callback、scoped provider role 与 driver transfer 承诺；resume_bound 保留原线程恢复选择。它们均从原声明独立产生并进入内容身份，不能由实际 Typed 表反补。External 与原 foreign 声明必须对应，实际外部入口及恢复选择须通过真实定义/ABI 映射核对完整原头；这些未信任字段本身不证明 ABI、借用、ThreadCallable、provider 行为或清理安全。
+
 不可信输入在分配、克隆、哈希和缓存前支付完整节点、字节、深度与工作费用。冷、热、失败重试和重新请求均遵守实际请求预算；结构运输与语义解释分别收费，不能把运输费用测试当成 Analyze/Verify 语义预算证明。
 
 显式 dyn `Context`/`Ctx` 使用 `SemanticDynContextRecipe::Shape` 保存完整原 retained shape；`Closed` 保留省略形式的空输入上界，`Type` 只从真实 whole 类型提取 Context。Shape 不伪造成一个拥有值或空 BS<Unit>，也不授予物理 port、根、loan 或能力。类域、全部 ports/retained/nominal 项及其 scope/kind 由各消费者独立检查；未知不等于空 Context。

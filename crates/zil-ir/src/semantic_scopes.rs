@@ -87,6 +87,12 @@ pub enum SemanticDefinitionBody {
         /// receiver and excluding any compiler-added hidden ABI parameters.
         /// These are untrusted conditional obligations, never state proofs.
         protocol_contracts: Vec<FunctionProtocolContract>,
+        /// Complete original external ABI and unsafe provider promises, taken
+        /// from the declaration rather than an actual Typed proposal.
+        foreign: Option<ForeignDeclaration>,
+        /// Original source choice; transfer still requires an independent
+        /// proof of the full body, captures, result and resource behavior.
+        resume_bound: TaskResumeBound,
         sites: Vec<SemanticSiteRecipe>,
         /// Original ordered value binders. Their stable identities are this
         /// definition plus ordinal, never names guessed from Typed locals.

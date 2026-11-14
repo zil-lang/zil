@@ -187,6 +187,15 @@ fn original_body_and_parameter_bindings_survive_without_a_typed_instance() {
     signature.result = ty.clone();
     raw.definitions[0].body = SemanticDefinitionBody::FunctionWithBody {
         signature,
+        foreign: Some(ForeignDeclaration {
+            abi: "C".into(),
+            symbol: "raw_original".into(),
+            noescape_parameters: vec![0, 1],
+            static_callbacks: false,
+            thread_driver_transfer: true,
+            scoped_callback: Some(ScopedCallbackRole::ThreadAsyncPollDrain),
+        }),
+        resume_bound: TaskResumeBound::Transfer,
         protocol_contracts: vec![FunctionProtocolContract {
             protocol: ProtocolKind::AsyncRegistrationV1,
             parameter: 1,
@@ -232,10 +241,13 @@ fn original_body_and_parameter_bindings_survive_without_a_typed_instance() {
     let original = raw.clone();
     // This is raw transport, including untrusted protocol claims. None of
     // these records can establish a resource state without semantic checking.
-    for mutation in 0..6 {
+    for mutation in 0..14 {
         let mut changed = original.clone();
         let SemanticDefinitionBody::FunctionWithBody {
-            protocol_contracts, ..
+            protocol_contracts,
+            foreign,
+            resume_bound,
+            ..
         } = &mut changed.definitions[0].body
         else {
             unreachable!()
@@ -247,7 +259,17 @@ fn original_body_and_parameter_bindings_survive_without_a_typed_instance() {
             2 => row.exits[0].input = ProtocolState::Closed,
             3 => row.exits[0].exit = ProtocolExit::PollPending,
             4 => row.exits[0].output[0] = ProtocolState::Closing,
-            _ => protocol_contracts.clear(),
+            5 => protocol_contracts.clear(),
+            6 => foreign.as_mut().unwrap().abi = "unknown".into(),
+            7 => foreign.as_mut().unwrap().symbol = "other".into(),
+            8 => {
+                foreign.as_mut().unwrap().noescape_parameters.pop();
+            }
+            9 => foreign.as_mut().unwrap().static_callbacks = true,
+            10 => foreign.as_mut().unwrap().scoped_callback = None,
+            11 => foreign.as_mut().unwrap().thread_driver_transfer = false,
+            12 => *resume_bound = TaskResumeBound::Local,
+            _ => *foreign = None,
         }
         let changed_bytes = encode(&changed, &limits).unwrap();
         assert_ne!(changed_bytes, bytes);

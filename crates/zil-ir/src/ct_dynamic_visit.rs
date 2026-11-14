@@ -2319,6 +2319,8 @@ impl CtDynamicMetadata for CtSemanticDefinitionBody {
             Self::FunctionWithBody {
                 signature: field_signature,
                 protocol_contracts: field_protocol_contracts,
+                foreign: field_foreign,
+                resume_bound: field_resume_bound,
                 sites: field_sites,
                 parameters: field_parameters,
                 receiver_parameter: field_receiver_parameter,
@@ -2336,6 +2338,11 @@ impl CtDynamicMetadata for CtSemanticDefinitionBody {
                 for item in field_protocol_contracts {
                     (item).visit_ct_dynamic(visitor, depth + 1)?;
                 }
+                visitor.node(depth + 1)?;
+                if let Some(item) = field_foreign {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+                (field_resume_bound).visit_ct_dynamic(visitor, depth + 1)?;
                 visitor.vector_storage(
                     (field_sites).len(),
                     (field_sites).capacity(),
@@ -5724,6 +5731,20 @@ impl CtDynamicMetadata for CtSemanticOriginalSyntaxTreeEntry {
         Ok(())
     }
 }
+impl CtDynamicMetadata for CtTaskResumeBound {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Local => {}
+            Self::Transfer => {}
+        }
+        Ok(())
+    }
+}
 impl CtDynamicMetadata for CtProtocolState {
     fn visit_ct_dynamic<V: CtDynamicVisitor>(
         &self,
@@ -5816,6 +5837,56 @@ impl CtDynamicMetadata for CtFunctionProtocolContract {
             depth + 1,
         )?;
         for item in &self.exits {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtScopedCallbackRole {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Register => {}
+            Self::Close => {}
+            Self::AsyncRegister => {}
+            Self::AsyncRequestClose => {}
+            Self::AsyncPollDrain => {}
+            Self::ThreadAsyncRegister => {}
+            Self::ThreadAsyncRequestClose => {}
+            Self::ThreadAsyncPollDrain => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtForeignDeclaration {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.string_storage((self.abi).as_str(), (self.abi).capacity(), depth + 1)?;
+        visitor.string_storage((self.symbol).as_str(), (self.symbol).capacity(), depth + 1)?;
+        visitor.vector_storage(
+            (self.noescape_parameters).len(),
+            (self.noescape_parameters).capacity(),
+            std::mem::size_of::<u32>(),
+            depth + 1,
+        )?;
+        for item in &self.noescape_parameters {
+            let _ = item;
+            visitor.node(depth + 1)?;
+        }
+        let _ = &self.static_callbacks;
+        visitor.node(depth + 1)?;
+        let _ = &self.thread_driver_transfer;
+        visitor.node(depth + 1)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.scoped_callback {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         Ok(())

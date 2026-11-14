@@ -2643,6 +2643,8 @@ pub fn reify_semantic_definition_body<R: CtDynamicReifier>(
         SemanticDefinitionBody::FunctionWithBody {
             signature: field_signature,
             protocol_contracts: field_protocol_contracts,
+            foreign: field_foreign,
+            resume_bound: field_resume_bound,
             sites: field_sites,
             parameters: field_parameters,
             receiver_parameter: field_receiver_parameter,
@@ -2663,6 +2665,11 @@ pub fn reify_semantic_definition_body<R: CtDynamicReifier>(
                 }
                 output
             },
+            foreign: match field_foreign {
+                Some(item) => Some(reify_foreign_declaration(item, reifier, depth + 1)?),
+                None => None,
+            },
+            resume_bound: reify_task_resume_bound(field_resume_bound, reifier, depth + 1)?,
             sites: {
                 reifier.rows(
                     (field_sites).len(),
@@ -6746,6 +6753,17 @@ pub fn reify_semantic_original_syntax_tree_entry<R: CtDynamicReifier>(
         },
     })
 }
+pub fn reify_task_resume_bound<R: CtDynamicReifier>(
+    value: &TaskResumeBound,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtTaskResumeBound, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        TaskResumeBound::Local => CtTaskResumeBound::Local,
+        TaskResumeBound::Transfer => CtTaskResumeBound::Transfer,
+    })
+}
 pub fn reify_protocol_state<R: CtDynamicReifier>(
     value: &ProtocolState,
     reifier: &mut R,
@@ -6840,6 +6858,63 @@ pub fn reify_function_protocol_contract<R: CtDynamicReifier>(
                 output.push(reify_protocol_transition(item, reifier, depth + 1)?);
             }
             output
+        },
+    })
+}
+pub fn reify_scoped_callback_role<R: CtDynamicReifier>(
+    value: &ScopedCallbackRole,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtScopedCallbackRole, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        ScopedCallbackRole::Register => CtScopedCallbackRole::Register,
+        ScopedCallbackRole::Close => CtScopedCallbackRole::Close,
+        ScopedCallbackRole::AsyncRegister => CtScopedCallbackRole::AsyncRegister,
+        ScopedCallbackRole::AsyncRequestClose => CtScopedCallbackRole::AsyncRequestClose,
+        ScopedCallbackRole::AsyncPollDrain => CtScopedCallbackRole::AsyncPollDrain,
+        ScopedCallbackRole::ThreadAsyncRegister => CtScopedCallbackRole::ThreadAsyncRegister,
+        ScopedCallbackRole::ThreadAsyncRequestClose => {
+            CtScopedCallbackRole::ThreadAsyncRequestClose
+        }
+        ScopedCallbackRole::ThreadAsyncPollDrain => CtScopedCallbackRole::ThreadAsyncPollDrain,
+    })
+}
+pub fn reify_foreign_declaration<R: CtDynamicReifier>(
+    value: &ForeignDeclaration,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtForeignDeclaration, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtForeignDeclaration {
+        abi: reifier.text(&value.abi, depth + 1)?,
+        symbol: reifier.text(&value.symbol, depth + 1)?,
+        noescape_parameters: {
+            reifier.rows(
+                (value.noescape_parameters).len(),
+                std::mem::size_of::<u32>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.noescape_parameters).len());
+            for item in &value.noescape_parameters {
+                output.push({
+                    reifier.node(depth + 1)?;
+                    *(item)
+                });
+            }
+            output
+        },
+        static_callbacks: {
+            reifier.node(depth + 1)?;
+            value.static_callbacks
+        },
+        thread_driver_transfer: {
+            reifier.node(depth + 1)?;
+            value.thread_driver_transfer
+        },
+        scoped_callback: match &value.scoped_callback {
+            Some(item) => Some(reify_scoped_callback_role(item, reifier, depth + 1)?),
+            None => None,
         },
     })
 }
@@ -10510,6 +10585,8 @@ pub fn lift_semantic_definition_body<L: CtDynamicLifter>(
         CtSemanticDefinitionBody::FunctionWithBody {
             signature: field_signature,
             protocol_contracts: field_protocol_contracts,
+            foreign: field_foreign,
+            resume_bound: field_resume_bound,
             sites: field_sites,
             parameters: field_parameters,
             receiver_parameter: field_receiver_parameter,
@@ -10530,6 +10607,11 @@ pub fn lift_semantic_definition_body<L: CtDynamicLifter>(
                 }
                 output
             },
+            foreign: match field_foreign {
+                Some(item) => Some(lift_foreign_declaration(item, lifter, depth + 1)?),
+                None => None,
+            },
+            resume_bound: lift_task_resume_bound(field_resume_bound, lifter, depth + 1)?,
             sites: {
                 lifter.rows(
                     (field_sites).len(),
@@ -14584,6 +14666,17 @@ pub fn lift_semantic_original_syntax_tree_entry<L: CtDynamicLifter>(
         },
     })
 }
+pub fn lift_task_resume_bound<L: CtDynamicLifter>(
+    value: &CtTaskResumeBound,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<TaskResumeBound, L::Error> {
+    lifter.node(depth)?;
+    Ok(match value {
+        CtTaskResumeBound::Local => TaskResumeBound::Local,
+        CtTaskResumeBound::Transfer => TaskResumeBound::Transfer,
+    })
+}
 pub fn lift_protocol_state<L: CtDynamicLifter>(
     value: &CtProtocolState,
     lifter: &mut L,
@@ -14678,6 +14771,63 @@ pub fn lift_function_protocol_contract<L: CtDynamicLifter>(
                 output.push(lift_protocol_transition(item, lifter, depth + 1)?);
             }
             output
+        },
+    })
+}
+pub fn lift_scoped_callback_role<L: CtDynamicLifter>(
+    value: &CtScopedCallbackRole,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<ScopedCallbackRole, L::Error> {
+    lifter.node(depth)?;
+    Ok(match value {
+        CtScopedCallbackRole::Register => ScopedCallbackRole::Register,
+        CtScopedCallbackRole::Close => ScopedCallbackRole::Close,
+        CtScopedCallbackRole::AsyncRegister => ScopedCallbackRole::AsyncRegister,
+        CtScopedCallbackRole::AsyncRequestClose => ScopedCallbackRole::AsyncRequestClose,
+        CtScopedCallbackRole::AsyncPollDrain => ScopedCallbackRole::AsyncPollDrain,
+        CtScopedCallbackRole::ThreadAsyncRegister => ScopedCallbackRole::ThreadAsyncRegister,
+        CtScopedCallbackRole::ThreadAsyncRequestClose => {
+            ScopedCallbackRole::ThreadAsyncRequestClose
+        }
+        CtScopedCallbackRole::ThreadAsyncPollDrain => ScopedCallbackRole::ThreadAsyncPollDrain,
+    })
+}
+pub fn lift_foreign_declaration<L: CtDynamicLifter>(
+    value: &CtForeignDeclaration,
+    lifter: &mut L,
+    depth: usize,
+) -> Result<ForeignDeclaration, L::Error> {
+    lifter.node(depth)?;
+    Ok(ForeignDeclaration {
+        abi: lifter.text(&value.abi, depth + 1)?,
+        symbol: lifter.text(&value.symbol, depth + 1)?,
+        noescape_parameters: {
+            lifter.rows(
+                (value.noescape_parameters).len(),
+                std::mem::size_of::<u32>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.noescape_parameters).len());
+            for item in &value.noescape_parameters {
+                output.push({
+                    lifter.node(depth + 1)?;
+                    *(item)
+                });
+            }
+            output
+        },
+        static_callbacks: {
+            lifter.node(depth + 1)?;
+            value.static_callbacks
+        },
+        thread_driver_transfer: {
+            lifter.node(depth + 1)?;
+            value.thread_driver_transfer
+        },
+        scoped_callback: match &value.scoped_callback {
+            Some(item) => Some(lift_scoped_callback_role(item, lifter, depth + 1)?),
+            None => None,
         },
     })
 }

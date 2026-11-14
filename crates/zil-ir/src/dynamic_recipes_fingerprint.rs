@@ -126,11 +126,14 @@ enum Work<'a> {
     SemanticOriginalQuoteNameSite(&'a SemanticOriginalQuoteNameSite),
     SemanticOriginalSyntaxTree(&'a SemanticOriginalSyntaxTree),
     SemanticOriginalSyntaxTreeEntry(&'a SemanticOriginalSyntaxTreeEntry),
+    TaskResumeBound(&'a TaskResumeBound),
     ProtocolState(&'a ProtocolState),
     ProtocolKind(&'a ProtocolKind),
     ProtocolExit(&'a ProtocolExit),
     ProtocolTransition(&'a ProtocolTransition),
     FunctionProtocolContract(&'a FunctionProtocolContract),
+    ScopedCallbackRole(&'a ScopedCallbackRole),
+    ForeignDeclaration(&'a ForeignDeclaration),
     DynOwnedStorage(&'a DynOwnedStorage),
     DynSelfPattern(&'a DynSelfPattern),
     DynPatternActual(&'a DynPatternActual),
@@ -825,6 +828,8 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 SemanticDefinitionBody::FunctionWithBody {
                     signature,
                     protocol_contracts,
+                    foreign,
+                    resume_bound,
                     sites,
                     parameters,
                     receiver_parameter,
@@ -853,6 +858,11 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                         pending.push(Work::SemanticSiteRecipe(item));
                     }
                     pending.push(Work::Length((sites).len()));
+                    pending.push(Work::TaskResumeBound(resume_bound));
+                    if let Some(item) = foreign {
+                        pending.push(Work::ForeignDeclaration(item));
+                    }
+                    pending.push(Work::Byte(u8::from((foreign).is_some())));
                     for item in (protocol_contracts).iter().rev() {
                         pending.push(Work::FunctionProtocolContract(item));
                     }
@@ -2837,6 +2847,14 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     b.push(2);
                 }
             },
+            Work::TaskResumeBound(value) => match value {
+                TaskResumeBound::Local => {
+                    b.push(0);
+                }
+                TaskResumeBound::Transfer => {
+                    b.push(1);
+                }
+            },
             Work::ProtocolState(value) => match value {
                 ProtocolState::Open => {
                     b.push(0);
@@ -2889,6 +2907,46 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 pending.push(Work::Length(value.entry.len()));
                 pending.push(Work::Word(value.parameter));
                 pending.push(Work::ProtocolKind(&value.protocol));
+            }
+            Work::ScopedCallbackRole(value) => match value {
+                ScopedCallbackRole::Register => {
+                    b.push(0);
+                }
+                ScopedCallbackRole::Close => {
+                    b.push(1);
+                }
+                ScopedCallbackRole::AsyncRegister => {
+                    b.push(2);
+                }
+                ScopedCallbackRole::AsyncRequestClose => {
+                    b.push(3);
+                }
+                ScopedCallbackRole::AsyncPollDrain => {
+                    b.push(4);
+                }
+                ScopedCallbackRole::ThreadAsyncRegister => {
+                    b.push(5);
+                }
+                ScopedCallbackRole::ThreadAsyncRequestClose => {
+                    b.push(6);
+                }
+                ScopedCallbackRole::ThreadAsyncPollDrain => {
+                    b.push(7);
+                }
+            },
+            Work::ForeignDeclaration(value) => {
+                if let Some(item) = &value.scoped_callback {
+                    pending.push(Work::ScopedCallbackRole(item));
+                }
+                pending.push(Work::Byte(u8::from(value.scoped_callback.is_some())));
+                pending.push(Work::Byte(u8::from(value.thread_driver_transfer)));
+                pending.push(Work::Byte(u8::from(value.static_callbacks)));
+                for item in value.noescape_parameters.iter().rev() {
+                    pending.push(Work::Word(*item));
+                }
+                pending.push(Work::Length(value.noescape_parameters.len()));
+                pending.push(Work::String(&value.symbol));
+                pending.push(Work::String(&value.abi));
             }
             Work::DynOwnedStorage(value) => match value {
                 DynOwnedStorage::Heap => {

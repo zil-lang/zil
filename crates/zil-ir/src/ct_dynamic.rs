@@ -766,6 +766,8 @@ pub enum CtSemanticDefinitionBody {
     FunctionWithBody {
         signature: CtSemanticSignatureRecipe,
         protocol_contracts: Vec<CtFunctionProtocolContract>,
+        foreign: Option<CtForeignDeclaration>,
+        resume_bound: CtTaskResumeBound,
         sites: Vec<CtSemanticSiteRecipe>,
         parameters: Vec<CtSemanticOriginalClosureParameter>,
         receiver_parameter: Option<u32>,
@@ -1923,6 +1925,12 @@ pub enum CtSemanticOriginalSyntaxTreeEntry {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtTaskResumeBound {
+    Local,
+    Transfer,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtProtocolState {
     Open,
     Closing,
@@ -1956,6 +1964,28 @@ pub struct CtFunctionProtocolContract {
     pub parameter: u32,
     pub entry: Vec<CtProtocolState>,
     pub exits: Vec<CtProtocolTransition>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtScopedCallbackRole {
+    Register,
+    Close,
+    AsyncRegister,
+    AsyncRequestClose,
+    AsyncPollDrain,
+    ThreadAsyncRegister,
+    ThreadAsyncRequestClose,
+    ThreadAsyncPollDrain,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtForeignDeclaration {
+    pub abi: String,
+    pub symbol: String,
+    pub noescape_parameters: Vec<u32>,
+    pub static_callbacks: bool,
+    pub thread_driver_transfer: bool,
+    pub scoped_callback: Option<CtScopedCallbackRole>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

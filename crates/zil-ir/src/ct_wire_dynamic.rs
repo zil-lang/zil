@@ -2710,6 +2710,8 @@ impl Wire for CtSemanticDefinitionBody {
                 Self::FunctionWithBody {
                     signature,
                     protocol_contracts,
+                    foreign,
+                    resume_bound,
                     sites,
                     parameters,
                     receiver_parameter,
@@ -2720,6 +2722,8 @@ impl Wire for CtSemanticDefinitionBody {
                     3u8.encode(e)?;
                     signature.encode(e)?;
                     protocol_contracts.encode(e)?;
+                    foreign.encode(e)?;
+                    resume_bound.encode(e)?;
                     sites.encode(e)?;
                     parameters.encode(e)?;
                     receiver_parameter.encode(e)?;
@@ -2750,6 +2754,8 @@ impl Wire for CtSemanticDefinitionBody {
                 3 => Self::FunctionWithBody {
                     signature: <CtSemanticSignatureRecipe as Wire>::decode(d)?,
                     protocol_contracts: <Vec<CtFunctionProtocolContract> as Wire>::decode(d)?,
+                    foreign: <Option<CtForeignDeclaration> as Wire>::decode(d)?,
+                    resume_bound: <CtTaskResumeBound as Wire>::decode(d)?,
                     sites: <Vec<CtSemanticSiteRecipe> as Wire>::decode(d)?,
                     parameters: <Vec<CtSemanticOriginalClosureParameter> as Wire>::decode(d)?,
                     receiver_parameter: <Option<u32> as Wire>::decode(d)?,
@@ -6828,6 +6834,36 @@ impl Wire for CtSemanticOriginalSyntaxTreeEntry {
         })
     }
 }
+impl Wire for CtTaskResumeBound {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Local => {
+                    0u8.encode(e)?;
+                }
+                Self::Transfer => {
+                    1u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Local,
+                1 => Self::Transfer,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
 impl Wire for CtProtocolState {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         if e.depth >= 128 {
@@ -6978,6 +7014,91 @@ impl Wire for CtFunctionProtocolContract {
                 parameter: <u32 as Wire>::decode(d)?,
                 entry: <Vec<CtProtocolState> as Wire>::decode(d)?,
                 exits: <Vec<CtProtocolTransition> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtScopedCallbackRole {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Register => {
+                    0u8.encode(e)?;
+                }
+                Self::Close => {
+                    1u8.encode(e)?;
+                }
+                Self::AsyncRegister => {
+                    2u8.encode(e)?;
+                }
+                Self::AsyncRequestClose => {
+                    3u8.encode(e)?;
+                }
+                Self::AsyncPollDrain => {
+                    4u8.encode(e)?;
+                }
+                Self::ThreadAsyncRegister => {
+                    5u8.encode(e)?;
+                }
+                Self::ThreadAsyncRequestClose => {
+                    6u8.encode(e)?;
+                }
+                Self::ThreadAsyncPollDrain => {
+                    7u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Register,
+                1 => Self::Close,
+                2 => Self::AsyncRegister,
+                3 => Self::AsyncRequestClose,
+                4 => Self::AsyncPollDrain,
+                5 => Self::ThreadAsyncRegister,
+                6 => Self::ThreadAsyncRequestClose,
+                7 => Self::ThreadAsyncPollDrain,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtForeignDeclaration {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.abi.encode(e)?;
+            self.symbol.encode(e)?;
+            self.noescape_parameters.encode(e)?;
+            self.static_callbacks.encode(e)?;
+            self.thread_driver_transfer.encode(e)?;
+            self.scoped_callback.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                abi: <String as Wire>::decode(d)?,
+                symbol: <String as Wire>::decode(d)?,
+                noescape_parameters: <Vec<u32> as Wire>::decode(d)?,
+                static_callbacks: <bool as Wire>::decode(d)?,
+                thread_driver_transfer: <bool as Wire>::decode(d)?,
+                scoped_callback: <Option<CtScopedCallbackRole> as Wire>::decode(d)?,
             })
         })
     }

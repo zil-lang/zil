@@ -4614,6 +4614,8 @@ pub(super) fn wrapper(
         environment: Vec::new(),
         body: SemanticDefinitionBody::FunctionWithBody {
             protocol_contracts: Vec::new(),
+            foreign: None,
+            resume_bound: TaskResumeBound::Local,
             signature: SemanticSignatureRecipe {
                 bound_lifetimes: 0,
                 invocation_lifetimes: 0,

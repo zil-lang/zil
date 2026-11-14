@@ -793,7 +793,7 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             encode_type(b, target);
         }
         InstructionKind::MakePackage { fields } => {
-            b.push(50);
+            b.push(49);
             encode_len(b, fields.len());
             for field in fields {
                 encode_u32(b, field.0);
