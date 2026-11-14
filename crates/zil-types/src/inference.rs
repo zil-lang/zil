@@ -1973,6 +1973,22 @@ fn expression_has_closure_other(
     Ok(found)
 }
 
+// Inference-only deferred request. It never becomes a Type, Typed/Wire row,
+// retained shape or permission; the actual worker producer forms all classes.
+#[derive(Clone)]
+struct PendingTaskRequest {
+    caller: zil_base::NodeId,
+    closure_scope: Option<usize>,
+    call: zil_base::NodeId,
+    worker: Rc<Signature>,
+    inputs: Rc<Vec<Term>>,
+    recover_inputs: bool,
+}
+struct PendingTask {
+    requests: std::cell::RefCell<Vec<PendingTaskRequest>>,
+    result: Rc<Term>,
+    constraints: std::cell::RefCell<Vec<Type>>,
+}
 #[derive(Clone)]
 enum Term {
     Scalar(Variable),
@@ -2011,6 +2027,7 @@ enum Term {
     /// Ordinary Types and both kernels still prove their actual owned shape.
     InputTuple(Rc<Vec<Term>>),
     CreateFailure(Rc<Vec<Term>>),
+    PendingTask(Rc<PendingTask>, bool),
     Function(Rc<Signature>),
     /// Nominal receiver already constrained; only valid immediately as a callee.
     Method(Rc<Signature>),
@@ -2040,6 +2057,7 @@ struct Solver<'a, 'b, 'c> {
     closures: Vec<Closure>,
     owner: Option<usize>,
     ordinary_result: Type,
+    source_function: zil_base::NodeId,
     ordinary_callable_return: Option<CoreCallableReturn>,
     // Source-visible opaque identity belongs to the factory definition, even
     // when its hidden environment is forwarded by another factory.
@@ -2136,6 +2154,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             closures: vec![],
             owner: None,
             ordinary_result: function.return_type.clone(),
+            source_function: function.id,
             ordinary_callable_return: function.callable_return.clone(),
             factory_terms: BTreeMap::new(),
             ordinary_return_identity: None,
@@ -2946,6 +2965,138 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             span,
         )
     }
+    fn pending_task(
+        &mut self,
+        worker: Rc<Signature>,
+        call: zil_base::NodeId,
+        inputs: Vec<Term>,
+        recover_inputs: bool,
+        span: Span,
+    ) -> R<Term> {
+        self.budget.work(inputs.len().saturating_add(8), span)?;
+        let result = self.known_term(&worker.result, span)?;
+        let inputs = Rc::new(inputs);
+        let task = Term::PendingTask(
+            Rc::new(PendingTask {
+                requests: std::cell::RefCell::new(vec![PendingTaskRequest {
+                    caller: self.source_function,
+                    closure_scope: self.owner,
+                    call,
+                    worker,
+                    inputs: inputs.clone(),
+                    recover_inputs,
+                }]),
+                result: Rc::new(result),
+                constraints: std::cell::RefCell::new(Vec::new()),
+            }),
+            true,
+        );
+        let failure = if recover_inputs {
+            Term::CreateFailure(inputs)
+        } else {
+            self.known_term(&tasks::create_error(), span)?
+        };
+        Ok(Term::ValueUnion {
+            error: Rc::new(failure),
+            result: Rc::new(task),
+        })
+    }
+    fn bind_pending_task(
+        &mut self,
+        task: &Rc<PendingTask>,
+        owned: bool,
+        ty: &Type,
+        span: Span,
+    ) -> R<()> {
+        let payload = match ty {
+            Type::Managed(payload) if owned => payload,
+            Type::Desc(payload) => payload,
+            _ => {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "pending Task carrier mode differs from its complete declared constraint",
+                ));
+            }
+        };
+        let Type::Task { result, .. } = payload.as_ref() else {
+            return Err(error(
+                "E-TYPE-MISMATCH",
+                span,
+                "pending Task requires an actual Task constraint",
+            ));
+        };
+        self.bind_term(&task.result, result, span)?;
+        charge_type_snapshot(ty, span, self.budget.limits, &mut self.budget.work, 1)?;
+        self.budget.work(1, span)?;
+        if task.constraints.borrow().len() >= self.budget.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "pending Task context constraint inventory exceeded",
+                Some(span),
+            ));
+        }
+        task.constraints.borrow_mut().push(ty.clone());
+        // The original annotation remains on the Core operation. Only the
+        // concrete worker/context producer may check or publish its classes.
+        Ok(())
+    }
+    fn pending_task_operation(&mut self, name: &str, term: &Term, span: Span) -> R<Option<Term>> {
+        let (task, owned, address) = match term {
+            Term::PendingTask(task, owned) => (task, *owned, None),
+            Term::ValueAddress(carrier, mutable) => match carrier.as_ref() {
+                Term::PendingTask(task, owned) => (task, *owned, Some(*mutable)),
+                _ => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        let allowed = match name {
+            "task_valid" => address.is_none(),
+            "task_finish_destroy" => address.is_none() && owned,
+            "task_start" | "task_poll" | "task_request_cancel" | "task_poll_close" => {
+                address == Some(true) && owned
+            }
+            _ => false,
+        };
+        if !allowed {
+            return Err(error(
+                "E-TYPE-MISMATCH",
+                span,
+                "pending Task operation changes its actual carrier or address mode",
+            ));
+        }
+        let requests = task.requests.borrow();
+        self.budget.work(requests.len(), span)?;
+        // Keep every real call request. Matching result shapes does not merge
+        // workers, captures or the contexts which will be formed later.
+        let mut result = None;
+        for request in requests.iter() {
+            self.budget
+                .work(request.inputs.len().saturating_add(3), span)?;
+            let returned = match name {
+                "task_valid" => Type::Bool,
+                "task_poll" => Type::ErrorUnion {
+                    error: Box::new(tasks::poll_state()),
+                    result: Box::new(tasks::poll_type(&request.worker.result)),
+                },
+                "task_poll_close" => tasks::poll_type(&Type::Unit),
+                _ => Type::Unit,
+            };
+            let actual = self.known_term(&returned, span)?;
+            if let Some(previous) = &result {
+                self.unify(previous, &actual, span)?
+            } else {
+                result = Some(actual)
+            }
+        }
+        result.map(Some).ok_or_else(|| {
+            error(
+                "E-TASK-WORKER",
+                span,
+                "pending Task lost every actual worker request",
+            )
+        })
+    }
     fn scalar(&mut self, term: &Term, span: Span) -> R<Variable> {
         match term {
             Term::Scalar(variable) => Ok(*variable),
@@ -3070,6 +3221,48 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
+        if let Term::InputTuple(fields) = term {
+            let Type::Tuple(wanted) = ty else {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "pending input product requires a Tuple constraint",
+                ));
+            };
+            self.budget
+                .work(fields.len().saturating_add(wanted.len()), span)?;
+            if fields.len() != wanted.len() {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "pending input product changes Tuple arity",
+                ));
+            }
+            for (field, wanted) in fields.iter().zip(wanted) {
+                self.bind_term(field, wanted, span)?;
+            }
+            return Ok(());
+        }
+        if let Term::PendingTask(task, owned) = term {
+            return self.bind_pending_task(task, *owned, ty, span);
+        }
+        if let Term::ValueAddress(carrier, mutable) = term
+            && matches!(carrier.as_ref(), Term::PendingTask(..))
+            && let Type::Address {
+                mutable: wanted,
+                inner,
+            } = ty
+        {
+            if !*mutable && *wanted {
+                return Err(error(
+                    "E-ADDRESS-PERMISSION",
+                    span,
+                    "a shared Task address cannot grant exclusive access",
+                ));
+            }
+            return self.bind_term(carrier, inner, span);
+        }
+
         if let Term::ValueAddress(carrier, true) = term
             && let Type::Address {
                 mutable: true,
@@ -3185,6 +3378,104 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.graph.unify(a, b, span);
         }
         match (left, right) {
+            (Term::InputTuple(a), Term::InputTuple(b)) => {
+                self.budget.work(a.len().saturating_add(b.len()), span)?;
+                if a.len() != b.len() {
+                    return Err(error(
+                        "E-TYPE-MISMATCH",
+                        span,
+                        "pending input products change Tuple arity",
+                    ));
+                }
+                for (a, b) in a.iter().zip(b.iter()) {
+                    self.unify(a, b, span)?;
+                }
+                Ok(())
+            }
+            (Term::InputTuple(_), Term::Scalar(variable)) => {
+                let ty = self.graph.ty(*variable)?.ok_or_else(|| {
+                    unsupported(
+                        span,
+                        "pending input product requires a complete Tuple constraint",
+                    )
+                })?;
+                self.bind_term(left, &ty, span)
+            }
+            (Term::Scalar(_), Term::InputTuple(_)) => self.unify(right, left, span),
+            (Term::PendingTask(a, am), Term::PendingTask(b, bm)) if am == bm => {
+                self.unify(&a.result, &b.result, span)?;
+                if !Rc::ptr_eq(a, b) {
+                    let own = a.requests.borrow();
+                    let other = b.requests.borrow();
+                    self.budget.work(
+                        own.len().saturating_mul(2).saturating_add(other.len()),
+                        span,
+                    )?;
+                    let mut requests = own.clone();
+                    for request in other.iter() {
+                        self.budget.work(requests.len().saturating_add(1), span)?;
+                        if !requests.iter().any(|old| {
+                            old.caller == request.caller
+                                && old.closure_scope == request.closure_scope
+                                && old.call == request.call
+                                && old.worker.template == request.worker.template
+                                && old.worker.id == request.worker.id
+                                && old.recover_inputs == request.recover_inputs
+                        }) {
+                            if requests.len() >= self.budget.limits.max_nodes {
+                                return Err(Diagnostic::limit(
+                                    Phase::Types,
+                                    "pending Task request inventory exceeded",
+                                    Some(span),
+                                ));
+                            }
+                            requests.push(request.clone());
+                        }
+                    }
+                    drop(own);
+                    drop(other);
+                    let mut constraints = Vec::new();
+                    for source in [a, b] {
+                        for constraint in source.constraints.borrow().iter() {
+                            charge_type_snapshot(
+                                constraint,
+                                span,
+                                self.budget.limits,
+                                &mut self.budget.work,
+                                2,
+                            )?;
+                            if constraints.len() >= self.budget.limits.max_nodes {
+                                return Err(Diagnostic::limit(
+                                    Phase::Types,
+                                    "pending Task constraint inventory exceeded",
+                                    Some(span),
+                                ));
+                            }
+                            constraints.push(constraint.clone());
+                        }
+                    }
+                    *a.requests.borrow_mut() = requests.clone();
+                    *b.requests.borrow_mut() = requests;
+                    *a.constraints.borrow_mut() = constraints.clone();
+                    *b.constraints.borrow_mut() = constraints;
+                }
+                Ok(())
+            }
+
+            (Term::PendingTask(task, owned), Term::Resource(variable, managed))
+                if owned == managed =>
+            {
+                let payload = self.graph.ty(*variable)?.ok_or_else(|| {
+                    unsupported(span, "Task constraint awaits its complete declared payload")
+                })?;
+                let ty = if *managed {
+                    Type::Managed(Box::new(payload))
+                } else {
+                    Type::Desc(Box::new(payload))
+                };
+                self.bind_pending_task(task, *owned, &ty, span)
+            }
+            (Term::Resource(..), Term::PendingTask(..)) => self.unify(right, left, span),
             (Term::Registration(a, am, aa), Term::Registration(b, bm, ba))
                 if am == bm && aa == ba =>
             {
@@ -3319,6 +3610,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::ValueUnion { .. }
                 | Term::InputTuple(_)
                 | Term::CreateFailure(_)
+                | Term::PendingTask(..)
                 | Term::ClosureAddress(..)
         ) {
             return Err(unsupported(
@@ -3402,6 +3694,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     Term::Registration(environment, false, asynchronous)
                 }
                 Term::Resource(variable, _) => Term::Resource(variable, false),
+                Term::PendingTask(task, _) => Term::PendingTask(task, false),
                 Term::ValueStore(element, _) => Term::ValueStore(element, false),
                 other => other,
             });
@@ -3606,7 +3899,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             .iter()
                             .rev()
                             .find_map(|scope| scope.get(name))
-                            .is_some_and(|b| b.mutable && matches!(b.term, Term::Resource(_, true)))
+                            .is_some_and(|b| {
+                                b.mutable
+                                    && matches!(
+                                        b.term,
+                                        Term::Resource(_, true) | Term::PendingTask(_, true)
+                                    )
+                            })
                     } else {
                         false
                     };
@@ -3621,6 +3920,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         match (&target_type, &value_type) {
                             (Term::Resource(a, _), Term::Resource(b, true)) => {
                                 self.graph.unify(*a, *b, statement.span)?
+                            }
+                            (Term::PendingTask(a, _), Term::PendingTask(b, true)) => {
+                                self.unify(
+                                    &Term::PendingTask(a.clone(), true),
+                                    &Term::PendingTask(b.clone(), true),
+                                    statement.span,
+                                )?;
                             }
                             _ => {
                                 return Err(error(
@@ -3935,6 +4241,38 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.bind_term(&term, union, expression.span)?;
                 return Ok(term);
             }
+            if let Term::PendingTask(task, true) = &term {
+                let Type::ErrorUnion {
+                    error: failure,
+                    result,
+                } = union
+                else {
+                    unreachable!()
+                };
+                let error_task = matches!(failure.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
+                let result_task = matches!(result.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
+                return match (error_task, result_task) {
+                    (false, true) => {
+                        self.bind_pending_task(task, true, result, expression.span)?;
+                        Ok(Term::ValueUnion {
+                            error: Rc::new(self.known_term(failure, expression.span)?),
+                            result: Rc::new(term),
+                        })
+                    }
+                    (true, false) => {
+                        self.bind_pending_task(task, true, failure, expression.span)?;
+                        Ok(Term::ValueUnion {
+                            error: Rc::new(term),
+                            result: Rc::new(self.known_term(result, expression.span)?),
+                        })
+                    }
+                    _ => Err(error(
+                        "E-ERROR-INJECTION-AMBIGUOUS",
+                        expression.span,
+                        "a pending Task needs an explicit tagged value when both union arms are Task carriers",
+                    )),
+                };
+            }
             if let Term::Resource(payload, true) = &term
                 && let Some(task @ Type::Task { .. }) = self.graph.ty(*payload)?
             {
@@ -4063,6 +4401,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Unit => Ok(Term::Scalar(self.fresh(UNIT, false, span)?)),
             CoreExprKind::Name(name) => {
                 let term = self.name(name, write, span)?;
+                if matches!(expected, Some(Type::Managed(_)))
+                    && self.prepared.contains(name)
+                    && let Some(Binding {
+                        term: Term::PendingTask(task, true),
+                        ..
+                    }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
+                {
+                    return Ok(Term::PendingTask(task.clone(), true));
+                }
                 if matches!(expected, Some(Type::Managed(_)))
                     && self.prepared.contains(name)
                     && let Some(Binding {
@@ -4233,6 +4580,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             };
             return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
                 Some(Binding {
+                    term: Term::PendingTask(task, true),
+                    ..
+                }) => Ok(Term::PendingTask(task.clone(), true)),
+                Some(Binding {
+                    term: Term::PendingTask(_, false),
+                    ..
+                }) => Err(error(
+                    "E-GIVE-DESCRIPTOR",
+                    span,
+                    "a Task descriptor does not own its carrier",
+                )),
+
+                Some(Binding {
                     term: Term::Address(variable, true),
                     ..
                 }) => Ok(Term::Address(*variable, true)),
@@ -4264,6 +4624,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             };
         }
         if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) {
+            if let CoreExprKind::Name(name) = &operand.kind
+                && let Some(binding) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
+                && let Term::PendingTask(task, true) = &binding.term
+            {
+                return Ok(Term::ValueAddress(
+                    Rc::new(Term::PendingTask(task.clone(), true)),
+                    *op == UnaryOp::BorrowMut,
+                ));
+            }
+
             if *op == UnaryOp::BorrowMut
                 && let CoreExprKind::Name(name) = &operand.kind
                 && let Some(binding) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
@@ -4675,19 +5045,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         }
                         inputs.push(term);
                     }
-                    let task = Type::Managed(Box::new(Type::Task {
-                        result: Box::new(signature.result.clone()),
-                        retained_life: tasks::borrowed_context_with_life(
-                            &signature.parameters,
-                            signature.life.as_ref(),
-                            &signature.result,
-                        ),
-                    }));
-                    return Ok(Term::ValueUnion {
-                        error: Rc::new(Term::CreateFailure(Rc::new(inputs))),
-                        result: Rc::new(self.known_term(&task, span)?),
-                    });
+                    return self.pending_task(signature.clone(), expression.id, inputs, true, span);
                 }
+                let mut pending_inputs = Vec::new();
                 for (index, (argument, wanted)) in
                     arguments[1..].iter().zip(&signature.parameters).enumerate()
                 {
@@ -4699,12 +5059,26 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             .iter()
                             .find(|bound| bound.index as usize == index)
                         {
-                            self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
+                            let id =
+                                self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
+                            pending_inputs.push(
+                                match helpers::parameter_mode(wanted, &bound.generic_name) {
+                                    Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
+                                    Some(None) => Term::Closure(id),
+                                    None => {
+                                        return Err(unsupported(
+                                            argument.span,
+                                            "Task input lost its declared callable mode",
+                                        ));
+                                    }
+                                },
+                            );
                             continue;
                         }
                     }
                     let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
                     self.bind_term(&term, wanted, argument.span)?;
+                    pending_inputs.push(term);
                 }
                 validate_type(&signature.result, 0, span, self.budget)?;
                 if name == "task_create_owned" {
@@ -4725,36 +5099,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     &mut self.budget.work,
                     4,
                 )?;
-                return self.known_term(
-                    &if name == "task_await" {
-                        signature.result.clone()
-                    } else {
-                        tasks::call_create_type(
-                            name,
-                            &signature.result,
-                            tasks::borrowed_context_with_life(
-                                &signature.parameters,
-                                signature
-                                    .life
-                                    .clone()
-                                    .or_else(|| {
-                                        matches!(
-                                            signature.result,
-                                            Type::Address { mutable: false, .. }
-                                        )
-                                        .then(|| {
-                                            signature.storage_life.as_ref().and_then(|life| {
-                                                life.to_flat(signature.parameters.len())
-                                            })
-                                        })
-                                        .flatten()
-                                    })
-                                    .as_ref(),
-                                &signature.result,
-                            ),
-                            &signature.parameters,
-                        )
-                    },
+                if name == "task_await" {
+                    return self.known_term(&signature.result, span);
+                }
+                return self.pending_task(
+                    signature.clone(),
+                    expression.id,
+                    pending_inputs,
+                    name == "task_create_owned",
                     span,
                 );
             }
@@ -4788,6 +5140,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let mut returned = tasks::result(name);
             for (argument, wanted) in arguments[offset..].iter().zip(&parameters) {
                 let term = self.expr_expected(argument, None, depth + 1, false)?;
+                if let Some(result) = self.pending_task_operation(name, &term, argument.span)? {
+                    return Ok(result);
+                }
                 let v = self.projection_base(&term, argument.span)?;
                 if let Some(actual) = self.graph.ty(v)?
                     && let Some(task @ Type::Task { .. }) = tasks::payload(&actual)
@@ -6046,14 +6401,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let CoreExprKind::Tuple(items) = &expression.kind else {
             unreachable!("expression dispatcher variant");
         };
-        let mut fields = Vec::new();
         let hints = match expected {
             Some(Type::Tuple(fields)) => Some(fields),
             _ => None,
         };
+        let mut terms = Vec::new();
         for (index, item) in items.iter().enumerate() {
             let term =
                 self.expr_expected(item, hints.and_then(|h| h.get(index)), depth + 1, false)?;
+            terms.push(term);
+        }
+        let mut deferred = false;
+        for term in &terms {
+            deferred |= self.contains_pending_task(term, depth + 1, span)?;
+        }
+        if deferred {
+            // Carry the real component terms. Reconstructing a Type here would
+            // publish a Task context before its worker/capture domain exists.
+            return Ok(Term::InputTuple(Rc::new(terms)));
+        }
+        let mut fields = Vec::new();
+        for (item, term) in items.iter().zip(terms) {
             let owned_store_element = match &term {
                 Term::ValueStore(element, true) => {
                     let Term::Scalar(element) = element.as_ref() else {
@@ -6095,6 +6463,28 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let result = self.fresh(VALUE, false, span)?;
         self.graph.tuple(result, fields, span)?;
         Ok(Term::Scalar(result))
+    }
+
+    fn contains_pending_task(&mut self, term: &Term, depth: usize, span: Span) -> R<bool> {
+        self.budget.node(depth, span)?;
+        match term {
+            Term::PendingTask(..) => Ok(true),
+            Term::ValueAddress(inner, _)
+            | Term::ValueStore(inner, _)
+            | Term::Registration(inner, ..) => self.contains_pending_task(inner, depth + 1, span),
+            Term::ValueUnion { error, result } => {
+                Ok(self.contains_pending_task(error, depth + 1, span)?
+                    | self.contains_pending_task(result, depth + 1, span)?)
+            }
+            Term::InputTuple(fields) | Term::CreateFailure(fields) => {
+                let mut found = false;
+                for field in fields.iter() {
+                    found |= self.contains_pending_task(field, depth + 1, span)?;
+                }
+                Ok(found)
+            }
+            _ => Ok(false),
+        }
     }
 
     #[inline(never)]
