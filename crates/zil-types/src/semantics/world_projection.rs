@@ -357,7 +357,16 @@ pub(super) fn field(
     parent: &SemanticTypeValue,
     index: u32,
 ) -> R<SemanticTypeValue> {
-    place(world, parent, PlaceProjection::Field(index))
+    // Field operations on a managed head address its real payload. This is
+    // the same single boundary accepted by aggregates::field_ref; its entire
+    // child domain comes from the retained Pointee graph, never from a zero
+    // shape or the emitted field's concrete type.
+    if matches!(World::type_of(parent)?, Type::Managed(_)) {
+        let payload = pointee(world, parent)?;
+        place(world, &payload, PlaceProjection::Field(index))
+    } else {
+        place(world, parent, PlaceProjection::Field(index))
+    }
 }
 
 fn capture_class(
