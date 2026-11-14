@@ -30,6 +30,8 @@ mod roles;
 mod store;
 #[path = "original_substitute.rs"]
 pub(super) mod substitute;
+#[path = "original_value_predicate.rs"]
+mod value_predicate;
 #[path = "original_values.rs"]
 mod values;
 pub(super) use calls::{CallableCall, MethodCall};
@@ -1942,66 +1944,7 @@ impl<'a> Check<'a, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<bool> {
-        self.pay(1, depth)?;
-        let ty = self.logical(owner, ty, depth + 1)?;
-        Ok(match &ty {
-            SemanticTypeRecipe::Atom(ty) => ty.is_b0_scalar(),
-            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Closure { .. } => true,
-            SemanticTypeRecipe::Tuple(fields) => {
-                let mut all = true;
-                for field in fields {
-                    all &= self.ordinary_value(owner, field, depth + 1)?;
-                }
-                all
-            }
-            SemanticTypeRecipe::Formal(reference)
-                if reference.scope == SemanticScopeRef::Ancestor(0) =>
-            {
-                let original = self.definition(owner)?;
-                let mut found = false;
-                if let Some(SemanticFormal::Type { requirements }) =
-                    original.parameters.get(reference.ordinal as usize)
-                {
-                    for requirement in requirements.iter().chain(&original.requirements) {
-                        self.pay(1, depth)?;
-                        found |= matches!(requirement, SemanticRequirementRecipe::Builtin { ty:actual,trait_kind:SemanticBuiltinTrait::Value } if actual==&ty);
-                    }
-                }
-                found
-            }
-            SemanticTypeRecipe::Nominal {
-                definition,
-                arguments,
-            } => {
-                let original = self.definition(*definition)?;
-                let SemanticDefinitionBody::Nominal {
-                    body: SemanticNominalBody::Product { fields },
-                    ..
-                } = &original.body
-                else {
-                    return Err(pending(
-                        "ordinary Value sum requires complete original alternatives",
-                    ));
-                };
-                let mut all = true;
-                for field in fields {
-                    let ty = self.instantiate_field(
-                        owner,
-                        original.id,
-                        &field.ty,
-                        arguments,
-                        depth + 1,
-                    )?;
-                    all &= self.ordinary_value(owner, &ty, depth + 1)?;
-                }
-                all
-            }
-            _ => {
-                return Err(pending(
-                    "ordinary Value premise needs complete original carrier semantics",
-                ));
-            }
-        })
+        self.value_recipe(owner, ty, depth + 1)
     }
     fn satisfy_requirement(
         &mut self,
@@ -3832,6 +3775,53 @@ impl<'a> Check<'a, '_> {
         }
         Ok(falls)
     }
+    fn unit_result(
+        &mut self,
+        owner: SemanticDefinitionId,
+        result: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        let unit = SemanticTypeRecipe::Atom(Type::Unit);
+        let infer = matches!(
+            result,
+            SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Result
+            }
+        ) || matches!(result, SemanticTypeRecipe::Opaque { hidden,.. } if matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType { scope:SemanticScopeRef::Ancestor(0), source:SemanticOriginalTypeSource::Result }));
+        if infer {
+            if let Some(previous) = self.proof.types.get(&(owner, Query::Result)) {
+                let previous = copy_recipe(previous, self.limits, self.left)?;
+                self.same(&previous, &unit)?;
+            } else {
+                self.pay(1, depth)?;
+                self.proof.types.insert((owner, Query::Result), unit);
+            }
+        }
+        let expected = self.resolve(owner, result, depth + 1)?;
+        match expected {
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                if (error.as_ref() == &SemanticTypeRecipe::Atom(Type::Unit))
+                    == (result.as_ref() == &SemanticTypeRecipe::Atom(Type::Unit))
+                {
+                    return Err(bad("original unit error injection is ambiguous or absent"));
+                }
+                Ok(())
+            }
+            SemanticTypeRecipe::Opaque {
+                definition, hidden, ..
+            } => {
+                if definition != owner {
+                    return Err(bad(
+                        "original return constructs another definition's opaque result",
+                    ));
+                }
+                self.same(&hidden, &SemanticTypeRecipe::Atom(Type::Unit))
+            }
+            expected => self.same(&expected, &SemanticTypeRecipe::Atom(Type::Unit)),
+        }
+    }
     fn block(
         &mut self,
         owner: SemanticDefinitionId,
@@ -3980,17 +3970,7 @@ impl<'a> Check<'a, '_> {
                     live = false;
                 }
                 CoreStatementKind::Return(None) => {
-                    if let SemanticTypeRecipe::ErrorUnion { error, result } = result {
-                        if (error.as_ref() == &SemanticTypeRecipe::Atom(Type::Unit))
-                            == (result.as_ref() == &SemanticTypeRecipe::Atom(Type::Unit))
-                        {
-                            return Err(bad(
-                                "original unit error injection is ambiguous or absent",
-                            ));
-                        }
-                    } else {
-                        self.same(result, &SemanticTypeRecipe::Atom(Type::Unit))?;
-                    }
+                    self.unit_result(owner, result, depth + 1)?;
                     live = false;
                 }
                 CoreStatementKind::Expression(value) => {
@@ -4064,10 +4044,11 @@ impl<'a> Check<'a, '_> {
                 }
                 CoreStatementKind::Assign { target, value }
                 | CoreStatementKind::CompoundAssign { target, value, .. } => {
-                    let expected = self.writable(owner, target, variables, depth + 1)?;
+                    let mut expected = self.writable(owner, target, variables, depth + 1)?;
                     if matches!(&statement.kind, CoreStatementKind::CompoundAssign { .. }) {
                         let observed = self.place(owner, target, variables, depth + 1)?;
                         self.same(&expected, &observed)?;
+                        expected = self.observation_type(owner, &expected, depth + 1)?;
                         let SemanticTypeRecipe::Atom(primitive) = &expected else {
                             return Err(bad(
                                 "original compound assignment lacks a primitive endpoint premise",
@@ -4631,7 +4612,9 @@ impl<'a> Check<'a, '_> {
         let outer_cleanup = std::mem::replace(&mut self.cleanup_depth, 0);
         match body {
             SemanticOriginalFunctionBody::Defined(body) => {
-                self.block(definition.id, body, &mut variables, &result, 0)?;
+                if self.block(definition.id, body, &mut variables, &result, 0)? {
+                    self.unit_result(definition.id, &result, 0)?;
+                }
             }
             SemanticOriginalFunctionBody::External => {}
             SemanticOriginalFunctionBody::Declaration => {
