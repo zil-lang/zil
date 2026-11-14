@@ -754,32 +754,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<u32> {
-        b.spend(1, WORK)?;
-        if depth > b.partial_depth {
-            return Err(unknown("capture value origin exceeds its actual SSA depth"));
-        }
-        let (block, index, instruction) = self.defining(function, value, b)?;
-        match instruction.kind {
-            InstructionKind::ReadCapture { index }
-            | InstructionKind::TakeCapture { index }
-            | InstructionKind::DescribeCapture { index }
-            | InstructionKind::BorrowCapture { index, .. } => Ok(index),
-            InstructionKind::ReborrowAddress { address, .. } => {
-                self.capture_value_origin(function, address, b, depth + 1)
-            }
-            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                self.capture_local_origin(function, local, (block, index), b, depth + 1)
-            }
-            _ => {
-                b.spend(64, WORK)?;
-                let mut errors =
-                    unknown("complete captured value needs its actual whole capture transport");
-                errors[0]
-                    .notes
-                    .push(format!("actual function {} SSA {}", function.id.0, value.0));
-                Err(errors)
-            }
-        }
+        self.capture_origin_value(function, value, b, depth)
     }
     pub(super) fn capture_local_origin(
         &self,
@@ -789,67 +764,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<u32> {
-        b.spend(1, WORK)?;
-        if depth > b.partial_depth {
-            return Err(unknown("capture local origin exceeds its actual CFG depth"));
-        }
-        let block = function
-            .blocks
-            .get(at.0.0 as usize)
-            .filter(|block| block.id == at.0)
-            .ok_or_else(|| fail("capture local origin has no actual block"))?;
-        for instruction in block.instructions.iter().take(at.1).rev() {
-            b.spend(1, WORK)?;
-            match instruction.kind {
-                InstructionKind::BindPackageCapture {
-                    local: target,
-                    index,
-                } if target == local => return Ok(index),
-                InstructionKind::EndPackageCapture { local: target, .. } if target == local => {
-                    return Err(fail("capture origin crosses an ended owning Package view"));
-                }
-                InstructionKind::Store {
-                    local: target,
-                    value,
-                } if target == local => {
-                    return self.capture_value_origin(function, value, b, depth + 1);
-                }
-                InstructionKind::StorageLive(target)
-                | InstructionKind::StorageDead(target)
-                | InstructionKind::TakeLocal { local: target }
-                    if target == local =>
-                {
-                    return Err(fail("capture local origin crosses a vacant activation"));
-                }
-                _ => {}
-            }
-        }
-        let initialized = crate::initialize(function, b)?;
-        let mut selected = None;
-        for predecessor in &function.blocks {
-            b.spend(1, WORK)?;
-            if !initialized.reachable[predecessor.id.0 as usize] {
-                continue;
-            }
-            if matches!(predecessor.terminator,Terminator::Jump(next) if next==at.0)
-                || matches!(predecessor.terminator,Terminator::Branch {then_block,else_block,..} if then_block==at.0||else_block==at.0)
-            {
-                let origin = self.capture_local_origin(
-                    function,
-                    local,
-                    (predecessor.id, predecessor.instructions.len()),
-                    b,
-                    depth + 1,
-                )?;
-                if selected.is_some_and(|old| old != origin) {
-                    return Err(unknown(
-                        "capture local has several actual environment origins",
-                    ));
-                }
-                selected = Some(origin);
-            }
-        }
-        selected.ok_or_else(|| fail("capture local has no initialized actual origin"))
+        self.capture_origin_local(function, local, at, b, depth)
     }
     pub(super) fn ghost_capture_directory(
         &self,

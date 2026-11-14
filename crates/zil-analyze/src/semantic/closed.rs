@@ -9,6 +9,7 @@ mod callable_roles;
 mod capabilities;
 mod capture_creators;
 mod capture_heads;
+mod capture_origins;
 mod capture_places;
 mod class_origins;
 mod classes;
