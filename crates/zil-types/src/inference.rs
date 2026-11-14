@@ -355,6 +355,13 @@ pub(super) fn infer_program_closures_borrowed<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
+    infer_program_closures_borrowed_with_frozen(program, limits, None)
+}
+pub(super) fn infer_program_closures_borrowed_with_frozen<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+    frozen: Option<&semantics::frozen_context::FrozenSource>,
+) -> CompileResult<Cow<'a, CoreProgram>> {
     let original = program;
     let mut budget = Budget::new(limits);
     if program
@@ -366,8 +373,13 @@ pub(super) fn infer_program_closures_borrowed<'a>(
             .work(program.modules.len().saturating_add(1), Span::default())
             .map_err(|e| vec![e])?;
         let modules: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
-        crate::semantics::well_formed::originals(&modules, limits, &mut budget.work)
-            .map_err(|e| vec![e])?;
+        crate::semantics::well_formed::originals_with_frozen(
+            &modules,
+            frozen,
+            limits,
+            &mut budget.work,
+        )
+        .map_err(|e| vec![e])?;
     }
     let mut tables = BTreeMap::new();
     if program.modules.iter().any(|m| {

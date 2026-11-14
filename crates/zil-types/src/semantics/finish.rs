@@ -43,7 +43,41 @@ pub(crate) fn program(
         result.sites.extend(copy.sites);
         result.dyn_scopes.extend(copy.dyn_scopes);
     }
-    let original = super::original::check(&result, limits, left)?;
+    if let Some(source) = ledger.frozen.as_deref() {
+        crate::dyn_metadata::semantic_snapshot(&source.semantic, limits, left, 1)?;
+        for definition in &source.semantic.definitions {
+            *left = left
+                .checked_sub(result.definitions.len().saturating_add(1))
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "frozen original definition merge exceeded",
+                        None,
+                    )
+                })?;
+            if let Some(actual) = result
+                .definitions
+                .iter()
+                .find(|row| row.id == definition.id)
+            {
+                crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+                if actual != definition {
+                    return Err(error(
+                        "E-CT-FROZEN-TYPES",
+                        Span::default(),
+                        "E changes an immutable S original definition",
+                    ));
+                }
+            } else {
+                result.definitions.push(definition.clone());
+            }
+        }
+    }
+    let original = if let Some(source) = ledger.frozen.as_deref() {
+        super::original::check_with_frozen(&result, source, limits, left)?
+    } else {
+        super::original::check(&result, limits, left)?
+    };
     *ledger.original.borrow_mut() = Some(original);
     super::lower::program(&mut result, module, ledger, left)?;
     #[cfg(test)]

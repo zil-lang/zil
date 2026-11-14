@@ -168,6 +168,64 @@ impl Eval<'_, '_> {
         }
         Ok(result)
     }
+    pub(super) fn retained_child(
+        &mut self,
+        shape: &RetainedLifeShape,
+        domain: &[SemanticClassExpr],
+        path: &[LifeTypeProjection],
+        child: &StorageLifeShape,
+        classes: &[SemanticClassExpr],
+    ) -> R<()> {
+        if shape.binder_count as usize != domain.len()
+            || child.binder_count as usize != classes.len()
+        {
+            return Err(bad("retained carrier omits a complete child/parent domain"));
+        }
+        for row in &shape.retained {
+            self.fee(row.path.len().saturating_add(path.len()).saturating_add(1))?;
+            if row.path == path && row.class >= child.binder_count {
+                return Err(bad(
+                    "retained carrier declares a nonexistent child intrinsic class",
+                ));
+            }
+        }
+        self.fee(classes.len())?;
+        let mut binders = Vec::new();
+        for (class, image) in classes.iter().enumerate() {
+            let mut found = None;
+            for row in &shape.retained {
+                self.fee(row.path.len().saturating_add(path.len()).saturating_add(1))?;
+                if row.path == path && row.class == class as u32 {
+                    if found.replace(row.binder).is_some() {
+                        return Err(bad(
+                            "retained carrier repeats a result intrinsic class projection",
+                        ));
+                    }
+                }
+            }
+            let binder = found.ok_or_else(|| {
+                unknown("retained carrier lacks its complete child class projection")
+            })?;
+            self.fee(binders.len())?;
+            if binders.contains(&binder) {
+                return Err(bad(
+                    "retained carrier collapses distinct child intrinsic classes",
+                ));
+            }
+            binders.push(binder);
+            let parent = domain
+                .get(binder as usize)
+                .ok_or_else(|| bad("retained child class leaves the whole carrier domain"))?;
+            crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(parent, self.limits, self.left, 1)?;
+            if parent != image {
+                return Err(bad(
+                    "retained child projection changes its original class identity",
+                ));
+            }
+        }
+        Ok(())
+    }
     pub(super) fn storage_shape(
         &mut self,
         scope: SemanticInstanceId,

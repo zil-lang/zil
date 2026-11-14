@@ -26,6 +26,8 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+#[path = "materialize_dyn.rs"]
+pub(super) mod dynamic;
 #[path = "materialize_nominal.rs"]
 mod nominal;
 #[path = "materialize_shapes.rs"]
@@ -1019,12 +1021,28 @@ impl<'a> Eval<'a, '_> {
                 result: payload,
                 retained,
             } => {
-                let SemanticTypeValue::Resolved { ty: payload, .. } =
-                    self.ty(scope, payload, None, depth + 1)?
+                let SemanticTypeValue::Resolved {
+                    ty: payload,
+                    life: payload_life,
+                    classes: payload_classes,
+                } = self.ty(scope, payload, None, depth + 1)?
                 else {
                     unreachable!()
                 };
                 let (shape, classes) = self.retained_shape(scope, retained, depth + 1)?;
+                if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
+                    self.retained_child(
+                        &shape,
+                        &classes,
+                        &[LifeTypeProjection::Result],
+                        &payload_life,
+                        &payload_classes,
+                    )?;
+                } else if payload_life.binder_count != 0 {
+                    return Err(unknown(
+                        "guard payload needs its complete actual retained port class projection",
+                    ));
+                }
                 let life = StorageLifeShape {
                     binder_count: shape.binder_count,
                     slots: Vec::new(),
@@ -1348,6 +1366,132 @@ impl<'a> Eval<'a, '_> {
                         nominal_arguments: Vec::new(),
                     },
                     images,
+                )
+            }
+            SemanticTypeRecipe::Code { kind, signature } => {
+                if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
+                    return Err(unknown(
+                        "code type needs its own complete quantified invocation relation",
+                    ));
+                }
+                if signature.call_kind != CallKind::Direct
+                    || !matches!(
+                        signature.result_mode,
+                        PassingMode::Infer | PassingMode::Value
+                    )
+                {
+                    return Err(unknown(
+                        "code pointer type cannot erase its declared ABI or result transfer mode",
+                    ));
+                }
+                self.fee(signature.parameters.len())?;
+                let mut parameters = Vec::new();
+                for parameter in &signature.parameters {
+                    if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Value) {
+                        return Err(unknown(
+                            "code pointer parameter needs its exact transfer-mode representation",
+                        ));
+                    }
+                    let SemanticTypeValue::Resolved { ty, life, classes } =
+                        self.ty(scope, &parameter.ty, None, depth + 1)?
+                    else {
+                        unreachable!()
+                    };
+                    if life.binder_count != 0
+                        || !classes.is_empty()
+                        || !(ty.is_b0_scalar() || ty == Type::ForeignHandle)
+                    {
+                        return Err(unknown(
+                            "code pointer parameter needs its full class/signature relation",
+                        ));
+                    }
+                    parameters.push(ty);
+                }
+                let SemanticTypeValue::Resolved {
+                    ty: result,
+                    life,
+                    classes,
+                } = self.ty(scope, &signature.result, None, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                if life.binder_count != 0
+                    || !classes.is_empty()
+                    || !(result.is_b0_scalar() || result == Type::ForeignHandle)
+                {
+                    return Err(unknown(
+                        "code pointer result needs its full class/signature relation",
+                    ));
+                }
+                let ty = match kind {
+                    SemanticCodeKind::ForeignCallback => {
+                        if !foreign::callback_signature(&parameters, &result) {
+                            return Err(bad("foreign callback changes its complete C scalar ABI"));
+                        }
+                        Type::ForeignCallback {
+                            parameters,
+                            result: Box::new(result),
+                        }
+                    }
+                    SemanticCodeKind::FunctionPointer => Type::FunctionPointer {
+                        parameters,
+                        result: Box::new(result),
+                    },
+                    SemanticCodeKind::BorrowedFunctionPointer => {
+                        return Err(unknown(
+                            "borrowed code pointer needs its complete invocation-local header",
+                        ));
+                    }
+                };
+                resolved(ty, empty(), Vec::new())
+            }
+            SemanticTypeRecipe::Dyn { owned, interface } => {
+                self.dyn_type(scope, *owned, interface, hint, depth + 1)?
+            }
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                let (error_hint, result_hint) = match hint {
+                    Some(Type::ErrorUnion { error, result }) => {
+                        (Some(error.as_ref()), Some(result.as_ref()))
+                    }
+                    Some(_) => {
+                        return Err(bad(
+                            "ErrorUnion recipe changes its actual result constructor",
+                        ));
+                    }
+                    None => (None, None),
+                };
+                let SemanticTypeValue::Resolved {
+                    ty: error,
+                    life: error_life,
+                    classes: error_classes,
+                } = self.ty(scope, error, error_hint, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                let SemanticTypeValue::Resolved {
+                    ty: result,
+                    life: result_life,
+                    classes: result_classes,
+                } = self.ty(scope, result, result_hint, depth + 1)?
+                else {
+                    unreachable!()
+                };
+                if error_life.binder_count != 0
+                    || result_life.binder_count != 0
+                    || !error_classes.is_empty()
+                    || !result_classes.is_empty()
+                {
+                    return Err(unknown(
+                        "ErrorUnion needs its complete arm-to-whole intrinsic class projection",
+                    ));
+                }
+                resolved(
+                    Type::ErrorUnion {
+                        error: Box::new(error),
+                        result: Box::new(result),
+                    },
+                    empty(),
+                    Vec::new(),
                 )
             }
             SemanticTypeRecipe::Opaque {
@@ -1765,4 +1909,35 @@ pub(super) fn class_at(
         active: BTreeSet::new(),
     }
     .life(scope, recipe)
+}
+
+/// Resolve an original symbolic type in the real lexical context, without
+/// deriving it from an actual SSA type or publishing a class-flow proof.
+pub(super) fn symbolic_at(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticTypeRecipe> {
+    if let SemanticTypeRecipe::OriginalType {
+        scope: selector,
+        source,
+    } = recipe
+    {
+        Eval {
+            input: program,
+            module,
+            ledger,
+            limits,
+            left,
+            active: BTreeSet::new(),
+        }
+        .original_type(scope, *selector, source, 0)
+    } else {
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+        Ok(recipe.clone())
+    }
 }

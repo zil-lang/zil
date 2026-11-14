@@ -16,17 +16,25 @@ fn pay(left: &mut usize, count: usize) -> R<()> {
 }
 /// Read-only source facts. Source targets remain Core and are never emitted
 /// or reclassified as lexical Scope targets. Runtime lookups use E's ledger.
+struct SourceSymbols {
+    semantic: SemanticModule,
+    original: super::original::Proof,
+    owner: SemanticInstanceId,
+}
 pub(crate) struct FrozenSource {
     pub(super) semantic: SemanticModule,
     pub(super) original: super::original::Proof,
     pub(super) owner: SemanticInstanceId,
+    pub(super) query: CtQueryOrigin,
+    pub(super) wrapper_instance: SemanticInstanceId,
+    pub(super) wrapper_definition: SemanticDefinitionId,
 }
 fn source_interface(
     source: &CoreProgram,
     binding: &CtFrozenContext,
     limits: &Limits,
     left: &mut usize,
-) -> R<FrozenSource> {
+) -> R<SourceSymbols> {
     if binding.stage.source_fingerprint != source.source_fingerprint {
         return Err(bad(
             "frozen source fingerprint differs from the selected query request",
@@ -78,7 +86,6 @@ fn source_interface(
     // Includes unused definitions, unselected branches, original mixed-formal
     // rigidity, and original where premises. No E Type or caller Mono actual
     // can change this proof's inputs.
-    let proof = super::original::check(&program, limits, left)?;
     let instance = match binding.query.owner {
         CtQueryOwner::Instance(id) => {
             pay(left, program.instances.len())?;
@@ -113,6 +120,13 @@ fn source_interface(
         .iter()
         .find(|row| row.id == instance.definition)
         .ok_or_else(|| bad("frozen query instance lost its original declaration"))?;
+    let proof = super::original::check_at(
+        &program,
+        definition.id,
+        binding.query.original,
+        limits,
+        left,
+    )?;
     if !proof.complete.contains(&definition.id) {
         return Err(bad(
             "frozen query owner has no complete original body proof",
@@ -164,7 +178,7 @@ fn source_interface(
         ));
     }
     let owner = instance.id;
-    Ok(FrozenSource {
+    Ok(SourceSymbols {
         semantic: program,
         original: proof,
         owner,
@@ -173,11 +187,11 @@ fn source_interface(
 fn wrapper_relation(
     executable: &CoreProgram,
     source: &CoreProgram,
-    frozen: &FrozenSource,
+    frozen: &SourceSymbols,
     binding: &CtFrozenContext,
     limits: &Limits,
     left: &mut usize,
-) -> R<()> {
+) -> R<(SemanticInstanceId, SemanticDefinitionId)> {
     let SemanticFunctionTarget::Core { module, function } = &binding.query.wrapper else {
         return Err(bad(
             "Types frozen wrapper must name its real generated Core function",
@@ -346,7 +360,7 @@ fn wrapper_relation(
             ));
         }
     }
-    Ok(())
+    Ok((wrapper.id, definition.id))
 }
 pub(crate) fn check(
     executable: &CoreProgram,
@@ -358,18 +372,34 @@ pub(crate) fn check(
     let mut left = limits.max_analysis_steps;
     let frozen =
         source_interface(source, binding, limits, &mut left).map_err(|error| vec![error])?;
-    wrapper_relation(executable, source, &frozen, binding, limits, &mut left)
-        .map_err(|error| vec![error])?;
+    let (wrapper_instance, wrapper_definition) =
+        wrapper_relation(executable, source, &frozen, binding, limits, &mut left)
+            .map_err(|error| vec![error])?;
+    pay(&mut left, 1).map_err(|error| vec![error])?;
+    let frozen = FrozenSource {
+        semantic: frozen.semantic,
+        original: frozen.original,
+        owner: frozen.owner,
+        query: binding.query.clone(),
+        wrapper_instance,
+        wrapper_definition,
+    };
     if executable.source_fingerprint != source.source_fingerprint {
         return Err(vec![bad(
             "selected executable belongs to another frozen source",
         )]);
     }
-    // No success is published while E's free names, full actuals and sealed
-    // environment still lack a checked bridge to this exact frozen Γ. Calling
-    // ordinary check_program(E), clearing Some, or lowering S into E here
-    // would erase precisely that obligation.
-    Err(vec![pending(
-        "selected executable requires its complete frozen-source type/environment substitution bridge",
-    )])
+    // Only E enters inference, shape resolution and actual CFG emission. The
+    // immutable S remains a separate private lookup context for every stage.
+    let remaining = Limits {
+        max_analysis_steps: left,
+        ..limits.clone()
+    };
+    crate::program::check_program_with_frozen(
+        executable,
+        _target,
+        &remaining,
+        std::rc::Rc::new(frozen),
+    )
+    .map(|program| program.module)
 }

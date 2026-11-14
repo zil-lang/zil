@@ -1138,8 +1138,41 @@ impl Check<'_, '_> {
 /// Instance, emitted-site and actual-class validation are separate mandatory
 /// consumers; this pass cannot publish a complete Typed semantic program.
 pub(crate) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usize) -> R<()> {
+    originals_with_frozen(modules, None, limits, left)
+}
+pub(crate) fn originals_with_frozen(
+    modules: &[&CoreModule],
+    frozen: Option<&super::frozen_context::FrozenSource>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
     let mut definitions = BTreeMap::new();
     let mut instances = BTreeMap::new();
+    if let Some(frozen) = frozen {
+        crate::dyn_metadata::semantic_snapshot(&frozen.semantic, limits, left, 1)?;
+        for definition in &frozen.semantic.definitions {
+            *left = left
+                .checked_sub(definitions.len().saturating_add(1).ilog2() as usize + 1)
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Types, "frozen definition index work exceeded", None)
+                })?;
+            if definitions.insert(definition.id, definition).is_some() {
+                return Err(fail("frozen source definition identity is duplicated"));
+            }
+        }
+        for instance in &frozen.semantic.instances {
+            *left = left
+                .checked_sub(instances.len().saturating_add(1).ilog2() as usize + 1)
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Types, "frozen instance index work exceeded", None)
+                })?;
+            if instances.insert(instance.id, instance).is_some() {
+                return Err(fail("frozen source instance identity is duplicated"));
+            }
+        }
+    }
+    let mut actual_definitions = BTreeSet::new();
+    let mut actual_instances = BTreeSet::new();
     for core in modules {
         let Some(program) = &core.semantic else {
             continue;
@@ -1168,10 +1201,18 @@ pub(crate) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usi
                         None,
                     )
                 })?;
-            if definitions.insert(definition.id, definition).is_some() {
+            if !actual_definitions.insert(definition.id) {
                 return Err(fail(
-                    "semantic definition identity is duplicated across the complete program",
+                    "semantic definition identity is duplicated across the executable",
                 ));
+            }
+            if let Some(source) = definitions.insert(definition.id, definition) {
+                crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
+                if source != definition {
+                    return Err(fail(
+                        "executable changes its immutable frozen original definition",
+                    ));
+                }
             }
         }
         for instance in &program.instances {
@@ -1184,10 +1225,18 @@ pub(crate) fn originals(modules: &[&CoreModule], limits: &Limits, left: &mut usi
                         None,
                     )
                 })?;
-            if instances.insert(instance.id, instance).is_some() {
+            if !actual_instances.insert(instance.id) {
                 return Err(fail(
-                    "semantic instance identity is duplicated across the complete program",
+                    "semantic instance identity is duplicated across the executable",
                 ));
+            }
+            if let Some(source) = instances.insert(instance.id, instance) {
+                crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
+                if source != instance {
+                    return Err(fail(
+                        "selected executable changes its frozen source instance request",
+                    ));
+                }
             }
         }
     }

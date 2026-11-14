@@ -52,7 +52,27 @@ pub(super) fn check_resolved_program_with_reuse(
     program: &CoreProgram,
     target: &TargetProfile,
     limits: &Limits,
+    reuse: Option<&mut incremental::Reuse<'_>>,
+) -> CompileResult<TypedProgram> {
+    check_resolved_program_in_context(program, target, limits, reuse, None)
+}
+pub(crate) fn check_program_with_frozen(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+    frozen: std::rc::Rc<semantics::frozen_context::FrozenSource>,
+) -> CompileResult<TypedProgram> {
+    let inferred =
+        inference::infer_program_closures_borrowed_with_frozen(program, limits, Some(&frozen))?;
+    let resolved = aggregates::resolve_program(inferred.as_ref(), limits)?;
+    check_resolved_program_in_context(&resolved, target, limits, None, Some(frozen))
+}
+fn check_resolved_program_in_context(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
+    frozen: Option<std::rc::Rc<semantics::frozen_context::FrozenSource>>,
 ) -> CompileResult<TypedProgram> {
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
@@ -78,8 +98,13 @@ pub(super) fn check_resolved_program_with_reuse(
             .checked_sub(count.saturating_add(1))
             .ok_or_else(limit)?;
         let modules: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
-        crate::semantics::well_formed::originals(&modules, limits, &mut remaining)
-            .map_err(|error| vec![error])?;
+        crate::semantics::well_formed::originals_with_frozen(
+            &modules,
+            frozen.as_deref(),
+            limits,
+            &mut remaining,
+        )
+        .map_err(|error| vec![error])?;
     }
     let mut header_inputs = Vec::new();
     let mut module_ids = BTreeSet::new();
@@ -159,6 +184,15 @@ pub(super) fn check_resolved_program_with_reuse(
     // not conceal a receiver error in this module or a later dependency.
     names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
     let mut closure_state = closures::State::new(count, limits);
+    if let Some(source) = frozen {
+        closure_state
+            .snapshot(1, Span::default())
+            .map_err(|error| vec![error])?;
+        closure_state
+            .semantic_emission
+            .install_frozen(source)
+            .map_err(|error| vec![error])?;
+    }
     let mut life_declarations = Vec::new();
     let mut life_instances = Vec::new();
     for source in &program.modules {

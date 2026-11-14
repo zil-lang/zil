@@ -60,6 +60,19 @@ fn lookup_cost(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
 impl Ledger {
+    pub(crate) fn install_frozen(
+        &mut self,
+        source: std::rc::Rc<super::frozen_context::FrozenSource>,
+    ) -> R<()> {
+        if self.frozen.is_some() || !self.frames.is_empty() {
+            return Err(invalid(
+                Span::default(),
+                "frozen source context changed after actual emission began",
+            ));
+        }
+        self.frozen = Some(source);
+        Ok(())
+    }
     pub fn bind(
         &mut self,
         function: FunctionId,
