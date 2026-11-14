@@ -35,6 +35,7 @@ struct Apply<'a, 'b> {
     allow_root_invocation: bool,
     forall: Option<(u32, u32)>,
     inference_seen: Option<&'b mut bool>,
+    nominal_filter: Option<SemanticDefinitionId>,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -371,6 +372,7 @@ impl<'a> Apply<'a, '_> {
             allow_root_invocation: true,
             forall: None,
             inference_seen: None,
+            nominal_filter: None,
         }
         .ty(value, depth)
     }
@@ -405,6 +407,7 @@ impl<'a> Apply<'a, '_> {
             allow_root_invocation: true,
             forall: None,
             inference_seen: None,
+            nominal_filter: None,
         }
         .life(value, depth)
     }
@@ -439,6 +442,7 @@ impl<'a> Apply<'a, '_> {
             allow_root_invocation: true,
             forall: None,
             inference_seen: None,
+            nominal_filter: None,
         }
         .constant(value, depth)
     }
@@ -702,6 +706,15 @@ impl<'a> Apply<'a, '_> {
     }
     fn ty(&mut self, ty: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
+        if self.nominal_filter.is_some_and(|target|
+            matches!(ty, SemanticTypeRecipe::Nominal { definition, .. } if *definition == target))
+            && self.bound_depth == 0 && self.invocation_depth == 0
+        {
+            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
+            if let Some(rows) = &mut self.delayed {
+                rows.push(DelayedType { ty: ty.clone(), bound_depth: 0, invocation_depth: 0 });
+            }
+        }
         if matches!(ty, SemanticTypeRecipe::OriginalType { .. }) {
             if let Some(seen) = &mut self.inference_seen {
                 // A query needs its separately checked lexical provenance; a
@@ -724,6 +737,7 @@ impl<'a> Apply<'a, '_> {
             }
         }
         if self.delayed.is_some()
+            && self.nominal_filter.is_none()
             && matches!(
                 ty,
                 SemanticTypeRecipe::OriginalType { .. }
@@ -940,6 +954,7 @@ pub(crate) fn ty(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -970,6 +985,7 @@ pub(crate) fn signature(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -1001,6 +1017,7 @@ pub(crate) fn requirement(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -1032,6 +1049,7 @@ pub(crate) fn actual(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .actual(&mut value, 1)?;
     Ok(value)
@@ -1064,6 +1082,7 @@ pub(crate) fn signature_template(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -1110,6 +1129,7 @@ pub(crate) fn universal_callable(
         allow_root_invocation: true,
         forall: Some((lifetimes, value.invocation_lifetimes)),
         inference_seen: None,
+        nominal_filter: None,
     }
     .signature(&mut result, 1)?;
     Ok(result)
@@ -1143,6 +1163,7 @@ pub(crate) fn caller_context(
         allow_root_invocation: true,
         forall: None,
         inference_seen: Some(&mut inference_seen),
+        nominal_filter: None,
     }
     .ty(&mut result, 1)?;
     if inference_seen {
@@ -1178,6 +1199,7 @@ pub(crate) fn caller_context(
         allow_root_invocation: true,
         forall: None,
         inference_seen: Some(&mut inference_seen),
+        nominal_filter: None,
     }
     .ty(&mut result, 1)?;
     Ok((!inference_seen).then_some(result))
@@ -1208,6 +1230,7 @@ pub(crate) fn signature_fresh(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .signature(&mut value, 1)?;
     Ok(value)
@@ -1243,6 +1266,7 @@ pub(crate) fn ty_in_domains(
         allow_root_invocation,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)
@@ -1285,6 +1309,7 @@ pub(crate) fn requirement_replacing(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -1317,6 +1342,7 @@ pub(crate) fn requirement_in_domains(
         allow_root_invocation,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .requirement(&mut value, 1)?;
     Ok(value)
@@ -1357,9 +1383,60 @@ pub(crate) fn delayed_types(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .ty(&mut value, 1)?;
     Ok(delayed)
+}
+/// Find declaration uses in the current original lexical domain. Quantified
+/// code domains and an opaque's callee-owned hidden body are not caller uses.
+pub(crate) fn nominal_types(
+    value: &SemanticTypeRecipe,
+    definition: SemanticDefinitionId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<SemanticTypeRecipe>> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    let empty = BTreeMap::new();
+    let substitution = Substitution {
+        frames: &[],
+        selves: &[],
+        environments: &[],
+        implicit: &empty,
+        invocation: &empty,
+        shift: 0,
+    };
+    let mut rows = Vec::new();
+    Apply {
+        substitution: &substitution,
+        type_equations: &[],
+        local_equations: &[],
+        delayed: Some(&mut rows),
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: None,
+        allow_root_invocation: true,
+        forall: None,
+        inference_seen: None,
+        nominal_filter: Some(definition),
+    }
+    .ty(&mut value, 1)?;
+    *left = left.checked_sub(rows.len()).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "original nominal request index work exceeded",
+            None,
+        )
+    })?;
+    Ok(rows.into_iter().map(|row| row.ty).collect())
 }
 pub(crate) fn replace_delayed(
     value: &SemanticTypeRecipe,
@@ -1396,6 +1473,7 @@ pub(crate) fn replace_delayed(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
+        nominal_filter: None,
     }
     .ty(&mut value, 1)?;
     Ok(value)

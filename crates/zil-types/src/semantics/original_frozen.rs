@@ -283,7 +283,7 @@ fn clone_proof(
         program,
         limits,
         left,
-        proof: Proof::default(),
+        proof: std::borrow::Cow::Owned(Proof::default()),
         active: BTreeSet::new(),
         captures: BTreeMap::new(),
         loops: Vec::new(),
@@ -443,7 +443,7 @@ pub(crate) fn check_with_frozen(
         program,
         limits,
         left,
-        proof,
+        proof: std::borrow::Cow::Owned(proof),
         active: BTreeSet::new(),
         captures: BTreeMap::new(),
         loops: Vec::new(),
@@ -495,5 +495,5 @@ pub(crate) fn check_with_frozen(
     check.finish_effects()?;
     check.associated_obligations(0)?;
     protocol::check(program, &mut check.proof, check.limits, check.left)?;
-    Ok(check.proof)
+    Ok(check.proof.into_owned())
 }

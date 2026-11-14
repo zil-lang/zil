@@ -11,6 +11,10 @@ fn pending(message: &str) -> Diagnostic {
 struct Check<'a, 'b> {
     program: &'a SemanticModule,
     module: &'a TypedModule,
+    ledger: &'a super::emission::Ledger,
+    where_session: super::original::NominalWhere<'a>,
+    requests:
+        std::collections::BTreeMap<SemanticDefinitionId, Vec<super::original::NominalRequest>>,
     limits: &'b Limits,
     left: &'b mut usize,
     active: Vec<usize>,
@@ -708,122 +712,124 @@ impl<'a> Check<'a, '_> {
         }
         Ok(())
     }
-    fn actual_type(
+    fn actual_argument(
         &mut self,
         owner: &LifeNominalInstance,
-        recipe: &SemanticTypeRecipe,
-    ) -> R<&'a Type> {
-        if let SemanticTypeRecipe::Formal(reference) = recipe {
-            if reference.scope == SemanticScopeRef::Ancestor(0) {
-                let row = self.instance(&owner.ty)?;
-                if let Some(
-                    LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. },
-                ) = row.arguments.get(reference.ordinal as usize)
-                {
-                    return Ok(ty);
-                }
-            }
-        }
-        Err(pending(
-            "nominal where premise requires its complete symbolic actual type evaluator",
-        ))
-    }
-    fn copy_type(&mut self, ty: &Type, depth: usize) -> R<bool> {
+        root_classes: &[SemanticClassExpr],
+        ordinal: usize,
+        actual: SemanticActual,
+        depth: usize,
+    ) -> R<bool> {
         self.node(depth)?;
-        Ok(match ty {
-            Type::Address { mutable: false, .. } => true,
-            Type::FunctionPointer { .. }
-            | Type::BorrowedFunctionPointer { .. }
-            | Type::ForeignCallback { .. } => true,
-            Type::BorrowedStorage { storage, life } => {
-                stored::shape(ty, self.left, self.limits.max_call_depth, Span::default())?;
-                !life
-                    .slots
-                    .iter()
-                    .any(|r| r.mode != StoredBorrowMode::SharedAddress)
-                    && self.copy_type(storage, depth + 1)?
-            }
-            Type::Tuple(fields) => {
-                let mut all = true;
-                for field in fields {
-                    all &= self.copy_type(field, depth + 1)?;
+        let expected = owner
+            .arguments
+            .get(ordinal)
+            .ok_or_else(|| bad("nominal source actual exceeds its full declared order"))?;
+        Ok(match (actual, expected) {
+            (
+                SemanticActual::Type(SemanticTypeValue::Resolved { ty, life, classes }),
+                LifeNominalActual::Type(expected),
+            ) => {
+                inference::charge_type_snapshot(&ty, Span::default(), self.limits, self.left, 1)?;
+                inference::charge_type_snapshot(
+                    expected,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                if &ty != expected {
+                    return Ok(false);
                 }
-                all
-            }
-            Type::Array { element, .. } => self.copy_type(element, depth + 1)?,
-            Type::Record { fields, .. } => {
-                let mut all = true;
-                for (_, field) in fields {
-                    all &= self.copy_type(field, depth + 1)?;
+                let intrinsic = match expected {
+                    Type::BorrowedStorage { life, .. } => Some(life),
+                    _ => None,
+                };
+                if intrinsic.map_or(
+                    life.binder_count != 0
+                        || !life.slots.is_empty()
+                        || !life.retained.is_empty()
+                        || !life.nominal_arguments.is_empty(),
+                    |expected| expected != &life,
+                ) {
+                    return Ok(false);
                 }
-                all
+                let images = self.type_images(owner, ordinal as u32, expected, depth + 1)?;
+                self.match_images(&images, &classes, root_classes)?
             }
-            Type::Enum { variants, .. } => {
-                let mut all = true;
-                for (_, fields) in variants {
-                    for field in fields {
-                        all &= self.copy_type(field, depth + 1)?;
-                    }
+            (
+                SemanticActual::Type(SemanticTypeValue::Resolved { ty, life, classes }),
+                LifeNominalActual::QualifiedType {
+                    ty: expected,
+                    life: expected_life,
+                },
+            ) => {
+                inference::charge_type_snapshot(&ty, Span::default(), self.limits, self.left, 1)?;
+                inference::charge_type_snapshot(
+                    expected,
+                    Span::default(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                self.shape_work(&life)?;
+                self.shape_work(expected_life)?;
+                if &ty != expected || &life != expected_life {
+                    return Ok(false);
                 }
-                all
+                let images = self.type_images(owner, ordinal as u32, expected, depth + 1)?;
+                self.match_images(&images, &classes, root_classes)?
             }
-            Type::ErrorUnion { error, result } => {
-                self.copy_type(error, depth + 1)? && self.copy_type(result, depth + 1)?
-            }
-            other => other.is_copy_value(),
-        })
-    }
-    fn value_type(&mut self, ty: &Type, depth: usize) -> R<bool> {
-        self.node(depth)?;
-        Ok(match ty {
-            ty if ty.is_b0_scalar() => true,
-            Type::Address { .. }
-            | Type::FunctionPointer { .. }
-            | Type::BorrowedFunctionPointer { .. }
-            | Type::ForeignCallback { .. }
-            | Type::ForeignHandle
-            | Type::CWideString => true,
-            Type::BorrowedStorage { storage, .. } => {
-                stored::shape(ty, self.left, self.limits.max_call_depth, Span::default())?;
-                self.value_type(storage, depth + 1)?
-            }
-            Type::Tuple(fields) => {
-                let mut all = true;
-                for field in fields {
-                    all &= self.value_type(field, depth + 1)?;
+            (
+                SemanticActual::Life(actual),
+                LifeNominalActual::Lifetime(StorageBinder::Fixed(index)),
+            ) => root_classes.get(*index as usize) == Some(&actual),
+            (
+                SemanticActual::Const {
+                    ty: SemanticTypeValue::Resolved { ty, life, classes },
+                    value,
+                },
+                LifeNominalActual::Const(expected),
+            ) => {
+                self.pay(classes.len().saturating_add(1))?;
+                if let Constant::WideString(units) = expected {
+                    self.pay(units.len())?;
                 }
-                all
-            }
-            Type::Array { element, .. } => self.value_type(element, depth + 1)?,
-            Type::Record { fields, .. } | Type::Package { fields, .. } => {
-                let mut all = true;
-                for (_, field) in fields {
-                    all &= if let Type::Managed(_) = field {
-                        resources::supported(field)
-                    } else {
-                        self.value_type(field, depth + 1)?
-                    };
-                }
-                all
-            }
-            Type::Enum { variants, .. } => {
-                let mut all = true;
-                for (_, fields) in variants {
-                    for field in fields {
-                        all &= if let Type::Managed(_) = field {
-                            resources::supported(field)
-                        } else {
-                            self.value_type(field, depth + 1)?
-                        };
-                    }
-                }
-                all
-            }
-            Type::ErrorUnion { error, result } => {
-                self.value_type(error, depth + 1)? && self.value_type(result, depth + 1)?
+                value == *expected
+                    && ty == expected.ty()
+                    && life.binder_count == 0
+                    && life.slots.is_empty()
+                    && life.retained.is_empty()
+                    && life.nominal_arguments.is_empty()
+                    && classes.is_empty()
             }
             _ => false,
         })
+    }
+    fn match_images(
+        &mut self,
+        images: &[StorageBinder],
+        actual: &[SemanticClassExpr],
+        root: &[SemanticClassExpr],
+    ) -> R<bool> {
+        self.pay(images.len().saturating_add(actual.len()))?;
+        if images.len() != actual.len() {
+            return Ok(false);
+        }
+        for (image, actual) in images.iter().zip(actual) {
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+            let StorageBinder::Fixed(index) = image else {
+                return Ok(false);
+            };
+            let Some(expected) = root.get(*index as usize) else {
+                return Ok(false);
+            };
+            crate::dyn_metadata::semantic_operand_snapshot(expected, self.limits, self.left, 1)?;
+            if expected != actual {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
     fn requirements(
         &mut self,
@@ -831,63 +837,114 @@ impl<'a> Check<'a, '_> {
         definition: &SemanticDefinition,
         depth: usize,
     ) -> R<()> {
-        for requirement in
-            definition
-                .requirements
-                .iter()
-                .chain(
-                    definition
-                        .parameters
-                        .iter()
-                        .flat_map(|formal| match formal {
-                            SemanticFormal::Type { requirements } => requirements.as_slice(),
-                            _ => &[],
-                        }),
-                )
-        {
-            self.node(depth)?;
-            match requirement {
-                SemanticRequirementRecipe::Builtin {
-                    ty,
-                    trait_kind: SemanticBuiltinTrait::Copy,
-                }
-                | SemanticRequirementRecipe::Structural {
-                    ty,
-                    bound: DynStructuralBound::Copy,
-                } => {
-                    let ty = self.actual_type(owner, ty)?;
-                    if !self.copy_type(ty, depth + 1)? {
-                        return Err(bad(
-                            "actual nominal does not satisfy its complete original Copy premise",
-                        ));
+        if definition.requirements.is_empty() && definition.parameters.iter().all(|formal| !matches!(formal, SemanticFormal::Type { requirements } if !requirements.is_empty())) { return Ok(()); }
+        if !self.requests.contains_key(&definition.id) {
+            let requests = self
+                .where_session
+                .requests(definition.id, self.limits, self.left)?;
+            self.pay(1)?;
+            self.requests.insert(definition.id, requests);
+        }
+        // Move only this request vector temporarily, preserving immutable
+        // proof/recipes without cloning the whole original context per row.
+        let requests = self
+            .requests
+            .remove(&definition.id)
+            .ok_or_else(|| bad("nominal source request index disappeared"))?;
+        let result = (|| {
+            let mut matched = false;
+            for request in &requests {
+                let SemanticTypeRecipe::Nominal { arguments, .. } = &request.recipe else {
+                    return Err(bad("nominal original request lost its declared kind"));
+                };
+                for scope in &self.program.instances {
+                    self.node(depth)?;
+                    if scope.definition != request.caller {
+                        continue;
                     }
-                }
-                SemanticRequirementRecipe::Builtin {
-                    ty,
-                    trait_kind: SemanticBuiltinTrait::Value,
-                } => {
-                    let ty = self.actual_type(owner, ty)?;
-                    if !self.value_type(ty, depth + 1)? {
-                        return Err(bad(
-                            "actual nominal does not satisfy its original Value premise",
-                        ));
+                    let proposed = match super::materialize::type_at(
+                        self.program,
+                        self.module,
+                        self.ledger,
+                        scope.id,
+                        &request.recipe,
+                        Some(&owner.ty),
+                        self.limits,
+                        self.left,
+                    ) {
+                        Ok(value) => value,
+                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                            return Err(error);
+                        }
+                        Err(_) => continue,
+                    };
+                    let SemanticTypeValue::Resolved { ty, classes, .. } = proposed else {
+                        continue;
+                    };
+                    inference::charge_type_snapshot(
+                        &ty,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    inference::charge_type_snapshot(
+                        &owner.ty,
+                        Span::default(),
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if ty != owner.ty || arguments.len() != owner.arguments.len() {
+                        continue;
                     }
-                }
-                SemanticRequirementRecipe::LifeEqual { left, right } => {
-                    if self.life(owner, left, depth + 1)? != self.life(owner, right, depth + 1)? {
-                        return Err(bad(
-                            "nominal actuals do not satisfy original lifetime equality",
-                        ));
+                    let mut same = true;
+                    for (ordinal, recipe) in arguments.iter().enumerate() {
+                        let actual = super::materialize::actual_at(
+                            self.program,
+                            self.module,
+                            self.ledger,
+                            scope.id,
+                            recipe,
+                            self.limits,
+                            self.left,
+                        )?;
+                        same &=
+                            self.actual_argument(owner, &classes, ordinal, actual, depth + 1)?;
                     }
-                }
-                _ => {
-                    return Err(pending(
-                        "nominal where requirement needs its complete original structural/trait/role proof",
-                    ));
+                    if !same {
+                        continue;
+                    }
+                    self.pay(256)?;
+                    self.where_session.prove(request.caller, &request.recipe, self.limits, self.left).map_err(|mut error| {
+                        error.notes.push(format!("original nominal where caller {:?}, actual scope {:?}, declaration {:?}", request.caller, scope.id, definition.id)); error
+                    })?;
+                    matched = true;
                 }
             }
-        }
-        Ok(())
+            if !matched {
+                self.pay(384)?;
+                let mut error = pending(
+                    "nominal where lacks an exact complete original caller application and full mixed actual mapping",
+                );
+                error.notes.push(format!("original nominal {:?}, declaration {:?}, mixed actuals {}, candidate original requests {}", definition.id, owner.declaration, owner.arguments.len(), requests.len()));
+                return Err(error);
+            }
+            // Declared class equalities constrain the intrinsic nominal graph,
+            // even when two outside caller images happen to coincide.
+            for requirement in &definition.requirements {
+                if let SemanticRequirementRecipe::LifeEqual { left, right } = requirement {
+                    if self.life(owner, left, depth + 1)? != self.life(owner, right, depth + 1)? {
+                        return Err(bad(
+                            "nominal intrinsic classes violate their original lifetime equality",
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        })();
+        self.requests.insert(definition.id, requests);
+        result
     }
     fn row(&mut self, instance: &'a LifeNominalInstance, depth: usize) -> R<()> {
         self.node(depth)?;
@@ -1016,15 +1073,23 @@ impl<'a> Check<'a, '_> {
         Ok(())
     }
 }
-pub(super) fn program(
-    program: &SemanticModule,
-    module: &TypedModule,
+pub(super) fn program<'a>(
+    program: &'a SemanticModule,
+    module: &'a TypedModule,
+    ledger: &'a super::emission::Ledger,
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    let context = ledger
+        .original
+        .context()
+        .ok_or_else(|| bad("nominal where requires the request's immutable original context"))?;
     let mut check = Check {
         program,
         module,
+        ledger,
+        where_session: super::original::NominalWhere::new(&context.semantic, &context.original),
+        requests: std::collections::BTreeMap::new(),
         limits,
         left,
         active: Vec::new(),

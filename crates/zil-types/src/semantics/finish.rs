@@ -49,7 +49,7 @@ pub(crate) fn program(
     let mut headers = super::headers::program(&mut result, module, left)?;
     super::headers::capture_domains(&mut result, module, ledger, limits, left, &mut headers)?;
     stored::ordinary_inventory(module, limits, left)?;
-    super::nominal_catalog::program(&result, module, limits, left)?;
+    super::nominal_catalog::program(&result, module, ledger, limits, left)?;
     super::creator_headers::populate(&mut result, module, ledger, limits, left)?;
     super::materialize::program(&mut result, module, ledger, limits, left)?;
     #[cfg(test)]

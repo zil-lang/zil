@@ -32,6 +32,8 @@ mod modes;
 #[path = "original_resources.rs"]
 mod resources;
 pub(super) use intrinsics::{IntrinsicCall, IntrinsicKind, RegistrationOp, TaskOp};
+#[path = "original_nominal_where.rs"]
+mod nominal_where;
 #[path = "original_roles.rs"]
 mod roles;
 #[path = "original_store.rs"]
@@ -40,6 +42,7 @@ mod store;
 pub(super) mod substitute;
 #[path = "original_task_bridge.rs"]
 mod task_bridge;
+pub(super) use nominal_where::{NominalRequest, NominalWhere};
 #[path = "original_value_predicate.rs"]
 mod value_predicate;
 #[path = "original_values.rs"]
@@ -269,7 +272,7 @@ struct Check<'a, 'b> {
     program: &'a SemanticModule,
     limits: &'b Limits,
     left: &'b mut usize,
-    proof: Proof,
+    proof: std::borrow::Cow<'a, Proof>,
     active: BTreeSet<SemanticDefinitionId>,
     captures: BTreeMap<SemanticDefinitionId, Vec<String>>,
     loops: Vec<LoopFrame>,
@@ -5181,6 +5184,11 @@ impl<'a> Check<'a, '_> {
         if self.proof.complete.contains(&definition.id) {
             return Ok(());
         }
+        if matches!(self.proof, std::borrow::Cow::Borrowed(_)) {
+            return Err(pending(
+                "read-only original where proof cannot introduce an unchecked body fact",
+            ));
+        }
         self.pay(self.active.len().saturating_add(1), 0)?;
         if !self.active.insert(definition.id) {
             return Err(pending(
@@ -5457,11 +5465,11 @@ fn check_requested(
         program,
         limits,
         left,
-        proof: Proof {
+        proof: std::borrow::Cow::Owned(Proof {
             definition_positions,
             declarations,
             ..Proof::default()
-        },
+        }),
         active: BTreeSet::new(),
         captures: BTreeMap::new(),
         loops: Vec::new(),
@@ -5503,7 +5511,7 @@ fn check_requested(
     check.finish_effects()?;
     check.associated_obligations(0)?;
     protocol::check(program, &mut check.proof, check.limits, check.left)?;
-    Ok(check.proof)
+    Ok(check.proof.into_owned())
 }
 
 impl Proof {

@@ -24,7 +24,7 @@ fn with_check<T>(
         program,
         limits,
         left,
-        proof: std::mem::take(proof),
+        proof: std::borrow::Cow::Owned(std::mem::take(proof)),
         active: BTreeSet::new(),
         captures: BTreeMap::new(),
         loops: Vec::new(),
@@ -39,7 +39,7 @@ fn with_check<T>(
     let result = run(&mut check);
     // Restore even on rejection or resource exhaustion. No speculative fact
     // from an actual specialization is ever installed in this context.
-    *proof = std::mem::take(&mut check.proof);
+    *proof = std::mem::take(&mut check.proof).into_owned();
     result
 }
 pub(super) fn copy(
