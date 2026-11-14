@@ -1161,8 +1161,11 @@ mod native_product_tests {
         assert_eq!(leaf_arena.stats(), Some(peer_before_prior));
         assert!(prior_reused.receipt.verify_before_after);
         assert!(closed_prior_products.is_some());
-        // Observe complete-request World work; misses and producer captures
-        // may legitimately project World, so do not assume an all-zero count.
+        // This isolated, fully reused leaf has no other definitions to charge:
+        // its producer checks World, while the closed consumer must not walk it.
+        assert!(producer_stats.world_projection_direct > 0);
+        assert_eq!(prior_stats.world_projection_direct, 0);
+        assert_eq!(prior_stats.world_projection_fallback, 0);
         eprintln!(
             "closed-prior leaf World projections: producer direct={} fallback={}; consumer direct={} fallback={}",
             producer_stats.world_projection_direct,
