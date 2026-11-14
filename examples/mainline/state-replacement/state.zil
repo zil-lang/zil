@@ -14,7 +14,7 @@ pub fn pack<T: Copy, F: FnMut(i32) -> i32>(a: F, b: F, tag: T) -> State<T,F> {
     return State::<T,F> { marker: Mark { code: 83 }, a: a, b: b, tag: tag }
 }
 
-pub fn replace<T: Copy, F: FnMut(i32) -> i32>(
+pub fn replace<T: Copy, F: FnMut(i32) -> i32 + SyncDrop>(
     state: State<T,F>, replacement: F, cancel: bool
 ) -> State<T,F> {
     var next = state
@@ -25,7 +25,7 @@ pub fn replace<T: Copy, F: FnMut(i32) -> i32>(
     return next
 }
 
-pub fn replace_first<T: Copy, F: FnMut(i32) -> i32>(
+pub fn replace_first<T: Copy, F: FnMut(i32) -> i32 + SyncDrop>(
     replacement: F, stamp: i64, state: State<T,F>, cancel: bool
 ) -> State<T,F> {
     if stamp != i64(42) { return state }

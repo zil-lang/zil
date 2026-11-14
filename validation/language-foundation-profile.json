@@ -1,0 +1,154 @@
+{
+  "profile": "language-foundation",
+  "positive_cases": [
+    {
+      "family": "scalars",
+      "source": "tests/integers/complete-domains.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "8b4677e668bcb425724ba30599b11d3138121b8818bb25d8379fd1c3fbabeaa3"
+    },
+    {
+      "family": "patterns",
+      "source": "tests/fixtures/ownership/owned-option-session.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f"
+    },
+    {
+      "family": "generic-libraries",
+      "source": "examples/mainline/draft_foundations/main.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7"
+    },
+    {
+      "family": "closures",
+      "source": "examples/mainline/generic-callbacks/main.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047"
+    },
+    {
+      "family": "ownership",
+      "source": "examples/mainline/state-replacement/main.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "correction": "Entry bytes unchanged; imported State replacement API now declares the SyncDrop used by cancellation/overwrite. This is a new project revision.",
+      "original_project_snapshot": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil",
+      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c"
+    },
+    {
+      "family": "dynamic-abstraction",
+      "source": "tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "8a5df893801e58386b266191b6c62bcf82a55211e2fbef639ad015db827be8ff"
+    },
+    {
+      "family": "async-ownership",
+      "source": "tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f"
+    },
+    {
+      "family": "threads",
+      "source": "tests/fixtures/threading/mutex-worker-helpers.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530"
+    },
+    {
+      "family": "foreign-lifecycle",
+      "source": "tests/language-readiness/foreign-thread-registration/threaded-generic-sync-drop.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "correction": "Original generic constructor lacked independent SyncDrop; preserve the original as a semantic negative.",
+      "c_provider": "tests/language-readiness/foreign-thread-registration/threaded-host.c",
+      "source_sha256": "171812ab53d0b274cdf2bae0dd47cae94ca151e447bd6bbb19347325a7f57aa5"
+    },
+    {
+      "family": "owning-collections",
+      "source": "tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "ef8f72781a1e834993cfc9b5ee3b09343a896c1a9fdb212755e00598d55ad870"
+    },
+    {
+      "family": "buffered-io",
+      "source": "tests/fixtures/buffered-io/short_io.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "25f26e1397071fd97bae5a83ede8eb91e3ceee94c1c1ec27615667143f5bcf5a"
+    },
+    {
+      "family": "iteration",
+      "source": "tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "bdebeb8bd047fb868889de3e6a4acefa2e615f860192105f2cb5538272ccbfe1"
+    },
+    {
+      "family": "project-workflow",
+      "source": "examples/mainline/stream/main.zil",
+      "expected": "Success",
+      "independent_verify_required": true,
+      "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4"
+    }
+  ],
+  "negative_cases": [
+    {
+      "family": "foreign-lifecycle",
+      "source": "tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+      "reason": "Missing generic SyncDrop at callback installation",
+      "expected": "SafeReject",
+      "source_sha256": "492843ac3b06c3e1a904e968811e47ebe5047178ea92a3db6be292857d1e7818"
+    },
+    {
+      "family": "foreign-lifecycle-unused",
+      "source": "tests/language-readiness/foreign-thread-registration/unused-install-missing-sync-drop.zil",
+      "reason": "Unused generic callback installer still lacks SyncDrop",
+      "expected": "SafeReject",
+      "source_sha256": "5a8e823faf707d6a148843367b7b7ed10deb427392084329fc7c41c5d7665ae3"
+    },
+    {
+      "family": "ownership-original",
+      "source": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil",
+      "reason": "Original replace/replace_first lack SyncDrop at replacement discard/overwrite",
+      "expected": "SafeReject",
+      "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c"
+    },
+    {
+      "family": "ownership-unused",
+      "source": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/unused.zil",
+      "reason": "Unused generic replacement definitions still lack SyncDrop",
+      "expected": "SafeReject",
+      "source_sha256": "cc3d89991162fcfd86b9442197cd92e8051bcde922f1886711345a7e454618ab"
+    }
+  ],
+  "original_ownership_sources": {
+    "examples/mainline/state-replacement/factory.zil": {
+      "sha256": "56354be536c9f39998d3d82aa4fecef439b5e7557eec3ac65339f2cbade902da",
+      "preserved_as": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/factory.zil"
+    },
+    "examples/mainline/state-replacement/main.zil": {
+      "sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+      "preserved_as": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil"
+    },
+    "examples/mainline/state-replacement/portable.zil": {
+      "sha256": "1c0490e810d48af767d2a9604691739cb963f64cb952ddbdfe3c2877e328e755",
+      "preserved_as": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/portable.zil"
+    },
+    "examples/mainline/state-replacement/state.zil": {
+      "sha256": "1b3fd7f86ebf94d2755c63a7b6875a85e5f65d11dc6deba20101c60ce7f296a4",
+      "preserved_as": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/state.zil"
+    },
+    "examples/mainline/state-replacement/store_helpers.zil": {
+      "sha256": "97d6c0ddffc974912ce6a361903e1967b89c7ca5622f3e933bc6a7de7319e145",
+      "preserved_as": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/store_helpers.zil"
+    }
+  },
+  "acceptance": "Success cases require unchanged complete original definitions and real nonzero independent Verify, then the original native/C consumer with both backends and O0/O2. Negative cases require the intended semantic rejection, not Unsupported, ResourceLimit or unrelated failure. Source/AST transport and compile counts are not feature acceptance.",
+  "corpus_corrections": "Two former positive expectations violate explicit generic cleanup obligations. Their source bytes are preserved. A corrected program/project is separately identified and never reported as original13/13 success."
+}
