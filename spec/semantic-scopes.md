@@ -89,6 +89,12 @@ FunctionWithBody.protocol_contracts 直接保留原函数声明的完整有限�
 
 同一原声明头的 foreign 完整保留原 ABI、符号、noescape、静态 callback、scoped provider role 与 driver transfer 承诺；resume_bound 保留原线程恢复选择。它们均从原声明独立产生并进入内容身份，不能由实际 Typed 表反补。External 与原 foreign 声明必须对应，实际外部入口及恢复选择须通过真实定义/ABI 映射核对完整原头；这些未信任字段本身不证明 ABI、借用、ThreadCallable、provider 行为或清理安全。
 
+原资源类别在创建 signature 和 implicit 目录之前正规化。对真实声明或封闭内建身份确认的资源 payload R，默认裸 R 是 Desc<R>；合法 give 参数、create/give 结果与显式 Managed<R> 选择一次 Managed<R>。显式 &R / &mut R 借实际 Managed 头；显式 &Ref<R> / &mut Ref<R> 借描述槽，保留内层 Desc 发生。普通完整 Type formal T 的 &T 始终是 Address<T>：若实际 T 已是 Desc<R>，不得在语法代换后把它重新解释为裸 &R；Managed actual 也不能被降成描述。重复 Managed 或 Managed<Ref<R>> 拒绝，Package 不因拥有字段变成资源。错误联合的 create/give 只作用于规则指定的成功载荷。
+
+Self 是原名义 Self，按其发生位置和真实 impl scope 解释；不能套用普通完整 Type formal 的替换规则。已证为资源主体时，直接 Address<Self> 使用 Managed 头，显式 Desc<Self> 或 Managed<Self> 内部使用 raw payload；裸 Self 的默认描述与 give/create 模式分别处理。未确定的 trait Self 保持符号形式；provider、非 receiver 参数、default body 与 where/Callable 签名采用同一解释，不把所有 Self 全局改成 Managed。正规化不得从实际 hint、布局相同或首个同型实例取得资源身份。
+
+Head 地址和描述槽地址都必须来自真正被借 place；描述槽不能借类型注解升级为 owner 位置。统一类别不开放所有操作 profile，未完成的组合仍明确拒绝。Head 地址不授整头 Copy、任意写入、移动、销毁或 Thread 能力；其存续期、父 loan、完整内在 N、phantom、retained、状态和实际清理责任保持独立检查。
+
 不可信输入在分配、克隆、哈希和缓存前支付完整节点、字节、深度与工作费用。冷、热、失败重试和重新请求均遵守实际请求预算；结构运输与语义解释分别收费，不能把运输费用测试当成 Analyze/Verify 语义预算证明。
 
 显式 dyn `Context`/`Ctx` 使用 `SemanticDynContextRecipe::Shape` 保存完整原 retained shape；`Closed` 保留省略形式的空输入上界，`Type` 只从真实 whole 类型提取 Context。Shape 不伪造成一个拥有值或空 BS<Unit>，也不授予物理 port、根、loan 或能力。类域、全部 ports/retained/nominal 项及其 scope/kind 由各消费者独立检查；未知不等于空 Context。
