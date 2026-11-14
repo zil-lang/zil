@@ -1,11 +1,11 @@
 {
-  "updated_at_utc": "2026-11-14T06:03:02.278696+00:00",
+  "updated_at_utc": "2026-11-14T06:10:26.826183+00:00",
   "authorization": "User explicitly requests immediate consolidation of all work into major functional branches, complete feature chains, terminal implementation without historical compatibility.",
   "source_branch": "task/language-alpha",
   "source_tree": "/workspace/zil-public-integration",
   "common_base": "dcab40a4a40d30527b3d0b5a5f2185afeaef5534",
   "accepted_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Alpha not ready. Last completed end-to-end candidate e13 retains12 native successes and0/13 old positive breadth checks. New09ceeded3 Source lib143/0 passes, but Types internal mode/visibility and CT frozen traversal compile errors prevented a CLI run; repaired in9c8d46b2b. Current9c8d includes complete local family categories and independent async protocol CFG batches and is undergoing real foundation13-positive/4-negative check, native and unified regression. No new broad language success claimed before results.",
+  "status": "Alpha not ready. Latest exact9c8d46b2b builds CLI/alltargets, passes Typesprobe2 and frozenidentity2, retains12 native executions of3 small sources; foundation0/13 audited positives and1/4 original-obligation negatives. Source143pass/1new-fixture-parsefail. Actual new CT first failure is S/E original definition copy collision; Source callable qualifiers, originalGamma/control and complete actual catalogs/correspondence assigned as whole existing feature chains.",
   "workflow_findings": [
     "Horizontal compiler-stage slices and numerous local green counts did not establish a complete executable feature.",
     "Source/Types/A/V real Some pipeline was joined too late; data interface gaps were found during integration instead of whole-use-case design.",
@@ -1985,25 +1985,29 @@
     "Prioritize compiler build and actual13-positive/4-negative feature checks plus native consumers before all-target regression compilation, retaining exact immutable snapshots and the single heavy-build lock."
   ],
   "latest_integrated_validation": {
-    "candidate": "e13f41bbd",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-abstract-callable-coherent",
+    "candidate": "9c8d46b2bf067081453e97331f900685d4e69e3d",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full",
     "workspace_alltargets_exit": 0,
     "types_probe_exit": 0,
-    "source_lib_passed": 133,
+    "source_lib_passed": 143,
     "source_lib_failed": 1,
-    "analyze_original_effects_passed": 4,
-    "hostile_unused_original_body_passed": 1,
+    "frozen_identity_passed": 2,
     "native_successes": 12,
     "native_blocked": 4,
-    "core_checks_passed": 0,
-    "core_checks_total": 13,
-    "core_independent_verify_runs": 0,
+    "audited_foundation_positives": {
+      "passed": 0,
+      "total": 13
+    },
+    "original_obligation_negatives": {
+      "passed": 1,
+      "total": 4
+    },
     "accepted": false
   },
   "path_review": "records/language-alpha-path-review.json",
-  "latest_receipt": "records/language-alpha-validation/e13f41bbd.json",
-  "current_candidate_under_validation": "9c8d46b2bf067081453e97331f900685d4e69e3d",
-  "latest_completed_candidate": "e13f41bbd",
+  "latest_receipt": "records/language-alpha-validation/9c8d46b2b.json",
+  "current_candidate_under_validation": null,
+  "latest_completed_candidate": "9c8d46b2bf067081453e97331f900685d4e69e3d",
   "protocol_review": "records/language-alpha-protocol-review.json",
   "resource_category_review": "records/language-alpha-resource-category-review.json",
   "later_component_validation": [

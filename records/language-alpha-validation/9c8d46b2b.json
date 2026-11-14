@@ -1,0 +1,1242 @@
+{
+  "recorded_at_utc": "2026-11-14T06:10:26.826183+00:00",
+  "candidate": "9c8d46b2bf067081453e97331f900685d4e69e3d",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full",
+  "accepted": false,
+  "exits": [
+    "CLI_BUILD_EXIT=0",
+    "FOUNDATION_PROFILE_EXIT=1",
+    "CORE_CHAIN_EXIT=1",
+    "WORKSPACE_ALLTARGETS_EXIT=0",
+    "TYPES_PROBE_EXIT=0",
+    "SOURCE_TESTS_EXIT=101",
+    "FROZEN_TESTS_EXIT=0"
+  ],
+  "foundation": {
+    "candidate": "9c8d46b2bf067081453e97331f900685d4e69e3d",
+    "cli_sha256": "4eb7131b69d0d405ab2b6f9c552d5f67d2f0800984147baef0959dc6f595decc",
+    "profile_sha256": "1cb51ba1ed6dd9fc2d71c2e939116837a7beaf1bac77931e60acb1ff14f69c81",
+    "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
+    "rows": [
+      {
+        "family": "scalars",
+        "source": "tests/integers/complete-domains.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "8b4677e668bcb425724ba30599b11d3138121b8818bb25d8379fd1c3fbabeaa3",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/integers/complete-domains.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/scalars/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "verify",
+            "category": "SafeReject",
+            "code": "E-VERIFY-SEMANTIC",
+            "message": "CT execution package attempts to replace a frozen original definition",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "patterns",
+        "source": "tests/fixtures/ownership/owned-option-session.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/ownership/owned-option-session.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/patterns/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-WORLD",
+            "message": "original site does not match its actual operation and operand",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "generic-libraries",
+        "source": "examples/mainline/draft_foundations/main.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "4870b775ee462f78a485f7402779ada3f45ad76ad7c776a8b5bad4b8d3df21b7",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/draft_foundations/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/generic-libraries/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "actual operation requires its complete original class transfer",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "closures",
+        "source": "examples/mainline/generic-callbacks/main.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "e9fb8a4d10d2ea29f59f144a64b393ada98582e865ba7fa1437f8d89ccc78047",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/generic-callbacks/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/closures/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original type query has no derived symbolic solution",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "ownership",
+        "source": "examples/mainline/state-replacement/main.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "correction": "Entry bytes unchanged; imported State replacement API now declares the SyncDrop used by cancellation/overwrite. This is a new project revision.",
+        "original_project_snapshot": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil",
+        "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+        "project_sources": {
+          "examples/mainline/state-replacement/factory.zil": "56354be536c9f39998d3d82aa4fecef439b5e7557eec3ac65339f2cbade902da",
+          "examples/mainline/state-replacement/main.zil": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+          "examples/mainline/state-replacement/portable.zil": "1c0490e810d48af767d2a9604691739cb963f64cb952ddbdfe3c2877e328e755",
+          "examples/mainline/state-replacement/state.zil": "e387d3ffa376f9fda88dacdacab4ccdd3d04809811a34671b7ce5fdae424be55",
+          "examples/mainline/state-replacement/store_helpers.zil": "97d6c0ddffc974912ce6a361903e1967b89c7ca5622f3e933bc6a7de7319e145"
+        },
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/state-replacement/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/ownership/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "one callable bound with optional ClosedEnvironment, Transfer and ThreadCallable is implemented",
+            "span": {
+              "file": 2,
+              "start": 390,
+              "end": 421
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": false,
+        "typed_original_complete": false
+      },
+      {
+        "family": "dynamic-abstraction",
+        "source": "tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "8a5df893801e58386b266191b6c62bcf82a55211e2fbef639ad015db827be8ff",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/dynamic-abstraction/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-MATERIALIZE",
+            "message": "original type recipe differs from its actual emitted complete type",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "async-ownership",
+        "source": "tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/task-owner-transport/closed-task-fnonce.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/async-ownership/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "nominal recipe has no actual complete declaration/application: instance SemanticInstanceId { module: ModuleId(0), index: 1 }, definition SemanticDefinitionId { module: ModuleId(4294967295), index: 1 }, declaration LifeDeclarationId { module: ModuleId(4294967295), declaration: NodeId(1), compiler: true }, original kind Enum, actual hint Enum, mixed actuals 1",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "threads",
+        "source": "tests/fixtures/threading/mutex-worker-helpers.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "1d3db8250f216e903c35c2e95df7c4b50dab97a1fb6b2e05a0720baa96c55530",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/threading/mutex-worker-helpers.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/threads/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "whole closure type is missing an actual Fixed image: closure ClosureId(0), child SemanticInstanceId { module: ModuleId(0), index: 6 }, definition SemanticDefinitionId { module: ModuleId(0), index: 8 }, missing [0], embeddings [], type-use subjects [(SemanticSiteId(1), Value(ValueId(1)))]",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "foreign-lifecycle",
+        "source": "tests/language-readiness/foreign-thread-registration/threaded-generic-sync-drop.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "correction": "Original generic constructor lacked independent SyncDrop; preserve the original as a semantic negative.",
+        "c_provider": "tests/language-readiness/foreign-thread-registration/threaded-host.c",
+        "source_sha256": "171812ab53d0b274cdf2bae0dd47cae94ca151e447bd6bbb19347325a7f57aa5",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/foreign-thread-registration/threaded-generic-sync-drop.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/foreign-lifecycle/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "one callable bound with optional ClosedEnvironment, Transfer and ThreadCallable is implemented",
+            "span": {
+              "file": 0,
+              "start": 653,
+              "end": 729
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": false,
+        "typed_original_complete": false
+      },
+      {
+        "family": "owning-collections",
+        "source": "tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "ef8f72781a1e834993cfc9b5ee3b09343a896c1a9fdb212755e00598d55ad870",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/owning-hash-collections/replacement-recovery.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/owning-collections/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "nominal child has no complete original catalogue entry",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "buffered-io",
+        "source": "tests/fixtures/buffered-io/short_io.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "25f26e1397071fd97bae5a83ede8eb91e3ceee94c1c1ec27615667143f5bcf5a",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/fixtures/buffered-io/short_io.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/buffered-io/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "generic parameter does not match argument type",
+            "span": {
+              "file": 1,
+              "start": 930,
+              "end": 941
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": false,
+        "typed_original_complete": false
+      },
+      {
+        "family": "iteration",
+        "source": "tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "bdebeb8bd047fb868889de3e6a4acefa2e615f860192105f2cb5538272ccbfe1",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/iterator-adapters/owning-pipeline.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/iteration/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original caller lacks a complete trait premise or provider",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 10 }, expression NodeId(44)"
+            ]
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "project-workflow",
+        "source": "examples/mainline/stream/main.zil",
+        "expected": "Success",
+        "independent_verify_required": true,
+        "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4",
+        "group": "positive_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/examples/mainline/stream/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/positive_cases/project-workflow/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "original body changes a rigid whole type or lifetime anchor",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original type heads: actual Nominal, wanted Unit",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 4 }, expression NodeId(15)"
+            ]
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "foreign-lifecycle",
+        "source": "tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+        "reason": "Missing generic SyncDrop at callback installation",
+        "expected": "SafeReject",
+        "source_sha256": "492843ac3b06c3e1a904e968811e47ebe5047178ea92a3db6be292857d1e7818",
+        "group": "negative_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/foreign-thread-registration/threaded-generic.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/negative_cases/foreign-lifecycle/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "callable parameter must be F, &F, &mut F or a single owning State",
+            "span": {
+              "file": 0,
+              "start": 910,
+              "end": 941
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": false,
+        "typed_original_complete": false
+      },
+      {
+        "family": "foreign-lifecycle-unused",
+        "source": "tests/language-readiness/foreign-thread-registration/unused-install-missing-sync-drop.zil",
+        "reason": "Unused generic callback installer still lacks SyncDrop",
+        "expected": "SafeReject",
+        "source_sha256": "5a8e823faf707d6a148843367b7b7ed10deb427392084329fc7c41c5d7665ae3",
+        "group": "negative_cases",
+        "pass": true,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/foreign-thread-registration/unused-install-missing-sync-drop.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/negative_cases/foreign-lifecycle-unused/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-SEMANTIC-ORIGINAL",
+            "message": "registration construction lacks the callback's independent original SyncDrop premise",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(0), index: 6 }, expression NodeId(2)"
+            ]
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "ownership-original",
+        "source": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil",
+        "reason": "Original replace/replace_first lack SyncDrop at replacement discard/overwrite",
+        "expected": "SafeReject",
+        "source_sha256": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+        "group": "negative_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/negative_cases/ownership-original/phases",
+          "--json"
+        ],
+        "exit": 1,
+        "status": "SafeReject",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-STORED-IDENTITY",
+            "message": "one complete nominal actual vector has multiple semantic types",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 0
+            },
+            "notes": []
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      },
+      {
+        "family": "ownership-unused",
+        "source": "tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/unused.zil",
+        "reason": "Unused generic replacement definitions still lack SyncDrop",
+        "expected": "SafeReject",
+        "source_sha256": "cc3d89991162fcfd86b9442197cd92e8051bcde922f1886711345a7e454618ab",
+        "group": "negative_cases",
+        "pass": false,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "check",
+          "/workspace/zil-alpha-candidate/tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/unused.zil",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/core-coverage/negative_cases/ownership-unused/phases",
+          "--json"
+        ],
+        "exit": 3,
+        "status": "Unsupported",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "original affine field observation needs its explicit view/transfer rule",
+            "span": {
+              "file": 1,
+              "start": 1039,
+              "end": 1045
+            },
+            "notes": [
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 7 }, expression NodeId(9)",
+              "original Gamma: definition SemanticDefinitionId { module: ModuleId(1), index: 7 }, expression NodeId(8)"
+            ]
+          }
+        ],
+        "core_original_complete": true,
+        "typed_original_complete": false
+      }
+    ],
+    "positive_cases": {
+      "passed": 0,
+      "total": 13
+    },
+    "negative_cases": {
+      "passed": 1,
+      "total": 4
+    }
+  },
+  "native": {
+    "candidate": "9c8d46b2bf067081453e97331f900685d4e69e3d",
+    "cli_sha256": "4eb7131b69d0d405ab2b6f9c552d5f67d2f0800984147baef0959dc6f595decc",
+    "scope": "Original generic-body/closure feature chains, not all Alpha coverage",
+    "rows": [
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/ordinary-generic.zil",
+        "source_sha256": "4f35554ab3d88fbf4a461e6ecf12ad13a68590c04de0672f97f17da56cdf6c52",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/ordinary-generic.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/ordinary-generic-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/local-closure.zil",
+        "source_sha256": "30037afe3ea1a4fdbdc70cc3f317ea9d72e2b563209fc29a08ea41065ef82032",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/local-closure.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/local-closure-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture-grounded Fixed requires scalar/shared Address captures",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture-grounded Fixed requires scalar/shared Address captures",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture-grounded Fixed requires scalar/shared Address captures",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+        "source_sha256": "652934b88b4b567b938b622127308ea943c0d5186dd48959e1971bb966d66999",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/semantic-only-phantom-capture-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 3,
+        "status": "Unsupported",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture-grounded Fixed requires scalar/shared Address captures",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": null,
+        "fallback": null,
+        "pass": false
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "clang",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-clang-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-clang-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "clang",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "clang",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-clang-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-clang-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "clang",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "llvm-api",
+        "optimization": "O0",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O0",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-llvm-api-O0/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-llvm-api-O0/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "source": "tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+        "source_sha256": "d2592a4645b6def9be9df8560d76a126655f7cfe6166fb5dc3c9c3fff2cabed0",
+        "backend": "llvm-api",
+        "optimization": "O2",
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/zil",
+          "build",
+          "/workspace/zil-alpha-candidate/tests/fixtures/semantic-scopes/unused-generic-identity.zil",
+          "--backend",
+          "llvm-api",
+          "--opt",
+          "O2",
+          "--emit-dir",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-llvm-api-O2/phases",
+          "-o",
+          "/workspace/zil-alpha-candidate/out/runs/alpha-protocol-category-full/chains/unused-generic-identity-llvm-api-O2/program",
+          "--json"
+        ],
+        "compile_exit": 0,
+        "status": "Success",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "source_semantic_some": true,
+        "typed_semantic_some": true,
+        "source_original_body": true,
+        "typed_original_body": true,
+        "actual_backend": "llvm-api",
+        "fallback": null,
+        "pass": true,
+        "native_exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "passed": 12,
+    "failed": 4
+  },
+  "component_results": {
+    "workspace_alltargets_exit": 0,
+    "types_probe_tests": {
+      "passed": 2,
+      "failed": 0
+    },
+    "source_lib": {
+      "passed": 143,
+      "failed": 1,
+      "failure": "New resource annotation matrix fixture has parse terminator error; old143 still pass. Repair pending next exact batch."
+    },
+    "frozen_identity_tests": {
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "limits": "Foundation checks:0/13 audited positives and1/4 intended negatives. Native12 successful executions cover only3 older small sources; phantom4blocked at Analyze. This is not Alpha acceptance."
+}
