@@ -76,7 +76,8 @@ impl Check<'_, '_> {
                 .iter()
                 .find(|field| field.name == *name)
                 .ok_or_else(|| bad("original record constructor changes a field identity"))?;
-            let expected = super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
+            let expected =
+                super::super::instantiate::ty(&field.ty, arguments, self.limits, self.left)?;
             let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
             self.same(&actual, &expected)?;
         }
@@ -225,6 +226,12 @@ impl Check<'_, '_> {
         )?;
         self.call_requirements(owner, definition, &actuals, depth + 1)?;
         if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
+            self.pay(solved.parameters.len(), depth)?;
+            let parameters = solved
+                .parameters
+                .iter()
+                .map(|parameter| copy_recipe(&parameter.ty, self.limits, self.left))
+                .collect::<R<Vec<_>>>()?;
             self.record_intrinsic(
                 owner,
                 site.id,
@@ -232,11 +239,7 @@ impl Check<'_, '_> {
                     definition: id,
                     variant: ordinal as u32,
                 },
-                solved
-                    .parameters
-                    .iter()
-                    .map(|parameter| copy_recipe(&parameter.ty, self.limits, self.left))
-                    .collect::<R<Vec<_>>>()?,
+                parameters,
                 &solved.result,
                 wanted,
                 depth + 1,
@@ -386,7 +389,8 @@ impl Check<'_, '_> {
                 };
                 let mut all = true;
                 for field in fields {
-                    let field = super::instantiate::ty(field, arguments, self.limits, self.left)?;
+                    let field =
+                        super::super::instantiate::ty(field, arguments, self.limits, self.left)?;
                     match self.sealed_capability(owner, &field, kind, depth + 1)? {
                         Some(value) => all &= value,
                         None => return Ok(None),
@@ -399,6 +403,11 @@ impl Check<'_, '_> {
                 environment,
                 ..
             } => {
+                if kind == SemanticBuiltinTrait::ClosedEnvironment
+                    && self.proof.borrowed_capture_heads.contains(definition)
+                {
+                    return Ok(Some(false));
+                }
                 if !self.proof.complete.contains(definition)
                     || !self.proof.kinds.contains_key(definition)
                 {

@@ -79,8 +79,17 @@ pub(super) fn evaluate(
         if let IntrinsicKind::RegistrationStart { providers, .. } = &call.kind {
             world.pay(providers.len())?;
         }
-        if let Some(worker) = &call.worker_scheme {
-            crate::dyn_metadata::semantic_operand_snapshot(worker, world.limits, world.left, 1)?;
+        if let Some((signature, actuals)) = &call.worker_scheme {
+            crate::dyn_metadata::semantic_operand_snapshot(signature, world.limits, world.left, 1)?;
+            world.pay(actuals.len())?;
+            for actual in actuals {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    actual,
+                    world.limits,
+                    world.left,
+                    1,
+                )?;
+            }
         }
         selected = Some((call.clone(), site));
     }

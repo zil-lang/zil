@@ -984,7 +984,7 @@ impl Check<'_, '_> {
                         self.pay(fields.len(), depth)?;
                         let mut owns = false;
                         for field in fields {
-                            let field = super::instantiate::ty(
+                            let field = super::super::instantiate::ty(
                                 &field.ty,
                                 arguments,
                                 self.limits,
@@ -1003,7 +1003,7 @@ impl Check<'_, '_> {
                         for variant in variants {
                             self.pay(variant.fields.len(), depth)?;
                             for field in &variant.fields {
-                                let field = super::instantiate::ty(
+                                let field = super::super::instantiate::ty(
                                     field,
                                     arguments,
                                     self.limits,
@@ -1166,7 +1166,10 @@ impl Check<'_, '_> {
                 wanted,
                 depth + 1,
             )?;
-            crate::dyn_metadata::semantic_operand_snapshot(&actuals, self.limits, self.left, 1)?;
+            self.pay(actuals.len(), depth)?;
+            for actual in &actuals {
+                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+            }
             self.proof
                 .intrinsics
                 .get_mut(&(owner, site))
@@ -1311,7 +1314,12 @@ impl Check<'_, '_> {
                 ));
             }
             self.prove_trait(owner, &source, &descriptor.application, depth + 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(descriptor, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(
+                descriptor.as_ref(),
+                self.limits,
+                self.left,
+                1,
+            )?;
             let result = SemanticTypeRecipe::ErrorUnion {
                 error: Box::new(SemanticTypeRecipe::Exact(Box::new(
                     SemanticExactTypeRecipe {
