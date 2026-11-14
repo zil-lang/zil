@@ -14,6 +14,8 @@ mod evaluate;
 mod requirements;
 mod constants;
 mod nominal;
+mod nominal_origins;
+pub(crate) use nominal_origins::charge_origin as charge_intrinsic_origin;
 mod closures;
 mod opaque;
 mod method_obligations;

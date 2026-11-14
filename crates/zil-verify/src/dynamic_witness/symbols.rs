@@ -226,10 +226,11 @@ impl Symbols {
         }
         let mut terms = Vec::with_capacity(count);
         for (class, origin) in value.classes.iter().zip(&value.origins) {
+            crate::semantic::charge_intrinsic_origin(origin,b)?;
             let image = self.class(class, b)?.image;
             let origin = match origin {
                 IntrinsicOrigin::DerivedClass { source } => self.class(source, b)?.origin,
-                IntrinsicOrigin::Existing { .. } => {
+                IntrinsicOrigin::Existing { .. } | IntrinsicOrigin::Nominal { .. } => {
                     b.spend(self.origins.len().saturating_add(1))?;
                     if let Some((_, known)) = self
                         .origins

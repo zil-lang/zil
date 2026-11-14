@@ -25,6 +25,7 @@ impl LocalDomain {
             .map_or_else(|| key.clone(), |(_, outside, _)| outside.clone()))
     }
     fn origin(&self, origin: &IntrinsicOrigin, b: &mut Budget) -> Check<IntrinsicOrigin> {
+        if matches!(origin,IntrinsicOrigin::Nominal{..}){return self.nominal_origin(origin,b);}
         b.spend(self.rows.len())?;
         if let IntrinsicOrigin::DerivedClass { source } = origin {
             if let Some((_, _, origin)) = self.rows.iter().find(|(key, _, _)| key == source) {
@@ -32,6 +33,30 @@ impl LocalDomain {
             }
         }
         Ok(origin.clone())
+    }
+    fn nominal_origin(&self,origin:&IntrinsicOrigin,b:&mut Budget)->Check<IntrinsicOrigin>{
+        semantic::charge_intrinsic_origin(origin,b)?;
+        Ok(match origin{
+            IntrinsicOrigin::DerivedClass{source}=>IntrinsicOrigin::DerivedClass{source:self.outside(source,b)?},
+            IntrinsicOrigin::Existing{..}=>origin.clone(),
+            IntrinsicOrigin::Nominal{source,class}=>{
+                let mut actuals=Vec::new();let mut environment=Vec::new();let mut sources=Vec::new();
+                for actual in &source.actuals{actuals.push(self.nominal_actual(actual,b)?);}
+                for actual in &source.environment{environment.push(self.nominal_actual(actual,b)?);}
+                for origin in &source.class_sources{sources.push(self.nominal_origin(origin,b)?);}
+                IntrinsicOrigin::Nominal{source:std::rc::Rc::new(semantic::NominalOrigin{declaration:source.declaration,actuals,environment,domain:source.domain.clone(),class_sources:sources}),class:*class}
+            },
+        })
+    }
+    fn nominal_actual(&self,actual:&CheckedActual,b:&mut Budget)->Check<CheckedActual>{
+        charge_actual(actual,b)?;
+        let mut actual=actual.clone();match &mut actual{
+            CheckedActual::Life(key)=>*key=self.outside(key,b)?,
+            CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{
+                for key in &mut value.classes{*key=self.outside(key,b)?;}
+                for origin in &mut value.origins{*origin=self.nominal_origin(origin,b)?;}
+            },
+        }Ok(actual)
     }
     fn value(
         &mut self,

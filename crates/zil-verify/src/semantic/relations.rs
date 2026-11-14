@@ -54,10 +54,10 @@ impl CheckedContext {
         Ok(true)
     }
     pub(crate) fn canonical_origin(&self,origin:&IntrinsicOrigin,b:&mut Budget)->Check<IntrinsicOrigin> {
-        let mut current=match origin {
-            IntrinsicOrigin::DerivedClass{source:ClassKey::Intrinsic{scope,operand,path,class}}=>IntrinsicOrigin::Existing{scope:*scope,operand:operand.clone(),path:path.clone(),class:*class},
-            origin=>origin.clone(),
-        };
+        nominal_origins::charge_origin(origin,b)?;
+        // A Life image selected through an intrinsic occurrence is still an
+        // outer Life source, not the intrinsic κ itself.
+        let mut current=origin.clone();
         let aliases=self.origin_aliases.borrow();
         let mut seen=Vec::new();
         loop {
@@ -69,13 +69,20 @@ impl CheckedContext {
     }
     pub(crate) fn same_origin(&self,environment:&EvalEnv,left:&IntrinsicOrigin,right:&IntrinsicOrigin,b:&mut Budget)->Check<bool> {
         let left=self.canonical_origin(left,b)?;let right=self.canonical_origin(right,b)?;
-        if matches!((&left,&right),(IntrinsicOrigin::Existing{..},IntrinsicOrigin::Existing{..})) {return Ok(left==right);}
-        let key=|origin:IntrinsicOrigin|match origin {
-            IntrinsicOrigin::DerivedClass{source}=>source,
-            IntrinsicOrigin::Existing{scope,operand,path,class}=>ClassKey::Intrinsic{scope,operand,path,class},
-        };
-        // Compare original source identities under original Γ, never the
-        // already collapsed outside images held in CheckedType.classes.
-        self.same(environment,&key(left),&key(right),b)
+        match (&left,&right){
+            (IntrinsicOrigin::Nominal{source:a,class:x},IntrinsicOrigin::Nominal{source:z,class:y})=>{
+                nominal_origins::charge_origin(&left,b)?;nominal_origins::charge_origin(&right,b)?;
+                if x!=y||a.declaration!=z.declaration||a.domain!=z.domain||a.actuals.len()!=z.actuals.len()||a.environment.len()!=z.environment.len(){return Ok(false);}
+                for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){
+                    let equal=match(a,z){(CheckedActual::Life(a),CheckedActual::Life(z))=>self.same(environment,a,z,b)?,(CheckedActual::Type(a),CheckedActual::Type(z))=>self.same_type(environment,a,z,b)?,(CheckedActual::Const{carrier:a,value:av},CheckedActual::Const{carrier:z,value:zv})=>av==zv&&self.same_type(environment,a,z,b)?,_=>false};if !equal{return Ok(false);}
+                }
+                Ok(true)
+            },
+            (IntrinsicOrigin::Existing{..},IntrinsicOrigin::Existing{..})=>Ok(left==right),
+            (IntrinsicOrigin::DerivedClass{source:a},IntrinsicOrigin::DerivedClass{source:z})=>self.same(environment,a,z,b),
+            // A type-domain κ is not an outer Life identity. Only an exact
+            // checked occurrence alias above can connect their representations.
+            _=>Ok(false),
+        }
     }
 }

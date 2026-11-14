@@ -732,7 +732,10 @@ impl CheckedContext {
         // Its later frame/site obligations remain mandatory at module exit.
         let mut actual=self.construct_value(module,ty,life,classes,b)?;
         for (index,expression) in expressions.iter().enumerate() {
-            if let Some(origin)=self.expression_origin(expression,environment,b)? {actual.origins[index]=origin;}
+            let source=self.expression_origin(expression,environment,b)?;
+            let expected_origin=expected.origins.get(index).ok_or_else(||bad("nominal claim original domain is incomplete"))?;
+            if let Some(origin)=self.nominal_claim_origin(&actual.origins[index],expected_origin,source.as_ref(),environment,b)?{actual.origins[index]=origin;}
+            else if let Some(origin)=source{actual.origins[index]=origin;}
         }
         if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe"));}
         Ok(())

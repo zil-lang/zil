@@ -505,12 +505,7 @@ impl CheckedContext {
             classes: (0..count).map(StorageBinder::Fixed).collect(),
         };
         dynamic_witness::check_type_value(module, &value, scope, b)?;
-        let mut origins = classes
-            .iter()
-            .map(|source| IntrinsicOrigin::DerivedClass {
-                source: source.clone(),
-            })
-            .collect();
+        let mut origins = self.typed_origins(module,ty,life,&classes,b)?;
         let mut statics = vec![];
         if let Type::Closure(id) = ty {
             if let Some(domain) = self.closure_domain(*id, b)? {

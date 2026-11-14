@@ -83,6 +83,44 @@ const COMPLETE_LOCAL:&[u8]=include_bytes!("fixtures/local-closure-complete-head.
 // phantom fixture. Its plan is untrusted; this exercises only this kernel.
 const COMPLETE_PHANTOM:&[u8]=include_bytes!("fixtures/phantom-closure-complete-creator.wire");
 #[test]
+fn nominal_pointee_and_outer_life_keep_distinct_intrinsics_with_equal_images(){
+    let limits=Limits::default();let(module,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();
+    let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+    let program=module.semantic.as_ref().unwrap();
+    let child=program.instances.iter().find(|row|row.environment.is_some()).unwrap();
+    let parent=program.instances.iter().find(|row|Some(row.id)==child.parent).unwrap();
+    let scope=ScopeKey::Instance(parent.id);let a=ClassKey::Formal{scope,ordinal:0};
+    let env=EvalEnv{lexical:vec![LexicalFrame{definition:parent.definition,key:scope,actuals:vec![CheckedActual::Life(a.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+    let nominal=&module.life_instances[0].ty;let Type::BorrowedStorage{life,..}=nominal else{panic!("real phantom nominal qualification")};
+    let value=context.checked_value(&module,nominal,life,vec![a.clone()],&mut b).unwrap();
+    let mut active=ActiveQueries::new();
+    let address=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(a.clone())},std::slice::from_ref(&value),&mut active,&mut b).unwrap();
+    assert_eq!(address.life.binder_count,2);
+    assert_eq!(address.classes,vec![a.clone(),a.clone()]);
+    let outer=address.life.slots.iter().find(|row|row.path.is_empty()).unwrap().binder as usize;
+    let pointee=address.life.retained.iter().find(|row|row.path==[LifeTypeProjection::Pointee]&&row.class==0).unwrap().binder as usize;
+    assert_ne!(outer,pointee);assert!(!context.same_origin(&env,&address.origins[outer],&address.origins[pointee],&mut b).unwrap());
+    for attack in 0..3{
+        let mut claim=SemanticTypeValue::Resolved{ty:address.ty.clone(),life:address.life.clone(),classes:vec![SemanticClassExpr::Formal{scope:SemanticScopeRef::Ancestor(0),ordinal:0};2]};
+        let SemanticTypeValue::Resolved{life,classes,..}=&mut claim else{unreachable!()};
+        if attack==1{life.binder_count=1;for row in &mut life.slots{row.binder=0;}for row in &mut life.retained{row.binder=0;}for row in &mut life.nominal_arguments{row.binder=0;}classes.truncate(1);}
+        if attack==2{for row in &mut life.slots{row.binder=1-row.binder;}for row in &mut life.retained{row.binder=1-row.binder;}for row in &mut life.nominal_arguments{row.binder=1-row.binder;}}
+        for wire in [false,true]{
+            // This is a transport carrier for the type-value sub-proof only;
+            // the inserted Self claim is not an executable source/ABI ticket.
+            let decoded;let proposed=if wire{let mut carrier=module.clone();carrier.semantic.as_mut().unwrap().instances[0].self_type=Some(claim.clone());let bytes=zil_ir::wire::encode_module_candidate(&carrier,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0.semantic.unwrap().instances.remove(0).self_type.unwrap();&decoded}else{&claim};
+            let result=context.claim(&module,proposed,&address,&env,&mut Budget::new(&limits));
+            if attack==0{result.unwrap();}else{assert_eq!(result.unwrap_err().category,zil_base::ResultCategory::SafeReject,"origin attack {attack}, wire {wire}");}
+        }
+    }
+    // Two direct outer occurrences of the same original Life are fresh
+    // structural rows and may share one class; a nominal κ was not erased.
+    let scalar=CheckedType{ty:Type::I32,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+    let borrow=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(a)},&[scalar],&mut active,&mut b).unwrap();
+    let tuple=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Tuple,&[borrow.clone(),borrow],&mut active,&mut b).unwrap();
+    assert_eq!(tuple.life.binder_count,1);assert_eq!(tuple.life.slots.len(),2);
+}
+#[test]
 fn actual_phantom_capture_keeps_the_complete_logical_domain_and_exact_creator(){
     let limits=Limits::default();
     let(original,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();

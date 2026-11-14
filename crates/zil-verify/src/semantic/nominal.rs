@@ -229,9 +229,14 @@ impl CheckedContext {
                 }
             }
         }
-        selected.ok_or_else(|| {
+        let mut selected=selected.ok_or_else(|| {
             bad("nominal has no exact complete declaration/actual/intrinsic-partition instance")
-        })
+        })?;
+        if !selected.classes.is_empty(){
+            selected.origins=self.nominal_origins(*declaration,&actuals,&environment.lexical[0].environment,&selected.life,&selected.origins,b)?;
+            for origin in &mut selected.origins{*origin=self.normalized_origin(caller,origin,b)?;}
+        }
+        Ok(selected)
     }
 
     fn nominal_candidate(
@@ -334,15 +339,17 @@ impl CheckedContext {
             life: life.clone(),
             classes: (0..life.binder_count).map(StorageBinder::Fixed).collect(),
         };
-        dynamic_witness::check_type_value(
-            module,
-            &raw,
-            DynInstantiationScope {
-                fixed_binder_count: life.binder_count,
-                invocation_binder_count: 0,
-            },
-            b,
-        )?;
+        if !self.domain_only.get(){
+            dynamic_witness::check_type_value(
+                module,
+                &raw,
+                DynInstantiationScope {
+                    fixed_binder_count: life.binder_count,
+                    invocation_binder_count: 0,
+                },
+                b,
+            )?;
+        }
         Ok(Some(CheckedType {
             ty: ty.clone(),
             life,

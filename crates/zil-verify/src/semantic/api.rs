@@ -74,8 +74,23 @@ pub(crate) enum IntrinsicOrigin {
     /// A freshly built nominal/structural class derives from a real scoped
     /// semantic lifetime, not a fictional TypeArgument(LifeOrdinal).
     DerivedClass { source: ClassKey },
+    /// One complete nominal intrinsic domain. Its outside Life actuals are
+    /// arguments of this type identity, not identities of its intrinsic κ.
+    Nominal { source: std::rc::Rc<NominalOrigin>, class: u32 },
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
+pub(crate) struct NominalOrigin {
+    pub(crate) declaration: LifeDeclarationId,
+    pub(crate) actuals: Vec<CheckedActual>,
+    pub(crate) environment: Vec<CheckedActual>,
+    pub(crate) domain: StorageLifeShape,
+    pub(crate) class_sources: Vec<IntrinsicOrigin>,
+}
+impl PartialEq for NominalOrigin{fn eq(&self,other:&Self)->bool{self.declaration==other.declaration&&self.actuals==other.actuals&&self.environment==other.environment&&self.domain==other.domain}}
+impl Eq for NominalOrigin{}
+impl PartialOrd for NominalOrigin{fn partial_cmp(&self,other:&Self)->Option<std::cmp::Ordering>{Some(self.cmp(other))}}
+impl Ord for NominalOrigin{fn cmp(&self,other:&Self)->std::cmp::Ordering{(&self.declaration,&self.actuals,&self.environment,&self.domain).cmp(&(&other.declaration,&other.actuals,&other.environment,&other.domain))}}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum StaticOccurrence {
     Direct {
         /// Type metadata only, never a physical GEP.
@@ -92,7 +107,7 @@ pub(crate) enum StaticOccurrence {
         mode: StoredBorrowMode,
     },
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct CheckedType {
     pub(crate) ty: Type,
     pub(crate) life: StorageLifeShape,
@@ -102,7 +117,7 @@ pub(crate) struct CheckedType {
     /// Pending actual-source obligations, not literal or Known0 evidence.
     pub(crate) statics: Vec<StaticOccurrence>,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum CheckedActual {
     Type(CheckedType),
     Const {

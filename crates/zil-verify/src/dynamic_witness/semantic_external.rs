@@ -107,6 +107,7 @@ fn charge_type(value: &CheckedType, b: &mut Budget) -> Check<()> {
         match origin {
             IntrinsicOrigin::Existing { path, .. } => b.spend(path.len())?,
             IntrinsicOrigin::DerivedClass { source } => charge_key(source, b)?,
+            IntrinsicOrigin::Nominal { .. } => semantic::charge_intrinsic_origin(origin,b)?,
         }
     }
     for row in &value.statics {
@@ -358,6 +359,14 @@ pub(crate) fn construct(
     b: &mut Budget,
 ) -> Check<CheckedType> {
     b.spend(children.len())?;
+    let mut normalized_children=Vec::with_capacity(children.len());
+    for child in children{
+        charge_type(child,b)?;
+        let mut child=child.clone();
+        for origin in &mut child.origins{*origin=context.normalized_origin(environment,origin,b)?;}
+        normalized_children.push(child);
+    }
+    let children=normalized_children.as_slice();
     let mut domain = Domain::new(context, environment, active, b)?;
     for child in children {
         domain.value(child, b)?;
