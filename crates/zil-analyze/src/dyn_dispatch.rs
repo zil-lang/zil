@@ -443,7 +443,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     )?;
     for table in &module.dyn_vtables {
         crate::dyn_metadata::recipe_table(table, budget)?;
-        if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+        budget.lookup(budget.semantic_dyn_tables_proven.len(), WORK)?;
+        if (table.self_life.is_some() || table.implementation_witnesses.is_some())
+            && !budget.semantic_dyn_tables_proven.contains(&table.id)
+        {
             return Err(bad(
                 "dynamic implementation recipes require their complete static proof",
             ));

@@ -176,101 +176,105 @@ pub(super) fn prove(
             _ => return Err(bad("provider formal kind or full actual domain differs")),
         }
     }
+    b.lookup(b.semantic_dyn_tables_proven.len(), WORK)?;
+    let original_proven = b.semantic_dyn_tables_proven.contains(&table.id);
     let (storage, life) = match &table.self_type {
         Type::BorrowedStorage { storage, life } => (storage.as_ref(), Some(life)),
         other => (other, None),
     };
-    if let Some(life) = life {
-        let limits = zil_base::Limits {
-            max_nodes: b.helper_nodes,
-            max_call_depth: b.partial_depth,
-            ..zil_base::Limits::default()
-        };
-        crate::stored_flow::qualification(module, &table.self_type, &limits, b)?;
-        if table.self_classes.len() != life.binder_count as usize {
-            return Err(bad(
-                "provider omits a complete Self class including phantom occurrences",
-            ));
+    if !original_proven {
+        if let Some(life) = life {
+            let limits = zil_base::Limits {
+                max_nodes: b.helper_nodes,
+                max_call_depth: b.partial_depth,
+                ..zil_base::Limits::default()
+            };
+            crate::stored_flow::qualification(module, &table.self_type, &limits, b)?;
+            if table.self_classes.len() != life.binder_count as usize {
+                return Err(bad(
+                    "provider omits a complete Self class including phantom occurrences",
+                ));
+            }
+            let recipe = implementation
+                .self_pattern
+                .as_ref()
+                .ok_or_else(|| bad("borrowing provider has no original Self recipe"))?;
+            let DynTypePattern::Nominal(recipe) = recipe else {
+                return Err(bad(
+                    "provider Self recipe requires its complete non-nominal type-domain proof",
+                ));
+            };
+            b.spend(
+                module
+                    .life_instances
+                    .len()
+                    .saturating_add(module.life_declarations.len()),
+                WORK,
+            )?;
+            let mut instances = module
+                .life_instances
+                .iter()
+                .filter(|i| i.ty == table.self_type);
+            let instance = instances
+                .next()
+                .ok_or_else(|| bad("provider Self has no actual nominal instance"))?;
+            let declaration = module
+                .life_declarations
+                .iter()
+                .find(|d| d.id == instance.declaration)
+                .ok_or_else(|| bad("provider nominal declaration is absent"))?;
+            if instances.next().is_some()
+                || instance.declaration != recipe.declaration
+                || recipe.arguments.len() != instance.arguments.len()
+                || declaration.parameters.len() != instance.arguments.len()
+            {
+                return Err(bad(
+                    "provider Self recipe has a different full nominal identity or arity",
+                ));
+            }
+            b.spend(instance.arguments.len(), WORK)?;
+            for (index, ((p, a), kind)) in recipe
+                .arguments
+                .iter()
+                .zip(&instance.arguments)
+                .zip(&declaration.parameters)
+                .enumerate()
+            {
+                let actual = match (a, kind) {
+                    (LifeNominalActual::Lifetime(local), LifeParameterKind::Lifetime) => {
+                        occurrence(life, instance.declaration, index, *local, table, b)?
+                    }
+                    (LifeNominalActual::Type(t), LifeParameterKind::Type) => {
+                        crate::dyn_metadata::ty(t, b)?;
+                        DynGenericActual::Type(t.clone())
+                    }
+                    (LifeNominalActual::Const(c), LifeParameterKind::Const(t)) if *t == c.ty() => {
+                        DynGenericActual::Const(c.clone())
+                    }
+                    _ => return Err(bad("provider nominal argument changes declaration kind")),
+                };
+                pattern_actual(p, &actual, implementation, table, b)?;
+            }
+        } else if implementation.self_pattern.is_some()
+            || !implementation.parameters.is_empty()
+            || !table.self_classes.is_empty()
+        {
+            return Err(bad("provider Self recipe has no actual qualified instance"));
         }
         let recipe = implementation
-            .self_pattern
+            .implemented_trait
             .as_ref()
-            .ok_or_else(|| bad("borrowing provider has no original Self recipe"))?;
-        let DynTypePattern::Nominal(recipe) = recipe else {
-            return Err(bad(
-                "provider Self recipe requires its complete non-nominal type-domain proof",
-            ));
-        };
-        b.spend(
-            module
-                .life_instances
-                .len()
-                .saturating_add(module.life_declarations.len()),
-            WORK,
-        )?;
-        let mut instances = module
-            .life_instances
-            .iter()
-            .filter(|i| i.ty == table.self_type);
-        let instance = instances
-            .next()
-            .ok_or_else(|| bad("provider Self has no actual nominal instance"))?;
-        let declaration = module
-            .life_declarations
-            .iter()
-            .find(|d| d.id == instance.declaration)
-            .ok_or_else(|| bad("provider nominal declaration is absent"))?;
-        if instances.next().is_some()
-            || instance.declaration != recipe.declaration
-            || recipe.arguments.len() != instance.arguments.len()
-            || declaration.parameters.len() != instance.arguments.len()
+            .ok_or_else(|| bad("provider implemented trait application is Unknown"))?;
+        if recipe.declaration != interface.application.declaration
+            || recipe.arguments.len() != interface.application.actuals.len()
         {
             return Err(bad(
-                "provider Self recipe has a different full nominal identity or arity",
+                "provider implements a different complete trait application",
             ));
         }
-        b.spend(instance.arguments.len(), WORK)?;
-        for (index, ((p, a), kind)) in recipe
-            .arguments
-            .iter()
-            .zip(&instance.arguments)
-            .zip(&declaration.parameters)
-            .enumerate()
-        {
-            let actual = match (a, kind) {
-                (LifeNominalActual::Lifetime(local), LifeParameterKind::Lifetime) => {
-                    occurrence(life, instance.declaration, index, *local, table, b)?
-                }
-                (LifeNominalActual::Type(t), LifeParameterKind::Type) => {
-                    crate::dyn_metadata::ty(t, b)?;
-                    DynGenericActual::Type(t.clone())
-                }
-                (LifeNominalActual::Const(c), LifeParameterKind::Const(t)) if *t == c.ty() => {
-                    DynGenericActual::Const(c.clone())
-                }
-                _ => return Err(bad("provider nominal argument changes declaration kind")),
-            };
-            pattern_actual(p, &actual, implementation, table, b)?;
+        for (p, a) in recipe.arguments.iter().zip(&interface.application.actuals) {
+            pattern_actual(p, a, implementation, table, b)?;
         }
-    } else if implementation.self_pattern.is_some()
-        || !implementation.parameters.is_empty()
-        || !table.self_classes.is_empty()
-    {
-        return Err(bad("provider Self recipe has no actual qualified instance"));
-    }
-    let recipe = implementation
-        .implemented_trait
-        .as_ref()
-        .ok_or_else(|| bad("provider implemented trait application is Unknown"))?;
-    if recipe.declaration != interface.application.declaration
-        || recipe.arguments.len() != interface.application.actuals.len()
-    {
-        return Err(bad(
-            "provider implements a different complete trait application",
-        ));
-    }
-    for (p, a) in recipe.arguments.iter().zip(&interface.application.actuals) {
-        pattern_actual(p, a, implementation, table, b)?;
     }
     if table.ports.len() != interface.retained_life.ports.len() {
         return Err(bad("provider opaque port table is incomplete"));
