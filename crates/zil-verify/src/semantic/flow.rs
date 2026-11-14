@@ -464,7 +464,10 @@ impl CheckedContext {
     }
     fn header(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let Some(header)=f.storage_life.as_ref() else {
-            if f.environment.is_none()&&instance.header_embedding.is_empty()&&signature.result.ty.is_b0_scalar()&&signature.result.classes.is_empty()&&signature.result.statics.is_empty()&&signature.parameters.iter().all(|(value,_)|value.ty.is_b0_scalar()&&value.classes.is_empty()&&value.statics.is_empty()) {return Ok(());}
+            if f.environment.is_none()&&instance.header_embedding.is_empty()&&signature.result.classes.is_empty()&&signature.result.statics.is_empty()&&self.zero_header_type(module,&signature.result.ty,b)?{
+                let mut zero=true;for(value,_)in &signature.parameters{if !value.classes.is_empty()||!value.statics.is_empty()||!self.zero_header_type(module,&value.ty,b)?{zero=false;break;}}
+                if zero{return Ok(());}
+            }
             return Err(bad("actual semantic header is Unknown"));
         };
         signature_life::charge(header,b)?;

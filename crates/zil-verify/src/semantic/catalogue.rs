@@ -99,11 +99,12 @@ impl CheckedContext {
                         }
                         if binders.len()!=header.fixed_binder_count as usize+header.invocation_binder_count as usize {return Err(bad("semantic header embedding is incomplete"));}
                     } else {
-                        // This proves only that this concrete scalar ABI has
-                        // no relation occurrences. It never upgrades an opaque
-                        // resource/closure/borrow contract from None to zero.
+                        // Independently reconstruct the complete finite ABI
+                        // domain. An absent header is not itself zero, and a
+                        // tuple of closed scalars is not a scalar whitelist.
                         b.spend(actual.parameters.len())?;
-                        if actual.environment.is_some()||!actual.return_type.is_b0_scalar()||!actual.parameters.iter().all(|id|actual.locals.get(id.0 as usize).is_some_and(|local|local.ty.is_b0_scalar()))||!instance.header_embedding.is_empty() {return Err(bad("semantic class-bearing function complete header is Unknown"));}
+                        if actual.environment.is_some()||!instance.header_embedding.is_empty()||!context.zero_header_type(module,&actual.return_type,b)?{return Err(bad("semantic class-bearing function complete header is Unknown"));}
+                        for local in &actual.parameters{let ty=&actual.locals.get(local.0 as usize).ok_or_else(||bad("semantic function parameter local is absent"))?.ty;if !context.zero_header_type(module,ty,b)?{return Err(bad("semantic class-bearing function complete header is Unknown"));}}
                     }
                 }
                 SemanticInstanceTarget::Function(_)=>return Err(bad("Typed semantic instance retains a Core function target")),
@@ -140,6 +141,28 @@ impl CheckedContext {
         }
         for site in &program.sites {context.site_structure(module,site,b)?;}
         Ok(context)
+    }
+    pub(super) fn zero_header_type(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
+        dynamic_metadata::ty(ty,b)?;let mut pending=vec![ty];
+        while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
+            // A zero pointee/retained domain does not erase an outer borrow.
+            Type::Address{..}|Type::Desc(_)|Type::Dyn{..}|Type::BorrowedFunctionPointer{..}|Type::MutexGuard{..}=>return Ok(false),
+            Type::BorrowedStorage{storage,life}=>{if *life!=empty_life(){return Ok(false);}pending.push(storage);},
+            Type::Tuple(fields)=>pending.extend(fields),
+            Type::Record{fields,..}|Type::Package{fields,..}=>pending.extend(fields.iter().map(|(_,ty)|ty)),
+            Type::Enum{variants,..}=>pending.extend(variants.iter().flat_map(|(_,fields)|fields)),
+            Type::Array{element,..}|Type::Managed(element)|Type::OwnedStore{element}|Type::Mutex{payload:element}|Type::Registration{environment:element}|Type::AsyncRegistration{environment:element}=>pending.push(element),
+            Type::ErrorUnion{error,result}=>{pending.push(error);pending.push(result);},
+            Type::Slice{..}=>return Ok(false),
+            // Opaque/code inventories retain their own complete domain. Their
+            // signature borrows are not physical fields of this runtime value.
+            Type::Closure(_)|Type::Task{..}|Type::OwnedDyn{..}|Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{},
+            _=>{},
+        }}
+        let(count,_)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0{return Ok(false);}
+        // Missing/unknown nominal or opaque inventory never becomes Known0.
+        // This structural ABI fact supplies no constructor, root or permission.
+        self.checked_value(module,ty,&empty_life(),vec![],b)?;Ok(true)
     }
     fn site_structure(&self,module:&TypedModule,site:&SemanticSite,b:&mut Budget)->Check<()> {
         let instance=self.instance(module,site.instance,b)?;
