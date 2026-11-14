@@ -154,6 +154,7 @@ pub struct VerifiedModule {
     uses_owned_sum_extension: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
+    sabi_non_suspending: BTreeSet<FunctionId>,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
     uses_stored_borrows: bool,
@@ -238,6 +239,12 @@ impl VerifiedModule {
     }
     pub fn is_suspend(&self, id: FunctionId) -> bool {
         self.suspend_functions.contains(&id)
+    }
+    /// This exact verified snapshot has no actual suspension dependency in
+    /// this SABI body. It retains its declared Suspend calling convention;
+    /// this permits a synchronous root adapter, never a Direct call edge.
+    pub fn has_non_suspending_sabi_body(&self, id: FunctionId) -> bool {
+        self.suspend_functions.contains(&id) && self.sabi_non_suspending.contains(&id)
     }
     pub fn is_task_export(&self, id: FunctionId) -> bool {
         self.task_exports.contains(&id)
@@ -729,6 +736,7 @@ fn verify_inputs(
             uses_stored_borrows: checked.uses_stored_borrows,
             task_workers: checked.task_workers,
             suspend_functions: checked.suspend_functions,
+            sabi_non_suspending: checked.sabi_non_suspending,
             task_exports: checked.task_exports,
             task_input_fingerprint: checked.task_input_fingerprint,
             task_ownership: Arc::new(checked.task_ownership),
@@ -787,6 +795,7 @@ struct CheckedModule {
     uses_stored_borrows: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
+    sabi_non_suspending: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
     task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
@@ -1432,6 +1441,7 @@ fn check_module_budget(
         uses_stored_borrows: budget.stored_borrows,
         task_workers: std::mem::take(&mut budget.task_workers),
         suspend_functions: std::mem::take(&mut budget.suspend_functions),
+        sabi_non_suspending: std::mem::take(&mut budget.sabi_non_suspending),
         task_exports: std::mem::take(&mut budget.task_exports),
         task_input_fingerprint,
         task_ownership: std::mem::take(&mut budget.task_ownership),
