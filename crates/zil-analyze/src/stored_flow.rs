@@ -2062,8 +2062,10 @@ pub(super) fn inventory(
         }
         if !matches!(
             (decl.kind, storage),
-            (LifeNominalKind::Record, Type::Record { .. })
-                | (LifeNominalKind::Package, Type::Package { .. })
+            (
+                LifeNominalKind::Record | LifeNominalKind::Resource,
+                Type::Record { .. }
+            ) | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
             if enum_address::candidate(&instance.ty) {
@@ -8066,6 +8068,9 @@ pub(super) fn infer(
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     b.stored_completed_functions = None;
+    // This lane may finish before lib's ordinary dispatch. Schedule the same
+    // complete actual Mutex/thread graph proof before publishing stored facts.
+    mutex::module(module, b)?;
     byte_queries::authenticate(module, b)?;
     dyn_address::capture_directories(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.

@@ -4,6 +4,121 @@
 use super::*;
 use zil_ir::ContractProjection;
 
+/// The stored-address route returns before the ordinary synchronization
+/// schedule. Keep the complete actual worker graph, supported target, acquire/
+/// release signatures and failure-cleanup checks on this route as well.
+pub(super) fn module(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    if b.generic_mutex || b.scoped_threads {
+        crate::scoped_thread::check(module, b)?;
+        crate::generic_mutex::check(module, b)?;
+    }
+    Ok(())
+}
+
+fn thread_scope(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::WithScopedThread {
+        worker,
+        argument,
+        body,
+    } = i.kind
+    else {
+        return Ok(false);
+    };
+    if !description(value_type(f, argument)?) {
+        return Ok(false);
+    }
+    if !b.scoped_threads || !b.generic_mutex {
+        return Err(failure(
+            "Mutex thread scope is absent from its complete actual synchronization schedule",
+        ));
+    }
+    let worker = module
+        .functions
+        .get(worker.0 as usize)
+        .filter(|row| row.id == worker)
+        .ok_or_else(|| failure("Mutex thread worker identity is absent"))?;
+    fee(b, worker.parameters.len().saturating_add(1))?;
+    if worker.parameters.len() != 1
+        || worker
+            .parameters
+            .first()
+            .and_then(|id| worker.locals.get(id.0 as usize))
+            .map(|row| &row.ty)
+            != Some(value_type(f, argument)?)
+        || worker.return_type != Type::I32
+        || worker.result_mode != PassingMode::Infer
+        || worker.call_kind != CallKind::Direct
+        || worker.foreign.is_some()
+        || worker.environment.is_some()
+    {
+        return Err(failure(
+            "Mutex thread scope changes its exact actual root worker signature or execution kind",
+        ));
+    }
+    let Type::Closure(id) = value_type(f, body)? else {
+        return Err(failure(
+            "Mutex thread parent body is not an actual concrete closure",
+        ));
+    };
+    let definition = module
+        .closures
+        .get(id.0 as usize)
+        .filter(|row| row.id == *id)
+        .ok_or_else(|| failure("Mutex thread parent environment is absent"))?;
+    let entry = module
+        .functions
+        .get(definition.function.0 as usize)
+        .filter(|row| row.id == definition.function)
+        .ok_or_else(|| failure("Mutex thread parent executable entry is absent"))?;
+    fee(
+        b,
+        definition
+            .captures
+            .len()
+            .saturating_add(definition.parameters.len())
+            .saturating_add(entry.parameters.len())
+            .saturating_add(1),
+    )?;
+    if !definition.parameters.is_empty()
+        || definition.result != Type::I32
+        || !definition.lending_captures.is_empty()
+        || entry.environment != Some(*id)
+        || !entry.parameters.is_empty()
+        || entry.return_type != Type::I32
+        || entry.result_mode != PassingMode::Infer
+        || entry.foreign.is_some()
+        || entry.call_kind != CallKind::Direct
+    {
+        return Err(failure(
+            "Mutex thread parent body changes its complete actual concrete entry or scalar result",
+        ));
+    }
+    for capture in &definition.captures {
+        b.type_work(capture, false, "Mutex scoped parent capture domain")?;
+        if !description(capture) && !capture.is_b0_scalar() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "Mutex thread parent capture needs its complete stored payload access and cleanup substitution",
+                Some(i.span),
+            )]);
+        }
+    }
+    if f.call_kind != CallKind::Direct
+        || i.result.and_then(|id| f.values.get(id.0 as usize))
+            != Some(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]))
+    {
+        return Err(failure(
+            "Mutex thread scope changes its complete synchronous result carrier",
+        ));
+    }
+    Ok(true)
+}
+
 fn guard(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Type::MutexGuard {
         payload,
@@ -125,6 +240,9 @@ pub(super) fn instruction(
         },
     };
     let expected = match &i.kind {
+        InstructionKind::WithScopedThread { .. } if thread_scope(module, f, i, b)? => {
+            Some(Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]))
+        }
         InstructionKind::MutexCreate { value } => {
             if value_type(f, *value)? != &Type::I32 {
                 return Err(failure(
@@ -359,6 +477,10 @@ pub(super) fn transfer(
     };
     let mut out = Value::default();
     match &i.kind {
+        InstructionKind::WithScopedThread { .. } if thread_scope(module, f, i, b)? => {
+            // Joining the actual worker is proved by the synchronization
+            // kernel; this scalar result exports neither a guard nor data.
+        }
         InstructionKind::MutexCreate { .. } => {}
         InstructionKind::MutexLock { mutex } => {
             let source = &get(*mutex)?.store_description;
@@ -520,6 +642,15 @@ pub(super) fn accesses(
     };
     let mut out = Vec::new();
     match &i.kind {
+        InstructionKind::WithScopedThread { argument, .. } if thread_scope(module, f, i, b)? => {
+            let manager = &get(*argument)?.store_description;
+            complete(
+                manager,
+                "Mutex thread scope has no actual live manager descriptor source",
+                b,
+            )?;
+            out.push((copy_permission(manager, b)?, false));
+        }
         InstructionKind::MutexLock { mutex } => {
             let manager = &get(*mutex)?.store_description;
             complete(manager, "Mutex lock access has no actual manager origin", b)?;
