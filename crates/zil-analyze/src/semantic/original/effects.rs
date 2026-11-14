@@ -107,7 +107,18 @@ impl Walk<'_, '_> {
                 }
                 self.required(signature.call_kind)
             }
-            Resolution::Intrinsic(id) => self.required(id.call_kind()),
+            Resolution::Intrinsic(id) => {
+                if matches!(
+                    id,
+                    sealed::Intrinsic::Register | sealed::Intrinsic::RegisterAsync
+                ) && self.unsafe_depth == 0
+                {
+                    return Err(fail(
+                        "original registration installation requires its real unsafe lexical region",
+                    ));
+                }
+                self.required(id.call_kind())
+            }
             Resolution::Deferred => Solver::push(&mut self.pending.calls, (self.owner, node), b),
         }
     }

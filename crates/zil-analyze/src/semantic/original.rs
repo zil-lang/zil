@@ -14,6 +14,7 @@ pub(super) mod mixed;
 pub(super) mod nominal;
 mod protocol;
 mod registration;
+mod registration_start;
 mod roles;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
@@ -153,6 +154,7 @@ pub(super) struct Checked {
     intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
     intrinsic_inputs: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
     intrinsic_anchors: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
+    native_targets: BTreeMap<(SemanticDefinitionId, NodeId), Vec<SemanticDefinitionId>>,
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
     enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
@@ -1650,6 +1652,26 @@ impl Solver<'_, '_> {
                         sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
                     match resolution {
                         sealed::Resolution::Intrinsic(
+                            id @ (sealed::Intrinsic::Register | sealed::Intrinsic::RegisterAsync),
+                        ) => {
+                            let result = self.registration_start(
+                                frame,
+                                value.id,
+                                id,
+                                written,
+                                arguments,
+                                b,
+                                depth + 1,
+                            )?;
+                            b.lookup(frame.expressions.len(), WORK)?;
+                            if frame.expressions.insert(value.id, result).is_some() {
+                                return Err(fail(
+                                    "original registration installation node is reused",
+                                ));
+                            }
+                            return Ok(result);
+                        }
+                        sealed::Resolution::Intrinsic(
                             id @ (sealed::Intrinsic::AsyncRequest
                             | sealed::Intrinsic::AsyncPoll
                             | sealed::Intrinsic::AsyncFinish
@@ -2856,6 +2878,7 @@ pub(super) fn check(
             intrinsics: BTreeMap::new(),
             intrinsic_inputs: BTreeMap::new(),
             intrinsic_anchors: BTreeMap::new(),
+            native_targets: BTreeMap::new(),
             abstract_calls: BTreeMap::new(),
             borrows: BTreeMap::new(),
             enum_constructors: BTreeMap::new(),
@@ -3923,5 +3946,47 @@ impl Checked {
             Solver::push(&mut actuals, actual, b)?;
         }
         Ok((call.target, call.closure, actuals))
+    }
+}
+
+impl Checked {
+    pub(super) fn native_targets(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<SemanticDefinitionId>> {
+        let declaration = inventory.definition(instance.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
+            return Err(fail(
+                "actual installation lacks its full original function body",
+            ));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(node) = link.node else {
+                    return Err(fail("actual installation selects an original statement"));
+                };
+                if selected.replace(node).is_some() {
+                    return Err(fail(
+                        "actual installation has competing original call nodes",
+                    ));
+                }
+            }
+        }
+        let node =
+            selected.ok_or_else(|| fail("actual installation loses its original call anchor"))?;
+        b.lookup(self.native_targets.len(), WORK)?;
+        let targets = self
+            .native_targets
+            .get(&(instance.definition, node))
+            .ok_or_else(|| {
+                fail("actual installation has no independently checked original providers")
+            })?;
+        b.spend(targets.len(), WORK)?;
+        Ok(targets.clone())
     }
 }

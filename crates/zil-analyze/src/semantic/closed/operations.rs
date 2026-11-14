@@ -308,7 +308,7 @@ impl Check<'_, '_> {
         Ok(ty.clone())
     }
 
-    fn result(
+    pub(super) fn result(
         &self,
         instruction: &Instruction,
         function: &TypedFunction,
@@ -544,6 +544,27 @@ impl Check<'_, '_> {
                                 ));
                             }
                             self.result(instruction, point.function, &Type::Unit)?;
+                            return Ok(());
+                        }
+                        id @ (original::sealed::Intrinsic::Register
+                        | original::sealed::Intrinsic::RegisterAsync) => {
+                            let output = self.registration_start_operation(
+                                instance,
+                                site.recipe,
+                                id,
+                                point.function,
+                                point.block.id,
+                                point.instruction,
+                                actuals,
+                                b,
+                            )?;
+                            self.result(
+                                instruction.ok_or_else(|| {
+                                    fail("actual registration installation has no instruction")
+                                })?,
+                                point.function,
+                                &output,
+                            )?;
                             return Ok(());
                         }
                         id @ (original::sealed::Intrinsic::AsyncRequest
