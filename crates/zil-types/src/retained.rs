@@ -832,7 +832,7 @@ impl Builder<'_, '_> {
                 "all opaque callable returns must have one hidden closure identity",
             ));
         }
-        self.function.return_type = Type::Closure(id);
+        self.function.return_type = Some(Type::Closure(id));
         self.function.callable_return_contract = Some(CallableReturnContract {
             life: None,
             capture_sources: Some(Vec::new()),

@@ -403,7 +403,7 @@ impl Builder<'_, '_> {
                 ));
             }
             let mut work =
-                inference::type_snapshot_work(&self.function.return_type, span, self.limits)?;
+                inference::type_snapshot_work(self.function.result()?, span, self.limits)?;
             for local in &self.function.parameters {
                 work = work.saturating_add(inference::type_snapshot_work(
                     &self.function.locals[local.0 as usize].ty,
@@ -412,7 +412,7 @@ impl Builder<'_, '_> {
                 )?);
             }
             self.closures.snapshot(work.saturating_add(1), span)?;
-            if self.closures.thread_result(id)?.as_ref() != Some(&self.function.return_type) {
+            if self.closures.thread_result(id)?.as_ref() != Some(self.function.result()?) {
                 return Err(error(
                     "E-THREAD-WORKER",
                     span,

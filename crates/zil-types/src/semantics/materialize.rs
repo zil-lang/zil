@@ -62,7 +62,7 @@ struct Eval<'a, 'm, 'b> {
     left: &'b mut usize,
     active: BTreeSet<(SemanticInstanceId, u32)>,
 }
-impl<'a> Eval<'a, '_, '_> {
+impl<'a, 'm> Eval<'a, 'm, '_> {
     #[track_caller]
     fn fee(&mut self, count: usize) -> R<()> {
         let location = std::panic::Location::caller();
@@ -141,7 +141,7 @@ impl<'a> Eval<'a, '_, '_> {
         }
         Ok(id)
     }
-    fn function(&mut self, scope: SemanticInstanceId) -> R<&'a TypedFunction> {
+    fn function(&mut self, scope: SemanticInstanceId) -> R<crate::FunctionRef<'m>> {
         let instance = self.instance(scope)?;
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) = instance.target
         else {
@@ -963,7 +963,10 @@ impl<'a> Eval<'a, '_, '_> {
         hint: Option<&Type>,
         depth: usize,
     ) -> R<SemanticTypeValue> {
-        if matches!(recipe, SemanticTypeRecipe::Tuple(_) | SemanticTypeRecipe::ErrorUnion { .. }) {
+        if matches!(
+            recipe,
+            SemanticTypeRecipe::Tuple(_) | SemanticTypeRecipe::ErrorUnion { .. }
+        ) {
             Ok(self.type_domain(scope, recipe, hint, depth)?.value)
         } else {
             self.ty_raw(scope, recipe, hint, depth)
@@ -1243,7 +1246,9 @@ impl<'a> Eval<'a, '_, '_> {
                 self.fee(classes.len())?;
                 for class in 0..life.binder_count {
                     array_life.retained.push(StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Element], class, binder: class,
+                        path: vec![LifeTypeProjection::Element],
+                        class,
+                        binder: class,
                     });
                 }
                 for row in &life.nominal_arguments {
@@ -1562,7 +1567,7 @@ impl<'a> Eval<'a, '_, '_> {
                                 ));
                             };
                             let mut source = None;
-                            for block in &creator.blocks {
+                            for block in creator.blocks {
                                 self.fee(block.instructions.len())?;
                                 for op in &block.instructions {
                                     if let InstructionKind::MakeClosure {

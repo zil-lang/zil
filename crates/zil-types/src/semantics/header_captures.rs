@@ -688,8 +688,16 @@ pub(in crate::semantics) fn complete_emitted_headers(
             ));
         }
         let view = super::super::materialize::ActualDirectory::from_module(module);
-        let Some((directory, mapping, values)) =
-            form_emitted_header(program, &view, ledger, instance, id, entry, limits, left)?
+        let Some((directory, mapping, values)) = form_emitted_header(
+            program,
+            &view,
+            ledger,
+            instance,
+            id,
+            crate::FunctionRef::from(entry),
+            limits,
+            left,
+        )?
         else {
             if early.is_some() {
                 return Err(bad(
@@ -761,7 +769,7 @@ pub(in crate::semantics) fn form_emitted_header(
     ledger: &super::super::emission::Ledger,
     instance: &SemanticInstance,
     id: ClosureId,
-    entry: &TypedFunction,
+    entry: crate::FunctionRef<'_>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<
@@ -876,11 +884,11 @@ pub(in crate::semantics) fn form_emitted_header(
         ledger,
         instance.id,
         &recipe,
-        Some(&entry.return_type),
+        Some(entry.result()?),
         limits,
         left,
     )?;
-    if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == &entry.return_type) {
+    if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == entry.result()?) {
         return Err(bad(
             "closure directory completion changes its original result type",
         ));

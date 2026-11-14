@@ -384,7 +384,7 @@ fn check_resolved_program_in_context(
             .closures
             .snapshot(factories.len(), f.span)
             .map_err(|e| vec![e])?;
-        builder.actual_functions = factories.values().collect();
+        builder.actual_functions = factories.values().map(FunctionRef::from).collect();
         builder.enums = Some(&enum_types);
         builder.dyn_declarations = &dyn_declarations;
         builder.dyn_interfaces = &dyn_interfaces;
@@ -488,7 +488,11 @@ fn check_resolved_program_in_context(
                     .closures
                     .snapshot(functions.len().saturating_add(factories.len()), f.span)
                     .map_err(|e| vec![e])?;
-                builder.actual_functions = functions.iter().chain(factories.values()).collect();
+                builder.actual_functions = functions
+                    .iter()
+                    .chain(factories.values())
+                    .map(FunctionRef::from)
+                    .collect();
                 builder.enums = Some(&enum_types);
                 builder.dyn_declarations = &dyn_declarations;
                 builder.dyn_interfaces = &dyn_interfaces;

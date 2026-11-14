@@ -165,7 +165,7 @@ impl Builder<'_, '_> {
 
     pub(super) fn return_value(&mut self, value: Option<ValueId>, span: Span) -> R<()> {
         if !self.task_return_inferred
-            && task_factories::result_task(&self.function.return_type).is_some_and(|task| matches!(task, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()))
+            && task_factories::result_task(self.function.result()?).is_some_and(|task| matches!(task, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()))
             && let Some(value) = value
         {
             self.closures.snapshot(self.instructions.saturating_add(1), span)?;
@@ -182,18 +182,8 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn try_expr(&mut self, operand: &CoreExpr, span: Span) -> R<(ValueId, Type)> {
+        // Evaluate the real request before demanding its result context.
         let enclosing = self.function.return_type.clone();
-        let Type::ErrorUnion {
-            error: expected_error,
-            ..
-        } = &enclosing
-        else {
-            return Err(error(
-                "E-TRY-RETURN-TYPE",
-                span,
-                "? requires an enclosing error-union result",
-            ));
-        };
         let (value, ty) = self.expr(operand, None)?;
         let consuming = owned(&ty);
         let Type::ErrorUnion {
@@ -207,7 +197,27 @@ impl Builder<'_, '_> {
                 "? requires an error-union operand",
             ));
         };
-        if &failure != expected_error {
+        if enclosing.is_none() {
+            self.bind_draft_error(&failure, span)?;
+        }
+        let expected_error = match &enclosing {
+            Some(Type::ErrorUnion { error, .. }) => (**error).clone(),
+            Some(_) => {
+                return Err(error(
+                    "E-TRY-RETURN-TYPE",
+                    span,
+                    "? requires an enclosing error-union result",
+                ));
+            }
+            None => self.draft_error_type(span)?.ok_or_else(|| {
+                error(
+                    "E-TRY-RETURN-TYPE",
+                    span,
+                    "deferred ? has no complete error arm",
+                )
+            })?,
+        };
+        if *failure != expected_error {
             return Err(error(
                 "E-TRY-ERROR-TYPE",
                 span,
@@ -223,6 +233,7 @@ impl Builder<'_, '_> {
             else_block: succeeded,
         });
         self.current = Some(failed);
+        self.closures.array_snapshot(&failure, 1, span)?;
         let payload = self.value(
             if consuming {
                 InstructionKind::TakeErrorUnion {
@@ -235,22 +246,24 @@ impl Builder<'_, '_> {
                     is_error: true,
                 }
             },
-            *failure,
+            (*failure).clone(),
             span,
         )?;
-        let propagated = self.value(
-            InstructionKind::MakeErrorUnion {
-                value: payload,
-                is_error: true,
-            },
-            enclosing,
-            span,
-        )?;
-        // end_scopes only reads the lexical/local/temporary lists. Their live
-        // success-path state remains intact while failure emits its own drops.
-        self.end_unsafe_regions(0, span)?;
-        self.end_scopes_kind(0, CleanupExitKind::Error, span)?;
-        self.terminate(Terminator::Return(Some(propagated)));
+        if let Some(enclosing) = enclosing {
+            let propagated = self.value(
+                InstructionKind::MakeErrorUnion {
+                    value: payload,
+                    is_error: true,
+                },
+                enclosing,
+                span,
+            )?;
+            self.end_unsafe_regions(0, span)?;
+            self.end_scopes_kind(0, CleanupExitKind::Error, span)?;
+            self.terminate(Terminator::Return(Some(propagated)));
+        } else {
+            self.defer_error_return(payload, *failure, span, CleanupExitKind::Error)?;
+        }
         self.current = Some(succeeded);
         let value = self.value(
             if consuming {

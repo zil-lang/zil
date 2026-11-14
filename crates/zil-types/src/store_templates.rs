@@ -596,7 +596,7 @@ impl Builder<'_, '_> {
                 .closures
                 .snapshot(self.actual_functions.len().saturating_add(1), span)?;
             builder.actual_functions = self.actual_functions.clone();
-            builder.actual_functions.push(&self.function);
+            builder.actual_functions.push(self.function.view());
             builder.enums = Some(&template.context.enums);
             builder.finish(&function.body)
         })();

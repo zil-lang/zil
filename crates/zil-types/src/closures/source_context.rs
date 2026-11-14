@@ -134,7 +134,7 @@ fn qualified(ty: &Type) -> Option<(&StorageLifeShape, bool)> {
 }
 fn actual_header(
     anchor: &CoreClosureInputAnchor,
-    creator: &TypedFunction,
+    creator: FunctionRef<'_>,
     left: &mut usize,
     span: Span,
 ) -> R<StorageBinder> {
@@ -241,7 +241,7 @@ fn input_key(
 }
 fn prepare(
     row: CoreClosureLifeContext,
-    creator: &TypedFunction,
+    creator: FunctionRef<'_>,
     captures: &[Capture],
     left: &mut usize,
     span: Span,
@@ -443,7 +443,7 @@ impl State {
     pub(crate) fn bind_source_context(
         &mut self,
         id: ClosureId,
-        creator: &TypedFunction,
+        creator: FunctionRef<'_>,
         expression: NodeId,
         span: Span,
     ) -> R<()> {

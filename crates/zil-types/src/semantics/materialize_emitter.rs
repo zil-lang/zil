@@ -244,8 +244,8 @@ fn install_callable_actuals(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_task(
     state: &closures::State,
-    caller: &TypedFunction,
-    prior: &[&TypedFunction],
+    caller: crate::FunctionRef<'_>,
+    prior: &[crate::FunctionRef<'_>],
     life_instances: &[LifeNominalInstance],
     declarations: &[DynDeclaration],
     interfaces: &[DynInterface],
@@ -301,10 +301,17 @@ pub(crate) fn prepare_task(
         state
             .pending
             .iter()
-            .filter_map(|pending| pending.typed.as_ref()),
+            .filter_map(|pending| pending.typed.as_ref())
+            .map(crate::FunctionRef::from),
     );
-    functions.extend(&state.helper_functions);
-    functions.extend(state.thin.iter().filter_map(Option::as_ref));
+    functions.extend(state.helper_functions.iter().map(crate::FunctionRef::from));
+    functions.extend(
+        state
+            .thin
+            .iter()
+            .filter_map(Option::as_ref)
+            .map(crate::FunctionRef::from),
+    );
     let closures = actual_closures(state, limits, left)?;
     let mut directory = ActualDirectory::building(
         functions,

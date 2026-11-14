@@ -39,7 +39,9 @@ mod floats;
 mod foreign;
 mod foreign_scoped;
 mod forwarding;
+mod function_draft;
 mod functions;
+use function_draft::{FunctionDraft, FunctionRef};
 mod generic_mutex;
 mod helpers;
 mod incremental;
@@ -711,7 +713,7 @@ pub fn check(
         .and_then(|mut b| {
             b.life_instances = &life_instances;
             b.closures.snapshot(functions.len(), f.span)?;
-            b.actual_functions = functions.iter().collect();
+            b.actual_functions = functions.iter().map(FunctionRef::from).collect();
             b.enums = Some(&enum_types);
             b.dyn_declarations = &core.dyn_declarations;
             b.dyn_interfaces = &core.dyn_interfaces;
@@ -844,10 +846,12 @@ pub fn check(
 struct Builder<'a, 'c> {
     declared_call_kind: Option<CallKind>,
     original_call_kind: Option<CallKind>,
-    function: TypedFunction,
+    function: FunctionDraft,
     // Hidden Task return context is fixed by actual return events. Error-only
     // constructors retain their payload while this private result is pending.
     task_return_inferred: bool,
+    draft_result_owner: Option<ClosureId>,
+    draft_error_returns: Vec<DeferredErrorReturn>,
     task_return_errors: Vec<ValueId>,
     helper_bounds: Vec<CoreCallableParameter>,
     // Owning State specialization removes symbolic parameters, but a direct
@@ -857,7 +861,7 @@ struct Builder<'a, 'c> {
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
     life_instances: &'a [LifeNominalInstance],
-    actual_functions: Vec<&'a TypedFunction>,
+    actual_functions: Vec<FunctionRef<'a>>,
     dyn_declarations: &'a [DynDeclaration],
     dyn_interfaces: &'a [DynInterface],
     dyn_vtables: &'a [DynVtable],
@@ -902,6 +906,12 @@ struct Builder<'a, 'c> {
     replacement_input: Option<LocalId>,
     sum_slots: BTreeMap<LocalId, Type>,
     inline_store_sum_slots: std::collections::BTreeSet<LocalId>,
+}
+struct DeferredErrorReturn {
+    block: BlockId,
+    payload: ValueId,
+    ty: Type,
+    span: Span,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -998,53 +1008,106 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "Transfer resume requires explicit Suspend selection",
             ));
         }
-        let first_closure = closures.pending.len();
         let helper_bounds = closures.source_helper_bounds(f)?;
-        let mut b = Self {
-            task_return_inferred: false,
-            task_return_errors: Vec::new(),
-            declared_call_kind: f.call_kind,
-            original_call_kind,
-            function: TypedFunction {
-                dyn_instance: f.dyn_instance.clone(),
-                retained_return_sources: f.retained_return_sources.clone(),
-                storage_life,
-                call_kind: effective_call_kind,
-                resume_bound: f.resume_bound,
-                reference_return_bound: if effective_call_kind == CallKind::Suspend
-                    && matches!(f.return_type, Type::Address { mutable: false, .. })
-                    && f.life
-                        .as_ref()
-                        .is_some_and(|life| life.result_life.is_some())
-                {
-                    None
-                } else {
-                    lifetimes::compile(f, closures, limits)?
-                },
-                callable_return_contract: None,
-                callable_contract: None,
-                protocol_contracts: f.protocol_contracts.clone(),
-                result_mode: f.result_mode,
-                foreign: f.foreign.clone(),
-                id,
-                name: f.name.clone(),
-                environment: None,
-                parameters: vec![],
-                return_type: f.return_type.clone(),
-                locals: vec![],
-                values: vec![],
-                blocks: vec![BasicBlock {
-                    id: BlockId(0),
-                    instructions: vec![],
-                    terminator: Terminator::Unreachable,
-                }],
-                entry: BlockId(0),
-                span: f.span,
+        let function = FunctionDraft {
+            dyn_instance: f.dyn_instance.clone(),
+            retained_return_sources: f.retained_return_sources.clone(),
+            storage_life,
+            call_kind: effective_call_kind,
+            resume_bound: f.resume_bound,
+            reference_return_bound: if effective_call_kind == CallKind::Suspend
+                && matches!(f.return_type, Type::Address { mutable: false, .. })
+                && f.life
+                    .as_ref()
+                    .is_some_and(|life| life.result_life.is_some())
+            {
+                None
+            } else {
+                lifetimes::compile(f, closures, limits)?
             },
+            callable_return_contract: None,
+            callable_contract: None,
+            protocol_contracts: f.protocol_contracts.clone(),
+            result_mode: f.result_mode,
+            foreign: f.foreign.clone(),
+            id,
+            name: f.name.clone(),
+            environment: None,
+            parameters: vec![],
+            return_type: Some(f.return_type.clone()),
+            locals: vec![],
+            values: vec![],
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                instructions: vec![],
+                terminator: Terminator::Unreachable,
+            }],
+            entry: BlockId(0),
+            span: f.span,
+        };
+        let mut b = Self::allocate(
+            function,
+            f.call_kind,
+            original_call_kind,
+            helper_bounds,
+            f.callable_return.clone(),
+            owning_factory::template(f).then(owning_factory::Modes::default),
+            managed_slots::reassigned_bindings(&f.body, limits)?,
+            signatures,
+            limits,
+            closures,
+        );
+        if f.foreign.is_none() {
+            b.emit(
+                InstructionKind::ScopeEnter { scope: ScopeId(0) },
+                None,
+                f.span,
+            )?;
+        }
+        for p in &f.parameters {
+            b.closures.array_snapshot(&p.ty, 1, p.span)?;
+            let local = b.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
+            if p.mode == PassingMode::Infer && matches!(p.ty, Type::Managed(_)) {
+                b.ordinary_managed_values.insert(local);
+            }
+            b.function.parameters.push(local)
+        }
+        if let Some(modes) = &mut b.factory_modes {
+            b.closures.snapshot(f.callable_parameters.len(), f.span)?;
+            for bound in &f.callable_parameters {
+                modes
+                    .locals
+                    .insert(b.function.parameters[bound.index as usize], bound.kind);
+            }
+        }
+        Ok(b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn allocate(
+        function: FunctionDraft,
+        declared_call_kind: Option<CallKind>,
+        original_call_kind: Option<CallKind>,
+        helper_bounds: Vec<CoreCallableParameter>,
+        factory_bound: Option<CoreCallableReturn>,
+        factory_modes: Option<owning_factory::Modes>,
+        managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
+        signatures: &'a BTreeMap<String, Signature>,
+        limits: &'a Limits,
+        closures: &'c mut closures::State,
+    ) -> Self {
+        let first_closure = closures.pending.len();
+        Self {
+            task_return_inferred: false,
+            draft_result_owner: None,
+            draft_error_returns: Vec::new(),
+            task_return_errors: Vec::new(),
+            declared_call_kind,
+            original_call_kind,
+            function,
             helper_bounds,
             state_callable_mode: None,
             state_uses: None,
-            factory_bound: f.callable_return.clone(),
+            factory_bound,
             signatures,
             life_instances: &[],
             actual_functions: Vec::new(),
@@ -1073,7 +1136,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
             owned_sum_captures: BTreeMap::new(),
-            factory_modes: owning_factory::template(f).then(owning_factory::Modes::default),
+            factory_modes,
             forwarding_modes: false,
             closure_slots: BTreeMap::new(),
             package_captures: BTreeMap::new(),
@@ -1091,32 +1154,93 @@ impl<'a, 'c> Builder<'a, 'c> {
             sum_slots: BTreeMap::new(),
             inline_store_sum_slots: std::collections::BTreeSet::new(),
             managed_slot_work: limits.max_analysis_steps,
-            managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
+            managed_rebindings,
+        }
+    }
+    /// Begin a real closure body without inventing a Core/Typed result.
+    #[allow(clippy::too_many_arguments)]
+    fn new_closure(
+        id: ClosureId,
+        function: FunctionId,
+        parameters: &[CoreParameter],
+        result: Option<Type>,
+        storage_life: Option<StorageLifeContract>,
+        body: &CoreBlock,
+        span: Span,
+        signatures: &'a BTreeMap<String, Signature>,
+        limits: &'a Limits,
+        closures: &'c mut closures::State,
+    ) -> R<Self> {
+        closures.block(span)?;
+        let mut left = closures.remaining_work();
+        let before = left;
+        let original_call_kind =
+            semantics::abi::callee_kind(&closures.semantic_emission, function, &mut left)?;
+        closures.snapshot(before - left, span)?;
+        if let Some(ty) = &result {
+            closures.array_snapshot(ty, 1, span)?;
+        }
+        if let Some(life) = &storage_life {
+            borrowed_fp::charge_contract(life, |n| closures.snapshot(n, span), 1)?;
+        }
+        let function = FunctionDraft {
+            dyn_instance: None,
+            retained_return_sources: None,
+            storage_life,
+            call_kind: original_call_kind.unwrap_or(CallKind::Direct),
+            resume_bound: zil_ir::TaskResumeBound::Local,
+            reference_return_bound: None,
+            callable_return_contract: None,
+            callable_contract: None,
+            protocol_contracts: Vec::new(),
+            id: function,
+            name: format!("$closure{}", id.0),
+            foreign: None,
+            environment: Some(id),
+            parameters: Vec::new(),
+            return_type: result,
+            result_mode: PassingMode::Infer,
+            locals: Vec::new(),
+            values: Vec::new(),
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                instructions: Vec::new(),
+                terminator: Terminator::Unreachable,
+            }],
+            entry: BlockId(0),
+            span,
         };
-        if f.foreign.is_none() {
-            b.emit(
-                InstructionKind::ScopeEnter { scope: ScopeId(0) },
-                None,
-                f.span,
-            )?;
-        }
-        for p in &f.parameters {
-            b.closures.array_snapshot(&p.ty, 1, p.span)?;
-            let local = b.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
+        let rebindings = managed_slots::reassigned_bindings(body, limits)?;
+        let mut builder = Self::allocate(
+            function,
+            None,
+            original_call_kind,
+            Vec::new(),
+            None,
+            None,
+            rebindings,
+            signatures,
+            limits,
+            closures,
+        );
+        builder.draft_result_owner = builder.closures.pending[id.0 as usize]
+            .inference
+            .needs_actual_tasks()
+            .then_some(id);
+        builder.emit(
+            InstructionKind::ScopeEnter { scope: ScopeId(0) },
+            None,
+            span,
+        )?;
+        for p in parameters {
+            builder.closures.array_snapshot(&p.ty, 1, p.span)?;
+            let local = builder.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
             if p.mode == PassingMode::Infer && matches!(p.ty, Type::Managed(_)) {
-                b.ordinary_managed_values.insert(local);
+                builder.ordinary_managed_values.insert(local);
             }
-            b.function.parameters.push(local)
+            builder.function.parameters.push(local);
         }
-        if let Some(modes) = &mut b.factory_modes {
-            b.closures.snapshot(f.callable_parameters.len(), f.span)?;
-            for bound in &f.callable_parameters {
-                modes
-                    .locals
-                    .insert(b.function.parameters[bound.index as usize], bound.kind);
-            }
-        }
-        Ok(b)
+        Ok(builder)
     }
     fn resolve_callee(&self, callee: &CoreExpr) -> R<&'a Signature> {
         match &callee.kind {
@@ -1191,10 +1315,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 ));
             }
             self.function.blocks.clear();
-            self.closures.semantic_finish_function(&self.function)?;
-            return Ok(self.function);
+            let function = self.function.publish()?;
+            self.closures.semantic_finish_function(&function)?;
+            return Ok(function);
         }
         self.block(body)?;
+        self.finish_draft_result(body.span)?;
         // A Source worker can acquire Suspend from its actual task_yield body.
         // Its complete parameter relation must then be published on the typed
         // worker, just as it is on an explicitly declared Suspend worker.
@@ -1207,7 +1333,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             && (life.parameter_lives.iter().flatten().count() > 1
                 || (life.result_life.is_some()
                     && matches!(
-                        self.function.return_type,
+                        self.function.result()?,
                         Type::Address { mutable: false, .. }
                     )))
             && let Some(contract) = StorageLifeContract::from_flat(life.clone())
@@ -1219,7 +1345,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             )?;
             self.function.storage_life = Some(contract);
             if matches!(
-                self.function.return_type,
+                self.function.result()?,
                 Type::Address { mutable: false, .. }
             ) && life.result_life.is_some()
             {
@@ -1227,7 +1353,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         }
         if self.current.is_some() {
-            if self.function.return_type == Type::Unit {
+            if self.function.result()? == &Type::Unit {
                 if !self.prepared_replacements.is_empty() {
                     return Err(error(
                         "E-PLACE-REPLACE",
@@ -1251,7 +1377,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "opaque callable factory must establish one returned hidden closure type",
             ));
         }
-        if matches!(self.function.return_type, Type::Address { .. }) {
+        if matches!(self.function.result()?, Type::Address { .. }) {
             self.closures.snapshot(
                 self.function
                     .locals
@@ -1262,8 +1388,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             // Shared Copy leaves and shared nominal Package results with a
             // declared return-life bound may leave a Store window. Analyze
             // and Verify prove actual roots and preserve the manager loan.
-            if !matches!(&self.function.return_type, Type::Address { mutable: false, inner } if inner.is_address_pointee())
-                && !(self.function.return_type.is_shared_package_address()
+            if !matches!(self.function.result()?, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                && !(self.function.result()?.is_shared_package_address()
                     && self.function.reference_return_bound.is_some())
                 && self
                 .function
@@ -1282,15 +1408,16 @@ impl<'a, 'c> Builder<'a, 'c> {
         for i in self.first_closure..self.closures.pending.len() {
             self.materialize_closure(ClosureId(i as u32))?;
         }
-        self.function.retained_return_sources = dyn_return_sources::propose(
-            &self.function,
+        let mut function = self.function.publish()?;
+        function.retained_return_sources = dyn_return_sources::propose(
+            &function,
             self.dyn_interfaces,
             &self.closures.pending,
             self.limits,
             &mut self.match_work_left,
         )?;
-        self.closures.semantic_finish_function(&self.function)?;
-        Ok(self.function)
+        self.closures.semantic_finish_function(&function)?;
+        Ok(function)
     }
     fn local(&mut self, name: &str, ty: Type, mutable: bool, span: Span) -> R<LocalId> {
         self.declare_local(name, ty, mutable, span, true)
@@ -1933,22 +2060,40 @@ impl<'a, 'c> Builder<'a, 'c> {
                 if self.factory_bound.is_some() {
                     return self.factory_return(e.as_ref(), s.span);
                 }
+                if self.function.return_type.is_none() {
+                    let (v, t) = if let Some(e) = e {
+                        self.transfer_expr(e, None)?
+                    } else {
+                        self.constant(Constant::Unit, s.span)?
+                    };
+                    self.draft_return_result(&t, s.span)?;
+                    if self.function.return_type.is_none() {
+                        self.bind_draft_error(&t, s.span)?;
+                        return self.defer_error_return(v, t, s.span, CleanupExitKind::Return);
+                    }
+                    self.closures
+                        .array_snapshot(self.function.result()?, 1, s.span)?;
+                    let wanted = self.function.result()?.clone();
+                    let (v, t) = self.inject_error_union(v, t, &wanted, s.span)?;
+                    self.same(&t, &wanted, s.span)?;
+                    return self.return_value(if t == Type::Unit { None } else { Some(v) }, s.span);
+                }
                 self.closures
-                    .array_snapshot(&self.function.return_type, 1, s.span)?;
-                let wanted = self.function.return_type.clone();
+                    .array_snapshot(self.function.result()?, 1, s.span)?;
+                let wanted = self.function.result()?.clone();
                 let value = if let Some(e) = e {
                     let infer_task = !self.task_return_inferred && task_factories::result_task(&wanted).is_some_and(|task| matches!(task, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()));
                     let (v, t) = if infer_task {
                         let (v, t) = self.transfer_expr(e, None)?;
                         self.complete_task_return(&t, e.span)?;
                         self.closures
-                            .array_snapshot(&self.function.return_type, 1, e.span)?;
-                        let complete = self.function.return_type.clone();
+                            .array_snapshot(self.function.result()?, 1, e.span)?;
+                        let complete = self.function.result()?.clone();
                         self.inject_error_union(v, t, &complete, e.span)?
                     } else {
                         self.transfer_expr(e, Some(&wanted))?
                     };
-                    self.same(&t, &self.function.return_type, e.span)?;
+                    self.same(&t, self.function.result()?, e.span)?;
                     if t == Type::Unit { None } else { Some(v) }
                 } else if matches!(&wanted, Type::ErrorUnion { .. }) {
                     let (v, ty) = self.constant(Constant::Unit, s.span)?;
@@ -3427,11 +3572,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.closures
                 .semantic_closure(self.function.id, expression, id, span)?;
             self.closures
-                .bind_source_context(id, &self.function, expression, span)?;
+                .bind_source_context(id, self.function.view(), expression, span)?;
         }
         self.closures.require_source_context(
             id,
-            self.factory_bound.is_some().then_some(&self.function),
+            self.factory_bound.is_some().then_some(self.function.view()),
             span,
         )?;
         if let Some(
@@ -3528,7 +3673,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 .closures
                 .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
             builder.actual_functions = self.actual_functions.clone();
-            builder.actual_functions.push(&self.function);
+            builder.actual_functions.push(self.function.view());
             builder.enums = self.enums;
             let typed = builder.finish(&function.body)?;
             self.closures.thin[slot] = Some(typed);
@@ -3682,80 +3827,42 @@ impl<'a, 'c> Builder<'a, 'c> {
         if pending.typed.is_some() {
             return Ok(());
         }
-        let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+        let (parameters, result) = pending.inference.resolve_draft(pending.span)?;
         let context_span = pending.span;
-        let storage_life =
+        if let Some(result) = &result {
             self.closures
-                .form_source_contract(id, &parameters, &result, context_span)?;
-        if closures::owned_signature_head(&result) && !result.is_copy_value() {
-            let span = context_span;
-            let captures = self.closures.pending[id.0 as usize].captures.len();
-            self.closures.snapshot(captures.saturating_add(1), span)?;
-            if self.closures.pending[id.0 as usize]
-                .captures
-                .iter()
-                .any(|capture| {
-                    (capture.borrowed && matches!(capture.ty, Type::Package { .. }))
-                        || capture.ty.is_shared_package_address()
-                })
-            {
-                return Err(unsupported(
-                    span,
-                    "shared Product capture environments require Copy results",
-                ));
-            }
+                .check_capture_result(id, result, context_span)?;
         }
-        let pending = &self.closures.pending[id.0 as usize];
-        if pending.owns_leaf_store {
-            let span = pending.span;
-            let cost = inference::type_snapshot_work(&result, span, self.limits)?;
-            self.closures.snapshot(cost, span)?;
-            if !result.is_copy_value() {
-                return Err(unsupported(
-                    span,
-                    "owned Store capture environments require Copy results",
-                ));
-            }
-        }
+        let storage_life = if let Some(result) = &result {
+            self.closures
+                .form_source_contract(id, &parameters, result, context_span)?
+        } else {
+            None
+        };
         let pending = &self.closures.pending[id.0 as usize];
         let captures = pending.captures.clone();
         let function_id = pending.function;
-        let function = CoreFunction {
-            dyn_instance: None,
-            retained_return_sources: None,
-            source_scope: None,
-            storage_life,
-            call_kind: None,
-            resume_bound: zil_ir::TaskResumeBound::Local,
-            life: None,
-            callable_return: None,
-            state_parameters: Vec::new(),
-            protocol_contracts: Vec::new(),
-            type_parameters: Vec::new(),
-            callable_parameters: Vec::new(),
-            result_mode: zil_ir::PassingMode::Infer,
-            foreign: None,
-            id: zil_base::NodeId(0),
-            name: format!("$closure{}", id.0),
-            parameters: pending
-                .parameters
-                .iter()
-                .zip(parameters)
-                .map(|(p, ty)| CoreParameter {
-                    name: p.name.clone(),
-                    ty,
-                    mode: p.mode,
-                    span: p.span,
-                })
-                .collect(),
-            return_type: result,
-            body: pending.body.clone(),
-            receiver: None,
-            span: pending.span,
-        };
-        let mut builder = Builder::new(
-            &function,
+        let parameters = pending
+            .parameters
+            .iter()
+            .zip(parameters)
+            .map(|(p, ty)| CoreParameter {
+                name: p.name.clone(),
+                ty,
+                mode: p.mode,
+                span: p.span,
+            })
+            .collect::<Vec<_>>();
+        let body = pending.body.clone();
+        let lends = result.as_ref().is_some_and(lending::supported_result);
+        let mut builder = Builder::new_closure(
+            id,
             function_id,
+            &parameters,
+            result,
+            storage_life,
+            &body,
+            context_span,
             self.signatures,
             self.limits,
             self.closures,
@@ -3764,16 +3871,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         builder.life_instances = self.life_instances;
         builder
             .closures
-            .snapshot(self.actual_functions.len().saturating_add(1), function.span)?;
+            .snapshot(self.actual_functions.len().saturating_add(1), context_span)?;
         builder.actual_functions = self.actual_functions.clone();
-        builder.actual_functions.push(&self.function);
+        builder.actual_functions.push(self.function.view());
         builder.enums = self.enums;
         builder.dyn_declarations = self.dyn_declarations;
         builder.dyn_interfaces = self.dyn_interfaces;
         builder.dyn_vtables = self.dyn_vtables;
         builder.function.environment = Some(id);
         builder.defer_body = builder.closures.pending[id.0 as usize].defer_action;
-        let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();
             if matches!(stored::physical(&stored), Type::Package { .. }) {
@@ -4018,32 +4124,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
             }
         }
-        let typed = builder.finish(&function.body)?;
-        let before = self.closures.remaining_work();
-        let mut remaining = before;
-        let state = &mut *self.closures;
-        let (earlier, remaining_pending) = state.pending.split_at_mut(id.0 as usize);
-        let (pending, later) = remaining_pending
-            .split_first_mut()
-            .ok_or_else(|| unsupported(typed.span, "actual closure inference entry disappeared"))?;
-        remaining = remaining
-            .checked_sub(earlier.len().saturating_add(later.len()))
-            .ok_or_else(|| {
-                Diagnostic::limit(
-                    Phase::Types,
-                    "actual callable directory work exceeded",
-                    Some(typed.span),
-                )
-            })?;
-        let entries = earlier.iter().chain(later.iter()).collect::<Vec<_>>();
-        let completed = pending.inference.complete_actual_tasks(
-            &typed,
-            &state.semantic_emission,
-            &entries,
-            &mut remaining,
-        );
-        self.closures.snapshot(before - remaining, typed.span)?;
-        completed?;
+        let typed = builder.finish(&body)?;
         self.closures.pending[id.0 as usize].typed = Some(typed);
         Ok(())
     }

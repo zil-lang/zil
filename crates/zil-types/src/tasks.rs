@@ -572,9 +572,9 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         self.closures
-            .snapshot_type(&self.function.return_type, 1, 0, span)?;
+            .snapshot_type(self.function.result()?, 1, 0, span)?;
         self.closures.snapshot_type(task, 1, 0, span)?;
-        let mut complete = self.function.return_type.clone();
+        let mut complete = self.function.result()?.clone();
         task_factories::replace_task(&mut complete, task, span)?;
         // Only the exact real error constructor recorded at a Return may have
         // its uninhabited success arm completed. Ordinary union SSA is fixed.
@@ -623,7 +623,7 @@ impl Builder<'_, '_> {
             self.closures.snapshot_type(&complete, 1, 0, span)?;
             self.function.values[value.0 as usize] = complete.clone();
         }
-        self.function.return_type = complete;
+        self.function.return_type = Some(complete);
         self.task_return_inferred = true;
         self.task_return_errors.clear();
         Ok(())
@@ -640,7 +640,7 @@ impl Builder<'_, '_> {
         let mut left = before;
         let prepared = semantics::materialize::prepare_task(
             self.closures,
-            &self.function,
+            self.function.view(),
             &self.actual_functions,
             self.life_instances,
             self.dyn_declarations,

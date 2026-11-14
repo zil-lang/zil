@@ -318,7 +318,7 @@ impl Graph {
     }
     fn complete_actual_tasks(
         &mut self,
-        function: &TypedFunction,
+        function: FunctionRef<'_>,
         ledger: &crate::semantics::emission::Ledger,
         closures: &[&super::Pending],
         result: Variable,
@@ -688,13 +688,13 @@ impl Graph {
                 function.span,
             )?;
         }
-        self.complete_task_constraint(result, &function.return_type, function.span)
+        self.complete_task_constraint(result, function.result()?, function.span)
     }
 }
 impl Inference {
     pub(crate) fn complete_actual_tasks(
         &mut self,
-        function: &TypedFunction,
+        function: FunctionRef<'_>,
         ledger: &crate::semantics::emission::Ledger,
         closures: &[&super::Pending],
         left: &mut usize,
@@ -874,5 +874,55 @@ impl InferBuilder<'_, '_> {
             }
         };
         Ok(Some(logical))
+    }
+}
+
+impl Inference {
+    pub(super) fn draft_error(&self, span: Span) -> R<Option<Type>> {
+        let Some(Pending::Union { error, .. }) = self.graph.pending(self.result, span)? else {
+            return Ok(None);
+        };
+        self.graph.ty(error)
+    }
+    /// A genuine Return value closes its logical result edge. Error-only
+    /// returns leave the successful Task request private until it is emitted.
+    pub(super) fn emitted_return(
+        &mut self,
+        actual: &Type,
+        span: Span,
+        left: &mut usize,
+    ) -> R<Option<Type>> {
+        let output = self.result;
+        self.graph.thread_work(left, |graph| {
+            if let Some(Pending::Union { error, result }) = graph.pending(output, span)? {
+                if !matches!(actual, Type::ErrorUnion { .. }) {
+                    if graph.ty(error)?.as_ref() == Some(actual) {
+                        return Ok(None);
+                    }
+                    graph.complete_task_constraint(result, actual, span)?;
+                    graph.solve()?;
+                    return graph.ty(output);
+                }
+            }
+            graph.complete_task_constraint(output, actual, span)?;
+            graph.solve()?;
+            graph.ty(output)
+        })
+    }
+}
+impl Inference {
+    pub(super) fn emitted_error(&mut self, actual: &Type, span: Span, left: &mut usize) -> R<()> {
+        let result = self.result;
+        self.graph.thread_work(left, |graph| {
+            let Some(Pending::Union { error, .. }) = graph.pending(result, span)? else {
+                return Err(error(
+                    "E-TRY-RETURN-TYPE",
+                    span,
+                    "? requires an enclosing error-union result",
+                ));
+            };
+            graph.complete_task_constraint(error, actual, span)?;
+            graph.solve()
+        })
     }
 }

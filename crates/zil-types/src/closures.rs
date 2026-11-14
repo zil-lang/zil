@@ -1330,7 +1330,7 @@ impl State {
     pub(super) fn require_source_context(
         &mut self,
         id: ClosureId,
-        creator: Option<&TypedFunction>,
+        creator: Option<FunctionRef<'_>>,
         span: Span,
     ) -> R<()> {
         let pending = &self.pending[id.0 as usize];
@@ -2621,6 +2621,24 @@ impl Graph {
                     match &node.shape {
                         // Only an existing explicit constraint may give this
                         // node a concrete type; requests never invent Context.
+                        Some(Shape::Pending(task_pending::Pending::Union { error, result })) => {
+                            match (
+                                self.ty_depth(*error, depth + 1)?,
+                                self.ty_depth(*result, depth + 1)?,
+                            ) {
+                                (Some(error), Some(result)) => Some(Type::ErrorUnion {
+                                    error: Box::new(error),
+                                    result: Box::new(result),
+                                }),
+                                _ => None,
+                            }
+                        }
+                        Some(Shape::Pending(task_pending::Pending::Managed(value))) => self
+                            .ty_depth(*value, depth + 1)?
+                            .map(|v| Type::Managed(Box::new(v))),
+                        Some(Shape::Pending(task_pending::Pending::Description(value))) => self
+                            .ty_depth(*value, depth + 1)?
+                            .map(|v| Type::Desc(Box::new(v))),
                         Some(Shape::Pending(_)) => None,
                         Some(Shape::Tuple(fields)) => {
                             let mut types = Vec::new();
@@ -2715,6 +2733,9 @@ pub(super) struct Inference {
     result: Variable,
 }
 impl Inference {
+    pub(super) fn needs_actual_tasks(&self) -> bool {
+        self.graph.has_pending_tasks
+    }
     pub fn arity(&self) -> usize {
         self.parameters.len()
     }
@@ -2755,6 +2776,37 @@ impl Inference {
         let result = self.resolve(defaults, span);
         self.graph
             .thread_finish(original, allowance, remaining, result)
+    }
+    /// Resolve only actual parameter constraints. A Task request may retain its
+    /// private result variable until its real emitter event completes it.
+    pub(super) fn resolve_draft(&mut self, span: Span) -> R<(Vec<Type>, Option<Type>)> {
+        self.graph.solve()?;
+        self.graph.default_literals();
+        self.graph.solve()?;
+        let parameters = self
+            .parameters
+            .iter()
+            .map(|v| self.graph.ty(*v))
+            .collect::<R<Option<Vec<_>>>>()?
+            .ok_or_else(|| {
+                error(
+                    "E-CLOSURE-INFERENCE",
+                    span,
+                    "closure parameters remain unconstrained",
+                )
+            })?;
+        let result = self.result()?;
+        if result.is_none() && !self.graph.has_pending_tasks {
+            return Err(error(
+                "E-CLOSURE-INFERENCE",
+                span,
+                "closure result has no actual Task request to complete",
+            ));
+        }
+        if result.is_some() {
+            return self.resolve(true, span).map(|(p, r)| (p, Some(r)));
+        }
+        Ok((parameters, None))
     }
     pub fn resolve(&mut self, defaults: bool, span: Span) -> R<(Vec<Type>, Type)> {
         self.resolve_inner(defaults, None, span)

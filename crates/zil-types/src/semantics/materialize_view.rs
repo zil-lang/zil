@@ -5,7 +5,7 @@ use std::borrow::Cow;
 
 enum Functions<'a> {
     Complete(&'a [TypedFunction]),
-    Building(Vec<&'a TypedFunction>),
+    Building(Vec<crate::FunctionRef<'a>>),
 }
 pub(in crate::semantics) struct ActualDirectory<'a> {
     complete: Option<&'a TypedModule>,
@@ -65,9 +65,12 @@ impl<'a> ActualDirectory<'a> {
             Functions::Building(rows) => rows.len(),
         }
     }
-    pub(in crate::semantics) fn function(&self, id: FunctionId) -> Option<&'a TypedFunction> {
+    pub(in crate::semantics) fn function(&self, id: FunctionId) -> Option<crate::FunctionRef<'a>> {
         match &self.functions {
-            Functions::Complete(rows) => rows.iter().find(|row| row.id == id),
+            Functions::Complete(rows) => rows
+                .iter()
+                .find(|row| row.id == id)
+                .map(crate::FunctionRef::from),
             Functions::Building(rows) => rows.iter().copied().find(|row| row.id == id),
         }
     }
@@ -93,7 +96,7 @@ impl<'a> ActualDirectory<'a> {
     }
     #[allow(clippy::too_many_arguments)]
     pub(in crate::semantics) fn building(
-        functions: Vec<&'a TypedFunction>,
+        functions: Vec<crate::FunctionRef<'a>>,
         closures: Vec<ClosureDefinition>,
         life_instances: &'a [LifeNominalInstance],
         dyn_declarations: &'a [DynDeclaration],
