@@ -2156,8 +2156,8 @@ pub(super) fn program(
                 })?;
                 *expected = eval.value(site.instance, expected, Some(hint), 0).map_err(|mut diagnostic| {
                     diagnostic.notes.push(format!(
-                        "actual type-use: instance {:?}, recipe {:?}, subject {:?}, type constructor {:?}",
-                        site.instance, site.recipe, subject, std::mem::discriminant(hint)
+                        "actual type-use: instance {:?}, recipe {:?}, subject {:?}, type constructor {:?}, function {:?}, return constructor {:?}",
+                        site.instance, site.recipe, subject, std::mem::discriminant(hint), f.id, std::mem::discriminant(&f.return_type)
                     ));
                     diagnostic
                 })?;
