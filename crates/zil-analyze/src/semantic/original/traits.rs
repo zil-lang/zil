@@ -5,6 +5,7 @@ mod conformance;
 mod methods;
 mod providers;
 mod raw;
+mod sealed_declarations;
 pub(in crate::semantic) use methods::TraitCall;
 
 #[derive(Default)]
@@ -204,7 +205,8 @@ impl Solver<'_, '_> {
             };
             let id = match recipe {
                 SemanticScopeRecipe::Trait { declaration }
-                | SemanticScopeRecipe::TraitImpl { declaration, .. } => *declaration,
+                | SemanticScopeRecipe::TraitImpl { declaration, .. }
+                | SemanticScopeRecipe::InherentImpl { declaration, .. } => *declaration,
                 _ => continue,
             };
             let raw = self.inventory.original_dyn(id, b)?;
@@ -263,6 +265,21 @@ impl Solver<'_, '_> {
                     {
                         return Err(fail(
                             "original impl scope and declared Self or trait application disagree",
+                        ));
+                    }
+                }
+                SemanticScopeRecipe::InherentImpl { self_type, .. } => {
+                    let Some(DynTypePattern::Semantic { scope, ty }) = &raw.self_pattern else {
+                        return Err(unknown(
+                            "original inherent impl omits its exact scoped Self recipe",
+                        ));
+                    };
+                    if *scope != definition.id
+                        || ty.as_ref() != self_type
+                        || raw.implemented_trait.is_some()
+                    {
+                        return Err(fail(
+                            "original inherent impl changes its Self recipe or invents a trait application",
                         ));
                     }
                 }
@@ -327,6 +344,9 @@ impl Solver<'_, '_> {
         for declaration in &self.inventory.module.dyn_declarations {
             b.lookup(self.trait_state.scopes.len(), WORK)?;
             if !self.trait_state.scopes.contains_key(&declaration.id) {
+                if sealed_declarations::validate(declaration, self.inventory, b)? {
+                    continue;
+                }
                 return Err(fail(
                     "original raw trait declaration has no exact semantic owner scope",
                 ));

@@ -200,6 +200,101 @@ impl Check<'_, '_> {
             ));
         };
         match ty {
+            Type::MutexGuard { .. } => {
+                self.ordinary_type_at(ty, b, depth + 1)?;
+                crate::dyn_metadata::shape(life, b)?;
+                if life.binder_count != 1
+                    || !life.slots.is_empty()
+                    || !life.retained.is_empty()
+                    || !life.nominal_arguments.is_empty()
+                    || classes.len() != 1
+                {
+                    return Err(fail(
+                        "actual Mutex guard changes its opaque intrinsic domain",
+                    ));
+                }
+                let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
+                crate::dyn_metadata::ty(ty, b)?;
+                Ok(Value {
+                    ty: ty.clone(),
+                    life: life.clone(),
+                    classes: vec![class],
+                })
+            }
+            Type::Address { mutable, inner }
+                if matches!(inner.as_ref(), Type::MutexGuard { .. }) =>
+            {
+                self.ordinary_type_at(inner, b, depth + 1)?;
+                crate::dyn_metadata::shape(life, b)?;
+                let [row] = life.retained.as_slice() else {
+                    return Err(fail(
+                        "Mutex guard reference omits its complete Pointee embedding",
+                    ));
+                };
+                if row.path.as_slice() != [LifeTypeProjection::Pointee]
+                    || row.class != 0
+                    || classes.len() != life.binder_count as usize
+                    || classes.get(row.binder as usize).is_none()
+                {
+                    return Err(fail(
+                        "Mutex guard reference changes its intrinsic class selector",
+                    ));
+                }
+                crate::dyn_metadata::ty(inner, b)?;
+                let expected = value::address(
+                    *mutable,
+                    value::Class::Local(0),
+                    Value {
+                        ty: inner.as_ref().clone(),
+                        life: StorageLifeShape {
+                            binder_count: 1,
+                            slots: Vec::new(),
+                            retained: Vec::new(),
+                            nominal_arguments: Vec::new(),
+                        },
+                        classes: vec![value::Class::Local(row.binder)],
+                    },
+                    b,
+                )?;
+                if expected.life != *life {
+                    return Err(fail(
+                        "Mutex guard reference changes its complete outer occurrence",
+                    ));
+                }
+                let mut images = Vec::new();
+                for expression in classes {
+                    let image = value::class(context, expression, self.inventory, b, depth + 1)?;
+                    self.push_value(&mut images, image, b)?;
+                }
+                crate::dyn_metadata::ty(ty, b)?;
+                Ok(Value {
+                    ty: ty.clone(),
+                    life: life.clone(),
+                    classes: images,
+                })
+            }
+            Type::Desc(inner) => {
+                crate::dyn_metadata::ty(inner, b)?;
+                self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1)?;
+                crate::dyn_metadata::shape(life, b)?;
+                if life.binder_count != 1
+                    || !matches!(life.slots.as_slice(), [slot] if slot.path.is_empty() && slot.binder == 0 && slot.mode == StoredBorrowMode::WritableDescription)
+                    || !life.retained.is_empty()
+                    || !life.nominal_arguments.is_empty()
+                    || classes.len() != 1
+                {
+                    return Err(fail(
+                        "actual zero-domain resource description changes its complete weak occurrence",
+                    ));
+                }
+                let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
+                crate::dyn_metadata::ty(ty, b)?;
+                Ok(Value {
+                    ty: ty.clone(),
+                    life: life.clone(),
+                    classes: vec![class],
+                })
+            }
             Type::Managed(_) => {
                 self.resource_zero(ty, b, depth + 1)?;
                 crate::dyn_metadata::shape(life, b)?;
