@@ -35,6 +35,7 @@ import re
 import shutil
 import stat
 import statistics
+import subprocess
 import sys
 import types
 
@@ -284,8 +285,21 @@ def clean_environment():
     return env
 
 
+def implementation_paths(repo):
+    return [Path(__file__), Path(rc.__file__), Path(pc.__file__), Path(matched.__file__), Path(controller.__file__),
+            repo/'tools/research/reactive-query-graph/native_workloads.py', repo/'tools/research/reactive-query-graph/native_measure.py']
+
+
+def verify_frozen_tools(args, source):
+    for path in implementation_paths(args.repo):
+        relative = path.resolve().relative_to(args.repo)
+        frozen = subprocess.check_output(['git', 'show', source+':'+str(relative)], cwd=args.repo)
+        require(path.read_bytes() == frozen, 'implementation differs from frozen tool source: '+str(relative))
+
+
 def pin_inputs(args, pins, env):
     controller.validate_pins(pins)
+    verify_frozen_tools(args, pins['tool_source'])
     manifest = {'pins': pins, 'sources': {}, 'binaries': {}}
     manifest['tool_source'] = matched.source_identity(args.repo, pins['tool_source'], args.out, 'tools')
     for arm in ARMS[:2]:
@@ -298,6 +312,7 @@ def pin_inputs(args, pins, env):
         require(receipt['tree'] == manifest['sources'][arm]['tree'], arm+' build receipt tree')
         manifest['binaries'][arm] = matched.preserve(args.out, Path(item['binary']), '.compiler')
         setattr(args, arm, Path(item['binary']))
+        setattr(args, arm+'_source', item['source'])
     args.native_link_profile = Path(pins['native_link_profile'])
     args.native_link_profile_sha256 = pins['native_link_profile_sha256']
     if args.candidate_policy == 'push':
@@ -441,6 +456,9 @@ def run_and_report(args, workloads, manifest):
             candidates = [args.repo/'tools/research/incremental-demand'/filename,
                           args.repo/'tools/research/reactive-query-graph'/filename]
             require(any(path.is_file() and matched.file_hash(path) == identity for path in candidates), 'measurement implementation changed: '+filename)
+        verify_frozen_tools(args, pins['tool_source'])
+        if args.candidate_policy == 'push' and args.mode == 'o2':
+            manifest['native_profile_archive'] = matched.archive_native_profile(args)
     except Exception as error:
         failure = {**context, 'error': type(error).__name__+': '+str(error)}
         rc.save(args.out/'failure.json', failure)
@@ -514,8 +532,7 @@ def main():
     args.native_repetitions = 2
     args.candidate_extra_arg = ['--push-reuse'] if args.candidate_policy == 'push' else []
     workloads = rc.load_workloads(args.repo)
-    implementation = [Path(__file__), Path(rc.__file__), Path(pc.__file__), Path(matched.__file__), Path(controller.__file__),
-                      args.repo/'tools/research/reactive-query-graph/native_workloads.py', args.repo/'tools/research/reactive-query-graph/native_measure.py']
+    implementation = implementation_paths(args.repo)
     for path in implementation:
         shutil.copyfile(path, args.out/('implementation-'+path.name))
     requests = history(args.epochs)
