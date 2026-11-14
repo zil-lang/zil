@@ -26,6 +26,8 @@ unsafe extern "C" {
     fn LLVMGetAttributeCountAtIndex(function: Handle, index: c_uint) -> c_uint;
     fn LLVMGetAttributesAtIndex(function: Handle, index: c_uint, out: *mut Handle);
     fn LLVMIsEnumAttribute(attribute: Handle) -> c_int;
+    fn LLVMIsStringAttribute(attribute: Handle) -> c_int;
+    fn LLVMIsTypeAttribute(attribute: Handle) -> c_int;
     fn LLVMGetEnumAttributeKind(attribute: Handle) -> c_uint;
     fn LLVMGetEnumAttributeValue(attribute: Handle) -> u64;
     fn LLVMGetEnumAttributeKindForName(name: *const c_char, len: usize) -> c_uint;
@@ -143,6 +145,7 @@ unsafe fn attributes(function: Handle) -> Option<Vec<(u32, u32, u64)>> {
     });
     let ty = unsafe { LLVMGlobalGetValueType(function) };
     let count = unsafe { LLVMCountParamTypes(ty) };
+    let range_kind = unsafe { LLVMGetEnumAttributeKindForName(c"range".as_ptr(), 5) };
     let mut result = Vec::new();
     // Bind typed current attributes, never printer slot IDs alone. Unknown,
     // string/target-specific and type attributes conservatively refuse reuse.
@@ -154,10 +157,26 @@ unsafe fn attributes(function: Handle) -> Option<Vec<(u32, u32, u64)>> {
         let mut list = vec![ptr::null_mut(); count];
         unsafe { LLVMGetAttributesAtIndex(function, index, list.as_mut_ptr()) };
         for attribute in list {
-            if attribute.is_null() || unsafe { LLVMIsEnumAttribute(attribute) } == 0 {
+            if attribute.is_null()
+                || unsafe { LLVMIsStringAttribute(attribute) } != 0
+                || unsafe { LLVMIsTypeAttribute(attribute) } != 0
+            {
                 return None;
             }
             let kind = unsafe { LLVMGetEnumAttributeKind(attribute) };
+            if unsafe { LLVMIsEnumAttribute(attribute) } == 0 {
+                // LLVM23's inferred integer ConstantRange is an inline return
+                // or parameter attribute in the complete printed definition,
+                // never a function attribute-group slot. Its exact bit width
+                // and endpoints already participate in closed_key. Bind its
+                // typed index/kind too; never call the integer-value accessor
+                // on this distinct LLVM attribute representation.
+                if index == u32::MAX || range_kind == 0 || kind != range_kind {
+                    return None;
+                }
+                result.push((index, kind, 0));
+                continue;
+            }
             if !allowed.contains(&kind) {
                 return None;
             }
@@ -479,6 +498,11 @@ mod tests {
             assert!(closed_key(&bad, "zil.fn.1").is_none());
         }
         assert!(closed_key(a, "zil.fn.10").is_none());
+        let range = a.replace("define i32", "define range(i32 -250, 251) i32");
+        assert_ne!(
+            closed_key(&range, "zil.fn.1"),
+            closed_key(&range.replace("-250, 251", "-249, 251"), "zil.fn.1")
+        );
     }
 
     #[test]
@@ -514,10 +538,19 @@ mod tests {
                                         },
                                     ),
                                     Inst::new(
+                                        Some("v.1".into()),
+                                        Op::Binary {
+                                            opcode: "srem".into(),
+                                            ty: Ty::Int(32),
+                                            left: m::local("v.0".into()),
+                                            right: Val::Int(251),
+                                        },
+                                    ),
+                                    Inst::new(
                                         None,
                                         Op::Return(Some(Arg::new(
                                             Ty::Int(32),
-                                            m::local("v.0".into()),
+                                            m::local("v.1".into()),
                                         ))),
                                     ),
                                 ],

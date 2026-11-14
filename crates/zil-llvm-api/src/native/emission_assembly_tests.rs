@@ -160,7 +160,22 @@ fn exact_token_substitution_does_not_rename_comments_registers_or_prefixes() {
     let out =
         String::from_utf8(reconstruct(source.as_bytes(), &a, &order(&["eax", "copy"])).unwrap())
             .unwrap();
-    assert_eq!(out.matches("%eax").count(), 4);
+    let eax_tokens = |assembly: &str| {
+        assembly
+            .lines()
+            .map(|line| {
+                line.split('#')
+                    .next()
+                    .unwrap_or_default()
+                    .split(|c: char| c.is_whitespace() || matches!(c, ',' | '(' | ')'))
+                    .filter(|token| *token == "%eax")
+                    .count()
+            })
+            .sum::<usize>()
+    };
+    let original_eax_tokens = eax_tokens(&source);
+    assert!(original_eax_tokens > 0);
+    assert_eq!(eax_tokens(&out), 2 * original_eax_tokens);
     assert!(out.contains("copy:\n"));
     assert!(!out.contains("%copy"));
 }
