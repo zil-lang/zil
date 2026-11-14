@@ -50,15 +50,72 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
+        self.loop_body(frame, condition, None, body, b, depth)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn pattern_loop(
+        &mut self,
+        frame: &mut Frame,
+        statement: NodeId,
+        pattern: &SemanticOriginalPattern,
+        value: &SemanticOriginalExpr,
+        body: &SemanticOriginalBlock,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.loop_body(
+            frame,
+            Some(value),
+            Some((statement, pattern)),
+            body,
+            b,
+            depth,
+        )
+    }
+    fn loop_body(
+        &mut self,
+        frame: &mut Frame,
+        condition: Option<&SemanticOriginalExpr>,
+        pattern: Option<(NodeId, &SemanticOriginalPattern)>,
+        body: &SemanticOriginalBlock,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.step(depth, b)?;
         let entered = frame.alive;
         let before = self.copy_locals(&frame.locals, b)?;
+        let mut subject = None;
         if let Some(condition) = condition {
             let term = self.expression(frame, condition, b, depth + 1)?;
-            let boolean = self.atom(Type::Bool, b)?;
-            self.unify(term, boolean, depth + 1, b)?;
+            if pattern.is_none() {
+                let boolean = self.atom(Type::Bool, b)?;
+                self.unify(term, boolean, depth + 1, b)?;
+            } else {
+                subject = Some(term);
+            }
         }
         let after_condition = self.copy_locals(&frame.locals, b)?;
+        if let Some((statement, pattern)) = pattern {
+            let subject =
+                subject.ok_or_else(|| fail("original pattern loop has no condition value"))?;
+            self.pattern_bind(
+                frame,
+                statement,
+                &mut Vec::new(),
+                pattern,
+                subject,
+                b,
+                depth + 1,
+            )?;
+            Self::push(
+                &mut self.needs,
+                Need {
+                    term: subject,
+                    predicate: Predicate::SyncDrop,
+                },
+                b,
+            )?;
+        }
         Self::push(
             &mut self.loops,
             LoopFrame {
@@ -75,6 +132,8 @@ impl Solver<'_, '_> {
             .pop()
             .ok_or_else(|| fail("original loop loses its control frame"))?;
         if frame.alive {
+            self.cleanup(&frame.locals[before.len()..], b)?;
+            frame.locals.truncate(before.len());
             let locals = self.copy_locals(&frame.locals, b)?;
             Self::push(&mut flow.continues, locals, b)?;
         }

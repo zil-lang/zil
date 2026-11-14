@@ -264,7 +264,7 @@ impl Solver<'_, '_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn pattern_bind(
+    pub(super) fn pattern_bind(
         &mut self,
         frame: &mut Frame,
         statement: NodeId,
@@ -365,7 +365,7 @@ impl Solver<'_, '_> {
                     ..
                 } = &pattern.kind
                 {
-                    if !matches!(self.state.arena[self.root(subject,b)?], Kind::Nominal {definition,..} if definition == *expected)
+                    if !matches!(self.state.arena[self.type_root(subject,b)?], Kind::Nominal {definition,..} if definition == *expected)
                     {
                         return Err(fail(
                             "original pattern selects another enum declaration identity",
@@ -401,6 +401,76 @@ impl Solver<'_, '_> {
                 "original pattern needs its complete mode, place and field occurrence proof",
             )),
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn if_let_statement(
+        &mut self,
+        frame: &mut Frame,
+        statement: NodeId,
+        pattern: &SemanticOriginalPattern,
+        value: &SemanticOriginalExpr,
+        then_body: &SemanticOriginalBlock,
+        else_body: Option<&SemanticOriginalBlock>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let subject = self.expression(frame, value, b, depth + 1)?;
+        let entered = frame.alive;
+        let before = self.copy_locals(&frame.locals, b)?;
+        let prefix = before.len();
+        let irrefutable = self.pattern_bind(
+            frame,
+            statement,
+            &mut Vec::new(),
+            pattern,
+            subject,
+            b,
+            depth + 1,
+        )?;
+        self.block(frame, then_body, b, depth + 1)?;
+        if frame.alive {
+            self.cleanup(&frame.locals[prefix..], b)?;
+        }
+        frame.locals.truncate(prefix);
+        let then_alive = frame.alive;
+        let then_locals = std::mem::replace(&mut frame.locals, before);
+        frame.alive = entered;
+        // A failed pattern still owns the complete unmatched subject. Until
+        // a narrower variant cleanup proof exists, require its full SyncDrop.
+        if !irrefutable {
+            Self::push(
+                &mut self.needs,
+                Need {
+                    term: subject,
+                    predicate: Predicate::SyncDrop,
+                },
+                b,
+            )?;
+        }
+        if let Some(body) = else_body {
+            self.block(frame, body, b, depth + 1)?;
+        }
+        let else_alive = frame.alive && !irrefutable;
+        if then_locals.len() != frame.locals.len() {
+            return Err(fail("original if-let changes enclosing lexical inventory"));
+        }
+        for (then, other) in then_locals.iter().zip(&mut frame.locals) {
+            b.spend(1, WORK)?;
+            other.used = match (then_alive, else_alive) {
+                (true, true) => then.used || other.used,
+                (true, false) => then.used,
+                _ => other.used,
+            };
+            other.initialized = match (then_alive, else_alive) {
+                (true, true) => then.initialized && other.initialized,
+                (true, false) => then.initialized,
+                _ => other.initialized,
+            };
+        }
+        frame.alive = then_alive || else_alive;
+        Ok(())
     }
 
     pub(super) fn match_statement(

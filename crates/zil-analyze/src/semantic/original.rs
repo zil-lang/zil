@@ -2569,13 +2569,20 @@ impl Solver<'_, '_> {
                     };
                     let expected = self.type_root(frame.result, b)?;
                     let actual = self.type_root(value, b)?;
-                    if let Kind::ErrorUnion { result, .. } = self.state.arena[expected]
+                    if let Kind::ErrorUnion { error, result } = self.state.arena[expected]
                         && !matches!(self.state.arena[actual], Kind::ErrorUnion { .. })
                     {
                         // Ordinary return values are the success arm of the
                         // declaration's real ErrorUnion, never a new error type
                         // inferred from a selected concrete caller.
-                        self.unify(value, result, depth + 1, b)?;
+                        let arm = if self.same_original(actual, error, b, depth + 1)?
+                            && !self.same_original(actual, result, b, depth + 1)?
+                        {
+                            error
+                        } else {
+                            result
+                        };
+                        self.unify(value, arm, depth + 1, b)?;
                     } else {
                         self.unify(value, frame.result, depth + 1, b)?;
                     }
@@ -2625,6 +2632,30 @@ impl Solver<'_, '_> {
                 }
                 CoreStatementKind::Match { value, arms } => {
                     self.match_statement(frame, statement.id, value, arms, b, depth + 1)?;
+                }
+                CoreStatementKind::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => {
+                    self.if_let_statement(
+                        frame,
+                        statement.id,
+                        pattern,
+                        value,
+                        then_body,
+                        else_body.as_ref(),
+                        b,
+                        depth + 1,
+                    )?;
+                }
+                CoreStatementKind::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
+                    self.pattern_loop(frame, statement.id, pattern, value, body, b, depth + 1)?;
                 }
                 CoreStatementKind::While { condition, body } => {
                     self.loop_statement(frame, Some(condition), body, b, depth + 1)?;
@@ -3008,7 +3039,10 @@ impl Solver<'_, '_> {
                 .ok_or_else(|| fail("original parameter lost its local"))?
                 .anchor = Some(LocalAnchor::Parameter(index as u32));
         }
-        if matches!(signature.result, SemanticTypeRecipe::ErrorUnion { .. }) {
+        if !matches!(
+            signature.result,
+            SemanticTypeRecipe::Opaque { .. } | SemanticTypeRecipe::OriginalType { .. }
+        ) {
             let expected = self.recipe(&frame, &signature.result, b, depth + 1)?;
             self.unify(frame.result, expected, depth + 1, b)?;
         }

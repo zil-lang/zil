@@ -28,11 +28,6 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Value> {
-        if !actuals.is_empty() {
-            return Err(fail(
-                "actual synchronization operation invents generic actuals",
-            ));
-        }
         let instruction = function
             .blocks
             .get(block.0 as usize)
@@ -103,6 +98,35 @@ impl Check<'_, '_> {
             return Err(fail(
                 "synchronization call changes its ordered complete inputs",
             ));
+        }
+        if !actuals.is_empty() {
+            if intrinsic == original::sealed::Intrinsic::ThreadScope {
+                if actuals.len() != expected.len() {
+                    return Err(fail(
+                        "actual scoped-thread call changes its complete Type actual arity",
+                    ));
+                }
+                for (actual, expected) in actuals.iter().zip(&expected) {
+                    if !matches!(self.actual_value(instance,actual,b,0)?,crate::semantic::value::Argument::Type(value) if value==*expected)
+                    {
+                        return Err(fail(
+                            "actual scoped-thread Type actual changes its original input or parent environment",
+                        ));
+                    }
+                }
+            } else {
+                let [actual] = actuals else {
+                    return Err(fail(
+                        "actual synchronization call changes its payload Type arity",
+                    ));
+                };
+                if !matches!(self.actual_value(instance,actual,b,0)?,crate::semantic::value::Argument::Type(value) if value.ty==Type::I32&&empty(&value.life)&&value.classes.is_empty())
+                {
+                    return Err(fail(
+                        "actual synchronization Type actual changes its independently resolved sealed payload",
+                    ));
+                }
+            }
         }
         for (id, wanted) in values.iter().zip(&expected) {
             operations::available_before(

@@ -37,12 +37,32 @@ impl Solver<'_, '_> {
         }
         let mut inputs = Vec::new();
         let element = if new {
-            let [CoreGenericArgument::Type(element)] = written else {
-                return Err(fail(
-                    "original Store construction needs exactly its element Type actual",
-                ));
-            };
-            self.recipe(frame, element, b, depth + 1)?
+            match written {
+                [CoreGenericArgument::Type(element)] => {
+                    self.recipe(frame, element, b, depth + 1)?
+                }
+                [] => {
+                    let result = self.type_root(frame.result, b)?;
+                    let Kind::Wrapped(Wrapper::Managed, payload) = self.state.arena[result] else {
+                        return Err(unknown(
+                            "original inferred Store element needs its receiving declaration context",
+                        ));
+                    };
+                    let Kind::Wrapped(Wrapper::Store, element) =
+                        self.state.arena[self.type_root(payload, b)?]
+                    else {
+                        return Err(fail(
+                            "original inferred Store result changes its resource family",
+                        ));
+                    };
+                    element
+                }
+                _ => {
+                    return Err(fail(
+                        "original Store construction changes its full Type actual arity",
+                    ));
+                }
+            }
         } else {
             if !written.is_empty() {
                 return Err(fail("original Store operation invents generic actuals"));

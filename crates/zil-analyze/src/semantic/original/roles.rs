@@ -238,7 +238,7 @@ impl Solver<'_, '_> {
     pub(super) fn check_roles(&mut self, b: &mut Budget) -> CompileResult<()> {
         let pending = std::mem::take(&mut self.callable_needs);
         for need in pending {
-            let term = self.root(need.term, b)?;
+            let term = self.type_root(need.term, b)?;
             b.spend(
                 match &self.state.arena[term] {
                     Kind::Closure {
