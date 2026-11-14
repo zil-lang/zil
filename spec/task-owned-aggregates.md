@@ -30,6 +30,27 @@ heads, local borrows and reborrows for all retained contexts, including workers
 whose result owns its storage. The frame's retained input loans remain live
 through Pending, Ready, cancellation and closing until actual destruction.
 
+Task input-port enumeration follows the actual type tree in declaration order.
+The outer order is the worker's complete parameter order. Within a parameter,
+visit Tuple, Record and Package fields, Enum variants and their fields, Array
+elements and closure captures in their respective declared orders. At an
+opaque retained carrier, visit its independently checked port directory in
+that directory's order at the carrier's position in the enclosing tree. Do not
+collect all visible Address slots before visiting opaque carriers. Thus a Tuple
+whose first field is a Task with retained ports and whose second field is an
+Address enumerates that Task's ports before the Address field.
+
+Port ordinals, actual worker parameter ordinals and logical class indices are
+separate coordinates. Preserve all complete child domains, including phantom
+classes and equal outside images. This port order does not change the canonical
+logical-domain ordering or permit compacting worker parameter indices. An
+Address is one physical leaf: traversal of its Pointee or TypeArgument metadata
+does not create further physical ports. A Managed wrapper does not itself
+create an address or authorize a byte projection; retained opaque ports still
+require the actual carrier and its checked access operation. Variant-dependent
+ports retain the actual tag, initialization and source obligations. Enumeration
+alone grants no root, loan, access mode, cleanup or thread capability.
+
 This continuation qualification does not grant Transfer, Share, guard
 suspension, borrowed-capture escape, unknown cleanup, or permission to execute a
 Task on another thread. A Task result's metadata does not make its owner head a
