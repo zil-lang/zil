@@ -402,6 +402,8 @@ struct Budget {
     // Immutable replacement declarations/schedules only; no source permission.
     stored_replacement_functions: BTreeSet<FunctionId>,
     stored_replacements: Vec<Option<std::rc::Rc<stored_flow::replacements::Context>>>,
+    semantic_callables: Vec<semantic::callable_obligations::PendingCallable>,
+    proven_static_occurrences: BTreeSet<(ClosureId,StoragePosition)>,
     task_frames: BTreeMap<semantic::task_domains::FrameKey,semantic::task_domains::FrameState>,
     task_constructors: BTreeMap<semantic::task_domains::ConstructorKey,semantic::task_domains::ConstructorObligation>,
     task_workers: BTreeSet<FunctionId>,
@@ -518,6 +520,8 @@ impl Budget {
             replacements: false,
             stored_replacement_functions: BTreeSet::new(),
             stored_replacements: Vec::new(),
+            semantic_callables: Vec::new(),
+            proven_static_occurrences: BTreeSet::new(),
             task_frames: BTreeMap::new(),
             task_constructors: BTreeMap::new(),
             task_workers: BTreeSet::new(),
@@ -1415,6 +1419,7 @@ fn check_module_budget(
     tasks::transfer::finish(module, &mut budget)?;
     registration::check_phase(module, &mut budget)?;
     semantic::task_domains::drain(module,&mut budget)?;
+    semantic::callable_obligations::drain(module,&mut budget)?;
     Ok(CheckedModule {
         fingerprint,
         uses_owned_sum_extension: budget.sums,

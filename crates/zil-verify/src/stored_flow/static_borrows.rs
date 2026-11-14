@@ -648,5 +648,9 @@ pub(super) fn validate(
             "constant field dependency cycle has no actual program-static root",
         ));
     }
+    // Exact actual source occurrences, published only after every constructor,
+    // write and Return and the whole least-root graph have succeeded.
+    b.spend(rooted.len())?;
+    b.proven_static_occurrences.extend(rooted);
     Ok(())
 }

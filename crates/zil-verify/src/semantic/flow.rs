@@ -73,6 +73,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         // equates those outside images with the rigid creator's identities.
     }
     context.finish_external_methods(module,&mut external,&mut active,b)?;
+    context.defer_callable_shapes(module,&mut external,&checked_instances,b)?;
     // External shape requests are obligations, not proof tokens. No Some
     // program is published while its actual entry/static memory is pending.
     if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty() {

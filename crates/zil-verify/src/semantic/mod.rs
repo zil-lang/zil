@@ -19,6 +19,7 @@ pub(crate) use nominal_origins::charge_origin as charge_intrinsic_origin;
 mod closures;
 mod opaque;
 mod method_obligations;
+pub(crate) mod callable_obligations;
 pub(crate) mod task_domains;
 mod catalogue;
 mod instances;
