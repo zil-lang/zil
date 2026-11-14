@@ -1,0 +1,32 @@
+{
+  "source_base": "fd028ceb3807b986eb3600664f32266a837c8139",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T162343Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-verify/src/class_flow.rs": "ee2bed8d8625f7a0e706a23a26c1e2ba69d20ec1e1b511dd7d31e1f6573b0030",
+    "crates/zil-verify/src/class_flow/task_equations.rs": "1fb174a3c7e452ebc6ff899a9ed8447ba899362de496845113315135dad7b67b",
+    "crates/zil-verify/src/semantic/task_domains.rs": "debab3e6233e105be48c1e400de6be113aae529906601bd71f2dbf6c663adcbf",
+    "crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "ecbc8dbcc9a0a3be3345ab2326ca7d29fe49da508fe1810b1a65572ed666c190",
+    "crates/zil-verify/src/stored_flow/task_address/inputs.rs": "ab198762e131bf1ec54e2ee5aed33f3201772fba2243e9e007ee94c8bdc81571",
+    "crates/zil-verify/src/stored_flow/task_address/results.rs": "4929b75513cf24a0f1dcc1058aad15576b251812e43ff8c35937c852b0bb6f78",
+    "crates/zil-verify/src/tasks.rs": "9df8f59a3b64a4d3c8812b746b17921450db6bb3ccbf3b713a2bc95cb81aadef",
+    "crates/zil-verify/src/tasks/frame_shape.rs": "aa19035fbd50ca92228d3395333592e6cffe9e07536eb8bb7bb25da2e15f1ee1",
+    "crates/zil-verify/src/tasks/owned.rs": "b6b2c877559de3545bc0ee2d62db4a4f0d4097a5879c6e1217d592a12e4a302c"
+  },
+  "artifacts": {
+    "source.patch": "aa3ffb69519ee8bd6bfbac5f59838869cceec4c98266fa4e1c440920864a9088",
+    "untracked/crates/zil-verify/src/class_flow/task_equations.rs": "1fb174a3c7e452ebc6ff899a9ed8447ba899362de496845113315135dad7b67b",
+    "untracked/crates/zil-verify/src/semantic/task_domains/ports.rs": "622abbfd3b0203eaf1c81ffc9ecf681cffd9e0731c48ef7c5d12261ebc6a872d",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/inputs.rs": "ab198762e131bf1ec54e2ee5aed33f3201772fba2243e9e007ee94c8bdc81571",
+    "untracked/crates/zil-verify/src/stored_flow/task_address/results.rs": "4929b75513cf24a0f1dcc1058aad15576b251812e43ff8c35937c852b0bb6f78",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "61d16fe88003befb533104778396f774164072088ba88e25fcdd9d677ce47c14"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}

@@ -1,0 +1,929 @@
+diff --git a/crates/zil-verify/src/class_flow.rs b/crates/zil-verify/src/class_flow.rs
+index f733f2d37..87800187d 100644
+--- a/crates/zil-verify/src/class_flow.rs
++++ b/crates/zil-verify/src/class_flow.rs
+@@ -2,6 +2,7 @@
+ //! storage initialization, parent loans, effects or physical access rights.
+ use super::*;
+ mod array_outer;
++mod task_equations;
+ fn bad(message: &str) -> Diagnostic {
+     reject("E-VERIFY-CLASS-EQUATION", None, message)
+ }
+@@ -1198,8 +1199,13 @@ fn check_with(
+                 }
+                 let out = i.result.map(|v| &values[v.0 as usize]);
+                 if phase == 0
+-                    && let (Some(result), Some(ports), Some(vars)) = (i.result, out, header.as_ref())
+-                    && matches!(i.kind, InstructionKind::MakeAggregate { .. } | InstructionKind::MakeOwnedTuple { .. })
++                    && let (Some(result), Some(ports), Some(vars)) =
++                        (i.result, out, header.as_ref())
++                    && matches!(
++                        i.kind,
++                        InstructionKind::MakeAggregate { .. }
++                            | InstructionKind::MakeOwnedTuple { .. }
++                    )
+                 {
+                     let key = semantic::constructor_classes::Key {
+                         function: f.id,
+@@ -1213,20 +1219,28 @@ fn check_with(
+                     // it never grounds an output-only class or an address.
+                     if b.semantic_constructor_classes.contains_key(&key) {
+                         dynamic_metadata::ty(&f.values[result.0 as usize], b)?;
+-                        if let Some(contract) = assumptions { signature_life::charge(contract, b)?; }
++                        if let Some(contract) = assumptions {
++                            signature_life::charge(contract, b)?;
++                        }
+                     }
+                     let image = if let Some(source) = b.semantic_constructor_classes.get(&key) {
+                         if assumptions != Some(&source.header)
+                             || f.values.get(result.0 as usize) != Some(&source.ty)
+                             || ports.keys.len() != source.classes.len()
+-                            || ports.keys.iter().enumerate().any(|(class, (path, index))| !path.is_empty() || *index != class as u32)
++                            || ports.keys.iter().enumerate().any(|(class, (path, index))| {
++                                !path.is_empty() || *index != class as u32
++                            })
+                         {
+-                            return Err(bad("constructor logical source differs from its exact actual type/header occurrence"));
++                            return Err(bad(
++                                "constructor logical source differs from its exact actual type/header occurrence",
++                            ));
+                         }
+                         let count = source.classes.len();
+                         b.spend(count)?;
+                         Some(b.semantic_constructor_classes[&key].classes.clone())
+-                    } else { None };
++                    } else {
++                        None
++                    };
+                     if let Some(image) = image {
+                         for (class, binder) in ports.classes.iter().zip(image) {
+                             e.equal(*class, select(vars, binder)?, b)?;
+@@ -1383,115 +1397,25 @@ fn check_with(
+                             )?;
+                         }
+                     }
+-                    InstructionKind::TaskCreate {
+-                        arguments,
+-                        port_bindings,
+-                        ..
+-                    }
+-                    | InstructionKind::TaskCreateOwned {
+-                        arguments,
+-                        port_bindings,
+-                        ..
+-                    } if b.task_sources() => {
++                    InstructionKind::TaskCreate { arguments, .. }
++                    | InstructionKind::TaskCreateOwned { arguments, .. }
++                        if b.task_sources() =>
++                    {
+                         if let Some(out) = out {
+-                            if matches!(i.kind, InstructionKind::TaskCreateOwned { .. })
+-                                && b.task_failure_carriers
+-                                && let Some(Type::ErrorUnion { error, .. }) =
+-                                    i.result.and_then(|id| f.values.get(id.0 as usize))
+-                                && let Some(error_shape) = shape(error)
+-                            {
+-                                for slot in &error_shape.slots {
+-                                    let [
+-                                        PlaceProjection::Field(1),
+-                                        PlaceProjection::Field(argument),
+-                                    ] = slot.path.as_slice()
+-                                    else {
+-                                        return Err(bad(
+-                                            "failure class source has no actual input position",
+-                                        ));
+-                                    };
+-                                    let path = [LifeTypeProjection::Place(
+-                                        PlaceProjection::ErrorArm(true),
+-                                    )];
+-                                    let class = out
+-                                        .keys
+-                                        .iter()
+-                                        .position(|(p, c)| {
+-                                            p.as_slice() == path && *c == slot.binder
+-                                        })
+-                                        .ok_or_else(|| bad("failure actual class is absent"))?;
+-                                    let input = *arguments
+-                                        .get(*argument as usize)
+-                                        .ok_or_else(|| bad("failure actual input is absent"))?;
+-                                    let source =
+-                                        values[input.0 as usize].outer.ok_or_else(|| {
+-                                            bad("failure actual input Address class is absent")
+-                                        })?;
+-                                    e.equal(out.classes[class], source, b)?;
+-                                }
+-                            }
+-                            for row in port_bindings {
+-                                b.spend(out.task_ports.len())?;
+-                                let path = vec![
+-                                    zil_ir::ContractProjection::Place(PlaceProjection::ErrorArm(
+-                                        false,
+-                                    )),
+-                                    zil_ir::ContractProjection::RetainedPort(row.port),
+-                                ];
+-                                let index = out
+-                                    .task_ports
+-                                    .iter()
+-                                    .find(|(p, _)| p == &path)
+-                                    .map(|(_, i)| *i)
+-                                    .ok_or_else(|| {
+-                                        bad("Task constructor class omits actual port")
+-                                    })?;
+-                                let StorageBase::Parameter(input) = row.source.base else {
+-                                    return Err(bad("Task port class has no actual input"));
+-                                };
+-                                let arg = arguments
+-                                    .get(input as usize)
+-                                    .ok_or_else(|| bad("Task class input is absent"))?;
+-                                e.equal(
+-                                    out.classes[index],
+-                                    values[arg.0 as usize].outer.ok_or_else(|| {
+-                                        bad("Task input has no outer Address class")
+-                                    })?,
+-                                    b,
+-                                )?;
+-                            }
++                            task_equations::create(
++                                module, f, i, arguments, &values, out, &mut e, b,
++                            )?;
+                         }
+                     }
+                     InstructionKind::TaskPoll { task }
+                         if b.task_sources()
+-                            && matches!(super::tasks::task_payload(&f.values[task.0 as usize]),
+-                            Some(Type::Task { result, .. })
+-                                if matches!(result.as_ref(), Type::Address { mutable: false, .. })) =>
++                            && matches!(
++                                super::tasks::task_payload(&f.values[task.0 as usize]),
++                                Some(Type::Task { .. })
++                            ) =>
+                     {
+-                        if let Some(out) = out
+-                            && !values[task.0 as usize].task_ports.is_empty()
+-                        {
+-                            let input = &values[task.0 as usize];
+-                            super::tasks::charge_result_selection(&f.values[task.0 as usize], b)?;
+-                            let port = input
+-                                .task_ports
+-                                .iter()
+-                                .find(|(p, _)| {
+-                                    matches!(p.as_slice(), [zil_ir::ContractProjection::RetainedPort(port)]
+-                                        if super::tasks::result_port(&f.values[task.0 as usize], *port))
+-                                })
+-                                .ok_or_else(|| bad("TaskPoll has no actual retained class"))?
+-                                .1;
+-                            let result = out
+-                                .keys
+-                                .iter()
+-                                .position(|(p, c)| {
+-                                    p == &vec![LifeTypeProjection::Place(
+-                                        PlaceProjection::ErrorArm(false),
+-                                    )] && *c == 0
+-                                })
+-                                .ok_or_else(|| bad("TaskPoll has no actual Ready class"))?;
+-                            e.equal(out.classes[result], input.classes[port], b)?;
++                        if let Some(out) = out {
++                            task_equations::poll(f, i, *task, &values, out, &mut e, b)?;
+                         }
+                     }
+                     InstructionKind::BorrowCapture { index, .. } if !captures.is_empty() => {
+@@ -1511,7 +1435,9 @@ fn check_with(
+                         }
+                     }
+                     InstructionKind::ReadCapture { index }
+-                    | InstructionKind::TakeCapture { index } if !captures.is_empty() => {
++                    | InstructionKind::TakeCapture { index }
++                        if !captures.is_empty() =>
++                    {
+                         let source = captures
+                             .get(*index as usize)
+                             .ok_or_else(|| bad("capture class index absent"))?;
+diff --git a/crates/zil-verify/src/semantic/task_domains.rs b/crates/zil-verify/src/semantic/task_domains.rs
+index 2cb0748d2..04bc6047b 100644
+--- a/crates/zil-verify/src/semantic/task_domains.rs
++++ b/crates/zil-verify/src/semantic/task_domains.rs
+@@ -1,6 +1,8 @@
+ //! Request-local Task frame metadata and outstanding constructor obligations.
+ //! Metadata is not WF, a worker entry, a root, a loan, or a Closed fact.
+ use super::*;
++#[path = "task_domains/ports.rs"]
++mod ports;
+ 
+ #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub(crate) struct FrameKey {
+@@ -802,156 +804,12 @@ pub(crate) fn raw_input_ports(
+     life: &StorageLifeShape,
+     b: &mut Budget,
+ ) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
+-    let mut result = Vec::new();
+-    for slot in &life.slots {
+-        b.spend(slot.path.len().saturating_add(1))?;
+-        let path = slot
+-            .path
+-            .iter()
+-            .copied()
+-            .map(LifeTypeProjection::Place)
+-            .collect::<Vec<_>>();
+-        let leaf = lifetimes::select(ty, &path, b)?;
+-        dynamic_metadata::ty(leaf, b)?;
+-        result.push((
+-            leaf.clone(),
+-            slot.mode,
+-            slot.binder,
+-            slot.path
+-                .iter()
+-                .copied()
+-                .map(ContractProjection::Place)
+-                .collect(),
+-        ));
+-    }
+-    let mut payload = ty;
+-    let mut prefix = Vec::new();
+-    loop {
+-        match payload {
+-            Type::BorrowedStorage { storage, .. } => payload = storage,
+-            Type::Managed(inner) => {
+-                payload = inner;
+-                prefix.push(LifeTypeProjection::Pointee);
+-            }
+-            _ => break,
+-        }
+-    }
+-    let opaque = match payload {
+-        Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
+-            Some(retained_life)
+-        }
+-        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+-            b.spend(module.dyn_interfaces.len())?;
+-            Some(
+-                &module
+-                    .dyn_interfaces
+-                    .iter()
+-                    .find(|row| row.id == *interface)
+-                    .ok_or_else(|| bad("Task input opaque interface is absent"))?
+-                    .retained_life,
+-            )
+-        }
+-        _ => None,
+-    };
+-    if let Some(shape) = opaque {
+-        dynamic_metadata::retained_shape(shape, b)?;
+-        for (index, port) in shape.ports.iter().enumerate() {
+-            let class = if prefix.is_empty() {
+-                port.binder
+-            } else {
+-                let mut rows = life
+-                    .retained
+-                    .iter()
+-                    .filter(|row| row.path == prefix && row.class == port.binder);
+-                let row = rows
+-                    .next()
+-                    .ok_or_else(|| bad("Task opaque input loses its complete child map"))?;
+-                if rows.next().is_some() {
+-                    return Err(bad("Task opaque child class mapping duplicated"));
+-                }
+-                row.binder
+-            };
+-            result.push((
+-                port.leaf.clone(),
+-                port.mode,
+-                class,
+-                vec![ContractProjection::RetainedPort(index as u32)],
+-            ));
+-        }
+-    }
+-    if let Type::Closure(id) = payload {
+-        b.spend(module.closures.len())?;
+-        let mut definitions = module.closures.iter().filter(|row| row.id == *id);
+-        let closure = definitions
+-            .next()
+-            .ok_or_else(|| bad("Task closure input has no exact capture inventory"))?;
+-        if definitions.next().is_some() {
+-            return Err(bad("Task closure input has duplicate original identity"));
+-        }
+-        let header = closure
+-            .storage_life
+-            .as_ref()
+-            .ok_or_else(|| bad("Task closure complete capture domain is Unknown"))?;
+-        signature_life::charge(header, b)?;
+-        for binding in &header.bindings {
+-            let StorageBase::Capture(ordinal) = binding.position.base else {
+-                continue;
+-            };
+-            let StorageBinder::Fixed(class) = binding.binder else {
+-                return Err(bad(
+-                    "Task closure capture port escapes its persistent domain",
+-                ));
+-            };
+-            if class >= header.fixed_binder_count {
+-                return Err(bad(
+-                    "Task closure capture port exceeds its full fixed domain",
+-                ));
+-            }
+-            let capture = closure
+-                .captures
+-                .get(ordinal as usize)
+-                .ok_or_else(|| bad("Task closure port selects a missing actual capture"))?;
+-            let leaf = contract_leaf(module, capture, &binding.position.path, b)?;
+-            let mode = match &leaf {
+-                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+-                Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+-                Type::Desc(_) => StoredBorrowMode::ReadOnlyDescription,
+-                _ => {
+-                    return Err(bad(
+-                        "Task closure port does not select a complete borrowed leaf",
+-                    ));
+-                }
+-            };
+-            let class = if prefix.is_empty() {
+-                class
+-            } else {
+-                let mut rows = life
+-                    .retained
+-                    .iter()
+-                    .filter(|row| row.path == prefix && row.class == class);
+-                let row = rows.next().ok_or_else(|| {
+-                    bad("Task closure input loses its exact complete child-domain map")
+-                })?;
+-                if rows.next().is_some() {
+-                    return Err(bad("Task closure child domain map is duplicated"));
+-                }
+-                row.binder
+-            };
+-            b.spend(binding.position.path.len().saturating_add(1))?;
+-            if result.len() >= b.limits.max_nodes {
+-                return Err(limit("Task complete capture-port inventory exceeded"));
+-            }
+-            let mut path = vec![ContractProjection::Capture(ordinal)];
+-            path.extend_from_slice(&binding.position.path);
+-            result.push((leaf, mode, class, path));
+-        }
+-    }
+-    Ok(result)
++    ports::expand(module, ty, life, b)
+ }
+ 
+ /// Select only a declared logical/physical borrow occurrence. This never
+ /// computes a GEP or proves that the selected actual root remains live.
+-fn contract_leaf(
++pub(crate) fn contract_leaf(
+     module: &TypedModule,
+     root: &Type,
+     path: &[ContractProjection],
+@@ -965,7 +823,14 @@ fn contract_leaf(
+         }
+         match projection {
+             ContractProjection::Place(field) => {
+-                current = lifetimes::select(current, &[LifeTypeProjection::Place(*field)], b)?
++                current = match (current, field) {
++                    (Type::Array { element, length }, PlaceProjection::Field(index))
++                        if index < length =>
++                    {
++                        element
++                    }
++                    _ => lifetimes::select(current, &[LifeTypeProjection::Place(*field)], b)?,
++                }
+             }
+             ContractProjection::Capture(ordinal) => {
+                 let Type::Closure(id) = current else {
+@@ -1369,8 +1234,9 @@ pub(crate) fn metadata_zero_type(
+     Ok(if found { Some(true) } else { None })
+ }
+ 
+-/// Type WF uses a complete frame cursor and queues every constructor; it must
+-/// not recursively execute the constructor kernel from inside checked_value.
++/// A declared carrier is interpreted without choosing a local worker. Every
++/// actual constructor retains its separate exact-site full-frame obligation;
++/// interpreting a type must never execute that constructor recursively.
+ pub(crate) fn task_metadata_domain(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<u32> {
+     let Type::Task {
+         result,
+@@ -1380,45 +1246,122 @@ pub(crate) fn task_metadata_domain(module: &TypedModule, ty: &Type, b: &mut Budg
+         return Err(bad("Task domain cursor selects another type"));
+     };
+     dynamic_metadata::retained_shape(retained_life, b)?;
+-    if retained_life.binder_count == 0
+-        && retained_life.ports.is_empty()
+-        && retained_life.retained.is_empty()
+-        && retained_life.nominal_arguments.is_empty()
+-    {
+-        let (count, _) = dynamic_witness::intrinsic_domain(module, result, b)?;
+-        if count == 0 {
+-            return Ok(0);
+-        }
+-        return Err(bad(
+-            "zero Task context omits a nonzero complete result domain",
+-        ));
+-    }
+-    let mut found = false;
+-    let workers = workers(module, b)?;
+-    for worker in workers {
+-        for frame in metadata_candidates(worker, b)? {
+-            if frame.result_type == **result && frame.shape == *retained_life {
+-                found = true;
+-            }
+-            if **result == Type::Unit {
+-                let mut context = frame.shape.clone();
+-                context
+-                    .retained
+-                    .retain(|row| row.path != [LifeTypeProjection::Result]);
+-                if context == *retained_life {
+-                    found = true;
+-                }
++    crate::tasks::require_closed_context(ty, None)?;
++    // An incoming Task carries an untrusted joint-domain declaration. Do not
++    // select a local worker by result type: complete actual constructors and
++    // original source worlds are checked at their own exact sites.
++    let mut inputs = BTreeMap::<u32, Vec<u32>>::new();
++    let mut grounded = BTreeSet::new();
++    for row in &retained_life.retained {
++        b.spend(
++            inputs
++                .len()
++                .saturating_add(grounded.len())
++                .saturating_add(1),
++        )?;
++        if let [LifeTypeProjection::Parameter(parameter)] = row.path.as_slice() {
++            let map = inputs.entry(*parameter).or_default();
++            b.spend(map.len().saturating_add(1))?;
++            if row.class as usize != map.len() || map.contains(&row.binder) {
++                return Err(bad(
++                    "Task input full-class map is incomplete or noninjective",
++                ));
+             }
++            map.push(row.binder);
++            grounded.insert(row.binder);
+         }
+     }
+-    if !found {
+-        return Err(bad(
+-            "Task type has no complete source frame metadata; WF remains pending",
+-        ));
++    if grounded.len() != retained_life.binder_count as usize {
++        return Err(bad("Task joint domain contains an ungrounded input class"));
+     }
++    for row in &retained_life.nominal_arguments {
++        let Some(LifeTypeProjection::Parameter(parameter)) = row.path.first() else {
++            return Err(bad(
++                "Task phantom occurrence has no original parameter selector",
++            ));
++        };
++        b.spend(inputs.len().saturating_add(row.path.len()))?;
++        if !inputs
++            .get(parameter)
++            .is_some_and(|map| map.contains(&row.binder))
++        {
++            return Err(bad(
++                "Task phantom occurrence escapes its complete input map",
++            ));
++        }
++    }
++    result_life(module, ty, b)?;
+     Ok(retained_life.binder_count)
+ }
+ 
++/// The result domain is interpreted from the whole R constructor, independently
++/// of every local worker and outside header image. The claimed child map must
++/// preserve all intrinsic classes, including phantom classes.
++pub(crate) fn result_life(
++    module: &TypedModule,
++    task: &Type,
++    b: &mut Budget,
++) -> Check<StorageLifeShape> {
++    let Type::Task {
++        result,
++        retained_life,
++    } = task
++    else {
++        return Err(bad("Task result domain selects another type"));
++    };
++    let life = crate::tasks::frame_shape::declared_life(module, result, b)?;
++    charge_life(&life, b)?;
++    b.spend(retained_life.retained.len())?;
++    let mut next = 0u32;
++    let mut injective = BTreeSet::new();
++    for row in &retained_life.retained {
++        if row.path != [LifeTypeProjection::Result] {
++            continue;
++        }
++        b.spend(injective.len().saturating_add(1))?;
++        if row.class != next
++            || row.binder >= retained_life.binder_count
++            || !injective.insert(row.binder)
++        {
++            return Err(bad(
++                "Task result full-class map is incomplete or noninjective",
++            ));
++        }
++        next = next
++            .checked_add(1)
++            .ok_or_else(|| limit("Task result class count overflow"))?;
++    }
++    if next != life.binder_count {
++        return Err(bad("Task result map omits or invents a complete R class"));
++    }
++    for (leaf, mode, class, _) in raw_input_ports(module, result, &life, b)? {
++        b.spend(
++            retained_life
++                .retained
++                .len()
++                .saturating_add(retained_life.ports.len()),
++        )?;
++        let parent = retained_life
++            .retained
++            .iter()
++            .find(|row| row.path == [LifeTypeProjection::Result] && row.class == class)
++            .ok_or_else(|| bad("Task result borrow omits its complete class map"))?
++            .binder;
++        let mut present = false;
++        for port in &retained_life.ports {
++            dynamic_metadata::ty(&port.leaf, b)?;
++            dynamic_metadata::ty(&leaf, b)?;
++            present |= port.binder == parent && port.mode == mode && port.leaf == leaf;
++        }
++        if !present {
++            return Err(bad(
++                "Task result borrow has no matching complete retained input-port upper",
++            ));
++        }
++    }
++    Ok(life)
++}
++
+ pub(crate) fn record_raw_constructor(
+     function: &TypedFunction,
+     instruction: &Instruction,
+diff --git a/crates/zil-verify/src/stored_flow/task_address.rs b/crates/zil-verify/src/stored_flow/task_address.rs
+index f4ce719fc..634eb8c2a 100644
+--- a/crates/zil-verify/src/stored_flow/task_address.rs
++++ b/crates/zil-verify/src/stored_flow/task_address.rs
+@@ -1,6 +1,8 @@
+ //! Independent external Task-result permission reconstruction.
+ use super::*;
+ mod carriers;
++mod inputs;
++mod results;
+ 
+ pub(super) fn port_relation(
+     module: &TypedModule,
+@@ -701,65 +703,40 @@ pub(super) fn transfer(
+                 let StorageBase::Parameter(index) = row.source.base else {
+                     return Err(err("Task port source is not a parameter"));
+                 };
+-                if row.port != ordinal as u32 || !row.source.path.is_empty() {
+-                    return Err(err("Task input has noncanonical port selector"));
++                if row.port != ordinal as u32 {
++                    return Err(err("Task input has a noncanonical retained port ordinal"));
+                 }
+                 let input = *arguments
+                     .get(index as usize)
+                     .ok_or_else(|| err("Task input is absent"))?;
+-                let actual = vt(f, input)?;
+-                type_work(actual, &b.limits.clone(), b)?;
++                let actual = inputs::leaf(module, vt(f, input)?, &row.source.path, b)?;
++                type_work(&actual, &b.limits.clone(), b)?;
+                 type_work(&port.leaf, &b.limits.clone(), b)?;
+-                if actual != &port.leaf {
+-                    return Err(err("Task port differs from actual complete argument type"));
++                if actual != port.leaf {
++                    return Err(err(
++                        "Task retained port differs from its exact complete input occurrence",
++                    ));
+                 }
+-                let permission = &get(input)?.address;
+-                all_inputs &= !permission.sources.is_empty();
++                let permission =
++                    inputs::permission(module, f, input, &row.source.path, values, state, b)?;
++                all_inputs &= !permission.sources.is_empty()
++                    || inputs::inactive(f, input, &row.source.path, values, b)?;
+                 insert(
+                     &mut out,
+                     &port_path(&[PlaceProjection::ErrorArm(false)], ordinal as u32),
+-                    permission,
++                    &permission,
+                     b,
+                 )?;
+             }
+-            out.creation_complete = Some(all_inputs);
+-            if matches!(target.return_type, Type::Address { mutable: false, .. }) {
+-                super::super::tasks::charge_result_selection(vt(f, produced)?, b)?;
+-                b.spend(port_bindings.len())?;
+-                let mut allowed = Vec::new();
+-                for row in port_bindings {
+-                    if super::super::tasks::result_port(vt(f, produced)?, row.port) {
+-                        allowed.push(row.source.base);
+-                    }
+-                }
+-                let summary = &summaries[target.id.0 as usize];
+-                let mut present = false;
+-                for (path, sources) in &summary.result {
+-                    if path.is_empty() {
+-                        present |= !sources.is_empty();
+-                        for source in sources {
+-                            b.spend(
+-                                source
+-                                    .leaf
+-                                    .len()
+-                                    .saturating_add(allowed.len())
+-                                    .saturating_add(source.inline.len())
+-                                    .saturating_add(1),
+-                            )?;
+-                            if !allowed.iter().any(|base| matches!(base, StorageBase::Parameter(index) if source.base == HoldRoot::Parameter(*index)))
+-                                || source.retained_port.is_some()
+-                                || !source.leaf.is_empty()
+-                                || !source.inline.is_empty()
+-                            {
+-                                return Err(err(
+-                                    "Task Ready source differs from its actual retained input",
+-                                ));
+-                            }
+-                        }
+-                    }
+-                }
+-                out.creation_complete = Some(all_inputs && present && summary.complete);
+-            }
++            let returns = results::check_worker(
++                module,
++                target,
++                vt(f, produced)?,
++                port_bindings,
++                &summaries[target.id.0 as usize],
++                b,
++            )?;
++            out.creation_complete = Some(all_inputs && returns);
+         }
+         InstructionKind::PlaceTagLocal { local, path }
+             if shape(&f.locals[local.0 as usize].ty) && path.is_empty() => {}
+@@ -796,32 +773,7 @@ pub(super) fn transfer(
+             state.locals[local.0 as usize] = Payload::default();
+         }
+         InstructionKind::TaskPoll { task } if shape(vt(f, *task)?) => {
+-            if task_type(vt(f, *task)?)
+-                .is_some_and(|(result, _)| matches!(result, Type::Address { mutable: false, .. }))
+-            {
+-                let (_, context) = task_type(vt(f, *task)?).unwrap();
+-                super::super::tasks::charge_result_selection(vt(f, *task)?, b)?;
+-                b.spend(context.ports.len())?;
+-                let mut p = Permission::default();
+-                for port in 0..context.ports.len() {
+-                    if super::super::tasks::result_port(vt(f, *task)?, port as u32) {
+-                        join_permission(&mut p, &select(get(*task)?, &[], port as u32, b)?, b)?;
+-                    }
+-                }
+-                add_leaf(
+-                    &mut out,
+-                    &[
+-                        PlaceProjection::ErrorArm(false),
+-                        PlaceProjection::Variant(zil_ir::VariantProjection {
+-                            variant: 1,
+-                            index: 0,
+-                        }),
+-                    ],
+-                    &p,
+-                    b,
+-                )?;
+-                out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+-            }
++            results::poll(module, vt(f, *task)?, get(*task)?, &mut out, b)?;
+         }
+         InstructionKind::MakeErrorUnion { value, is_error }
+             if shape(vt(
+diff --git a/crates/zil-verify/src/tasks.rs b/crates/zil-verify/src/tasks.rs
+index 0d53c854a..c1290b90b 100644
+--- a/crates/zil-verify/src/tasks.rs
++++ b/crates/zil-verify/src/tasks.rs
+@@ -545,6 +545,108 @@ fn task_poll_result(result: &Type) -> Type {
+     }
+ }
+ 
++fn complete_poll_result(module: &TypedModule, result: &Type, budget: &mut Budget) -> Check<Type> {
++    dynamic_metadata::ty(result, budget)?;
++    let child = frame_shape::declared_life(module, result, budget)?;
++    crate::semantic::task_domains::charge_life(&child, budget)?;
++    let field = PlaceProjection::Variant(VariantProjection {
++        variant: 1,
++        index: 0,
++    });
++    let storage = Type::Enum {
++        name: format!("@std.task:v1:Poll:{}", result.fingerprint()),
++        variants: vec![
++            ("Pending".into(), vec![]),
++            ("Ready".into(), vec![result.clone()]),
++        ],
++    };
++    let poll = if child.binder_count == 0 {
++        storage
++    } else {
++        let mut life = StorageLifeShape {
++            binder_count: child.binder_count,
++            slots: vec![],
++            retained: vec![],
++            nominal_arguments: vec![],
++        };
++        budget.spend((child.binder_count as usize).saturating_mul(2))?;
++        for class in 0..child.binder_count {
++            life.retained.push(StorageRetainedBinding {
++                path: vec![LifeTypeProjection::TypeArgument(0)],
++                class,
++                binder: class,
++            });
++        }
++        for row in &child.slots {
++            budget.spend(row.path.len().saturating_add(1))?;
++            let mut row = row.clone();
++            row.path.insert(0, field);
++            life.slots.push(row);
++        }
++        if matches!(
++            result,
++            Type::BorrowedStorage { .. }
++                | Type::Closure(_)
++                | Type::Task { .. }
++                | Type::Dyn { .. }
++                | Type::OwnedDyn { .. }
++        ) {
++            for class in 0..child.binder_count {
++                life.retained.push(StorageRetainedBinding {
++                    path: vec![LifeTypeProjection::Place(field)],
++                    class,
++                    binder: class,
++                });
++            }
++        } else {
++            for row in &child.retained {
++                budget.spend(row.path.len().saturating_add(1))?;
++                let mut row = row.clone();
++                row.path.insert(0, LifeTypeProjection::Place(field));
++                life.retained.push(row);
++            }
++        }
++        for row in &child.nominal_arguments {
++            budget.spend(row.path.len().saturating_add(1))?;
++            let mut row = row.clone();
++            row.path.insert(0, LifeTypeProjection::Place(field));
++            life.nominal_arguments.push(row);
++        }
++        budget.spend(
++            life.retained.len().saturating_mul(
++                life.retained
++                    .len()
++                    .checked_ilog2()
++                    .map_or(1, |n| n as usize + 1),
++            ),
++        )?;
++        life.retained.sort();
++        budget.spend(
++            life.nominal_arguments.len().saturating_mul(
++                life.nominal_arguments
++                    .len()
++                    .checked_ilog2()
++                    .map_or(1, |n| n as usize + 1),
++            ),
++        )?;
++        life.nominal_arguments.sort();
++        Type::BorrowedStorage {
++            storage: Box::new(storage),
++            life,
++        }
++    };
++    Ok(Type::ErrorUnion {
++        error: Box::new(Type::Enum {
++            name: "@std.task:v1:TaskPollState".into(),
++            variants: ["Complete", "Cancelled", "Invalid"]
++                .into_iter()
++                .map(|name| (name.into(), vec![]))
++                .collect(),
++        }),
++        result: Box::new(poll),
++    })
++}
++
+ pub(super) fn carrier(
+     module: &TypedModule,
+     ty: &Type,
+@@ -787,7 +889,7 @@ pub(super) fn instruction(
+                         for _ in 0..4 {
+                             resources::charge_payload(result, budget)?;
+                         }
+-                        task_poll_result(result)
++                        complete_poll_result(module, result, budget)?
+                     }
+                     _ => Type::Tuple(vec![Type::I32, Type::I32]),
+                 },
+diff --git a/crates/zil-verify/src/tasks/frame_shape.rs b/crates/zil-verify/src/tasks/frame_shape.rs
+index 470969cb7..2bea4ac43 100644
+--- a/crates/zil-verify/src/tasks/frame_shape.rs
++++ b/crates/zil-verify/src/tasks/frame_shape.rs
+@@ -222,6 +222,33 @@ pub(crate) fn life(
+     base: StorageBase,
+     b: &mut Budget,
+     depth: usize,
++) -> Check<StorageLifeShape> {
++    let static_outer = depth == 0
++        && f.storage_life.as_ref().is_some_and(|header| {
++            header
++                .static_bindings
++                .contains(&StoragePosition { base, path: vec![] })
++        });
++    type_life(module, ty, static_outer, Some(f.span), b, depth)
++}
++
++/// Complete type domain at a declared Task result boundary. No missing
++/// Result mapping is interpreted as a static source declaration.
++pub(crate) fn declared_life(
++    module: &TypedModule,
++    ty: &Type,
++    b: &mut Budget,
++) -> Check<StorageLifeShape> {
++    type_life(module, ty, false, None, b, 0)
++}
++
++fn type_life(
++    module: &TypedModule,
++    ty: &Type,
++    static_outer: bool,
++    span: Option<Span>,
++    b: &mut Budget,
++    depth: usize,
+ ) -> Check<StorageLifeShape> {
+     dynamic_metadata::ty(ty, b)?;
+     if depth > b.limits.max_call_depth.min(128) {
+@@ -278,15 +305,8 @@ pub(crate) fn life(
+             }
+         }
+         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
+-            let child = life(module, inner, f, base, b, depth + 1)?;
++            let child = type_life(module, inner, false, span, b, depth + 1)?;
+             let outer = matches!(ty, Type::Address { .. } | Type::Desc(_));
+-            let static_outer = outer
+-                && depth == 0
+-                && f.storage_life.as_ref().is_some_and(|header| {
+-                    header
+-                        .static_bindings
+-                        .contains(&StoragePosition { base, path: vec![] })
+-                });
+             let offset = u32::from(outer && !static_outer);
+             let mut parent = StorageLifeShape {
+                 binder_count: child
+@@ -335,7 +355,7 @@ pub(crate) fn life(
+             _ => {
+                 return Err(unsupported(
+                     "raw Task child requires its complete qualified domain",
+-                    Some(f.span),
++                    span,
+                 ));
+             }
+         },
+diff --git a/crates/zil-verify/src/tasks/owned.rs b/crates/zil-verify/src/tasks/owned.rs
+index 95d683ef0..8246578ae 100644
+--- a/crates/zil-verify/src/tasks/owned.rs
++++ b/crates/zil-verify/src/tasks/owned.rs
+@@ -156,6 +156,10 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> Check<bool> {
+                 dynamic_metadata::ty(t, budget)?;
+                 work.push(storage);
+             }
++            Type::Address {
++                mutable: false,
++                inner,
++            } if retained_pointee(inner) => {}
+             t if scalar(t) => {}
+             Type::Managed(payload) => {
+                 if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
+@@ -369,25 +373,26 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
+                         _ => {}
+                     }
+                 }
+-                if let Type::Address {
+-                    mutable: false,
+-                    inner,
+-                } = capture
+-                {
++                if let Type::Address { mutable, inner } = capture {
+                     let Some(life) = &c.storage_life else {
+                         return Ok(false);
+                     };
+-                    budget.spend(life.static_bindings.len())?;
++                    budget.spend(
++                        life.static_bindings
++                            .len()
++                            .saturating_add(life.bindings.len()),
++                    )?;
+                     let position = StoragePosition {
+                         base: StorageBase::Capture(index as u32),
+                         path: vec![],
+                     };
+-                    if !life.static_bindings.contains(&position) || !retained_pointee(inner) {
++                    let variable=life.bindings.iter().any(|row|row.position==position&&matches!(row.binder,StorageBinder::Fixed(class)if class<life.fixed_binder_count));
++                    let literal = !*mutable && life.static_bindings.contains(&position);
++                    if !(variable || literal) || !retained_pointee(inner) {
+                         return Ok(false);
+                     }
+-                    // Conditional shape only. The independent global SSA
+-                    // Static proof must discharge every ctor/write and all
+-                    // actual parent loans before this module can be accepted.
++                    // Eligibility only: actual capture sources, all parent
++                    // loans and every static dependency remain ordinary WF.
+                     continue;
+                 }
+                 let complete = if matches!(capture, Type::Closure(_)) {
