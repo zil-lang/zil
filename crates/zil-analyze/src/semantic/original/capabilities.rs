@@ -371,6 +371,50 @@ impl Solver<'_, '_> {
             )),
         }
     }
+    fn internal_thread_view(
+        &self,
+        owner: SemanticDefinitionId,
+        term: Term,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let term = self.root(term, b)?;
+        if !matches!(
+            self.state.arena[term],
+            Kind::Address { .. } | Kind::Desc { .. }
+        ) {
+            return Ok(false);
+        }
+        for ((definition, _), source) in &self.state.descriptions {
+            b.spend(1, WORK)?;
+            if *definition == owner
+                && self.root(source.output, b)? == term
+                && self.capability(source.root, SemanticBuiltinTrait::Transfer, b, 0)?
+            {
+                return Ok(true);
+            }
+        }
+        let frame = self
+            .state
+            .frames
+            .get(&owner)
+            .ok_or_else(|| fail("internal thread view lacks its checked declaration frame"))?;
+        for ((definition, node), source) in &self.state.borrows {
+            b.spend(1, WORK)?;
+            if *definition != owner {
+                continue;
+            }
+            b.lookup(frame.expressions.len(), WORK)?;
+            let output = frame.expressions.get(node).ok_or_else(|| {
+                fail("internal thread borrow omits its original output occurrence")
+            })?;
+            if self.root(*output, b)? == term
+                && self.capability(source.root, SemanticBuiltinTrait::Transfer, b, 0)?
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
     pub(super) fn execution_capability(
         &self,
         root: SemanticDefinitionId,
@@ -410,18 +454,35 @@ impl Solver<'_, '_> {
             let frame = self.state.frames.get(&owner).ok_or_else(|| {
                 fail("original thread graph selects no universally checked body frame")
             })?;
+            // Entry/exit and sealed environment values cross the execution
+            // boundary and must independently satisfy Transfer as whole types.
             for term in frame
                 .parameters
                 .iter()
                 .chain(std::iter::once(&frame.result))
                 .chain(&frame.environment)
-                .chain(frame.bindings.values())
-                .chain(frame.expressions.values())
             {
                 if !self.capability(*term, SemanticBuiltinTrait::Transfer, b, 0)? {
                     return Err(fail(
-                        "original thread execution retains unproved data, an external borrowed head or cleanup dependency",
+                        "original thread execution retains an external input, output or environment without Transfer",
                     ));
+                }
+            }
+            // Internal temporary views are not transported to another thread.
+            // Their checked original borrow must point into a whole thread-
+            // transferable owner; this is a local execution relation only.
+            for term in frame.bindings.values().chain(frame.expressions.values()) {
+                if !self.capability(*term, SemanticBuiltinTrait::Transfer, b, 0)?
+                    && !self.internal_thread_view(owner, *term, b)?
+                {
+                    let mut errors = fail(
+                        "original thread execution retains unproved data, an external borrowed head or cleanup dependency",
+                    );
+                    errors[0].notes.push(format!(
+                        "original execution definition {}:{}, term {}",
+                        owner.module.0, owner.index, term
+                    ));
+                    return Err(errors);
                 }
             }
             for ((caller, node), call) in &self.state.calls {
