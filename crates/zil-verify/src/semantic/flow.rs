@@ -617,8 +617,14 @@ impl CheckedContext {
         };
         if actuals.len()!=target_definition.parameters.len()||claims.len()!=actuals.len(){return Err(bad("actual Call changes the independently resolved target/full actual order"));}
         let mut checked=Vec::new();
-        for (recipe,claim) in actuals.iter().zip(claims) {
-            let expected=self.evaluate_actual(module,recipe,environment,external,active,b)?;
+        for (ordinal,(recipe,claim)) in actuals.iter().zip(claims).enumerate() {
+            let sources=self.original.borrow().as_ref().ok_or_else(||bad("Call inference has no checked original body"))?.call_type_sources(caller.definition,site.recipe,ordinal as u32,b)?;
+            let expected=if sources.is_empty(){self.evaluate_actual(module,recipe,environment,external,active,b)?}else{
+                if !matches!(recipe,SemanticActualRecipe::Type(_)){return Err(bad("inferred whole Type source changed its complete actual kind"));}
+                let mut selected=None;
+                for source in &sources{let value=self.evaluate_type(module,source,environment,external,active,b)?;if let Some(expected)=&selected{if !self.same_type(environment,expected,&value,b)?{return Err(bad("repeated inferred Type arguments have different whole intrinsic domains"));}}else{selected=Some(value);}}
+                CheckedActual::Type(selected.ok_or_else(||bad("inferred whole Type has no original source occurrence"))?)
+            };
             let equal=match (&expected,claim) {
                 (CheckedActual::Type(expected),SemanticActual::Type(claim))=>{self.claim(module,claim,expected,environment,b)?;true},
                 (CheckedActual::Const{carrier,value},SemanticActual::Const{ty,value:actual})=>{self.claim(module,ty,carrier,environment,b)?;value==actual},

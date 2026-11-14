@@ -28,6 +28,9 @@ impl CheckedOriginal {
         let arguments=self.calls.get(&(definition,site)).ok_or_else(||bad("actual Call has no original full-ordinal inference result"))?;
         let mut recipes=Vec::new();for argument in arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}Ok((target,recipes))
     }
+    pub(in crate::semantic) fn call_type_sources(&self,definition:SemanticDefinitionId,site:SemanticSiteId,ordinal:u32,b:&mut Budget)->Check<Vec<SemanticTypeRecipe>>{
+        let mut sources=Vec::new();if let Some(nodes)=self.call_type_sources.get(&(definition,site,ordinal)){b.spend(nodes.len())?;for node in nodes{sources.push(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(*node)});}}Ok(sources)
+    }
     fn scope(&self,id:SemanticDefinitionId,env:&EvalEnv,b:&mut Budget)->Check<SemanticScopeRef>{b.spend(env.lexical.len())?;env.lexical.iter().position(|frame|frame.definition==id).map(|depth|SemanticScopeRef::Ancestor(depth as u32)).ok_or_else(||bad("original symbolic term escapes the actual real lexical scope"))}
     pub(super) fn reify_type(&self,module:&TypedModule,ty:&Ty,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
         self.reify_type_at(module,ty,env,0,b)

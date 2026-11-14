@@ -65,6 +65,27 @@ impl CheckedOriginal {
                 for requirement in &definition.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
                 for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}}}
                 if let Some(proposed)=proposed{for(recipe,value)in proposed.iter().zip(&checked){if !matches!(recipe,SemanticActualRecipe::Infer){let claim=self.actual(module,context,recipe,env,active,b)?;self.same_argument(&claim,value,b)?;}}}
+                // An inferred whole Type is the existing argument domain, not
+                // a fresh nominal reconstructed from its outside Life images.
+                // Preserve every inducing occurrence; the actual bridge must
+                // compare all of them rather than choose the first match.
+                for(ordinal,formal)in definition.parameters.iter().enumerate(){
+                    if ordinal<written_len||!matches!(formal,SemanticFormal::Type{..}){continue;}
+                    let mut sources=Vec::new();
+                    for(parameter,argument)in signature.parameters.iter().zip(arguments){
+                        b.spend(1)?;
+                        if matches!(&parameter.ty,SemanticTypeRecipe::Formal(reference)if reference.scope==SemanticScopeRef::Ancestor(0)&&reference.ordinal==ordinal as u32){
+                            let Arg::Type(inferred)=&checked[ordinal]else{return Err(bad("inferred Type source has another complete kind"));};
+                            let source=self.expressions.get(&(env.current()?,argument.id)).ok_or_else(||bad("inferred Type argument lacks its original expression proof"))?;
+                            // Passing-mode adaptation can change Managed to
+                            // Desc. An existing whole-type receipt is usable
+                            // only when original Γ independently kept exactly
+                            // this source expression's type/category.
+                            if self.same(inferred,source,b)?{sources.push(argument.id);}
+                        }
+                    }
+                    if !sources.is_empty(){b.spend(sources.len())?;self.call_type_sources.insert((env.current()?,site.id,ordinal as u32),sources);}
+                }
                 self.calls.insert((env.current()?,site.id),checked);
                 self.call_targets.insert((env.current()?,site.id),target);
                 if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
