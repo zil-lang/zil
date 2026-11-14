@@ -4,6 +4,8 @@ use super::*;
 use zil_base::NodeId;
 
 mod abstract_calls;
+mod capabilities;
+mod constructors;
 mod effects;
 mod enums;
 pub(super) mod mixed;
@@ -12,6 +14,7 @@ mod protocol;
 mod roles;
 pub(super) mod sealed;
 mod values;
+use constructors::Wrapper;
 use mixed::Life;
 
 type Term = usize;
@@ -33,6 +36,11 @@ enum Kind {
         inner: Term,
     },
     Slice(Term),
+    Desc {
+        life: Term,
+        inner: Term,
+    },
+    Wrapped(Wrapper, Term),
     Code {
         kind: SemanticCodeKind,
         parameters: Vec<Term>,
@@ -104,6 +112,7 @@ pub(super) enum Predicate {
     Value,
     SyncDrop,
     StoreElement,
+    Capability(SemanticBuiltinTrait),
 }
 struct Need {
     term: Term,
@@ -196,7 +205,7 @@ impl Solver<'_, '_> {
         self.term(Kind::Infer(None), b)
     }
     fn atom(&mut self, ty: Type, b: &mut Budget) -> CompileResult<Term> {
-        if !ty.is_b0_scalar() && ty != Type::ForeignHandle {
+        if !ty.is_b0_scalar() && !matches!(ty, Type::ForeignHandle | Type::ByteBuffer) {
             return Err(unknown(
                 "original complete compound type requires its scoped nominal and lifetime proof",
             ));
@@ -285,6 +294,18 @@ impl Solver<'_, '_> {
                     if self.occurs(needle, *term, depth + 1, b)? {
                         return Ok(true);
                     }
+                }
+            }
+            Kind::Wrapped(_, element) => {
+                if self.occurs(needle, *element, depth + 1, b)? {
+                    return Ok(true);
+                }
+            }
+            Kind::Desc { life, inner } => {
+                if self.occurs(needle, *life, depth + 1, b)?
+                    || self.occurs(needle, *inner, depth + 1, b)?
+                {
+                    return Ok(true);
                 }
             }
             Kind::Slice(element) => {
@@ -445,6 +466,13 @@ impl Solver<'_, '_> {
                 self.unify(a, z, depth + 1, b)?;
                 self.unify(al, zl, depth + 1, b)
             }
+            (Kind::Wrapped(a, ai), Kind::Wrapped(z, zi)) if a == z => {
+                self.unify(ai, zi, depth + 1, b)
+            }
+            (Kind::Desc { life: a, inner: ai }, Kind::Desc { life: z, inner: zi }) => {
+                self.unify(a, z, depth + 1, b)?;
+                self.unify(ai, zi, depth + 1, b)
+            }
             (Kind::Slice(a), Kind::Slice(z)) => self.unify(a, z, depth + 1, b),
             (Kind::Atom(a), Kind::Atom(z)) if a == z => Ok(()),
             (Kind::Life(a), Kind::Life(z)) if a == z => Ok(()),
@@ -599,7 +627,9 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         match recipe {
-            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() || *ty == Type::ForeignHandle => {
+            SemanticTypeRecipe::Atom(ty)
+                if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
+            {
                 self.atom(ty.clone(), b)
             }
             SemanticTypeRecipe::Formal(reference) => {
@@ -809,12 +839,29 @@ impl Solver<'_, '_> {
                     b,
                 )
             }
-            SemanticTypeRecipe::Managed(_) => Err(unknown(
-                "original Managed type requires its complete owner and cleanup interpretation",
-            )),
-            SemanticTypeRecipe::OwnedStore(_) => Err(unknown(
-                "original Store type requires its complete element and retained inventory",
-            )),
+            SemanticTypeRecipe::Managed(inner) => {
+                self.wrapper(frame, Wrapper::Managed, inner, b, depth + 1)
+            }
+            SemanticTypeRecipe::OwnedStore(inner) => {
+                self.wrapper(frame, Wrapper::Store, inner, b, depth + 1)
+            }
+            SemanticTypeRecipe::Mutex(inner) => {
+                self.wrapper(frame, Wrapper::Mutex, inner, b, depth + 1)
+            }
+            SemanticTypeRecipe::Registration(inner) => {
+                self.wrapper(frame, Wrapper::Registration, inner, b, depth + 1)
+            }
+            SemanticTypeRecipe::AsyncRegistration(inner) => {
+                self.wrapper(frame, Wrapper::AsyncRegistration, inner, b, depth + 1)
+            }
+            SemanticTypeRecipe::Desc {
+                lifetime: SemanticOuterLifeRecipe::Class(life),
+                inner,
+            } => {
+                let life = self.life(frame, life, b, depth + 1)?;
+                let inner = self.recipe(frame, inner, b, depth + 1)?;
+                self.term(Kind::Desc { life, inner }, b)
+            }
             SemanticTypeRecipe::SelfType { .. } => Err(unknown(
                 "original Self type requires its exact original impl scope",
             )),
@@ -2448,7 +2495,6 @@ pub(super) fn check(
         if let SemanticDefinitionBody::FunctionWithBody {
             protocol_contracts,
             foreign,
-            resume_bound,
             body,
             signature,
             parameters,
@@ -2489,11 +2535,6 @@ pub(super) fn check(
                     }
                     previous = Some(*ordinal);
                 }
-            }
-            if *resume_bound != TaskResumeBound::Local {
-                return Err(unknown(
-                    "original transfer resume bound requires its universal body and environment capability proof",
-                ));
             }
         }
     }
@@ -2643,6 +2684,9 @@ pub(super) fn check(
                 }
                 Predicate::Value => "original actual does not establish Value",
                 Predicate::StoreElement => "original actual does not establish StoreElement",
+                Predicate::Capability(_) => {
+                    "original actual does not establish its declared sealed capability"
+                }
             }));
         }
     }
@@ -2657,6 +2701,7 @@ pub(super) fn check(
     }
     effects.finish(&solver.state, inventory, b)?;
     protocol::check(&solver.state, inventory, b)?;
+    solver.check_resume_capabilities(b)?;
     b.spend(module.functions.len(), WORK)?;
     Ok(solver.state)
 }
@@ -2777,6 +2822,17 @@ impl Solver<'_, '_> {
     fn sized_original(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<()> {
         self.step(depth, b)?;
         match &self.state.arena[self.root(term, b)?] {
+            Kind::Atom(Type::ByteBuffer)
+            | Kind::Wrapped(
+                Wrapper::Store
+                | Wrapper::Mutex
+                | Wrapper::Registration
+                | Wrapper::AsyncRegistration,
+                _,
+            ) => Err(fail(
+                "original sealed resource payload requires its real Managed or Desc carrier",
+            )),
+            Kind::Wrapped(Wrapper::Managed, _) | Kind::Desc { .. } => Ok(()),
             Kind::Slice(_) => Err(fail(
                 "original unsized Slice needs a real reference carrier",
             )),
@@ -2847,11 +2903,7 @@ impl Solver<'_, '_> {
                     SemanticBuiltinTrait::Value => Predicate::Value,
                     SemanticBuiltinTrait::SyncDrop => Predicate::SyncDrop,
                     SemanticBuiltinTrait::StoreElement => Predicate::StoreElement,
-                    _ => {
-                        return Err(unknown(
-                            "original sealed provider or thread premise needs its complete declaration/body proof",
-                        ));
-                    }
+                    kind => Predicate::Capability(*kind),
                 },
             ),
             _ => {
@@ -2977,6 +3029,9 @@ impl Solver<'_, '_> {
     ) -> CompileResult<bool> {
         self.step(depth, b)?;
         let term = self.root(term, b)?;
+        if let Predicate::Capability(kind) = predicate {
+            return self.capability(term, kind, b, depth + 1);
+        }
         match &self.state.arena[term] {
             Kind::Atom(ty) => Ok((ty.is_b0_scalar() || *ty == Type::ForeignHandle)
                 && (!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit)),
@@ -3017,6 +3072,16 @@ impl Solver<'_, '_> {
                 }
                 self.satisfies(*element, predicate, b, depth + 1)
             }
+            Kind::Desc { .. } => Ok(!matches!(predicate, Predicate::StoreElement)),
+            Kind::Wrapped(Wrapper::Managed, payload) => match predicate {
+                Predicate::Copy | Predicate::StoreElement => Ok(false),
+                Predicate::Value => Ok(true),
+                Predicate::SyncDrop => self.owned_sync(*payload, b, depth + 1),
+                Predicate::Capability(_) => {
+                    Err(fail("sealed capability dispatch lost its original kind"))
+                }
+            },
+            Kind::Wrapped(_, _) => Ok(false),
             Kind::Code { .. } => Ok(!matches!(predicate, Predicate::StoreElement)),
             Kind::ErrorUnion { error, result } => {
                 Ok(self.satisfies(*error, predicate, b, depth + 1)?
@@ -3067,6 +3132,9 @@ impl Solver<'_, '_> {
                 // All actually used captures are separately checked scalar
                 // values/borrowed scalar heads. This grants no head authority.
                 Predicate::Value | Predicate::SyncDrop => Ok(true),
+                Predicate::Capability(_) => {
+                    Err(fail("sealed capability dispatch lost its original kind"))
+                }
             },
             Kind::Infer(_) => Err(unknown(
                 "original structural predicate has an unresolved type variable",
@@ -3075,6 +3143,9 @@ impl Solver<'_, '_> {
     }
 }
 fn entails(available: Predicate, wanted: Predicate) -> bool {
+    if let (Predicate::Capability(a), Predicate::Capability(z)) = (available, wanted) {
+        return a == z;
+    }
     matches!(
         (available, wanted),
         (
@@ -3124,7 +3195,11 @@ impl Checked {
             Kind::CallResult { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
                 .ty),
-            Kind::Array { .. } | Kind::Code { .. } | Kind::ErrorUnion { .. } => Ok(self
+            Kind::Array { .. }
+            | Kind::Code { .. }
+            | Kind::ErrorUnion { .. }
+            | Kind::Desc { .. }
+            | Kind::Wrapped(_, _) => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
                 .ty),
             Kind::Slice(element) => Ok(Type::Slice {

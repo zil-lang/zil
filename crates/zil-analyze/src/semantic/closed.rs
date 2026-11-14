@@ -41,6 +41,45 @@ impl Check<'_, '_> {
             return Ok(());
         }
         match ty {
+            Type::Managed(inner) | Type::Desc(inner) => match inner.as_ref() {
+                Type::ByteBuffer => {
+                    b.spend(self.module.resources.len(), WORK)?;
+                    let mut count = 0;
+                    for resource in &self.module.resources {
+                        crate::dyn_metadata::ty(&resource.payload, b)?;
+                        if resource.payload == Type::ByteBuffer
+                            || resource.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
+                        {
+                            if resource.payload != Type::ByteBuffer
+                                || resource.name != zil_ir::BYTE_BUFFER_RESOURCE_NAME
+                                || resource.teardown.is_some()
+                            {
+                                return Err(fail(
+                                    "semantic ByteBuffer carrier has another sealed allocator or cleanup definition",
+                                ));
+                            }
+                            count += 1;
+                        }
+                    }
+                    if count != 1 {
+                        return Err(fail(
+                            "semantic ByteBuffer carrier lacks its exact unique sealed definition",
+                        ));
+                    }
+                    return Ok(());
+                }
+                Type::OwnedStore { element } => {
+                    self.ordinary_type_at(element, b, depth + 1)?;
+                    crate::dyn_metadata::ty(inner, b)?;
+                    let owner = Type::Managed(inner.clone());
+                    return crate::ownership_store::ordinary_owned(self.module, &owner, b);
+                }
+                _ => {
+                    return Err(unknown(
+                        "semantic resource carrier needs its full original environment, Drop and retained scope inventory",
+                    ));
+                }
+            },
             Type::Address { inner, .. } => {
                 return self.ordinary_type_at(inner, b, depth + 1);
             }

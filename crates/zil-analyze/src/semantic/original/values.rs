@@ -191,6 +191,30 @@ impl Checked {
                 }
                 value::nominal(*definition, &actuals, &physical, inventory, b, depth + 1)
             }
+            Kind::Wrapped(wrapper, inner) => {
+                let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
+                if !inner.classes.is_empty() {
+                    return Err(unknown(
+                        "original opaque resource constructor needs its complete retained and phantom child occurrence transport",
+                    ));
+                }
+                Ok(value::scalar(wrapper.ty(inner.ty)))
+            }
+            Kind::Desc { life, inner } => {
+                let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
+                let class = self.life_value(*life, context, inventory, b)?;
+                let mut value = value::address(false, class, inner, b)?;
+                let Type::Address { inner, .. } = value.ty else {
+                    return Err(fail("original description loses its complete payload"));
+                };
+                value.ty = Type::Desc(inner);
+                let slot =
+                    value.life.slots.get_mut(0).ok_or_else(|| {
+                        fail("original description omits its outer weak occurrence")
+                    })?;
+                slot.mode = StoredBorrowMode::WritableDescription;
+                Ok(value)
+            }
             Kind::ErrorUnion { error, result } => {
                 let error = self.value(*error, context, program, inventory, b, depth + 1)?;
                 let result = self.value(*result, context, program, inventory, b, depth + 1)?;

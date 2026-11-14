@@ -5,7 +5,7 @@ use super::*;
 #[derive(Clone)]
 pub(super) struct AbstractCall {
     parameter: u32,
-    subject: Term,
+    pub(super) subject: Term,
     receiver: Term,
     signature_owner: SemanticDefinitionId,
     pub(super) signature: SemanticSignatureRecipe,
@@ -24,7 +24,7 @@ pub(in crate::semantic) struct AbstractBoundary {
     pub(in crate::semantic) result: crate::semantic::value::Value,
 }
 impl Solver<'_, '_> {
-    fn callable_premise(
+    pub(super) fn callable_premise(
         &self,
         owner: SemanticDefinitionId,
         ordinal: u32,

@@ -678,6 +678,11 @@ pub(in crate::semantic) fn predicate_actual(
             "nominal structural predicate exceeds its finite depth",
         ));
     }
+    if matches!(predicate, Predicate::Capability(_)) {
+        return Err(unknown(
+            "actual sealed capability requires its complete original environment, provider and execution proof",
+        ));
+    }
     if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
         return Ok(!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit);
     }

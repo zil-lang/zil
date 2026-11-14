@@ -89,7 +89,9 @@ impl Check<'_, '_> {
                 self.inventory,
                 b,
             ),
-            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() || *ty == Type::ForeignHandle => {
+            SemanticTypeRecipe::Atom(ty)
+                if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
+            {
                 Ok(value::scalar(ty.clone()))
             }
             SemanticTypeRecipe::Slice(element) => {
@@ -173,6 +175,58 @@ impl Check<'_, '_> {
                 // The full original declaration was checked with rigid mixed
                 // formals. Fields are instantiated through the same evaluator.
                 self.nominal_value(*definition, &actuals, b, depth + 1)
+            }
+            SemanticTypeRecipe::Managed(inner)
+            | SemanticTypeRecipe::OwnedStore(inner)
+            | SemanticTypeRecipe::Mutex(inner)
+            | SemanticTypeRecipe::Registration(inner)
+            | SemanticTypeRecipe::AsyncRegistration(inner) => {
+                let child = self.recipe_value(instance, inner, b, depth + 1)?;
+                if !child.classes.is_empty() {
+                    return Err(unknown(
+                        "semantic resource constructor needs complete child retained and phantom class transport",
+                    ));
+                }
+                let ty = match recipe {
+                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.ty)),
+                    SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
+                        element: Box::new(child.ty),
+                    },
+                    SemanticTypeRecipe::Mutex(_) => Type::Mutex {
+                        payload: Box::new(child.ty),
+                    },
+                    SemanticTypeRecipe::Registration(_) => Type::Registration {
+                        environment: Box::new(child.ty),
+                    },
+                    SemanticTypeRecipe::AsyncRegistration(_) => Type::AsyncRegistration {
+                        environment: Box::new(child.ty),
+                    },
+                    _ => {
+                        return Err(fail(
+                            "semantic resource constructor changed its original family",
+                        ));
+                    }
+                };
+                Ok(value::scalar(ty))
+            }
+            SemanticTypeRecipe::Desc {
+                lifetime: SemanticOuterLifeRecipe::Class(life),
+                inner,
+            } => {
+                let child = self.recipe_value(instance, inner, b, depth + 1)?;
+                let class = self.life(instance, life, b, depth + 1)?;
+                let mut result = value::address(false, class, child, b)?;
+                let Type::Address { inner, .. } = result.ty else {
+                    return Err(fail("semantic description loses its exact payload"));
+                };
+                result.ty = Type::Desc(inner);
+                result
+                    .life
+                    .slots
+                    .get_mut(0)
+                    .ok_or_else(|| fail("semantic description loses its weak outer occurrence"))?
+                    .mode = StoredBorrowMode::WritableDescription;
+                Ok(result)
             }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.recipe_value(instance, error, b, depth + 1)?;

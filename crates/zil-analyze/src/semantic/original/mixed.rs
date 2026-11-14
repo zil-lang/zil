@@ -447,6 +447,15 @@ impl Solver<'_, '_> {
                     b,
                 )
             }
+            Kind::Wrapped(wrapper, inner) => {
+                let inner = self.instantiate(inner, owner, actuals, b, depth + 1)?;
+                self.term(Kind::Wrapped(wrapper, inner), b)
+            }
+            Kind::Desc { life, inner } => {
+                let life = self.instantiate(life, owner, actuals, b, depth + 1)?;
+                let inner = self.instantiate(inner, owner, actuals, b, depth + 1)?;
+                self.term(Kind::Desc { life, inner }, b)
+            }
             Kind::Slice(element) => {
                 let element = self.instantiate(element, owner, actuals, b, depth + 1)?;
                 self.term(Kind::Slice(element), b)
