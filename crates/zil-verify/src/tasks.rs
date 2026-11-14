@@ -26,6 +26,7 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
 
 mod failure;
 pub(crate) mod frame_shape;
+mod sabi;
 pub(super) fn raw_frame_data(
     module: &TypedModule,
     worker: &TypedFunction,
@@ -1102,13 +1103,19 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     if budget.borrowed_task_ports {
         reject_nested_transport(module, budget)?;
     }
+    let schedule = sabi::schedule(module, budget)?;
     budget.spend(module.functions.len())?;
     let mut modes = vec![false; module.functions.len()];
-    let mut edges = Vec::new();
+    let edges = schedule.direct_edges;
     for f in &module.functions {
         if f.call_kind == CallKind::Suspend {
             modes[f.id.0 as usize] = true;
-            profile(module, f.id, budget, Some(f.span))?;
+            if schedule.frame[f.id.0 as usize] {
+                profile(module, f.id, budget, Some(f.span))?;
+            }
+            // This inventory selects SABI lowering and real resource/PC0
+            // bookkeeping only. Constructor and suspension frame admission
+            // above remain separate, independently checked obligations.
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(f.id);
         }
@@ -1118,10 +1125,6 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                 match i.kind {
                     InstructionKind::TaskYield | InstructionKind::SuspendCall { .. } => {
                         modes[f.id.0 as usize] = true
-                    }
-                    InstructionKind::Call { function, .. } => {
-                        budget.spend(1)?;
-                        edges.push((f.id, function));
                     }
                     _ => {}
                 }
@@ -1247,11 +1250,30 @@ pub(super) fn interfaces(program: &TypedProgram, budget: &mut Budget) -> Check<(
         for export in &interface.exports {
             budget.spend(budget.suspend_functions.len().saturating_add(1))?;
             if budget.suspend_functions.contains(&export.function) {
-                return Err(reject(
-                    "E-VERIFY-TASK-DIRECT-EXPORT",
-                    None,
-                    "actual Suspend worker cannot acquire a scalar Direct export",
-                ));
+                let function = module
+                    .functions
+                    .get(export.function.0 as usize)
+                    .filter(|row| row.id == export.function)
+                    .ok_or_else(|| {
+                        reject(
+                            "E-VERIFY-TASK-INTERFACE",
+                            None,
+                            "ordinary SABI export has no exact actual definition",
+                        )
+                    })?;
+                if function.call_kind != CallKind::Suspend
+                    || function.environment.is_some()
+                    || function.foreign.is_some()
+                {
+                    return Err(reject(
+                        "E-VERIFY-TASK-INTERFACE",
+                        Some(function.span),
+                        "ordinary SABI export changes its fixed entry ABI",
+                    ));
+                }
+                // The interface names this actual Suspend function. Publishing
+                // its signature does not supply a Direct entry; execution
+                // still requires the backend's explicit SABI root adapter.
             }
         }
     }

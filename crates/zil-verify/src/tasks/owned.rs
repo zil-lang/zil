@@ -335,7 +335,10 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
         Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
         Type::Address { inner, .. } => pollable_storage(module, inner, budget),
         Type::Closure(id) => {
-            if super::input_scope::domain(t, budget)? != super::input_scope::Domain::Known(0) {
+            if !matches!(
+                super::input_scope::domain(t, budget)?,
+                super::input_scope::Domain::Known(_)
+            ) {
                 return Ok(false);
             }
             let Some(c) = module.closures.get(id.0 as usize) else {
@@ -379,11 +382,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                         base: StorageBase::Capture(index as u32),
                         path: vec![],
                     };
-                    if !life.static_bindings.contains(&position)
-                        || !retained_pointee(inner)
-                        || super::input_scope::domain(t, budget)?
-                            != super::input_scope::Domain::Known(0)
-                    {
+                    if !life.static_bindings.contains(&position) || !retained_pointee(inner) {
                         return Ok(false);
                     }
                     // Conditional shape only. The independent global SSA
