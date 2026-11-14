@@ -1848,6 +1848,8 @@ impl World<'_, '_> {
             }
         }
         let initial = flow::State {
+            schema: f.id,
+            instance: instance.id,
             locals,
             values,
             declared,
@@ -1871,6 +1873,8 @@ impl World<'_, '_> {
         while let Some((block_index, state_index)) = work.pop_front() {
             self.pay(1)?;
             let flow::State {
+                schema: _,
+                instance: _,
                 mut locals,
                 mut values,
                 mut declared,
@@ -3883,6 +3887,8 @@ impl World<'_, '_> {
                 }
             };
             let state = flow::State {
+                schema: f.id,
+                instance: instance.id,
                 locals,
                 values,
                 declared,

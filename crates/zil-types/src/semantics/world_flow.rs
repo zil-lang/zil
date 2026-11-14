@@ -4,8 +4,12 @@
 use super::*;
 use std::collections::{BTreeSet, VecDeque};
 
-#[derive(PartialEq, Eq)]
 pub(super) struct State {
+    // An implicit TypeId is (schema, slot kind, slot ordinal). World verifies
+    // every initial input, SSA producer, Store, Unpack and capture binding
+    // against that immutable Typed directory before it can populate a cell.
+    pub schema: FunctionId,
+    pub instance: SemanticInstanceId,
     pub locals: Vec<Option<SemanticTypeValue>>,
     pub values: Vec<Option<SemanticTypeValue>>,
     pub declared: BTreeMap<LocalId, SemanticTypeValue>,
@@ -91,6 +95,8 @@ impl State {
             local_roots.insert(*local, arguments::copy_roots(world, roots)?);
         }
         let state = Self {
+            schema: self.schema,
+            instance: self.instance,
             locals,
             values,
             declared,
@@ -144,7 +150,7 @@ impl State {
             .flatten()
             .chain(self.declared.values())
         {
-            crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
+            charge_value_domain(world, value)?;
         }
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
@@ -171,8 +177,105 @@ impl State {
         }
         Ok(())
     }
+    fn same(&self, other: &Self, world: &mut World<'_, '_>) -> R<bool> {
+        world.pay(2)?;
+        if self.schema != other.schema || self.instance != other.instance {
+            return Ok(false);
+        }
+        self.charge_compare(world)?;
+        other.charge_compare(world)?;
+        if self.implicit != other.implicit
+            || self.vacant_captures != other.vacant_captures
+            || self.stale_values != other.stale_values
+            || self.stale_locals != other.stale_locals
+            || self.scopes != other.scopes
+            || self.unsafe_regions != other.unsafe_regions
+            || self.owners != other.owners
+            || self.vacant != other.vacant
+            || self.role_sources != other.role_sources
+            || self.value_role_sources != other.value_role_sources
+            || self.reborrows != other.reborrows
+            || self.value_roots != other.value_roots
+            || self.local_roots != other.local_roots
+            || self.locals.len() != other.locals.len()
+            || self.values.len() != other.values.len()
+            || self.declared.len() != other.declared.len()
+        {
+            return Ok(false);
+        }
+        for (left, right) in self
+            .locals
+            .iter()
+            .zip(&other.locals)
+            .chain(self.values.iter().zip(&other.values))
+        {
+            match (left, right) {
+                (None, None) => {}
+                (Some(left), Some(right)) if same_value_domain(left, right)? => {}
+                _ => return Ok(false),
+            }
+        }
+        for ((left_key, left), (right_key, right)) in self.declared.iter().zip(&other.declared) {
+            if left_key != right_key || !same_value_domain(left, right)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+fn charge_value_domain(world: &mut World<'_, '_>, value: &SemanticTypeValue) -> R<()> {
+    let SemanticTypeValue::Resolved { life, classes, .. } = value else {
+        return Err(bad("class-flow state retains an unresolved whole type"));
+    };
+    world.pay(
+        life.slots
+            .len()
+            .saturating_add(life.retained.len())
+            .saturating_add(life.nominal_arguments.len())
+            .saturating_add(classes.len())
+            .saturating_add(1),
+    )?;
+    for path in life
+        .slots
+        .iter()
+        .map(|row| row.path.len())
+        .chain(life.retained.iter().map(|row| row.path.len()))
+        .chain(life.nominal_arguments.iter().map(|row| row.path.len()))
+    {
+        if path > world.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "class-flow value domain depth exceeded",
+                None,
+            ));
+        }
+        world.pay(path)?;
+    }
+    for image in classes {
+        crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?
+    }
+    Ok(())
+}
+fn same_value_domain(left: &SemanticTypeValue, right: &SemanticTypeValue) -> R<bool> {
+    let (
+        SemanticTypeValue::Resolved {
+            life: left_life,
+            classes: left_classes,
+            ..
+        },
+        SemanticTypeValue::Resolved {
+            life: right_life,
+            classes: right_classes,
+            ..
+        },
+    ) = (left, right)
+    else {
+        return Err(bad("class-flow comparison has an unresolved whole type"));
+    };
+    Ok(left_life == right_life && left_classes == right_classes)
 }
 pub(super) struct Cfg {
+    schema: FunctionId,
     blocks: BTreeMap<BlockId, usize>,
     definitions: Vec<usize>,
     dominators: Vec<BTreeSet<usize>>,
@@ -191,6 +294,7 @@ impl Cfg {
             return Err(bad("class CFG changes its exact original instance target"));
         }
         let instance = instance.id;
+        let schema = function.id;
         let count = function.blocks.len();
         world.pay(
             count
@@ -301,6 +405,7 @@ impl Cfg {
             reachable_from.push(reached);
         }
         Ok(Self {
+            schema,
             blocks,
             definitions,
             dominators,
@@ -520,6 +625,11 @@ impl Cfg {
         reaching: &mut [Vec<State>],
         work: &mut VecDeque<(usize, usize)>,
     ) -> R<()> {
+        if state.schema != self.schema || state.instance != self.instance {
+            return Err(bad(
+                "class CFG state belongs to another immutable type or instance directory",
+            ));
+        }
         world.pay(state.values.len().saturating_add(1))?;
         let index = *self
             .blocks
@@ -580,14 +690,11 @@ impl Cfg {
         for old in &reaching[index] {
             world.comparisons = world.comparisons.saturating_add(1);
             let before = *world.left;
-            let checked = state
-                .charge_compare(world)
-                .and_then(|_| old.charge_compare(world));
+            let checked = state.same(old, world);
             world.compare_work = world
                 .compare_work
                 .saturating_add(before.saturating_sub(*world.left));
-            checked?;
-            if old == &state {
+            if checked? {
                 return Ok(());
             }
         }
