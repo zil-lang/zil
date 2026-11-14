@@ -2849,14 +2849,14 @@ impl<'a> Builder<'a, '_> {
             self.closures.snapshot_type(&ty, 1, 0, e.span)?;
         }
         Ok((
-            self.value(
+            self.semantic_constructor_value(
+                e,
                 if owned {
                     InstructionKind::MakeOwnedArray { elements: fields }
                 } else {
                     InstructionKind::MakeAggregate { fields }
                 },
                 ty.clone(),
-                e.span,
             )?,
             ty,
         ))
@@ -3129,6 +3129,24 @@ impl<'a> Builder<'a, '_> {
         ))
     }
 
+    fn semantic_constructor_value(
+        &mut self,
+        expression: &CoreExpr,
+        kind: InstructionKind,
+        ty: Type,
+    ) -> R<ValueId> {
+        let at = self.current.map(|block| crate::semantics::emission::Point {
+            block,
+            instruction: self.function.blocks[block.0 as usize].instructions.len(),
+        });
+        let value = self.value(kind, ty, expression.span)?;
+        if let Some(at) = at {
+            self.closures
+                .semantic_constructed(self.function.id, expression, value, at)?;
+        }
+        Ok(value)
+    }
+
     #[inline(never)]
     fn aggregate_tuple(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         let CoreExprKind::Tuple(items) = &e.kind else {
@@ -3179,7 +3197,7 @@ impl<'a> Builder<'a, '_> {
         if pure && !ty.is_copy_value() {
             self.closures.snapshot_type(&ty, 1, 0, e.span)?;
         }
-        Ok((self.value(kind, ty.clone(), e.span)?, ty))
+        Ok((self.semantic_constructor_value(e, kind, ty.clone())?, ty))
     }
 
     #[inline(never)]
@@ -3269,7 +3287,8 @@ impl<'a> Builder<'a, '_> {
         }
         self.closures.array_snapshot(ty, 2, e.span)?;
         Ok((
-            self.value(
+            self.semantic_constructor_value(
+                e,
                 if matches!(ty, Type::Managed(_)) {
                     InstructionKind::MakeManaged { fields }
                 } else if matches!(stored::physical(ty), Type::Package { .. }) {
@@ -3278,7 +3297,6 @@ impl<'a> Builder<'a, '_> {
                     InstructionKind::MakeAggregate { fields }
                 },
                 ty.clone(),
-                e.span,
             )?,
             ty.clone(),
         ))

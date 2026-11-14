@@ -524,6 +524,22 @@ impl State {
             span,
         )
     }
+    pub(super) fn semantic_constructed(
+        &mut self,
+        function: FunctionId,
+        expression: &CoreExpr,
+        value: ValueId,
+        at: crate::semantics::emission::Point,
+    ) -> R<()> {
+        self.semantic_emission.constructed(
+            function,
+            expression.id,
+            value,
+            at,
+            &mut self.work_left,
+            expression.span,
+        )
+    }
     pub(super) fn semantic_place(
         &mut self,
         function: FunctionId,

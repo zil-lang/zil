@@ -17,6 +17,11 @@ pub(crate) struct Point {
     pub block: BlockId,
     pub instruction: usize,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Construction {
+    pub value: ValueId,
+    pub at: Point,
+}
 #[derive(Default)]
 pub(crate) struct Expression {
     pub value: Option<ValueId>,
@@ -24,6 +29,9 @@ pub(crate) struct Expression {
     pub callee: Option<NodeId>,
     pub end: Option<Point>,
     pub instructions: Vec<Point>,
+    /// The real literal producer result, before a later contextual observation
+    /// or error injection. This is independent of the final expression value.
+    pub construction: Option<Construction>,
     complete: bool,
 }
 pub(crate) struct Declaration {
@@ -228,6 +236,43 @@ impl Ledger {
         row.value = value;
         row.end = boundary;
         row.complete = true;
+        Ok(())
+    }
+    pub fn constructed(
+        &mut self,
+        function: FunctionId,
+        expression: NodeId,
+        value: ValueId,
+        at: Point,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() {
+            return Ok(());
+        }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else {
+            return Ok(());
+        };
+        if frame.stack.last() != Some(&expression) {
+            return Err(invalid(
+                span,
+                "constructor receipt is outside its real source expression",
+            ));
+        }
+        pay(left, lookup_cost(frame.expressions.len()), span)?;
+        let row = frame
+            .expressions
+            .get_mut(&expression)
+            .ok_or_else(|| invalid(span, "constructor has no active expression receipt"))?;
+        pay(left, row.instructions.len().saturating_add(1), span)?;
+        if row.complete || !row.instructions.contains(&at) || row.construction.is_some() {
+            return Err(invalid(
+                span,
+                "constructor receipt repeats or is not its actual emitted instruction",
+            ));
+        }
+        row.construction = Some(Construction { value, at });
         Ok(())
     }
     /// A direct place lookup does not load or move its whole value merely to
@@ -469,6 +514,25 @@ impl Ledger {
                     ));
                 }
             }
+            if let Some(construction) = row.construction {
+                pay(left, row.instructions.len().saturating_add(1), span)?;
+                if !row.instructions.contains(&construction.at)
+                    || !matches!(function.blocks.get(construction.at.block.0 as usize)
+                        .and_then(|block| block.instructions.get(construction.at.instruction)),
+                        Some(Instruction { result: Some(value), kind, .. })
+                            if *value == construction.value && matches!(kind,
+                                InstructionKind::MakeAggregate { .. }
+                                | InstructionKind::MakeManaged { .. }
+                                | InstructionKind::MakePackage { .. }
+                                | InstructionKind::MakeOwnedTuple { .. }
+                                | InstructionKind::MakeOwnedArray { .. }))
+                {
+                    return Err(invalid(
+                        span,
+                        "constructor receipt lost its actual creation result/opcode",
+                    ));
+                }
+            }
         }
         for (local, at) in &frame.live_locals {
             pay(left, 1, span)?;
@@ -606,6 +670,14 @@ impl Ledger {
             if let Some(point) = &mut row.end {
                 boundary(point);
             }
+            if let Some(construction) = &mut row.construction {
+                if !change(&mut construction.at) {
+                    return Err(invalid(
+                        span,
+                        "constructor receipt was removed without a transform",
+                    ));
+                }
+            }
         }
         frame.live_locals.retain(|_, point| change(point));
         for row in frame.declarations.values_mut() {
@@ -617,5 +689,91 @@ impl Ledger {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn actual_creation_receipt_survives_a_distinct_contextual_result() {
+        let mut ledger = Ledger::default();
+        let mut left = 1000;
+        let span = Span::default();
+        let function = FunctionId(0);
+        let node = NodeId(0);
+        let at = Point {
+            block: BlockId(0),
+            instruction: 0,
+        };
+        ledger
+            .bind(
+                function,
+                Origin {
+                    module: ModuleId(0),
+                    creator: node,
+                    closure: None,
+                },
+                None,
+                &mut left,
+                span,
+            )
+            .unwrap();
+        let entered = ledger
+            .begin(function, node, None, &Limits::default(), &mut left, span)
+            .unwrap();
+        assert!(
+            ledger
+                .constructed(function, node, ValueId(3), at, &mut left, span)
+                .is_err()
+        );
+        ledger
+            .instruction(function, at, None, &mut left, span)
+            .unwrap();
+        ledger
+            .constructed(function, node, ValueId(3), at, &mut left, span)
+            .unwrap();
+        assert!(
+            ledger
+                .constructed(function, node, ValueId(4), at, &mut left, span)
+                .is_err()
+        );
+        assert!(
+            ledger
+                .constructed(function, NodeId(1), ValueId(3), at, &mut left, span)
+                .is_err()
+        );
+        let observed = Point {
+            block: BlockId(0),
+            instruction: 1,
+        };
+        ledger
+            .instruction(function, observed, None, &mut left, span)
+            .unwrap();
+        ledger
+            .end(
+                function,
+                node,
+                entered,
+                Some(ValueId(4)),
+                Some(Point {
+                    block: BlockId(0),
+                    instruction: 2,
+                }),
+                &mut left,
+                span,
+            )
+            .unwrap();
+        let expression = &ledger.frames[&function].expressions[&node];
+        assert_eq!(expression.value, Some(ValueId(4)));
+        assert_eq!(
+            expression.construction,
+            Some(Construction {
+                value: ValueId(3),
+                at
+            })
+        );
+        assert_eq!(expression.instructions, [at, observed]);
     }
 }

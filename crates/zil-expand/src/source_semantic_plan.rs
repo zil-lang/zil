@@ -281,6 +281,38 @@ fn observation_operand(
     }
     Ok(true)
 }
+// Assignment navigation selects a place; it does not evaluate a whole
+// aggregate value at each Name/Member prefix. Index operands and explicit
+// dereference operands remain genuine value evaluations.
+fn assignment_navigation(
+    body: &mut SourceBody<'_>,
+    path: &[u32],
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<bool> {
+    let mut length = path.len();
+    while length > 0 {
+        let child = path[length - 1];
+        let Some(parent) = body.locate(&path[..length - 1], budget, span)? else {
+            return Ok(false);
+        };
+        match parent.node {
+            body_nodes::Node::Statement(statement) => {
+                return Ok(matches!(&statement.kind, s::StmtKind::Assign { .. } if child == 0));
+            }
+            body_nodes::Node::Expression(expression) => match &expression.kind {
+                s::ExprKind::Group(_) | s::ExprKind::Member { .. } | s::ExprKind::Index { .. }
+                    if child == 0 =>
+                {
+                    length -= 1
+                }
+                _ => return Ok(false),
+            },
+            body_nodes::Node::NonRuntime => return Ok(false),
+        }
+    }
+    Ok(false)
+}
 fn implicit_observation(
     program: &mut program::Program,
     definition: SemanticDefinitionId,
@@ -362,6 +394,7 @@ fn operations(
     for original in nodes {
         let observation = observation_operand(body, &original.path, budget, span)?;
         let projection_value = projection_value(body, &original.path, budget, span)?;
+        let navigation = assignment_navigation(body, &original.path, budget, span)?;
         let Some(located) = body.locate(&original.path, budget, span)? else {
             return Err(error(
                 span,
@@ -579,7 +612,9 @@ fn operations(
                     }
                 };
                 if let Some((kind, action, role)) = action {
-                    if !runtime {
+                    if !runtime
+                        || (navigation && matches!(kind, SemanticSiteRecipeKind::TypeUse { .. }))
+                    {
                         directory_site(
                             program,
                             definition,

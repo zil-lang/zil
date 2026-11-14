@@ -30,7 +30,7 @@ pub(crate) fn program(
     })?;
     context.verify_inputs(cores, ledger.frozen.as_ref(), limits, left)?;
     let mut result = context.publication_copy(limits, left)?;
-    super::lower::program(&mut result, module, ledger, left)?;
+    super::lower::program(&mut result, module, ledger, limits, left)?;
     #[cfg(test)]
     {
         super::source_probe::record_stage(module, "after-lower")?;

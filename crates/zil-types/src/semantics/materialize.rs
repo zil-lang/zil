@@ -691,6 +691,71 @@ impl<'a> Eval<'a, '_> {
             },
         }
     }
+    fn constructor_value(
+        &mut self,
+        owner: SemanticInstanceId,
+        proposed: &SemanticTypeValue,
+        result: ValueId,
+        hint: &Type,
+    ) -> R<SemanticTypeValue> {
+        let SemanticTypeValue::Core { scope, source } = proposed else {
+            return self.value(owner, proposed, Some(hint), 0);
+        };
+        let (module, creator, expression, occurrence) = match source {
+            SemanticCoreTypeSource::Expression {
+                module,
+                function,
+                expression,
+                occurrence,
+                ..
+            }
+            | SemanticCoreTypeSource::OriginalExpression {
+                module,
+                function,
+                expression,
+                occurrence,
+                ..
+            } => (*module, *function, *expression, *occurrence),
+            SemanticCoreTypeSource::OriginalRecipe(_) => {
+                return self.value(owner, proposed, Some(hint), 0);
+            }
+        };
+        if occurrence != 0 {
+            return Err(bad("constructor type selects a non-mint occurrence"));
+        }
+        let function = self.function(*scope)?;
+        self.fee(self.ledger.frames.len().saturating_add(1))?;
+        let frame = self
+            .ledger
+            .frames
+            .get(&function.id)
+            .ok_or_else(|| bad("constructor type has no real emitter frame"))?;
+        if frame.origin.module != module || frame.origin.creator != creator {
+            return Err(bad("constructor type changes its actual source owner"));
+        }
+        self.fee(frame.expressions.len().saturating_add(1))?;
+        let receipt = frame
+            .expressions
+            .get(&expression)
+            .and_then(|r| r.construction)
+            .ok_or_else(|| bad("constructor type has no actual producer receipt"))?;
+        if receipt.value != result {
+            return Err(bad(
+                "constructor type selects another actual creation result",
+            ));
+        }
+        match source {
+            SemanticCoreTypeSource::Expression { recipe, .. } => {
+                self.ty(*scope, recipe, Some(hint), 0)
+            }
+            SemanticCoreTypeSource::OriginalExpression { source, .. } => {
+                let recipe =
+                    self.original_type(*scope, SemanticScopeRef::Ancestor(0), source, 0)?;
+                self.ty(*scope, &recipe, Some(hint), 0)
+            }
+            SemanticCoreTypeSource::OriginalRecipe(_) => unreachable!(),
+        }
+    }
     fn constant(
         &mut self,
         scope: SemanticInstanceId,
@@ -1872,7 +1937,7 @@ pub(super) fn program(
                     .values
                     .get(result.0 as usize)
                     .ok_or_else(|| bad("constructor type materialization lost its actual SSA"))?;
-                *value = eval.value(site.instance, value, Some(hint), 0)?;
+                *value = eval.constructor_value(site.instance, value, *result, hint)?;
             }
             SemanticSiteAction::Construct { .. } => {
                 return Err(bad("constructor result was not relocated to actual SSA"));

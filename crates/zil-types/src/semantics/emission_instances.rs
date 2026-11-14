@@ -2,6 +2,8 @@
 //! body/site inventories are never reduced by this private relocation pass.
 use super::*;
 use std::collections::BTreeSet;
+#[path = "emission_templates.rs"]
+mod templates;
 
 fn request(
     instance: &SemanticInstance,
@@ -249,7 +251,27 @@ pub(super) fn publish(
             targets.insert(instance.id, actual);
         }
     }
-    while !pending.is_empty() {
+    let mut activated = BTreeSet::new();
+    loop {
+        let minted = templates::activate(program, lower, &targets, &mut activated)?;
+        for id in minted {
+            pay(lower.left, program.instances.len())?;
+            let ordinal = program
+                .instances
+                .iter()
+                .position(|r| r.id == id)
+                .ok_or_else(|| bad("actual retained instance was not published atomically"))?;
+            input.insert(id, ordinal);
+            if matches!(
+                program.instances[ordinal].target,
+                SemanticInstanceTarget::Function(_)
+            ) {
+                pending.insert(id);
+            }
+        }
+        if pending.is_empty() {
+            break;
+        }
         let mut progress = false;
         let batch: Vec<_> = pending.iter().copied().collect();
         pay(lower.left, batch.len().saturating_mul(3).saturating_add(1))?;
@@ -305,6 +327,12 @@ pub(super) fn publish(
             ));
         }
     }
+    // The retained-helper activation may have appended exact child mints.
+    sites.clear();
+    for (ordinal, site) in program.sites.iter().enumerate() {
+        pay(lower.left, search(sites.len()).saturating_add(1))?;
+        sites.entry(site.instance).or_default().push(ordinal);
+    }
     let mut live: BTreeSet<_> = targets.keys().copied().collect();
     let mut queue: Vec<_> = live.iter().copied().collect();
     let mut cursor = 0;
@@ -346,9 +374,20 @@ pub(super) fn publish(
                     .saturating_add(search(live.len()))
                     .saturating_add(search(inactive.len())),
             )?;
-            let target = *input
-                .get(&reference)
-                .ok_or_else(|| bad("live emission refers to an absent lexical instance"))?;
+            let Some(target) = input.get(&reference).copied() else {
+                // A query executable E may refer to the immutable, independently
+                // checked source context S. This is a lexical type/recipe
+                // dependency, not an E function frame or permission to execute
+                // the source owner's body. Retain the exact S identity in the
+                // operand; materialization uses the same frozen-context lookup.
+                let source = lower
+                    .ledger
+                    .frozen
+                    .as_deref()
+                    .ok_or_else(|| bad("live emission refers to an absent lexical instance"))?;
+                source.instance(reference, lower.left)?;
+                continue;
+            };
             if matches!(
                 program.instances[target].target,
                 SemanticInstanceTarget::Function(_)
@@ -368,9 +407,10 @@ pub(super) fn publish(
         pay(lower.left, search(covered.len()).saturating_add(1))?;
         lower.actual(*function)?;
         if !covered.contains(function) {
-            return Err(bad(
-                "actual emitted function has no original runtime instance",
-            ));
+            return Err(bad(&format!(
+                "actual emitted function {function:?} ({:?}, parent {:?}) has no original runtime instance",
+                frame.origin, frame.parent
+            )));
         }
         if let Some((parent, _)) = frame.parent {
             if !covered.contains(&parent) {

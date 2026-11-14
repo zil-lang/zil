@@ -24,6 +24,7 @@ struct Lower<'a, 'b> {
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
     closures: &'a [ClosureDefinition],
     left: &'b mut usize,
+    limits: &'b Limits,
 }
 impl<'a> Lower<'a, '_> {
     fn actual(&mut self, id: FunctionId) -> R<&'a TypedFunction> {
@@ -208,6 +209,27 @@ impl<'a> Lower<'a, '_> {
         intrinsic: Option<&super::original::IntrinsicKind>,
     ) -> R<Point> {
         let row = self.expression(function, node)?;
+        if matches!(action, SemanticSiteAction::Construct { .. }) {
+            let construction = row
+                .construction
+                .ok_or_else(|| bad("literal constructor has no actual producer receipt"))?;
+            let instruction = self.instruction(function, construction.at)?;
+            if instruction.result != Some(construction.value)
+                || !matches!(
+                    instruction.kind,
+                    InstructionKind::MakeAggregate { .. }
+                        | InstructionKind::MakeManaged { .. }
+                        | InstructionKind::MakePackage { .. }
+                        | InstructionKind::MakeOwnedTuple { .. }
+                        | InstructionKind::MakeOwnedArray { .. }
+                )
+            {
+                return Err(bad(
+                    "literal constructor receipt is not its actual creation opcode/result",
+                ));
+            }
+            return Ok(construction.at);
+        }
         let mut found = None;
         pay(self.left, row.instructions.len())?;
         for point in &row.instructions {
@@ -346,14 +368,21 @@ impl<'a> Lower<'a, '_> {
         match &mut site.action {
             SemanticSiteAction::Construct { result, .. }
             | SemanticSiteAction::Closure { result, .. } => {
-                self.operand(function, result)?;
+                if *result
+                    != (SemanticOperand::CoreExpression {
+                        expression,
+                        occurrence: 0,
+                    })
+                {
+                    return Err(bad(
+                        "constructor result does not select its exact original Core occurrence",
+                    ));
+                }
                 let actual = self
                     .instruction(function, point)?
                     .result
                     .ok_or_else(|| bad("actual constructor has no result"))?;
-                if *result != SemanticOperand::Value(actual) {
-                    return Err(bad("constructor result does not name its actual SSA"));
-                }
+                *result = SemanticOperand::Value(actual);
             }
             SemanticSiteAction::TypeUse { subject, .. } => {
                 self.operand(function, subject)?;
@@ -463,6 +492,7 @@ pub(super) fn program(
     program: &mut SemanticModule,
     module: &TypedModule,
     ledger: &Ledger,
+    limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
     pay(
@@ -481,6 +511,7 @@ pub(super) fn program(
         functions,
         closures: &module.closures,
         left,
+        limits,
     };
     let targets = instances::publish(program, &mut lower)?;
     pay(
