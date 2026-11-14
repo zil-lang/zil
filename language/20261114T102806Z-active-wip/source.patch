@@ -1,0 +1,3426 @@
+diff --git a/crates/zil-analyze/src/semantic/closed/classes.rs b/crates/zil-analyze/src/semantic/closed/classes.rs
+index 089d16ae1..586117afe 100644
+--- a/crates/zil-analyze/src/semantic/closed/classes.rs
++++ b/crates/zil-analyze/src/semantic/closed/classes.rs
+@@ -780,7 +780,9 @@ impl Check<'_, '_> {
+         }
+         let (block, index, instruction) = self.defining(function, value, b)?;
+         match instruction.kind {
+-            InstructionKind::ReadCapture { index } => Ok(index),
++            InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
++                Ok(index)
++            }
+             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                 self.capture_local_origin(function, local, (block, index), b, depth + 1)
+             }
+diff --git a/crates/zil-analyze/src/semantic/original.rs b/crates/zil-analyze/src/semantic/original.rs
+index a0b43e614..e8b33de41 100644
+--- a/crates/zil-analyze/src/semantic/original.rs
++++ b/crates/zil-analyze/src/semantic/original.rs
+@@ -2430,13 +2430,34 @@ impl Solver<'_, '_> {
+                     if frame.bindings.insert(statement.id, local).is_some() {
+                         return Err(fail("original binding node identity is reused"));
+                     }
++                    let mut family = None;
+                     if let Some(annotation) = ty {
+                         let expected = self.recipe(frame, annotation, b, depth + 1)?;
+-                        self.unify(local, expected, depth + 1, b)?;
++                        if self.raw_resource_family(expected, b)? {
++                            family = Some(expected);
++                        } else {
++                            self.unify(local, expected, depth + 1, b)?;
++                        }
+                     }
+                     if let Some(value) = initializer {
+                         let value = self.expression(frame, value, b, depth + 1)?;
++                        if let Some(family) = family {
++                            let payload = match self.state.arena[self.type_root(value, b)?] {
++                                Kind::Wrapped(Wrapper::Managed, payload)
++                                | Kind::Desc { inner: payload, .. } => payload,
++                                _ => {
++                                    return Err(fail(
++                                        "bare resource binding annotation needs its initializer's real owning or description category",
++                                    ));
++                                }
++                            };
++                            self.unify(family, payload, depth + 1, b)?;
++                        }
+                         self.unify(local, value, depth + 1, b)?;
++                    } else if family.is_some() {
++                        return Err(unknown(
++                            "uninitialized raw resource family needs its later whole category constraint",
++                        ));
+                     }
+                     self.bind(frame, name, local, *mutable, b)?;
+                     frame
+@@ -2450,6 +2471,33 @@ impl Solver<'_, '_> {
+                         }
+                     }
+                 }
++                CoreStatementKind::TupleBinding {
++                    pattern,
++                    mutable,
++                    ty,
++                    initializer,
++                } => {
++                    let subject = self.expression(frame, initializer, b, depth + 1)?;
++                    if let Some(annotation) = ty {
++                        let expected = self.recipe(frame, annotation, b, depth + 1)?;
++                        self.unify(subject, expected, depth + 1, b)?;
++                    }
++                    b.lookup(frame.bindings.len(), WORK)?;
++                    if frame.bindings.insert(statement.id, subject).is_some() {
++                        return Err(fail(
++                            "original destructuring binding reuses its source node",
++                        ));
++                    }
++                    self.tuple_binding(
++                        frame,
++                        statement.id,
++                        pattern,
++                        subject,
++                        *mutable,
++                        b,
++                        depth + 1,
++                    )?;
++                }
+                 CoreStatementKind::Expression(value) => {
+                     let discarded = self.expression(frame, value, b, depth + 1)?;
+                     if frame.alive {
+diff --git a/crates/zil-analyze/src/semantic/original/constructors.rs b/crates/zil-analyze/src/semantic/original/constructors.rs
+index 188486471..e58fedbdf 100644
+--- a/crates/zil-analyze/src/semantic/original/constructors.rs
++++ b/crates/zil-analyze/src/semantic/original/constructors.rs
+@@ -29,6 +29,27 @@ impl Wrapper {
+     }
+ }
+ impl Solver<'_, '_> {
++    pub(super) fn raw_resource_family(&self, term: Term, b: &mut Budget) -> CompileResult<bool> {
++        Ok(match self.state.arena[self.type_root(term, b)?] {
++            Kind::Atom(Type::ByteBuffer)
++            | Kind::Wrapped(
++                Wrapper::Store
++                | Wrapper::Mutex
++                | Wrapper::Registration
++                | Wrapper::AsyncRegistration,
++                _,
++            )
++            | Kind::Task(_) => true,
++            Kind::Nominal { definition, .. } => matches!(
++                self.inventory.definition(definition, b)?.body,
++                SemanticDefinitionBody::Nominal {
++                    kind: LifeNominalKind::Resource,
++                    ..
++                }
++            ),
++            _ => false,
++        })
++    }
+     pub(super) fn wrapper(
+         &mut self,
+         frame: &Frame,
+diff --git a/crates/zil-analyze/src/semantic/original/enums.rs b/crates/zil-analyze/src/semantic/original/enums.rs
+index e203f1f87..badecc78a 100644
+--- a/crates/zil-analyze/src/semantic/original/enums.rs
++++ b/crates/zil-analyze/src/semantic/original/enums.rs
+@@ -9,6 +9,53 @@ pub(super) struct Constructor {
+     pub(super) payload: Vec<Term>,
+ }
+ impl Solver<'_, '_> {
++    pub(super) fn tuple_binding(
++        &mut self,
++        frame: &mut Frame,
++        statement: NodeId,
++        pattern: &SemanticOriginalPattern,
++        subject: Term,
++        mutable: bool,
++        b: &mut Budget,
++        depth: usize,
++    ) -> CompileResult<()> {
++        self.step(depth, b)?;
++        let mut stack = Vec::new();
++        Self::push(&mut stack, pattern, b)?;
++        while let Some(pattern) = stack.pop() {
++            self.step(depth + 1, b)?;
++            match &pattern.kind {
++                CorePatternKind::Name(_) | CorePatternKind::Wildcard => {}
++                CorePatternKind::Tuple(fields) => {
++                    for field in fields {
++                        Self::push(&mut stack, field, b)?;
++                    }
++                }
++                _ => {
++                    return Err(unknown(
++                        "original binding pattern requires its complete refutability and branch relation",
++                    ));
++                }
++            }
++        }
++        let start = frame.locals.len();
++        if !self.pattern_bind(
++            frame,
++            statement,
++            &mut Vec::new(),
++            pattern,
++            subject,
++            b,
++            depth + 1,
++        )? {
++            return Err(fail("original tuple binding is not irrefutable"));
++        }
++        for local in &mut frame.locals[start..] {
++            b.spend(1, WORK)?;
++            local.mutable = mutable;
++        }
++        Ok(())
++    }
+     fn enum_variant(
+         &self,
+         value: Term,
+@@ -251,7 +298,7 @@ impl Solver<'_, '_> {
+                 Ok(true)
+             }
+             CorePatternKind::Tuple(patterns) => {
+-                let Kind::Tuple(fields) = &self.state.arena[self.root(subject, b)?] else {
++                let Kind::Tuple(fields) = &self.state.arena[self.type_root(subject, b)?] else {
+                     return Err(fail(
+                         "original tuple pattern has another subject constructor",
+                     ));
+diff --git a/crates/zil-types/src/inference.rs b/crates/zil-types/src/inference.rs
+index bad3477fc..c35284573 100644
+--- a/crates/zil-types/src/inference.rs
++++ b/crates/zil-types/src/inference.rs
+@@ -1973,6 +1973,22 @@ fn expression_has_closure_other(
+     Ok(found)
+ }
+ 
++// Inference-only deferred request. It never becomes a Type, Typed/Wire row,
++// retained shape or permission; the actual worker producer forms all classes.
++#[derive(Clone)]
++struct PendingTaskRequest {
++    caller: zil_base::NodeId,
++    closure_scope: Option<usize>,
++    call: zil_base::NodeId,
++    worker: Rc<Signature>,
++    inputs: Rc<Vec<Term>>,
++    recover_inputs: bool,
++}
++struct PendingTask {
++    requests: std::cell::RefCell<Vec<PendingTaskRequest>>,
++    result: Rc<Term>,
++    constraints: std::cell::RefCell<Vec<Type>>,
++}
+ #[derive(Clone)]
+ enum Term {
+     Scalar(Variable),
+@@ -2011,6 +2027,7 @@ enum Term {
+     /// Ordinary Types and both kernels still prove their actual owned shape.
+     InputTuple(Rc<Vec<Term>>),
+     CreateFailure(Rc<Vec<Term>>),
++    PendingTask(Rc<PendingTask>, bool),
+     Function(Rc<Signature>),
+     /// Nominal receiver already constrained; only valid immediately as a callee.
+     Method(Rc<Signature>),
+@@ -2040,6 +2057,7 @@ struct Solver<'a, 'b, 'c> {
+     closures: Vec<Closure>,
+     owner: Option<usize>,
+     ordinary_result: Type,
++    source_function: zil_base::NodeId,
+     ordinary_callable_return: Option<CoreCallableReturn>,
+     // Source-visible opaque identity belongs to the factory definition, even
+     // when its hidden environment is forwarded by another factory.
+@@ -2136,6 +2154,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             closures: vec![],
+             owner: None,
+             ordinary_result: function.return_type.clone(),
++            source_function: function.id,
+             ordinary_callable_return: function.callable_return.clone(),
+             factory_terms: BTreeMap::new(),
+             ordinary_return_identity: None,
+@@ -2946,6 +2965,138 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             span,
+         )
+     }
++    fn pending_task(
++        &mut self,
++        worker: Rc<Signature>,
++        call: zil_base::NodeId,
++        inputs: Vec<Term>,
++        recover_inputs: bool,
++        span: Span,
++    ) -> R<Term> {
++        self.budget.work(inputs.len().saturating_add(8), span)?;
++        let result = self.known_term(&worker.result, span)?;
++        let inputs = Rc::new(inputs);
++        let task = Term::PendingTask(
++            Rc::new(PendingTask {
++                requests: std::cell::RefCell::new(vec![PendingTaskRequest {
++                    caller: self.source_function,
++                    closure_scope: self.owner,
++                    call,
++                    worker,
++                    inputs: inputs.clone(),
++                    recover_inputs,
++                }]),
++                result: Rc::new(result),
++                constraints: std::cell::RefCell::new(Vec::new()),
++            }),
++            true,
++        );
++        let failure = if recover_inputs {
++            Term::CreateFailure(inputs)
++        } else {
++            self.known_term(&tasks::create_error(), span)?
++        };
++        Ok(Term::ValueUnion {
++            error: Rc::new(failure),
++            result: Rc::new(task),
++        })
++    }
++    fn bind_pending_task(
++        &mut self,
++        task: &Rc<PendingTask>,
++        owned: bool,
++        ty: &Type,
++        span: Span,
++    ) -> R<()> {
++        let payload = match ty {
++            Type::Managed(payload) if owned => payload,
++            Type::Desc(payload) => payload,
++            _ => {
++                return Err(error(
++                    "E-TYPE-MISMATCH",
++                    span,
++                    "pending Task carrier mode differs from its complete declared constraint",
++                ));
++            }
++        };
++        let Type::Task { result, .. } = payload.as_ref() else {
++            return Err(error(
++                "E-TYPE-MISMATCH",
++                span,
++                "pending Task requires an actual Task constraint",
++            ));
++        };
++        self.bind_term(&task.result, result, span)?;
++        charge_type_snapshot(ty, span, self.budget.limits, &mut self.budget.work, 1)?;
++        self.budget.work(1, span)?;
++        if task.constraints.borrow().len() >= self.budget.limits.max_nodes {
++            return Err(Diagnostic::limit(
++                Phase::Types,
++                "pending Task context constraint inventory exceeded",
++                Some(span),
++            ));
++        }
++        task.constraints.borrow_mut().push(ty.clone());
++        // The original annotation remains on the Core operation. Only the
++        // concrete worker/context producer may check or publish its classes.
++        Ok(())
++    }
++    fn pending_task_operation(&mut self, name: &str, term: &Term, span: Span) -> R<Option<Term>> {
++        let (task, owned, address) = match term {
++            Term::PendingTask(task, owned) => (task, *owned, None),
++            Term::ValueAddress(carrier, mutable) => match carrier.as_ref() {
++                Term::PendingTask(task, owned) => (task, *owned, Some(*mutable)),
++                _ => return Ok(None),
++            },
++            _ => return Ok(None),
++        };
++        let allowed = match name {
++            "task_valid" => address.is_none(),
++            "task_finish_destroy" => address.is_none() && owned,
++            "task_start" | "task_poll" | "task_request_cancel" | "task_poll_close" => {
++                address == Some(true) && owned
++            }
++            _ => false,
++        };
++        if !allowed {
++            return Err(error(
++                "E-TYPE-MISMATCH",
++                span,
++                "pending Task operation changes its actual carrier or address mode",
++            ));
++        }
++        let requests = task.requests.borrow();
++        self.budget.work(requests.len(), span)?;
++        // Keep every real call request. Matching result shapes does not merge
++        // workers, captures or the contexts which will be formed later.
++        let mut result = None;
++        for request in requests.iter() {
++            self.budget
++                .work(request.inputs.len().saturating_add(3), span)?;
++            let returned = match name {
++                "task_valid" => Type::Bool,
++                "task_poll" => Type::ErrorUnion {
++                    error: Box::new(tasks::poll_state()),
++                    result: Box::new(tasks::poll_type(&request.worker.result)),
++                },
++                "task_poll_close" => tasks::poll_type(&Type::Unit),
++                _ => Type::Unit,
++            };
++            let actual = self.known_term(&returned, span)?;
++            if let Some(previous) = &result {
++                self.unify(previous, &actual, span)?
++            } else {
++                result = Some(actual)
++            }
++        }
++        result.map(Some).ok_or_else(|| {
++            error(
++                "E-TASK-WORKER",
++                span,
++                "pending Task lost every actual worker request",
++            )
++        })
++    }
+     fn scalar(&mut self, term: &Term, span: Span) -> R<Variable> {
+         match term {
+             Term::Scalar(variable) => Ok(*variable),
+@@ -3070,6 +3221,26 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+         }
+     }
+     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
++        if let Term::PendingTask(task, owned) = term {
++            return self.bind_pending_task(task, *owned, ty, span);
++        }
++        if let Term::ValueAddress(carrier, mutable) = term
++            && matches!(carrier.as_ref(), Term::PendingTask(..))
++            && let Type::Address {
++                mutable: wanted,
++                inner,
++            } = ty
++        {
++            if !*mutable && *wanted {
++                return Err(error(
++                    "E-ADDRESS-PERMISSION",
++                    span,
++                    "a shared Task address cannot grant exclusive access",
++                ));
++            }
++            return self.bind_term(carrier, inner, span);
++        }
++
+         if let Term::ValueAddress(carrier, true) = term
+             && let Type::Address {
+                 mutable: true,
+@@ -3185,6 +3356,80 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             return self.graph.unify(a, b, span);
+         }
+         match (left, right) {
++            (Term::PendingTask(a, am), Term::PendingTask(b, bm)) if am == bm => {
++                self.unify(&a.result, &b.result, span)?;
++                if !Rc::ptr_eq(a, b) {
++                    let own = a.requests.borrow();
++                    let other = b.requests.borrow();
++                    self.budget.work(
++                        own.len().saturating_mul(2).saturating_add(other.len()),
++                        span,
++                    )?;
++                    let mut requests = own.clone();
++                    for request in other.iter() {
++                        self.budget.work(requests.len().saturating_add(1), span)?;
++                        if !requests.iter().any(|old| {
++                            old.caller == request.caller
++                                && old.closure_scope == request.closure_scope
++                                && old.call == request.call
++                                && old.worker.template == request.worker.template
++                                && old.worker.id == request.worker.id
++                                && old.recover_inputs == request.recover_inputs
++                        }) {
++                            if requests.len() >= self.budget.limits.max_nodes {
++                                return Err(Diagnostic::limit(
++                                    Phase::Types,
++                                    "pending Task request inventory exceeded",
++                                    Some(span),
++                                ));
++                            }
++                            requests.push(request.clone());
++                        }
++                    }
++                    drop(own);
++                    drop(other);
++                    let mut constraints = Vec::new();
++                    for source in [a, b] {
++                        for constraint in source.constraints.borrow().iter() {
++                            charge_type_snapshot(
++                                constraint,
++                                span,
++                                self.budget.limits,
++                                &mut self.budget.work,
++                                2,
++                            )?;
++                            if constraints.len() >= self.budget.limits.max_nodes {
++                                return Err(Diagnostic::limit(
++                                    Phase::Types,
++                                    "pending Task constraint inventory exceeded",
++                                    Some(span),
++                                ));
++                            }
++                            constraints.push(constraint.clone());
++                        }
++                    }
++                    *a.requests.borrow_mut() = requests.clone();
++                    *b.requests.borrow_mut() = requests;
++                    *a.constraints.borrow_mut() = constraints.clone();
++                    *b.constraints.borrow_mut() = constraints;
++                }
++                Ok(())
++            }
++
++            (Term::PendingTask(task, owned), Term::Resource(variable, managed))
++                if owned == managed =>
++            {
++                let payload = self.graph.ty(*variable)?.ok_or_else(|| {
++                    unsupported(span, "Task constraint awaits its complete declared payload")
++                })?;
++                let ty = if *managed {
++                    Type::Managed(Box::new(payload))
++                } else {
++                    Type::Desc(Box::new(payload))
++                };
++                self.bind_pending_task(task, *owned, &ty, span)
++            }
++            (Term::Resource(..), Term::PendingTask(..)) => self.unify(right, left, span),
+             (Term::Registration(a, am, aa), Term::Registration(b, bm, ba))
+                 if am == bm && aa == ba =>
+             {
+@@ -3319,6 +3564,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                 | Term::ValueUnion { .. }
+                 | Term::InputTuple(_)
+                 | Term::CreateFailure(_)
++                | Term::PendingTask(..)
+                 | Term::ClosureAddress(..)
+         ) {
+             return Err(unsupported(
+@@ -3402,6 +3648,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                     Term::Registration(environment, false, asynchronous)
+                 }
+                 Term::Resource(variable, _) => Term::Resource(variable, false),
++                Term::PendingTask(task, _) => Term::PendingTask(task, false),
+                 Term::ValueStore(element, _) => Term::ValueStore(element, false),
+                 other => other,
+             });
+@@ -3606,7 +3853,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                             .iter()
+                             .rev()
+                             .find_map(|scope| scope.get(name))
+-                            .is_some_and(|b| b.mutable && matches!(b.term, Term::Resource(_, true)))
++                            .is_some_and(|b| {
++                                b.mutable
++                                    && matches!(
++                                        b.term,
++                                        Term::Resource(_, true) | Term::PendingTask(_, true)
++                                    )
++                            })
+                     } else {
+                         false
+                     };
+@@ -3622,6 +3875,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                             (Term::Resource(a, _), Term::Resource(b, true)) => {
+                                 self.graph.unify(*a, *b, statement.span)?
+                             }
++                            (Term::PendingTask(a, _), Term::PendingTask(b, true)) => {
++                                self.unify(
++                                    &Term::PendingTask(a.clone(), true),
++                                    &Term::PendingTask(b.clone(), true),
++                                    statement.span,
++                                )?;
++                            }
+                             _ => {
+                                 return Err(error(
+                                     "E-TYPE-MISMATCH",
+@@ -3935,6 +4195,38 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                 self.bind_term(&term, union, expression.span)?;
+                 return Ok(term);
+             }
++            if let Term::PendingTask(task, true) = &term {
++                let Type::ErrorUnion {
++                    error: failure,
++                    result,
++                } = union
++                else {
++                    unreachable!()
++                };
++                let error_task = matches!(failure.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
++                let result_task = matches!(result.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
++                return match (error_task, result_task) {
++                    (false, true) => {
++                        self.bind_pending_task(task, true, result, expression.span)?;
++                        Ok(Term::ValueUnion {
++                            error: Rc::new(self.known_term(failure, expression.span)?),
++                            result: Rc::new(term),
++                        })
++                    }
++                    (true, false) => {
++                        self.bind_pending_task(task, true, failure, expression.span)?;
++                        Ok(Term::ValueUnion {
++                            error: Rc::new(term),
++                            result: Rc::new(self.known_term(result, expression.span)?),
++                        })
++                    }
++                    _ => Err(error(
++                        "E-ERROR-INJECTION-AMBIGUOUS",
++                        expression.span,
++                        "a pending Task needs an explicit tagged value when both union arms are Task carriers",
++                    )),
++                };
++            }
+             if let Term::Resource(payload, true) = &term
+                 && let Some(task @ Type::Task { .. }) = self.graph.ty(*payload)?
+             {
+@@ -4063,6 +4355,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             CoreExprKind::Unit => Ok(Term::Scalar(self.fresh(UNIT, false, span)?)),
+             CoreExprKind::Name(name) => {
+                 let term = self.name(name, write, span)?;
++                if matches!(expected, Some(Type::Managed(_)))
++                    && self.prepared.contains(name)
++                    && let Some(Binding {
++                        term: Term::PendingTask(task, true),
++                        ..
++                    }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
++                {
++                    return Ok(Term::PendingTask(task.clone(), true));
++                }
+                 if matches!(expected, Some(Type::Managed(_)))
+                     && self.prepared.contains(name)
+                     && let Some(Binding {
+@@ -4232,6 +4533,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                 ));
+             };
+             return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
++                Some(Binding {
++                    term: Term::PendingTask(task, true),
++                    ..
++                }) => Ok(Term::PendingTask(task.clone(), true)),
++                Some(Binding {
++                    term: Term::PendingTask(_, false),
++                    ..
++                }) => Err(error(
++                    "E-GIVE-DESCRIPTOR",
++                    span,
++                    "a Task descriptor does not own its carrier",
++                )),
++
+                 Some(Binding {
+                     term: Term::Address(variable, true),
+                     ..
+@@ -4264,6 +4578,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             };
+         }
+         if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) {
++            if let CoreExprKind::Name(name) = &operand.kind
++                && let Some(binding) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
++                && let Term::PendingTask(task, true) = &binding.term
++            {
++                return Ok(Term::ValueAddress(
++                    Rc::new(Term::PendingTask(task.clone(), true)),
++                    *op == UnaryOp::BorrowMut,
++                ));
++            }
++
+             if *op == UnaryOp::BorrowMut
+                 && let CoreExprKind::Name(name) = &operand.kind
+                 && let Some(binding) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
+@@ -4675,19 +4999,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                         }
+                         inputs.push(term);
+                     }
+-                    let task = Type::Managed(Box::new(Type::Task {
+-                        result: Box::new(signature.result.clone()),
+-                        retained_life: tasks::borrowed_context_with_life(
+-                            &signature.parameters,
+-                            signature.life.as_ref(),
+-                            &signature.result,
+-                        ),
+-                    }));
+-                    return Ok(Term::ValueUnion {
+-                        error: Rc::new(Term::CreateFailure(Rc::new(inputs))),
+-                        result: Rc::new(self.known_term(&task, span)?),
+-                    });
++                    return self.pending_task(signature.clone(), expression.id, inputs, true, span);
+                 }
++                let mut pending_inputs = Vec::new();
+                 for (index, (argument, wanted)) in
+                     arguments[1..].iter().zip(&signature.parameters).enumerate()
+                 {
+@@ -4699,12 +5013,26 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                             .iter()
+                             .find(|bound| bound.index as usize == index)
+                         {
+-                            self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
++                            let id =
++                                self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
++                            pending_inputs.push(
++                                match helpers::parameter_mode(wanted, &bound.generic_name) {
++                                    Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
++                                    Some(None) => Term::Closure(id),
++                                    None => {
++                                        return Err(unsupported(
++                                            argument.span,
++                                            "Task input lost its declared callable mode",
++                                        ));
++                                    }
++                                },
++                            );
+                             continue;
+                         }
+                     }
+                     let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
+                     self.bind_term(&term, wanted, argument.span)?;
++                    pending_inputs.push(term);
+                 }
+                 validate_type(&signature.result, 0, span, self.budget)?;
+                 if name == "task_create_owned" {
+@@ -4725,36 +5053,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                     &mut self.budget.work,
+                     4,
+                 )?;
+-                return self.known_term(
+-                    &if name == "task_await" {
+-                        signature.result.clone()
+-                    } else {
+-                        tasks::call_create_type(
+-                            name,
+-                            &signature.result,
+-                            tasks::borrowed_context_with_life(
+-                                &signature.parameters,
+-                                signature
+-                                    .life
+-                                    .clone()
+-                                    .or_else(|| {
+-                                        matches!(
+-                                            signature.result,
+-                                            Type::Address { mutable: false, .. }
+-                                        )
+-                                        .then(|| {
+-                                            signature.storage_life.as_ref().and_then(|life| {
+-                                                life.to_flat(signature.parameters.len())
+-                                            })
+-                                        })
+-                                        .flatten()
+-                                    })
+-                                    .as_ref(),
+-                                &signature.result,
+-                            ),
+-                            &signature.parameters,
+-                        )
+-                    },
++                if name == "task_await" {
++                    return self.known_term(&signature.result, span);
++                }
++                return self.pending_task(
++                    signature.clone(),
++                    expression.id,
++                    pending_inputs,
++                    name == "task_create_owned",
+                     span,
+                 );
+             }
+@@ -4788,6 +5094,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             let mut returned = tasks::result(name);
+             for (argument, wanted) in arguments[offset..].iter().zip(&parameters) {
+                 let term = self.expr_expected(argument, None, depth + 1, false)?;
++                if let Some(result) = self.pending_task_operation(name, &term, argument.span)? {
++                    return Ok(result);
++                }
+                 let v = self.projection_base(&term, argument.span)?;
+                 if let Some(actual) = self.graph.ty(v)?
+                     && let Some(task @ Type::Task { .. }) = tasks::payload(&actual)
+diff --git a/crates/zil-verify/src/semantic/evaluate.rs b/crates/zil-verify/src/semantic/evaluate.rs
+index e1de24075..6f17c22ea 100644
+--- a/crates/zil-verify/src/semantic/evaluate.rs
++++ b/crates/zil-verify/src/semantic/evaluate.rs
+@@ -413,7 +413,7 @@ impl CheckedContext {
+             statics: vec![],
+         })
+     }
+-    fn attach_child(
++    pub(super) fn attach_child(
+         &self,
+         environment: &EvalEnv,
+         parent: &mut CheckedType,
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index b5f048e26..daef91e9f 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -8,6 +8,7 @@ mod closed_values;
+ mod operations;
+ mod products;
+ mod trait_members;
++mod task_operations;
+ #[derive(Clone,PartialEq,Eq)]
+ struct State {locals:Vec<Option<CheckedType>>}
+ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
+@@ -210,7 +211,7 @@ impl CheckedContext {
+                         if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?}
+                         else{let source=&value_at(&values,*value)?.ty;if (!source.is_integer()&&!source.is_float())||(!target.is_integer()&&!target.is_float()){return Err(bad("numeric operation has a nonnumeric endpoint"));}Some(atomic(target,b)?)}
+                     }
+-                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
++                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
+                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
+                         Some(value)
+diff --git a/crates/zil-verify/src/semantic/mod.rs b/crates/zil-verify/src/semantic/mod.rs
+index 35ab15f92..354cda702 100644
+--- a/crates/zil-verify/src/semantic/mod.rs
++++ b/crates/zil-verify/src/semantic/mod.rs
+@@ -17,6 +17,7 @@ mod nominal;
+ mod closures;
+ mod opaque;
+ mod method_obligations;
++mod task_domains;
+ mod catalogue;
+ mod instances;
+ mod flow;
+diff --git a/crates/zil-verify/src/semantic/original/calls.rs b/crates/zil-verify/src/semantic/original/calls.rs
+index 896bbb387..a788957a2 100644
+--- a/crates/zil-verify/src/semantic/original/calls.rs
++++ b/crates/zil-verify/src/semantic/original/calls.rs
+@@ -18,7 +18,7 @@ impl CheckedOriginal {
+             if let Some(mixed)=written_mixed{for arg in mixed{match arg{CoreGenericArgument::Type(ty)=>written.push(Arg::Type(self.ty(module,context,ty,env,active,b)?)),_=>return Err(unsupported("registered mixed Const/Life arguments need their exact closed scheme",None))}}}
+             let site=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).find(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall)).ok_or_else(||bad("registered intrinsic has another original call role"))?;
+             let result=self.intrinsic_call(module,context,intrinsic,site.id,&written,expected,arguments,env,bindings,active,b)?;
+-            if matches!(intrinsic,intrinsics::Intrinsic::BytesNew|intrinsics::Intrinsic::StoreNew|intrinsics::Intrinsic::AsyncStart|intrinsics::Intrinsic::MutexCreate|intrinsics::Intrinsic::TaskCreate){b.spend(1)?;self.created.insert((env.current()?,call.id));}
++            if matches!(intrinsic,intrinsics::Intrinsic::BytesNew|intrinsics::Intrinsic::StoreNew|intrinsics::Intrinsic::AsyncStart|intrinsics::Intrinsic::MutexCreate|intrinsics::Intrinsic::TaskCreate|intrinsics::Intrinsic::TaskCreateOwned){b.spend(1)?;self.created.insert((env.current()?,call.id));}
+             if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+             return Ok(result);
+         }
+diff --git a/crates/zil-verify/src/semantic/original/cleanup.rs b/crates/zil-verify/src/semantic/original/cleanup.rs
+index 63bfe9eb0..00b0b945d 100644
+--- a/crates/zil-verify/src/semantic/original/cleanup.rs
++++ b/crates/zil-verify/src/semantic/original/cleanup.rs
+@@ -36,6 +36,9 @@ impl CheckedOriginal {
+             };
+             for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,active,b)?;}return Ok(());
+         }
++        // This exact-binder set is published only after the phase engine has
++        // proved every cleanup edge, including all old loop generations.
++        if place.fields.is_empty()&&self.task_closed_cleanups.contains(&(env.current()?,place.binder.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+         if self.sync_drop(module,context,ty,env,active,b)?{Ok(())}else{Err(bad("original cleanup edge has no original SyncDrop proof"))}
+     }
+     pub(super) fn sync_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+diff --git a/crates/zil-verify/src/semantic/original/intrinsics.rs b/crates/zil-verify/src/semantic/original/intrinsics.rs
+index 7e2a9c86b..856e7021e 100644
+--- a/crates/zil-verify/src/semantic/original/intrinsics.rs
++++ b/crates/zil-verify/src/semantic/original/intrinsics.rs
+@@ -4,7 +4,7 @@
+ use super::*;
+ 
+ #[derive(Clone,Copy,Debug,PartialEq,Eq)]
+-pub(in crate::semantic) enum Intrinsic {Convert(Numeric),TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope}
++pub(in crate::semantic) enum Intrinsic {Convert(Numeric),TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskCreateOwned,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope}
+ #[derive(Clone,Copy,Debug,PartialEq,Eq)]
+ pub(in crate::semantic) enum Numeric {I8,I16,I32,I64,Isize,U8,U16,U32,U64,Usize,F32,F64}
+ impl Numeric {
+@@ -30,14 +30,14 @@ impl Intrinsic {
+         InstructionKind::ByteBufferCapacity{..}=>Self::BytesCapacity,
+         InstructionKind::ByteBufferBorrow{mutable:false,..}=>Self::BytesView,InstructionKind::ByteBufferBorrow{mutable:true,..}=>Self::BytesViewMut,
+         InstructionKind::OwnedStoreNew{..}=>Self::StoreNew,InstructionKind::OwnedStoreReserve{..}=>Self::StoreReserve,InstructionKind::OwnedStorePush{..}=>Self::StorePush,InstructionKind::OwnedStorePop{..}=>Self::StorePop,InstructionKind::OwnedStoreBorrow{..}=>Self::StoreGet,InstructionKind::OwnedStoreBorrowMut{..}=>Self::StoreGetMut,InstructionKind::OwnedStoreLen{..}=>Self::StoreLen,InstructionKind::OwnedStoreCapacity{..}=>Self::StoreCapacity,
+-        InstructionKind::TaskCreate{..}=>Self::TaskCreate,InstructionKind::TaskValid{..}=>Self::TaskValid,InstructionKind::TaskPoll{..}=>Self::TaskPoll,InstructionKind::TaskRequestCancel{..}=>Self::TaskRequest,InstructionKind::TaskPollClose{..}=>Self::TaskPollClose,InstructionKind::TaskFinishDestroy{..}=>Self::TaskFinish,
++        InstructionKind::TaskCreate{..}=>Self::TaskCreate,InstructionKind::TaskCreateOwned{..}=>Self::TaskCreateOwned,InstructionKind::TaskValid{..}=>Self::TaskValid,InstructionKind::TaskPoll{..}=>Self::TaskPoll,InstructionKind::TaskRequestCancel{..}=>Self::TaskRequest,InstructionKind::TaskPollClose{..}=>Self::TaskPollClose,InstructionKind::TaskFinishDestroy{..}=>Self::TaskFinish,
+         InstructionKind::MutexCreate{..}=>Self::MutexCreate,InstructionKind::MutexLock{..}=>Self::MutexLock,InstructionKind::MutexValue{..}=>Self::MutexValue,InstructionKind::MutexUnlock{..}=>Self::MutexUnlock,
+         InstructionKind::AsyncRegistrationStart{..}=>Self::AsyncStart,InstructionKind::AsyncRegistrationValid{..}=>Self::AsyncValid,InstructionKind::AsyncRegistrationRequestClose{..}=>Self::AsyncRequest,InstructionKind::AsyncRegistrationPollClose{..}=>Self::AsyncPoll,InstructionKind::AsyncRegistrationFinishDestroy{..}=>Self::AsyncFinish,InstructionKind::AsyncRegistrationFinishDestroyChecked{..}=>Self::AsyncFinishChecked,InstructionKind::WithScopedThread{..}=>Self::ThreadScope,
+         _=>return None,
+     })}
+     fn name(name:&str)->Option<Self>{if let Some(target)=Numeric::name(name){return Some(Self::Convert(target));}Some(match name{"task_yield"=>Self::TaskYield,"bytes_new"=>Self::BytesNew,"bytes_reserve"=>Self::BytesReserve,"bytes_push"=>Self::BytesPush,"bytes_truncate"=>Self::BytesTruncate,"bytes_len"=>Self::BytesLen,"bytes_capacity"=>Self::BytesCapacity,"bytes_view"=>Self::BytesView,"bytes_view_mut"=>Self::BytesViewMut,
+         "store_new"=>Self::StoreNew,"store_reserve"=>Self::StoreReserve,"store_push"=>Self::StorePush,"store_pop"=>Self::StorePop,"store_at"=>Self::StoreGet,"store_at_mut"=>Self::StoreGetMut,"store_len"=>Self::StoreLen,"store_capacity"=>Self::StoreCapacity,
+-        "task_create"=>Self::TaskCreate,"task_valid"=>Self::TaskValid,"task_poll"=>Self::TaskPoll,"task_request_cancel"=>Self::TaskRequest,"task_poll_close"=>Self::TaskPollClose,"task_finish_destroy"=>Self::TaskFinish,
++        "task_create"=>Self::TaskCreate,"task_create_owned"=>Self::TaskCreateOwned,"task_valid"=>Self::TaskValid,"task_poll"=>Self::TaskPoll,"task_request_cancel"=>Self::TaskRequest,"task_poll_close"=>Self::TaskPollClose,"task_finish_destroy"=>Self::TaskFinish,
+         "mutex_create"=>Self::MutexCreate,"mutex_lock"=>Self::MutexLock,"mutex_value"=>Self::MutexValue,"mutex_unlock"=>Self::MutexUnlock,
+         "c_register_async"=>Self::AsyncStart,"async_registration_valid"=>Self::AsyncValid,"async_registration_request_close"=>Self::AsyncRequest,"async_registration_poll_close"=>Self::AsyncPoll,"async_registration_finish_destroy"=>Self::AsyncFinish,"async_registration_finish_destroy_checked"=>Self::AsyncFinishChecked,"thread_scope"=>Self::ThreadScope,_=>return None})}
+ }
+diff --git a/crates/zil-verify/src/semantic/original/mod.rs b/crates/zil-verify/src/semantic/original/mod.rs
+index 8111a87ac..d878775cf 100644
+--- a/crates/zil-verify/src/semantic/original/mod.rs
++++ b/crates/zil-verify/src/semantic/original/mod.rs
+@@ -35,6 +35,7 @@ mod constructors;
+ mod associated;
+ mod trait_methods;
+ mod trait_calls;
++mod tasks;
+ pub(in crate::semantic) use trait_calls::{TraitCallRecipes,MethodActualRecipe};
+ mod raw_schemes;
+ mod opaque;
+@@ -57,6 +58,7 @@ pub(super) struct CheckedOriginal {
+     constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
+     projection_terms:Vec<(Ty,LifeDeclarationId,Vec<Arg>,u32,Ty)>,
+     trait_witnesses:Vec<(LifeDeclarationId,LifeDeclarationId)>,
++    task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Binder)>,
+     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
+     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
+     substitutions:BTreeMap<u64,Ty>,
+@@ -110,12 +112,12 @@ impl CheckedOriginal {
+         for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
+         result.check_trait_witnesses(module,context,active,b)?;
+         result.current=None;
+-        result.check_cleanups(module,context,active,b)?;
+         result.check_effects(b)?;
+         // No original protocol claim is usable by the actual bridge until
+         // every original body, including uninstantiated bodies, has been
+         // checked against its own entry relation.
+         result.check_protocols(module,context,&index,b)?;
++        result.check_cleanups(module,context,active,b)?;
+         for binding in &result.creation_returns{b.spend(1)?;if result.creation_tainted.contains(binding){return Err(bad("original create result has a reassigned or loop-carried unproved lineage"));}}
+         Ok(result)
+     }
+diff --git a/crates/zil-verify/src/semantic/original/operations.rs b/crates/zil-verify/src/semantic/original/operations.rs
+index f06e905b4..3777e485b 100644
+--- a/crates/zil-verify/src/semantic/original/operations.rs
++++ b/crates/zil-verify/src/semantic/original/operations.rs
+@@ -51,28 +51,7 @@ impl CheckedOriginal {
+                 let Ty::Carrier{kind:CarrierKind::MutexGuard,child,..}=payload else{return Err(bad("guard operation has another complete guard type"));};
+                 if kind==Intrinsic::MutexValue{use_.buffer=Some(self.operation_source(&arguments[0],env,bindings,b)?);Ty::Address{mutable:true,life,inner:child}}else{Ty::Atom(Type::Unit)}
+             },
+-            Intrinsic::TaskCreate=>{
+-                if arguments.is_empty(){return Err(bad("task_create omits its original worker"));}
+-                let worker=self.expression(module,context,&arguments[0],env,bindings,None,active,b)?;let Ty::Function(worker)=worker else{return Err(bad("Task worker is not an independently resolved original static definition"));};
+-                let prototype=self.operation_function(module,context,worker,active,b)?;self.operation_arity(&arguments[1..],prototype.parameters.len())?;use_.worker=Some(worker);
+-                let mut retained=Retained::default();
+-                for((argument,parameter),mode)in arguments[1..].iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,parameter,*mode,env,bindings,active,b)?;self.unify(&actual,parameter,b)?;
+-                    match self.resolved(&actual,b)?{leaf @ Ty::Address{..}|leaf @ Ty::Desc{..}=>{let(class,mode)=match &leaf{Ty::Address{mutable,life,..}=>(life.clone(),if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress}),Ty::Desc{life,..}=>(life.clone(),StoredBorrowMode::ReadOnlyDescription),_=>unreachable!()};retained.domain.push(ClassPart::One(class.clone()));retained.ports.push(PortPart::One{leaf,mode,class});},value=>{self.structural_obligation(module,context,&value,DynStructuralBound::Value,env,active,b)?;self.structural_obligation(module,context,&value,DynStructuralBound::SyncDrop,env,active,b)?;}}
+-                }
+-                // The worker is referenced and retained, not executed by this
+-                // constructor. Its own full body/effect is checked separately.
+-                Ty::ErrorUnion(Box::new(Ty::SealedError(SealedError::TaskCreate)),Box::new(Ty::Managed(Box::new(Ty::Carrier{kind:CarrierKind::Task,child:Box::new(prototype.result),retained:Box::new(retained)}))))
+-            },
+-            Intrinsic::TaskValid|Intrinsic::TaskPoll|Intrinsic::TaskRequest|Intrinsic::TaskPollClose|Intrinsic::TaskFinish=>{
+-                if kind==Intrinsic::TaskFinish{return Err(unsupported("original Task destroy requires its complete all-exit close-state proof",None));}
+-                self.operation_arity(arguments,1)?;
+-                let value=if kind==Intrinsic::TaskFinish{self.expression(module,context,&arguments[0],env,bindings,None,active,b)?}else{let(value,source)=self.operation_observe(module,context,&arguments[0],env,bindings,active,b)?;use_.buffer=Some(source);value};
+-                if kind==Intrinsic::TaskFinish&&!matches!(arguments[0].kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){return Err(bad("Task destroy omits its explicit owning transfer"));}
+-                let(payload,_)=self.operation_payload(&value,env.current()?,arguments[0].id,b)?;
+-                let Ty::Carrier{kind:CarrierKind::Task,child,..}=payload else{return Err(bad("Task operation selects another complete frame/result type"));};
+-                if matches!(kind,Intrinsic::TaskPoll|Intrinsic::TaskRequest|Intrinsic::TaskPollClose)&&!matches!(self.resolved(&value,b)?,Ty::Address{mutable:true,..}){return Err(bad("Task driving operation lacks its exclusive original head borrow"));}
+-                match kind{Intrinsic::TaskValid=>Ty::Atom(Type::Bool),Intrinsic::TaskPoll=>Ty::ErrorUnion(Box::new(Ty::SealedError(SealedError::TaskPoll)),Box::new(self.poll_type(module,*child,b)?)),Intrinsic::TaskPollClose=>self.poll_type(module,Ty::Atom(Type::Unit),b)?,_=>Ty::Atom(Type::Unit)}
+-            },
++            Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned|Intrinsic::TaskValid|Intrinsic::TaskPoll|Intrinsic::TaskRequest|Intrinsic::TaskPollClose|Intrinsic::TaskFinish=>self.task_operation(module,context,kind,arguments,env,bindings,&mut use_,active,b)?,
+             Intrinsic::AsyncStart=>{
+                 self.operation_arity(arguments,4)?;if self.unsafe_depth.get(&env.current()?).copied().unwrap_or(0)==0{return Err(bad("async registration construction lacks its original unsafe scope"));}
+                 let mut providers=Vec::new();for argument in &arguments[..3]{let value=self.expression(module,context,argument,env,bindings,None,active,b)?;let Ty::Function(id)=value else{return Err(bad("async provider is not a real original foreign declaration"));};providers.push(id);}
+@@ -99,14 +78,14 @@ impl CheckedOriginal {
+         };
+         self.execute_effect(env,CallKind::Direct,b)?;b.spend(1)?;self.intrinsic_calls.insert((env.current()?,site),use_);Ok(Some(result))
+     }
+-    fn operation_arity(&self,args:&[SemanticOriginalExpr],expected:usize)->Check<()>{if args.len()==expected{Ok(())}else{Err(bad("operational intrinsic has another complete value arity"))}}
++    pub(super) fn operation_arity(&self,args:&[SemanticOriginalExpr],expected:usize)->Check<()>{if args.len()==expected{Ok(())}else{Err(bad("operational intrinsic has another complete value arity"))}}
+     #[allow(clippy::too_many_arguments)]
+     fn operation_scalar(&mut self,module:&TypedModule,context:&CheckedContext,value:&SemanticOriginalExpr,ty:Type,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{let expected=Ty::Atom(ty);let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.unify(&actual,&expected,b)}
+     fn operation_source(&self,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<BufferSource>{let mut node=expression;loop{b.spend(1)?;match &node.kind{CoreExprKind::Group(inner)|CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand:inner}=>node=inner,CoreExprKind::Name(name)=>return match &bindings.get(name).ok_or_else(||bad("operation owner name lacks its original binder"))?.identity{Binder::Parameter{definition,ordinal}=>Ok(BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),Binder::Local{definition,node,..}=>Ok(BufferSource::Local{definition:*definition,node:*node}),_ if self.value_places.contains_key(&(env.current()?,node.id))=>Ok(BufferSource::Place{definition:env.current()?,node:node.id}),_=>Err(unsupported("operation captured owner needs its complete actual capture source bridge",None))},_ if self.value_places.contains_key(&(env.current()?,node.id))=>return Ok(BufferSource::Place{definition:env.current()?,node:node.id}),_=>return Err(unsupported("operation projected owner needs its complete original typed path bridge",None))}}}
+     #[allow(clippy::too_many_arguments)]
+-    fn operation_observe(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,BufferSource)>{let(value,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&value,env,false,active,b)?;}Ok((self.resolved(&value,b)?,self.operation_source(expression,env,bindings,b)?))}
+-    fn operation_payload(&self,ty:&Ty,owner:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(Ty,Life)>{Ok(match self.resolved(ty,b)?{Ty::Managed(inner)=>(*inner,Life::Local(owner,node)),Ty::Desc{life,inner}=>(*inner,life),Ty::Address{life,inner,..}=>match *inner{Ty::Managed(payload)=>(*payload,life),payload=>(payload,life)},_=>return Err(bad("operational input is not a real owner, description or owner address"))})}
+-    fn operation_function(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{let definition=context.definition(module,id,b)?;if !definition.parameters.is_empty(){return Err(unsupported("worker function value needs its complete original written specialization",None));}let SemanticDefinitionBody::FunctionWithBody{signature,body:SemanticOriginalFunctionBody::Defined(_),..}=&definition.body else{return Err(bad("worker is not a real original executable body"));};let env=self.environment(module,context,id,active,b)?;self.call_signature(module,context,id,signature,&env,active,b)}
++    pub(super) fn operation_observe(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,BufferSource)>{let(value,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&value,env,false,active,b)?;}Ok((self.resolved(&value,b)?,self.operation_source(expression,env,bindings,b)?))}
++    pub(super) fn operation_payload(&self,ty:&Ty,owner:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(Ty,Life)>{Ok(match self.resolved(ty,b)?{Ty::Managed(inner)=>(*inner,Life::Local(owner,node)),Ty::Desc{life,inner}=>(*inner,life),Ty::Address{life,inner,..}=>match *inner{Ty::Managed(payload)=>(*payload,life),payload=>(payload,life)},_=>return Err(bad("operational input is not a real owner, description or owner address"))})}
++    pub(super) fn operation_function(&mut self,module:&TypedModule,context:&CheckedContext,id:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{let definition=context.definition(module,id,b)?;if !definition.parameters.is_empty(){return Err(unsupported("worker function value needs its complete original written specialization",None));}let SemanticDefinitionBody::FunctionWithBody{signature,body:SemanticOriginalFunctionBody::Defined(_),..}=&definition.body else{return Err(bad("worker is not a real original executable body"));};let env=self.environment(module,context,id,active,b)?;self.call_signature(module,context,id,signature,&env,active,b)}
+     fn operation_callable(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{match self.resolved(ty,b)?{Ty::Closure(id,..)=>self.prototypes.get(&id).cloned().ok_or_else(||bad("callback lacks its complete universally checked original entry")),ty=>self.callable_premise(module,context,&ty,env,active,b)?.ok_or_else(||bad("abstract callback lacks its original complete Callable premise"))}}
+     fn operation_providers(&self,module:&TypedModule,context:&CheckedContext,providers:&[SemanticDefinitionId],b:&mut Budget)->Check<bool>{
+         let mut roles=Vec::new();
+diff --git a/crates/zil-verify/src/semantic/original/protocol.rs b/crates/zil-verify/src/semantic/original/protocol.rs
+index df1c81b06..5e0dbb312 100644
+--- a/crates/zil-verify/src/semantic/original/protocol.rs
++++ b/crates/zil-verify/src/semantic/original/protocol.rs
+@@ -2,133 +2,471 @@
+ //! facts about a concrete specialization. All original bodies are replayed
+ //! before any checked original result can leave the verifier.
+ use super::*;
+-mod state;
+ mod expressions;
++mod state;
++mod tasks;
+ mod walk;
+-use state::*;
+ use intrinsics::Intrinsic;
++use state::*;
+ 
+-struct Engine<'a>{
+-    original:&'a CheckedOriginal,
+-    module:&'a TypedModule,
+-    index:&'a index::Index<'a>,
+-    current:SemanticDefinitionId,
+-    contracts:Vec<FunctionProtocolContract>,
+-    inputs:BTreeMap<u32,ProtocolState>,
+-    poll:bool,
+-    next:u64,
++struct Engine<'a> {
++    original: &'a CheckedOriginal,
++    module: &'a TypedModule,
++    index: &'a index::Index<'a>,
++    current: SemanticDefinitionId,
++    contracts: Vec<FunctionProtocolContract>,
++    inputs: BTreeMap<u32, ProtocolState>,
++    poll: bool,
++    next: u64,
++    closed_tasks: BTreeSet<Binder>,
++    error_unwind: Vec<&'a SemanticOriginalBlock>,
++    task_loop_keys: Vec<BTreeSet<Binder>>,
+ }
+ 
+-impl CheckedOriginal{
+-    pub(super) fn check_protocols<'a>(&'a self,module:&'a TypedModule,_context:&CheckedContext,index:&'a index::Index<'a>,b:&mut Budget)->Check<()>{
+-        for (&id,function) in &index.definitions{
++impl CheckedOriginal {
++    pub(super) fn check_protocols<'a>(
++        &mut self,
++        module: &'a TypedModule,
++        _context: &CheckedContext,
++        index: &'a index::Index<'a>,
++        b: &mut Budget,
++    ) -> Check<()> {
++        for (&id, function) in &index.definitions {
+             b.spend(1)?;
+-            let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,body,..}=&function.definition.body else{return Err(bad("original protocol body inventory is incomplete"));};
+-            let prototype=self.prototypes.get(&id).ok_or_else(||bad("original protocol replay has no universally checked signature"))?;
+-            let mut relevant=!protocol_contracts.is_empty()||contains_owner(&self.resolved(&prototype.result,b)?);
+-            for ty in &prototype.parameters{if contains_owner(&self.resolved(ty,b)?){relevant=true;}}
+-            for ((owner,_),ty) in &self.expressions{b.spend(1)?;if *owner==id&&contains_owner(&self.resolved(ty,b)?){relevant=true;}}
+-            for ((owner,_),use_)in &self.intrinsic_calls{b.spend(1)?;if *owner==id&&matches!(use_.kind,Intrinsic::AsyncStart|Intrinsic::AsyncValid|Intrinsic::AsyncRequest|Intrinsic::AsyncPoll|Intrinsic::AsyncFinish|Intrinsic::AsyncFinishChecked){relevant=true;}}
+-            if !relevant{continue;}
+-            b.spend(protocol_contracts.iter().fold(1usize,|n,row|n.saturating_add(row.entry.len()).saturating_add(row.exits.iter().fold(1usize,|n,row|n.saturating_add(row.output.len()).saturating_add(2)))))?;
+-            let mut engine=Engine{original:self,module,index,current:id,contracts:protocol_contracts.clone(),inputs:BTreeMap::new(),poll:false,next:0};
+-            engine.poll=engine.poll_type(&prototype.result,b)?;
++            let SemanticDefinitionBody::FunctionWithBody {
++                protocol_contracts,
++                body,
++                ..
++            } = &function.definition.body
++            else {
++                return Err(bad("original protocol body inventory is incomplete"));
++            };
++            let prototype = self.prototypes.get(&id).ok_or_else(|| {
++                bad("original protocol replay has no universally checked signature")
++            })?;
++            let mut relevant = !protocol_contracts.is_empty()
++                || contains_owner(&self.resolved(&prototype.result, b)?);
++            for ty in &prototype.parameters {
++                if contains_owner(&self.resolved(ty, b)?) {
++                    relevant = true;
++                }
++            }
++            for ((owner, _), ty) in &self.expressions {
++                b.spend(1)?;
++                if *owner == id && contains_owner(&self.resolved(ty, b)?) {
++                    relevant = true;
++                }
++            }
++            for ((owner, _), use_) in &self.intrinsic_calls {
++                b.spend(1)?;
++                if *owner == id
++                    && matches!(
++                        use_.kind,
++                        Intrinsic::AsyncStart
++                            | Intrinsic::AsyncValid
++                            | Intrinsic::AsyncRequest
++                            | Intrinsic::AsyncPoll
++                            | Intrinsic::AsyncFinish
++                            | Intrinsic::AsyncFinishChecked
++                    )
++                {
++                    relevant = true;
++                }
++            }
++            if !relevant {
++                continue;
++            }
++            b.spend(protocol_contracts.iter().fold(1usize, |n, row| {
++                n.saturating_add(row.entry.len()).saturating_add(
++                    row.exits.iter().fold(1usize, |n, row| {
++                        n.saturating_add(row.output.len()).saturating_add(2)
++                    }),
++                )
++            }))?;
++            let mut engine = Engine {
++                original: self,
++                module,
++                index,
++                current: id,
++                contracts: protocol_contracts.clone(),
++                inputs: BTreeMap::new(),
++                poll: false,
++                next: 0,
++                closed_tasks: BTreeSet::new(),
++                error_unwind: Vec::new(),
++                task_loop_keys: Vec::new(),
++            };
++            engine.poll = engine.poll_type(&prototype.result, b)?;
+             engine.shape(b)?;
+-            let SemanticOriginalFunctionBody::Defined(body)=body else{
+-                if protocol_contracts.is_empty(){continue;}
+-                return Err(bad("original external or abstract body cannot advertise a proved protocol relation"));
++            let SemanticOriginalFunctionBody::Defined(body) = body else {
++                if protocol_contracts.is_empty() {
++                    continue;
++                }
++                return Err(bad(
++                    "original external or abstract body cannot advertise a proved protocol relation",
++                ));
+             };
+-            let mut state=State::default();
+-            for (ordinal,ty) in prototype.parameters.iter().enumerate(){
++            let mut state = State::default();
++            for (ordinal, ty) in prototype.parameters.iter().enumerate() {
+                 b.spend(1)?;
+-                let ty=self.resolved(ty,b)?;
+-                if let Some(borrowed)=owner_type(&ty){let root=Binder::Parameter{definition:id,ordinal:ordinal as u32};let generation=engine.generation(b)?;state.owners.insert(root.clone(),Owner{states:LIVE,generation});state.values.insert(root.clone(),Value::Owner{root,borrowed});}
+-                else if contains_owner(&ty){return Err(unsupported("original nested registration needs its complete projected owner identity",None));}
+-            }
+-            if self.free_values.get(&id).is_some_and(|rows|rows.values().any(|row|contains_owner(&row.ty))){return Err(unsupported("original captured registration requires its sealed owner/epoch transport",None));}
+-            let mut combinations=vec![(state,BTreeMap::new())];
+-            for role in &engine.contracts{
+-                let mut next=Vec::new();
+-                for(state,inputs)in combinations{
+-                    for input in &role.entry{
+-                        let mut state=state.copy(b)?;b.spend(inputs.len().saturating_add(1))?;let mut inputs=inputs.clone();inputs.insert(role.parameter,*input);
+-                        let root=Binder::Parameter{definition:id,ordinal:role.parameter};state.owners.get_mut(&root).ok_or_else(||bad("original protocol entry selects no owner"))?.states=bit(*input);
+-                        next.push((state,inputs));
++                let ty = self.resolved(ty, b)?;
++                if let Some(borrowed) = owner_type(&ty) {
++                    let root = Binder::Parameter {
++                        definition: id,
++                        ordinal: ordinal as u32,
++                    };
++                    let generation = engine.generation(b)?;
++                    state.owners.insert(
++                        root.clone(),
++                        Owner {
++                            states: LIVE,
++                            generation,
++                            task: tasks::is_task(&ty),
++                            owned: !borrowed,
++                        },
++                    );
++                    state
++                        .values
++                        .insert(root.clone(), Value::Owner { root, borrowed });
++                } else if contains_owner(&ty) {
++                    return Err(unsupported(
++                        "original nested registration needs its complete projected owner identity",
++                        None,
++                    ));
++                }
++            }
++            if let Some(free) = self.free_values.get(&id) {
++                for binding in free.values() {
++                    let ty = self.resolved(&binding.ty, b)?;
++                    if !contains_owner(&ty) {
++                        continue;
++                    }
++                    let root = Binder::Capture {
++                        definition: id,
++                        source: Box::new(binding.identity.clone()),
++                    };
++                    if !self.used.get(&id).is_some_and(|used| used.contains(&root)) {
++                        continue;
++                    }
++                    if !tasks::is_task(&ty) {
++                        return Err(unsupported(
++                            "original captured registration requires its sealed owner/epoch transport",
++                            None,
++                        ));
++                    }
++                    let root = Binder::Capture {
++                        definition: id,
++                        source: Box::new(binding.identity.clone()),
++                    };
++                    let borrowed = !self.creator_moves.get(&id).copied().unwrap_or(false);
++                    let generation = engine.generation(b)?;
++                    state.owners.insert(
++                        root.clone(),
++                        Owner {
++                            states: LIVE,
++                            generation,
++                            task: true,
++                            owned: !borrowed,
++                        },
++                    );
++                    state
++                        .values
++                        .insert(root.clone(), Value::Owner { root, borrowed });
++                }
++            }
++            let mut combinations = vec![(state, BTreeMap::new())];
++            for role in &engine.contracts {
++                let mut next = Vec::new();
++                for (state, inputs) in combinations {
++                    for input in &role.entry {
++                        let mut state = state.copy(b)?;
++                        b.spend(inputs.len().saturating_add(1))?;
++                        let mut inputs = inputs.clone();
++                        inputs.insert(role.parameter, *input);
++                        let root = Binder::Parameter {
++                            definition: id,
++                            ordinal: role.parameter,
++                        };
++                        state
++                            .owners
++                            .get_mut(&root)
++                            .ok_or_else(|| bad("original protocol entry selects no owner"))?
++                            .states = bit(*input);
++                        next.push((state, inputs));
+                     }
+-                }combinations=next;
++                }
++                combinations = next;
+             }
+-            for(state,inputs)in combinations{
+-                engine.inputs=inputs;
+-                let outcome=engine.block(body,state,&[],None,0,b)?;
+-                if outcome.breaks.is_some()||outcome.continues.is_some(){return Err(bad("original protocol control exits outside its loop"));}
+-                if let Some(state)=outcome.fall{engine.check_exit(state,Value::Plain,b)?;}
++            for (state, inputs) in combinations {
++                engine.inputs = inputs;
++                let outcome = engine.block(body, state, &[], None, 0, b)?;
++                if outcome.breaks.is_some() || outcome.continues.is_some() {
++                    return Err(bad("original protocol control exits outside its loop"));
++                }
++                if let Some(state) = outcome.fall {
++                    engine.check_exit(state, Value::Plain, b)?;
++                }
+             }
+-        }Ok(())
++            let closed = std::mem::take(&mut engine.closed_tasks);
++            drop(engine);
++            for root in closed {
++                b.spend(1)?;
++                self.task_closed_cleanups.insert((id, root));
++            }
++        }
++        Ok(())
+     }
+ }
+ 
+-fn owner_type(ty:&Ty)->Option<bool>{match ty{
+-    Ty::Managed(inner)if matches!(inner.as_ref(),Ty::Carrier{kind:CarrierKind::AsyncRegistration,..})=>Some(false),
+-    Ty::Address{inner,..}if matches!(inner.as_ref(),Ty::Managed(payload)if matches!(payload.as_ref(),Ty::Carrier{kind:CarrierKind::AsyncRegistration,..}))=>Some(true),
+-    Ty::Desc{inner,..}if matches!(inner.as_ref(),Ty::Carrier{kind:CarrierKind::AsyncRegistration,..})=>Some(true),
+-    _=>None,
+-}}
+-fn contains_owner(ty:&Ty)->bool{match ty{
+-    Ty::Carrier{kind:CarrierKind::AsyncRegistration,..}=>true,
+-    Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>contains_owner(inner),
+-    Ty::Tuple(fields)=>fields.iter().any(contains_owner),
+-    Ty::ErrorUnion(a,c)=>contains_owner(a)||contains_owner(c),
+-    Ty::Carrier{child,..}=>contains_owner(child),
+-    Ty::Nominal(_,args)|Ty::Closure(_,args,_)=>args.iter().any(|arg|matches!(arg,Arg::Type(ty)if contains_owner(ty))),
+-    _=>false,
+-}}
++fn owner_type(ty: &Ty) -> Option<bool> {
++    match ty {
++        Ty::Managed(inner)
++            if matches!(
++                inner.as_ref(),
++                Ty::Carrier {
++                    kind: CarrierKind::AsyncRegistration | CarrierKind::Task,
++                    ..
++                }
++            ) =>
++        {
++            Some(false)
++        }
++        Ty::Address { inner, .. } if matches!(inner.as_ref(),Ty::Managed(payload)if matches!(payload.as_ref(),Ty::Carrier{kind:CarrierKind::AsyncRegistration|CarrierKind::Task,..})) => {
++            Some(true)
++        }
++        Ty::Desc { inner, .. }
++            if matches!(
++                inner.as_ref(),
++                Ty::Carrier {
++                    kind: CarrierKind::AsyncRegistration | CarrierKind::Task,
++                    ..
++                }
++            ) =>
++        {
++            Some(true)
++        }
++        _ => None,
++    }
++}
++fn contains_owner(ty: &Ty) -> bool {
++    match ty {
++        Ty::Carrier {
++            kind: CarrierKind::AsyncRegistration | CarrierKind::Task,
++            ..
++        } => true,
++        Ty::Address { inner, .. }
++        | Ty::Desc { inner, .. }
++        | Ty::Managed(inner)
++        | Ty::Store(inner)
++        | Ty::Slice(inner)
++        | Ty::Array(inner, _) => contains_owner(inner),
++        Ty::Tuple(fields) => fields.iter().any(contains_owner),
++        Ty::ErrorUnion(a, c) => contains_owner(a) || contains_owner(c),
++        Ty::Carrier { child, .. } => contains_owner(child),
++        Ty::Nominal(_, args) | Ty::Closure(_, args, _) => args
++            .iter()
++            .any(|arg| matches!(arg,Arg::Type(ty)if contains_owner(ty))),
++        _ => false,
++    }
++}
+ 
+-impl<'a> Engine<'a>{
+-    fn function(&self)->Check<&'a index::Function<'a>>{self.index.definitions.get(&self.current).ok_or_else(||bad("original protocol function disappeared"))}
+-    fn depth(&self,depth:usize,b:&mut Budget)->Check<()>{b.spend(1)?;if depth>b.limits.max_call_depth.min(128){Err(limit("original protocol replay depth exceeded"))}else{Ok(())}}
+-    fn poll_type(&self,ty:&Ty,b:&mut Budget)->Check<bool>{
+-        b.spend(1)?;let ty=self.original.resolved(ty,b)?;let Ty::Nominal(id,arguments)=ty else{return Ok(false);};
+-        let program=self.module.semantic.as_ref().ok_or_else(||bad("original protocol nominal directory absent"))?;b.spend(program.definitions.len())?;
+-        let Some(definition)=program.definitions.iter().find(|row|row.id==id)else{return Err(bad("original Poll type has no declaration"));};
+-        if !matches!(definition.body,SemanticDefinitionBody::Nominal{declaration,..}if declaration==zil_ir::builtin_life::POLL){return Ok(false);}
++impl<'a> Engine<'a> {
++    fn function(&self) -> Check<&'a index::Function<'a>> {
++        self.index
++            .definitions
++            .get(&self.current)
++            .ok_or_else(|| bad("original protocol function disappeared"))
++    }
++    fn depth(&self, depth: usize, b: &mut Budget) -> Check<()> {
++        b.spend(1)?;
++        if depth > b.limits.max_call_depth.min(128) {
++            Err(limit("original protocol replay depth exceeded"))
++        } else {
++            Ok(())
++        }
++    }
++    fn poll_type(&self, ty: &Ty, b: &mut Budget) -> Check<bool> {
++        b.spend(1)?;
++        let ty = self.original.resolved(ty, b)?;
++        let Ty::Nominal(id, arguments) = ty else {
++            return Ok(false);
++        };
++        let program = self
++            .module
++            .semantic
++            .as_ref()
++            .ok_or_else(|| bad("original protocol nominal directory absent"))?;
++        b.spend(program.definitions.len())?;
++        let Some(definition) = program.definitions.iter().find(|row| row.id == id) else {
++            return Err(bad("original Poll type has no declaration"));
++        };
++        if !matches!(definition.body,SemanticDefinitionBody::Nominal{declaration,..}if declaration==zil_ir::builtin_life::POLL)
++        {
++            return Ok(false);
++        }
+         // Reuse the independent canonical declaration proof, not its spelling.
+-        self.original.poll_type(self.module,Ty::Atom(Type::Unit),b)?;
+-        Ok(match arguments.as_slice(){[Arg::Type(Ty::Atom(Type::Unit))]=>true,[Arg::Type(Ty::Tuple(fields))]=>fields.is_empty(),_=>false})
++        self.original
++            .poll_type(self.module, Ty::Atom(Type::Unit), b)?;
++        Ok(match arguments.as_slice() {
++            [Arg::Type(Ty::Atom(Type::Unit))] => true,
++            [Arg::Type(Ty::Tuple(fields))] => fields.is_empty(),
++            _ => false,
++        })
+     }
+-    fn shape(&self,b:&mut Budget)->Check<()>{
+-        let function=self.function()?;let prototype=self.original.prototypes.get(&self.current).ok_or_else(||bad("original protocol signature absent"))?;
+-        if self.contracts.windows(2).any(|rows|rows[0].parameter>=rows[1].parameter){return Err(bad("original protocol roles are duplicated or unordered"));}
+-        for role in &self.contracts{
+-            b.spend(role.entry.len().saturating_add(role.exits.len()).saturating_add(prototype.parameters.len()).saturating_add(1))?;
+-            let parameter=prototype.parameters.get(role.parameter as usize).ok_or_else(||bad("original protocol parameter ordinal is absent"))?;
+-            let borrowed=matches!(parameter,Ty::Address{mutable:true,inner,..}if matches!(inner.as_ref(),Ty::Managed(payload)if matches!(payload.as_ref(),Ty::Carrier{kind:CarrierKind::AsyncRegistration,..})));
+-            let owned=owner_type(parameter)==Some(false);
+-            if role.protocol!=ProtocolKind::AsyncRegistrationV1||(!borrowed&&!owned)||role.entry.is_empty()||role.entry.windows(2).any(|rows|rows[0]>=rows[1])||role.exits.is_empty(){return Err(bad("original protocol has another kind, entry domain or exclusive owner role"));}
+-            if !matches!(function.body,SemanticOriginalFunctionBody::Defined(_))||function.definition.kind==SemanticDefinitionKind::Closure{return Err(bad("original protocol needs an ordinary complete executable body"));}
+-            if borrowed&&prototype.call_kind!=CallKind::Direct{return Err(unsupported("original borrowed protocol role cannot suspend across an unproved owner epoch",None));}
+-            if owned&&!self.poll&&!matches!(&prototype.result,Ty::Atom(ty)if ty.is_b0_scalar()||*ty==Type::ForeignHandle){return Err(unsupported("original consumed protocol role needs its complete finite Copy result/escape proof",None));}
+-            if matches!(prototype.result,Ty::ErrorUnion(..)){return Err(unsupported("original ErrorUnion protocol exits require their complete two-arm source relation",None));}
+-            for row in &role.exits{
++    fn shape(&self, b: &mut Budget) -> Check<()> {
++        let function = self.function()?;
++        let prototype = self
++            .original
++            .prototypes
++            .get(&self.current)
++            .ok_or_else(|| bad("original protocol signature absent"))?;
++        if self
++            .contracts
++            .windows(2)
++            .any(|rows| rows[0].parameter >= rows[1].parameter)
++        {
++            return Err(bad("original protocol roles are duplicated or unordered"));
++        }
++        for role in &self.contracts {
++            b.spend(
++                role.entry
++                    .len()
++                    .saturating_add(role.exits.len())
++                    .saturating_add(prototype.parameters.len())
++                    .saturating_add(1),
++            )?;
++            let parameter = prototype
++                .parameters
++                .get(role.parameter as usize)
++                .ok_or_else(|| bad("original protocol parameter ordinal is absent"))?;
++            let borrowed = matches!(parameter,Ty::Address{mutable:true,inner,..}if matches!(inner.as_ref(),Ty::Managed(payload)if matches!(payload.as_ref(),Ty::Carrier{kind:CarrierKind::AsyncRegistration,..})));
++            let owned = owner_type(parameter) == Some(false);
++            if tasks::is_task(parameter)
++                || role.protocol != ProtocolKind::AsyncRegistrationV1
++                || (!borrowed && !owned)
++                || role.entry.is_empty()
++                || role.entry.windows(2).any(|rows| rows[0] >= rows[1])
++                || role.exits.is_empty()
++            {
++                return Err(bad(
++                    "original protocol has another kind, entry domain or exclusive owner role",
++                ));
++            }
++            if !matches!(function.body, SemanticOriginalFunctionBody::Defined(_))
++                || function.definition.kind == SemanticDefinitionKind::Closure
++            {
++                return Err(bad(
++                    "original protocol needs an ordinary complete executable body",
++                ));
++            }
++            if borrowed && prototype.call_kind != CallKind::Direct {
++                return Err(unsupported(
++                    "original borrowed protocol role cannot suspend across an unproved owner epoch",
++                    None,
++                ));
++            }
++            if owned
++                && !self.poll
++                && !matches!(&prototype.result,Ty::Atom(ty)if ty.is_b0_scalar()||*ty==Type::ForeignHandle)
++            {
++                return Err(unsupported(
++                    "original consumed protocol role needs its complete finite Copy result/escape proof",
++                    None,
++                ));
++            }
++            if matches!(prototype.result, Ty::ErrorUnion(..)) {
++                return Err(unsupported(
++                    "original ErrorUnion protocol exits require their complete two-arm source relation",
++                    None,
++                ));
++            }
++            for row in &role.exits {
+                 b.spend(row.output.len().saturating_add(1))?;
+-                let allowed=if self.poll{matches!(row.exit,ProtocolExit::PollPending|ProtocolExit::PollReady)}else{row.exit==ProtocolExit::Return};
+-                if !role.entry.contains(&row.input)||!allowed||row.output.windows(2).any(|rows|rows[0]>=rows[1])||(borrowed&&row.output.is_empty())||(owned&&!row.output.is_empty()){return Err(bad("original protocol transition changes its input/exit/owner category"));}
++                let allowed = if self.poll {
++                    matches!(
++                        row.exit,
++                        ProtocolExit::PollPending | ProtocolExit::PollReady
++                    )
++                } else {
++                    row.exit == ProtocolExit::Return
++                };
++                if !role.entry.contains(&row.input)
++                    || !allowed
++                    || row.output.windows(2).any(|rows| rows[0] >= rows[1])
++                    || (borrowed && row.output.is_empty())
++                    || (owned && !row.output.is_empty())
++                {
++                    return Err(bad(
++                        "original protocol transition changes its input/exit/owner category",
++                    ));
++                }
++            }
++            if role
++                .exits
++                .windows(2)
++                .any(|rows| (rows[0].input, rows[0].exit) >= (rows[1].input, rows[1].exit))
++            {
++                return Err(bad(
++                    "original protocol transitions are duplicated or unordered",
++                ));
+             }
+-            if role.exits.windows(2).any(|rows|(rows[0].input,rows[0].exit)>=(rows[1].input,rows[1].exit)){return Err(bad("original protocol transitions are duplicated or unordered"));}
+-            for(ordinal,parameter)in prototype.parameters.iter().enumerate(){if owner_type(parameter).is_some()&&!self.contracts.iter().any(|row|row.parameter as usize==ordinal){return Err(bad("original protocol omits another actual owner parameter"));}}
+-        }Ok(())
++            for (ordinal, parameter) in prototype.parameters.iter().enumerate() {
++                if owner_type(parameter).is_some()
++                    && !tasks::is_task(parameter)
++                    && !self
++                        .contracts
++                        .iter()
++                        .any(|row| row.parameter as usize == ordinal)
++                {
++                    return Err(bad(
++                        "original protocol omits another actual owner parameter",
++                    ));
++                }
++            }
++        }
++        Ok(())
+     }
+-    fn check_exit(&mut self,state:State,value:Value,b:&mut Budget)->Check<()>{
+-        let exits=if self.poll{&[ProtocolExit::PollPending,ProtocolExit::PollReady][..]}else{&[ProtocolExit::Return][..]};
+-        for &exit in exits{
+-            let mut actual=state.copy(b)?;if self.poll&&!actual.refine(&value,exit,b)?{continue;}
+-            for role in &self.contracts{
++    fn check_exit(&mut self, mut state: State, value: Value, b: &mut Budget) -> Check<()> {
++        self.task_exit(&mut state, b)?;
++        let exits = if self.poll {
++            &[ProtocolExit::PollPending, ProtocolExit::PollReady][..]
++        } else {
++            &[ProtocolExit::Return][..]
++        };
++        for &exit in exits {
++            let mut actual = state.copy(b)?;
++            if self.poll && !actual.refine(&value, exit, b)? {
++                continue;
++            }
++            for role in &self.contracts {
+                 b.spend(role.exits.len().saturating_add(2))?;
+-                let input=self.inputs.get(&role.parameter).ok_or_else(||bad("original protocol exit lost its universal entry assignment"))?;
+-                let row=role.exits.iter().find(|row|row.input==*input&&row.exit==exit).ok_or_else(||bad("original actual Return is missing from its declared protocol upper"))?;
+-                let root=Binder::Parameter{definition:self.current,ordinal:role.parameter};let observed=actual.owners.get(&root).map_or(DEAD,|owner|owner.states);
+-                let allowed=if row.output.is_empty(){DEAD}else{mask(&row.output)};
+-                if observed==0||observed&!allowed!=0{return Err(bad("original actual Return exceeds its declared owner phase relation"));}
++                let input = self.inputs.get(&role.parameter).ok_or_else(|| {
++                    bad("original protocol exit lost its universal entry assignment")
++                })?;
++                let row = role
++                    .exits
++                    .iter()
++                    .find(|row| row.input == *input && row.exit == exit)
++                    .ok_or_else(|| {
++                        bad("original actual Return is missing from its declared protocol upper")
++                    })?;
++                let root = Binder::Parameter {
++                    definition: self.current,
++                    ordinal: role.parameter,
++                };
++                let observed = actual.owners.get(&root).map_or(DEAD, |owner| owner.states);
++                let allowed = if row.output.is_empty() {
++                    DEAD
++                } else {
++                    mask(&row.output)
++                };
++                if observed == 0 || observed & !allowed != 0 {
++                    return Err(bad(
++                        "original actual Return exceeds its declared owner phase relation",
++                    ));
++                }
+             }
+-        }Ok(())
++        }
++        Ok(())
+     }
+ }
+diff --git a/crates/zil-verify/src/semantic/original/protocol/expressions.rs b/crates/zil-verify/src/semantic/original/protocol/expressions.rs
+index f2fed3d30..e1f6dd55d 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/expressions.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/expressions.rs
+@@ -1,148 +1,653 @@
+ use super::*;
+ 
+-impl Engine<'_>{
+-    pub(super) fn expression(&mut self,node:&SemanticOriginalExpr,state:&mut State,depth:usize,b:&mut Budget)->Check<Value>{
+-        self.depth(depth,b)?;
+-        let mut value=self.expression_inner(node,state,depth,b)?;
+-        if let Some(ty)=self.original.expressions.get(&(self.current,node.id)){
+-            let ty=self.original.resolved(ty,b)?;
+-            if let Some(borrowed)=owner_type(&ty){match &mut value{Value::Owner{borrowed:actual,..}=>*actual=borrowed,Value::Fresh if !borrowed=>{},_=>return Err(unsupported("original owner expression has no exact initialized slot or proved return provenance",Some(node.span)))}}
++impl Engine<'_> {
++    pub(super) fn expression(
++        &mut self,
++        node: &SemanticOriginalExpr,
++        state: &mut State,
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<Value> {
++        self.depth(depth, b)?;
++        let mut value = self.expression_inner(node, state, depth, b)?;
++        if let Some(ty) = self.original.expressions.get(&(self.current, node.id)) {
++            let ty = self.original.resolved(ty, b)?;
++            if let Some(borrowed) = owner_type(&ty) {
++                match &mut value {
++                    Value::Owner {
++                        borrowed: actual, ..
++                    } => *actual = borrowed,
++                    Value::Fresh | Value::FreshTask if !borrowed => {}
++                    _ => {
++                        return Err(unsupported(
++                            "original owner expression has no exact initialized slot or proved return provenance",
++                            Some(node.span),
++                        ));
++                    }
++                }
++            }
+         }
+         Ok(value)
+     }
+-    fn expression_inner(&mut self,node:&SemanticOriginalExpr,state:&mut State,depth:usize,b:&mut Budget)->Check<Value>{
++    fn expression_inner(
++        &mut self,
++        node: &SemanticOriginalExpr,
++        state: &mut State,
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<Value> {
+         use CoreExprKind::*;
+-        match &node.kind{
+-            Name(_)=>{
+-                let Some(binder)=self.original.value_bindings.get(&(self.current,node.id))else{return Ok(Value::Plain);};
+-                b.spend(state.width())?;let value=state.values.get(binder).cloned().unwrap_or(Value::Plain);
+-                if let Value::Owner{root,..}=&value{state.owner(root,b)?;}
++        match &node.kind {
++            Name(_) => {
++                let Some(binder) = self.original.value_bindings.get(&(self.current, node.id))
++                else {
++                    return Ok(Value::Plain);
++                };
++                b.spend(state.width())?;
++                let value = state.values.get(binder).cloned().unwrap_or(Value::Plain);
++                if let Value::Owner { root, .. } = &value {
++                    state.owner(root, b)?;
++                }
+                 Ok(value)
+-            },
+-            Group(inner)|Ascribed{value:inner,..}|CompileTime(inner)=>self.expression(inner,state,depth+1,b),
+-            Unary{op,operand}=>{
+-                let value=self.expression(operand,state,depth+1,b)?;
+-                match (op,value){
+-                    (UnaryOp::Borrow|UnaryOp::BorrowMut,Value::Owner{root,..})=>Ok(Value::Owner{root,borrowed:true}),
+-                    (UnaryOp::Give,Value::Owner{root,borrowed:false})=>{if let Some(binder)=self.binder(operand,b)?{state.values.remove(&binder);}Ok(Value::Owner{root,borrowed:false})},
+-                    (UnaryOp::Dereference,Value::Owner{root,..})=>Ok(Value::Owner{root,borrowed:false}),
+-                    (_,Value::Plain)=>Ok(Value::Plain),
+-                    (_,value @ Value::Poll{..})if matches!(op,UnaryOp::Borrow|UnaryOp::BorrowMut)=>Ok(value),
+-                    _=>Err(unsupported("original protocol value passes through an unsupported unary role",Some(node.span))),
+-                }
+-            },
+-            Call{callee,arguments}=>{
+-                self.expression(callee,state,depth+1,b)?;
+-                let mut values=Vec::new();for argument in arguments{values.push(self.expression(argument,state,depth+1,b)?);}
+-                self.call(node,&values,state,b)
+-            },
+-            TypeApply{callee,..}|GenericApply{callee,..}=>self.expression(callee,state,depth+1,b),
+-            Binary{op:BinaryOp::And|BinaryOp::Or,left,right}=>{
+-                self.expression(left,state,depth+1,b)?;let before=state.copy(b)?;self.expression(right,state,depth+1,b)?;*state=self.join(&before,state,b)?;Ok(Value::Plain)
+-            },
+-            Binary{left,right,..}|Range{start:left,end:right}|Index{object:left,index:right}|Pipeline{input:left,target:right}=>{
+-                let a=self.expression(left,state,depth+1,b)?;let c=self.expression(right,state,depth+1,b)?;
+-                if matches!(a,Value::Owner{..}|Value::Fresh)||matches!(c,Value::Owner{..}|Value::Fresh){return Err(unsupported("original registration projection needs its complete owner path ledger",Some(node.span)));}Ok(Value::Plain)
+-            },
+-            NumericConvert{value,..}|IntegerConvert{value,..}|Spread(value)|Splice(value)=>{self.expression(value,state,depth+1,b)?;Ok(Value::Plain)},
+-            Try(value)=>{let value=self.expression(value,state,depth+1,b)?;if !matches!(value,Value::Plain){return Err(unsupported("original protocol propagation needs its full error-exit cleanup relation",Some(node.span)));}Ok(Value::Plain)},
+-            If{condition,then_value,else_value}=>{
+-                self.expression(condition,state,depth+1,b)?;let mut yes=state.copy(b)?;let a=self.expression(then_value,&mut yes,depth+1,b)?;let mut no=state.copy(b)?;let c=self.expression(else_value,&mut no,depth+1,b)?;*state=self.join(&yes,&no,b)?;union_value(&a,&c,b)
+-            },
+-            Tuple(fields)|Array(fields)=>{for field in fields{let value=self.expression(field,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;}Ok(Value::Plain)},
+-            Record{fields,..}|RecordConstructor{fields,..}=>{for(_,field)in fields{let value=self.expression(field,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;}Ok(Value::Plain)},
+-            RecordUpdate{base,fields,..}=>{let value=self.expression(base,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;for(_,field)in fields{let value=self.expression(field,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;}Ok(Value::Plain)},
+-            Member{object,..}=>{let value=self.expression(object,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;Ok(Value::Plain)},
+-            Slice{object,start,end}=>{let value=self.expression(object,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;for part in [start,end].into_iter().flatten(){self.expression(part,state,depth+1,b)?;}Ok(Value::Plain)},
+-            Sequence{bindings,value}=>{
+-                for(name,initializer)in bindings{let actual=self.expression(initializer,state,depth+1,b)?;self.bind(state,Binder::Local{definition:self.current,node:initializer.id,name:name.clone()},actual,b)?;}
+-                self.expression(value,state,depth+1,b)
+-            },
+-            Closure{..}=>{
+-                let child=self.function()?.closures.get(&node.id).ok_or_else(||bad("protocol closure has no exact original creator"))?;
+-                if let Some(free)=self.original.free_values.get(child){for binding in free.values(){b.spend(1)?;if contains_owner(&binding.ty){return Err(unsupported("original closure captures a registration without a complete owner generation seal",Some(node.span)));}}}
++            }
++            Group(inner) | Ascribed { value: inner, .. } | CompileTime(inner) => {
++                self.expression(inner, state, depth + 1, b)
++            }
++            Unary { op, operand } => {
++                let value = self.expression(operand, state, depth + 1, b)?;
++                match (op, value) {
++                    (UnaryOp::Borrow | UnaryOp::BorrowMut, Value::Owner { root, .. }) => {
++                        Ok(Value::Owner {
++                            root,
++                            borrowed: true,
++                        })
++                    }
++                    (
++                        UnaryOp::Give,
++                        Value::Owner {
++                            root,
++                            borrowed: false,
++                        },
++                    ) => {
++                        if let Some(binder) = self.binder(operand, b)? {
++                            state.values.remove(&binder);
++                        }
++                        Ok(Value::Owner {
++                            root,
++                            borrowed: false,
++                        })
++                    }
++                    (UnaryOp::Dereference, Value::Owner { root, .. }) => Ok(Value::Owner {
++                        root,
++                        borrowed: false,
++                    }),
++                    (_, Value::Plain) => Ok(Value::Plain),
++                    (_, value @ Value::Poll { .. })
++                        if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) =>
++                    {
++                        Ok(value)
++                    }
++                    _ => Err(unsupported(
++                        "original protocol value passes through an unsupported unary role",
++                        Some(node.span),
++                    )),
++                }
++            }
++            Call { callee, arguments } => {
++                self.expression(callee, state, depth + 1, b)?;
++                let mut values = Vec::new();
++                for argument in arguments {
++                    values.push(self.expression(argument, state, depth + 1, b)?);
++                }
++                self.call(node, &values, state, b)
++            }
++            TypeApply { callee, .. } | GenericApply { callee, .. } => {
++                self.expression(callee, state, depth + 1, b)
++            }
++            Binary {
++                op: BinaryOp::And | BinaryOp::Or,
++                left,
++                right,
++            } => {
++                self.expression(left, state, depth + 1, b)?;
++                let before = state.copy(b)?;
++                self.expression(right, state, depth + 1, b)?;
++                *state = self.join(&before, state, b)?;
++                Ok(Value::Plain)
++            }
++            Binary { left, right, .. }
++            | Range {
++                start: left,
++                end: right,
++            }
++            | Index {
++                object: left,
++                index: right,
++            }
++            | Pipeline {
++                input: left,
++                target: right,
++            } => {
++                let a = self.expression(left, state, depth + 1, b)?;
++                let c = self.expression(right, state, depth + 1, b)?;
++                if matches!(
++                    a,
++                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
++                ) || matches!(
++                    c,
++                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
++                ) {
++                    return Err(unsupported(
++                        "original registration projection needs its complete owner path ledger",
++                        Some(node.span),
++                    ));
++                }
++                Ok(Value::Plain)
++            }
++            NumericConvert { value, .. }
++            | IntegerConvert { value, .. }
++            | Spread(value)
++            | Splice(value) => {
++                self.expression(value, state, depth + 1, b)?;
++                Ok(Value::Plain)
++            }
++            Try(value) => {
++                let value = self.expression(value, state, depth + 1, b)?;
++                if value == Value::FallibleTask {
++                    b.spend(self.error_unwind.len())?;
++                    let deferred = self.error_unwind.clone();
++                    let error = self.unwind(state.copy(b)?, &deferred, 0, depth + 1, b)?;
++                    self.error_unwind=deferred;
++                    self.check_exit(error, Value::Plain, b)?;
++                    return Ok(Value::FreshTask);
++                }
++                if !matches!(value, Value::Plain) {
++                    return Err(unsupported(
++                        "original protocol propagation needs its full error-exit cleanup relation",
++                        Some(node.span),
++                    ));
++                }
++                Ok(Value::Plain)
++            }
++            If {
++                condition,
++                then_value,
++                else_value,
++            } => {
++                self.expression(condition, state, depth + 1, b)?;
++                let mut yes = state.copy(b)?;
++                let a = self.expression(then_value, &mut yes, depth + 1, b)?;
++                let mut no = state.copy(b)?;
++                let c = self.expression(else_value, &mut no, depth + 1, b)?;
++                *state = self.join(&yes, &no, b)?;
++                union_value(&a, &c, b)
++            }
++            Tuple(fields) | Array(fields) => {
++                for field in fields {
++                    let value = self.expression(field, state, depth + 1, b)?;
++                    self.reject_packed_owner(&value, node)?;
++                }
++                Ok(Value::Plain)
++            }
++            Record { fields, .. } | RecordConstructor { fields, .. } => {
++                for (_, field) in fields {
++                    let value = self.expression(field, state, depth + 1, b)?;
++                    self.reject_packed_owner(&value, node)?;
++                }
++                Ok(Value::Plain)
++            }
++            RecordUpdate { base, fields, .. } => {
++                let value = self.expression(base, state, depth + 1, b)?;
++                self.reject_packed_owner(&value, node)?;
++                for (_, field) in fields {
++                    let value = self.expression(field, state, depth + 1, b)?;
++                    self.reject_packed_owner(&value, node)?;
++                }
++                Ok(Value::Plain)
++            }
++            Member { object, .. } => {
++                let value = self.expression(object, state, depth + 1, b)?;
++                self.reject_packed_owner(&value, node)?;
++                Ok(Value::Plain)
++            }
++            Slice { object, start, end } => {
++                let value = self.expression(object, state, depth + 1, b)?;
++                self.reject_packed_owner(&value, node)?;
++                for part in [start, end].into_iter().flatten() {
++                    self.expression(part, state, depth + 1, b)?;
++                }
++                Ok(Value::Plain)
++            }
++            Sequence { bindings, value } => {
++                for (name, initializer) in bindings {
++                    let actual = self.expression(initializer, state, depth + 1, b)?;
++                    self.bind(
++                        state,
++                        Binder::Local {
++                            definition: self.current,
++                            node: initializer.id,
++                            name: name.clone(),
++                        },
++                        actual,
++                        b,
++                    )?;
++                }
++                self.expression(value, state, depth + 1, b)
++            }
++            Closure { .. } => {
++                let child = self
++                    .function()?
++                    .closures
++                    .get(&node.id)
++                    .ok_or_else(|| bad("protocol closure has no exact original creator"))?;
++                self.task_capture(*child, state, b)?;
++                if let Some(free) = self.original.free_values.get(child) {
++                    for binding in free.values() {
++                        b.spend(1)?;
++                        if contains_owner(&binding.ty) && !tasks::is_task(&binding.ty) {
++                            return Err(unsupported(
++                                "original closure captures a registration without a complete owner generation seal",
++                                Some(node.span),
++                            ));
++                        }
++                    }
++                }
++                Ok(Value::Plain)
++            }
++            MakeDynBorrow { source, .. } | MakeDynOwned { source, .. } => {
++                let value = self.expression(source, state, depth + 1, b)?;
++                self.reject_packed_owner(&value, node)?;
+                 Ok(Value::Plain)
+-            },
+-            MakeDynBorrow{source,..}|MakeDynOwned{source,..}=>{let value=self.expression(source,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;Ok(Value::Plain)},
+-            CallDynSlot{callee,arguments,..}=>{let value=self.expression(callee,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;for argument in arguments{let value=self.expression(argument,state,depth+1,b)?;self.reject_packed_owner(&value,node)?;}Ok(Value::Plain)},
+-            Literal(_)|Integer(_)|Float(_)|Bool(_)|String(_)|Unit|Character(_)|ReceiverMember(_)=>Ok(Value::Plain),
+-            _=>Err(unsupported("original protocol expression lacks a complete control/owner rule",Some(node.span))),
++            }
++            CallDynSlot {
++                callee, arguments, ..
++            } => {
++                let value = self.expression(callee, state, depth + 1, b)?;
++                self.reject_packed_owner(&value, node)?;
++                for argument in arguments {
++                    let value = self.expression(argument, state, depth + 1, b)?;
++                    self.reject_packed_owner(&value, node)?;
++                }
++                Ok(Value::Plain)
++            }
++            Literal(_) | Integer(_) | Float(_) | Bool(_) | String(_) | Unit | Character(_)
++            | ReceiverMember(_) => Ok(Value::Plain),
++            _ => Err(unsupported(
++                "original protocol expression lacks a complete control/owner rule",
++                Some(node.span),
++            )),
+         }
+     }
+-    fn reject_packed_owner(&self,value:&Value,node:&SemanticOriginalExpr)->Check<()>{if matches!(value,Value::Owner{..}|Value::Fresh){Err(unsupported("original aggregate registration needs its complete projected owner/epoch ledger",Some(node.span)))}else{Ok(())}}
+-    pub(super) fn binder(&self,node:&SemanticOriginalExpr,b:&mut Budget)->Check<Option<Binder>>{
+-        let mut node=node;loop{b.spend(1)?;match &node.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut|UnaryOp::Give,operand:inner}=>node=inner,_=>{b.spend(1)?;return Ok(self.original.value_bindings.get(&(self.current,node.id)).cloned());}}}
++    fn reject_packed_owner(&self, value: &Value, node: &SemanticOriginalExpr) -> Check<()> {
++        if matches!(
++            value,
++            Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
++        ) {
++            Err(unsupported(
++                "original aggregate registration needs its complete projected owner/epoch ledger",
++                Some(node.span),
++            ))
++        } else {
++            Ok(())
++        }
+     }
+-    fn site(&self,node:&SemanticOriginalExpr,b:&mut Budget)->Check<Option<SemanticSiteId>>{
+-        let function=self.function()?;b.spend(function.nodes.len())?;let mut selected=None;
+-        for(&site,source)in &function.nodes{if matches!(source,index::Node::Expression(expression)if expression.id==node.id)&&(self.original.intrinsic_calls.contains_key(&(self.current,site))||self.original.call_targets.contains_key(&(self.current,site))){if selected.replace(site).is_some(){return Err(bad("original protocol call has multiple exact source sites"));}}}
++    pub(super) fn binder(
++        &self,
++        node: &SemanticOriginalExpr,
++        b: &mut Budget,
++    ) -> Check<Option<Binder>> {
++        let mut node = node;
++        loop {
++            b.spend(1)?;
++            match &node.kind {
++                CoreExprKind::Group(inner)
++                | CoreExprKind::Ascribed { value: inner, .. }
++                | CoreExprKind::Unary {
++                    op: UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Give,
++                    operand: inner,
++                } => node = inner,
++                _ => {
++                    b.spend(1)?;
++                    return Ok(self
++                        .original
++                        .value_bindings
++                        .get(&(self.current, node.id))
++                        .cloned());
++                }
++            }
++        }
++    }
++    fn site(&self, node: &SemanticOriginalExpr, b: &mut Budget) -> Check<Option<SemanticSiteId>> {
++        let function = self.function()?;
++        b.spend(function.nodes.len())?;
++        let mut selected = None;
++        for (&site, source) in &function.nodes {
++            if matches!(source,index::Node::Expression(expression)if expression.id==node.id)
++                && (self
++                    .original
++                    .intrinsic_calls
++                    .contains_key(&(self.current, site))
++                    || self
++                        .original
++                        .call_targets
++                        .contains_key(&(self.current, site)))
++            {
++                if selected.replace(site).is_some() {
++                    return Err(bad(
++                        "original protocol call has multiple exact source sites",
++                    ));
++                }
++            }
++        }
+         Ok(selected)
+     }
+-    fn call(&mut self,node:&SemanticOriginalExpr,values:&[Value],state:&mut State,b:&mut Budget)->Check<Value>{
+-        let site=self.site(node,b)?;
+-        if let Some(use_)=site.and_then(|site|self.original.intrinsic_calls.get(&(self.current,site))){
+-            match use_.kind{
+-                Intrinsic::AsyncStart=>return Ok(Value::Fresh),
+-                Intrinsic::AsyncValid|Intrinsic::AsyncRequest|Intrinsic::AsyncPoll|Intrinsic::AsyncFinish|Intrinsic::AsyncFinishChecked=>{
+-                    let [Value::Owner{root,..}]=values else{return Err(bad("original registration operation selects no exact owner slot"));};
+-                    let old=state.owner(root,b)?.states;
+-                    return match use_.kind{
+-                        Intrinsic::AsyncValid=>Ok(Value::Plain),
+-                        Intrinsic::AsyncRequest=>{let next=if old&CLOSED!=0{CLOSED}else{0}|if old&(OPEN|CLOSING)!=0{CLOSING}else{0};self.update(state,root,next,b)?;Ok(Value::Plain)},
+-                        Intrinsic::AsyncPoll=>{let pending=if old&(OPEN|CLOSING)!=0{CLOSING}else{0};let ready=CLOSED;let generation=self.update(state,root,pending|ready,b)?;Ok(Value::Poll{relations:vec![Conditional{root:root.clone(),generation,pending,ready}],tag:None})},
+-                        Intrinsic::AsyncFinish|Intrinsic::AsyncFinishChecked=>{if use_.kind==Intrinsic::AsyncFinishChecked&&old!=CLOSED{return Err(bad("original checked registration destruction lacks current-generation Closed proof"));}self.update(state,root,DEAD,b)?;Ok(Value::Plain)},
+-                        _=>unreachable!(),
++    fn call(
++        &mut self,
++        node: &SemanticOriginalExpr,
++        values: &[Value],
++        state: &mut State,
++        b: &mut Budget,
++    ) -> Check<Value> {
++        let site = self.site(node, b)?;
++        if let Some(use_) =
++            site.and_then(|site| self.original.intrinsic_calls.get(&(self.current, site)))
++        {
++            if let Some(value) = self.task_call(use_.kind, values, state, b)? {
++                return Ok(value);
++            }
++            match use_.kind {
++                Intrinsic::AsyncStart => return Ok(Value::Fresh),
++                Intrinsic::AsyncValid
++                | Intrinsic::AsyncRequest
++                | Intrinsic::AsyncPoll
++                | Intrinsic::AsyncFinish
++                | Intrinsic::AsyncFinishChecked => {
++                    let [Value::Owner { root, .. }] = values else {
++                        return Err(bad(
++                            "original registration operation selects no exact owner slot",
++                        ));
++                    };
++                    let old = state.owner(root, b)?.states;
++                    return match use_.kind {
++                        Intrinsic::AsyncValid => Ok(Value::Plain),
++                        Intrinsic::AsyncRequest => {
++                            let next = if old & CLOSED != 0 { CLOSED } else { 0 }
++                                | if old & (OPEN | CLOSING) != 0 {
++                                    CLOSING
++                                } else {
++                                    0
++                                };
++                            self.update(state, root, next, b)?;
++                            Ok(Value::Plain)
++                        }
++                        Intrinsic::AsyncPoll => {
++                            let pending = if old & (OPEN | CLOSING) != 0 {
++                                CLOSING
++                            } else {
++                                0
++                            };
++                            let ready = CLOSED;
++                            let generation = self.update(state, root, pending | ready, b)?;
++                            Ok(Value::Poll {
++                                relations: vec![Conditional {
++                                    root: root.clone(),
++                                    generation,
++                                    pending,
++                                    ready,
++                                }],
++                                tag: None,
++                            })
++                        }
++                        Intrinsic::AsyncFinish | Intrinsic::AsyncFinishChecked => {
++                            if use_.kind == Intrinsic::AsyncFinishChecked && old != CLOSED {
++                                return Err(bad(
++                                    "original checked registration destruction lacks current-generation Closed proof",
++                                ));
++                            }
++                            self.update(state, root, DEAD, b)?;
++                            Ok(Value::Plain)
++                        }
++                        _ => unreachable!(),
+                     };
+-                },
+-                _=>{for value in values{if let Value::Owner{root,..}=value{self.update(state,root,LIVE,b)?;}}return Ok(Value::Plain);},
++                }
++                _ => {
++                    for value in values {
++                        if let Value::Owner { root, .. } = value {
++                            self.update(state, root, LIVE, b)?;
++                        }
++                    }
++                    return Ok(Value::Plain);
++                }
+             }
+         }
+-        if let Some((site,target))=site.and_then(|site|self.original.call_targets.get(&(self.current,site)).map(|target|(site,*target))){return self.static_call(target,site,node,values,state,b);}
++        if let Some((site, target)) = site.and_then(|site| {
++            self.original
++                .call_targets
++                .get(&(self.current, site))
++                .map(|target| (site, *target))
++        }) {
++            return self.static_call(target, site, node, values, state, b);
++        }
+         // A callable's hidden environment is not a declared parameter. Without
+         // its exact owner transport, no old observation survives the call.
+-        b.spend(state.width())?;let roots=state.owners.keys().cloned().collect::<Vec<_>>();
+-        for root in roots{if state.owners.get(&root).is_some_and(|owner|owner.states&DEAD==0){self.update(state,&root,LIVE,b)?;}}
+-        self.result_value(node,b)
++        b.spend(state.width())?;
++        let roots = state.owners.keys().cloned().collect::<Vec<_>>();
++        for root in roots {
++            if state
++                .owners
++                .get(&root)
++                .is_some_and(|owner| owner.states & DEAD == 0)
++            {
++                self.update(state, &root, LIVE, b)?;
++            }
++        }
++        self.result_value(node, b)
+     }
+-    fn result_value(&self,node:&SemanticOriginalExpr,b:&mut Budget)->Check<Value>{
+-        let Some(ty)=self.original.expressions.get(&(self.current,node.id))else{return Ok(Value::Plain);};let ty=self.original.resolved(ty,b)?;
+-        match owner_type(&ty){Some(false)=>Ok(Value::Fresh),Some(true)=>Err(unsupported("original helper borrowed registration result requires its exact source role",Some(node.span))),None=>Ok(Value::Plain)}
++    fn result_value(&self, node: &SemanticOriginalExpr, b: &mut Budget) -> Check<Value> {
++        let Some(ty) = self.original.expressions.get(&(self.current, node.id)) else {
++            return Ok(Value::Plain);
++        };
++        let ty = self.original.resolved(ty, b)?;
++        match owner_type(&ty) {
++            Some(false) => Ok(if tasks::is_task(&ty) {
++                Value::FreshTask
++            } else {
++                Value::Fresh
++            }),
++            Some(true) => Err(unsupported(
++                "original helper borrowed registration result requires its exact source role",
++                Some(node.span),
++            )),
++            None => Ok(Value::Plain),
++        }
+     }
+-    fn static_call(&mut self,target:SemanticDefinitionId,site:SemanticSiteId,node:&SemanticOriginalExpr,values:&[Value],state:&mut State,b:&mut Budget)->Check<Value>{
+-        let function=self.index.definitions.get(&target).ok_or_else(||bad("original protocol callee is outside its complete definition inventory"))?;
+-        let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,..}=&function.definition.body else{return Err(bad("original protocol callee has no complete head"));};
+-        b.spend(values.len().saturating_mul(protocol_contracts.len().saturating_add(1)).saturating_add(state.width()))?;
+-        let poll=self.original.expressions.get(&(self.current,node.id)).map(|ty|self.poll_type(ty,b)).transpose()?.unwrap_or(false);
+-        let mut pending=Vec::new();let mut seen=BTreeSet::new();
++    fn static_call(
++        &mut self,
++        target: SemanticDefinitionId,
++        site: SemanticSiteId,
++        node: &SemanticOriginalExpr,
++        values: &[Value],
++        state: &mut State,
++        b: &mut Budget,
++    ) -> Check<Value> {
++        let function = self.index.definitions.get(&target).ok_or_else(|| {
++            bad("original protocol callee is outside its complete definition inventory")
++        })?;
++        let SemanticDefinitionBody::FunctionWithBody {
++            protocol_contracts, ..
++        } = &function.definition.body
++        else {
++            return Err(bad("original protocol callee has no complete head"));
++        };
++        b.spend(
++            values
++                .len()
++                .saturating_mul(protocol_contracts.len().saturating_add(1))
++                .saturating_add(state.width()),
++        )?;
++        let poll = self
++            .original
++            .expressions
++            .get(&(self.current, node.id))
++            .map(|ty| self.poll_type(ty, b))
++            .transpose()?
++            .unwrap_or(false);
++        let mut pending = Vec::new();
++        let mut seen = BTreeSet::new();
+         // Read every actual operand from the same pre-call state before any
+         // owner is updated. Two formal roles cannot strong-update one owner.
+-        for(ordinal,value)in values.iter().enumerate(){
+-            let Value::Owner{root,..}=value else{if protocol_contracts.iter().any(|role|role.parameter as usize==ordinal){return Err(bad("original protocol actual has no initialized owner"));}continue;};
+-            if !seen.insert(root.clone()){return Err(bad("original protocol call aliases distinct parameter roles"));}
+-            let old=state.owner(root,b)?;
+-            let role=protocol_contracts.iter().find(|role|role.parameter as usize==ordinal);
+-            if let Some(role)=role{
+-                if old.states&!mask(&role.entry)!=0{return Err(bad("original caller owner state does not satisfy the callee entry relation"));}
+-                let mut plain=0;let mut low=0;let mut high=0;
+-                for row in &role.exits{b.spend(row.output.len().saturating_add(1))?;if old.states&bit(row.input)==0{continue;}let output=if row.output.is_empty(){DEAD}else{mask(&row.output)};match row.exit{ProtocolExit::Return=>plain|=output,ProtocolExit::PollPending=>low|=output,ProtocolExit::PollReady=>high|=output,_=>return Err(unsupported("original protocol error-arm call needs its complete correlation",Some(node.span)))}}
+-                let all=plain|low|high;if all==0{return Err(bad("original protocol call relation has no possible actual exit"));}
+-                pending.push((root.clone(),all,if poll{Some((low,high))}else{None}));
+-            }else{pending.push((root.clone(),if self.observing_parameter(target,site,ordinal,b)?{LIVE}else{DEAD},None));}
++        for (ordinal, value) in values.iter().enumerate() {
++            let Value::Owner { root, .. } = value else {
++                if protocol_contracts
++                    .iter()
++                    .any(|role| role.parameter as usize == ordinal)
++                {
++                    return Err(bad("original protocol actual has no initialized owner"));
++                }
++                continue;
++            };
++            if !seen.insert(root.clone()) {
++                return Err(bad(
++                    "original protocol call aliases distinct parameter roles",
++                ));
++            }
++            let old = state.owner(root, b)?;
++            let role = protocol_contracts
++                .iter()
++                .find(|role| role.parameter as usize == ordinal);
++            if let Some(role) = role {
++                if old.states & !mask(&role.entry) != 0 {
++                    return Err(bad(
++                        "original caller owner state does not satisfy the callee entry relation",
++                    ));
++                }
++                let mut plain = 0;
++                let mut low = 0;
++                let mut high = 0;
++                for row in &role.exits {
++                    b.spend(row.output.len().saturating_add(1))?;
++                    if old.states & bit(row.input) == 0 {
++                        continue;
++                    }
++                    let output = if row.output.is_empty() {
++                        DEAD
++                    } else {
++                        mask(&row.output)
++                    };
++                    match row.exit {
++                        ProtocolExit::Return => plain |= output,
++                        ProtocolExit::PollPending => low |= output,
++                        ProtocolExit::PollReady => high |= output,
++                        _ => {
++                            return Err(unsupported(
++                                "original protocol error-arm call needs its complete correlation",
++                                Some(node.span),
++                            ));
++                        }
++                    }
++                }
++                let all = plain | low | high;
++                if all == 0 {
++                    return Err(bad(
++                        "original protocol call relation has no possible actual exit",
++                    ));
++                }
++                pending.push((
++                    root.clone(),
++                    all,
++                    if poll { Some((low, high)) } else { None },
++                ));
++            } else {
++                pending.push((
++                    root.clone(),
++                    if self.observing_parameter(target, site, ordinal, b)? {
++                        LIVE
++                    } else {
++                        DEAD
++                    },
++                    None,
++                ));
++            }
++        }
++        let mut relations = Vec::new();
++        for (root, states, conditional) in pending {
++            let generation = self.update(state, &root, states, b)?;
++            if let Some((pending, ready)) = conditional {
++                relations.push(Conditional {
++                    root,
++                    generation,
++                    pending,
++                    ready,
++                });
++            }
++        }
++        if poll && !relations.is_empty() {
++            Ok(Value::Poll {
++                relations,
++                tag: None,
++            })
++        } else {
++            self.result_value(node, b)
+         }
+-        let mut relations=Vec::new();
+-        for(root,states,conditional)in pending{let generation=self.update(state,&root,states,b)?;if let Some((pending,ready))=conditional{relations.push(Conditional{root,generation,pending,ready});}}
+-        if poll&&!relations.is_empty(){Ok(Value::Poll{relations,tag:None})}else{self.result_value(node,b)}
+     }
+-    fn observing_parameter(&self,target:SemanticDefinitionId,site:SemanticSiteId,ordinal:usize,b:&mut Budget)->Check<bool>{
+-        let prototype=self.original.prototypes.get(&target).ok_or_else(||bad("original owner call has no complete callee prototype"))?;
+-        let mode=*prototype.modes.get(ordinal).ok_or_else(||bad("original owner call parameter mode is missing"))?;
+-        if matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe|PassingMode::Copy){return Ok(true);}
+-        let mut parameter=self.original.resolved(prototype.parameters.get(ordinal).ok_or_else(||bad("original owner call parameter is missing"))?,b)?;
+-        if let Ty::Variable(definition,formal)=parameter{
+-            if definition!=target{return Err(unsupported("original owner call needs its complete lexical parameter specialization",None));}
+-            let actual=self.original.calls.get(&(self.current,site)).and_then(|args|args.get(formal as usize)).ok_or_else(||bad("original owner call lacks its full-ordinal Type actual"))?;
+-            let Arg::Type(ty)=actual else{return Err(bad("original owner call Type formal was replaced by another kind"));};parameter=self.original.resolved(ty,b)?;
++    fn observing_parameter(
++        &self,
++        target: SemanticDefinitionId,
++        site: SemanticSiteId,
++        ordinal: usize,
++        b: &mut Budget,
++    ) -> Check<bool> {
++        let prototype = self
++            .original
++            .prototypes
++            .get(&target)
++            .ok_or_else(|| bad("original owner call has no complete callee prototype"))?;
++        let mode = *prototype
++            .modes
++            .get(ordinal)
++            .ok_or_else(|| bad("original owner call parameter mode is missing"))?;
++        if matches!(
++            mode,
++            PassingMode::Borrow
++                | PassingMode::BorrowMut
++                | PassingMode::Describe
++                | PassingMode::Copy
++        ) {
++            return Ok(true);
++        }
++        let mut parameter = self.original.resolved(
++            prototype
++                .parameters
++                .get(ordinal)
++                .ok_or_else(|| bad("original owner call parameter is missing"))?,
++            b,
++        )?;
++        if let Ty::Variable(definition, formal) = parameter {
++            if definition != target {
++                return Err(unsupported(
++                    "original owner call needs its complete lexical parameter specialization",
++                    None,
++                ));
++            }
++            let actual = self
++                .original
++                .calls
++                .get(&(self.current, site))
++                .and_then(|args| args.get(formal as usize))
++                .ok_or_else(|| bad("original owner call lacks its full-ordinal Type actual"))?;
++            let Arg::Type(ty) = actual else {
++                return Err(bad(
++                    "original owner call Type formal was replaced by another kind",
++                ));
++            };
++            parameter = self.original.resolved(ty, b)?;
++        }
++        match owner_type(&parameter) {
++            Some(borrowed) => Ok(borrowed),
++            None => Err(unsupported(
++                "original owner argument has no independently resolved passing category",
++                None,
++            )),
+         }
+-        match owner_type(&parameter){Some(borrowed)=>Ok(borrowed),None=>Err(unsupported("original owner argument has no independently resolved passing category",None))}
+     }
+ }
+diff --git a/crates/zil-verify/src/semantic/original/protocol/state.rs b/crates/zil-verify/src/semantic/original/protocol/state.rs
+index 122beba4b..ad22d701a 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/state.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/state.rs
+@@ -2,93 +2,342 @@
+ //! observation is useful only for the exact owner generation it observed.
+ use super::*;
+ 
+-pub(super) const OPEN:u8=1;
+-pub(super) const CLOSING:u8=2;
+-pub(super) const CLOSED:u8=4;
+-pub(super) const DEAD:u8=8;
+-pub(super) const LIVE:u8=OPEN|CLOSING|CLOSED;
++pub(super) const OPEN: u8 = 1;
++pub(super) const CLOSING: u8 = 2;
++pub(super) const CLOSED: u8 = 4;
++pub(super) const DEAD: u8 = 8;
++pub(super) const LIVE: u8 = OPEN | CLOSING | CLOSED;
+ 
+-pub(super) fn bit(state:ProtocolState)->u8{match state{ProtocolState::Open=>OPEN,ProtocolState::Closing=>CLOSING,ProtocolState::Closed=>CLOSED}}
+-pub(super) fn mask(states:&[ProtocolState])->u8{states.iter().fold(0,|value,state|value|bit(*state))}
++pub(super) fn bit(state: ProtocolState) -> u8 {
++    match state {
++        ProtocolState::Open => OPEN,
++        ProtocolState::Closing => CLOSING,
++        ProtocolState::Closed => CLOSED,
++    }
++}
++pub(super) fn mask(states: &[ProtocolState]) -> u8 {
++    states.iter().fold(0, |value, state| value | bit(*state))
++}
+ 
+-#[derive(Clone,Debug,PartialEq,Eq)]
+-pub(super) struct Owner{pub(super) states:u8,pub(super) generation:u64}
+-#[derive(Clone,Debug,PartialEq,Eq)]
+-pub(super) struct Conditional{pub(super) root:Binder,pub(super) generation:u64,pub(super) pending:u8,pub(super) ready:u8}
+-#[derive(Clone,Debug,PartialEq,Eq)]
+-pub(super) enum Value{
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub(super) struct Owner {
++    pub(super) states: u8,
++    pub(super) generation: u64,
++    pub(super) task: bool,
++    pub(super) owned: bool,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub(super) struct Conditional {
++    pub(super) root: Binder,
++    pub(super) generation: u64,
++    pub(super) pending: u8,
++    pub(super) ready: u8,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub(super) enum Value {
+     Plain,
+-    Owner{root:Binder,borrowed:bool},
++    Owner {
++        root: Binder,
++        borrowed: bool,
++    },
+     Fresh,
+-    Poll{relations:Vec<Conditional>,tag:Option<ProtocolExit>},
++    FreshTask,
++    FallibleTask,
++    Poll {
++        relations: Vec<Conditional>,
++        tag: Option<ProtocolExit>,
++    },
++}
++impl Value {
++    fn width(&self) -> usize {
++        match self {
++            Self::Owner { root, .. } => binder_width(root),
++            Self::Poll { relations, .. } => relations.iter().fold(1usize, |n, row| {
++                n.saturating_add(binder_width(&row.root)).saturating_add(3)
++            }),
++            _ => 1,
++        }
++    }
+ }
+-impl Value{
+-    fn width(&self)->usize{match self{Self::Owner{root,..}=>binder_width(root),Self::Poll{relations,..}=>relations.iter().fold(1usize,|n,row|n.saturating_add(binder_width(&row.root)).saturating_add(3)),_=>1}}
++fn binder_width(binder: &Binder) -> usize {
++    match binder {
++        Binder::Local { name, .. } => name.len().saturating_add(3),
++        Binder::Capture { source, .. } => binder_width(source).saturating_add(1),
++        _ => 3,
++    }
+ }
+-fn binder_width(binder:&Binder)->usize{match binder{Binder::Local{name,..}=>name.len().saturating_add(3),Binder::Capture{source,..}=>binder_width(source).saturating_add(1),_=>3}}
+ 
+-#[derive(Clone,Debug,Default)]
+-pub(super) struct State{pub(super) owners:BTreeMap<Binder,Owner>,pub(super) values:BTreeMap<Binder,Value>}
+-impl State{
+-    pub(super) fn width(&self)->usize{self.owners.keys().fold(1usize,|n,key|n.saturating_add(binder_width(key)).saturating_add(2)).saturating_add(self.values.iter().fold(0usize,|n,(key,value)|n.saturating_add(binder_width(key)).saturating_add(value.width())))}
+-    pub(super) fn copy(&self,b:&mut Budget)->Check<Self>{b.spend(self.width())?;Ok(self.clone())}
+-    pub(super) fn invalidate(&mut self,root:&Binder,b:&mut Budget)->Check<()>{
+-        b.spend(self.width().saturating_mul(binder_width(root).saturating_add(1)))?;
+-        for value in self.values.values_mut(){if matches!(value,Value::Poll{relations,..}if relations.iter().any(|row|&row.root==root)){*value=Value::Plain;}}
++#[derive(Clone, Debug, Default)]
++pub(super) struct State {
++    pub(super) owners: BTreeMap<Binder, Owner>,
++    pub(super) values: BTreeMap<Binder, Value>,
++}
++impl State {
++    pub(super) fn width(&self) -> usize {
++        self.owners
++            .keys()
++            .fold(1usize, |n, key| {
++                n.saturating_add(binder_width(key)).saturating_add(2)
++            })
++            .saturating_add(self.values.iter().fold(0usize, |n, (key, value)| {
++                n.saturating_add(binder_width(key))
++                    .saturating_add(value.width())
++            }))
++    }
++    pub(super) fn copy(&self, b: &mut Budget) -> Check<Self> {
++        b.spend(self.width())?;
++        Ok(self.clone())
++    }
++    pub(super) fn invalidate(&mut self, root: &Binder, b: &mut Budget) -> Check<()> {
++        b.spend(
++            self.width()
++                .saturating_mul(binder_width(root).saturating_add(1)),
++        )?;
++        for value in self.values.values_mut() {
++            if matches!(value,Value::Poll{relations,..}if relations.iter().any(|row|&row.root==root))
++            {
++                *value = Value::Plain;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn strip_observations(&mut self, b: &mut Budget) -> Check<()> {
++        b.spend(self.width())?;
++        for value in self.values.values_mut() {
++            if matches!(value, Value::Poll { .. }) {
++                *value = Value::Plain;
++            }
++        }
+         Ok(())
+     }
+-    pub(super) fn strip_observations(&mut self,b:&mut Budget)->Check<()>{b.spend(self.width())?;for value in self.values.values_mut(){if matches!(value,Value::Poll{..}){*value=Value::Plain;}}Ok(())}
+-    pub(super) fn owner(&self,root:&Binder,b:&mut Budget)->Check<&Owner>{b.spend(binder_width(root).saturating_add(1))?;let owner=self.owners.get(root).ok_or_else(||bad("original protocol operation has no initialized owner identity"))?;if owner.states==0||owner.states&DEAD!=0{return Err(bad("original protocol owner is consumed or only conditionally live"));}Ok(owner)}
+-    pub(super) fn refine(&mut self,value:&Value,exit:ProtocolExit,b:&mut Budget)->Check<bool>{
+-        let Value::Poll{relations,tag}=value else{return Ok(true);};
+-        if tag.is_some_and(|tag|tag!=exit){return Ok(false);}
+-        for row in relations{
++    pub(super) fn owner(&self, root: &Binder, b: &mut Budget) -> Check<&Owner> {
++        b.spend(binder_width(root).saturating_add(1))?;
++        let owner = self
++            .owners
++            .get(root)
++            .ok_or_else(|| bad("original protocol operation has no initialized owner identity"))?;
++        if owner.states == 0 || owner.states & DEAD != 0 {
++            return Err(bad(
++                "original protocol owner is consumed or only conditionally live",
++            ));
++        }
++        Ok(owner)
++    }
++    pub(super) fn refine(
++        &mut self,
++        value: &Value,
++        exit: ProtocolExit,
++        b: &mut Budget,
++    ) -> Check<bool> {
++        let Value::Poll { relations, tag } = value else {
++            return Ok(true);
++        };
++        if tag.is_some_and(|tag| tag != exit) {
++            return Ok(false);
++        }
++        for row in relations {
+             b.spend(binder_width(&row.root).saturating_add(2))?;
+-            let owner=self.owners.get_mut(&row.root).ok_or_else(||bad("original Poll observation lost its actual owner"))?;
+-            if owner.generation!=row.generation{return Err(bad("original Poll observation belongs to an obsolete owner generation"));}
+-            let selected=match exit{ProtocolExit::PollPending=>row.pending,ProtocolExit::PollReady=>row.ready,_=>return Err(bad("original Poll relation used as another return category"))};
++            let owner = self
++                .owners
++                .get_mut(&row.root)
++                .ok_or_else(|| bad("original Poll observation lost its actual owner"))?;
++            if owner.generation != row.generation {
++                return Err(bad(
++                    "original Poll observation belongs to an obsolete owner generation",
++                ));
++            }
++            let selected = match exit {
++                ProtocolExit::PollPending => row.pending,
++                ProtocolExit::PollReady => row.ready,
++                _ => {
++                    return Err(bad(
++                        "original Poll relation used as another return category",
++                    ));
++                }
++            };
+             owner.states &= selected;
+-            if owner.states==0{return Ok(false);}
++            if owner.states == 0 {
++                return Ok(false);
++            }
+         }
+         Ok(true)
+     }
+     // Loop heads deliberately discard observations. Their convergence key is
+     // the finite state/slot graph, never a recycled poll or a numeric epoch.
+-    pub(super) fn same_loop(&self,other:&Self,b:&mut Budget)->Check<bool>{
++    pub(super) fn same_loop(&self, other: &Self, b: &mut Budget) -> Check<bool> {
+         b.spend(self.width().saturating_add(other.width()))?;
+-        Ok(self.values==other.values&&self.owners.len()==other.owners.len()&&self.owners.iter().all(|(root,owner)|other.owners.get(root).is_some_and(|other|owner.states==other.states)))
++        Ok(self.values == other.values
++            && self.owners.len() == other.owners.len()
++            && self.owners.iter().all(|(root, owner)| {
++                other
++                    .owners
++                    .get(root)
++                    .is_some_and(|other| owner.states == other.states)
++            }))
+     }
+ }
+ 
+-pub(super) fn union_value(left:&Value,right:&Value,b:&mut Budget)->Check<Value>{b.spend(left.width().saturating_add(right.width()))?;Ok(if left==right{left.clone()}else{Value::Plain})}
++pub(super) fn union_value(left: &Value, right: &Value, b: &mut Budget) -> Check<Value> {
++    b.spend(left.width().saturating_add(right.width()))?;
++    Ok(if left == right {
++        left.clone()
++    } else {
++        Value::Plain
++    })
++}
+ 
+-impl Engine<'_>{
+-    pub(super) fn generation(&mut self,b:&mut Budget)->Check<u64>{b.spend(1)?;let result=self.next;self.next=self.next.checked_add(1).ok_or_else(||limit("original protocol generation identity exhausted"))?;Ok(result)}
+-    pub(super) fn update(&mut self,state:&mut State,root:&Binder,states:u8,b:&mut Budget)->Check<u64>{
+-        state.owner(root,b)?;state.invalidate(root,b)?;let generation=self.generation(b)?;
+-        let owner=state.owners.get_mut(root).ok_or_else(||bad("original owner disappeared during phase update"))?;owner.states=states;owner.generation=generation;Ok(generation)
++impl Engine<'_> {
++    pub(super) fn generation(&mut self, b: &mut Budget) -> Check<u64> {
++        b.spend(1)?;
++        let result = self.next;
++        self.next = self
++            .next
++            .checked_add(1)
++            .ok_or_else(|| limit("original protocol generation identity exhausted"))?;
++        Ok(result)
++    }
++    pub(super) fn update(
++        &mut self,
++        state: &mut State,
++        root: &Binder,
++        states: u8,
++        b: &mut Budget,
++    ) -> Check<u64> {
++        state.owner(root, b)?;
++        state.invalidate(root, b)?;
++        let generation = self.generation(b)?;
++        let owner = state
++            .owners
++            .get_mut(root)
++            .ok_or_else(|| bad("original owner disappeared during phase update"))?;
++        owner.states = states;
++        owner.generation = generation;
++        Ok(generation)
+     }
+-    pub(super) fn join(&mut self,left:&State,right:&State,b:&mut Budget)->Check<State>{
++    pub(super) fn join(&mut self, left: &State, right: &State, b: &mut Budget) -> Check<State> {
+         b.spend(left.width().saturating_add(right.width()).saturating_mul(3))?;
+-        let mut result=left.copy(b)?;
+-        for(root,other)in &right.owners{
+-            match result.owners.get_mut(root){Some(owner)=>{owner.states|=other.states;if owner.generation!=other.generation{owner.generation=self.generation(b)?;}},None=>{result.owners.insert(root.clone(),Owner{states:other.states|DEAD,generation:self.generation(b)?});}}
++        let mut result = left.copy(b)?;
++        for (root, other) in &right.owners {
++            match result.owners.get_mut(root) {
++                Some(owner) => {
++                    if owner.task != other.task || owner.owned != other.owned {
++                        return Err(bad(
++                            "original owner join changes its Task/registration or responsibility role",
++                        ));
++                    }
++                    owner.states |= other.states;
++                    if owner.generation != other.generation {
++                        owner.generation = self.generation(b)?;
++                    }
++                }
++                None => {
++                    result.owners.insert(
++                        root.clone(),
++                        Owner {
++                            states: other.states | DEAD,
++                            generation: self.generation(b)?,
++                            task: other.task,
++                            owned: other.owned,
++                        },
++                    );
++                }
++            }
++        }
++        for (root, owner) in &mut result.owners {
++            if !right.owners.contains_key(root) {
++                owner.states |= DEAD;
++                owner.generation = self.generation(b)?;
++            }
++        }
++        for (key, value) in &mut result.values {
++            *value = match right.values.get(key) {
++                Some(other) => union_value(value, other, b)?,
++                None => Value::Plain,
++            };
++        }
++        for key in right.values.keys() {
++            if !result.values.contains_key(key) {
++                result.values.insert(key.clone(), Value::Plain);
++            }
+         }
+-        for(root,owner)in &mut result.owners{if !right.owners.contains_key(root){owner.states|=DEAD;owner.generation=self.generation(b)?;}}
+-        for(key,value)in &mut result.values{*value=match right.values.get(key){Some(other)=>union_value(value,other,b)?,None=>Value::Plain};}
+-        for key in right.values.keys(){if !result.values.contains_key(key){result.values.insert(key.clone(),Value::Plain);}}
+         // Keeping a relation requires the exact generation on every path.
+-        for value in result.values.values_mut(){if matches!(value,Value::Poll{relations,..}if relations.iter().any(|row|result.owners.get(&row.root).is_none_or(|owner|owner.generation!=row.generation))){*value=Value::Plain;}}
++        for value in result.values.values_mut() {
++            if matches!(value,Value::Poll{relations,..}if relations.iter().any(|row|result.owners.get(&row.root).is_none_or(|owner|owner.generation!=row.generation)))
++            {
++                *value = Value::Plain;
++            }
++        }
+         Ok(result)
+     }
+-    pub(super) fn merge(&mut self,destination:&mut Option<State>,source:Option<State>,b:&mut Budget)->Check<()>{if let Some(source)=source{*destination=Some(match destination.take(){Some(old)=>self.join(&old,&source,b)?,None=>source});}Ok(())}
+-    pub(super) fn bind(&mut self,state:&mut State,binder:Binder,value:Value,b:&mut Budget)->Check<()>{
++    pub(super) fn merge(
++        &mut self,
++        destination: &mut Option<State>,
++        source: Option<State>,
++        b: &mut Budget,
++    ) -> Check<()> {
++        if let Some(source) = source {
++            *destination = Some(match destination.take() {
++                Some(old) => self.join(&old, &source, b)?,
++                None => source,
++            });
++        }
++        Ok(())
++    }
++    pub(super) fn bind(
++        &mut self,
++        state: &mut State,
++        binder: Binder,
++        value: Value,
++        b: &mut Budget,
++    ) -> Check<()> {
+         b.spend(state.width().saturating_add(binder_width(&binder)))?;
+-        let value=if value==Value::Fresh{
+-            if state.owners.get(&binder).is_some_and(|owner|owner.states!=DEAD){return Err(unsupported("original replacement reuses an owner birth while an earlier generation is live",None));}
+-            let generation=self.generation(b)?;state.owners.insert(binder.clone(),Owner{states:LIVE,generation});Value::Owner{root:binder.clone(),borrowed:false}
+-        }else{value};
+-        if let Some(Value::Owner{root,borrowed:false})=state.values.get(&binder){if !matches!(&value,Value::Owner{root:other,..}if other==root)&&state.owners.get(root).is_some_and(|owner|owner.states!=DEAD){return Err(unsupported("original owner replacement requires its old generation to be consumed first",None));}}
+-        state.values.insert(binder,value);Ok(())
++        let value = self.task_bind(state, &binder, value, b)?;
++        let value = if value == Value::Fresh {
++            if state
++                .owners
++                .get(&binder)
++                .is_some_and(|owner| owner.states != DEAD)
++            {
++                return Err(unsupported(
++                    "original replacement reuses an owner birth while an earlier generation is live",
++                    None,
++                ));
++            }
++            let generation = self.generation(b)?;
++            state.owners.insert(
++                binder.clone(),
++                Owner {
++                    states: LIVE,
++                    generation,
++                    task: false,
++                    owned: true,
++                },
++            );
++            Value::Owner {
++                root: binder.clone(),
++                borrowed: false,
++            }
++        } else {
++            value
++        };
++        if let Some(Value::Owner {
++            root,
++            borrowed: false,
++        }) = state.values.get(&binder)
++        {
++            if !matches!(&value,Value::Owner{root:other,..}if other==root)
++                && state
++                    .owners
++                    .get(root)
++                    .is_some_and(|owner| owner.states != DEAD)
++            {
++                return Err(unsupported(
++                    "original owner replacement requires its old generation to be consumed first",
++                    None,
++                ));
++            }
++        }
++        state.values.insert(binder, value);
++        Ok(())
+     }
+ }
+diff --git a/crates/zil-verify/src/semantic/original/protocol/walk.rs b/crates/zil-verify/src/semantic/original/protocol/walk.rs
+index 690ddc301..df617935f 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/walk.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/walk.rs
+@@ -1,136 +1,613 @@
+ use super::*;
+ 
+ #[derive(Default)]
+-pub(super) struct Outcome{pub(super) fall:Option<State>,pub(super) breaks:Option<State>,pub(super) continues:Option<State>}
++pub(super) struct Outcome {
++    pub(super) fall: Option<State>,
++    pub(super) breaks: Option<State>,
++    pub(super) continues: Option<State>,
++}
+ 
+-impl<'a> Engine<'a>{
+-    fn collect(&mut self,to:&mut Outcome,from:Outcome,b:&mut Budget)->Check<()>{self.merge(&mut to.fall,from.fall,b)?;self.merge(&mut to.breaks,from.breaks,b)?;self.merge(&mut to.continues,from.continues,b)}
+-    pub(super) fn block(&mut self,body:&'a SemanticOriginalBlock,state:State,unwind:&[&'a SemanticOriginalBlock],loop_start:Option<usize>,depth:usize,b:&mut Budget)->Check<Outcome>{
+-        self.depth(depth,b)?;b.spend(unwind.len())?;let mut deferred=unwind.to_vec();let start=deferred.len();let mut output=Outcome{fall:Some(state),..Outcome::default()};
+-        for statement in &body.statements{
+-            let Some(state)=output.fall.take()else{break;};
+-            if let CoreStatementKind::Defer(body)=&statement.kind{b.spend(1)?;deferred.push(body);output.fall=Some(state);continue;}
+-            let next=self.statement(statement,state,&deferred,loop_start,depth+1,b)?;self.collect(&mut output,next,b)?;
++impl<'a> Engine<'a> {
++    fn collect(&mut self, to: &mut Outcome, from: Outcome, b: &mut Budget) -> Check<()> {
++        self.merge(&mut to.fall, from.fall, b)?;
++        self.merge(&mut to.breaks, from.breaks, b)?;
++        self.merge(&mut to.continues, from.continues, b)
++    }
++    pub(super) fn block(
++        &mut self,
++        body: &'a SemanticOriginalBlock,
++        state: State,
++        unwind: &[&'a SemanticOriginalBlock],
++        loop_start: Option<usize>,
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<Outcome> {
++        self.depth(depth, b)?;
++        b.spend(unwind.len().saturating_add(state.values.len()))?;
++        let before = state.values.keys().cloned().collect::<BTreeSet<_>>();
++        let mut deferred = unwind.to_vec();
++        let start = deferred.len();
++        let mut output = Outcome {
++            fall: Some(state),
++            ..Outcome::default()
++        };
++        for statement in &body.statements {
++            let Some(state) = output.fall.take() else {
++                break;
++            };
++            if let CoreStatementKind::Defer(body) = &statement.kind {
++                b.spend(1)?;
++                deferred.push(body);
++                output.fall = Some(state);
++                continue;
++            }
++            b.spend(deferred.len())?;
++            self.error_unwind = deferred.clone();
++            let next = self.statement(statement, state, &deferred, loop_start, depth + 1, b)?;
++            self.collect(&mut output, next, b)?;
++        }
++        if let Some(state) = output.fall.take() {
++            let mut state = self.unwind(state, &deferred, start, depth + 1, b)?;
++            self.task_scope_cleanup(&mut state, &before, b)?;
++            output.fall = Some(state);
+         }
+-        if let Some(state)=output.fall.take(){output.fall=Some(self.unwind(state,&deferred,start,depth+1,b)?);}
+         Ok(output)
+     }
+-    fn unwind(&mut self,mut state:State,deferred:&[&'a SemanticOriginalBlock],start:usize,depth:usize,b:&mut Budget)->Check<State>{
+-        for body in deferred.get(start..).ok_or_else(||bad("original protocol cleanup scope is invalid"))?.iter().rev(){
+-            let result=self.block(body,state,&[],None,depth+1,b)?;
+-            if result.breaks.is_some()||result.continues.is_some(){return Err(bad("original protocol cleanup transfers control outside its body"));}
+-            state=result.fall.ok_or_else(||bad("original protocol cleanup returns instead of completing its caller exit"))?;
+-        }Ok(state)
++    pub(super) fn unwind(
++        &mut self,
++        mut state: State,
++        deferred: &[&'a SemanticOriginalBlock],
++        start: usize,
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<State> {
++        for body in deferred
++            .get(start..)
++            .ok_or_else(|| bad("original protocol cleanup scope is invalid"))?
++            .iter()
++            .rev()
++        {
++            let result = self.block(body, state, &[], None, depth + 1, b)?;
++            if result.breaks.is_some() || result.continues.is_some() {
++                return Err(bad(
++                    "original protocol cleanup transfers control outside its body",
++                ));
++            }
++            state = result.fall.ok_or_else(|| {
++                bad("original protocol cleanup returns instead of completing its caller exit")
++            })?;
++        }
++        Ok(state)
+     }
+-    fn statement(&mut self,statement:&'a SemanticOriginalStatement,mut state:State,deferred:&[&'a SemanticOriginalBlock],loop_start:Option<usize>,depth:usize,b:&mut Budget)->Check<Outcome>{
+-        self.depth(depth,b)?;use CoreStatementKind::*;
+-        match &statement.kind{
+-            Binding{name,initializer,..}=>{let value=match initializer{Some(value)=>self.expression(value,&mut state,depth+1,b)?,None=>Value::Plain};self.bind(&mut state,Binder::Local{definition:self.current,node:statement.id,name:name.clone()},value,b)?;},
+-            TupleBinding{pattern,initializer,..}=>{let value=self.expression(initializer,&mut state,depth+1,b)?;self.bind_pattern(statement.id,&[],pattern,&value,&mut state,b)?;},
+-            Expression(value)=>{self.expression(value,&mut state,depth+1,b)?;},
+-            Assign{target,value}=>{
+-                let binder=self.binder(target,b)?.ok_or_else(||unsupported("original protocol assignment needs its complete projected owner place",Some(target.span)))?;
+-                let value=self.expression(value,&mut state,depth+1,b)?;self.bind(&mut state,binder,value,b)?;
+-            },
+-            CompoundAssign{target,value,..}=>{self.expression(target,&mut state,depth+1,b)?;self.expression(value,&mut state,depth+1,b)?;},
+-            Return(value)=>{
+-                let value=match value{Some(value)=>self.expression(value,&mut state,depth+1,b)?,None=>Value::Plain};
+-                if let Value::Owner{root,borrowed:false}=&value{self.update(&mut state,root,DEAD,b)?;}
+-                let state=self.unwind(state,deferred,0,depth+1,b)?;self.check_exit(state,value,b)?;return Ok(Outcome::default());
+-            },
+-            If{condition,then_body,else_body}=>{
+-                self.expression(condition,&mut state,depth+1,b)?;
+-                let yes=self.block(then_body,state.copy(b)?,deferred,loop_start,depth+1,b)?;
+-                let no=match else_body{Some(body)=>self.block(body,state,deferred,loop_start,depth+1,b)?,None=>Outcome{fall:Some(state),..Outcome::default()}};
+-                let mut result=yes;self.collect(&mut result,no,b)?;return Ok(result);
+-            },
+-            IfLet{pattern,value,then_body,else_body}=>{
+-                let observed=self.expression(value,&mut state,depth+1,b)?;let poll=self.node_poll(value,b)?;
+-                let mut result=Outcome::default();
+-                for selected in self.select(&state,&observed,pattern,poll,true,b)?{let mut selected=selected;self.bind_pattern(statement.id,&[],pattern,&observed,&mut selected,b)?;let next=self.block(then_body,selected,deferred,loop_start,depth+1,b)?;self.collect(&mut result,next,b)?;}
+-                for selected in self.select(&state,&observed,pattern,poll,false,b)?{let next=match else_body{Some(body)=>self.block(body,selected,deferred,loop_start,depth+1,b)?,None=>Outcome{fall:Some(selected),..Outcome::default()}};self.collect(&mut result,next,b)?;}
++    fn statement(
++        &mut self,
++        statement: &'a SemanticOriginalStatement,
++        mut state: State,
++        deferred: &[&'a SemanticOriginalBlock],
++        loop_start: Option<usize>,
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<Outcome> {
++        self.depth(depth, b)?;
++        use CoreStatementKind::*;
++        match &statement.kind {
++            Binding {
++                name, initializer, ..
++            } => {
++                let value = match initializer {
++                    Some(value) => self.expression(value, &mut state, depth + 1, b)?,
++                    None => Value::Plain,
++                };
++                self.bind(
++                    &mut state,
++                    Binder::Local {
++                        definition: self.current,
++                        node: statement.id,
++                        name: name.clone(),
++                    },
++                    value,
++                    b,
++                )?;
++            }
++            TupleBinding {
++                pattern,
++                initializer,
++                ..
++            } => {
++                let value = self.expression(initializer, &mut state, depth + 1, b)?;
++                self.bind_pattern(statement.id, &[], pattern, &value, &mut state, b)?;
++            }
++            Expression(value) => {
++                self.expression(value, &mut state, depth + 1, b)?;
++            }
++            Assign { target, value } => {
++                let binder = self.binder(target, b)?.ok_or_else(|| {
++                    unsupported(
++                        "original protocol assignment needs its complete projected owner place",
++                        Some(target.span),
++                    )
++                })?;
++                let value = self.expression(value, &mut state, depth + 1, b)?;
++                self.bind(&mut state, binder, value, b)?;
++            }
++            CompoundAssign { target, value, .. } => {
++                self.expression(target, &mut state, depth + 1, b)?;
++                self.expression(value, &mut state, depth + 1, b)?;
++            }
++            Return(value) => {
++                let value = match value {
++                    Some(value) => self.expression(value, &mut state, depth + 1, b)?,
++                    None => Value::Plain,
++                };
++                if let Value::Owner {
++                    root,
++                    borrowed: false,
++                } = &value
++                {
++                    self.update(&mut state, root, DEAD, b)?;
++                }
++                let state = self.unwind(state, deferred, 0, depth + 1, b)?;
++                self.check_exit(state, value, b)?;
++                return Ok(Outcome::default());
++            }
++            If {
++                condition,
++                then_body,
++                else_body,
++            } => {
++                self.expression(condition, &mut state, depth + 1, b)?;
++                let yes = self.block(
++                    then_body,
++                    state.copy(b)?,
++                    deferred,
++                    loop_start,
++                    depth + 1,
++                    b,
++                )?;
++                let no = match else_body {
++                    Some(body) => self.block(body, state, deferred, loop_start, depth + 1, b)?,
++                    None => Outcome {
++                        fall: Some(state),
++                        ..Outcome::default()
++                    },
++                };
++                let mut result = yes;
++                self.collect(&mut result, no, b)?;
++                return Ok(result);
++            }
++            IfLet {
++                pattern,
++                value,
++                then_body,
++                else_body,
++            } => {
++                let observed = self.expression(value, &mut state, depth + 1, b)?;
++                let poll = self.node_poll(value, b)?;
++                let mut result = Outcome::default();
++                for selected in self.select(&state, &observed, pattern, poll, true, b)? {
++                    let mut selected = selected;
++                    self.bind_pattern(statement.id, &[], pattern, &observed, &mut selected, b)?;
++                    let next =
++                        self.block(then_body, selected, deferred, loop_start, depth + 1, b)?;
++                    self.collect(&mut result, next, b)?;
++                }
++                for selected in self.select(&state, &observed, pattern, poll, false, b)? {
++                    let next = match else_body {
++                        Some(body) => {
++                            self.block(body, selected, deferred, loop_start, depth + 1, b)?
++                        }
++                        None => Outcome {
++                            fall: Some(selected),
++                            ..Outcome::default()
++                        },
++                    };
++                    self.collect(&mut result, next, b)?;
++                }
+                 return Ok(result);
+-            },
+-            Match{value,arms}=>{
+-                let observed=self.expression(value,&mut state,depth+1,b)?;let poll=self.node_poll(value,b)?;let mut covered=0u8;let mut result=Outcome::default();
+-                for(ordinal,arm)in arms.iter().enumerate(){
+-                    for mut selected in self.select_uncovered(&state,&observed,&arm.pattern,poll,covered,b)?{
+-                        self.bind_pattern(statement.id,&[ordinal as u32],&arm.pattern,&observed,&mut selected,b)?;
+-                        let next=self.block(&arm.body,selected,deferred,loop_start,depth+1,b)?;self.collect(&mut result,next,b)?;
++            }
++            Match { value, arms } => {
++                let observed = self.expression(value, &mut state, depth + 1, b)?;
++                let poll = self.node_poll(value, b)?;
++                let mut covered = 0u8;
++                let mut result = Outcome::default();
++                for (ordinal, arm) in arms.iter().enumerate() {
++                    for mut selected in
++                        self.select_uncovered(&state, &observed, &arm.pattern, poll, covered, b)?
++                    {
++                        self.bind_pattern(
++                            statement.id,
++                            &[ordinal as u32],
++                            &arm.pattern,
++                            &observed,
++                            &mut selected,
++                            b,
++                        )?;
++                        let next =
++                            self.block(&arm.body, selected, deferred, loop_start, depth + 1, b)?;
++                        self.collect(&mut result, next, b)?;
++                    }
++                    covered |= pattern_mask(&arm.pattern, poll);
++                }
++                if covered != 3 {
++                    for selected in self.unmatched(&state, &observed, poll, covered, b)? {
++                        self.merge(&mut result.fall, Some(selected), b)?;
+                     }
+-                    covered|=pattern_mask(&arm.pattern,poll);
+                 }
+-                if covered!=3{for selected in self.unmatched(&state,&observed,poll,covered,b)?{self.merge(&mut result.fall,Some(selected),b)?;}}
+                 return Ok(result);
+-            },
+-            Block(body)|Unsafe(body)=>return self.block(body,state,deferred,loop_start,depth+1,b),
+-            Break|Continue=>{
+-                let start=loop_start.ok_or_else(||bad("original protocol control has no actual enclosing loop"))?;let state=self.unwind(state,deferred,start,depth+1,b)?;
+-                return Ok(if matches!(statement.kind,Break){Outcome{breaks:Some(state),..Outcome::default()}}else{Outcome{continues:Some(state),..Outcome::default()}});
+-            },
+-            Loop(body)=>return self.loop_body(body,None,None,state,deferred,depth+1,b),
+-            While{condition,body}=>return self.loop_body(body,Some(condition),None,state,deferred,depth+1,b),
+-            WhileLet{pattern,value,body}=>return self.loop_body(body,Some(value),Some((statement.id,pattern)),state,deferred,depth+1,b),
+-            ForRange{start,end,body,..}=>{self.expression(start,&mut state,depth+1,b)?;self.expression(end,&mut state,depth+1,b)?;return self.range_body(body,state,deferred,depth+1,b);},
+-            _=>return Err(unsupported("original protocol statement has no complete CFG/cleanup rule",Some(statement.span))),
++            }
++            Block(body) | Unsafe(body) => {
++                return self.block(body, state, deferred, loop_start, depth + 1, b);
++            }
++            Break | Continue => {
++                let start = loop_start
++                    .ok_or_else(|| bad("original protocol control has no actual enclosing loop"))?;
++                let mut state = self.unwind(state, deferred, start, depth + 1, b)?;
++                let before = self
++                    .task_loop_keys
++                    .last()
++                    .cloned()
++                    .ok_or_else(|| bad("Task loop cleanup has no exact lexical boundary"))?;
++                self.task_scope_cleanup(&mut state, &before, b)?;
++                return Ok(if matches!(statement.kind, Break) {
++                    Outcome {
++                        breaks: Some(state),
++                        ..Outcome::default()
++                    }
++                } else {
++                    Outcome {
++                        continues: Some(state),
++                        ..Outcome::default()
++                    }
++                });
++            }
++            Loop(body) => return self.loop_body(body, None, None, state, deferred, depth + 1, b),
++            While { condition, body } => {
++                return self.loop_body(body, Some(condition), None, state, deferred, depth + 1, b);
++            }
++            WhileLet {
++                pattern,
++                value,
++                body,
++            } => {
++                return self.loop_body(
++                    body,
++                    Some(value),
++                    Some((statement.id, pattern)),
++                    state,
++                    deferred,
++                    depth + 1,
++                    b,
++                );
++            }
++            ForRange {
++                start, end, body, ..
++            } => {
++                self.expression(start, &mut state, depth + 1, b)?;
++                self.expression(end, &mut state, depth + 1, b)?;
++                return self.range_body(body, state, deferred, depth + 1, b);
++            }
++            _ => {
++                return Err(unsupported(
++                    "original protocol statement has no complete CFG/cleanup rule",
++                    Some(statement.span),
++                ));
++            }
+         }
+-        Ok(Outcome{fall:Some(state),..Outcome::default()})
++        Ok(Outcome {
++            fall: Some(state),
++            ..Outcome::default()
++        })
+     }
+-    fn range_body(&mut self,body:&'a SemanticOriginalBlock,state:State,deferred:&[&'a SemanticOriginalBlock],depth:usize,b:&mut Budget)->Check<Outcome>{
++    fn range_body(
++        &mut self,
++        body: &'a SemanticOriginalBlock,
++        state: State,
++        deferred: &[&'a SemanticOriginalBlock],
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<Outcome> {
+         // Range bounds are evaluated once. An arbitrary number of body
+         // executions, including zero, uses the same finite loop solver.
+-        self.loop_fixed(body,None,None,state,deferred,true,depth,b)
++        self.loop_fixed(body, None, None, state, deferred, true, depth, b)
++    }
++    fn loop_body(
++        &mut self,
++        body: &'a SemanticOriginalBlock,
++        condition: Option<&'a SemanticOriginalExpr>,
++        pattern: Option<(NodeId, &'a SemanticOriginalPattern)>,
++        state: State,
++        deferred: &[&'a SemanticOriginalBlock],
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<Outcome> {
++        self.loop_fixed(
++            body,
++            condition,
++            pattern,
++            state,
++            deferred,
++            condition.is_some(),
++            depth,
++            b,
++        )
+     }
+-    fn loop_body(&mut self,body:&'a SemanticOriginalBlock,condition:Option<&'a SemanticOriginalExpr>,pattern:Option<(NodeId,&'a SemanticOriginalPattern)>,state:State,deferred:&[&'a SemanticOriginalBlock],depth:usize,b:&mut Budget)->Check<Outcome>{self.loop_fixed(body,condition,pattern,state,deferred,condition.is_some(),depth,b)}
+     #[allow(clippy::too_many_arguments)]
+-    fn loop_fixed(&mut self,body:&'a SemanticOriginalBlock,condition:Option<&'a SemanticOriginalExpr>,pattern:Option<(NodeId,&'a SemanticOriginalPattern)>,mut entry:State,deferred:&[&'a SemanticOriginalBlock],zero_exit:bool,depth:usize,b:&mut Budget)->Check<Outcome>{
+-        self.depth(depth,b)?;entry.strip_observations(b)?;let mut header=entry.copy(b)?;let mut exits=None;
+-        let function=self.function()?;let height=function.bindings.len().saturating_add(function.parameters.len()).saturating_add(function.expressions.len()).saturating_add(1).saturating_mul(16);
+-        for _ in 0..height{
+-            let mut state=header.copy(b)?;state.strip_observations(b)?;
+-            let observed=condition.map(|value|self.expression(value,&mut state,depth+1,b)).transpose()?.unwrap_or(Value::Plain);
+-            let poll=condition.map(|value|self.node_poll(value,b)).transpose()?.unwrap_or(false);
+-            let mut incoming=Vec::new();
+-            if let Some((statement,pattern))=pattern{
+-                for mut branch in self.select(&state,&observed,pattern,poll,true,b)?{self.bind_pattern(statement,&[],pattern,&observed,&mut branch,b)?;incoming.push(branch);}
+-                for branch in self.select(&state,&observed,pattern,poll,false,b)?{self.merge(&mut exits,Some(branch),b)?;}
+-            }else{if zero_exit{self.merge(&mut exits,Some(state.copy(b)?),b)?;}incoming.push(state);}
+-            let mut back=None;
+-            for branch in incoming{
+-                let result=self.block(body,branch,deferred,Some(deferred.len()),depth+1,b)?;
+-                self.merge(&mut exits,result.breaks,b)?;self.merge(&mut back,result.continues,b)?;self.merge(&mut back,result.fall,b)?;
+-            }
+-            let Some(mut back)=back else{return Ok(Outcome{fall:exits,..Outcome::default()});};
+-            back.strip_observations(b)?;let mut next=self.join(&entry,&back,b)?;next.strip_observations(b)?;
+-            if header.same_loop(&next,b)?{return Ok(Outcome{fall:exits,..Outcome::default()});}
+-            header=next;
++    fn loop_fixed(
++        &mut self,
++        body: &'a SemanticOriginalBlock,
++        condition: Option<&'a SemanticOriginalExpr>,
++        pattern: Option<(NodeId, &'a SemanticOriginalPattern)>,
++        mut entry: State,
++        deferred: &[&'a SemanticOriginalBlock],
++        zero_exit: bool,
++        depth: usize,
++        b: &mut Budget,
++    ) -> Check<Outcome> {
++        self.depth(depth, b)?;
++        b.spend(entry.values.len())?;
++        self.task_loop_keys
++            .push(entry.values.keys().cloned().collect());
++        let result = (|| {
++            entry.strip_observations(b)?;
++            let mut header = entry.copy(b)?;
++            let mut exits = None;
++            let function = self.function()?;
++            let height = function
++                .bindings
++                .len()
++                .saturating_add(function.parameters.len())
++                .saturating_add(function.expressions.len())
++                .saturating_add(1)
++                .saturating_mul(16);
++            for _ in 0..height {
++                let mut state = header.copy(b)?;
++                state.strip_observations(b)?;
++                let observed = condition
++                    .map(|value| self.expression(value, &mut state, depth + 1, b))
++                    .transpose()?
++                    .unwrap_or(Value::Plain);
++                let poll = condition
++                    .map(|value| self.node_poll(value, b))
++                    .transpose()?
++                    .unwrap_or(false);
++                let mut incoming = Vec::new();
++                if let Some((statement, pattern)) = pattern {
++                    for mut branch in self.select(&state, &observed, pattern, poll, true, b)? {
++                        self.bind_pattern(statement, &[], pattern, &observed, &mut branch, b)?;
++                        incoming.push(branch);
++                    }
++                    for branch in self.select(&state, &observed, pattern, poll, false, b)? {
++                        self.merge(&mut exits, Some(branch), b)?;
++                    }
++                } else {
++                    if zero_exit {
++                        self.merge(&mut exits, Some(state.copy(b)?), b)?;
++                    }
++                    incoming.push(state);
++                }
++                let mut back = None;
++                for branch in incoming {
++                    let result =
++                        self.block(body, branch, deferred, Some(deferred.len()), depth + 1, b)?;
++                    self.merge(&mut exits, result.breaks, b)?;
++                    self.merge(&mut back, result.continues, b)?;
++                    self.merge(&mut back, result.fall, b)?;
++                }
++                let Some(mut back) = back else {
++                    return Ok(Outcome {
++                        fall: exits,
++                        ..Outcome::default()
++                    });
++                };
++                back.strip_observations(b)?;
++                let mut next = self.join(&entry, &back, b)?;
++                next.strip_observations(b)?;
++                if header.same_loop(&next, b)? {
++                    return Ok(Outcome {
++                        fall: exits,
++                        ..Outcome::default()
++                    });
++                }
++                header = next;
++            }
++            Err(limit(
++                "original protocol loop finite lattice did not converge within its paid height",
++            ))
++        })();
++        self.task_loop_keys.pop();
++        result
++    }
++    fn node_poll(&self, node: &SemanticOriginalExpr, b: &mut Budget) -> Check<bool> {
++        self.original
++            .expressions
++            .get(&(self.current, node.id))
++            .map(|ty| self.poll_type(ty, b))
++            .transpose()
++            .map(|value| value.unwrap_or(false))
++    }
++    fn select(
++        &mut self,
++        state: &State,
++        value: &Value,
++        pattern: &SemanticOriginalPattern,
++        poll: bool,
++        yes: bool,
++        b: &mut Budget,
++    ) -> Check<Vec<State>> {
++        let selected = pattern_mask(pattern, poll);
++        if selected == 0 {
++            return Ok(vec![state.copy(b)?]);
++        }
++        self.select_mask(
++            state,
++            value,
++            poll,
++            if yes { selected } else { 3 & !selected },
++            b,
++        )
++    }
++    fn select_uncovered(
++        &mut self,
++        state: &State,
++        value: &Value,
++        pattern: &SemanticOriginalPattern,
++        poll: bool,
++        covered: u8,
++        b: &mut Budget,
++    ) -> Check<Vec<State>> {
++        let selected = pattern_mask(pattern, poll);
++        if selected == 0 {
++            return if covered == 3 {
++                Ok(vec![])
++            } else {
++                Ok(vec![state.copy(b)?])
++            };
+         }
+-        Err(limit("original protocol loop finite lattice did not converge within its paid height"))
++        self.select_mask(state, value, poll, selected & !covered, b)
++    }
++    fn unmatched(
++        &mut self,
++        state: &State,
++        value: &Value,
++        poll: bool,
++        covered: u8,
++        b: &mut Budget,
++    ) -> Check<Vec<State>> {
++        self.select_mask(state, value, poll, 3 & !covered, b)
+     }
+-    fn node_poll(&self,node:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{self.original.expressions.get(&(self.current,node.id)).map(|ty|self.poll_type(ty,b)).transpose().map(|value|value.unwrap_or(false))}
+-    fn select(&mut self,state:&State,value:&Value,pattern:&SemanticOriginalPattern,poll:bool,yes:bool,b:&mut Budget)->Check<Vec<State>>{let selected=pattern_mask(pattern,poll);if selected==0{return Ok(vec![state.copy(b)?]);}self.select_mask(state,value,poll,if yes{selected}else{3&!selected},b)}
+-    fn select_uncovered(&mut self,state:&State,value:&Value,pattern:&SemanticOriginalPattern,poll:bool,covered:u8,b:&mut Budget)->Check<Vec<State>>{let selected=pattern_mask(pattern,poll);if selected==0{return if covered==3{Ok(vec![])}else{Ok(vec![state.copy(b)?])};}self.select_mask(state,value,poll,selected&!covered,b)}
+-    fn unmatched(&mut self,state:&State,value:&Value,poll:bool,covered:u8,b:&mut Budget)->Check<Vec<State>>{self.select_mask(state,value,poll,3&!covered,b)}
+-    fn select_mask(&mut self,state:&State,value:&Value,poll:bool,mask:u8,b:&mut Budget)->Check<Vec<State>>{
+-        if mask==0{return Ok(vec![]);}if !poll||mask==3{return Ok(vec![state.copy(b)?]);}
+-        let exit=if mask==1{ProtocolExit::PollPending}else{ProtocolExit::PollReady};let mut branch=state.copy(b)?;if branch.refine(value,exit,b)?{Ok(vec![branch])}else{Ok(vec![])}
++    fn select_mask(
++        &mut self,
++        state: &State,
++        value: &Value,
++        poll: bool,
++        mask: u8,
++        b: &mut Budget,
++    ) -> Check<Vec<State>> {
++        if mask == 0 {
++            return Ok(vec![]);
++        }
++        if !poll || mask == 3 {
++            return Ok(vec![state.copy(b)?]);
++        }
++        let exit = if mask == 1 {
++            ProtocolExit::PollPending
++        } else {
++            ProtocolExit::PollReady
++        };
++        let mut branch = state.copy(b)?;
++        if branch.refine(value, exit, b)? {
++            Ok(vec![branch])
++        } else {
++            Ok(vec![])
++        }
+     }
+-    fn bind_pattern(&mut self,statement:NodeId,path:&[u32],pattern:&SemanticOriginalPattern,value:&Value,state:&mut State,b:&mut Budget)->Check<()>{
++    fn bind_pattern(
++        &mut self,
++        statement: NodeId,
++        path: &[u32],
++        pattern: &SemanticOriginalPattern,
++        value: &Value,
++        state: &mut State,
++        b: &mut Budget,
++    ) -> Check<()> {
+         b.spend(path.len().saturating_add(1))?;
+-        match &pattern.kind{
+-            CorePatternKind::Name(_)=>{let binder=self.original.pattern_bindings.get(&(self.current,statement,path.to_vec())).ok_or_else(||bad("original protocol pattern has no exact checked binder occurrence"))?;self.bind(state,binder.clone(),value.clone(),b)},
+-            CorePatternKind::Wildcard=>if matches!(value,Value::Owner{..}|Value::Fresh){Err(unsupported("original wildcard owner cleanup requires a complete owner exit relation",Some(pattern.span)))}else{Ok(())},
+-            CorePatternKind::Tuple(fields)|CorePatternKind::Variant{fields,..}|CorePatternKind::Constructor{fields,..}=>{if matches!(value,Value::Owner{..}|Value::Fresh){return Err(unsupported("original owner pattern requires its projected generation ledger",Some(pattern.span)));}for(index,field)in fields.iter().enumerate(){b.spend(path.len().saturating_add(1))?;let mut child=path.to_vec();child.push(index as u32);self.bind_pattern(statement,&child,field,&Value::Plain,state,b)?;}Ok(())},
+-            CorePatternKind::Record{fields,..}|CorePatternKind::RecordConstructor{fields,..}=>{if matches!(value,Value::Owner{..}|Value::Fresh){return Err(unsupported("original owner record pattern requires its projected generation ledger",Some(pattern.span)));}for(index,(_,field))in fields.iter().enumerate(){let mut child=path.to_vec();child.push(index as u32);self.bind_pattern(statement,&child,field,&Value::Plain,state,b)?;}Ok(())},
+-            CorePatternKind::Reference{pattern,..}|CorePatternKind::ErrorArm{pattern,..}=>{let mut child=path.to_vec();child.push(0);self.bind_pattern(statement,&child,pattern,value,state,b)},
+-            _=>Ok(()),
++        match &pattern.kind {
++            CorePatternKind::Name(_) => {
++                let binder = self
++                    .original
++                    .pattern_bindings
++                    .get(&(self.current, statement, path.to_vec()))
++                    .ok_or_else(|| {
++                        bad("original protocol pattern has no exact checked binder occurrence")
++                    })?;
++                self.bind(state, binder.clone(), value.clone(), b)
++            }
++            CorePatternKind::Wildcard => {
++                if matches!(
++                    value,
++                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
++                ) {
++                    Err(unsupported(
++                        "original wildcard owner cleanup requires a complete owner exit relation",
++                        Some(pattern.span),
++                    ))
++                } else {
++                    Ok(())
++                }
++            }
++            CorePatternKind::Tuple(fields)
++            | CorePatternKind::Variant { fields, .. }
++            | CorePatternKind::Constructor { fields, .. } => {
++                if matches!(
++                    value,
++                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
++                ) {
++                    return Err(unsupported(
++                        "original owner pattern requires its projected generation ledger",
++                        Some(pattern.span),
++                    ));
++                }
++                for (index, field) in fields.iter().enumerate() {
++                    b.spend(path.len().saturating_add(1))?;
++                    let mut child = path.to_vec();
++                    child.push(index as u32);
++                    self.bind_pattern(statement, &child, field, &Value::Plain, state, b)?;
++                }
++                Ok(())
++            }
++            CorePatternKind::Record { fields, .. }
++            | CorePatternKind::RecordConstructor { fields, .. } => {
++                if matches!(
++                    value,
++                    Value::Owner { .. } | Value::Fresh | Value::FreshTask | Value::FallibleTask
++                ) {
++                    return Err(unsupported(
++                        "original owner record pattern requires its projected generation ledger",
++                        Some(pattern.span),
++                    ));
++                }
++                for (index, (_, field)) in fields.iter().enumerate() {
++                    let mut child = path.to_vec();
++                    child.push(index as u32);
++                    self.bind_pattern(statement, &child, field, &Value::Plain, state, b)?;
++                }
++                Ok(())
++            }
++            CorePatternKind::ErrorArm { is_error, pattern } => {
++                let mut child = path.to_vec();
++                child.push(0);
++                let payload = if !*is_error && *value == Value::FallibleTask {
++                    Value::FreshTask
++                } else if *value == Value::FallibleTask {
++                    Value::Plain
++                } else {
++                    value.clone()
++                };
++                self.bind_pattern(statement, &child, pattern, &payload, state, b)
++            }
++            CorePatternKind::Reference { pattern, .. } => {
++                let mut child = path.to_vec();
++                child.push(0);
++                self.bind_pattern(statement, &child, pattern, value, state, b)
++            }
++            _ => Ok(()),
++        }
++    }
++}
++fn pattern_mask(pattern: &SemanticOriginalPattern, poll: bool) -> u8 {
++    match &pattern.kind {
++        CorePatternKind::Name(_) | CorePatternKind::Wildcard => 3,
++        CorePatternKind::Variant { variant, .. } | CorePatternKind::Constructor { variant, .. }
++            if poll =>
++        {
++            match variant.as_str() {
++                "Pending" => 1,
++                "Ready" => 2,
++                _ => 0,
++            }
+         }
++        // Other typed patterns have no protocol discriminant. Both the matching
++        // and nonmatching path must remain possible until their own control proof.
++        _ => 0,
+     }
+ }
+-fn pattern_mask(pattern:&SemanticOriginalPattern,poll:bool)->u8{match &pattern.kind{
+-    CorePatternKind::Name(_)|CorePatternKind::Wildcard=>3,
+-    CorePatternKind::Variant{variant,..}|CorePatternKind::Constructor{variant,..}if poll=>match variant.as_str(){"Pending"=>1,"Ready"=>2,_=>0},
+-    // Other typed patterns have no protocol discriminant. Both the matching
+-    // and nonmatching path must remain possible until their own control proof.
+-    _=>0,
+-}}
+diff --git a/crates/zil-verify/src/semantic/retained.rs b/crates/zil-verify/src/semantic/retained.rs
+index cb674264a..d29bfcc07 100644
+--- a/crates/zil-verify/src/semantic/retained.rs
++++ b/crates/zil-verify/src/semantic/retained.rs
+@@ -54,7 +54,7 @@ impl CheckedContext {
+             },
+         }}Ok(values)
+     }
+-    fn retained_leaves(&self,module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<Vec<(Type,StoredBorrowMode,u32)>>{
++    pub(super) fn retained_leaves(&self,module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<Vec<(Type,StoredBorrowMode,u32)>>{
+         if !value.statics.is_empty(){return Err(unsupported("constant-source retained expansion needs its explicit complete leaf obligations",None));}
+         let mut leaves=Vec::new();
+         let opaque=match &value.ty{Type::Task{retained_life,..}|Type::MutexGuard{retained_life,..}=>Some(retained_life),Type::Dyn{interface}|Type::OwnedDyn{interface}=>{let row=module.dyn_interfaces.iter().find(|row|row.id==*interface).ok_or_else(||bad("retained dyn interface is absent"))?;Some(&row.retained_life)},_=>None};

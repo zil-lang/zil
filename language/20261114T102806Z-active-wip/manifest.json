@@ -1,0 +1,40 @@
+{
+  "source_base": "090f0906478a325f58f62926e2074ba46bfcb5fa",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261114T102806Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-analyze/src/semantic/closed/classes.rs": "1fa2f508563c8ef1c2c15382b3f2cb1ede6a889820eb267baffa199ce0072fca",
+    "crates/zil-analyze/src/semantic/original.rs": "76eb1252eb5d4bd56f8df0d1285c6cd335ce43dfb90f9ff3d18a075455f26b25",
+    "crates/zil-analyze/src/semantic/original/constructors.rs": "b649ef0d0db20e489cff0df98d63dd289688af75f0d0ea9ffcef565004334e3f",
+    "crates/zil-analyze/src/semantic/original/enums.rs": "4153263e7ba78d21e3773620f51a2493862565ec277ef031ae74e22ac3257325",
+    "crates/zil-types/src/inference.rs": "c748b270d7edb3c0e3e0462ea53a041730028a5cf9203238090856c4858c93a1",
+    "crates/zil-verify/src/semantic/evaluate.rs": "685e873cac798e692eb9166a822e1f48916badb82e7650c0208084d74739eecd",
+    "crates/zil-verify/src/semantic/flow.rs": "aeb67a9262718e528de22b8c7a4b2bfbedf126fe164201adde315ab2f6fc3faf",
+    "crates/zil-verify/src/semantic/mod.rs": "6cc342f3c3ba1f90bcb4a8ad7cca9e13b683bd706fd8673784f095adcbf2da8f",
+    "crates/zil-verify/src/semantic/original/calls.rs": "fbee41314e4745beb60c49f1c979b26094b0ebc05fe7deee3677ba43cfa00902",
+    "crates/zil-verify/src/semantic/original/cleanup.rs": "deeb976688b24bbf50705f8e6060889659486d7373bd24d3f6da204ad17f6bd4",
+    "crates/zil-verify/src/semantic/original/intrinsics.rs": "6bb7c1cf5e9c534a8046d145277e67cc13bbb5efe46d940e48c443d0550e9aca",
+    "crates/zil-verify/src/semantic/original/mod.rs": "e1061b6c9d3e4065b9bedaf773475fc658af69813aa35a10b5bfe63907f6ed84",
+    "crates/zil-verify/src/semantic/original/operations.rs": "978da7bb087a1855391a17242b07e4baf9d3a6e9125c75ae83a1e54376537f00",
+    "crates/zil-verify/src/semantic/original/protocol.rs": "774299a7e766395921df9649d9b8d0460f0ac1216ec4894ed0affcead08be8c4",
+    "crates/zil-verify/src/semantic/original/protocol/expressions.rs": "04ea0500f7cbed3b877470be833bdd37cc072392fe9e94288bfbe544b31a0a61",
+    "crates/zil-verify/src/semantic/original/protocol/state.rs": "271eb2c4cc90407b40ea33107b967db9b0d4117677b80aa1109245d23aaab222",
+    "crates/zil-verify/src/semantic/original/protocol/tasks.rs": "2cd8ad021e353b65008385da90c800ef947a8f374447a2f3d1d4911fa34850ea",
+    "crates/zil-verify/src/semantic/original/protocol/walk.rs": "05be82a9f8b9266ce2d42761af03508976ca8631c9acb8e523c5083e9ecf60bd",
+    "crates/zil-verify/src/semantic/original/tasks.rs": "c86e73a2a0d055625c9da0fdb528793d91aeed276a789daa1eb73de2645c4546",
+    "crates/zil-verify/src/semantic/retained.rs": "d8d2df77f7e191a9d568f43975569197bb243299b7054f3d4e37b5d9b5b70b70"
+  },
+  "artifacts": {
+    "source.patch": "89c97d12da1e061f712e7d4ac19fb8cf8e092a5836455f70637288f3bfc5f1f2",
+    "untracked/crates/zil-verify/src/semantic/original/protocol/tasks.rs": "2cd8ad021e353b65008385da90c800ef947a8f374447a2f3d1d4911fa34850ea",
+    "untracked/crates/zil-verify/src/semantic/original/tasks.rs": "c86e73a2a0d055625c9da0fdb528793d91aeed276a789daa1eb73de2645c4546",
+    "supporting-tools/run-alpha-candidate.sh": "1c8409c857afdb1e417277bb24eb677dd6237dd069004369e787d8559a28466a",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "c52ea2d685885d2eca3028987e84894ad8ee75f4839ced7f32cea29c556b4328",
+    "supporting-tools/run-native-alpha-plan.json": "47a49904e3ce8d10ee4a46c196cc8b5b93f58008f395b6fea9c7b437f3e174ec",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "95ec99071b1b436b148269067545c2bbd96a30c9aeff7fc2f66a7b334d9f9099"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
