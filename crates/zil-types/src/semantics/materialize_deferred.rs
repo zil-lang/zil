@@ -238,7 +238,7 @@ pub(crate) fn populate(
                 scope: SemanticScopeRef::Ancestor(0),
                 source: SemanticOriginalTypeSource::Result,
             };
-            eval.deferred_nominal(instance.id, &recipe, &function.return_type, 0, &mut pending)?;
+            eval.deferred_nominal(instance.id, &recipe, function.result()?, 0, &mut pending)?;
         }
         for site in &program.sites {
             let function = eval.function(site.instance)?;

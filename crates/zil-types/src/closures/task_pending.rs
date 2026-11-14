@@ -878,7 +878,7 @@ impl InferBuilder<'_, '_> {
 }
 
 impl Inference {
-    pub(super) fn draft_error(&self, span: Span) -> R<Option<Type>> {
+    pub(crate) fn draft_error(&self, span: Span) -> R<Option<Type>> {
         let Some(Pending::Union { error, .. }) = self.graph.pending(self.result, span)? else {
             return Ok(None);
         };
@@ -886,7 +886,7 @@ impl Inference {
     }
     /// A genuine Return value closes its logical result edge. Error-only
     /// returns leave the successful Task request private until it is emitted.
-    pub(super) fn emitted_return(
+    pub(crate) fn emitted_return(
         &mut self,
         actual: &Type,
         span: Span,
@@ -911,7 +911,7 @@ impl Inference {
     }
 }
 impl Inference {
-    pub(super) fn emitted_error(&mut self, actual: &Type, span: Span, left: &mut usize) -> R<()> {
+    pub(crate) fn emitted_error(&mut self, actual: &Type, span: Span, left: &mut usize) -> R<()> {
         let result = self.result;
         self.graph.thread_work(left, |graph| {
             let Some(Pending::Union { error, .. }) = graph.pending(result, span)? else {

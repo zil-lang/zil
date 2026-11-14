@@ -159,7 +159,7 @@ impl<'a> FunctionRef<'a> {
 }
 
 impl Builder<'_, '_> {
-    fn draft_return_result(&mut self, actual: &Type, span: Span) -> R<()> {
+    pub(crate) fn draft_return_result(&mut self, actual: &Type, span: Span) -> R<()> {
         if self.function.return_type.is_some() {
             return Ok(());
         }
@@ -182,7 +182,7 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
-    fn draft_error_type(&self, span: Span) -> R<Option<Type>> {
+    pub(crate) fn draft_error_type(&self, span: Span) -> R<Option<Type>> {
         let Some(id) = self.draft_result_owner else {
             return Ok(None);
         };
@@ -190,7 +190,7 @@ impl Builder<'_, '_> {
             .inference
             .draft_error(span)
     }
-    fn bind_draft_error(&mut self, actual: &Type, span: Span) -> R<()> {
+    pub(crate) fn bind_draft_error(&mut self, actual: &Type, span: Span) -> R<()> {
         let id = self.draft_result_owner.ok_or_else(|| {
             error(
                 "E-TRY-RETURN-TYPE",
@@ -206,7 +206,7 @@ impl Builder<'_, '_> {
         self.closures.snapshot(before - left, span)?;
         result
     }
-    fn defer_error_return(
+    pub(crate) fn defer_error_return(
         &mut self,
         payload: ValueId,
         ty: Type,
@@ -231,7 +231,7 @@ impl Builder<'_, '_> {
         });
         Ok(())
     }
-    fn finish_draft_result(&mut self, span: Span) -> R<()> {
+    pub(crate) fn finish_draft_result(&mut self, span: Span) -> R<()> {
         if self.draft_result_owner.is_none() && self.draft_error_returns.is_empty() {
             return Ok(());
         }
