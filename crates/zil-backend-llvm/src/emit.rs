@@ -189,6 +189,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         lir.resources,
         &copy_plans,
         verified,
+        &task_meter,
     )?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
     let collected = (closed_scalar_collection
@@ -1187,6 +1188,7 @@ fn entry_wrapper(
     resources: &[ResourceDefinition],
     copy_plans: &large_copy_abi::Plans,
     verified: &VerifiedModule,
+    task_meter: &tasks::Meter,
 ) -> CompileResult<m::Code> {
     let function = match entry {
         EntryPoint::None => return Ok(m::Code::new()),
@@ -1215,7 +1217,7 @@ fn entry_wrapper(
             })?
         }
     };
-    if verified.is_suspend(function.id) {
+    if verified.is_suspend(function.id) && !verified.has_non_suspending_sabi_body(function.id) {
         let mut error = invalid(
             "E-TASK-DIRECT-EXPORT",
             "Suspend function requires its SABI execution root",
@@ -1265,12 +1267,18 @@ fn entry_wrapper(
         );
     }
     let abi = copy_plans.functions.get(&function.id);
-    let symbol = if abi.is_some_and(|abi| abi.versioned) {
+    let mut symbol = if abi.is_some_and(|abi| abi.versioned) {
         format!("{}.lc1", symbol(function.id))
     } else {
         symbol(function.id)
     };
-    let mut text = m::Code::from(vec![
+    let mut text = m::Code::new();
+    if verified.is_suspend(function.id) {
+        let (adapter, code) = tasks::native_entry_adapter(function, abi, verified, task_meter)?;
+        symbol = adapter;
+        text.append(code);
+    }
+    text.append(m::Code::from(vec![
         m::Event::Begin(m::Function {
             name: "main".into(),
             linkage: m::Linkage::External,
@@ -1284,7 +1292,7 @@ fn entry_wrapper(
             blocks: None,
         }),
         m::Event::Label("entry".into()),
-    ]);
+    ]));
     match entry {
         EntryPoint::Main | EntryPoint::Test(_) => match &function.return_type {
             Type::Unit => text.append(m::Code::from(vec![

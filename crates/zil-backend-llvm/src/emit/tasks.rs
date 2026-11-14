@@ -3,6 +3,8 @@
 use super::*;
 mod owner_groups;
 mod owners;
+mod native_root;
+pub(super) use native_root::adapter as native_entry_adapter;
 pub(super) use owners::{marker as owner_marker, retarget_marker};
 pub(super) fn cleanup_group(module: &zil_ir::TypedModule, ty: &Type, meter: &Meter) -> CompileResult<Option<ClosureId>> {
     owner_groups::closure(module, ty, meter)
