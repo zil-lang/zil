@@ -24,40 +24,8 @@ impl Solver<'_, '_> {
         let CoreExprKind::Slice { object, start, end } = &operand.kind else {
             return Err(fail("original range borrow has no original slice place"));
         };
-        let CoreExprKind::Name(name) = &object.kind else {
-            return Err(unknown(
-                "original range borrow needs its complete projected backing-place anchor",
-            ));
-        };
-        let input = self
-            .local(frame, name, b)?
-            .ok_or_else(|| fail("original range borrow has no lexical backing place"))?;
-        let (anchor, local_mutable, used, initialized) = {
-            let mut selected = None;
-            for local in frame.locals.iter().rev() {
-                b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
-                if local.name == *name {
-                    selected = Some((local.anchor, local.mutable, local.used, local.initialized));
-                    break;
-                }
-            }
-            selected.ok_or_else(|| fail("original range borrow loses its backing binding"))?
-        };
-        if !initialized {
-            return Err(fail(
-                "original range borrow uses an uninitialized backing place",
-            ));
-        }
-        if used {
-            Self::push(
-                &mut self.needs,
-                Need {
-                    term: input,
-                    predicate: Predicate::Copy,
-                },
-                b,
-            )?;
-        }
+        let place = self.borrow_place(frame, object, b, depth + 1)?;
+        let input = place.inner;
         let (address, element) = match self.state.arena[self.type_root(input, b)?] {
             Kind::Address {
                 mutable: source_mutable,
@@ -77,18 +45,18 @@ impl Solver<'_, '_> {
                         ));
                     }
                 };
-                self.borrowed_argument(frame, object, b, depth + 1)?;
+                if place.indirect || !place.path.is_empty() {
+                    return Err(unknown(
+                        "original range needs its exact nested backing-reference load",
+                    ));
+                }
                 (true, element)
             }
             Kind::Array { element, .. } => {
-                if mutable && !local_mutable {
+                if mutable && !place.mutable {
                     return Err(fail(
                         "original mutable array range borrow needs a mutable place",
                     ));
-                }
-                b.lookup(frame.expressions.len(), WORK)?;
-                if frame.expressions.insert(object.id, input).is_some() {
-                    return Err(fail("original range backing node is reused"));
                 }
                 (false, element)
             }
@@ -116,9 +84,6 @@ impl Solver<'_, '_> {
         if frame.expressions.insert(operand.id, inner).is_some() {
             return Err(fail("original range place node is reused"));
         }
-        let anchor = anchor.ok_or_else(|| {
-            unknown("original captured range needs its exact environment backing-place anchor")
-        })?;
         b.lookup(self.state.borrows.len(), WORK)?;
         if self
             .state
@@ -126,7 +91,10 @@ impl Solver<'_, '_> {
             .insert(
                 (frame.definition, node),
                 Borrow {
-                    anchor,
+                    anchor: place.anchor,
+                    root: place.root,
+                    path: place.path,
+                    indirect: place.indirect,
                     inner: input,
                     slice: Some(SliceProjection {
                         address,

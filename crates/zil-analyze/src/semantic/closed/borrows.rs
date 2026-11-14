@@ -336,7 +336,7 @@ impl Check<'_, '_> {
             if *value != id {
                 continue;
             }
-            let Some((anchor, inner, slice)) = self.original.borrowed_source(
+            let Some(source) = self.original.borrowed_source(
                 instance,
                 site.recipe,
                 self.program,
@@ -365,13 +365,12 @@ impl Check<'_, '_> {
             let Type::Address { mutable, .. } = expected.ty else {
                 return Err(fail("original borrow does not produce a reference"));
             };
-            if let Some(slice) = slice {
+            if let Some(slice) = source.slice {
                 let value = self.source_slice_borrow(
                     instance,
                     function,
                     id,
-                    anchor,
-                    &inner,
+                    &source,
                     slice,
                     &expected,
                     b,
@@ -385,20 +384,16 @@ impl Check<'_, '_> {
                 selected = Some(value);
                 continue;
             }
-            let local = self.anchored_local(instance, function, anchor, b)?;
-            let (block, index, actual, actual_mutable) =
-                self.borrow_root(function, id, b, depth + 1)?;
-            if actual != local || mutable != actual_mutable {
-                return Err(fail(
-                    "actual borrow selects another original source slot or mode",
-                ));
-            }
-            let occupant =
-                self.local_value(instance, function, local, (block, index), b, depth + 1)?;
-            if occupant != inner {
-                return Err(fail(
-                    "actual borrow changes its original pointee classes or type",
-                ));
+            self.checked_borrow_place(instance, function, id, &source, false, false, b, depth + 1)?;
+            let Some(Type::Address {
+                mutable: actual_mutable,
+                ..
+            }) = function.values.get(id.0 as usize)
+            else {
+                return Err(fail("actual borrowed place has no full result reference"));
+            };
+            if mutable != *actual_mutable {
+                return Err(fail("actual borrow changes its original result mode"));
             }
             if selected.as_ref().is_some_and(|old| old != &expected) {
                 return Err(fail(

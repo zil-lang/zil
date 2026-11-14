@@ -5,6 +5,7 @@ use zil_base::NodeId;
 
 mod abstract_calls;
 mod body_equivalence;
+pub(super) mod borrow_places;
 mod buffers;
 mod capabilities;
 mod captures;
@@ -147,6 +148,9 @@ pub(super) enum LocalAnchor {
 }
 struct Borrow {
     anchor: LocalAnchor,
+    root: Term,
+    path: Vec<u32>,
+    indirect: bool,
     inner: Term,
     slice: Option<slice_borrows::SliceProjection>,
 }
@@ -1625,43 +1629,13 @@ impl Solver<'_, '_> {
                         }
                         return Ok(term);
                     }
-                    let CoreExprKind::Name(name) = &operand.kind else {
-                        return Err(unknown(
-                            "original borrow needs its exact initialized place projection",
+                    let place = self.borrow_place(frame, operand, b, depth + 1)?;
+                    if *op == UnaryOp::BorrowMut && !place.mutable {
+                        return Err(fail(
+                            "original mutable borrow requires an exclusive initialized place",
                         ));
-                    };
-                    let inner = self
-                        .local(frame, name, b)?
-                        .ok_or_else(|| fail("original borrow selects no lexical local"))?;
-                    let mut anchor = None;
-                    for local in frame.locals.iter().rev() {
-                        b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
-                        if local.name == *name {
-                            if !local.initialized {
-                                return Err(fail("original borrowed place is uninitialized"));
-                            }
-                            if *op == UnaryOp::BorrowMut && !local.mutable {
-                                return Err(fail(
-                                    "original mutable borrow requires a mutable place",
-                                ));
-                            }
-                            anchor = local.anchor;
-                            if local.used {
-                                Self::push(
-                                    &mut self.needs,
-                                    Need {
-                                        term: local.ty,
-                                        predicate: Predicate::Copy,
-                                    },
-                                    b,
-                                )?;
-                            }
-                            break;
-                        }
                     }
-                    let anchor = anchor.ok_or_else(|| {
-                        unknown("original borrow needs its exact parameter or binding anchor")
-                    })?;
+                    let inner = place.inner;
                     b.lookup(self.state.borrows.len(), WORK)?;
                     if self
                         .state
@@ -1669,7 +1643,10 @@ impl Solver<'_, '_> {
                         .insert(
                             (frame.definition, value.id),
                             Borrow {
-                                anchor,
+                                anchor: place.anchor,
+                                root: place.root,
+                                path: place.path,
+                                indirect: place.indirect,
                                 inner,
                                 slice: None,
                             },
@@ -1681,11 +1658,6 @@ impl Solver<'_, '_> {
                         ));
                     }
                     let row = self.borrow_occurrence(frame.definition, value.id, b)?;
-                    // Read the original Name's type without moving its occupant.
-                    b.spend(frame.expressions.len().saturating_add(1), WORK)?;
-                    if frame.expressions.insert(operand.id, inner).is_some() {
-                        return Err(fail("original borrowed place node is reused"));
-                    }
                     let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
                     self.term(
                         Kind::Address {
@@ -4638,13 +4610,7 @@ impl Checked {
         program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<
-        Option<(
-            LocalAnchor,
-            crate::semantic::value::Value,
-            Option<slice_borrows::SliceProjection>,
-        )>,
-    > {
+    ) -> CompileResult<Option<borrow_places::Source>> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("actual borrow has no complete original body"));
@@ -4661,11 +4627,15 @@ impl Checked {
                     if found.is_some() {
                         return Err(fail("actual borrow has competing original source anchors"));
                     }
-                    found = Some((
-                        source.anchor,
-                        self.value(source.inner, context, program, inventory, b, 0)?,
-                        source.slice,
-                    ));
+                    b.spend(source.path.len(), WORK)?;
+                    found = Some(borrow_places::Source {
+                        anchor: source.anchor,
+                        root: self.value(source.root, context, program, inventory, b, 0)?,
+                        path: source.path.clone(),
+                        inner: self.value(source.inner, context, program, inventory, b, 0)?,
+                        indirect: source.indirect,
+                        slice: source.slice,
+                    });
                 }
             }
         }

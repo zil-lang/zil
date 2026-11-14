@@ -11,8 +11,7 @@ impl Check<'_, '_> {
         instance: &SemanticInstance,
         function: &TypedFunction,
         id: ValueId,
-        anchor: original::LocalAnchor,
-        input: &Value,
+        source: &original::borrow_places::Source,
         projection: original::slice_borrows::SliceProjection,
         expected: &Value,
         b: &mut Budget,
@@ -24,7 +23,6 @@ impl Check<'_, '_> {
                 "actual range borrow exceeds its bounded provenance depth",
             ));
         }
-        let local = self.anchored_local(instance, function, anchor, b)?;
         let Type::Address {
             mutable: output_mutable,
             inner: output_inner,
@@ -130,54 +128,16 @@ impl Check<'_, '_> {
                             "actual range projection changes its complete slice result",
                         ));
                     }
-                    *address
-                }
-                InstructionKind::Load(actual) | InstructionKind::TakeLocal { local: actual }
-                    if projection.address =>
-                {
-                    if *actual != local {
-                        return Err(fail(
-                            "actual range borrow selects another original reference binder",
-                        ));
-                    }
-                    if !reborrow {
-                        return Err(fail(
-                            "actual range projection lacks the original fresh reference reborrow",
-                        ));
-                    }
-                    let actual =
-                        self.local_value(instance, function, local, (block, index), b, depth + 1)?;
-                    if actual != *input {
-                        return Err(fail(
-                            "actual range borrow changes the complete original backing-reference classes",
-                        ));
-                    }
-                    root = Some(());
-                    break;
-                }
-                InstructionKind::BorrowLocal { local: actual }
-                | InstructionKind::BorrowLocalMut { local: actual }
-                    if !projection.address =>
-                {
-                    if *actual != local {
-                        return Err(fail(
-                            "actual range borrow selects another original array place",
-                        ));
-                    }
-                    let mutable =
-                        matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. });
-                    if *output_mutable && !mutable {
-                        return Err(fail(
-                            "actual range borrow strengthens its original backing-array mode",
-                        ));
-                    }
-                    let actual =
-                        self.local_value(instance, function, local, (block, index), b, depth + 1)?;
-                    if actual != *input {
-                        return Err(fail(
-                            "actual range borrow changes its full initialized array occupant",
-                        ));
-                    }
+                    self.checked_borrow_place(
+                        instance,
+                        function,
+                        *address,
+                        source,
+                        projection.address,
+                        reborrow,
+                        b,
+                        depth + 1,
+                    )?;
                     root = Some(());
                     break;
                 }

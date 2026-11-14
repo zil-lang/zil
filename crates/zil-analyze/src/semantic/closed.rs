@@ -3,6 +3,7 @@
 //! creator, occurrence and operation inventories must independently agree.
 use super::*;
 mod abstract_calls;
+mod borrow_places;
 mod borrows;
 mod buffers;
 mod callable_roles;
