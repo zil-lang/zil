@@ -103,6 +103,10 @@ fn qualified_copy_capture_admission_keeps_phantom_domain_and_rejects_physical_ta
                 crate::stored_callables::captured_profile(candidate,definition,&mut b).unwrap();
                 let relation=definition.storage_life.as_ref().unwrap();
                 crate::signature_life::closure_relation(candidate,&definition.parameters,&definition.captures,definition.kind,crate::stored_callables::life_result(definition),relation,None).unwrap();
+                let factory=candidate.functions.iter().find(|function|function.return_type==Type::Closure(definition.id)&&function.environment.is_none()).expect("genuine borrowed-input phantom factory");
+                assert!(factory.storage_life.is_some());
+                assert!(factory.callable_return_contract.as_ref().unwrap().life.is_some());
+                crate::retained::check_claim(candidate,factory,&limits,&mut b).unwrap();
             }
         }
     }

@@ -277,9 +277,27 @@ pub(super) fn check_claim(
             "self-contained factory results cannot advertise external dependencies",
         ));
     }
-    // The empty external envelope is valid only when a caller cannot lend an
-    // external address/description to the factory. Inspect raw parameters here;
-    // a source producer's restriction grants no authority to a forged module.
+    // A complete physically Copy environment cannot retain an input address.
+    // Its logical classes still travel through the full P/Result/Capture
+    // relation; no class is erased merely because there are no data leaves.
+    // The actual constructor/returns and complete class flow remain mandatory.
+    let mut qualified_copy_environment = f.storage_life.is_some()
+        && c.life.is_some()
+        && d.storage_life.is_some()
+        && d.captures.iter().any(|ty| matches!(ty, Type::BorrowedStorage { .. }));
+    if qualified_copy_environment {
+        budget.spend(d.captures.len())?;
+        for ty in &d.captures {
+            if !(stored_callables::scalar(ty)
+                || stored_callables::inline_qualified_capture(module, ty, budget)?)
+            {
+                qualified_copy_environment = false;
+                break;
+            }
+        }
+    }
+    // Every other empty external envelope keeps its existing input proof.
+    // A header or a producer's restriction alone grants no authority here.
     budget.spend(f.parameters.len())?;
     let mut owned_input = None;
     for parameter in &f.parameters {
@@ -304,6 +322,12 @@ pub(super) fn check_claim(
             && dynamic_store::inline_sum_capture(&local.ty, budget)?
         {
             dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
+        } else if qualified_copy_environment
+            && stored_callables::shared_input(&local.ty)
+        {
+            // Shared input borrowing is independently checked at this actual
+            // ABI, caller and CFG. The complete qualified environment above
+            // contains no physical pointer that could escape that scope.
         } else if !(local.ty.is_copy_value() || matches!(local.ty, Type::Managed(_))) {
             return Err(unsupported(
                 "self-contained callable factories require Copy, Managed or finite Package inputs",
