@@ -29,7 +29,20 @@ pub(super) struct SemanticNominalEmission {
 pub(crate) struct Application {
     pub origin: Origin,
     pub generated: String,
-    pub arguments: Vec<zil_ir::LifeNominalActual>,
+    pub owner: Option<s::SemanticContextMarker>,
+    pub arguments: ApplicationArguments,
+}
+// A pending symbolic application is not a complete nominal instance. Its
+// physical Core declaration and original semantic recipes remain intact;
+// the actual Types helper scope must materialize its complete arguments.
+pub(crate) enum ApplicationArguments {
+    Complete(Vec<zil_ir::LifeNominalActual>),
+    Deferred(Vec<Dependency>),
+}
+pub(crate) struct Dependency {
+    pub argument: u32,
+    pub namespace: zil_ir::SemanticOriginalNamespace,
+    pub formal: zil_ir::SemanticFormalRef,
 }
 impl Expander<'_> {
     pub(super) fn emit_semantic_nominal(&mut self, node: NodeId, enumeration: bool, span: Span) {
@@ -260,6 +273,95 @@ impl generics::products::Products {
                         "actual nominal mint original identity differs",
                     ));
                 }
+                // Locate the exact emitted declaration before retaining a
+                // second copy of its physical fields. Symbolic arguments do
+                // not become complete merely because they have a layout name.
+                let (actual_name, actual_span) = if emission.enumeration {
+                    budget.identity_work(expanded.core.enums.len(), module.span)?;
+                    let value = expanded
+                        .core
+                        .enums
+                        .iter()
+                        .find(|row| row.id == emission.node)
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                Phase::Expand,
+                                "E-SOURCE-SEMANTICS",
+                                Some(module.span),
+                                "actual enum mint is absent",
+                            )
+                        })?;
+                    (&value.name, value.span)
+                } else {
+                    budget.identity_work(expanded.core.aggregates.len(), module.span)?;
+                    let value = expanded
+                        .core
+                        .aggregates
+                        .iter()
+                        .find(|row| row.id == emission.node)
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                Phase::Expand,
+                                "E-SOURCE-SEMANTICS",
+                                Some(module.span),
+                                "actual aggregate mint is absent",
+                            )
+                        })?;
+                    (&value.name, value.span)
+                };
+                budget.identity_work(self.storage.instances.len(), actual_span)?;
+                if self.storage.instances.iter().any(|row| row.declaration.id == declaration.id && matches!(&row.instance.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record{name: n,..}|Type::Package{name:n,..}|Type::Enum{name:n,..} if n == actual_name))) { continue; }
+                let mut selected = None;
+                if !declaration.parameters.is_empty() {
+                    for application in &self.nominal_applications {
+                        budget.node(actual_span, 0)?;
+                        budget.text(&application.generated, actual_span)?;
+                        budget.text(actual_name, actual_span)?;
+                        if application.origin == origin && &application.generated == actual_name {
+                            if selected.replace(application).is_some() {
+                                return Err(Diagnostic::error(
+                                    Phase::Expand,
+                                    "E-SOURCE-SEMANTICS",
+                                    Some(actual_span),
+                                    "nominal mint has multiple actual application ledgers",
+                                ));
+                            }
+                        }
+                    }
+                    let application = selected.ok_or_else(|| {
+                        Diagnostic::unsupported(
+                            Phase::Expand,
+                            "actual nominal application lost its complete original arguments",
+                            Some(actual_span),
+                        )
+                    })?;
+                    if let ApplicationArguments::Deferred(dependencies) = &application.arguments {
+                        if dependencies.is_empty() || application.owner.is_none() {
+                            return Err(Diagnostic::error(
+                                Phase::Expand,
+                                "E-SOURCE-SEMANTICS",
+                                Some(actual_span),
+                                "deferred nominal application lost its original lexical owner",
+                            ));
+                        }
+                        budget.identity_work(dependencies.len(), actual_span)?;
+                        for dependency in dependencies {
+                            if dependency.argument as usize >= declaration.parameters.len() {
+                                return Err(Diagnostic::error(
+                                    Phase::Expand,
+                                    "E-SOURCE-SEMANTICS",
+                                    Some(actual_span),
+                                    "deferred nominal argument exceeds the original mixed formals",
+                                ));
+                            }
+                        }
+                        // Original nominal/body/site recipes and the actual
+                        // Core aggregate remain available to the independently
+                        // checked helper context. No ownerless Named(F) row is
+                        // advertised as a complete instance or LayoutReady.
+                        continue;
+                    }
+                }
                 let (name, ty, span) = if emission.enumeration {
                     budget.identity_work(expanded.core.enums.len(), module.span)?;
                     let value = expanded
@@ -361,36 +463,12 @@ impl generics::products::Products {
                     };
                     (&value.name, ty, value.span)
                 };
-                // A previously retained qualified instance is authoritative
-                // only as data from its own actual producer; preserve it intact.
-                budget.identity_work(self.storage.instances.len(), span)?;
-                if self.storage.instances.iter().any(|row| row.declaration.id == declaration.id && matches!(&row.instance.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record{name: n,..}|Type::Package{name:n,..}|Type::Enum{name:n,..} if n == name))) { continue; }
                 let mut arguments = Vec::new();
-                if !declaration.parameters.is_empty() {
-                    let mut selected = None;
-                    for application in &self.nominal_applications {
-                        budget.node(span, 0)?;
-                        budget.text(&application.generated, span)?;
-                        budget.text(name, span)?;
-                        if application.origin == origin && &application.generated == name {
-                            if selected.replace(application).is_some() {
-                                return Err(Diagnostic::error(
-                                    Phase::Expand,
-                                    "E-SOURCE-SEMANTICS",
-                                    Some(span),
-                                    "nominal mint has multiple actual application ledgers",
-                                ));
-                            }
-                        }
-                    }
-                    let application = selected.ok_or_else(|| {
-                        Diagnostic::unsupported(
-                            Phase::Expand,
-                            "actual nominal application lost its complete original arguments",
-                            Some(span),
-                        )
-                    })?;
-                    for actual in &application.arguments {
+                if let Some(application) = selected {
+                    let Some(actuals) = application.arguments.complete() else {
+                        unreachable!("deferred applications do not publish complete instances")
+                    };
+                    for actual in actuals {
                         match actual {
                             zil_ir::LifeNominalActual::Type(ty) => {
                                 copy::ty(ty, &mut budget, span, 0)?

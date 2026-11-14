@@ -487,6 +487,16 @@ impl<'a> Engine<'a> {
         function: &mut Function,
         callable_parameters: &[usize],
     ) -> R<bool> {
+        let owner = function.semantic.raw_index().map(|_| function.semantic);
+        self.with_nominal_owner(owner, |engine| {
+            engine.stored_signature_in_owner(function, callable_parameters)
+        })
+    }
+    fn stored_signature_in_owner(
+        &mut self,
+        function: &mut Function,
+        callable_parameters: &[usize],
+    ) -> R<bool> {
         if !self.stored_nominals {
             return Ok(false);
         }

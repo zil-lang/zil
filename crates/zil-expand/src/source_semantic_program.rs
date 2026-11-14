@@ -46,6 +46,52 @@ pub(crate) struct Program {
     scope_requests: Vec<requests::Request>,
 }
 impl Program {
+    /// Borrow the original lexical names of this exact generation owner.
+    /// Template and actual markers are different namespaces; neither selects
+    /// the first function sharing an origin or a generated spelling.
+    pub(crate) fn nominal_owner_names(
+        &self,
+        owner: s::SemanticContextMarker,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<&[SemanticOriginalNameBinding]> {
+        let raw = owner
+            .raw_index()
+            .ok_or_else(|| error(span, "nominal generation owner is absent"))?;
+        let template = if raw & TEMPLATE != 0 {
+            (raw & !TEMPLATE) as usize
+        } else {
+            self.instances
+                .get(raw as usize)
+                .ok_or_else(|| error(span, "nominal generation instance is absent"))?
+                .template
+        };
+        let definition = self
+            .templates
+            .get(template)
+            .ok_or_else(|| error(span, "nominal generation template is absent"))?
+            .definition;
+        budget.identity_work(self.modules.len(), span)?;
+        let module = self
+            .modules
+            .iter()
+            .find(|(id, _)| *id == definition.module)
+            .ok_or_else(|| error(span, "nominal generation module is absent"))?;
+        budget.identity_work(module.1.definitions.len(), span)?;
+        let original = module
+            .1
+            .definitions
+            .iter()
+            .find(|row| row.id == definition)
+            .ok_or_else(|| error(span, "nominal generation original definition is absent"))?;
+        let SemanticDefinitionBody::FunctionWithBody { names, .. } = &original.body else {
+            return Err(error(
+                span,
+                "nominal generation owner lacks its original body",
+            ));
+        };
+        Ok(names)
+    }
     pub(crate) fn valid_function(&self, marker: s::SemanticContextMarker) -> bool {
         marker.raw_index().is_some_and(|raw| {
             if raw & TEMPLATE != 0 {

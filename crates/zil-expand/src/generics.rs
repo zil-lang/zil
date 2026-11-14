@@ -147,6 +147,8 @@ mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
 pub(super) use trait_bounds::dynamic;
+#[path = "generic_nominal_lineage.rs"]
+mod nominal_lineage;
 #[path = "generic_trait_static_host.rs"]
 mod static_host;
 #[path = "generic_trait_defaults.rs"]
@@ -608,6 +610,7 @@ struct Engine<'a> {
     active_callables: Option<callable::CallableTemplates>,
     store_parameter: Option<String>,
     product_owner: Option<products::Scope>,
+    nominal_owner: Option<zil_syntax::ast::SemanticContextMarker>,
     products: products::Products,
     retained_stores: Vec<String>,
     inferred_state_values: BTreeSet<String>,
@@ -727,6 +730,7 @@ impl<'a> Engine<'a> {
             active_callables: None,
             store_parameter: None,
             product_owner: None,
+            nominal_owner: None,
             products: products::Products::default(),
             retained_stores: Vec::new(),
             inferred_state_values: BTreeSet::new(),
@@ -1490,25 +1494,20 @@ impl<'a> Engine<'a> {
                 class_keys = Some(keys);
             }
         }
-        let mut key = (
-            template.to_owned(),
-            arguments
-                .iter()
-                .enumerate()
-                .map(|(ordinal, ty)| {
-                    let physical = type_key(ty, &mut self.budget)?;
-                    if let Some(classes) =
-                        class_keys.as_ref().and_then(|keys| keys[ordinal].as_ref())
-                    {
-                        self.budget
-                            .identity_work(physical.len().saturating_add(classes.len()), span)?;
-                        Ok(format!("{physical}[{classes}]"))
-                    } else {
-                        Ok(physical)
-                    }
-                })
-                .collect::<R<Vec<_>>>()?,
-        );
+        let mut key = (template.to_owned(), Vec::new());
+        for (ordinal, ty) in arguments.iter().enumerate() {
+            let physical = type_key(ty, &mut self.budget)?;
+            let component = if let Some(classes) =
+                class_keys.as_ref().and_then(|keys| keys[ordinal].as_ref())
+            {
+                self.budget
+                    .identity_work(physical.len().saturating_add(classes.len()), span)?;
+                format!("{physical}[{classes}]")
+            } else {
+                physical
+            };
+            self.budget.lineage_push(&mut key.1, component, span)?;
+        }
         let product_scope = if product {
             self.product_scope(&arguments, span)?
         } else {
@@ -1516,16 +1515,48 @@ impl<'a> Engine<'a> {
         };
         if let Some(scope) = &product_scope {
             self.budget.text(&scope.owner, span)?;
-            key.1.push(format!("@product-owner:{}", scope.owner));
+            self.budget.lineage_push(
+                &mut key.1,
+                format!("@product-owner:{}", scope.owner),
+                span,
+            )?;
         }
         let family = self.state_family(item, &arguments, &key.1, span)?;
         if let Some(family) = family {
             // A source type name shadowing a callable binder must not share a
             // symbolic aggregate instance with an ordinary concrete argument.
             self.budget.node(span, 0)?;
-            key.1.push(format!("$state-family{family}"));
+            self.budget
+                .lineage_push(&mut key.1, format!("$state-family{family}"), span)?;
+        }
+        let nominal_dependencies = if self.products.semantic.is_some()
+            && matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_))
+            && !params(item)
+                .iter()
+                .any(|parameter| matches!(parameter.kind, GenericParamKind::Lifetime))
+        {
+            self.nominal_dependencies(&arguments, span)?
+        } else {
+            Vec::new()
+        };
+        if !nominal_dependencies.is_empty() {
+            let owner = self
+                .nominal_owner
+                .and_then(|owner| owner.raw_index())
+                .ok_or_else(|| {
+                    error(
+                        span,
+                        "symbolic nominal application lacks its actual generation owner",
+                    )
+                })?;
+            // Generation contexts may share one eventual physical layout, but
+            // their unresolved original binders are not interchangeable.
+            let context = format!("@semantic-generation-owner:{owner}");
+            self.budget.lineage_bytes(context.len(), span)?;
+            self.budget.lineage_push(&mut key.1, context, span)?;
         }
         if let Some(existing) = self.instances.get(&key) {
+            self.budget.drop_lineage_vec(nominal_dependencies, span)?;
             return Ok(store_templates::Instantiation::Eager(existing.clone()));
         }
         if self
@@ -1570,26 +1601,29 @@ impl<'a> Engine<'a> {
             let origin = self.template_origin(item)?.ok_or_else(|| {
                 error(span, "actual nominal specialization has no original owner")
             })?;
-            let mut actuals = Vec::new();
-            for (parameter, argument) in parameters.iter().zip(&arguments) {
-                let actual = match &parameter.kind {
-                    GenericParamKind::Type(_) => {
-                        self.budget.ty(argument)?;
-                        let mut concrete = argument.clone();
-                        self.ty(&mut concrete, 0)?;
-                        let ty = super::type_ref(&concrete);
-                        super::stored_types::pay_type(&ty, &mut self.budget, span, 0)?;
-                        zil_ir::LifeNominalActual::Type(ty)
-                    }
-                    GenericParamKind::Const(_) => zil_ir::LifeNominalActual::Const(
-                        consts::normalized_value(argument, &mut self.budget)?,
-                    ),
-                    GenericParamKind::Lifetime => {
-                        unreachable!("lifetime applications use the qualified producer")
-                    }
-                };
-                self.budget.lineage_push(&mut actuals, actual, span)?;
-            }
+            let actuals = if nominal_dependencies.is_empty() {
+                let mut actuals = Vec::new();
+                for (parameter, argument) in parameters.iter().zip(&arguments) {
+                    let actual = match &parameter.kind {
+                        GenericParamKind::Type(_) => {
+                            self.budget.ty(argument)?;
+                            let mut concrete = argument.clone();
+                            self.ty(&mut concrete, 0)?;
+                            let ty = super::type_ref(&concrete);
+                            super::stored_types::pay_type(&ty, &mut self.budget, span, 0)?;
+                            zil_ir::LifeNominalActual::Type(ty)
+                        }
+                        GenericParamKind::Const(_) => zil_ir::LifeNominalActual::Const(
+                            consts::normalized_value(argument, &mut self.budget)?,
+                        ),
+                        GenericParamKind::Lifetime => unreachable!("qualified application"),
+                    };
+                    self.budget.lineage_push(&mut actuals, actual, span)?;
+                }
+                super::semantic_nominal_lower::ApplicationArguments::Complete(actuals)
+            } else {
+                super::semantic_nominal_lower::ApplicationArguments::Deferred(nominal_dependencies)
+            };
             self.budget.text(&generated, span)?;
             self.budget.lineage_bytes(generated.len(), span)?;
             self.budget.lineage_push(
@@ -1597,6 +1631,7 @@ impl<'a> Engine<'a> {
                 super::semantic_nominal_lower::Application {
                     origin,
                     generated: generated.clone(),
+                    owner: self.nominal_owner,
                     arguments: actuals,
                 },
                 span,
@@ -2085,7 +2120,8 @@ impl<'a> Engine<'a> {
             }
         }
         let previous = std::mem::replace(&mut self.method_calls, frame);
-        let result = self.item_inner(item);
+        let owner = self.item_nominal_owner(item)?;
+        let result = self.with_nominal_owner(owner, |engine| engine.item_inner(item));
         self.method_calls = previous;
         self.life_scope = old_life_scope;
         result
