@@ -53,6 +53,7 @@ pub(super) fn closed(
         Type::TaskI32 => true,
         Type::Managed(inner)
         | Type::OwnedStore { element: inner }
+        | Type::Mutex { payload: inner }
         | Type::Array { element: inner, .. } => {
             closed(inner, module, left, span, depth + 1, limit)?
         }
@@ -122,7 +123,7 @@ fn add(
             StorageBinder::Invocation(index)
         })
     };
-    let (target, pointed) = if let Type::Address { inner, .. } = ty {
+    let (target, pointed) = if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
         let bound = binder()?;
         life.bindings.push(StorageLifeBinding {
             position: StoragePosition {
