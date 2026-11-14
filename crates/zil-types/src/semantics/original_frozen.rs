@@ -142,6 +142,8 @@ fn clone_proof(
             .saturating_add(source.complete.len())
             .saturating_add(source.closed_opaque_domains.len())
             .saturating_add(source.body_costs.len())
+            .saturating_add(source.protocol_body_costs.len().saturating_mul(4))
+            .saturating_add(source.protocol_method_costs.len().saturating_mul(4))
             .saturating_add(source.stage_costs.len())
             .saturating_add(source.task_returns.len())
             .saturating_add(source.task_result_types.len())

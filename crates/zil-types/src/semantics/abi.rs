@@ -94,6 +94,17 @@ pub(crate) fn prepare(
             )
         })?
     };
+    pay(
+        left,
+        proof
+            .protocol_body_costs
+            .len()
+            .saturating_add(proof.protocol_method_costs.len())
+            .saturating_mul(4),
+    )?;
+    stats
+        .borrow_mut()
+        .record_protocol_costs(&proof.protocol_body_costs, &proof.protocol_method_costs);
     pay(left, proof.body_costs.len().saturating_mul(4))?;
     stats.borrow_mut().record_original_bodies(&proof.body_costs);
     pay(left, proof.stage_costs.len().saturating_mul(2))?;

@@ -190,6 +190,8 @@ pub(super) struct Proof {
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
     // Request-local cost diagnostics; these fields supply no semantic fact.
     pub(super) body_costs: BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+    pub(super) protocol_body_costs: BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+    pub(super) protocol_method_costs: BTreeMap<&'static str, (usize, usize, usize)>,
     pub(super) stage_costs: BTreeMap<&'static str, usize>,
     body_cost_total: usize,
     task_returns: BTreeMap<(SemanticDefinitionId, NodeId), task_results::ReturnValue>,

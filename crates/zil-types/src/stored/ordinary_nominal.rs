@@ -27,6 +27,8 @@ pub(crate) struct Stats {
     passes: std::collections::BTreeMap<&'static str, PassStats>,
     original_bodies: std::collections::BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
     original_stages: std::collections::BTreeMap<&'static str, usize>,
+    protocol_bodies: std::collections::BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+    protocol_methods: std::collections::BTreeMap<&'static str, (usize, usize, usize)>,
     phases: std::collections::BTreeMap<&'static str, PhaseStats>,
 }
 #[derive(Debug, Default)]
@@ -37,6 +39,16 @@ struct PassStats {
     last_remaining: usize,
 }
 impl Stats {
+    pub(crate) fn record_protocol_costs(
+        &mut self,
+        bodies: &std::collections::BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+        methods: &std::collections::BTreeMap<&'static str, (usize, usize, usize)>,
+    ) {
+        self.protocol_bodies
+            .extend(bodies.iter().map(|(key, cost)| (*key, *cost)));
+        self.protocol_methods
+            .extend(methods.iter().map(|(key, cost)| (*key, *cost)));
+    }
     pub(crate) fn record_original_stages(
         &mut self,
         stages: &std::collections::BTreeMap<&'static str, usize>,
