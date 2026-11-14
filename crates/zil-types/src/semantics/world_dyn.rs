@@ -188,8 +188,18 @@ pub(super) fn seal_borrow(
         }
         world.pay(sites.len().saturating_add(proof.intrinsics.len()))?;
         for site in sites {
-            if !matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Local(target), .. } if target == local)
-            {
+            let owner_local = match &site.action {
+                SemanticSiteAction::TypeUse {
+                    subject: SemanticOperand::Local(target),
+                    ..
+                } => Some(*target),
+                SemanticSiteAction::TypeUse {
+                    subject: SemanticOperand::Parameter(parameter),
+                    ..
+                } => function.parameters.get(*parameter as usize).copied(),
+                _ => None,
+            };
+            if owner_local != Some(local) {
                 continue;
             }
             world.pay(site_nodes.len())?;
@@ -231,11 +241,73 @@ pub(super) fn seal_borrow(
             role = Some(*ordinal);
         }
     }
-    let ordinal = role.ok_or_else(|| {
-        let mut diagnostic = bad("dynamic receiver borrow has no complete original occurrence seal");
+    let ordinal = if let Some(ordinal) = role {
+        ordinal
+    } else {
+        let mut diagnostic =
+            bad("dynamic receiver borrow has no complete original occurrence seal");
+        world.pay(128)?;
         diagnostic.notes.push(format!("original {:?}; actual function {:?}, block {:?}, instruction {}, local {:?}, result {:?}", original.id, function.id, block, index, local, result));
-        diagnostic
-    })?;
+        for site in sites {
+            world.pay(
+                site_nodes
+                    .len()
+                    .saturating_add(proof.intrinsics.len())
+                    .saturating_add(64),
+            )?;
+            let nodes: Vec<_> = site_nodes
+                .iter()
+                .filter(|row| row.site == site.recipe)
+                .map(|row| row.node)
+                .collect();
+            if let SemanticSiteAction::TypeUse { subject, .. } = &site.action {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    subject,
+                    world.limits,
+                    world.left,
+                    1,
+                )?;
+                diagnostic.notes.push(format!(
+                    "receiver type-use site {:?} nodes {:?}, at {:?}, subject {:?}",
+                    site.recipe, nodes, site.at, subject
+                ));
+            }
+            if let Some(call) = proof.intrinsics.get(&(original.id, site.recipe)) {
+                if let IntrinsicKind::DynCall { receiver_node, .. } = &call.kind {
+                    if let Some(parameter) = call.parameters.first() {
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            parameter,
+                            world.limits,
+                            world.left,
+                            1,
+                        )?;
+                    }
+                    diagnostic.notes.push(format!("original dynamic call site {:?}, receiver node {:?}, parameter {:?}, actual {:?}, action {:?}", site.recipe, receiver_node, call.parameters.first(), site.at, std::mem::discriminant(&site.action)));
+                }
+            }
+        }
+        for row in &function.blocks {
+            world.pay(row.instructions.len())?;
+            for (index, operation) in row.instructions.iter().enumerate() {
+                let cost = match &operation.kind {
+                    InstructionKind::CallDynSlot { arguments, .. } => {
+                        Some(arguments.len().saturating_add(1))
+                    }
+                    InstructionKind::BorrowDynOwned { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::Load(_)
+                    | InstructionKind::TakeLocal { .. }
+                    | InstructionKind::Store { .. } => Some(1),
+                    _ => None,
+                };
+                if let Some(cost) = cost {
+                    world.pay(cost.saturating_mul(64))?;
+                    diagnostic.notes.push(format!("actual receiver path block {:?}, instruction {}, result {:?}, operation {:?}", row.id, index, operation.result, operation.kind));
+                }
+            }
+        }
+        return Err(diagnostic);
+    };
     world.pay(implicit.len().saturating_add(1))?;
     crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
     if let Some(old) = implicit.insert(ordinal, image.clone()) {

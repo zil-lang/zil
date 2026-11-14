@@ -983,6 +983,15 @@ impl World<'_, '_> {
                     let value = match subject {
                         SemanticOperand::Value(value) => self.get(values, *value)?,
                         SemanticOperand::Local(local) => self.local(locals, *local)?,
+                        SemanticOperand::Parameter(parameter) => self.local(
+                            locals,
+                            *function
+                                .parameters
+                                .get(*parameter as usize)
+                                .ok_or_else(|| {
+                                    bad("type-use parameter has no exact actual input local")
+                                })?,
+                        )?,
                         SemanticOperand::Capture(index) => self.capture(instance, *index)?,
                         _ => {
                             return Err(pending(
