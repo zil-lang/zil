@@ -135,7 +135,10 @@ fn compact_parameter_leaves_keep_runtime_overflow_boundaries() {
             let body = first_function(&llvm);
             assert!(body.contains(intrinsic), "{body}");
             assert!(body.contains("@llvm.trap()"), "{body}");
-            assert_eq!(body.contains("bb.0:"), !enabled, "{body}");
+            // Both modes now canonicalize the leaf. Its single unknown
+            // overflow branch must still reach the real trap.
+            assert_eq!(body.matches("br i1 ").count(), 1, "{body}");
+            assert!(body.contains("label %zil.trap"), "{body}");
             let success = dir.run(1);
             assert!(success.status.success(), "{success:?}");
             assert_eq!(success.stdout, format!("{maximum}\n").as_bytes());

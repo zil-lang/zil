@@ -177,7 +177,7 @@ fn narrow_wide_and_boolean_values_keep_exact_scalar_results() {
 }
 
 #[test]
-fn branches_loops_addresses_and_captures_retain_required_storage() {
+fn branches_and_loops_use_ssa_while_addresses_and_captures_retain_storage() {
     for (text, expected, minimum_i32_slots, borrowed) in [
         (
             "fn f(flag:bool)->i32{var y=1;if flag{y=2;}else{y=3;}return y;} fn result()->i32{return f(true)+f(false);}",
@@ -224,12 +224,18 @@ fn branches_loops_addresses_and_captures_retain_required_storage() {
                 &dir.options(backend, optimization),
             );
             let body = first_function(&llvm);
-            assert!(
-                body.matches("alloca i32").count() >= minimum_i32_slots,
-                "{body}"
-            );
             if borrowed {
+                assert!(
+                    body.matches("alloca i32").count() >= minimum_i32_slots,
+                    "{body}"
+                );
                 assert!(body.contains("getelementptr i8, ptr %local."), "{body}");
+            } else {
+                assert!(!body.contains("alloca i32"), "{body}");
+                assert!(
+                    body.contains(" phi i32 ") || body.contains(" select i1 "),
+                    "branch/loop values must flow through SSA: {body}"
+                );
             }
             returned(dir.run(b""), expected);
         });

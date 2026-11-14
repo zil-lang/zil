@@ -90,8 +90,10 @@ fn function_factory_aggregation_and_indirect_calls_execute() {
         Some(8320),
     );
     assert!(llvm.contains("freeze ptr @zil.fn."));
-    assert!(llvm.contains("call i64 %v."));
-    assert!(llvm.contains("call { i64, i64 } %v."));
+    // A promoted argument can replace a loaded temporary. Keep both indirect
+    // ABI shapes without depending on the SSA register's spelling.
+    assert!(llvm.contains("call i64 %"));
+    assert!(llvm.contains("call { i64, i64 } %"));
     assert!(!llvm.contains("@malloc"));
 }
 #[test]

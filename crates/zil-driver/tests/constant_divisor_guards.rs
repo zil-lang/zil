@@ -139,11 +139,14 @@ fn direct_safe_divisors_reduce_real_cfg_without_changing_native_results() {
             for seed in [0, 1, 127, 255] {
                 returned(dir.run(seed), expected(i64::from(seed)));
             }
-            // Inspect the actual emitted helper: the same div/rem survives while
-            // its provably false checked edges are removed before LLVM O2.
+            // Default scalar canonicalization now removes these provably false
+            // divisor checks too. Both modes must keep div/rem without testing
+            // their known safe divisor or adding more conditional edges.
             let (old, new) = (helper(&original), helper(&optimized));
+            assert!(!old.contains("icmp "), "{old}");
+            assert!(!new.contains("icmp "), "{new}");
             assert!(
-                new.matches("br i1 ").count() < old.matches("br i1 ").count(),
+                new.matches("br i1 ").count() <= old.matches("br i1 ").count(),
                 "{old}\n{new}"
             );
             for operation in ["sdiv ", "srem ", "udiv ", "urem "] {
