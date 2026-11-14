@@ -106,17 +106,24 @@ impl<'s> FrozenContext<'s> {
         let Some(raw)=&execution.semantic else{return Err(bad("contextual CT execution cannot erase its semantic programme"));};
         let mut view=execution.clone();
         let mut semantic=SemanticModule{definitions:self.definitions.values().map(|row|(*row).clone()).collect(),instances:self.instances.values().map(|row|(*row).clone()).collect(),sites:raw.sites.clone(),dyn_scopes:raw.dyn_scopes.clone()};
+        let mut originals=BTreeSet::new();
         for definition in &raw.definitions {
+            b.spend(1)?;
+            if !originals.insert(definition.id){return Err(bad("CT execution repeats an original definition identity"));}
             if let Some(source)=self.definitions.get(&definition.id){
-                // Both trees were fully prepaid above. Distinguish a redundant
-                // frozen copy from a changed definition without printing or
-                // trusting its body; neither can replace S through this API.
-                let relation=if *source==definition{"identical frozen copy"}else{"changed frozen definition"};
-                return Err(bad(&format!("CT execution package attempts to replace a frozen original definition: {:?} ({relation})",definition.id)));
+                // Both complete trees were prepaid above. An equal copy is
+                // redundant lookup data: keep the supplied S object, including
+                // its real scope, original head/body/names and all obligations.
+                // It creates neither an instance nor an executable VM target.
+                if *source!=definition{return Err(bad(&format!("CT execution package attempts to replace a frozen original definition: {:?}",definition.id)));}
+                continue;
             }
             semantic.definitions.push(definition.clone());
         }
+        let mut executable_instances=BTreeSet::new();
         for instance in &raw.instances {
+            b.spend(1)?;
+            if !executable_instances.insert(instance.id){return Err(bad("CT execution repeats an instance identity"));}
             if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_))){return Err(bad("CT execution instance retains a Core or nonexecutable target"));}
             if let Some(index)=semantic.instances.iter().position(|row|row.id==instance.id){semantic.instances[index]=instance.clone();}else{semantic.instances.push(instance.clone());}
         }

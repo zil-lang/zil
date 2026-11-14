@@ -4,11 +4,13 @@ use super::*;
 impl FrozenContext<'_> {
     pub(super) fn wrapper_identity(&self,view:&TypedModule,execution:&TypedModule,b:&mut Budget)->Check<()> {
         let raw=execution.semantic.as_ref().ok_or_else(||bad("CT executable wrapper original data is absent"))?;
-        if raw.definitions.len()!=1{return Err(bad("CT package must contain exactly its new original wrapper definition"));}
+        b.spend(raw.definitions.len())?;
+        let mut generated=raw.definitions.iter().filter(|row|!self.definitions.contains_key(&row.id));
+        let definition=generated.next().ok_or_else(||bad("CT package lacks its new original wrapper definition"))?;
+        if generated.next().is_some(){return Err(bad("CT package contains an additional original definition outside its frozen source"));}
         let mut rows=raw.instances.iter().filter(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if self.expected.query.wrapper==SemanticFunctionTarget::Typed(id)));
         let instance=rows.next().ok_or_else(||bad("CT wrapper has no actual executable instance"))?;
         if rows.next().is_some()||instance.parent!=Some(self.query.1.id)||!instance.actuals.is_empty()||instance.environment.is_some()||instance.self_type.is_some()||!matches!(instance.lifetime_instantiation,SemanticLifetimeInstantiation::Rigid){return Err(bad("CT wrapper changes its exact frozen caller instance or introduces a fake environment"));}
-        let definition=&raw.definitions[0];
         if definition.id!=instance.definition||definition.id.module!=self.query.0.id.module||definition.parent!=Some(self.query.0.id)||definition.kind!=SemanticDefinitionKind::Function||!definition.parameters.is_empty()||!definition.environment.is_empty()||!definition.implicit_lifetimes.is_empty()||!definition.requirements.is_empty(){return Err(bad("CT wrapper changes its true frozen declaration parent or original formal domain"));}
         if definition.identity.package!=self.query.0.identity.package||definition.identity.module_path!=self.query.0.identity.module_path||!definition.identity.declaration_path.starts_with(&self.query.0.identity.declaration_path)||definition.identity.declaration_path.len()!=self.query.0.identity.declaration_path.len()+1||!definition.identity.generation_path.starts_with(&self.query.0.identity.generation_path){return Err(bad("CT wrapper original identity is not derived from its actual frozen caller"));}
         let SemanticDefinitionBody::FunctionWithBody{signature,parameters,receiver_parameter,body:SemanticOriginalFunctionBody::Defined(body),..}=&definition.body else{return Err(bad("CT wrapper lacks its whole original executable body"));};
