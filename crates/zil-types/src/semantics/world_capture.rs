@@ -2,6 +2,200 @@
 //! Name observation. A header row alone cannot seal a physical capture input.
 use super::*;
 use std::collections::{BTreeSet, VecDeque};
+#[path = "header_capture_uses.rs"]
+mod first_use;
+
+fn creator_input(
+    world: &mut World<'_, '_>,
+    child: &SemanticInstance,
+    ordinal: u32,
+) -> R<Option<u32>> {
+    let original = world.definition(child.definition)?;
+    let SemanticDefinitionBody::FunctionWithBody {
+        sites, site_nodes, ..
+    } = &original.body
+    else {
+        return Ok(None);
+    };
+    world.pay(
+        original
+            .implicit_lifetimes
+            .len()
+            .saturating_add(sites.len())
+            .saturating_add(site_nodes.len()),
+    )?;
+    let occurrence = original
+        .implicit_lifetimes
+        .iter()
+        .find(|row| row.ordinal == ordinal)
+        .ok_or_else(|| bad("implicit capture has no original occurrence"))?;
+    let mut node = None;
+    for recipe in sites {
+        if recipe.occurrence_path != occurrence.occurrence_path
+            || !matches!(recipe.kind, SemanticSiteRecipeKind::TypeUse { .. })
+        {
+            continue;
+        }
+        world.pay(site_nodes.len())?;
+        for binding in site_nodes
+            .iter()
+            .filter(|binding| binding.site == recipe.id)
+        {
+            let SemanticOriginalNode::Expression(expression) = binding.node else {
+                return Err(bad(
+                    "implicit capture occurrence is not its original expression",
+                ));
+            };
+            if node.replace(expression).is_some() {
+                return Err(bad(
+                    "implicit capture occurrence has multiple original expressions",
+                ));
+            }
+        }
+    }
+    let Some(node) = node else { return Ok(None) };
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof
+        .as_ref()
+        .ok_or_else(|| bad("implicit capture has no original body proof"))?;
+    world.pay(
+        proof
+            .capture_names
+            .len()
+            .saturating_add(proof.closure_move.len()),
+    )?;
+    if proof.closure_move.get(&original.id) != Some(&false) {
+        return Ok(None);
+    }
+    let names = proof
+        .capture_names
+        .get(&original.id)
+        .ok_or_else(|| bad("implicit capture has no original lexical capture directory"))?;
+    let mut selected = None;
+    for name in names {
+        world.pay(name.len().saturating_add(1))?;
+        if first_use::find(original, name, world.limits, world.left)? == Some(node) {
+            if selected.replace(name).is_some() {
+                return Err(bad(
+                    "one implicit occurrence selects multiple original lexical captures",
+                ));
+            }
+        }
+    }
+    let Some(name) = selected else {
+        return Ok(None);
+    };
+    let environment = child
+        .environment
+        .as_ref()
+        .ok_or_else(|| bad("implicit capture has no actual environment"))?;
+    let SemanticClosureTarget::Typed(closure) = environment.closure else {
+        return Err(bad("implicit capture retains a Core environment"));
+    };
+    world.pay(ledger.closure_captures.len())?;
+    let Some(receipts) = ledger.closure_captures.get(&closure) else {
+        return Ok(None);
+    };
+    let mut index = None;
+    for (slot, (candidate, _)) in receipts.iter().enumerate() {
+        world.pay(name.len().saturating_add(candidate.len()).saturating_add(1))?;
+        if candidate == name && index.replace(slot).is_some() {
+            return Err(bad(
+                "one original lexical capture has multiple actual input slots",
+            ));
+        }
+    }
+    let index =
+        index.ok_or_else(|| bad("original captured name has no actual MakeClosure input"))?;
+    let parent = world.instance(
+        child
+            .parent
+            .ok_or_else(|| bad("implicit capture has no real creator instance"))?,
+    )?;
+    if original.parent != Some(parent.definition) {
+        return Err(bad("implicit capture changes its original lexical parent"));
+    }
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = parent.target
+    else {
+        return Err(bad("implicit capture creator has no actual function"));
+    };
+    let creator = world.function(function)?;
+    world.pay(ledger.frames.len())?;
+    let frame = ledger
+        .frames
+        .get(&match child.target {
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) => id,
+            _ => return Err(bad("implicit capture child has no actual function")),
+        })
+        .ok_or_else(|| bad("implicit capture entry has no actual emitter frame"))?;
+    if frame.parent != Some((function, closure)) {
+        return Err(bad(
+            "implicit capture entry changes its actual creator/environment",
+        ));
+    }
+    world.pay(world.program.sites.len())?;
+    let mut mint = None;
+    for site in &world.program.sites {
+        if site.instance == parent.id
+            && matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } if id == closure)
+        {
+            if mint.replace(site).is_some() {
+                return Err(bad(
+                    "implicit capture has multiple actual creator occurrences",
+                ));
+            }
+        }
+    }
+    let mint =
+        mint.ok_or_else(|| bad("implicit capture has no actual original creator occurrence"))?;
+    let parent_original = world.definition(parent.definition)?;
+    if !matches!(&world.original_recipe(parent_original, mint.recipe)?.kind, SemanticSiteRecipeKind::Closure { definition, .. } if *definition == child.definition)
+    {
+        return Err(bad(
+            "implicit capture mint changes its original child definition",
+        ));
+    }
+    let SemanticSiteAddress::Typed {
+        block,
+        instruction,
+        edge: SemanticSiteEdge::After,
+    } = mint.at
+    else {
+        return Err(bad(
+            "implicit capture mint is not an actual construction boundary",
+        ));
+    };
+    world.pay(creator.blocks.len())?;
+    let operation = creator
+        .blocks
+        .iter()
+        .find(|row| row.id == block)
+        .and_then(|row| row.instructions.get(instruction as usize))
+        .ok_or_else(|| bad("implicit capture mint leaves its actual creator CFG"))?;
+    let InstructionKind::MakeClosure {
+        closure: actual,
+        captures,
+    } = &operation.kind
+    else {
+        return Err(bad("implicit capture mint is not its actual MakeClosure"));
+    };
+    world.pay(captures.len().saturating_add(receipts.len()))?;
+    if *actual != closure
+        || captures.len() != receipts.len()
+        || captures
+            .iter()
+            .zip(receipts)
+            .any(|(actual, (_, recorded))| actual != recorded)
+    {
+        return Err(bad(
+            "implicit capture input differs from its exact actual lexical construction",
+        ));
+    }
+    Ok(Some(
+        u32::try_from(index).map_err(|_| bad("capture input ordinal overflows"))?,
+    ))
+}
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Origin {
     Other,
@@ -103,7 +297,7 @@ fn observe(
             _ => {
                 return Err(bad(
                     "implicit capture observation has no actual local or SSA operand",
-                ))
+                ));
             }
         };
         let Origin::Data(capture) = origin else {
@@ -116,6 +310,9 @@ fn observe(
     Ok(())
 }
 pub(super) fn input(world: &mut World<'_, '_>, child: &SemanticInstance, ordinal: u32) -> R<u32> {
+    if let Some(input) = creator_input(world, child, ordinal)? {
+        return Ok(input);
+    }
     let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = child.target
     else {
         return Err(bad("implicit capture child has no actual entry"));
