@@ -312,6 +312,17 @@ impl Check<'_, '_> {
             depth + 1,
         )?;
         self.call_requirements(owner, definition, &actuals, depth + 1)?;
+        self.pay(1, depth)?;
+        if self
+            .proof
+            .nominal_constructors
+            .insert((owner, expression.id), (id, ordinal as u32))
+            .is_some_and(|previous| previous != (id, ordinal as u32))
+        {
+            return Err(bad(
+                "original constructor expression changes its exact nominal variant",
+            ));
+        }
         if let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? {
             self.pay(solved.parameters.len(), depth)?;
             let parameters = solved

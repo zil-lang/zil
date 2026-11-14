@@ -1058,6 +1058,72 @@ impl<'a> Engine<'a, '_> {
         }
         Ok(())
     }
+    fn nominal_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        values: &[Value],
+        state: &State,
+        depth: usize,
+    ) -> R<Option<Value>> {
+        self.pay(
+            self.proof.nominal_constructors.len().saturating_add(1),
+            depth,
+        )?;
+        let Some((id, variant)) = self.proof.nominal_constructors.get(&(owner, node)).copied()
+        else {
+            return Ok(None);
+        };
+        let original = self.definition(id)?;
+        let SemanticDefinitionBody::Nominal {
+            declaration,
+            body: SemanticNominalBody::Enum { variants },
+            ..
+        } = &original.body
+        else {
+            return Err(failure(
+                "original constructor theorem names another declaration kind",
+            ));
+        };
+        let selected = variants
+            .get(variant as usize)
+            .ok_or_else(|| failure("original constructor theorem selects an absent variant"))?;
+        if selected.fields.len() != values.len() {
+            return Err(failure(
+                "original constructor cleanup changes the complete argument arity",
+            ));
+        }
+        if *declaration == zil_ir::builtin_life::POLL
+            && values.iter().all(|value| matches!(value, Value::Plain))
+        {
+            let exit = match variant {
+                0 => ProtocolExit::PollPending,
+                1 => ProtocolExit::PollReady,
+                _ => {
+                    return Err(failure(
+                        "canonical Poll constructor changes its original variant",
+                    ));
+                }
+            };
+            self.pay(state.roots.len().saturating_add(1), depth)?;
+            return Ok(Some(Value::Poll {
+                fresh: true,
+                outcomes: vec![Outcome {
+                    exit,
+                    phases: state.roots.clone(),
+                }],
+            }));
+        }
+        self.pay(selected.name.len().saturating_add(values.len()), depth)?;
+        let mut fields = Vec::with_capacity(values.len());
+        for value in values {
+            fields.push(self.value_copy(value, depth + 1)?)
+        }
+        Ok(Some(Value::Variant {
+            name: selected.name.clone(),
+            fields,
+        }))
+    }
     fn call(
         &mut self,
         owner: SemanticDefinitionId,
@@ -1067,6 +1133,9 @@ impl<'a> Engine<'a, '_> {
         state: &mut State,
         depth: usize,
     ) -> R<Value> {
+        if let Some(value) = self.nominal_value(owner, expression.id, values, state, depth + 1)? {
+            return Ok(value);
+        }
         let Some(site) = self.site(owner, expression.id, depth)? else {
             return self.unknown_call(owner, expression.id, values, state, depth);
         };
@@ -1119,50 +1188,10 @@ impl<'a> Engine<'a, '_> {
                     self.change(state, root, OPEN | CLOSED, true, depth)?;
                     return Ok(Value::Root(root, true, true, None));
                 }
-                IntrinsicKind::NominalConstructor {
-                    definition,
-                    variant,
-                } => {
-                    let declaration = self.definition(definition)?;
-                    if matches!(&declaration.body,SemanticDefinitionBody::Nominal{declaration,..}if *declaration==zil_ir::builtin_life::POLL)
-                    {
-                        let exit = match variant {
-                            0 => ProtocolExit::PollPending,
-                            1 => ProtocolExit::PollReady,
-                            _ => {
-                                return Err(failure(
-                                    "original canonical Poll constructor has an invalid variant ordinal",
-                                ));
-                            }
-                        };
-                        self.pay(state.roots.len().saturating_add(1), depth)?;
-                        return Ok(Value::Poll {
-                            fresh: true,
-                            outcomes: vec![Outcome {
-                                exit,
-                                phases: state.roots.clone(),
-                            }],
-                        });
-                    }
-                    if let SemanticDefinitionBody::Nominal {
-                        body: SemanticNominalBody::Enum { variants },
-                        ..
-                    } = &declaration.body
-                    {
-                        let variant = variants.get(variant as usize).ok_or_else(|| {
-                            failure("original cleanup constructor selects an absent variant")
-                        })?;
-                        self.pay(variant.name.len().saturating_add(values.len()), depth)?;
-                        let mut fields = Vec::with_capacity(values.len());
-                        for value in values {
-                            fields.push(self.value_copy(value, depth + 1)?);
-                        }
-                        return Ok(Value::Variant {
-                            name: variant.name.clone(),
-                            fields,
-                        });
-                    }
-                    return self.unknown_call(owner, expression.id, values, state, depth);
+                IntrinsicKind::NominalConstructor { .. } => {
+                    return Err(failure(
+                        "original constructor call lacks its complete expression theorem",
+                    ));
                 }
                 IntrinsicKind::RegistrationOperation(
                     op @ (RegistrationOp::AsyncValid
@@ -1431,7 +1460,14 @@ impl<'a> Engine<'a, '_> {
             {
                 // A sealed constructor expression can be spelled as a static
                 // member. It creates a value instead of reading a local place.
-                let constructed = if let Some(site) = self.site(owner, expr.id, depth + 1)? {
+                self.pay(self.proof.nominal_constructors.len(), depth)?;
+                let constructed = if self
+                    .proof
+                    .nominal_constructors
+                    .contains_key(&(owner, expr.id))
+                {
+                    true
+                } else if let Some(site) = self.site(owner, expr.id, depth + 1)? {
                     self.pay(self.proof.intrinsics.len(), depth)?;
                     matches!(
                         self.proof
@@ -1666,7 +1702,13 @@ impl<'a> Engine<'a, '_> {
                 }
                 Ok(Value::Fields(out))
             }
-            CoreExprKind::Member { .. } => self.observe(owner, expr, state, depth + 1),
+            CoreExprKind::Member { .. } => {
+                if let Some(value) = self.nominal_value(owner, expr.id, &[], state, depth + 1)? {
+                    Ok(value)
+                } else {
+                    self.observe(owner, expr, state, depth + 1)
+                }
+            }
             CoreExprKind::Index { object, index } => {
                 let value = self.observe(owner, object, state, depth + 1)?;
                 self.expr(owner, index, state, depth + 1)?;

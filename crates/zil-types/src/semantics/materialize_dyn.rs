@@ -842,7 +842,7 @@ pub(crate) fn owned_provider(
             ledger,
             instance.id,
             &SemanticTypeRecipe::SelfType {
-                scope: SemanticScopeRef::Ancestor(0),
+                scope: SemanticScopeRef::Ancestor(1),
             },
             Some(source),
             limits,

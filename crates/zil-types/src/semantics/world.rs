@@ -1910,6 +1910,7 @@ impl World<'_, '_> {
                         });
                     }
                     InstructionKind::BorrowPackageField { local, index, .. }
+                    | InstructionKind::DescribePackageField { local, index }
                     | InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
                         self.pay(2)?;
                         propagated_roots.insert(arguments::Root {
@@ -3477,6 +3478,33 @@ impl World<'_, '_> {
                                 ty.ok_or_else(|| bad("local description has no type"))?,
                                 image,
                                 &value,
+                            )?)
+                        }
+                        InstructionKind::DescribePackageField {
+                            local,
+                            index: field,
+                        } => {
+                            let owner = self.projected_local(
+                                &locals,
+                                *local,
+                                &[PlaceProjection::Field(*field)],
+                            )?;
+                            if !matches!(Self::type_of(&owner)?, Type::Managed(_)) {
+                                return Err(bad(
+                                    "actual package description does not select its live owning resource field",
+                                ));
+                            }
+                            let payload = self.pointee(&owner)?;
+                            let result = instruction.result.ok_or_else(|| {
+                                bad("actual package description has no result occurrence")
+                            })?;
+                            let image = self.occurrence(f, result)?;
+                            Some(self.address(
+                                ty.ok_or_else(|| {
+                                    bad("actual package description has no complete result type")
+                                })?,
+                                image,
+                                &payload,
                             )?)
                         }
                         InstructionKind::DescribeAddress { address } => {
