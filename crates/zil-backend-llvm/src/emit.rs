@@ -1216,11 +1216,23 @@ fn entry_wrapper(
         }
     };
     if verified.is_suspend(function.id) {
-        return invalid(
+        let mut error = invalid(
             "E-TASK-DIRECT-EXPORT",
             "Suspend function requires its SABI execution root",
             Some(function.span),
         );
+        if let Err(diagnostics) = &mut error {
+            for diagnostic in diagnostics {
+                diagnostic.notes.push(format!(
+                    "actual entry {:?}; declared ABI {:?}; actual task worker {}; checked non-suspending SABI body {}; task worker inventory {:?}",
+                    function.id, function.call_kind,
+                    verified.task_worker_ids().contains(&function.id),
+                    verified.has_non_suspending_sabi_body(function.id),
+                    verified.task_worker_ids(),
+                ));
+            }
+        }
+        return error;
     }
     if function.foreign.is_some() {
         return invalid(
