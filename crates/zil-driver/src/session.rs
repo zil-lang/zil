@@ -16,6 +16,87 @@ use zil_db::{
 use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
+// A refusal policy for the CLI's optional native capture, never a machine or
+// language proof. Small bodies pay fixed key/capture costs at many LLVM stages;
+// require at least this much current LIR work per defined function before
+// automatically requesting products. Explicit backend/API requests are separate.
+const MIN_NATIVE_PRODUCT_AVERAGE_LIR_INSTRUCTIONS: usize = 64;
+
+fn add_native_selection_count(total: &mut usize, amount: usize) -> bool {
+    if let Some(next) = total.checked_add(amount) {
+        *total = next;
+        false
+    } else {
+        *total = usize::MAX;
+        true
+    }
+}
+
+fn finish_native_product_cost_selection(selection: &mut NativeProductSelection) {
+    selection.enabled = false;
+    let required = selection
+        .body_functions_counted
+        .checked_mul(MIN_NATIVE_PRODUCT_AVERAGE_LIR_INSTRUCTIONS);
+    if selection.counts_saturated || required.is_none() {
+        selection.counts_saturated = true;
+        selection.reason = "selection-count-overflow";
+    } else if selection.body_functions_counted == 0 {
+        selection.reason = "no-defined-lir-functions";
+    } else if required.is_some_and(|required| selection.lir_instructions_counted < required) {
+        selection.reason = "below-minimum-average-lir-work";
+    } else {
+        selection.enabled = true;
+        selection.reason = "minimum-average-lir-work";
+    }
+}
+
+fn select_native_products(
+    functions: &zil_ir::PersistentVec<zil_ir::TypedFunction>,
+    options: &CompileOptions,
+) -> NativeProductSelection {
+    let mut selection = NativeProductSelection {
+        enabled: false,
+        reason: "push-reuse-disabled",
+        functions_scanned: 0,
+        body_functions_counted: 0,
+        blocks_scanned: 0,
+        lir_instructions_counted: 0,
+        minimum_average_lir_instructions: MIN_NATIVE_PRODUCT_AVERAGE_LIR_INSTRUCTIONS,
+        counts_saturated: false,
+    };
+    if !options.push_reuse {
+        return selection;
+    }
+    if !cfg!(feature = "native-products") {
+        selection.reason = "native-products-feature-disabled";
+        return selection;
+    }
+    if options.backend != NativeBackend::LlvmApi || options.optimization != Optimization::O2 {
+        selection.reason = "requires-llvm-api-o2";
+        return selection;
+    }
+    for function in functions {
+        selection.counts_saturated |=
+            add_native_selection_count(&mut selection.functions_scanned, 1);
+        if !function.blocks.is_empty() {
+            selection.counts_saturated |=
+                add_native_selection_count(&mut selection.body_functions_counted, 1);
+        }
+        for block in &function.blocks {
+            selection.counts_saturated |=
+                add_native_selection_count(&mut selection.blocks_scanned, 1);
+            // Read the actual current block length; do not walk instructions,
+            // hash a body, consult a previous receipt or cache an owner guess.
+            selection.counts_saturated |= add_native_selection_count(
+                &mut selection.lir_instructions_counted,
+                block.instructions.len(),
+            );
+        }
+    }
+    finish_native_product_cost_selection(&mut selection);
+    selection
+}
+
 /// The query database retains raw immutable data only. It has no Verified
 /// variant. Disk restoration cannot grant authority; current Verify owns and
 /// independently binds its private, process-local proof receipts.
@@ -1281,7 +1362,14 @@ impl CompilationSession {
         build.closed_executable = options.closed_executable;
         build.late_closed_executable = options.late_closed_executable;
         build.incremental_o2 = options.incremental_o2;
-        build.native_products = options.push_reuse && cfg!(feature = "native-products");
+        let native_selection = select_native_products(lir.functions, options);
+        build.native_products = native_selection.enabled;
+        report.native_product_selection = Some(Box::new(native_selection));
+        // The current BuildOptions value enters the original backend config
+        // match and successful native-history commit. A cheap successful build
+        // retires native products there; failure/cancellation publishes neither
+        // the staged backend nor a new native history. No old receipt grants
+        // permission to bypass the current Verify/LIR/preflight/LLVM checks.
         build.function_merging = options.function_merging;
         build.codegen = options.codegen;
         build.object_cache = options.object_cache.clone();
@@ -1562,6 +1650,180 @@ pub(super) fn check_entry_contract(core: &CoreModule) -> CompileResult<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod native_product_selection_tests {
+    use super::*;
+
+    #[test]
+    fn average_lir_work_boundary_and_overflow_only_select_optional_capture() {
+        let mut selection = NativeProductSelection {
+            enabled: false,
+            reason: "test-current-counts",
+            functions_scanned: 2,
+            body_functions_counted: 2,
+            blocks_scanned: 2,
+            lir_instructions_counted: 2 * MIN_NATIVE_PRODUCT_AVERAGE_LIR_INSTRUCTIONS - 1,
+            minimum_average_lir_instructions: MIN_NATIVE_PRODUCT_AVERAGE_LIR_INSTRUCTIONS,
+            counts_saturated: false,
+        };
+        finish_native_product_cost_selection(&mut selection);
+        assert!(!selection.enabled);
+        assert_eq!(selection.reason, "below-minimum-average-lir-work");
+        selection.lir_instructions_counted += 1;
+        finish_native_product_cost_selection(&mut selection);
+        assert!(selection.enabled);
+        selection.body_functions_counted = 0;
+        finish_native_product_cost_selection(&mut selection);
+        assert!(!selection.enabled);
+        assert_eq!(selection.reason, "no-defined-lir-functions");
+        selection.body_functions_counted = usize::MAX;
+        finish_native_product_cost_selection(&mut selection);
+        assert!(!selection.enabled && selection.counts_saturated);
+        assert_eq!(selection.reason, "selection-count-overflow");
+        let mut total = usize::MAX;
+        assert!(add_native_selection_count(&mut total, 1));
+        assert_eq!(total, usize::MAX);
+    }
+
+    #[cfg(all(
+        feature = "native-products",
+        target_os = "linux",
+        target_arch = "x86_64"
+    ))]
+    #[test]
+    fn heavy_cheap_heavy_current_native_requests_keep_checks_and_retire_products() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use zil_base::FileId;
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        struct Dir(PathBuf);
+        impl Drop for Dir {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let dir = Dir(std::env::temp_dir().join(format!(
+            "zil-native-selection-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        )));
+        std::fs::create_dir(&dir.0).unwrap();
+        let input = dir.0.join("input.zil");
+        let options = CompileOptions {
+            push_reuse: true,
+            stop_after: Stage::Build,
+            backend: NativeBackend::LlvmApi,
+            optimization: Optimization::O2,
+            entry: Some("answer".into()),
+            output: Some(dir.0.join("program")),
+            object_cache: Some(dir.0.join("objects")),
+            ..Default::default()
+        };
+        let heavy = format!(
+            "fn answer()->i32{{var y:i32=0;{}return y;}}",
+            "y=(y+1)%251;".repeat(128)
+        );
+        let cheap = "fn answer()->i32{return 7;}";
+        let mut session = CompilationSession::default();
+        for (index, text, enabled, output) in [
+            (0, heavy.as_str(), true, b"128\n".as_slice()),
+            (1, cheap, false, b"7\n".as_slice()),
+            (2, heavy.as_str(), true, b"128\n".as_slice()),
+        ] {
+            std::fs::write(&input, text).unwrap();
+            let source = SourceUnit::new(FileId(0), ModuleId(0), input.to_string_lossy(), text);
+            let report = session.compile_source(&source, &options);
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let selection = report.native_product_selection.as_ref().unwrap();
+            assert_eq!(selection.enabled, enabled, "{selection:?}");
+            assert!(selection.functions_scanned > 0 && selection.blocks_scanned > 0);
+            assert!(!selection.counts_saturated);
+            assert_eq!(
+                selection.reason,
+                if enabled {
+                    "minimum-average-lir-work"
+                } else {
+                    "below-minimum-average-lir-work"
+                }
+            );
+            let actual = std::process::Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(actual.status.success());
+            assert_eq!(actual.stdout, output);
+            assert!(actual.stderr.is_empty());
+            if !enabled {
+                let work = report.backend_work.as_ref().unwrap();
+                assert_eq!(work.native_history_retained_epochs, 0);
+                assert_eq!(work.native_history_payload_bytes, 0);
+                assert!(
+                    report
+                        .native_codegen
+                        .as_ref()
+                        .unwrap()
+                        .object_reports
+                        .iter()
+                        .all(|r| !r.contains("\"native_products\":{"))
+                );
+            }
+            if index == 2 {
+                assert_eq!(
+                    report
+                        .backend_work
+                        .as_ref()
+                        .unwrap()
+                        .native_history_restored_units,
+                    0,
+                    "the intervening successful cheap build retired the old native history"
+                );
+            }
+            let fresh_options = CompileOptions {
+                push_reuse: false,
+                output: Some(dir.0.join(format!("fresh-{index}"))),
+                object_cache: None,
+                ..options.clone()
+            };
+            let fresh = CompilationSession::default().compile_source(&source, &fresh_options);
+            assert_eq!(fresh.status, ResultCategory::Success, "{}", fresh.to_json());
+            assert_eq!(fresh.verification_runs, 1);
+            assert_eq!(report.diagnostics, fresh.diagnostics);
+            let fresh_native = fresh.native_codegen.as_ref().unwrap();
+            assert!(!fresh_native.object_reports.is_empty());
+            assert!(
+                fresh_native
+                    .object_reports
+                    .iter()
+                    .all(|r| r.contains("\"verify_before_after\":true"))
+            );
+            let expected = std::process::Command::new(&fresh.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(actual.status, expected.status);
+            assert_eq!(actual.stdout, expected.stdout);
+            assert_eq!(actual.stderr, expected.stderr);
+            // A changed invalid source cannot use either selection/history to
+            // avoid the current language checker. Its failed attempt commits no
+            // backend update, including when a heavy checkpoint was retained.
+            let previous_backend = session.backend.clone();
+            let invalid = SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                input.to_string_lossy(),
+                "fn answer()->i32{return absent_name;}",
+            );
+            let rejected = session.compile_source(&invalid, &options);
+            assert_ne!(rejected.status, ResultCategory::Success);
+            assert!(rejected.native_product_selection.is_none());
+            assert_eq!(session.backend, previous_backend);
+        }
+    }
 }
 
 #[cfg(test)]

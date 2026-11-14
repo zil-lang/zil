@@ -132,16 +132,11 @@ impl ScalarMaterializationSession {
         if !retains_runtime_graph(&parsed, imports, root) {
             return Ok(None);
         }
-        let modules = parsed
-            .iter()
-            .map(|parsed| &parsed.module)
-            .collect::<Vec<_>>();
-        // Keep the original capture, frozen shape/index construction and CT
-        // definition admission current. They have independent budget/error
-        // boundaries and are not proved by a no-rewrite classifier.
-        let (origins, capture_remaining) = zil_expand::source_context::capture_original(
-            sources,
-            &modules,
+        // Reuse only current sealed parser classification for scalar discovery;
+        // current namespace binding and its real budget remain part of capture.
+        // Missing admission takes the complete original capture path.
+        let (origins, capture_remaining) = producer.capture_original_parsed(
+            inputs,
             zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
                 root,
                 aliases: paths,

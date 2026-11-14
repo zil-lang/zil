@@ -272,6 +272,7 @@ pub(super) fn protect_alias_nominals<'a>(
     // lexical visitor as project normalization preserves local shadowing.
     let mut output = module.clone();
     let mut visitor = Visitor {
+        scalar_file: None,
         default_nominal: None,
         const_scope: Names::new(),
         mode: Mode::Normalize(&index),
@@ -333,6 +334,7 @@ pub(super) fn protect_alias_binders<'a>(
     }
     let mut output = module.clone();
     let mut visitor = Visitor {
+        scalar_file: None,
         default_nominal: None,
         const_scope: Names::new(),
         mode: Mode::Binders {
@@ -579,6 +581,7 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     };
     for module in modules {
         let mut visitor = Visitor {
+            scalar_file: None,
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Normalize(&index),
@@ -1010,6 +1013,7 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         let before = budget.remaining_limits();
         let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         let mut visitor = Visitor {
+            scalar_file: None,
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Restore {
@@ -1144,6 +1148,7 @@ fn normalize_scalar(
     let mut normalized = Vec::<NormalizedProduct<'_>>::new();
     for module in modules {
         let mut visitor = Visitor {
+            scalar_file: reuse.fuse_distribution().then_some(module.span.file),
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Normalize(index),
@@ -1200,7 +1205,21 @@ fn normalize_scalar(
         (0..modules.len()).map(|_| Vec::new()).collect();
     for mut item in normalized {
         let span = item.span();
-        if !reuse.replay(Stage::Distribute, span, &mut budget) {
+        if reuse.fuse_distribution() {
+            // This is the closed, parser-owned scalar production domain only.
+            // Current Preflight has checked every original node, attribute,
+            // parameter, literal and primitive formation (also unused bodies
+            // and both branches). Normalize only renames symbols/types and
+            // collapses Member(Name, Name) to Name; each replacement string is
+            // checked/paid by symbol()/declaration_name(). It neither introduces
+            // a type constructor/feature nor increases structural depth.
+            // These private products are exactly those outputs under the same
+            // current Index, including receipt-bound Deferred reconstruction.
+            // Probe/Lifetime/Headers only borrow them. There is consequently
+            // no remaining full-tree formation visit to execute or charge.
+            // Keep current placement below and all Restore/SourceMap checks.
+            reuse.fused_distributed_item();
+        } else if !reuse.replay(Stage::Distribute, span, &mut budget) {
             let before = budget.remaining_limits();
             let actual = item.ensure(reuse).map_err(|mut errors| errors.remove(0))?;
             let clock = reuse.clock();
@@ -1261,6 +1280,7 @@ fn normalize_scalar(
                 .map_err(|mut errors| errors.remove(0))?;
             let clock = reuse.clock();
             let mut visitor = Visitor {
+                scalar_file: None,
                 default_nominal: None,
                 const_scope: Names::new(),
                 mode: Mode::Restore {
@@ -1394,6 +1414,7 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
                 .map_err(|mut errors| errors.remove(0))?;
             let mut expected = input.clone();
             let mut visitor = Visitor {
+                scalar_file: None,
                 default_nominal: None,
                 const_scope: Names::new(),
                 mode: Mode::Normalize(self.index),
@@ -1438,6 +1459,7 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
             .instantiated(instance, ledger, template, output, remaining)?;
         let mut budget = Budget::new(remaining);
         let mut visitor = Visitor {
+            scalar_file: None,
             default_nominal: None,
             const_scope: Names::new(),
             mode: Mode::Normalize(self.index),
@@ -1465,6 +1487,7 @@ enum Mode<'a> {
     },
 }
 struct Visitor<'a, 'b, 'l> {
+    scalar_file: Option<FileId>,
     default_nominal: Option<String>,
     const_scope: Names,
     mode: Mode<'a>,
@@ -1472,6 +1495,19 @@ struct Visitor<'a, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Visitor<'_, '_, '_> {
+    fn scalar_output(&self, span: Span, shape: impl FnOnce() -> bool) -> R<()> {
+        if self
+            .scalar_file
+            .is_some_and(|file| file != span.file || !shape())
+        {
+            return Err(error(
+                "E-PRODUCER-SCALAR",
+                span,
+                "closed scalar normalization changed output structure or source owner",
+            ));
+        }
+        Ok(())
+    }
     fn names(&mut self, input: &Names, span: Span) -> R<Names> {
         for name in input {
             self.budget.node(span, 0)?;
@@ -1669,7 +1705,13 @@ impl Visitor<'_, '_, '_> {
             }
             TypeKind::MetaBlock(b) => self.block(b, types, &Names::new(), depth + 1)?,
         }
-        Ok(())
+        // Formation is fused into this actual output visit. Original primitive
+        // eligibility and unchanged leaves were checked by admission/Preflight;
+        // a resolved canonical name is still one argument-free Named leaf.
+        self.scalar_output(ty.span, || {
+            matches!(&ty.kind, TypeKind::Named { path, args } if path.len() == 1 && args.is_empty())
+                || matches!(ty.kind, TypeKind::Group(_))
+        })
     }
     fn arg(&mut self, arg: &mut GenericArg, types: &Names, values: &Names, depth: usize) -> R<()> {
         match arg {
@@ -1988,7 +2030,9 @@ impl Visitor<'_, '_, '_> {
             *bindings = previous;
         }
         self.const_scope = previous_consts;
-        Ok(())
+        self.scalar_output(item.span, || {
+            crate::incremental::scalar_admission::item_shape(item)
+        })
     }
     fn pattern(
         &mut self,
@@ -2044,7 +2088,9 @@ impl Visitor<'_, '_, '_> {
             }
             _ => {}
         }
-        Ok(())
+        self.scalar_output(p.span, || {
+            matches!(p.kind, PatternKind::Name(_) | PatternKind::Wildcard)
+        })
     }
     fn block(&mut self, b: &mut Block, types: &Names, values: &Names, depth: usize) -> R<()> {
         self.budget.node(b.span, depth)?;
@@ -2052,7 +2098,7 @@ impl Visitor<'_, '_, '_> {
         for s in &mut b.statements {
             self.statement(s, types, &mut scope, depth + 1)?;
         }
-        Ok(())
+        self.scalar_output(b.span, || true)
     }
     fn condition(
         &mut self,
@@ -2145,7 +2191,9 @@ impl Visitor<'_, '_, '_> {
             }
             _ => {}
         }
-        Ok(())
+        self.scalar_output(s.span, || {
+            crate::incremental::scalar_admission::statement_shape(s)
+        })
     }
     fn arrow(&mut self, b: &mut ArrowBody, types: &Names, values: &Names, depth: usize) -> R<()> {
         match b {
@@ -2155,10 +2203,12 @@ impl Visitor<'_, '_, '_> {
     }
     fn expr(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
         self.budget.node(e.span, depth)?;
-        if self.expr_name(e, types, values, depth)? {
-            return Ok(());
+        if !self.expr_name(e, types, values, depth)? {
+            self.expr_children(e, types, values, depth)?;
         }
-        self.expr_children(e, types, values, depth)
+        self.scalar_output(e.span, || {
+            crate::incremental::scalar_admission::expression_shape(e)
+        })
     }
 
     // Syntax reconstruction has no recursive expression edge. Keep its owned

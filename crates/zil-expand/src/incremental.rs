@@ -7,6 +7,8 @@ use std::time::Instant;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId, TargetProfile};
 use zil_syntax::ParsedSource;
 
+#[path = "scalar_admission.rs"]
+pub(super) mod scalar_admission;
 #[path = "scalar_placement.rs"]
 mod scalar_placement;
 
@@ -272,7 +274,12 @@ macro_rules! statistics {
 // map entries, and rebound_source_map_validations counts current-source checks.
 // `cloned_source_map_entries` counts copied mapping
 // entries (including span markers), not all nested Core/type/string copies.
+// `classifier_nodes` reports scans inside expand_parsed. A preceding real
+// parsed_scalar admission has its own bounded walk; admission_classifier_hits
+// reports consumption of that exact parser-owner fact, not a free new scan.
 statistics!(
+    admission_classifier_hits,
+    fused_distributed_items,
     classified_modules,
     rebound_scalar_modules,
     rebound_frontend_modules,
@@ -370,6 +377,9 @@ struct Environment {
     limits: Limits,
     target: TargetProfile,
     context: String,
+    // The fused producer has a different actual-work contract. Its receipts
+    // must never be replayed by the public, unfused stage sequence or vice versa.
+    fused_distribution: bool,
 }
 // Only monotone node/work allowances are replayable in this slice. Every
 // other limit (including temporary/source bytes and depth) remains an exact
@@ -394,6 +404,7 @@ impl Environment {
             && same_limit_domain(&self.limits, &current.limits)
             && self.target == current.target
             && self.context == current.context
+            && self.fused_distribution == current.fused_distribution
     }
 
     // This narrower comparison preserves only parser-bound function INPUT
@@ -422,12 +433,14 @@ impl Environment {
             limits,
             target,
             context,
+            fused_distribution,
         } = self;
         sources == &current.sources
             && same_headers
             && same_limit_domain(limits, &current.limits)
             && target == &current.target
             && context == &current.context
+            && fused_distribution == &current.fused_distribution
             && imports.len() == current.imports.len()
             && imports
                 .iter()
@@ -666,6 +679,7 @@ struct Entry {
 }
 #[derive(Clone, Default)]
 pub struct ExpandSession {
+    admission: scalar_admission::AdmissionCache,
     environment: Option<Environment>,
     normalization_environment: Option<Arc<Environment>>,
     input_context: Option<InputContext>,
@@ -698,7 +712,7 @@ impl ExpandSession {
         {
             return false;
         }
-        if self.entries.get(&syntax.module.id).is_some_and(|entry| {
+        if let Some(entry) = self.entries.get(&syntax.module.id).filter(|entry| {
             entry.scalar
                 && (limits.max_nodes as u64) >= entry.scalar_nodes
                 && limits.max_call_depth >= entry.scalar_depth_limit
@@ -707,9 +721,17 @@ impl ExpandSession {
                         && parsed.parsed().fits_limits(limits)
                         && scalar_placement::Placement::between(&entry.parsed, parsed).is_some()))
         }) {
+            self.admission.remember(parsed, limits, entry.scalar_nodes);
             return true;
         }
-        scalar(&syntax.module, limits).0
+        if self.admission.classified(parsed, limits).is_some() {
+            return true;
+        }
+        let (eligible, nodes) = scalar(&syntax.module, limits);
+        if eligible {
+            self.admission.remember(parsed, limits, nodes);
+        }
+        eligible
     }
     pub fn expand_parsed(
         &mut self,
@@ -722,6 +744,7 @@ impl ExpandSession {
         self.stats = ProducerStats::default();
         let total = self.profiling.then(Instant::now);
         let result = self.expand_parsed_inner(parsed, imports, limits, target, context);
+        self.admission.finish_request();
         if let Some(start) = total {
             self.stats.total_ns = nanos(start);
             // Before production starts, early fallback/errors belong entirely
@@ -777,6 +800,9 @@ impl ExpandSession {
             } => format!("explicit:{package:?}:{modules:?}"),
             _ => return Ok(None),
         };
+        // A capture admission is single-use, exact-parser-owner and current
+        // context bound. Failure, fallback and unrelated requests consume it.
+        let fused_distribution = self.admission.take_project(parsed, &context_key);
         let mut entries = BTreeMap::new();
         let mut placements = BTreeMap::new();
         for parsed in parsed {
@@ -814,10 +840,15 @@ impl ExpandSession {
                     self.stats.rebound_scalar_modules += 1;
                     (true, nodes)
                 } else {
-                    self.stats.classified_modules += 1;
-                    let (scalar, nodes) = scalar(module, limits);
-                    self.stats.classifier_nodes += nodes;
-                    (scalar, nodes)
+                    if let Some(nodes) = self.admission.classified(parsed, limits) {
+                        self.stats.admission_classifier_hits += 1;
+                        (true, nodes)
+                    } else {
+                        self.stats.classified_modules += 1;
+                        let (scalar, nodes) = scalar(module, limits);
+                        self.stats.classifier_nodes += nodes;
+                        (scalar, nodes)
+                    }
                 };
                 Entry {
                     parsed: parsed.clone(),
@@ -888,6 +919,7 @@ impl ExpandSession {
             limits: limits.clone(),
             target: target.clone(),
             context: context_key,
+            fused_distribution,
         };
         // Detailed invalidation diagnostics are opt-in: normal requests keep
         // the original single Environment equality check and no second header walk.
@@ -1509,6 +1541,12 @@ fn nanos(start: Instant) -> u64 {
     start.elapsed().as_nanos().min(u64::MAX as u128) as u64
 }
 impl Reuse<'_> {
+    pub(super) fn fuse_distribution(&self) -> bool {
+        self.normalization_environment.fused_distribution
+    }
+    pub(super) fn fused_distributed_item(&mut self) {
+        self.stats.fused_distributed_items += 1;
+    }
     pub(super) fn scalar_inventory(
         &mut self,
         budget: &mut generics::Budget<'_>,
@@ -1974,22 +2012,7 @@ fn scalar(module: &s::Module, limits: &Limits) -> (bool, u64) {
             Ok(())
         }
         fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
-            let valid = match &item.kind {
-                s::ItemKind::Import(import) => !import.syntax,
-                s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } => {
-                    function.generics.is_empty()
-                        && function.where_clause.is_empty()
-                        && function.contract.is_empty()
-                }
-                _ => false,
-            };
-            if !valid
-                || item.attributes.iter().any(|a| {
-                    a.path.as_slice() != ["test"]
-                        || !a.arguments.is_empty()
-                        || a.string_value.is_some()
-                })
-            {
+            if !scalar_admission::item_shape(item) {
                 return Err(vec![]);
             }
             ct_selection::walk_item(self, item, depth)
@@ -2003,58 +2026,14 @@ fn scalar(module: &s::Module, limits: &Limits) -> (bool, u64) {
             ct_selection::walk_type(self, ty, depth)
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
-            match &expression.kind {
-                s::ExprKind::Member {
-                    member: s::MemberName::Name(name),
-                    ..
-                } if matches!(name.as_str(), "Poll" | "TaskCreateError" | "TaskPollState") => {
-                    return Err(vec![]);
-                }
-                s::ExprKind::Literal(_)
-                | s::ExprKind::Group(_)
-                | s::ExprKind::Unary { .. }
-                | s::ExprKind::Binary { .. }
-                | s::ExprKind::Pipeline { .. }
-                | s::ExprKind::Member { .. }
-                | s::ExprKind::Call { .. }
-                | s::ExprKind::If { .. } => {}
-                s::ExprKind::Name(name)
-                    if !matches!(
-                        name.as_str(),
-                        "Option"
-                            | "Task"
-                            | "Poll"
-                            | "task_create"
-                            | "TaskCreateError"
-                            | "TaskPollState"
-                    ) => {}
-                _ => return Err(vec![]),
+            if !scalar_admission::expression_shape(expression) {
+                return Err(vec![]);
             }
             ct_selection::walk_expression(self, expression, depth)
         }
         fn statement(&mut self, statement: &s::Stmt, depth: usize) -> CompileResult<()> {
-            match &statement.kind {
-                s::StmtKind::Binding { pattern, .. }
-                    if matches!(
-                        pattern.kind,
-                        s::PatternKind::Name(_) | s::PatternKind::Wildcard
-                    ) => {}
-                s::StmtKind::Return(_)
-                | s::StmtKind::Break
-                | s::StmtKind::Continue
-                | s::StmtKind::If {
-                    condition: s::Condition::Expression(_),
-                    ..
-                }
-                | s::StmtKind::While {
-                    condition: s::Condition::Expression(_),
-                    ..
-                }
-                | s::StmtKind::Loop(_)
-                | s::StmtKind::Unsafe(_)
-                | s::StmtKind::Assign { .. }
-                | s::StmtKind::Expression(_) => {}
-                _ => return Err(vec![]),
+            if !scalar_admission::statement_shape(statement) {
+                return Err(vec![]);
             }
             ct_selection::walk_statement(self, statement, depth)
         }
@@ -2071,6 +2050,9 @@ fn scalar(module: &s::Module, limits: &Limits) -> (bool, u64) {
     (success, scan.nodes)
 }
 
+#[cfg(test)]
+#[path = "scalar_admission_tests.rs"]
+mod scalar_admission_tests;
 #[cfg(test)]
 #[path = "incremental_tests.rs"]
 mod tests;

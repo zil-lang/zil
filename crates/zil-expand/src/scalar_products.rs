@@ -83,6 +83,7 @@ impl NormalizedProduct<'_> {
             // empty const/type/value scopes, top=true and depth=0. There is
             // no ID cursor, import mutation or generated-name cursor here.
             let result = Visitor {
+                scalar_file: reuse.fuse_distribution().then_some(recipe.span().file),
                 default_nominal: None,
                 const_scope: Names::new(),
                 mode: Mode::Normalize(index),

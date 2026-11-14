@@ -273,6 +273,35 @@ impl CompileAttempt {
     }
 }
 
+/// Current CLI capture-cost selection, not a verifier/preflight capability.
+/// Counts describe the LIR lengths actually inspected by this selection only.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeProductSelection {
+    pub enabled: bool,
+    pub reason: &'static str,
+    pub functions_scanned: usize,
+    pub body_functions_counted: usize,
+    pub blocks_scanned: usize,
+    pub lir_instructions_counted: usize,
+    pub minimum_average_lir_instructions: usize,
+    pub counts_saturated: bool,
+}
+impl NativeProductSelection {
+    fn to_json(&self) -> String {
+        format!(
+            "{{\"enabled\":{},\"reason\":{},\"functions_scanned\":{},\"body_functions_counted\":{},\"blocks_scanned\":{},\"lir_instructions_counted\":{},\"minimum_average_lir_instructions\":{},\"counts_saturated\":{},\"scope\":\"current-lir-lengths; optional capture policy, not authorization\"}}",
+            self.enabled,
+            json_string(self.reason),
+            self.functions_scanned,
+            self.body_functions_counted,
+            self.blocks_scanned,
+            self.lir_instructions_counted,
+            self.minimum_average_lir_instructions,
+            self.counts_saturated,
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CompileReport {
     pub status: ResultCategory,
@@ -286,6 +315,8 @@ pub struct CompileReport {
     pub cache_hit: bool,
     pub commands: Vec<Vec<String>>,
     pub native_codegen: Option<CodegenSummary>,
+    /// Final attempt only; None means selection was not reached.
+    pub native_product_selection: Option<Box<NativeProductSelection>>,
     pub disk_cache: DiskCacheStatus,
     pub query_events: Vec<QueryEvent>,
     pub verification_runs: usize,
@@ -344,6 +375,7 @@ impl CompileReport {
             cache_hit: false,
             commands: vec![],
             native_codegen: None,
+            native_product_selection: None,
             disk_cache: DiskCacheStatus::Disabled,
             query_events: vec![],
             verification_runs: 0,
@@ -373,7 +405,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"native_product_selection\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -406,6 +438,7 @@ impl CompileReport {
                 .collect::<Vec<_>>()
                 .join(","),
             self.native_codegen.as_ref().map_or_else(|| "null".into(), CodegenSummary::to_json),
+            self.native_product_selection.as_ref().map_or_else(|| "null".into(), |selection| selection.to_json()),
             json_string(self.disk_cache.as_str()),
             self.query_events
                 .iter()
@@ -512,6 +545,7 @@ impl CompileReport {
         next.initialization_work = None;
         next.verification_work = None;
         next.backend_work = None;
+        next.native_product_selection = None;
         next.lowering_work = None;
         next.phase_timings_ns.clear();
         next.driver_timings_ns.clear();
