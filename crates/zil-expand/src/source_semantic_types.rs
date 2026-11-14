@@ -1280,7 +1280,7 @@ mod self_header_tests {
             FileId(0),
             ModuleId(2),
             "self-header.zil",
-            "resource Mark{let code:i32;}impl Drop for Mark{fn drop(self:Self){}}impl Mark{fn view(self:&Self){}}trait Abstract{fn take(self:Self);}impl<T> T{fn unknown(self:Self){}}",
+            "resource Mark{code:i32}impl Drop for Mark{fn drop(self:Self){}}impl Mark{fn view(self:&Self){}}trait Abstract{fn take(self:Self);}impl<T> T{fn unknown(self:Self){}}",
         );
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let limits = Limits::default();
