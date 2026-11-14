@@ -139,7 +139,11 @@ impl Solver<'_, '_> {
         result
     }
 
-    pub(super) fn original_provider_conformance(&mut self, b: &mut Budget) -> CompileResult<()> {
+    pub(in crate::semantic::original) fn original_provider_conformance(
+        &mut self,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        self.original_associated_declarations(b)?;
         for scope in self.inventory.definitions.values() {
             let SemanticDefinitionBody::Scope(recipe) = &scope.body else {
                 continue;
@@ -291,6 +295,113 @@ impl Solver<'_, '_> {
                     return Err(fail(
                         "original trait provider contains an undeclared member identity",
                     ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn original_associated_declarations(&mut self, b: &mut Budget) -> CompileResult<()> {
+        for scope in self.inventory.definitions.values() {
+            let SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }) =
+                &scope.body
+            else {
+                continue;
+            };
+            let raw = self.inventory.original_dyn(*declaration, b)?;
+            let frame = self.state.frames.get(&scope.id).ok_or_else(|| {
+                fail("original associated declaration has no rigid lexical frame")
+            })?;
+            b.spend(frame.formals.len(), WORK)?;
+            let context = trait_frame(scope.id, frame.formals.clone());
+            let receiver = self.trait_self(&context, SemanticScopeRef::Ancestor(0), b, 0)?;
+            for row in raw
+                .associated_definitions
+                .as_ref()
+                .ok_or_else(|| unknown("original associated declaration inventory is unknown"))?
+            {
+                match raw
+                    .members
+                    .get(row.member as usize)
+                    .map(|member| &member.kind)
+                {
+                    Some(DynMemberKind::Type) => {
+                        b.spend(context.formals.len(), WORK)?;
+                        let projection = self.associated_type(
+                            &context,
+                            receiver,
+                            *declaration,
+                            context.formals.clone(),
+                            row.member,
+                            b,
+                            0,
+                        )?;
+                        let Some(value) = &row.value else {
+                            continue;
+                        };
+                        let DynAssociatedValueRecipe::Type(DynTypePattern::Semantic {
+                            scope: original,
+                            ty,
+                        }) = value
+                        else {
+                            return Err(unknown(
+                                "original associated default needs its complete scoped RHS",
+                            ));
+                        };
+                        if *original != scope.id {
+                            return Err(fail(
+                                "original associated default changes its lexical declaration scope",
+                            ));
+                        }
+                        let result = self.recipe(&context, ty, b, 0)?;
+                        if self.occurs(projection, result, 0, b)? {
+                            return Err(fail(
+                                "original associated default depends on its own unresolved result",
+                            ));
+                        }
+                        b.spend(context.formals.len(), WORK)?;
+                        Self::push(
+                            &mut self.trait_state.associated_values,
+                            (
+                                receiver,
+                                *declaration,
+                                context.formals.clone(),
+                                row.member,
+                                result,
+                            ),
+                            b,
+                        )?;
+                        let result = self.member_bound_needs(&context, &row.requirements, b, 0);
+                        self.trait_state.associated_values.pop();
+                        result?;
+                    }
+                    Some(DynMemberKind::Constant) => {
+                        let Some(DynTypePattern::Semantic {
+                            scope: original,
+                            ty,
+                        }) = &row.carrier
+                        else {
+                            return Err(unknown(
+                                "original associated constant needs its full scoped carrier",
+                            ));
+                        };
+                        if *original != scope.id {
+                            return Err(fail(
+                                "original associated constant carrier changes its declaration scope",
+                            ));
+                        }
+                        self.recipe(&context, ty, b, 0)?;
+                        if row.value.is_some() {
+                            return Err(unknown(
+                                "original associated constant default needs its complete carrier-aware evaluator",
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(fail(
+                            "original associated row has no proper type/constant declaration",
+                        ));
+                    }
                 }
             }
         }

@@ -440,7 +440,7 @@ impl Solver<'_, '_> {
         result
     }
 
-    fn member_bound_needs(
+    pub(super) fn member_bound_needs(
         &mut self,
         frame: &Frame,
         requirements: &[DynObligation],

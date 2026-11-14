@@ -4,6 +4,7 @@ use super::*;
 mod conformance;
 mod methods;
 mod providers;
+mod raw;
 pub(in crate::semantic) use methods::TraitCall;
 
 #[derive(Default)]
@@ -83,7 +84,7 @@ fn declaration_work(row: &DynDeclaration, b: &mut Budget) -> CompileResult<()> {
 }
 
 impl<'a> Inventory<'a> {
-    pub(super) fn original_dyn(
+    pub(in crate::semantic) fn original_dyn(
         &self,
         id: LifeDeclarationId,
         b: &mut Budget,
@@ -367,6 +368,7 @@ impl Solver<'_, '_> {
                 }
             }
         }
+        self.raw_trait_consistency(b)?;
         self.trait_scope_frames(b)?;
         Ok(())
     }

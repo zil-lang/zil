@@ -1252,206 +1252,46 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
-        self.step(depth, b)?;
-        b.lookup(self.indexes.len(), WORK)?;
-        self.indexes
-            .get(&frame.definition)
-            .ok_or_else(|| fail("original expression has no definition index"))?
-            .get_expr(value.id, b)?;
-        if frame.expressions.contains_key(&value.id) {
-            return Err(fail("original expression identity is reused"));
-        }
-        let ty = match &value.kind {
-            CoreExprKind::Integer(text) => self.scalar_literal(text, false, b)?,
-            CoreExprKind::Float(text) => self.scalar_literal(text, true, b)?,
-            CoreExprKind::Literal(value) if value.ty().is_b0_scalar() => {
-                self.atom(value.ty(), b)?
+        let result: CompileResult<Term> = (|| {
+            self.step(depth, b)?;
+            b.lookup(self.indexes.len(), WORK)?;
+            self.indexes
+                .get(&frame.definition)
+                .ok_or_else(|| fail("original expression has no definition index"))?
+                .get_expr(value.id, b)?;
+            if frame.expressions.contains_key(&value.id) {
+                return Err(fail("original expression identity is reused"));
             }
-            CoreExprKind::Bool(_) => self.atom(Type::Bool, b)?,
-            CoreExprKind::Unit => self.atom(Type::Unit, b)?,
-            CoreExprKind::Name(name) => {
-                let mut selected = None;
-                for (index, local) in frame.locals.iter().enumerate().rev() {
-                    b.spend(local.name.len().saturating_add(name.len()), WORK)?;
-                    if local.name == *name {
-                        selected = Some(index);
-                        break;
-                    }
+            let ty = match &value.kind {
+                CoreExprKind::Integer(text) => self.scalar_literal(text, false, b)?,
+                CoreExprKind::Float(text) => self.scalar_literal(text, true, b)?,
+                CoreExprKind::Literal(value) if value.ty().is_b0_scalar() => {
+                    self.atom(value.ty(), b)?
                 }
-                let index = selected.ok_or_else(|| {
-                    fail("original name is not in the complete lexical value context")
-                })?;
-                if index < frame.inherited {
-                    b.lookup(frame.captured.len(), WORK)?;
-                    frame.captured.insert(index, frame.locals[index].ty);
-                }
-                let local = &mut frame.locals[index];
-                if frame.alive {
-                    if !local.initialized {
-                        return Err(fail("original value read is not initialized"));
+                CoreExprKind::Bool(_) => self.atom(Type::Bool, b)?,
+                CoreExprKind::Unit => self.atom(Type::Unit, b)?,
+                CoreExprKind::Name(name) => {
+                    let mut selected = None;
+                    for (index, local) in frame.locals.iter().enumerate().rev() {
+                        b.spend(local.name.len().saturating_add(name.len()), WORK)?;
+                        if local.name == *name {
+                            selected = Some(index);
+                            break;
+                        }
                     }
-                    if local.used || local.borrowed {
-                        Self::push(
-                            &mut self.needs,
-                            Need {
-                                term: local.ty,
-                                predicate: Predicate::Copy,
-                            },
-                            b,
-                        )?;
-                    }
-                    local.used = true;
+                    let index = selected.ok_or_else(|| {
+                        fail("original name is not in the complete lexical value context")
+                    })?;
                     if index < frame.inherited {
-                        Self::push(
-                            &mut self.needs,
-                            Need {
-                                term: local.ty,
-                                predicate: Predicate::Value,
-                            },
-                            b,
-                        )?;
+                        b.lookup(frame.captured.len(), WORK)?;
+                        frame.captured.insert(index, frame.locals[index].ty);
                     }
-                }
-                local.ty
-            }
-            CoreExprKind::Array(values) => {
-                let element = self.var(b)?;
-                for value in values {
-                    let actual = self.expression(frame, value, b, depth + 1)?;
-                    self.unify(actual, element, depth + 1, b)?;
-                }
-                let length = u64::try_from(values.len())
-                    .map_err(|_| resource("original array length exceeds its carrier"))?;
-                let length = self.term(Kind::ConstValue(Constant::Usize(length)), b)?;
-                self.term(Kind::Array { element, length }, b)?
-            }
-            CoreExprKind::Index { object, index } => {
-                self.index_read(frame, object, index, b, depth + 1)?
-            }
-            CoreExprKind::Tuple(fields) => {
-                if fields.is_empty() {
-                    self.atom(Type::Unit, b)?
-                } else {
-                    let mut terms = Vec::new();
-                    for field in fields {
-                        let term = self.expression(frame, field, b, depth + 1)?;
-                        Self::push(&mut terms, term, b)?;
-                    }
-                    self.term(Kind::Tuple(terms), b)?
-                }
-            }
-            CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
-                self.expression(frame, value, b, depth + 1)?
-            }
-            CoreExprKind::NumericConvert {
-                value: input,
-                target,
-            } => {
-                let input = self.expression(frame, input, b, depth + 1)?;
-                let output = self.recipe(frame, target, b, depth + 1)?;
-                // Both endpoints must be numeric under the original Γ. A
-                // selected concrete header cannot make an abstract T numeric.
-                // Actual checked conversion and overflow remain kernel facts.
-                Self::push(&mut self.numeric, input, b)?;
-                Self::push(&mut self.numeric, output, b)?;
-                output
-            }
-            CoreExprKind::IntegerConvert {
-                value: input,
-                target,
-            } => {
-                let input = self.expression(frame, input, b, depth + 1)?;
-                let output = self.recipe(frame, target, b, depth + 1)?;
-                Self::push(&mut self.integers, input, b)?;
-                Self::push(&mut self.integers, output, b)?;
-                Self::push(&mut self.numeric, input, b)?;
-                Self::push(&mut self.numeric, output, b)?;
-                output
-            }
-            CoreExprKind::Ascribed { ty, value } => {
-                let actual = self.expression(frame, value, b, depth + 1)?;
-                let expected = self.recipe(frame, ty, b, depth + 1)?;
-                self.unify(actual, expected, depth + 1, b)?;
-                expected
-            }
-            CoreExprKind::Binary { op, left, right } => {
-                let left = self.expression(frame, left, b, depth + 1)?;
-                let right = self.expression(frame, right, b, depth + 1)?;
-                self.unify(left, right, depth + 1, b)?;
-                match op {
-                    BinaryOp::And | BinaryOp::Or => {
-                        let boolean = self.atom(Type::Bool, b)?;
-                        self.unify(left, boolean, depth + 1, b)?;
-                        boolean
-                    }
-                    BinaryOp::Equal | BinaryOp::NotEqual => {
-                        Self::push(&mut self.scalar_captures, left, b)?;
-                        self.atom(Type::Bool, b)?
-                    }
-                    BinaryOp::Less
-                    | BinaryOp::LessEqual
-                    | BinaryOp::Greater
-                    | BinaryOp::GreaterEqual => {
-                        Self::push(&mut self.numeric, left, b)?;
-                        self.atom(Type::Bool, b)?
-                    }
-                    BinaryOp::AddWrapping
-                    | BinaryOp::SubtractWrapping
-                    | BinaryOp::MultiplyWrapping
-                    | BinaryOp::BitAnd
-                    | BinaryOp::BitOr
-                    | BinaryOp::BitXor
-                    | BinaryOp::ShiftLeft
-                    | BinaryOp::ShiftRight
-                    | BinaryOp::Remainder => {
-                        Self::push(&mut self.integers, left, b)?;
-                        Self::push(&mut self.numeric, left, b)?;
-                        left
-                    }
-                    _ => {
-                        Self::push(&mut self.numeric, left, b)?;
-                        left
-                    }
-                }
-            }
-            CoreExprKind::Unary { op, operand }
-                if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) =>
-            {
-                if matches!(&operand.kind, CoreExprKind::Slice { .. }) {
-                    let term = self.slice_borrow(
-                        frame,
-                        value.id,
-                        operand,
-                        *op == UnaryOp::BorrowMut,
-                        b,
-                        depth + 1,
-                    )?;
-                    b.lookup(frame.expressions.len(), WORK)?;
-                    if frame.expressions.insert(value.id, term).is_some() {
-                        return Err(fail("original range borrow node is reused"));
-                    }
-                    return Ok(term);
-                }
-                let CoreExprKind::Name(name) = &operand.kind else {
-                    return Err(unknown(
-                        "original borrow needs its exact initialized place projection",
-                    ));
-                };
-                let inner = self
-                    .local(frame, name, b)?
-                    .ok_or_else(|| fail("original borrow selects no lexical local"))?;
-                let mut anchor = None;
-                for local in frame.locals.iter().rev() {
-                    b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
-                    if local.name == *name {
+                    let local = &mut frame.locals[index];
+                    if frame.alive {
                         if !local.initialized {
-                            return Err(fail("original borrowed place is uninitialized"));
+                            return Err(fail("original value read is not initialized"));
                         }
-                        if *op == UnaryOp::BorrowMut && !local.mutable {
-                            return Err(fail("original mutable borrow requires a mutable place"));
-                        }
-                        anchor = local.anchor;
-                        if local.used {
+                        if local.used || local.borrowed {
                             Self::push(
                                 &mut self.needs,
                                 Need {
@@ -1461,702 +1301,889 @@ impl Solver<'_, '_> {
                                 b,
                             )?;
                         }
-                        break;
-                    }
-                }
-                let anchor = anchor.ok_or_else(|| {
-                    unknown("original borrow needs its exact parameter or binding anchor")
-                })?;
-                b.lookup(self.state.borrows.len(), WORK)?;
-                if self
-                    .state
-                    .borrows
-                    .insert(
-                        (frame.definition, value.id),
-                        Borrow {
-                            anchor,
-                            inner,
-                            slice: None,
-                        },
-                    )
-                    .is_some()
-                {
-                    return Err(fail(
-                        "original borrow occurrence has competing source binders",
-                    ));
-                }
-                let row = self.borrow_occurrence(frame.definition, value.id, b)?;
-                // Read the original Name's type without moving its occupant.
-                b.spend(frame.expressions.len().saturating_add(1), WORK)?;
-                if frame.expressions.insert(operand.id, inner).is_some() {
-                    return Err(fail("original borrowed place node is reused"));
-                }
-                let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
-                self.term(
-                    Kind::Address {
-                        mutable: *op == UnaryOp::BorrowMut,
-                        life,
-                        inner,
-                    },
-                    b,
-                )?
-            }
-            CoreExprKind::Unary {
-                op: UnaryOp::Give,
-                operand,
-            } => {
-                let value = self.expression(frame, operand, b, depth + 1)?;
-                if !matches!(
-                    self.state.arena[self.type_root(value, b)?],
-                    Kind::Wrapped(Wrapper::Managed, _)
-                ) {
-                    return Err(unknown(
-                        "original give requires its complete actual owning manager category",
-                    ));
-                }
-                value
-            }
-            CoreExprKind::Unary {
-                op: UnaryOp::Dereference,
-                operand,
-            } => {
-                let address = self.expression(frame, operand, b, depth + 1)?;
-                let root = self.root(address, b)?;
-                let Kind::Address { inner, .. } = self.state.arena[root] else {
-                    return Err(fail("original dereference does not select an address"));
-                };
-                Self::push(
-                    &mut self.needs,
-                    Need {
-                        term: inner,
-                        predicate: Predicate::Copy,
-                    },
-                    b,
-                )?;
-                inner
-            }
-            CoreExprKind::Unary { op, operand } => {
-                let mut literal = operand.as_ref();
-                while let CoreExprKind::Group(inner) = &literal.kind {
-                    self.step(depth, b)?;
-                    literal = inner;
-                }
-                let negative =
-                    *op == UnaryOp::Negate && matches!(literal.kind, CoreExprKind::Integer(_));
-                let before = self.literals.len();
-                let operand = self.expression(frame, operand, b, depth + 1)?;
-                if negative && self.literals.len() == before.saturating_add(1) {
-                    self.literals[before].negative_context = true;
-                }
-                match op {
-                    UnaryOp::Not => {
-                        let boolean = self.atom(Type::Bool, b)?;
-                        self.unify(operand, boolean, depth + 1, b)?;
-                        boolean
-                    }
-                    UnaryOp::BitNot => {
-                        Self::push(&mut self.integers, operand, b)?;
-                        Self::push(&mut self.numeric, operand, b)?;
-                        operand
-                    }
-                    UnaryOp::Negate => {
-                        Self::push(&mut self.numeric, operand, b)?;
-                        operand
-                    }
-                    _ => {
-                        return Err(unknown(
-                            "original borrow, dereference or owner transfer needs its complete place and lifetime context",
-                        ));
-                    }
-                }
-            }
-            CoreExprKind::Call { callee, arguments } => {
-                let definition = self.inventory.definition(frame.definition, b)?;
-                let recipe = self.original_site(definition, value.id, b)?;
-                if !matches!(
-                    recipe.kind,
-                    SemanticSiteRecipeKind::OriginalCall
-                        | SemanticSiteRecipeKind::Call { .. }
-                        | SemanticSiteRecipeKind::CallableCall { .. }
-                ) {
-                    return Err(fail("original call is linked to another operation kind"));
-                }
-                if let Some(term) =
-                    self.slice_call(frame, value.id, callee, arguments, b, depth + 1)?
-                {
-                    b.lookup(frame.expressions.len(), WORK)?;
-                    if frame.expressions.insert(value.id, term).is_some() {
-                        return Err(fail("original slice operation node is reused"));
-                    }
-                    return Ok(term);
-                }
-                if let Some(term) =
-                    self.enum_call(frame, value.id, callee, arguments, b, depth + 1)?
-                {
-                    b.lookup(frame.expressions.len(), WORK)?;
-                    if frame.expressions.insert(value.id, term).is_some() {
-                        return Err(fail("original constructor node is reused"));
-                    }
-                    return Ok(term);
-                }
-                if let Some(term) =
-                    self.original_trait_call(frame, value.id, callee, arguments, b, depth + 1)?
-                {
-                    b.lookup(frame.expressions.len(), WORK)?;
-                    if frame.expressions.insert(value.id, term).is_some() {
-                        return Err(fail("original trait call node is reused"));
-                    }
-                    return Ok(term);
-                }
-                let mut head = callee.as_ref();
-                while let CoreExprKind::Group(inner) = &head.kind {
-                    self.step(depth, b)?;
-                    head = inner;
-                }
-                let mut type_written = Vec::new();
-                let (head, written) = match &head.kind {
-                    CoreExprKind::GenericApply { callee, arguments } => {
-                        (callee.as_ref(), arguments.as_slice())
-                    }
-                    CoreExprKind::TypeApply {
-                        callee,
-                        type_arguments,
-                    } => {
-                        for argument in type_arguments {
-                            crate::dyn_metadata::recipe(argument, b)?;
+                        local.used = true;
+                        if index < frame.inherited {
                             Self::push(
-                                &mut type_written,
-                                CoreGenericArgument::Type(argument.clone()),
+                                &mut self.needs,
+                                Need {
+                                    term: local.ty,
+                                    predicate: Predicate::Value,
+                                },
                                 b,
                             )?;
                         }
-                        (callee.as_ref(), type_written.as_slice())
                     }
-                    _ => (head, &[][..]),
-                };
-                if matches!(
-                    head.kind,
-                    CoreExprKind::GenericApply { .. } | CoreExprKind::TypeApply { .. }
-                ) {
-                    return Err(unknown(
-                        "original nested generic application needs every mixed layer interpreted",
-                    ));
+                    local.ty
                 }
-                let local = if let CoreExprKind::Name(name) = &head.kind {
-                    self.local(frame, name, b)?
-                } else {
-                    None
-                };
-                let (parameters, result) = if let Some(local) = local {
-                    if let CoreExprKind::Name(name) = &head.kind {
-                        b.spend(
-                            frame
-                                .locals
-                                .iter()
-                                .map(|local| local.name.len().saturating_add(name.len() + 1))
-                                .sum::<usize>(),
-                            WORK,
-                        )?;
-                        if let Some(index) =
-                            frame.locals.iter().rposition(|local| local.name == *name)
-                            && index < frame.inherited
-                        {
-                            b.lookup(frame.captured.len(), WORK)?;
-                            frame.captured.insert(index, local);
+                CoreExprKind::Array(values) => {
+                    let element = self.var(b)?;
+                    for value in values {
+                        let actual = self.expression(frame, value, b, depth + 1)?;
+                        self.unify(actual, element, depth + 1, b)?;
+                    }
+                    let length = u64::try_from(values.len())
+                        .map_err(|_| resource("original array length exceeds its carrier"))?;
+                    let length = self.term(Kind::ConstValue(Constant::Usize(length)), b)?;
+                    self.term(Kind::Array { element, length }, b)?
+                }
+                CoreExprKind::Index { object, index } => {
+                    self.index_read(frame, object, index, b, depth + 1)?
+                }
+                CoreExprKind::Tuple(fields) => {
+                    if fields.is_empty() {
+                        self.atom(Type::Unit, b)?
+                    } else {
+                        let mut terms = Vec::new();
+                        for field in fields {
+                            let term = self.expression(frame, field, b, depth + 1)?;
+                            Self::push(&mut terms, term, b)?;
+                        }
+                        self.term(Kind::Tuple(terms), b)?
+                    }
+                }
+                CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
+                    self.expression(frame, value, b, depth + 1)?
+                }
+                CoreExprKind::NumericConvert {
+                    value: input,
+                    target,
+                } => {
+                    let input = self.expression(frame, input, b, depth + 1)?;
+                    let output = self.recipe(frame, target, b, depth + 1)?;
+                    // Both endpoints must be numeric under the original Γ. A
+                    // selected concrete header cannot make an abstract T numeric.
+                    // Actual checked conversion and overflow remain kernel facts.
+                    Self::push(&mut self.numeric, input, b)?;
+                    Self::push(&mut self.numeric, output, b)?;
+                    output
+                }
+                CoreExprKind::IntegerConvert {
+                    value: input,
+                    target,
+                } => {
+                    let input = self.expression(frame, input, b, depth + 1)?;
+                    let output = self.recipe(frame, target, b, depth + 1)?;
+                    Self::push(&mut self.integers, input, b)?;
+                    Self::push(&mut self.integers, output, b)?;
+                    Self::push(&mut self.numeric, input, b)?;
+                    Self::push(&mut self.numeric, output, b)?;
+                    output
+                }
+                CoreExprKind::Ascribed { ty, value } => {
+                    let actual = self.expression(frame, value, b, depth + 1)?;
+                    let expected = self.recipe(frame, ty, b, depth + 1)?;
+                    self.unify(actual, expected, depth + 1, b)?;
+                    expected
+                }
+                CoreExprKind::Binary { op, left, right } => {
+                    let left = self.expression(frame, left, b, depth + 1)?;
+                    let right = self.expression(frame, right, b, depth + 1)?;
+                    self.unify(left, right, depth + 1, b)?;
+                    match op {
+                        BinaryOp::And | BinaryOp::Or => {
+                            let boolean = self.atom(Type::Bool, b)?;
+                            self.unify(left, boolean, depth + 1, b)?;
+                            boolean
+                        }
+                        BinaryOp::Equal | BinaryOp::NotEqual => {
+                            Self::push(&mut self.scalar_captures, left, b)?;
+                            self.atom(Type::Bool, b)?
+                        }
+                        BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual => {
+                            Self::push(&mut self.numeric, left, b)?;
+                            self.atom(Type::Bool, b)?
+                        }
+                        BinaryOp::AddWrapping
+                        | BinaryOp::SubtractWrapping
+                        | BinaryOp::MultiplyWrapping
+                        | BinaryOp::BitAnd
+                        | BinaryOp::BitOr
+                        | BinaryOp::BitXor
+                        | BinaryOp::ShiftLeft
+                        | BinaryOp::ShiftRight
+                        | BinaryOp::Remainder => {
+                            Self::push(&mut self.integers, left, b)?;
+                            Self::push(&mut self.numeric, left, b)?;
+                            left
+                        }
+                        _ => {
+                            Self::push(&mut self.numeric, left, b)?;
+                            left
                         }
                     }
-                    if !written.is_empty() {
+                }
+                CoreExprKind::Unary { op, operand }
+                    if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) =>
+                {
+                    if matches!(&operand.kind, CoreExprKind::Slice { .. }) {
+                        let term = self.slice_borrow(
+                            frame,
+                            value.id,
+                            operand,
+                            *op == UnaryOp::BorrowMut,
+                            b,
+                            depth + 1,
+                        )?;
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(value.id, term).is_some() {
+                            return Err(fail("original range borrow node is reused"));
+                        }
+                        return Ok(term);
+                    }
+                    let CoreExprKind::Name(name) = &operand.kind else {
                         return Err(unknown(
-                            "original generic callable needs its complete method instantiation",
+                            "original borrow needs its exact initialized place projection",
+                        ));
+                    };
+                    let inner = self
+                        .local(frame, name, b)?
+                        .ok_or_else(|| fail("original borrow selects no lexical local"))?;
+                    let mut anchor = None;
+                    for local in frame.locals.iter().rev() {
+                        b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
+                        if local.name == *name {
+                            if !local.initialized {
+                                return Err(fail("original borrowed place is uninitialized"));
+                            }
+                            if *op == UnaryOp::BorrowMut && !local.mutable {
+                                return Err(fail(
+                                    "original mutable borrow requires a mutable place",
+                                ));
+                            }
+                            anchor = local.anchor;
+                            if local.used {
+                                Self::push(
+                                    &mut self.needs,
+                                    Need {
+                                        term: local.ty,
+                                        predicate: Predicate::Copy,
+                                    },
+                                    b,
+                                )?;
+                            }
+                            break;
+                        }
+                    }
+                    let anchor = anchor.ok_or_else(|| {
+                        unknown("original borrow needs its exact parameter or binding anchor")
+                    })?;
+                    b.lookup(self.state.borrows.len(), WORK)?;
+                    if self
+                        .state
+                        .borrows
+                        .insert(
+                            (frame.definition, value.id),
+                            Borrow {
+                                anchor,
+                                inner,
+                                slice: None,
+                            },
+                        )
+                        .is_some()
+                    {
+                        return Err(fail(
+                            "original borrow occurrence has competing source binders",
                         ));
                     }
-                    if let Some((parameters, result)) =
-                        self.abstract_scheme(frame, head, value.id, local, b, depth + 1)?
+                    let row = self.borrow_occurrence(frame.definition, value.id, b)?;
+                    // Read the original Name's type without moving its occupant.
+                    b.spend(frame.expressions.len().saturating_add(1), WORK)?;
+                    if frame.expressions.insert(operand.id, inner).is_some() {
+                        return Err(fail("original borrowed place node is reused"));
+                    }
+                    let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+                    self.term(
+                        Kind::Address {
+                            mutable: *op == UnaryOp::BorrowMut,
+                            life,
+                            inner,
+                        },
+                        b,
+                    )?
+                }
+                CoreExprKind::Unary {
+                    op: UnaryOp::Give,
+                    operand,
+                } => {
+                    let value = self.expression(frame, operand, b, depth + 1)?;
+                    if !matches!(
+                        self.state.arena[self.type_root(value, b)?],
+                        Kind::Wrapped(Wrapper::Managed, _)
+                    ) {
+                        return Err(unknown(
+                            "original give requires its complete actual owning manager category",
+                        ));
+                    }
+                    value
+                }
+                CoreExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    operand,
+                } => {
+                    let address = self.expression(frame, operand, b, depth + 1)?;
+                    let root = self.root(address, b)?;
+                    let Kind::Address { inner, .. } = self.state.arena[root] else {
+                        return Err(fail("original dereference does not select an address"));
+                    };
+                    Self::push(
+                        &mut self.needs,
+                        Need {
+                            term: inner,
+                            predicate: Predicate::Copy,
+                        },
+                        b,
+                    )?;
+                    inner
+                }
+                CoreExprKind::Unary { op, operand } => {
+                    let mut literal = operand.as_ref();
+                    while let CoreExprKind::Group(inner) = &literal.kind {
+                        self.step(depth, b)?;
+                        literal = inner;
+                    }
+                    let negative =
+                        *op == UnaryOp::Negate && matches!(literal.kind, CoreExprKind::Integer(_));
+                    let before = self.literals.len();
+                    let operand = self.expression(frame, operand, b, depth + 1)?;
+                    if negative && self.literals.len() == before.saturating_add(1) {
+                        self.literals[before].negative_context = true;
+                    }
+                    match op {
+                        UnaryOp::Not => {
+                            let boolean = self.atom(Type::Bool, b)?;
+                            self.unify(operand, boolean, depth + 1, b)?;
+                            boolean
+                        }
+                        UnaryOp::BitNot => {
+                            Self::push(&mut self.integers, operand, b)?;
+                            Self::push(&mut self.numeric, operand, b)?;
+                            operand
+                        }
+                        UnaryOp::Negate => {
+                            Self::push(&mut self.numeric, operand, b)?;
+                            operand
+                        }
+                        _ => {
+                            return Err(unknown(
+                                "original borrow, dereference or owner transfer needs its complete place and lifetime context",
+                            ));
+                        }
+                    }
+                }
+                CoreExprKind::Call { callee, arguments } => {
+                    let definition = self.inventory.definition(frame.definition, b)?;
+                    let recipe = self.original_site(definition, value.id, b)?;
+                    if !matches!(
+                        recipe.kind,
+                        SemanticSiteRecipeKind::OriginalCall
+                            | SemanticSiteRecipeKind::Call { .. }
+                            | SemanticSiteRecipeKind::CallableCall { .. }
+                    ) {
+                        return Err(fail("original call is linked to another operation kind"));
+                    }
+                    if let Some(term) =
+                        self.slice_call(frame, value.id, callee, arguments, b, depth + 1)?
                     {
-                        (parameters, result)
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(value.id, term).is_some() {
+                            return Err(fail("original slice operation node is reused"));
+                        }
+                        return Ok(term);
+                    }
+                    if let Some(term) =
+                        self.enum_call(frame, value.id, callee, arguments, b, depth + 1)?
+                    {
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(value.id, term).is_some() {
+                            return Err(fail("original constructor node is reused"));
+                        }
+                        return Ok(term);
+                    }
+                    if let Some(term) =
+                        self.original_trait_call(frame, value.id, callee, arguments, b, depth + 1)?
+                    {
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(value.id, term).is_some() {
+                            return Err(fail("original trait call node is reused"));
+                        }
+                        return Ok(term);
+                    }
+                    let mut head = callee.as_ref();
+                    while let CoreExprKind::Group(inner) = &head.kind {
+                        self.step(depth, b)?;
+                        head = inner;
+                    }
+                    let mut type_written = Vec::new();
+                    let (head, written) = match &head.kind {
+                        CoreExprKind::GenericApply { callee, arguments } => {
+                            (callee.as_ref(), arguments.as_slice())
+                        }
+                        CoreExprKind::TypeApply {
+                            callee,
+                            type_arguments,
+                        } => {
+                            for argument in type_arguments {
+                                crate::dyn_metadata::recipe(argument, b)?;
+                                Self::push(
+                                    &mut type_written,
+                                    CoreGenericArgument::Type(argument.clone()),
+                                    b,
+                                )?;
+                            }
+                            (callee.as_ref(), type_written.as_slice())
+                        }
+                        _ => (head, &[][..]),
+                    };
+                    if matches!(
+                        head.kind,
+                        CoreExprKind::GenericApply { .. } | CoreExprKind::TypeApply { .. }
+                    ) {
+                        return Err(unknown(
+                            "original nested generic application needs every mixed layer interpreted",
+                        ));
+                    }
+                    let local = if let CoreExprKind::Name(name) = &head.kind {
+                        self.local(frame, name, b)?
                     } else {
-                        let mut local = self.root(local, b)?;
-                        for _ in 0..=b.partial_depth {
-                            if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
-                                local = self.root(hidden, b)?;
-                            } else {
-                                break;
-                            }
-                        }
-                        b.spend(
-                            match &self.state.arena[local] {
-                                Kind::Closure {
-                                    parameters,
-                                    environment,
-                                    ..
-                                } => parameters.len().saturating_add(environment.len() + 1),
-                                _ => 1,
-                            },
-                            WORK,
-                        )?;
-                        let Kind::Closure {
-                            definition: target,
-                            parameters,
-                            result,
-                            ..
-                        } = self.state.arena[local].clone()
-                        else {
-                            return Err(unknown(
-                                "original indirect call needs its full callable premise",
-                            ));
-                        };
-                        let declaration = self.inventory.definition(target, b)?;
-                        let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
-                            &declaration.body
-                        else {
-                            return Err(fail(
-                                "original local callable has no full declared invocation signature",
-                            ));
-                        };
-                        let lives = self.invocation_actuals(signature.invocation_lifetimes, b)?;
-                        let mut opened = Vec::new();
-                        for parameter in parameters {
-                            let parameter =
-                                self.open_invocations(parameter, target, &lives, b, depth + 1)?;
-                            Self::push(&mut opened, parameter, b)?;
-                        }
-                        let parameters = opened;
-                        let result = self.open_invocations(result, target, &lives, b, depth + 1)?;
-                        b.spend(
-                            self.state.calls.len().saturating_add(parameters.len() + 1),
-                            WORK,
-                        )?;
-                        self.state.calls.insert(
-                            (frame.definition, value.id),
-                            Call {
-                                target,
-                                actuals: Vec::new(),
-                                parameters: parameters.clone(),
-                                closure: true,
-                            },
-                        );
-                        (parameters, result)
-                    }
-                } else {
-                    let path = sealed::path(head, b, depth + 1)?.ok_or_else(|| {
-                        unknown("original expression call needs its full source resolution")
-                    })?;
-                    // A qualified lexical path is resolved by its complete
-                    // Names binding. A value root shadows every static path;
-                    // neither a member spelling nor ABI shape selects code.
-                    let mut names = BTreeSet::new();
-                    for local in &frame.locals {
-                        b.spend(local.name.len().saturating_add(names.len() + 1), WORK)?;
-                        names.insert(local.name.clone());
-                    }
-                    let resolution =
-                        sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
-                    match resolution {
-                        sealed::Resolution::Intrinsic(
-                            id @ (sealed::Intrinsic::BytesNew
-                            | sealed::Intrinsic::BytesReserve
-                            | sealed::Intrinsic::BytesPush
-                            | sealed::Intrinsic::BytesTruncate
-                            | sealed::Intrinsic::BytesLen
-                            | sealed::Intrinsic::BytesCapacity),
-                        ) => {
-                            let result = self.buffer_call(
-                                frame,
-                                value.id,
-                                id,
-                                written,
-                                arguments,
-                                b,
-                                depth + 1,
-                            )?;
-                            b.lookup(frame.expressions.len(), WORK)?;
-                            if frame.expressions.insert(value.id, result).is_some() {
-                                return Err(fail("original ByteBuffer call node is reused"));
-                            }
-                            return Ok(result);
-                        }
-                        sealed::Resolution::Intrinsic(
-                            id @ (sealed::Intrinsic::Register | sealed::Intrinsic::RegisterAsync),
-                        ) => {
-                            let result = self.registration_start(
-                                frame,
-                                value.id,
-                                id,
-                                written,
-                                arguments,
-                                b,
-                                depth + 1,
-                            )?;
-                            b.lookup(frame.expressions.len(), WORK)?;
-                            if frame.expressions.insert(value.id, result).is_some() {
-                                return Err(fail(
-                                    "original registration installation node is reused",
-                                ));
-                            }
-                            return Ok(result);
-                        }
-                        sealed::Resolution::Intrinsic(
-                            id @ (sealed::Intrinsic::AsyncRequest
-                            | sealed::Intrinsic::AsyncPoll
-                            | sealed::Intrinsic::AsyncFinish
-                            | sealed::Intrinsic::AsyncFinishChecked
-                            | sealed::Intrinsic::AsyncValid
-                            | sealed::Intrinsic::RegistrationValid
-                            | sealed::Intrinsic::RegistrationClose),
-                        ) => {
-                            let result = self.registration_call(
-                                frame,
-                                value.id,
-                                id,
-                                written,
-                                arguments,
-                                b,
-                                depth + 1,
-                            )?;
-                            b.lookup(frame.expressions.len(), WORK)?;
-                            if frame.expressions.insert(value.id, result).is_some() {
-                                return Err(fail("original registration call node is reused"));
-                            }
-                            return Ok(result);
-                        }
-                        sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskYield) => {
-                            if !written.is_empty() || !arguments.is_empty() {
-                                return Err(fail(
-                                    "original task_yield has neither generic nor value arguments",
-                                ));
-                            }
-                            b.lookup(self.state.intrinsics.len(), WORK)?;
-                            if self
-                                .state
-                                .intrinsics
-                                .insert((frame.definition, value.id), sealed::Intrinsic::TaskYield)
-                                .is_some()
-                            {
-                                return Err(fail(
-                                    "original core operation has competing scheme resolutions",
-                                ));
-                            }
-                            (Vec::new(), self.atom(Type::Unit, b)?)
-                        }
-                        sealed::Resolution::Intrinsic(
-                            id @ sealed::Intrinsic::NumericConvert(number),
-                        ) => {
-                            if !written.is_empty() || arguments.len() != 1 {
-                                return Err(fail(
-                                    "original numeric conversion changes its closed source scheme",
-                                ));
-                            }
-                            let input = self.var(b)?;
-                            Self::push(&mut self.numeric, input, b)?;
-                            b.lookup(self.state.intrinsics.len(), WORK)?;
-                            if self
-                                .state
-                                .intrinsics
-                                .insert((frame.definition, value.id), id)
-                                .is_some()
-                            {
-                                return Err(fail(
-                                    "original numeric conversion has competing resolutions",
-                                ));
-                            }
-                            b.lookup(self.state.intrinsic_inputs.len(), WORK)?;
-                            self.state
-                                .intrinsic_inputs
-                                .insert((frame.definition, value.id), vec![input]);
-                            (vec![input], self.atom(number.ty(), b)?)
-                        }
-                        sealed::Resolution::Intrinsic(_) => {
-                            return Err(unknown(
-                                "original core operation needs its complete parameter, mode and cleanup scheme",
-                            ));
-                        }
-                        sealed::Resolution::Definition(target) => {
-                            let (actuals, parameters, result) =
-                                self.scheme(frame, target, written, b, depth + 1)?;
+                        None
+                    };
+                    let (parameters, result) = if let Some(local) = local {
+                        if let CoreExprKind::Name(name) = &head.kind {
                             b.spend(
-                                self.state
-                                    .calls
-                                    .len()
-                                    .saturating_add(actuals.len())
-                                    .saturating_add(parameters.len()),
+                                frame
+                                    .locals
+                                    .iter()
+                                    .map(|local| local.name.len().saturating_add(name.len() + 1))
+                                    .sum::<usize>(),
+                                WORK,
+                            )?;
+                            if let Some(index) =
+                                frame.locals.iter().rposition(|local| local.name == *name)
+                                && index < frame.inherited
+                            {
+                                b.lookup(frame.captured.len(), WORK)?;
+                                frame.captured.insert(index, local);
+                            }
+                        }
+                        if !written.is_empty() {
+                            return Err(unknown(
+                                "original generic callable needs its complete method instantiation",
+                            ));
+                        }
+                        if let Some((parameters, result)) =
+                            self.abstract_scheme(frame, head, value.id, local, b, depth + 1)?
+                        {
+                            (parameters, result)
+                        } else {
+                            let mut local = self.root(local, b)?;
+                            for _ in 0..=b.partial_depth {
+                                if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
+                                    local = self.root(hidden, b)?;
+                                } else {
+                                    break;
+                                }
+                            }
+                            b.spend(
+                                match &self.state.arena[local] {
+                                    Kind::Closure {
+                                        parameters,
+                                        environment,
+                                        ..
+                                    } => parameters.len().saturating_add(environment.len() + 1),
+                                    _ => 1,
+                                },
+                                WORK,
+                            )?;
+                            let Kind::Closure {
+                                definition: target,
+                                parameters,
+                                result,
+                                ..
+                            } = self.state.arena[local].clone()
+                            else {
+                                return Err(unknown(
+                                    "original indirect call needs its full callable premise",
+                                ));
+                            };
+                            let declaration = self.inventory.definition(target, b)?;
+                            let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                                &declaration.body
+                            else {
+                                return Err(fail(
+                                    "original local callable has no full declared invocation signature",
+                                ));
+                            };
+                            let lives =
+                                self.invocation_actuals(signature.invocation_lifetimes, b)?;
+                            let mut opened = Vec::new();
+                            for parameter in parameters {
+                                let parameter =
+                                    self.open_invocations(parameter, target, &lives, b, depth + 1)?;
+                                Self::push(&mut opened, parameter, b)?;
+                            }
+                            let parameters = opened;
+                            let result =
+                                self.open_invocations(result, target, &lives, b, depth + 1)?;
+                            b.spend(
+                                self.state.calls.len().saturating_add(parameters.len() + 1),
                                 WORK,
                             )?;
                             self.state.calls.insert(
                                 (frame.definition, value.id),
                                 Call {
                                     target,
-                                    actuals,
+                                    actuals: Vec::new(),
                                     parameters: parameters.clone(),
-                                    closure: false,
+                                    closure: true,
                                 },
                             );
                             (parameters, result)
                         }
-                        sealed::Resolution::Deferred => {
-                            return Err(unknown(
-                                "original call has no complete lexical declaration or core scheme",
-                            ));
-                        }
-                    }
-                };
-                if parameters.len() != arguments.len() {
-                    return Err(fail(
-                        "original call value arity differs from its declared scheme",
-                    ));
-                }
-                for (argument, parameter) in arguments.iter().zip(parameters) {
-                    self.call_argument(frame, argument, parameter, b, depth + 1)?;
-                }
-                self.finish_abstract_call(frame.definition, value.id, b)?;
-                b.lookup(self.state.intrinsics.len(), WORK)?;
-                if self
-                    .state
-                    .intrinsics
-                    .contains_key(&(frame.definition, value.id))
-                    || self
-                        .state
-                        .abstract_calls
-                        .contains_key(&(frame.definition, value.id))
-                {
-                    // Unit has no hidden callee result domain. Its actual opcode
-                    // is bound separately at this exact original call site.
-                    result
-                } else {
-                    self.term(
-                        Kind::CallResult {
-                            caller: frame.definition,
-                            node: value.id,
-                            hidden: result,
-                        },
-                        b,
-                    )?
-                }
-            }
-            CoreExprKind::Record { ty, fields } => {
-                let term = self.recipe(frame, ty, b, depth + 1)?;
-                self.record_fields(frame, term, fields, true, b, depth + 1)?;
-                term
-            }
-            CoreExprKind::RecordUpdate { ty, base, fields } => {
-                let term = self.expression(frame, base, b, depth + 1)?;
-                if let Some(ty) = ty {
-                    let ty = self.recipe(frame, ty, b, depth + 1)?;
-                    self.unify(term, ty, depth + 1, b)?;
-                }
-                self.record_fields(frame, term, fields, false, b, depth + 1)?;
-                term
-            }
-            CoreExprKind::Member {
-                object,
-                member,
-                owner,
-            } => {
-                if let Some(term) = self.copy_member(frame, object, member, owner, b, depth + 1)? {
-                    b.lookup(frame.expressions.len(), WORK)?;
-                    if frame.expressions.insert(value.id, term).is_some() {
-                        return Err(fail("original Copy-field node is reused"));
-                    }
-                    return Ok(term);
-                }
-                let term = self.expression(frame, object, b, depth + 1)?;
-                if let Some(owner) = owner {
-                    let owner = self.recipe(frame, owner, b, depth + 1)?;
-                    self.unify(term, owner, depth + 1, b)?;
-                }
-                self.member(term, member, b, depth + 1)?
-            }
-            CoreExprKind::Closure {
-                parameters,
-                return_type,
-                body,
-                move_capture,
-            } => {
-                let definition = self.inventory.definition(frame.definition, b)?;
-                let recipe = self.original_site(definition, value.id, b)?;
-                let SemanticSiteRecipeKind::Closure {
-                    definition: target, ..
-                } = recipe.kind
-                else {
-                    return Err(fail(
-                        "original closure node is linked to another operation kind",
-                    ));
-                };
-                let child = self.inventory.definition(target, b)?;
-                if child.parent != Some(frame.definition)
-                    || child.kind != SemanticDefinitionKind::Closure
-                {
-                    return Err(fail(
-                        "original closure changes its lexical declaration owner",
-                    ));
-                }
-                b.spend(self.creators.len().saturating_add(1), WORK)?;
-                if self
-                    .creators
-                    .insert(target, (frame.definition, value.id))
-                    .is_some()
-                {
-                    return Err(fail(
-                        "one original closure declaration has multiple creation nodes",
-                    ));
-                }
-                // Until complete symbolic ownership/class domains are handled,
-                // abstract owning captures cannot become scalar environments.
-                let mut names = Vec::new();
-                for local in &frame.locals {
-                    b.spend(local.name.len(), WORK)?;
-                    Self::push(&mut names, (local.name.clone(), local.ty), b)?;
-                }
-                b.spend(self.state.names_at.len().saturating_add(1), WORK)?;
-                if self
-                    .state
-                    .names_at
-                    .insert((frame.definition, value.id), names)
-                    .is_some()
-                {
-                    return Err(fail("original creator lexical point is reused"));
-                }
-                self.snapshot(frame, b)?;
-                let term = self.function(target, Some(&frame.locals), b, depth + 1)?;
-                let captured = &self
-                    .state
-                    .frames
-                    .get(&target)
-                    .ok_or_else(|| fail("original child capture footprint is absent"))?
-                    .captured;
-                b.spend(captured.len(), WORK)?;
-                let captures = captured
-                    .iter()
-                    .map(|(index, ty)| (*index, *ty))
-                    .collect::<Vec<_>>();
-                for (index, ty) in captures {
-                    if index < frame.inherited {
-                        b.lookup(frame.captured.len(), WORK)?;
-                        frame.captured.insert(index, ty);
-                    }
-                    if *move_capture {
-                        let local = frame.locals.get(index).ok_or_else(|| {
-                            fail("original move capture loses its parent lexical binding")
+                    } else {
+                        let path = sealed::path(head, b, depth + 1)?.ok_or_else(|| {
+                            unknown("original expression call needs its full source resolution")
                         })?;
-                        if !local.initialized {
-                            return Err(fail(
-                                "original move capture reads an uninitialized parent binding",
-                            ));
+                        // A qualified lexical path is resolved by its complete
+                        // Names binding. A value root shadows every static path;
+                        // neither a member spelling nor ABI shape selects code.
+                        let mut names = BTreeSet::new();
+                        for local in &frame.locals {
+                            b.spend(local.name.len().saturating_add(names.len() + 1), WORK)?;
+                            names.insert(local.name.clone());
                         }
-                        if local.used || local.borrowed {
+                        let resolution =
+                            sealed::resolve(self.inventory, frame.definition, &path, &names, b)?;
+                        match resolution {
+                            sealed::Resolution::Intrinsic(
+                                id @ (sealed::Intrinsic::BytesNew
+                                | sealed::Intrinsic::BytesReserve
+                                | sealed::Intrinsic::BytesPush
+                                | sealed::Intrinsic::BytesTruncate
+                                | sealed::Intrinsic::BytesLen
+                                | sealed::Intrinsic::BytesCapacity),
+                            ) => {
+                                let result = self.buffer_call(
+                                    frame,
+                                    value.id,
+                                    id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail("original ByteBuffer call node is reused"));
+                                }
+                                return Ok(result);
+                            }
+                            sealed::Resolution::Intrinsic(
+                                id @ (sealed::Intrinsic::Register
+                                | sealed::Intrinsic::RegisterAsync),
+                            ) => {
+                                let result = self.registration_start(
+                                    frame,
+                                    value.id,
+                                    id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail(
+                                        "original registration installation node is reused",
+                                    ));
+                                }
+                                return Ok(result);
+                            }
+                            sealed::Resolution::Intrinsic(
+                                id @ (sealed::Intrinsic::AsyncRequest
+                                | sealed::Intrinsic::AsyncPoll
+                                | sealed::Intrinsic::AsyncFinish
+                                | sealed::Intrinsic::AsyncFinishChecked
+                                | sealed::Intrinsic::AsyncValid
+                                | sealed::Intrinsic::RegistrationValid
+                                | sealed::Intrinsic::RegistrationClose),
+                            ) => {
+                                let result = self.registration_call(
+                                    frame,
+                                    value.id,
+                                    id,
+                                    written,
+                                    arguments,
+                                    b,
+                                    depth + 1,
+                                )?;
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.insert(value.id, result).is_some() {
+                                    return Err(fail("original registration call node is reused"));
+                                }
+                                return Ok(result);
+                            }
+                            sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskYield) => {
+                                if !written.is_empty() || !arguments.is_empty() {
+                                    return Err(fail(
+                                        "original task_yield has neither generic nor value arguments",
+                                    ));
+                                }
+                                b.lookup(self.state.intrinsics.len(), WORK)?;
+                                if self
+                                    .state
+                                    .intrinsics
+                                    .insert(
+                                        (frame.definition, value.id),
+                                        sealed::Intrinsic::TaskYield,
+                                    )
+                                    .is_some()
+                                {
+                                    return Err(fail(
+                                        "original core operation has competing scheme resolutions",
+                                    ));
+                                }
+                                (Vec::new(), self.atom(Type::Unit, b)?)
+                            }
+                            sealed::Resolution::Intrinsic(
+                                id @ sealed::Intrinsic::NumericConvert(number),
+                            ) => {
+                                if !written.is_empty() || arguments.len() != 1 {
+                                    return Err(fail(
+                                        "original numeric conversion changes its closed source scheme",
+                                    ));
+                                }
+                                let input = self.var(b)?;
+                                Self::push(&mut self.numeric, input, b)?;
+                                b.lookup(self.state.intrinsics.len(), WORK)?;
+                                if self
+                                    .state
+                                    .intrinsics
+                                    .insert((frame.definition, value.id), id)
+                                    .is_some()
+                                {
+                                    return Err(fail(
+                                        "original numeric conversion has competing resolutions",
+                                    ));
+                                }
+                                b.lookup(self.state.intrinsic_inputs.len(), WORK)?;
+                                self.state
+                                    .intrinsic_inputs
+                                    .insert((frame.definition, value.id), vec![input]);
+                                (vec![input], self.atom(number.ty(), b)?)
+                            }
+                            sealed::Resolution::Intrinsic(_) => {
+                                return Err(unknown(
+                                    "original core operation needs its complete parameter, mode and cleanup scheme",
+                                ));
+                            }
+                            sealed::Resolution::Definition(target) => {
+                                let (actuals, parameters, result) =
+                                    self.scheme(frame, target, written, b, depth + 1)?;
+                                b.spend(
+                                    self.state
+                                        .calls
+                                        .len()
+                                        .saturating_add(actuals.len())
+                                        .saturating_add(parameters.len()),
+                                    WORK,
+                                )?;
+                                self.state.calls.insert(
+                                    (frame.definition, value.id),
+                                    Call {
+                                        target,
+                                        actuals,
+                                        parameters: parameters.clone(),
+                                        closure: false,
+                                    },
+                                );
+                                (parameters, result)
+                            }
+                            sealed::Resolution::Deferred => {
+                                return Err(unknown(
+                                    "original call has no complete lexical declaration or core scheme",
+                                ));
+                            }
+                        }
+                    };
+                    if parameters.len() != arguments.len() {
+                        return Err(fail(
+                            "original call value arity differs from its declared scheme",
+                        ));
+                    }
+                    for (argument, parameter) in arguments.iter().zip(parameters) {
+                        self.call_argument(frame, argument, parameter, b, depth + 1)?;
+                    }
+                    self.finish_abstract_call(frame.definition, value.id, b)?;
+                    b.lookup(self.state.intrinsics.len(), WORK)?;
+                    if self
+                        .state
+                        .intrinsics
+                        .contains_key(&(frame.definition, value.id))
+                        || self
+                            .state
+                            .abstract_calls
+                            .contains_key(&(frame.definition, value.id))
+                    {
+                        // Unit has no hidden callee result domain. Its actual opcode
+                        // is bound separately at this exact original call site.
+                        result
+                    } else {
+                        self.term(
+                            Kind::CallResult {
+                                caller: frame.definition,
+                                node: value.id,
+                                hidden: result,
+                            },
+                            b,
+                        )?
+                    }
+                }
+                CoreExprKind::Record { ty, fields } => {
+                    let term = self.recipe(frame, ty, b, depth + 1)?;
+                    self.record_fields(frame, term, fields, true, b, depth + 1)?;
+                    term
+                }
+                CoreExprKind::RecordUpdate { ty, base, fields } => {
+                    let term = self.expression(frame, base, b, depth + 1)?;
+                    if let Some(ty) = ty {
+                        let ty = self.recipe(frame, ty, b, depth + 1)?;
+                        self.unify(term, ty, depth + 1, b)?;
+                    }
+                    self.record_fields(frame, term, fields, false, b, depth + 1)?;
+                    term
+                }
+                CoreExprKind::Member {
+                    object,
+                    member,
+                    owner,
+                } => {
+                    if let Some(term) =
+                        self.copy_member(frame, object, member, owner, b, depth + 1)?
+                    {
+                        b.lookup(frame.expressions.len(), WORK)?;
+                        if frame.expressions.insert(value.id, term).is_some() {
+                            return Err(fail("original Copy-field node is reused"));
+                        }
+                        return Ok(term);
+                    }
+                    let term = self.expression(frame, object, b, depth + 1)?;
+                    if let Some(owner) = owner {
+                        let owner = self.recipe(frame, owner, b, depth + 1)?;
+                        self.unify(term, owner, depth + 1, b)?;
+                    }
+                    self.member(term, member, b, depth + 1)?
+                }
+                CoreExprKind::Closure {
+                    parameters,
+                    return_type,
+                    body,
+                    move_capture,
+                } => {
+                    let definition = self.inventory.definition(frame.definition, b)?;
+                    let recipe = self.original_site(definition, value.id, b)?;
+                    let SemanticSiteRecipeKind::Closure {
+                        definition: target, ..
+                    } = recipe.kind
+                    else {
+                        return Err(fail(
+                            "original closure node is linked to another operation kind",
+                        ));
+                    };
+                    let child = self.inventory.definition(target, b)?;
+                    if child.parent != Some(frame.definition)
+                        || child.kind != SemanticDefinitionKind::Closure
+                    {
+                        return Err(fail(
+                            "original closure changes its lexical declaration owner",
+                        ));
+                    }
+                    b.spend(self.creators.len().saturating_add(1), WORK)?;
+                    if self
+                        .creators
+                        .insert(target, (frame.definition, value.id))
+                        .is_some()
+                    {
+                        return Err(fail(
+                            "one original closure declaration has multiple creation nodes",
+                        ));
+                    }
+                    // Until complete symbolic ownership/class domains are handled,
+                    // abstract owning captures cannot become scalar environments.
+                    let mut names = Vec::new();
+                    for local in &frame.locals {
+                        b.spend(local.name.len(), WORK)?;
+                        Self::push(&mut names, (local.name.clone(), local.ty), b)?;
+                    }
+                    b.spend(self.state.names_at.len().saturating_add(1), WORK)?;
+                    if self
+                        .state
+                        .names_at
+                        .insert((frame.definition, value.id), names)
+                        .is_some()
+                    {
+                        return Err(fail("original creator lexical point is reused"));
+                    }
+                    self.snapshot(frame, b)?;
+                    let term = self.function(target, Some(&frame.locals), b, depth + 1)?;
+                    let captured = &self
+                        .state
+                        .frames
+                        .get(&target)
+                        .ok_or_else(|| fail("original child capture footprint is absent"))?
+                        .captured;
+                    b.spend(captured.len(), WORK)?;
+                    let captures = captured
+                        .iter()
+                        .map(|(index, ty)| (*index, *ty))
+                        .collect::<Vec<_>>();
+                    for (index, ty) in captures {
+                        if index < frame.inherited {
+                            b.lookup(frame.captured.len(), WORK)?;
+                            frame.captured.insert(index, ty);
+                        }
+                        if *move_capture {
+                            let local = frame.locals.get(index).ok_or_else(|| {
+                                fail("original move capture loses its parent lexical binding")
+                            })?;
+                            if !local.initialized {
+                                return Err(fail(
+                                    "original move capture reads an uninitialized parent binding",
+                                ));
+                            }
+                            if local.used || local.borrowed {
+                                Self::push(
+                                    &mut self.needs,
+                                    Need {
+                                        term: ty,
+                                        predicate: Predicate::Copy,
+                                    },
+                                    b,
+                                )?;
+                            }
                             Self::push(
                                 &mut self.needs,
                                 Need {
                                     term: ty,
-                                    predicate: Predicate::Copy,
+                                    predicate: Predicate::Value,
                                 },
                                 b,
                             )?;
-                        }
-                        Self::push(
-                            &mut self.needs,
-                            Need {
-                                term: ty,
-                                predicate: Predicate::Value,
-                            },
-                            b,
-                        )?;
-                        if frame.alive {
-                            frame.locals[index].used = true;
+                            if frame.alive {
+                                frame.locals[index].used = true;
+                            }
                         }
                     }
-                }
-                let root = self.root(term, b)?;
-                let Kind::Closure {
-                    parameters: expected,
-                    result,
-                    ..
-                } = &self.state.arena[root]
-                else {
-                    return Err(fail("original child declaration has no callable type"));
-                };
-                b.spend(expected.len() + 1, WORK)?;
-                let expected = expected.clone();
-                let result = *result;
-                if expected.len() != parameters.len() {
-                    return Err(fail(
-                        "original closure literal changes the child parameter arity",
-                    ));
-                }
-                let SemanticDefinitionBody::FunctionWithBody {
-                    parameters: child_parameters,
-                    signature: child_signature,
-                    ..
-                } = &child.body
-                else {
-                    return Err(fail("original child has no parameter binding inventory"));
-                };
-                for (literal, declared) in parameters.iter().zip(child_parameters) {
-                    b.spend(literal.name.len().saturating_add(declared.name.len()), WORK)?;
-                    if literal.name != declared.name {
+                    let root = self.root(term, b)?;
+                    let Kind::Closure {
+                        parameters: expected,
+                        result,
+                        ..
+                    } = &self.state.arena[root]
+                    else {
+                        return Err(fail("original child declaration has no callable type"));
+                    };
+                    b.spend(expected.len() + 1, WORK)?;
+                    let expected = expected.clone();
+                    let result = *result;
+                    if expected.len() != parameters.len() {
                         return Err(fail(
-                            "original closure literal and child have different value binders",
+                            "original closure literal changes the child parameter arity",
                         ));
                     }
-                }
-                // The literal's Invocation words belong to this closure
-                // signature, while its ordinary lexical names stay in the
-                // creator. Compare by a local alpha map, never a parent Inv0.
-                let mut lives = Vec::new();
-                for ordinal in 0..child_signature.invocation_lifetimes {
-                    let life = self.term(Kind::Life(Life::Invocation(target, ordinal)), b)?;
-                    Self::push(&mut lives, life, b)?;
-                }
-                Self::push(
-                    &mut self.role_frames,
-                    roles::RoleFrame {
-                        owner: frame.definition,
-                        lifetimes: lives,
-                        implicits: BTreeMap::new(),
-                    },
-                    b,
-                )?;
-                let annotations: CompileResult<()> = (|| {
-                    for (parameter, expected) in parameters.iter().zip(expected) {
-                        if let Some(annotation) = &parameter.ty {
-                            let annotation = self.recipe(frame, annotation, b, depth + 1)?;
-                            self.unify(annotation, expected, depth + 1, b)?;
+                    let SemanticDefinitionBody::FunctionWithBody {
+                        parameters: child_parameters,
+                        signature: child_signature,
+                        ..
+                    } = &child.body
+                    else {
+                        return Err(fail("original child has no parameter binding inventory"));
+                    };
+                    for (literal, declared) in parameters.iter().zip(child_parameters) {
+                        b.spend(literal.name.len().saturating_add(declared.name.len()), WORK)?;
+                        if literal.name != declared.name {
+                            return Err(fail(
+                                "original closure literal and child have different value binders",
+                            ));
                         }
                     }
-                    if let Some(annotation) = return_type {
-                        let annotation = self.recipe(frame, annotation, b, depth + 1)?;
-                        self.unify(annotation, result, depth + 1, b)?;
+                    // The literal's Invocation words belong to this closure
+                    // signature, while its ordinary lexical names stay in the
+                    // creator. Compare by a local alpha map, never a parent Inv0.
+                    let mut lives = Vec::new();
+                    for ordinal in 0..child_signature.invocation_lifetimes {
+                        let life = self.term(Kind::Life(Life::Invocation(target, ordinal)), b)?;
+                        Self::push(&mut lives, life, b)?;
                     }
-                    Ok(())
-                })();
-                self.role_frames
-                    .pop()
-                    .ok_or_else(|| fail("original closure literal lost its own signature frame"))?;
-                annotations?;
-                self.same_body(body, target, b)?;
-                term
+                    Self::push(
+                        &mut self.role_frames,
+                        roles::RoleFrame {
+                            owner: frame.definition,
+                            lifetimes: lives,
+                            implicits: BTreeMap::new(),
+                        },
+                        b,
+                    )?;
+                    let annotations: CompileResult<()> = (|| {
+                        for (parameter, expected) in parameters.iter().zip(expected) {
+                            if let Some(annotation) = &parameter.ty {
+                                let annotation = self.recipe(frame, annotation, b, depth + 1)?;
+                                self.unify(annotation, expected, depth + 1, b)?;
+                            }
+                        }
+                        if let Some(annotation) = return_type {
+                            let annotation = self.recipe(frame, annotation, b, depth + 1)?;
+                            self.unify(annotation, result, depth + 1, b)?;
+                        }
+                        Ok(())
+                    })();
+                    self.role_frames.pop().ok_or_else(|| {
+                        fail("original closure literal lost its own signature frame")
+                    })?;
+                    annotations?;
+                    self.same_body(body, target, b)?;
+                    term
+                }
+                CoreExprKind::If {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    let condition = self.expression(frame, condition, b, depth + 1)?;
+                    let boolean = self.atom(Type::Bool, b)?;
+                    self.unify(condition, boolean, depth + 1, b)?;
+                    let left = self.expression(frame, then_value, b, depth + 1)?;
+                    let right = self.expression(frame, else_value, b, depth + 1)?;
+                    self.unify(left, right, depth + 1, b)?;
+                    left
+                }
+                _ => {
+                    return Err(unknown(
+                        "original operation needs its complete symbolic type, place, stage or cleanup interpretation",
+                    ));
+                }
+            };
+            b.spend(frame.expressions.len().saturating_add(1), WORK)?;
+            frame.expressions.insert(value.id, ty);
+            Ok(ty)
+        })();
+        result.map_err(|mut diagnostics| {
+            if let Err(limit) = b.spend(
+                diagnostics.len().saturating_mul(64),
+                "original operation diagnostic context",
+            ) {
+                return limit;
             }
-            CoreExprKind::If {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                let condition = self.expression(frame, condition, b, depth + 1)?;
-                let boolean = self.atom(Type::Bool, b)?;
-                self.unify(condition, boolean, depth + 1, b)?;
-                let left = self.expression(frame, then_value, b, depth + 1)?;
-                let right = self.expression(frame, else_value, b, depth + 1)?;
-                self.unify(left, right, depth + 1, b)?;
-                left
-            }
-            _ => {
-                return Err(unknown(
-                    "original operation needs its complete symbolic type, place, stage or cleanup interpretation",
+            for diagnostic in &mut diagnostics {
+                diagnostic.notes.push(format!(
+                    "original definition module {} index {}, expression {}",
+                    frame.definition.module.0, frame.definition.index, value.id.0
                 ));
             }
-        };
-        b.spend(frame.expressions.len().saturating_add(1), WORK)?;
-        frame.expressions.insert(value.id, ty);
-        Ok(ty)
+            diagnostics
+        })
     }
     fn block(
         &mut self,

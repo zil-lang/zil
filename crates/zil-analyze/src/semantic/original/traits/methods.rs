@@ -290,7 +290,7 @@ impl Solver<'_, '_> {
         Ok((actuals, parameters, result))
     }
 
-    pub(super) fn original_trait_call(
+    pub(in crate::semantic::original) fn original_trait_call(
         &mut self,
         frame: &mut Frame,
         node: NodeId,

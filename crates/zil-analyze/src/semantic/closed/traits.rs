@@ -551,8 +551,11 @@ impl Check<'_, '_> {
                     "actual trait default needs its exact receiver-bound trait scope instance",
                 ));
             };
-            let Some(DynAssociatedValueRecipe::Type(DynTypePattern::Semantic { scope, ty })) =
-                &row.value
+            let value: &DynAssociatedValueRecipe = row
+                .value
+                .as_ref()
+                .ok_or_else(|| unknown("actual associated definition omits its original RHS"))?;
+            let DynAssociatedValueRecipe::Type(DynTypePattern::Semantic { scope, ty }) = value
             else {
                 return Err(unknown(
                     "actual associated RHS needs its complete original scoped type definition",
@@ -563,7 +566,7 @@ impl Check<'_, '_> {
                     "actual associated RHS changes its original provider scope",
                 ));
             }
-            self.recipe_value(context, ty, b, depth + 1)
+            self.recipe_value(context, ty.as_ref(), b, depth + 1)
         })();
         self.trait_queries.borrow_mut().pop();
         result

@@ -506,7 +506,7 @@ impl Check<'_, '_> {
             )),
         }
     }
-    fn argument_recipe(
+    pub(super) fn argument_recipe(
         &self,
         instance: &SemanticInstance,
         formal: &SemanticFormal,
