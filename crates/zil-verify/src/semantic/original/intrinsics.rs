@@ -29,14 +29,14 @@ impl CheckedOriginal {
         if bindings.contains_key(name){return Ok(None);}
         let caller=context.definition(module,env.current()?,b)?;
         let SemanticDefinitionBody::FunctionWithBody{names,..}=&caller.body else{return Err(bad("intrinsic lookup has no original lexical body"));};
-        b.spend(names.len().saturating_add(name.len()))?;
+        b.spend(names.len().saturating_mul(name.len().saturating_add(1)))?;
         if names.iter().any(|row|row.path.first()==Some(name)&&matches!(row.namespace,SemanticOriginalNamespace::Value|SemanticOriginalNamespace::Type)){return Ok(None);}
         let program=module.semantic.as_ref().ok_or_else(||bad("intrinsic lookup has no complete original declarations"))?;
         // Deleting a real Names binding must not turn that declaration into a
         // builtin. The original module and each actual lexical scope remain
         // shadows even if the proposed name table is incomplete.
         for definition in &program.definitions {
-            b.spend(definition.identity.declaration_path.len().saturating_add(env.lexical.len()).saturating_add(1))?;
+            b.spend(definition.identity.declaration_path.len().saturating_add(env.lexical.len()).saturating_add(name.len()).saturating_add(1))?;
             if definition.id.module==caller.id.module&&definition.identity.declaration_path.last()==Some(name)&&(definition.parent.is_none()||env.lexical.iter().any(|frame|Some(frame.definition)==definition.parent)){return Err(bad("reserved intrinsic name has an unresolved real declaration shadow"));}
         }
         Ok(Some(intrinsic))

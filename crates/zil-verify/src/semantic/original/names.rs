@@ -14,10 +14,11 @@ impl CheckedOriginal {
                 CoreExprKind::Group(inner)=>current=inner,
                 CoreExprKind::Name(name)=>{
                     if tail.is_empty()||bindings.contains_key(name){return Ok(None);}
+                    b.spend(name.len().saturating_add(tail.len()))?;
                     let mut path=name.split("::").collect::<Vec<_>>();path.extend(tail.iter().rev().copied());
                     let definition=context.definition(module,env.current()?,b)?;
                     let SemanticDefinitionBody::FunctionWithBody{names,..}=&definition.body else{return Err(bad("static call lookup has no original body"));};
-                    b.spend(names.len().saturating_mul(path.len().saturating_add(1)))?;
+                    b.spend(names.len().saturating_mul(path.iter().fold(0usize,|total,part|total.saturating_add(part.len()).saturating_add(1)).saturating_add(1)))?;
                     let mut selected=None;
                     for row in names{if row.namespace==SemanticOriginalNamespace::Value&&row.path.iter().map(String::as_str).eq(path.iter().copied()){
                         if selected.replace(&row.value).is_some(){return Err(bad("static call path has ambiguous original declaration bindings"));}
