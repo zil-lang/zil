@@ -4,12 +4,14 @@
 use super::*;
 
 struct Check<'a, 'b> {
+    module: Option<&'a TypedModule>,
     declarations: &'a [LifeNominalDeclaration],
     instances: &'a [LifeNominalInstance],
     limits: &'b Limits,
     left: &'b mut usize,
     phase: InventoryPhase,
     active: Vec<usize>,
+    active_closures: Vec<ClosureId>,
 }
 fn unknown(message: &str) -> Diagnostic {
     unsupported(Span::default(), message)
@@ -450,9 +452,167 @@ impl<'a> Check<'a, '_> {
         }
         Ok(())
     }
+    fn closure(&mut self, id: ClosureId, depth: usize) -> R<()> {
+        self.node(depth)?;
+        let module = self.module.ok_or_else(|| unknown(
+            "Core closure placeholder requires its actual emitted definition and complete domain",
+        ))?;
+        fee(
+            self.left,
+            module
+                .closures
+                .len()
+                .saturating_add(module.functions.len())
+                .saturating_add(self.active_closures.len()),
+            Span::default(),
+        )?;
+        if self.active_closures.contains(&id) {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "closure domain depends cyclically on its own asserted environment",
+            ));
+        }
+        let mut definitions = module.closures.iter().filter(|d| d.id == id);
+        let definition = definitions
+            .next()
+            .ok_or_else(|| unknown("nominal closure child has no actual definition"))?;
+        if definitions.next().is_some() {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "nominal closure child has ambiguous actual identity",
+            ));
+        }
+        let life = definition
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| unknown("nominal closure child has unknown complete domain"))?;
+        if life.fixed_binder_count != 0 {
+            return Err(unknown(
+                "nominal closure child retains a nonzero complete environment",
+            ));
+        }
+        let mut entries = module
+            .functions
+            .iter()
+            .filter(|f| f.id == definition.function);
+        let entry = entries
+            .next()
+            .ok_or_else(|| unknown("nominal closure child has no actual entry"))?;
+        if entries.next().is_some() || entry.environment != Some(id) {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "nominal closure child has a different actual entry environment",
+            ));
+        }
+        // Pay both complete contracts before equality. Invocation P/R rows
+        // describe each call, while the environment's persistent domain is
+        // rebuilt independently from every capture below.
+        for contract in [Some(life), entry.storage_life.as_ref()]
+            .into_iter()
+            .flatten()
+        {
+            fee(self.left, 1, Span::default())?;
+            for binding in &contract.bindings {
+                fee(
+                    self.left,
+                    binding.position.path.len().saturating_add(1),
+                    Span::default(),
+                )?;
+            }
+            for position in &contract.static_bindings {
+                fee(
+                    self.left,
+                    position.path.len().saturating_add(1),
+                    Span::default(),
+                )?;
+            }
+            for class in &contract.classes {
+                fee(
+                    self.left,
+                    class.position.path.len().saturating_add(1),
+                    Span::default(),
+                )?;
+            }
+        }
+        if entry.storage_life.as_ref() != Some(life) {
+            return Err(error(
+                "E-NOMINAL-DOMAIN",
+                Span::default(),
+                "closure and actual entry disagree about the complete domain",
+            ));
+        }
+        for binding in &life.bindings {
+            if matches!(binding.position.base, StorageBase::Capture(_))
+                || matches!(binding.binder, StorageBinder::Fixed(_))
+            {
+                return Err(error(
+                    "E-NOMINAL-DOMAIN",
+                    Span::default(),
+                    "zero-domain closure has an unaccounted variable capture class",
+                ));
+            }
+        }
+        for binding in &life.classes {
+            if matches!(binding.position.base, StorageBase::Capture(_))
+                || matches!(binding.binder, StorageBinder::Fixed(_))
+            {
+                return Err(error(
+                    "E-NOMINAL-DOMAIN",
+                    Span::default(),
+                    "zero-domain closure has an unaccounted intrinsic capture class",
+                ));
+            }
+        }
+        self.active_closures.push(id);
+        fee(self.left, definition.captures.len(), Span::default())?;
+        for (index, capture) in definition.captures.iter().enumerate() {
+            fee(self.left, life.static_bindings.len(), Span::default())?;
+            let static_occurrences = life
+                .static_bindings
+                .iter()
+                .filter(|position| {
+                    position.base == StorageBase::Capture(index as u32) && position.path.is_empty()
+                })
+                .count();
+            match capture {
+                Type::Address {
+                    mutable: false,
+                    inner,
+                } if static_occurrences == 1 => self.ty(inner, depth + 1)?,
+                _ if static_occurrences == 0 => self.ty(capture, depth + 1)?,
+                _ => {
+                    return Err(error(
+                        "E-NOMINAL-DOMAIN",
+                        Span::default(),
+                        "static capture does not select one immutable complete borrow occurrence",
+                    ));
+                }
+            }
+        }
+        for position in &life.static_bindings {
+            if let StorageBase::Capture(index) = position.base {
+                if !position.path.is_empty()
+                    || !matches!(
+                        definition.captures.get(index as usize),
+                        Some(Type::Address { mutable: false, .. })
+                    )
+                {
+                    return Err(unknown(
+                        "nested static capture requires its complete occurrence and nominal-class projection",
+                    ));
+                }
+            }
+        }
+        self.active_closures.pop();
+        Ok(())
+    }
     fn ty(&mut self, ty: &Type, depth: usize) -> R<()> {
         self.node(depth)?;
         match ty {
+            Type::Closure(id) => self.closure(*id, depth + 1),
             ty if ty.is_b0_scalar() => Ok(()),
             Type::TaskI32
             | Type::ByteBuffer
@@ -642,12 +802,14 @@ pub(super) fn rows(
     phase: InventoryPhase,
 ) -> R<()> {
     Check {
+        module: None,
         declarations: &core.life_declarations,
         instances: &core.life_instances,
         limits,
         left,
         phase,
         active: Vec::new(),
+        active_closures: Vec::new(),
     }
     .row(instance, 0)
 }
@@ -657,12 +819,14 @@ pub(super) fn rows(
 pub(super) fn module(module: &TypedModule, limits: &Limits, left: &mut usize) -> R<()> {
     fee(left, module.life_instances.len(), Span::default())?;
     let mut check = Check {
+        module: Some(module),
         declarations: &module.life_declarations,
         instances: &module.life_instances,
         limits,
         left,
         phase: InventoryPhase::Resolved,
         active: Vec::new(),
+        active_closures: Vec::new(),
     };
     for row in &module.life_instances {
         if !matches!(row.ty, Type::BorrowedStorage { .. }) {
@@ -682,12 +846,14 @@ pub(super) fn zero_type(
     left: &mut usize,
 ) -> R<()> {
     Check {
+        module: Some(module),
         declarations: &module.life_declarations,
         instances: &module.life_instances,
         limits,
         left,
         phase: InventoryPhase::Resolved,
         active: Vec::new(),
+        active_closures: Vec::new(),
     }
     .ty(ty, 0)
 }

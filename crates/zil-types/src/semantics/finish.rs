@@ -45,6 +45,7 @@ pub(crate) fn program(
     // Captured-head embeddings are derived from the actual entry's reads;
     // materializing a whole closure must not invent those persistent images.
     let headers = super::headers::program(&mut result, module, left)?;
+    super::materialize::populate_deferred_nominals(&result, module, ledger, limits, left)?;
     stored::ordinary_inventory(module, limits, left)?;
     super::nominal_catalog::program(&result, module, limits, left)?;
     super::creator_headers::populate(&mut result, module, ledger, limits, left)?;

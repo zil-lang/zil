@@ -26,10 +26,13 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+#[path = "materialize_deferred.rs"]
+mod deferred;
 #[path = "materialize_dyn.rs"]
 pub(super) mod dynamic;
 #[path = "materialize_nominal.rs"]
 mod nominal;
+pub(super) use deferred::populate as populate_deferred_nominals;
 #[path = "materialize_opaque.rs"]
 mod opaque;
 pub(super) use opaque::call_result_at;

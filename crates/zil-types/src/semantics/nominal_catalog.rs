@@ -148,6 +148,13 @@ impl<'a> Check<'a, '_> {
             | Type::CWideString
             | Type::SyncCell(_)
             | Type::TaskI32 => Ok(0),
+            Type::Closure(_) => {
+                // A callable is opaque to physical field counting. Rebuild
+                // its actual definition/entry/capture directory instead of
+                // treating an empty visible layout or Some0 as zero.
+                stored::ordinary_zero_type(self.module, ty, self.limits, self.left)?;
+                Ok(0)
+            }
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
                 let row = self.instance(ty)?;
                 // The mandatory whole-module ordinary proof establishes zero
