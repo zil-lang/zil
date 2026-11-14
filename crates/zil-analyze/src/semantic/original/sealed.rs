@@ -5,6 +5,7 @@ use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::semantic) enum Intrinsic {
+    NumericConvert(Number),
     TaskYield,
     TaskCreate,
     TaskPoll,
@@ -40,9 +41,54 @@ pub(in crate::semantic) enum Intrinsic {
     AsyncFinish,
     AsyncFinishChecked,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::semantic) enum Number {
+    I8,
+    I16,
+    I32,
+    I64,
+    Isize,
+    U8,
+    U16,
+    U32,
+    U64,
+    Usize,
+    F32,
+    F64,
+}
+impl Number {
+    pub(in crate::semantic) fn ty(self) -> Type {
+        match self {
+            Self::I8 => Type::I8,
+            Self::I16 => Type::I16,
+            Self::I32 => Type::I32,
+            Self::I64 => Type::I64,
+            Self::Isize => Type::Isize,
+            Self::U8 => Type::U8,
+            Self::U16 => Type::U16,
+            Self::U32 => Type::U32,
+            Self::U64 => Type::U64,
+            Self::Usize => Type::Usize,
+            Self::F32 => Type::F32,
+            Self::F64 => Type::F64,
+        }
+    }
+}
 impl Intrinsic {
     pub(super) fn lookup(name: &str) -> Option<Self> {
         Some(match name {
+            "i8" => Self::NumericConvert(Number::I8),
+            "i16" => Self::NumericConvert(Number::I16),
+            "i32" => Self::NumericConvert(Number::I32),
+            "i64" => Self::NumericConvert(Number::I64),
+            "isize" => Self::NumericConvert(Number::Isize),
+            "u8" => Self::NumericConvert(Number::U8),
+            "u16" => Self::NumericConvert(Number::U16),
+            "u32" => Self::NumericConvert(Number::U32),
+            "u64" => Self::NumericConvert(Number::U64),
+            "usize" => Self::NumericConvert(Number::Usize),
+            "f32" => Self::NumericConvert(Number::F32),
+            "f64" => Self::NumericConvert(Number::F64),
             "task_yield" => Self::TaskYield,
             "task_create" => Self::TaskCreate,
             "task_poll" => Self::TaskPoll,
@@ -155,6 +201,24 @@ pub(super) fn resolve(
     let Some(intrinsic) = Intrinsic::lookup(path[0]) else {
         return Ok(Resolution::Deferred);
     };
+    if matches!(intrinsic, Intrinsic::NumericConvert(_)) {
+        for binding in names {
+            b.spend(
+                binding
+                    .path
+                    .iter()
+                    .map(String::len)
+                    .sum::<usize>()
+                    .saturating_add(path[0].len() + 1),
+                WORK,
+            )?;
+            if binding.namespace == SemanticOriginalNamespace::Type
+                && binding.path.as_slice() == [path[0]]
+            {
+                return Ok(Resolution::Deferred);
+            }
+        }
+    }
     // A same-module declaration cannot disappear from Names to uncover a core
     // operation. Imports must likewise have their real explicit name binding;
     // there is no scan for a convenient same-shaped function or first caller.
@@ -171,7 +235,8 @@ pub(super) fn resolve(
         )?;
         if candidate.id.module == owner.module
             && candidate.parent.is_none()
-            && candidate.kind == SemanticDefinitionKind::Function
+            && (candidate.kind == SemanticDefinitionKind::Function
+                || matches!(intrinsic, Intrinsic::NumericConvert(_)))
             && candidate
                 .identity
                 .declaration_path

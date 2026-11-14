@@ -24,6 +24,9 @@ fn definition(index: u32, name: &str, kind: CallKind) -> SemanticDefinition {
         requirements: vec![],
         environment: vec![],
         body: SemanticDefinitionBody::FunctionWithBody {
+            protocol_contracts: Vec::new(),
+            foreign: None,
+            resume_bound: TaskResumeBound::Local,
             signature: SemanticSignatureRecipe {
                 bound_lifetimes: 0,
                 invocation_lifetimes: 0,

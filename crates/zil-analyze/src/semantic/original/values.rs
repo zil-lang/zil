@@ -191,6 +191,30 @@ impl Checked {
                 }
                 value::nominal(*definition, &actuals, &physical, inventory, b, depth + 1)
             }
+            Kind::Array { element, length } => {
+                let element = self.value(*element, context, program, inventory, b, depth + 1)?;
+                if !element.classes.is_empty() {
+                    return Err(unknown(
+                        "original Array needs its complete Element class occurrence inventory",
+                    ));
+                }
+                let Argument::Const {
+                    carrier: Type::Usize,
+                    value: Constant::Usize(length),
+                } = self.argument(*length, context, program, inventory, b, depth + 1)?
+                else {
+                    return Err(fail(
+                        "original Array length changes its complete usize constant carrier",
+                    ));
+                };
+                let length = u32::try_from(length).map_err(|_| {
+                    fail("original Array length exceeds its represented finite domain")
+                })?;
+                Ok(value::scalar(Type::Array {
+                    element: Box::new(element.ty),
+                    length,
+                }))
+            }
             Kind::Slice(element) => {
                 let element = self.value(*element, context, program, inventory, b, depth + 1)?;
                 if !element.classes.is_empty() {

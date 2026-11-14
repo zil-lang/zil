@@ -172,6 +172,25 @@ impl Check<'_, '_> {
                 // formals. Fields are instantiated through the same evaluator.
                 self.nominal_value(*definition, &actuals, b, depth + 1)
             }
+            SemanticTypeRecipe::Array { element, length } => {
+                let element = self.recipe_value(instance, element, b, depth + 1)?;
+                if !element.classes.is_empty() {
+                    return Err(unknown(
+                        "original array needs complete element class occurrence transport",
+                    ));
+                }
+                let length = self.constant_recipe(instance, length, &Type::Usize, b, depth + 1)?;
+                let Constant::Usize(length) = length else {
+                    return Err(fail("original array length has another constant carrier"));
+                };
+                let length = u32::try_from(length).map_err(|_| {
+                    original::resource("original array length exceeds its physical representation")
+                })?;
+                Ok(value::scalar(Type::Array {
+                    element: Box::new(element.ty),
+                    length,
+                }))
+            }
             SemanticTypeRecipe::Tuple(fields) => {
                 if fields.is_empty() {
                     return Ok(value::scalar(Type::Unit));
@@ -291,6 +310,61 @@ impl Check<'_, '_> {
             }
             _ => Err(fail(
                 "Core actual remains in an executable original context",
+            )),
+        }
+    }
+    fn constant_recipe(
+        &self,
+        instance: &SemanticInstance,
+        recipe: &SemanticConstRecipe,
+        carrier: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Constant> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "original constant instantiation exceeds its bounded depth",
+            ));
+        }
+        match recipe {
+            SemanticConstRecipe::Value(value) if value.ty() == *carrier => {
+                b.spend(1, WORK)?;
+                Ok(value.clone())
+            }
+            SemanticConstRecipe::IntegerLiteral(text) => {
+                original::mixed::integer_constant(text, carrier, b)
+            }
+            SemanticConstRecipe::Formal(reference) => {
+                let context = self.ancestor(instance, reference.scope, b)?;
+                let declaration = self.inventory.definition(context.definition, b)?;
+                let Some(SemanticFormal::Const {
+                    carrier: original_carrier,
+                }) = declaration.parameters.get(reference.ordinal as usize)
+                else {
+                    return Err(fail("original constant selects another formal kind"));
+                };
+                let original_carrier =
+                    self.recipe_value(context, original_carrier, b, depth + 1)?;
+                let Some(SemanticActual::Const { ty, value }) =
+                    context.actuals.get(reference.ordinal as usize)
+                else {
+                    return Err(fail(
+                        "original constant has no exact actual at its full ordinal",
+                    ));
+                };
+                let actual = value::resolved(context, ty, self.inventory, b, depth + 1)?;
+                if actual != original_carrier
+                    || !actual.classes.is_empty()
+                    || actual.ty != *carrier
+                    || value.ty() != *carrier
+                {
+                    return Err(fail("original constant loses its full declared carrier"));
+                }
+                Ok(value.clone())
+            }
+            _ => Err(unknown(
+                "original constant expression requires its complete scoped evaluation",
             )),
         }
     }

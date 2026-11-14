@@ -214,6 +214,16 @@ impl Solver<'_, '_> {
                 self.unify(carrier, ty, depth + 1, b)?;
                 self.term(Kind::ConstValue(value.clone()), b)
             }
+            SemanticConstRecipe::IntegerLiteral(text) => {
+                let root = self.root(carrier, b)?;
+                let Kind::Atom(ty) = &self.state.arena[root] else {
+                    return Err(unknown(
+                        "original integer constant needs its complete nondependent carrier",
+                    ));
+                };
+                let value = integer_constant(text, ty, b)?;
+                self.term(Kind::ConstValue(value), b)
+            }
             SemanticConstRecipe::Formal(reference) => {
                 let owner = self.original_scope(frame.definition, &reference.scope, b)?;
                 if !matches!(
@@ -398,6 +408,11 @@ impl Solver<'_, '_> {
                     b,
                 )
             }
+            Kind::Array { element, length } => {
+                let element = self.instantiate(element, owner, actuals, b, depth + 1)?;
+                let length = self.instantiate(length, owner, actuals, b, depth + 1)?;
+                self.term(Kind::Array { element, length }, b)
+            }
             Kind::Slice(element) => {
                 let element = self.instantiate(element, owner, actuals, b, depth + 1)?;
                 self.term(Kind::Slice(element), b)
@@ -497,4 +512,70 @@ impl Solver<'_, '_> {
     pub(super) fn check_callables(&mut self, b: &mut Budget) -> CompileResult<()> {
         self.check_roles(b)
     }
+}
+
+pub(in crate::semantic) fn integer_constant(
+    text: &str,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<Constant> {
+    validate_literal(text, ty, false, false, b)?;
+    b.spend(text.len().saturating_mul(2), WORK)?;
+    let clean = text.replace('_', "");
+    let mut digits = clean.as_str();
+    for (suffix, carrier) in [
+        ("usize", Type::Usize),
+        ("isize", Type::Isize),
+        ("u64", Type::U64),
+        ("i64", Type::I64),
+        ("u32", Type::U32),
+        ("i32", Type::I32),
+        ("u16", Type::U16),
+        ("i16", Type::I16),
+        ("u8", Type::U8),
+        ("i8", Type::I8),
+    ] {
+        if let Some(rest) = digits.strip_suffix(suffix) {
+            if carrier != *ty {
+                return Err(fail(
+                    "original constant literal suffix differs from its declared carrier",
+                ));
+            }
+            digits = rest;
+            break;
+        }
+    }
+    let negative = digits.starts_with('-');
+    if negative {
+        digits = &digits[1..];
+    }
+    let (radix, digits) = if let Some(rest) = digits.strip_prefix("0x") {
+        (16, rest)
+    } else if let Some(rest) = digits.strip_prefix("0b") {
+        (2, rest)
+    } else if let Some(rest) = digits.strip_prefix("0o") {
+        (8, rest)
+    } else {
+        (10, digits)
+    };
+    let value = u64::from_str_radix(digits, radix)
+        .map_err(|_| fail("original integer constant spelling or width is invalid"))?;
+    let signed = if negative {
+        -(value as i128)
+    } else {
+        value as i128
+    };
+    Ok(match ty {
+        Type::I8 => Constant::I8(signed as i8),
+        Type::I16 => Constant::I16(signed as i16),
+        Type::I32 => Constant::I32(signed as i32),
+        Type::I64 => Constant::I64(signed as i64),
+        Type::Isize => Constant::Isize(signed as i64),
+        Type::U8 => Constant::U8(value as u8),
+        Type::U16 => Constant::U16(value as u16),
+        Type::U32 => Constant::U32(value as u32),
+        Type::U64 => Constant::U64(value),
+        Type::Usize => Constant::Usize(value),
+        _ => return Err(fail("original integer constant has a noninteger carrier")),
+    })
 }

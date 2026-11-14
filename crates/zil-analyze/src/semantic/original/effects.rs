@@ -455,6 +455,10 @@ impl Pending {
                 }
                 continue;
             }
+            b.lookup(checked.enum_constructors.len(), WORK)?;
+            if checked.enum_constructors.contains_key(&(owner, node)) {
+                continue;
+            }
             let call = checked.calls.get(&(owner, node)).ok_or_else(|| {
                 unknown("original call effect edge has no complete declaration-domain resolution")
             })?;

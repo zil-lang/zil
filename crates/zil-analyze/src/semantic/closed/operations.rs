@@ -479,6 +479,56 @@ impl Check<'_, '_> {
                 {
                     return Ok(());
                 }
+                if let Some(constructor) = self.original.enum_constructor(
+                    instance,
+                    site.recipe,
+                    self.program,
+                    self.inventory,
+                    b,
+                )? {
+                    let instruction = instruction.ok_or_else(|| {
+                        fail("original enum construction has no actual instruction")
+                    })?;
+                    let InstructionKind::MakeVariant { variant, fields } = &instruction.kind else {
+                        return Err(fail(
+                            "original enum constructor is replaced by another opcode",
+                        ));
+                    };
+                    if *variant != constructor.variant
+                        || fields.len() != constructor.payload.len()
+                        || actuals.len() != constructor.arguments.len()
+                    {
+                        return Err(fail(
+                            "actual enum constructor changes its original member or full arity",
+                        ));
+                    }
+                    self.inputs(fields, point, b)?;
+                    for (actual, expected) in fields.iter().zip(&constructor.payload) {
+                        b.spend(1, WORK)?;
+                        if point.function.values.get(actual.0 as usize) != Some(&expected.ty) {
+                            return Err(fail(
+                                "actual enum payload differs from its complete original member type",
+                            ));
+                        }
+                        if self.uses_full_value(&expected.ty, b)? {
+                            let value = self.ssa_value(instance, point.function, *actual, b, 0)?;
+                            if value != *expected {
+                                return Err(fail(
+                                    "actual enum payload changes its original intrinsic class occurrence",
+                                ));
+                            }
+                        }
+                    }
+                    for (actual, expected) in actuals.iter().zip(&constructor.arguments) {
+                        if self.actual_value(instance, actual, b, 0)? != *expected {
+                            return Err(fail(
+                                "actual enum construction changes its ordered original mixed arguments",
+                            ));
+                        }
+                    }
+                    self.result(instruction, point.function, &constructor.result.ty)?;
+                    return Ok(());
+                }
                 if let Some(intrinsic) =
                     self.original
                         .intrinsic(instance, site.recipe, self.inventory, b)?
@@ -497,6 +547,64 @@ impl Check<'_, '_> {
                                 ));
                             }
                             self.result(instruction, point.function, &Type::Unit)?;
+                            return Ok(());
+                        }
+                        original::sealed::Intrinsic::NumericConvert(number) => {
+                            let instruction = instruction.ok_or_else(|| {
+                                fail("original conversion has no actual instruction")
+                            })?;
+                            let InstructionKind::ConvertNumber { value, target } =
+                                &instruction.kind
+                            else {
+                                return Err(fail(
+                                    "original numeric conversion is replaced by another actual opcode",
+                                ));
+                            };
+                            if !actuals.is_empty() || *target != number.ty() {
+                                return Err(fail(
+                                    "actual numeric conversion changes its closed target or generic arity",
+                                ));
+                            }
+                            self.inputs(&[*value], point, b)?;
+                            let expected = self.original.intrinsic_inputs(
+                                instance,
+                                site.recipe,
+                                self.program,
+                                self.inventory,
+                                b,
+                            )?;
+                            if expected.len() != 1
+                                || point.function.values.get(value.0 as usize)
+                                    != Some(&expected[0].ty)
+                            {
+                                return Err(fail(
+                                    "actual numeric input differs from its checked original numeric carrier",
+                                ));
+                            }
+                            let input =
+                                point.function.values.get(value.0 as usize).ok_or_else(|| {
+                                    fail("actual numeric conversion input is absent")
+                                })?;
+                            if !matches!(
+                                input,
+                                Type::I8
+                                    | Type::I16
+                                    | Type::I32
+                                    | Type::I64
+                                    | Type::Isize
+                                    | Type::U8
+                                    | Type::U16
+                                    | Type::U32
+                                    | Type::U64
+                                    | Type::Usize
+                                    | Type::F32
+                                    | Type::F64
+                            ) {
+                                return Err(fail(
+                                    "actual numeric conversion input violates its original numeric premise",
+                                ));
+                            }
+                            self.result(instruction, point.function, &number.ty())?;
                             return Ok(());
                         }
                         _ => {

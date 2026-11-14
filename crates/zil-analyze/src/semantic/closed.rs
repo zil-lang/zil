@@ -47,6 +47,9 @@ impl Check<'_, '_> {
             Type::Slice { element } => {
                 return self.ordinary_type_at(element, b, depth + 1);
             }
+            Type::Array { element, .. } => {
+                return self.ordinary_type_at(element, b, depth + 1);
+            }
             Type::Tuple(fields) => {
                 for field in fields {
                     self.ordinary_type_at(field, b, depth + 1)?;
@@ -540,12 +543,42 @@ impl Check<'_, '_> {
                     "semantic nonempty header or partition needs its complete rigid class proof",
                 ));
             }
-            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+            let SemanticDefinitionBody::FunctionWithBody {
+                signature,
+                protocol_contracts,
+                foreign,
+                resume_bound,
+                ..
+            } = &definition.body
             else {
                 return Err(fail(
                     "actual function is relabelled as another original kind",
                 ));
             };
+            b.spend(
+                protocol_contracts
+                    .len()
+                    .saturating_add(function.protocol_contracts.len()),
+                WORK,
+            )?;
+            for declaration in foreign.iter().chain(function.foreign.iter()) {
+                b.spend(
+                    declaration.abi.len().saturating_add(
+                        declaration.symbol.len() + declaration.noescape_parameters.len() + 1,
+                    ),
+                    WORK,
+                )?;
+            }
+            if *foreign != function.foreign || *resume_bound != function.resume_bound {
+                return Err(fail(
+                    "actual function changes its original foreign or resume declaration",
+                ));
+            }
+            if *protocol_contracts != function.protocol_contracts {
+                return Err(fail(
+                    "actual protocol table differs from its complete original declaration",
+                ));
+            }
             if signature.bound_lifetimes != 0 || signature.invocation_lifetimes != 0 {
                 return Err(unknown(
                     "original function binder frames require scoped class interpretation",

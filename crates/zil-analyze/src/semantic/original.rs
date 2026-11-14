@@ -5,7 +5,8 @@ use zil_base::NodeId;
 
 mod abstract_calls;
 mod effects;
-mod mixed;
+mod enums;
+pub(super) mod mixed;
 pub(super) mod nominal;
 mod roles;
 pub(super) mod sealed;
@@ -31,6 +32,10 @@ enum Kind {
         inner: Term,
     },
     Slice(Term),
+    Array {
+        element: Term,
+        length: Term,
+    },
     CallResult {
         caller: SemanticDefinitionId,
         node: NodeId,
@@ -117,8 +122,11 @@ pub(super) struct Checked {
     frames: BTreeMap<SemanticDefinitionId, Frame>,
     calls: BTreeMap<(SemanticDefinitionId, NodeId), Call>,
     intrinsics: BTreeMap<(SemanticDefinitionId, NodeId), sealed::Intrinsic>,
+    intrinsic_inputs: BTreeMap<(SemanticDefinitionId, NodeId), Vec<Term>>,
     abstract_calls: BTreeMap<(SemanticDefinitionId, NodeId), abstract_calls::AbstractCall>,
     borrows: BTreeMap<(SemanticDefinitionId, NodeId), Borrow>,
+    enum_constructors: BTreeMap<(SemanticDefinitionId, NodeId), enums::Constructor>,
+    patterns: BTreeMap<(SemanticDefinitionId, NodeId, Vec<u32>), Term>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
 }
 struct Solver<'a, 'i> {
@@ -137,7 +145,7 @@ struct Solver<'a, 'i> {
     role_frames: Vec<roles::RoleFrame>,
     next_role: u32,
 }
-fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
+pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
         zil_base::Phase::Analyze,
         message,
@@ -241,6 +249,13 @@ impl Solver<'_, '_> {
                     if self.occurs(needle, *field, depth + 1, b)? {
                         return Ok(true);
                     }
+                }
+            }
+            Kind::Array { element, length } => {
+                if self.occurs(needle, *element, depth + 1, b)?
+                    || self.occurs(needle, *length, depth + 1, b)?
+                {
+                    return Ok(true);
                 }
             }
             Kind::Slice(element) => {
@@ -349,6 +364,19 @@ impl Solver<'_, '_> {
             self.state.arena[left].clone(),
             self.state.arena[right].clone(),
         ) {
+            (
+                Kind::Array {
+                    element: a,
+                    length: al,
+                },
+                Kind::Array {
+                    element: z,
+                    length: zl,
+                },
+            ) => {
+                self.unify(a, z, depth + 1, b)?;
+                self.unify(al, zl, depth + 1, b)
+            }
             (Kind::Slice(a), Kind::Slice(z)) => self.unify(a, z, depth + 1, b),
             (Kind::Atom(a), Kind::Atom(z)) if a == z => Ok(()),
             (Kind::Life(a), Kind::Life(z)) if a == z => Ok(()),
@@ -530,6 +558,12 @@ impl Solver<'_, '_> {
                     .copied()
                     .ok_or_else(|| fail("original type formal ordinal is out of range"))
             }
+            SemanticTypeRecipe::Array { element, length } => {
+                let element = self.recipe(frame, element, b, depth + 1)?;
+                let carrier = self.atom(Type::Usize, b)?;
+                let length = self.constant(frame, length, carrier, b, depth + 1)?;
+                self.term(Kind::Array { element, length }, b)
+            }
             SemanticTypeRecipe::Slice(element) => {
                 let element = self.recipe(frame, element, b, depth + 1)?;
                 self.term(Kind::Slice(element), b)
@@ -628,6 +662,10 @@ impl Solver<'_, '_> {
                 match source {
                     SemanticOriginalTypeSource::Expression(id) => context.expressions.get(id).copied(),
                     SemanticOriginalTypeSource::Binding(id) => context.bindings.get(id).copied(),
+                    SemanticOriginalTypeSource::BindingProjection { statement, pattern } => {
+                        b.spend(pattern.len().saturating_add(self.state.patterns.len()+1),WORK)?;
+                        self.state.patterns.get(&(owner,*statement,pattern.clone())).copied()
+                    },
                     SemanticOriginalTypeSource::Parameter(index) => context.parameters.get(*index as usize).copied(),
                     SemanticOriginalTypeSource::Result => Some(context.result),
                     SemanticOriginalTypeSource::NameAt { at: SemanticOriginalNode::Expression(at), name } => {
@@ -643,6 +681,18 @@ impl Solver<'_, '_> {
                     _ => None,
                 }.ok_or_else(|| unknown("original type inference needs its real expression, binding or dependent call carrier"))
             }
+            SemanticTypeRecipe::ErrorUnion { .. } => Err(unknown(
+                "original ErrorUnion type requires its complete scoped domain interpretation",
+            )),
+            SemanticTypeRecipe::Managed(_) => Err(unknown(
+                "original Managed type requires its complete owner and cleanup interpretation",
+            )),
+            SemanticTypeRecipe::OwnedStore(_) => Err(unknown(
+                "original Store type requires its complete element and retained inventory",
+            )),
+            SemanticTypeRecipe::SelfType { .. } => Err(unknown(
+                "original Self type requires its exact original impl scope",
+            )),
             _ => Err(unknown(
                 "original type constructor requires its complete scoped domain interpretation",
             )),
@@ -982,6 +1032,40 @@ impl Solver<'_, '_> {
                 }
                 local.ty
             }
+            CoreExprKind::Array(values) => {
+                let element = self.var(b)?;
+                for value in values {
+                    let actual = self.expression(frame, value, b, depth + 1)?;
+                    self.unify(actual, element, depth + 1, b)?;
+                }
+                let length = u64::try_from(values.len())
+                    .map_err(|_| resource("original array length exceeds its carrier"))?;
+                let length = self.term(Kind::ConstValue(Constant::Usize(length)), b)?;
+                self.term(Kind::Array { element, length }, b)?
+            }
+            CoreExprKind::Index { object, index } => {
+                let object = self.expression(frame, object, b, depth + 1)?;
+                let index = self.expression(frame, index, b, depth + 1)?;
+                Self::push(&mut self.integers, index, b)?;
+                Self::push(&mut self.numeric, index, b)?;
+                let root = self.root(object, b)?;
+                let Kind::Array { element, .. } = self.state.arena[root] else {
+                    return Err(unknown(
+                        "original index requires its complete array or borrowed-slice place",
+                    ));
+                };
+                // This path copies an element. Owned/non-Copy element moves
+                // need their separate partial-initialization responsibility.
+                Self::push(
+                    &mut self.needs,
+                    Need {
+                        term: object,
+                        predicate: Predicate::Copy,
+                    },
+                    b,
+                )?;
+                element
+            }
             CoreExprKind::Tuple(fields) => {
                 if fields.is_empty() {
                     self.atom(Type::Unit, b)?
@@ -1049,7 +1133,10 @@ impl Solver<'_, '_> {
                         Self::push(&mut self.numeric, left, b)?;
                         self.atom(Type::Bool, b)?
                     }
-                    BinaryOp::BitAnd
+                    BinaryOp::AddWrapping
+                    | BinaryOp::SubtractWrapping
+                    | BinaryOp::MultiplyWrapping
+                    | BinaryOp::BitAnd
                     | BinaryOp::BitOr
                     | BinaryOp::BitXor
                     | BinaryOp::ShiftLeft
@@ -1195,6 +1282,15 @@ impl Solver<'_, '_> {
                 ) {
                     return Err(fail("original call is linked to another operation kind"));
                 }
+                if let Some(term) =
+                    self.enum_call(frame, value.id, callee, arguments, b, depth + 1)?
+                {
+                    b.lookup(frame.expressions.len(), WORK)?;
+                    if frame.expressions.insert(value.id, term).is_some() {
+                        return Err(fail("original constructor node is reused"));
+                    }
+                    return Ok(term);
+                }
                 let mut head = callee.as_ref();
                 while let CoreExprKind::Group(inner) = &head.kind {
                     self.step(depth, b)?;
@@ -1323,6 +1419,33 @@ impl Solver<'_, '_> {
                                 ));
                             }
                             (Vec::new(), self.atom(Type::Unit, b)?)
+                        }
+                        sealed::Resolution::Intrinsic(
+                            id @ sealed::Intrinsic::NumericConvert(number),
+                        ) => {
+                            if !written.is_empty() || arguments.len() != 1 {
+                                return Err(fail(
+                                    "original numeric conversion changes its closed source scheme",
+                                ));
+                            }
+                            let input = self.var(b)?;
+                            Self::push(&mut self.numeric, input, b)?;
+                            b.lookup(self.state.intrinsics.len(), WORK)?;
+                            if self
+                                .state
+                                .intrinsics
+                                .insert((frame.definition, value.id), id)
+                                .is_some()
+                            {
+                                return Err(fail(
+                                    "original numeric conversion has competing resolutions",
+                                ));
+                            }
+                            b.lookup(self.state.intrinsic_inputs.len(), WORK)?;
+                            self.state
+                                .intrinsic_inputs
+                                .insert((frame.definition, value.id), vec![input]);
+                            (vec![input], self.atom(number.ty(), b)?)
                         }
                         sealed::Resolution::Intrinsic(_) => {
                             return Err(unknown(
@@ -1648,6 +1771,9 @@ impl Solver<'_, '_> {
                     }
                     frame.alive = then_alive || else_alive;
                 }
+                CoreStatementKind::Match { value, arms } => {
+                    self.match_statement(frame, statement.id, value, arms, b, depth + 1)?;
+                }
                 CoreStatementKind::Assign { target, value } => {
                     let CoreExprKind::Name(name) = &target.kind else {
                         return Err(unknown(
@@ -1750,6 +1876,7 @@ impl Solver<'_, '_> {
         let SemanticDefinitionBody::FunctionWithBody {
             signature,
             parameters,
+            foreign,
             body,
             ..
         } = &definition.body
@@ -1871,6 +1998,23 @@ impl Solver<'_, '_> {
                         "original foreign declaration cannot claim a Suspend execution ABI",
                     ));
                 }
+                let foreign = foreign.as_ref().ok_or_else(|| {
+                    fail("external original declaration omits its full ABI promises")
+                })?;
+                for ordinal in &foreign.noescape_parameters {
+                    let parameter = *frame
+                        .parameters
+                        .get(*ordinal as usize)
+                        .ok_or_else(|| fail("original external noescape parameter is absent"))?;
+                    if !matches!(
+                        self.state.arena[self.type_root(parameter, b)?],
+                        Kind::Address { .. }
+                    ) {
+                        return Err(fail(
+                            "original external noescape promise requires a borrowed value parameter",
+                        ));
+                    }
+                }
                 for instance in self
                     .inventory
                     .instances
@@ -1882,7 +2026,7 @@ impl Solver<'_, '_> {
                             "foreign original declaration has a nonfunction actual target",
                         ));
                     };
-                    let foreign = if let Some(source) = self.inventory.source {
+                    let actual_foreign = if let Some(source) = self.inventory.source {
                         let SemanticFunctionTarget::Core { module, function } = target else {
                             return Err(fail(
                                 "frozen external original has another stage's target",
@@ -1890,13 +2034,13 @@ impl Solver<'_, '_> {
                         };
                         super::frozen::core_function(source, *module, *function, b)?
                             .foreign
-                            .is_some()
+                            .as_ref()
                     } else {
-                        self.inventory.function(target, b)?.foreign.is_some()
+                        self.inventory.function(target, b)?.foreign.as_ref()
                     };
-                    if !foreign {
+                    if actual_foreign != Some(foreign) {
                         return Err(fail(
-                            "actual implementation cannot claim an external original body",
+                            "actual external ABI or provider promises differ from the original declaration",
                         ));
                     }
                 }
@@ -2027,6 +2171,14 @@ fn normalize_block(
                     normalize_block(body, b, depth + 1)?;
                 }
             }
+            CoreStatementKind::Match { value, arms } => {
+                normalize_expr(value, b, depth + 1)?;
+                for arm in arms {
+                    arm.span = zil_base::Span::default();
+                    normalize_pattern(&mut arm.pattern, b, depth + 1)?;
+                    normalize_block(&mut arm.body, b, depth + 1)?;
+                }
+            }
             CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                 normalize_block(body, b, depth + 1)?
             }
@@ -2036,6 +2188,37 @@ fn normalize_block(
                 ));
             }
         }
+    }
+    Ok(())
+}
+fn normalize_pattern(
+    pattern: &mut SemanticOriginalPattern,
+    b: &mut Budget,
+    depth: usize,
+) -> CompileResult<()> {
+    b.spend(1, WORK)?;
+    if depth > b.partial_depth {
+        return Err(resource("original pattern comparison depth exceeded"));
+    }
+    pattern.span = zil_base::Span::default();
+    match &mut pattern.kind {
+        CorePatternKind::Tuple(fields)
+        | CorePatternKind::Variant { fields, .. }
+        | CorePatternKind::Constructor { fields, .. } => {
+            for field in fields {
+                normalize_pattern(field, b, depth + 1)?;
+            }
+        }
+        CorePatternKind::Record { fields, .. }
+        | CorePatternKind::RecordConstructor { fields, .. } => {
+            for (_, field) in fields {
+                normalize_pattern(field, b, depth + 1)?;
+            }
+        }
+        CorePatternKind::Reference { pattern, .. } | CorePatternKind::ErrorArm { pattern, .. } => {
+            normalize_pattern(pattern, b, depth + 1)?
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -2085,10 +2268,17 @@ pub(super) fn normalize_expr(
                 normalize_expr(field, b, depth + 1)?;
             }
         }
-        CoreExprKind::Tuple(fields) => {
+        CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
             for field in fields {
                 normalize_expr(field, b, depth + 1)?;
             }
+        }
+        CoreExprKind::Index { object, index } => {
+            normalize_expr(object, b, depth + 1)?;
+            normalize_expr(index, b, depth + 1)?;
+        }
+        CoreExprKind::NumericConvert { value, .. } | CoreExprKind::IntegerConvert { value, .. } => {
+            normalize_expr(value, b, depth + 1)?
         }
         CoreExprKind::Closure {
             parameters, body, ..
@@ -2128,6 +2318,65 @@ pub(super) fn check(
     inventory: &Inventory<'_>,
     b: &mut Budget,
 ) -> CompileResult<Checked> {
+    for definition in &program.definitions {
+        b.spend(1, WORK)?;
+        if let SemanticDefinitionBody::FunctionWithBody {
+            protocol_contracts,
+            foreign,
+            resume_bound,
+            body,
+            signature,
+            parameters,
+            ..
+        } = &definition.body
+        {
+            b.spend(protocol_contracts.len(), WORK)?;
+            if foreign.is_some() != matches!(body, SemanticOriginalFunctionBody::External) {
+                return Err(fail(
+                    "original external ABI header and original body kind disagree",
+                ));
+            }
+            if let Some(foreign) = foreign {
+                b.spend(
+                    foreign.abi.len().saturating_add(
+                        foreign.symbol.len() + foreign.noescape_parameters.len() + 1,
+                    ),
+                    WORK,
+                )?;
+                if signature.call_kind != CallKind::Direct
+                    || foreign.abi != "C"
+                    || foreign.symbol.is_empty()
+                    || foreign.symbol.contains('\0')
+                {
+                    return Err(fail(
+                        "original external declaration has an invalid fixed ABI or symbol",
+                    ));
+                }
+                let mut previous = None;
+                for ordinal in &foreign.noescape_parameters {
+                    b.spend(1, WORK)?;
+                    if *ordinal as usize >= parameters.len()
+                        || previous.is_some_and(|old| old >= *ordinal)
+                    {
+                        return Err(fail(
+                            "original external noescape ordinals are not unique ordered value parameters",
+                        ));
+                    }
+                    previous = Some(*ordinal);
+                }
+            }
+            if *resume_bound != TaskResumeBound::Local {
+                return Err(unknown(
+                    "original transfer resume bound requires its universal body and environment capability proof",
+                ));
+            }
+            if !protocol_contracts.is_empty() {
+                return Err(unknown(
+                    "original protocol entry/exit contracts require their complete universal state-flow proof",
+                ));
+            }
+        }
+    }
     let effects = effects::collect(program, inventory, b)?;
     let mut indexes = BTreeMap::new();
     for definition in inventory.definitions.values() {
@@ -2148,8 +2397,11 @@ pub(super) fn check(
             frames: BTreeMap::new(),
             calls: BTreeMap::new(),
             intrinsics: BTreeMap::new(),
+            intrinsic_inputs: BTreeMap::new(),
             abstract_calls: BTreeMap::new(),
             borrows: BTreeMap::new(),
+            enum_constructors: BTreeMap::new(),
+            patterns: BTreeMap::new(),
             names_at: BTreeMap::new(),
         },
         active: BTreeSet::new(),
@@ -2407,6 +2659,7 @@ impl Solver<'_, '_> {
             Kind::Slice(_) => Err(fail(
                 "original unsized Slice needs a real reference carrier",
             )),
+            Kind::Array { element, .. } => self.sized_original(*element, b, depth + 1),
             Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
                 for field in fields {
                     self.sized_original(*field, b, depth + 1)?;
@@ -2623,6 +2876,14 @@ impl Solver<'_, '_> {
                         )?,
                 )
             }
+            Kind::Array { element, .. } => {
+                if matches!(predicate, Predicate::StoreElement) {
+                    return Err(unknown(
+                        "original array Store qualification requires its full layout and cleanup proof",
+                    ));
+                }
+                self.satisfies(*element, predicate, b, depth + 1)
+            }
             Kind::Slice(_) => Ok(false),
             Kind::Tuple(fields) => {
                 if matches!(predicate, Predicate::StoreElement) {
@@ -2723,6 +2984,9 @@ impl Checked {
         match &self.arena[self.root(term, b)?] {
             Kind::Atom(ty) => Ok(ty.clone()),
             Kind::CallResult { .. } => Ok(self
+                .value(term, context, program, inventory, b, depth + 1)?
+                .ty),
+            Kind::Array { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
                 .ty),
             Kind::Slice(element) => Ok(Type::Slice {
@@ -2857,6 +3121,7 @@ impl Checked {
         let term = match source {
             SemanticOriginalTypeSource::Expression(id) => { b.spend(frame.expressions.len().saturating_add(1),WORK)?; frame.expressions.get(id).copied() },
             SemanticOriginalTypeSource::Binding(id) => { b.spend(frame.bindings.len().saturating_add(1),WORK)?; frame.bindings.get(id).copied() },
+            SemanticOriginalTypeSource::BindingProjection {statement,pattern} => {b.spend(pattern.len().saturating_add(self.patterns.len()+1),WORK)?;self.patterns.get(&(context.definition,*statement,pattern.clone())).copied()},
             SemanticOriginalTypeSource::Parameter(index) => frame.parameters.get(*index as usize).copied(),
             SemanticOriginalTypeSource::Result => Some(frame.result),
             SemanticOriginalTypeSource::NameAt { at:SemanticOriginalNode::Expression(at),name } => {
@@ -2970,6 +3235,45 @@ impl Checked {
         let node = selected.ok_or_else(|| fail("actual core operation has no original anchor"))?;
         b.lookup(self.intrinsics.len(), WORK)?;
         Ok(self.intrinsics.get(&(context.definition, node)).copied())
+    }
+    pub(super) fn intrinsic_inputs(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<crate::semantic::value::Value>> {
+        let declaration = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &declaration.body else {
+            return Err(fail(
+                "actual native inputs have no complete original function",
+            ));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site == site {
+                let SemanticOriginalNode::Expression(node) = link.node else {
+                    return Err(fail("actual native call selects an original statement"));
+                };
+                if selected.replace(node).is_some() {
+                    return Err(fail("actual native inputs have competing original anchors"));
+                }
+            }
+        }
+        let node = selected.ok_or_else(|| fail("actual native inputs omit their original node"))?;
+        b.lookup(self.intrinsic_inputs.len(), WORK)?;
+        let terms = self
+            .intrinsic_inputs
+            .get(&(context.definition, node))
+            .ok_or_else(|| fail("actual native inputs have no checked original scheme"))?;
+        let mut values = Vec::new();
+        for term in terms {
+            let value = self.value(*term, context, program, inventory, b, 0)?;
+            Solver::push(&mut values, value, b)?;
+        }
+        Ok(values)
     }
     pub(super) fn call(
         &self,
