@@ -12,6 +12,8 @@ mod capture;
 mod dynamic;
 #[path = "world_flow.rs"]
 mod flow;
+#[path = "world_values.rs"]
+mod function_values;
 #[path = "world_intrinsics.rs"]
 mod intrinsics;
 #[path = "world_methods.rs"]
@@ -175,6 +177,13 @@ impl<'a> World<'a, '_> {
                 self.resolved(ty, empty(), Vec::new())
             }
             Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
+            Type::FunctionPointer { parameters, result } => {
+                for parameter in parameters {
+                    self.zero_at(parameter, depth + 1)?;
+                }
+                self.zero_at(result, depth + 1)?;
+                self.resolved(ty, empty(), Vec::new())
+            }
             Type::Managed(inner)
             | Type::Mutex { payload: inner }
             | Type::OwnedStore { element: inner } => {
@@ -2000,6 +2009,43 @@ impl World<'_, '_> {
                     intrinsic
                 } else {
                     match &instruction.kind {
+                        InstructionKind::FunctionRef { function }
+                        | InstructionKind::ForeignFunctionRef { function } => {
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("function address has no actual SSA result"))?;
+                            Some(function_values::reference(
+                                self,
+                                instance,
+                                original,
+                                &sites,
+                                block.id,
+                                index,
+                                result,
+                                *function,
+                                matches!(
+                                    instruction.kind,
+                                    InstructionKind::ForeignFunctionRef { .. }
+                                ),
+                                ty.ok_or_else(|| bad("function address has no actual type"))?,
+                                &implicit,
+                            )?)
+                        }
+                        InstructionKind::CallIndirect { callee, arguments } => {
+                            Some(function_values::indirect(
+                                self,
+                                instance,
+                                original,
+                                &sites,
+                                block.id,
+                                index,
+                                *callee,
+                                arguments,
+                                ty.unwrap_or(&Type::Unit),
+                                &values,
+                                &implicit,
+                            )?)
+                        }
                         InstructionKind::Load(local) => Some(self.local(&locals, *local)?),
                         InstructionKind::TakeLocal { local } => {
                             let value = self.local(&locals, *local)?;
@@ -3176,8 +3222,14 @@ impl World<'_, '_> {
                             owners.retain(|_, owner| owner != scope);
                             None
                         }
-                        InstructionKind::Constant(_) => {
-                            Some(self.zero(ty.ok_or_else(|| bad("constant has no actual type"))?)?)
+                        InstructionKind::Constant(value) => {
+                            let actual = ty.ok_or_else(|| bad("constant has no actual type"))?;
+                            if value.ty() != *actual {
+                                return Err(bad(
+                                    "constant opcode changes its complete literal type",
+                                ));
+                            }
+                            Some(self.zero(actual)?)
                         }
                         InstructionKind::Binary { left, right, .. }
                             if ty.is_some_and(Type::is_b0_scalar) =>
