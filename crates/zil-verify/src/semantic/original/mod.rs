@@ -20,6 +20,7 @@ mod lifetimes;
 mod substitution;
 mod closure_sources;
 mod frozen;
+mod external_abi;
 mod schemes;
 mod effects;
 mod carriers;

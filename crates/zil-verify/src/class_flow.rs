@@ -1197,6 +1197,42 @@ fn check_with(
                     }
                 }
                 let out = i.result.map(|v| &values[v.0 as usize]);
+                if phase == 0
+                    && let (Some(result), Some(ports), Some(vars)) = (i.result, out, header.as_ref())
+                    && matches!(i.kind, InstructionKind::MakeAggregate { .. } | InstructionKind::MakeOwnedTuple { .. })
+                {
+                    let key = semantic::constructor_classes::Key {
+                        function: f.id,
+                        block: BlockId(block_index as u32),
+                        instruction: instruction_index as u32,
+                        result,
+                    };
+                    // This immutable image comes from every complete original
+                    // world and actual constructor replay. It equates logical
+                    // classes with already grounded input-header variables;
+                    // it never grounds an output-only class or an address.
+                    if b.semantic_constructor_classes.contains_key(&key) {
+                        dynamic_metadata::ty(&f.values[result.0 as usize], b)?;
+                        if let Some(contract) = assumptions { signature_life::charge(contract, b)?; }
+                    }
+                    let image = if let Some(source) = b.semantic_constructor_classes.get(&key) {
+                        if assumptions != Some(&source.header)
+                            || f.values.get(result.0 as usize) != Some(&source.ty)
+                            || ports.keys.len() != source.classes.len()
+                            || ports.keys.iter().enumerate().any(|(class, (path, index))| !path.is_empty() || *index != class as u32)
+                        {
+                            return Err(bad("constructor logical source differs from its exact actual type/header occurrence"));
+                        }
+                        let count = source.classes.len();
+                        b.spend(count)?;
+                        Some(b.semantic_constructor_classes[&key].classes.clone())
+                    } else { None };
+                    if let Some(image) = image {
+                        for (class, binder) in ports.classes.iter().zip(image) {
+                            e.equal(*class, select(vars, binder)?, b)?;
+                        }
+                    }
+                }
                 match &i.kind {
                     InstructionKind::MakeDynOwned { vtable, source, .. }
                     | InstructionKind::MakeDynBorrow { vtable, source, .. } => {

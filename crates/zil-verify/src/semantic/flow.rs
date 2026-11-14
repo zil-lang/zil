@@ -31,6 +31,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     context.prepare_task_contexts(module,&mut external,&mut active,b)?;
     if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut checked_instances=std::collections::BTreeSet::new();
+    let mut checked_worlds=Vec::new();
     let mut ordered=Vec::new();
     for instance in &program.instances {
         let mut depth=0usize;let mut parent=instance.parent;
@@ -52,6 +53,8 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
             context.function(module,instance,function,&signature,&environment,&mut external,&mut active,b)?;
             context.mark_task_worker_checked(module,instance,&signature,b)?;
             checked_instances.insert(instance.id);
+            b.spend(environment.lexical.len().saturating_add(1))?;
+            checked_worlds.push((instance.id,environment));
         }
     }
     for boundary in context.closure_boundaries.borrow().iter() {
@@ -86,6 +89,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         b.spend(program.instances.len())?;
         if function.foreign.is_none()&&!program.instances.iter().any(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==function.id)) {return Err(bad("semantic programme omits an actual function instance"));}
     }
+    context.publish_constructor_classes(module,&checked_worlds,b)?;
     Ok(())
 }
 impl CheckedContext {

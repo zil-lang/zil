@@ -83,6 +83,29 @@ const COMPLETE_LOCAL:&[u8]=include_bytes!("fixtures/local-closure-complete-head.
 // phantom fixture. Its plan is untrusted; this exercises only this kernel.
 const COMPLETE_PHANTOM:&[u8]=include_bytes!("fixtures/phantom-closure-complete-creator.wire");
 #[test]
+fn phantom_constructor_class_equations_require_complete_original_creator_worlds(){
+    let limits=Limits::default();
+    let(original,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();
+    for wire in [false,true]{
+        let bytes=zil_ir::wire::encode_module_candidate(&original,&plan,&limits).unwrap();
+        let(module,_)=if wire{zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap()}else{(original.clone(),plan.clone())};
+        let mut budget=Budget::new(&limits);
+        check_program(&module,&mut budget).unwrap();
+        let function=budget.semantic_constructor_classes.keys().find_map(|key|{
+            let function=&module.functions[key.function.0 as usize];
+            function.blocks.iter().any(|block|block.instructions.iter().any(|row|matches!(row.kind,InstructionKind::MakeClosure{..}))).then_some(key.function)
+        }).expect("genuine phantom creator has a checked logical input image");
+        let function=&module.functions[function.0 as usize];
+        let reachable=vec![true;function.blocks.len()];
+        crate::class_flow::check(&module,function,&reachable,&mut budget).unwrap();
+        // The raw physical aggregate alone never grounds its phantom class.
+        // Removing the private proof must restore the old strict rejection.
+        budget.semantic_constructor_classes.clear();
+        let error=crate::class_flow::check(&module,function,&reachable,&mut budget).unwrap_err();
+        assert!(error.message.contains("captured Fixed has no independently established source class"),"{error:?}");
+    }
+}
+#[test]
 fn qualified_copy_capture_admission_keeps_phantom_domain_and_rejects_physical_targets(){
     let limits=Limits::default();
     let(original,plan)=zil_ir::wire::decode_module_candidate(COMPLETE_PHANTOM,&limits).unwrap();

@@ -60,7 +60,16 @@ impl CheckedOriginal {
                 (Ty::Desc{inner,..},Type::Desc(actual))=>self.core_abi_type(module,context,inner,actual,env,active,b)?,
                 (Ty::Slice(inner),Type::Slice{element})=>self.core_abi_type(module,context,inner,element,env,active,b)?,
                 (Ty::Tuple(a),Type::Tuple(c))if a.len()==c.len()=>{for(a,c)in a.iter().zip(c){if !self.core_abi_type(module,context,a,c,env,active,b)?{return Ok(false);}}true},
-                (Ty::Variable(..)|Ty::SelfType(_)|Ty::Infer(_)|Ty::Nominal(..)|Ty::Code{..},_)=>return Err(unsupported("frozen generic/nominal external ABI requires its complete original specialization and source-domain correspondence",None)),
+                (Ty::Array(element,length),Type::Array{element:actual,length:actual_length})=>self.external_array_length(module,length,b)?==*actual_length&&self.core_abi_type(module,context,element,actual,env,active,b)?,
+                (Ty::Nominal(id,arguments),_)=>self.external_nominal(module,context,*id,arguments,actual,env,active,b)?,
+                (Ty::Code{kind:SemanticCodeKind::ForeignCallback,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes},Type::ForeignCallback{parameters:actual,result:actual_result})=>{
+                    if *call_kind!=CallKind::Direct||*bound_lifetimes!=0||*invocation_lifetimes!=0||*result_mode!=PassingMode::Infer||modes.len()!=parameters.len()||modes.iter().any(|mode|*mode!=PassingMode::Infer)||parameters.len()!=actual.len(){return Ok(false);}
+                    crate::native_values::target(&module.target,None)?;
+                    crate::native_values::callback_signature(actual,actual_result,None)?;
+                    for(expected,actual)in parameters.iter().zip(actual){if !self.core_abi_type(module,context,expected,actual,env,active,b)?{return Ok(false);}}
+                    self.core_abi_type(module,context,result,actual_result,env,active,b)?
+                },
+                (Ty::Variable(..)|Ty::SelfType(_)|Ty::Infer(_)|Ty::Code{..},_)=>return Err(unsupported("external ABI requires its complete original specialization and source-domain correspondence",None)),
                 _=>false,
             })
         })

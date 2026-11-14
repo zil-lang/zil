@@ -28,6 +28,7 @@ mod capture_heads;
 mod closure_boundaries;
 mod call_results;
 mod callbacks;
+pub(crate) mod constructor_classes;
 mod original;
 mod resources;
 mod retained;
