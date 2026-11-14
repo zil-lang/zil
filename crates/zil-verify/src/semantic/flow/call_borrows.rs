@@ -30,7 +30,16 @@ impl CheckedContext {
             if self.same(environment,source,key,b)?{
                 // The exact original expression head must be a real earlier
                 // operand in this same caller, never another class image.
-                if !matches!(key,ClassKey::Outer{scope:owner,operand:OperandKey::Value(id),path,mode}if *owner==scope&&*id==current&&path.is_empty()&&*mode==outer.mode){return Ok(false);}
+                let exact_occurrence=matches!(key,ClassKey::Outer{scope:owner,operand:OperandKey::Value(id),path,mode}if *owner==scope&&*id==current&&path.is_empty()&&*mode==outer.mode);
+                let parameter_role=match key{
+                    ClassKey::Formal{..}=>{
+                        b.spend(environment.lexical.iter().fold(1usize,|n,frame|n.saturating_add(frame.actuals.len())))?;
+                        environment.lexical.iter().any(|frame|frame.actuals.iter().any(|actual|matches!(actual,CheckedActual::Life(life)if life==key)))&&loaded_parameter(f,current,b)?
+                    },
+                    ClassKey::Implicit{scope:owner,..}if *owner==scope=>loaded_parameter(f,current,b)?,
+                    _=>false,
+                };
+                if !exact_occurrence&&!parameter_role{return Ok(false);}
                 if !self.compatible(environment,parent,expected,b)?{return Ok(false);}
                 related=true;break;
             }
@@ -43,4 +52,11 @@ impl CheckedContext {
         role.origins[outer.binder as usize]=actual.origins.get(actual_outer.binder as usize).cloned().ok_or_else(||bad("Call actual child head origin is absent"))?;
         self.same_type(environment,actual,&role,b)
     }
+}
+
+fn loaded_parameter(f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<bool>{
+    let mut selected=None;
+    for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&selected.replace(operation).is_some(){return Err(bad("Call parameter head has several actual SSA definitions"));}}}
+    b.spend(f.parameters.len())?;
+    Ok(matches!(selected.map(|row|&row.kind),Some(InstructionKind::Load(local))if f.parameters.contains(local)))
 }
