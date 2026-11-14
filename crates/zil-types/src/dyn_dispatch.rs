@@ -1587,6 +1587,12 @@ impl Builder<'_, '_> {
                     ));
                 }
                 self.semantic_local_place(callee, local)?;
+                let mut receiver_work = self.closures.remaining_work();
+                let before_receiver = receiver_work;
+                self.closures.semantic_emission.dynamic_receiver(
+                    self.function.id, callee.id, &mut receiver_work, callee.span,
+                )?;
+                self.closures.snapshot(before_receiver - receiver_work, callee.span)?;
                 let ty = Type::Address {
                     mutable: slot.receiver.mutable,
                     inner: Box::new(Type::Dyn { interface }),

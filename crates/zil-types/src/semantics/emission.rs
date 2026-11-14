@@ -27,6 +27,8 @@ pub(crate) struct Expression {
     pub value: Option<ValueId>,
     pub place: Option<SemanticOperand>,
     pub callee: Option<NodeId>,
+    /// The actual owner place selected by this dynamic call, before borrowing.
+    pub dyn_receiver: Option<NodeId>,
     pub end: Option<Point>,
     pub instructions: Vec<Point>,
     /// The real literal producer result, before a later contextual observation
@@ -101,6 +103,55 @@ impl Ledger {
             return Err(invalid(
                 span,
                 "one actual closure repeats its capture selections",
+            ));
+        }
+        Ok(())
+    }
+    pub(crate) fn dynamic_receiver(
+        &mut self,
+        function: FunctionId,
+        receiver: NodeId,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() {
+            return Ok(());
+        }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else {
+            return Ok(());
+        };
+        let call = *frame
+            .stack
+            .last()
+            .ok_or_else(|| invalid(span, "dynamic owner selection has no active real call"))?;
+        pay(
+            left,
+            lookup_cost(frame.expressions.len()).saturating_mul(2),
+            span,
+        )?;
+        let owner = frame
+            .expressions
+            .get(&receiver)
+            .ok_or_else(|| invalid(span, "dynamic owner selection has no actual place receipt"))?;
+        if owner.place.is_none() || owner.end.is_none() || !owner.complete {
+            return Err(invalid(
+                span,
+                "dynamic owner selection is not its completed actual place occurrence",
+            ));
+        }
+        let row = frame
+            .expressions
+            .get_mut(&call)
+            .ok_or_else(|| invalid(span, "dynamic owner selection lost its active call receipt"))?;
+        if row
+            .dyn_receiver
+            .replace(receiver)
+            .is_some_and(|old| old != receiver)
+        {
+            return Err(invalid(
+                span,
+                "one dynamic call changes its actual owner place selection",
             ));
         }
         Ok(())

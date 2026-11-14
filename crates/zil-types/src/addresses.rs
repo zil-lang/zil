@@ -289,6 +289,8 @@ impl Builder<'_, '_> {
                     "exclusive owned dyn borrow needs a mutable owner local",
                 ));
             }
+            let entered = self.closures.semantic_begin(self.function.id, e)?;
+            self.semantic_local_place(operand, local)?;
             let ty = Type::Address {
                 mutable,
                 inner: Box::new(Type::Dyn {
@@ -298,6 +300,17 @@ impl Builder<'_, '_> {
             let value = self.value(
                 InstructionKind::BorrowDynOwned { local, mutable },
                 ty.clone(),
+                e.span,
+            )?;
+            self.closures.semantic_end(
+                self.function.id,
+                e.id,
+                entered,
+                Some(value),
+                self.current.map(|block| crate::semantics::emission::Point {
+                    block,
+                    instruction: self.function.blocks[block.0 as usize].instructions.len(),
+                }),
                 e.span,
             )?;
             return Ok((value, ty));

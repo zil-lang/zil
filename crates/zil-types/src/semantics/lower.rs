@@ -541,6 +541,19 @@ pub(super) fn program(
     }
     pay(lower.left, program.sites.len().saturating_mul(2))?;
     let mut seen = std::collections::BTreeSet::new();
+    let mut owner_observations = Vec::new();
+    pay(
+        lower.left,
+        program
+            .sites
+            .len()
+            .saturating_mul(search(program.sites.len()).saturating_add(1)),
+    )?;
+    let actual_sites: std::collections::BTreeSet<_> = program
+        .sites
+        .iter()
+        .map(|site| (site.instance, site.recipe))
+        .collect();
     for site in &mut program.sites {
         pay(
             lower.left,
@@ -594,6 +607,80 @@ pub(super) fn program(
         } else {
             None
         };
+        if let Some(super::original::IntrinsicKind::DynCall { receiver_node, .. }) = intrinsic
+            && let SemanticSiteAddress::Core {
+                expression: call,
+                occurrence: 0,
+                role: SemanticEmissionRole::Call,
+            } = site.at
+            && let Some(receiver) = lower.expression(function, call)?.dyn_receiver
+        {
+            let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body
+            else {
+                return Err(bad(
+                    "dynamic owner observation requires its complete original body",
+                ));
+            };
+            pay(
+                lower.left,
+                site_nodes
+                    .len()
+                    .saturating_mul(sites.len().saturating_add(1)),
+            )?;
+            let mut selected = None;
+            for node in site_nodes
+                .iter()
+                .filter(|node| node.node == SemanticOriginalNode::Expression(*receiver_node))
+            {
+                let recipe = sites
+                    .iter()
+                    .find(|recipe| recipe.id == node.site)
+                    .ok_or_else(|| bad("dynamic owner observation lost its original recipe"))?;
+                let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
+                    continue;
+                };
+                if selected.replace((recipe.id, expected)).is_some() {
+                    return Err(bad(
+                        "dynamic owner place selects multiple original observation recipes",
+                    ));
+                }
+            }
+            let (recipe, expected) = selected.ok_or_else(|| {
+                bad("dynamic owner place has no exact original observation recipe")
+            })?;
+            if !actual_sites.contains(&(site.instance, recipe)) {
+                crate::dyn_metadata::semantic_operand_snapshot(expected, limits, lower.left, 1)?;
+                let mut observation = SemanticSite {
+                    instance: site.instance,
+                    recipe,
+                    at: SemanticSiteAddress::Core {
+                        expression: receiver,
+                        occurrence: 0,
+                        role: SemanticEmissionRole::Ascription,
+                    },
+                    action: SemanticSiteAction::TypeUse {
+                        subject: SemanticOperand::CoreExpression {
+                            expression: receiver,
+                            occurrence: 0,
+                        },
+                        expected: SemanticTypeValue::Core {
+                            scope: site.instance,
+                            source: SemanticCoreTypeSource::OriginalRecipe(Box::new(
+                                expected.clone(),
+                            )),
+                        },
+                    },
+                };
+                lower.site(function, &mut observation, None)?;
+                if !seen.insert((observation.instance, observation.recipe)) {
+                    return Err(bad(
+                        "dynamic owner observation repeats one actual original operation",
+                    ));
+                }
+                pay(lower.left, 1)?;
+                owner_observations.push(observation);
+            }
+        }
         lower.site(function, site, intrinsic)?;
         match (&original.kind, &site.action) {
             (
@@ -650,9 +737,18 @@ pub(super) fn program(
             _ => {}
         }
     }
+    if program.sites.len().saturating_add(owner_observations.len()) > limits.max_nodes {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "actual original owner observation inventory exceeded",
+            None,
+        ));
+    }
+    program.sites.extend(owner_observations);
     // Original sites include type-stage operations and unused template bodies.
-    // They remain immutable and universally checked. Only actual Core mint
-    // events in program.sites relocate to runtime SSA; every such event above
-    // must have a real receipt, and instances::publish covers every real frame.
+    // They remain immutable and universally checked. Core mint events and
+    // actual owner-place events attached to their original dynamic calls are
+    // relocated only from real emitter receipts. No whole-value read is made
+    // to observe an owner place; instances::publish covers every real frame.
     Ok(())
 }
