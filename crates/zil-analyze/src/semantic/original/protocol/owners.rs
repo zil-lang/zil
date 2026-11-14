@@ -9,6 +9,10 @@ impl Proof<'_, '_> {
                 term = hidden;
                 continue;
             }
+            if let Kind::ErrorUnion { result, .. } = self.checked.arena[term] {
+                term = result;
+                continue;
+            }
             let Kind::Wrapped(Wrapper::Managed, payload) = self.checked.arena[term] else {
                 return Ok(false);
             };
@@ -47,6 +51,7 @@ impl Proof<'_, '_> {
         state.phases.insert(role, ANY);
         Ok(Data {
             alias: Some(role),
+            exposed: false,
             outcomes: Vec::new(),
         })
     }

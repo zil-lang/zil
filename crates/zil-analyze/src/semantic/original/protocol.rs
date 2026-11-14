@@ -2,7 +2,9 @@
 //! at entry/call boundaries; every original return must independently satisfy
 //! them. Actual generations, loans, provider drain and cleanup remain separate.
 use super::*;
+mod canonical;
 mod control;
+mod outcomes;
 mod owners;
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
@@ -33,44 +35,9 @@ fn poll(
     inventory: &Inventory<'_>,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    let SemanticTypeRecipe::Nominal {
-        definition,
-        arguments,
-    } = recipe
-    else {
-        return Ok(false);
-    };
-    let declaration = inventory.definition(*definition, b)?;
-    let SemanticDefinitionBody::Nominal {
-        declaration,
-        kind: LifeNominalKind::Enum,
-        body: SemanticNominalBody::Enum { variants },
-    } = &declaration.body
-    else {
-        return Ok(false);
-    };
-    b.spend(variants.len().saturating_add(arguments.len() + 1), WORK)?;
-    if *declaration != zil_ir::builtin_life::POLL {
-        return Ok(false);
-    }
-    if variants.len() != 2
-        || variants[0].name != "Pending"
-        || !variants[0].fields.is_empty()
-        || variants[1].name != "Ready"
-        || variants[1].fields.len() != 1
-        || !matches!(
-            arguments.as_slice(),
-            [SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(
-                Type::Unit
-            ))]
-        )
-    {
-        return Err(fail(
-            "original protocol Poll has another complete canonical declaration or payload",
-        ));
-    }
-    Ok(true)
+    Ok(inventory.protocol_poll_recipe(recipe, b)?.is_some())
 }
+
 fn shape(
     definition: &SemanticDefinition,
     inventory: &Inventory<'_>,
@@ -182,6 +149,9 @@ fn shape(
 #[derive(Clone, PartialEq, Eq, Default)]
 struct Data {
     alias: Option<u32>,
+    // A value may hide access to a tracked original head through a callable
+    // or an aggregate. Calls must not preserve a phase through that exposure.
+    exposed: bool,
     outcomes: Vec<(ProtocolExit, BTreeMap<u32, u8>)>,
 }
 #[derive(Clone, PartialEq, Eq)]
@@ -284,6 +254,7 @@ impl State {
                     "original protocol alias join requires its complete possible-head relation",
                 ));
             }
+            data.exposed |= other_data.exposed;
             if data.outcomes != other_data.outcomes {
                 data.outcomes.clear();
             }
@@ -306,6 +277,9 @@ impl Proof<'_, '_> {
             Kind::Address { .. } => Ok(true),
             Kind::CallResult { hidden, .. } => self.passive_drop(*hidden, b, depth + 1),
             Kind::Array { element, .. } => self.passive_drop(*element, b, depth + 1),
+            Kind::ErrorUnion { error, result } => Ok(self.passive_drop(*error, b, depth + 1)?
+                && self.passive_drop(*result, b, depth + 1)?),
+            Kind::Code { .. } => Ok(true),
             Kind::Tuple(fields) => {
                 for field in fields {
                     if !self.passive_drop(*field, b, depth + 1)? {
@@ -419,23 +393,7 @@ impl Proof<'_, '_> {
             CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
                 self.expression(state, value, b, depth + 1)
             }
-            CoreExprKind::Try(value) => {
-                let data = self.expression(state, value, b, depth + 1)?;
-                self.plain(&data)?;
-                // A newly created success owner does not exist on the error
-                // edge. Existing input roles retain their actual current state.
-                let mut failure = state.copy(b)?;
-                if let Some(role) = data.alias {
-                    failure.phases.insert(role, 0);
-                }
-                b.spend(failure.phases.len(), WORK)?;
-                let error = Data {
-                    alias: None,
-                    outcomes: vec![(ProtocolExit::ErrorErr, failure.phases.clone())],
-                };
-                self.exit(&failure, &error, b)?;
-                Ok(data)
-            }
+            CoreExprKind::Try(value) => self.try_value(state, value, b, depth + 1),
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Give,
                 operand,
@@ -453,16 +411,14 @@ impl Proof<'_, '_> {
                     .enum_constructors
                     .get(&(self.definition.id, value.id))
                 {
-                    let Kind::Nominal { definition, .. } =
+                    let Kind::Nominal { .. } =
                         &self.checked.arena[self.checked.root(constructor.value, b)?]
                     else {
                         return Err(fail(
                             "original protocol tag loses its nominal member identity",
                         ));
                     };
-                    let declaration = self.inventory.definition(*definition, b)?;
-                    if matches!(declaration.body,SemanticDefinitionBody::Nominal {declaration,..} if declaration==zil_ir::builtin_life::POLL)
-                    {
+                    if self.term_poll(constructor.value, b)?.is_some() {
                         let exit = match constructor.variant {
                             0 => ProtocolExit::PollPending,
                             1 => ProtocolExit::PollReady,
@@ -475,6 +431,7 @@ impl Proof<'_, '_> {
                         b.spend(state.phases.len(), WORK)?;
                         return Ok(Data {
                             alias: None,
+                            exposed: false,
                             outcomes: vec![(exit, state.phases.clone())],
                         });
                     }
@@ -571,14 +528,26 @@ impl Proof<'_, '_> {
                                 );
                                 Ok(Data {
                                     alias: None,
+                                    exposed: false,
                                     outcomes,
                                 })
                             }
                             sealed::Intrinsic::TaskPoll => {
                                 // Ordinary worker progress cannot certify that
                                 // the owning frame's close/drain has completed.
-                                state.phases.insert(role, ANY);
-                                Ok(Data::default())
+                                state.phases.insert(
+                                    role,
+                                    if old & OPEN != 0 {
+                                        ANY
+                                    } else {
+                                        old | if old & CLOSING != 0 { CLOSED } else { 0 }
+                                    },
+                                );
+                                Ok(Data {
+                                    alias: None,
+                                    exposed: true,
+                                    outcomes: Vec::new(),
+                                })
                             }
                             _ => Err(fail(
                                 "original protocol operation has another sealed identity",
@@ -594,7 +563,7 @@ impl Proof<'_, '_> {
                     sealed::Resolution::Intrinsic(
                         sealed::Intrinsic::RegisterAsync | sealed::Intrinsic::TaskCreate,
                     ) => {
-                        state.opaque(b)?;
+                        state.call_effect(&actuals, &[], b)?;
                         self.fresh_owner(state, value.id, b)
                     }
                     sealed::Resolution::Definition(target) => {
@@ -610,6 +579,10 @@ impl Proof<'_, '_> {
                         } else {
                             Ok(data)
                         }
+                    }
+                    sealed::Resolution::Intrinsic(_) => {
+                        state.call_effect(&actuals, &[], b)?;
+                        Ok(Data::default())
                     }
                     _ => {
                         state.opaque(b)?;
@@ -635,10 +608,23 @@ impl Proof<'_, '_> {
                 }
                 Ok(left_value)
             }
+            CoreExprKind::Binary {
+                op: BinaryOp::And | BinaryOp::Or,
+                left,
+                right,
+            } => {
+                let left = self.expression(state, left, b, depth + 1)?;
+                self.plain(&left)?;
+                let skipped = state.copy(b)?;
+                let right = self.expression(state, right, b, depth + 1)?;
+                self.plain(&right)?;
+                state.join(&skipped, b)?;
+                Ok(Data::default())
+            }
             CoreExprKind::Binary { left, right, .. }
-            | CoreExprKind::Index {
-                object: left,
-                index: right,
+            | CoreExprKind::Range {
+                start: left,
+                end: right,
             } => {
                 let left = self.expression(state, left, b, depth + 1)?;
                 self.plain(&left)?;
@@ -646,26 +632,138 @@ impl Proof<'_, '_> {
                 self.plain(&right)?;
                 Ok(Data::default())
             }
+            CoreExprKind::Index { object, index } => {
+                let object = self.expression(state, object, b, depth + 1)?;
+                self.plain(&object)?;
+                let index = self.expression(state, index, b, depth + 1)?;
+                self.plain(&index)?;
+                Ok(Data {
+                    alias: None,
+                    exposed: object.exposed || object.alias.is_some(),
+                    outcomes: Vec::new(),
+                })
+            }
+            CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => {
+                let data = self.expression(state, operand, b, depth + 1)?;
+                self.plain(&data)?;
+                Ok(Data {
+                    alias: None,
+                    exposed: data.exposed || data.alias.is_some(),
+                    outcomes: Vec::new(),
+                })
+            }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::NumericConvert { value: operand, .. }
-            | CoreExprKind::IntegerConvert { value: operand, .. }
-            | CoreExprKind::Member {
-                object: operand, ..
-            } => {
+            | CoreExprKind::IntegerConvert { value: operand, .. } => {
                 let data = self.expression(state, operand, b, depth + 1)?;
                 self.plain(&data)?;
                 Ok(Data::default())
             }
+            CoreExprKind::Member { object, .. } => {
+                let data = self.expression(state, object, b, depth + 1)?;
+                self.plain(&data)?;
+                Ok(Data {
+                    alias: None,
+                    exposed: data.exposed || data.alias.is_some(),
+                    outcomes: Vec::new(),
+                })
+            }
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
+                let mut exposed = false;
                 for field in fields {
                     let data = self.expression(state, field, b, depth + 1)?;
                     self.plain(&data)?;
+                    exposed |= data.exposed;
+                    if data.alias.is_some() {
+                        return Err(unknown(
+                            "original protocol aggregate needs its complete nested owner-place identity",
+                        ));
+                    }
                 }
-                Ok(Data::default())
+                Ok(Data {
+                    alias: None,
+                    exposed,
+                    outcomes: Vec::new(),
+                })
+            }
+            CoreExprKind::Record { fields, .. }
+            | CoreExprKind::RecordConstructor { fields, .. } => {
+                let mut exposed = false;
+                for (_, field) in fields {
+                    let data = self.expression(state, field, b, depth + 1)?;
+                    self.plain(&data)?;
+                    exposed |= data.exposed;
+                    if data.alias.is_some() {
+                        return Err(unknown(
+                            "original protocol product needs its complete nested owner-place identity",
+                        ));
+                    }
+                }
+                Ok(Data {
+                    alias: None,
+                    exposed,
+                    outcomes: Vec::new(),
+                })
+            }
+            CoreExprKind::RecordUpdate { base, fields, .. } => {
+                let data = self.expression(state, base, b, depth + 1)?;
+                self.plain(&data)?;
+                let mut exposed = data.exposed;
+                if data.alias.is_some() {
+                    return Err(unknown(
+                        "original protocol update needs its complete old and new owning-head identities",
+                    ));
+                }
+                for (_, field) in fields {
+                    let data = self.expression(state, field, b, depth + 1)?;
+                    self.plain(&data)?;
+                    exposed |= data.exposed;
+                    if data.alias.is_some() {
+                        return Err(unknown(
+                            "original protocol update needs its complete nested owner-place identity",
+                        ));
+                    }
+                }
+                Ok(Data {
+                    alias: None,
+                    exposed,
+                    outcomes: Vec::new(),
+                })
+            }
+            CoreExprKind::Sequence { bindings, value } => {
+                let scope = state.locals.len();
+                for (name, value) in bindings {
+                    let data = self.expression(state, value, b, depth + 1)?;
+                    b.spend(name.len(), WORK)?;
+                    Solver::push(&mut state.locals, (name.clone(), data), b)?;
+                }
+                let result = self.expression(state, value, b, depth + 1)?;
+                state.locals.truncate(scope);
+                Ok(result)
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                let data = self.expression(state, object, b, depth + 1)?;
+                self.plain(&data)?;
+                for bound in start.iter().chain(end) {
+                    let data = self.expression(state, bound, b, depth + 1)?;
+                    self.plain(&data)?;
+                }
+                Ok(Data {
+                    alias: None,
+                    exposed: data.exposed || data.alias.is_some(),
+                    outcomes: Vec::new(),
+                })
             }
             CoreExprKind::Closure { .. } => {
                 state.cleanup_unknown = true;
-                Ok(Data::default())
+                Ok(Data {
+                    alias: None,
+                    exposed: state.phases.values().any(|phase| *phase != 0),
+                    outcomes: Vec::new(),
+                })
             }
             CoreExprKind::Integer(_)
             | CoreExprKind::Float(_)
@@ -688,7 +786,9 @@ impl Proof<'_, '_> {
     ) -> CompileResult<Data> {
         let definition = self.inventory.definition(target, b)?;
         let SemanticDefinitionBody::FunctionWithBody {
-            protocol_contracts, ..
+            protocol_contracts,
+            signature,
+            ..
         } = &definition.body
         else {
             return Err(fail(
@@ -696,8 +796,23 @@ impl Proof<'_, '_> {
             ));
         };
         if protocol_contracts.is_empty() {
-            state.opaque(b)?;
-            return Ok(Data::default());
+            if signature.parameters.len() != arguments.len() {
+                return Err(fail(
+                    "original protocol call changes its complete ordered value arity",
+                ));
+            }
+            let mut consumed = Vec::new();
+            for parameter in &signature.parameters {
+                Solver::push(&mut consumed, owner(&parameter.ty), b)?;
+            }
+            state.call_effect(arguments, &consumed, b)?;
+            return Ok(Data {
+                alias: None,
+                exposed: arguments
+                    .iter()
+                    .any(|argument| argument.exposed || argument.alias.is_some()),
+                outcomes: Vec::new(),
+            });
         }
         let before = state.copy(b)?;
         state.invalidate(b)?;
@@ -791,6 +906,7 @@ impl Proof<'_, '_> {
         } else {
             Ok(Data {
                 alias: None,
+                exposed: false,
                 outcomes,
             })
         }
@@ -844,6 +960,7 @@ impl Proof<'_, '_> {
                     } else {
                         Data::default()
                     };
+                    let data = self.return_value(state, value.as_ref(), data, b)?;
                     self.exit(state, &data, b)?;
                     state.alive = false;
                 }
@@ -861,6 +978,50 @@ impl Proof<'_, '_> {
                     }
                     state.join(&other, b)?;
                 }
+                CoreStatementKind::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => self.if_let_block(
+                    state,
+                    pattern,
+                    value,
+                    then_body,
+                    else_body.as_ref(),
+                    b,
+                    depth + 1,
+                )?,
+                CoreStatementKind::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => self.while_let_block(state, pattern, value, body, b, depth + 1)?,
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    initializer,
+                    ..
+                } => {
+                    let data = self.expression(state, initializer, b, depth + 1)?;
+                    self.plain(&data)?;
+                    self.bind_pattern(state, pattern, &data, b, depth + 1)?;
+                }
+                CoreStatementKind::ForRange {
+                    name,
+                    start,
+                    end,
+                    body,
+                } => {
+                    let start = self.expression(state, start, b, depth + 1)?;
+                    self.plain(&start)?;
+                    let end = self.expression(state, end, b, depth + 1)?;
+                    self.plain(&end)?;
+                    let scope = state.locals.len();
+                    b.spend(name.len(), WORK)?;
+                    Solver::push(&mut state.locals, (name.clone(), Data::default()), b)?;
+                    self.loop_flow(state, None, body, true, b, depth + 1)?;
+                    state.locals.truncate(scope);
+                }
                 CoreStatementKind::While { condition, body } => {
                     self.loop_block(state, Some(condition), body, b, depth + 1)?;
                 }
@@ -874,6 +1035,25 @@ impl Proof<'_, '_> {
                 )?,
                 CoreStatementKind::Match { value, arms } => {
                     self.match_block(state, value, arms, b, depth + 1)?
+                }
+                CoreStatementKind::CompoundAssign { target, value, .. } => {
+                    let target = self.expression(state, target, b, depth + 1)?;
+                    self.plain(&target)?;
+                    let value = self.expression(state, value, b, depth + 1)?;
+                    self.plain(&value)?;
+                    if target.alias.is_some() || value.alias.is_some() {
+                        return Err(fail(
+                            "original protocol head cannot be a scalar compound-write operand",
+                        ));
+                    }
+                }
+                CoreStatementKind::With { name, value, body } => {
+                    let data = self.expression(state, value, b, depth + 1)?;
+                    let scope = state.locals.len();
+                    b.spend(name.len(), WORK)?;
+                    Solver::push(&mut state.locals, (name.clone(), data), b)?;
+                    self.block(state, body, b, depth + 1)?;
+                    state.locals.truncate(scope);
                 }
                 CoreStatementKind::Assign { target, value } => {
                     let data = self.expression(state, value, b, depth + 1)?;
@@ -920,7 +1100,26 @@ pub(super) fn check(
     inventory: &Inventory<'_>,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    // Validate every distributed constructor, including unused definitions.
+    // An original ID alone never authenticates a Poll/error/failure shape.
+    let mut builtins = BTreeSet::new();
     for definition in inventory.definitions.values() {
+        if let SemanticDefinitionBody::Nominal { declaration, .. } = &definition.body {
+            if [
+                zil_ir::builtin_life::POLL,
+                zil_ir::builtin_life::TASK_CREATE_ERROR,
+                zil_ir::builtin_life::TASK_POLL_STATE,
+                zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD,
+                zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE,
+            ]
+            .contains(declaration)
+            {
+                b.lookup(builtins.len(), WORK)?;
+                if builtins.insert(*declaration) {
+                    inventory.protocol_task_definition(*declaration, b)?;
+                }
+            }
+        }
         shape(definition, inventory, b)?;
         let SemanticDefinitionBody::FunctionWithBody {
             protocol_contracts,
@@ -992,6 +1191,7 @@ pub(super) fn check(
                             parameter.name.clone(),
                             Data {
                                 alias,
+                                exposed: false,
                                 outcomes: Vec::new(),
                             },
                         ),
@@ -1034,6 +1234,7 @@ pub(super) fn check(
                         alias: phases
                             .contains_key(&(ordinal as u32))
                             .then_some(ordinal as u32),
+                        exposed: false,
                         outcomes: Vec::new(),
                     };
                     Solver::push(&mut locals, (parameter.name.clone(), data), b)?;
