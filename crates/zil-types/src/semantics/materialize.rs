@@ -58,16 +58,21 @@ struct Eval<'a, 'm, 'b> {
     active: BTreeSet<(SemanticInstanceId, u32)>,
 }
 impl<'a> Eval<'a, '_, '_> {
+    #[track_caller]
     fn fee(&mut self, count: usize) -> R<()> {
+        let location = std::panic::Location::caller();
         *self.left = self.left.checked_sub(count).ok_or_else(|| {
-            Diagnostic::limit(
+            let mut diagnostic = Diagnostic::limit(
                 Phase::Types,
                 "semantic type materialization work exceeded",
                 None,
-            )
+            );
+            diagnostic.notes.push(format!("actual type evaluation at {}:{}; requested work {}; remaining {}; active original holder {:?}; holder count {}", location.file(), location.line(), count, *self.left, self.active.iter().next(), self.active.len()));
+            diagnostic
         })?;
         Ok(())
     }
+    #[track_caller]
     fn node(&mut self, depth: usize) -> R<()> {
         if depth > self.limits.max_call_depth {
             return Err(Diagnostic::limit(
