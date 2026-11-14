@@ -141,7 +141,9 @@ fn clone_proof(
             .saturating_add(source.complete.len())
             .saturating_add(source.closed_opaque_domains.len())
             .saturating_add(source.body_costs.len())
+            .saturating_add(source.stage_costs.len())
             .saturating_add(source.task_returns.len())
+            .saturating_add(source.task_result_types.len())
             .saturating_add(source.task_binding_sources.len())
             .saturating_add(source.protocol_complete.len())
             .saturating_add(source.cleanup_complete.len())
@@ -229,6 +231,9 @@ fn clone_proof(
     }
     for origins in source.inferred_type_origins.values() {
         spend(left, origins.len(), 0, limits)?;
+    }
+    for result in source.task_result_types.values() {
+        crate::dyn_metadata::semantic_operand_snapshot(result, limits, left, 1)?;
     }
     for returned in source.task_returns.values() {
         crate::dyn_metadata::semantic_operand_snapshot(&returned.ty, limits, left, 1)?;

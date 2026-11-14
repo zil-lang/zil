@@ -662,8 +662,11 @@ impl Check<'_, '_> {
             invocation: &empty,
             shift: 0,
         };
+        crate::dyn_metadata::semantic_operand_snapshot(signature, self.limits, self.left, 1)?;
+        let mut effective = signature.clone();
+        effective.result = self.effective_result(target, &signature.result, depth + 1)?;
         let signature =
-            self.inference_template(signature, &definition.parameters, true, depth + 1)?;
+            self.inference_template(&effective, &definition.parameters, true, depth + 1)?;
         let signature =
             substitute::signature(&signature, &parent_substitution, self.limits, self.left)?;
         self.pay(
@@ -893,7 +896,8 @@ impl Check<'_, '_> {
                 for parameter in &mut signature.parameters {
                     parameter.ty = self.resolve(*definition, &parameter.ty, depth + 1)?;
                 }
-                signature.result = self.resolve(*definition, &signature.result, depth + 1)?;
+                signature.result =
+                    self.effective_result(*definition, &signature.result, depth + 1)?;
                 let frames = [(0, arguments.as_slice())];
                 let environments = [(0, environment.as_slice())];
                 let empty = BTreeMap::new();

@@ -250,6 +250,96 @@ impl Check<'_, '_> {
                 });
                 Some(source)
             }
+            CoreExprKind::Member { object, member, .. } => {
+                let Some(base) = self.proof.types.get(&(owner, Query::Expression(object.id)))
+                else {
+                    return Ok(None);
+                };
+                let mut base = copy_recipe(base, self.limits, self.left)?;
+                base = self.observation_type(owner, &base, depth + 1)?;
+                let mut path = Vec::new();
+                loop {
+                    self.pay(1, depth + path.len())?;
+                    match base {
+                        SemanticTypeRecipe::Address { inner, .. }
+                        | SemanticTypeRecipe::Desc { inner, .. }
+                        | SemanticTypeRecipe::Managed(inner) => {
+                            path.push(LifeTypeProjection::Pointee);
+                            base = *inner;
+                        }
+                        _ => break,
+                    }
+                }
+                let SemanticTypeRecipe::Nominal { definition, .. } = &base else {
+                    return Ok(None);
+                };
+                let original = self.definition(*definition)?;
+                let SemanticDefinitionBody::Nominal {
+                    body: SemanticNominalBody::Product { fields },
+                    ..
+                } = &original.body
+                else {
+                    return Ok(None);
+                };
+                self.pay(fields.len().saturating_add(member.len()), depth)?;
+                let ordinal = fields
+                    .iter()
+                    .position(|field| &field.name == member)
+                    .ok_or_else(|| {
+                        bad("Task result field source is absent from its true original declaration")
+                    })?;
+                let managed_field = matches!(fields[ordinal].ty, SemanticTypeRecipe::Managed(_));
+                let value = self
+                    .proof
+                    .injections
+                    .get(&(owner, expression.id))
+                    .map(|row| &row.payload)
+                    .or_else(|| {
+                        self.proof
+                            .types
+                            .get(&(owner, Query::Expression(expression.id)))
+                    });
+                let Some(value) = value else { return Ok(None) };
+                // The existing field typing proof supplies its complete
+                // instantiated type; do not run substitution a second time.
+                if managed_field && matches!(value, SemanticTypeRecipe::Desc { .. }) {
+                    return Ok(None);
+                }
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    ordinal as u32,
+                )));
+                let source = self.task_value_sources(owner, object, variables, depth + 1)?;
+                self.project_task_sources(source, &path, depth + 1)?
+            }
+            CoreExprKind::Index { object, .. } => {
+                let Some(ty) = self.proof.types.get(&(owner, Query::Expression(object.id))) else {
+                    return Ok(None);
+                };
+                let mut ty = copy_recipe(ty, self.limits, self.left)?;
+                ty = self.observation_type(owner, &ty, depth + 1)?;
+                let mut path = Vec::new();
+                loop {
+                    self.pay(1, depth + path.len())?;
+                    match ty {
+                        SemanticTypeRecipe::Address { inner, .. }
+                        | SemanticTypeRecipe::Desc { inner, .. }
+                        | SemanticTypeRecipe::Managed(inner) => {
+                            path.push(LifeTypeProjection::Pointee);
+                            ty = *inner;
+                        }
+                        _ => break,
+                    }
+                }
+                if !matches!(
+                    ty,
+                    SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_)
+                ) {
+                    return Ok(None);
+                }
+                path.push(LifeTypeProjection::Element);
+                let source = self.task_value_sources(owner, object, variables, depth + 1)?;
+                self.project_task_sources(source, &path, depth + 1)?
+            }
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
                 let mut sources = Vec::new();
                 self.pay(fields.len(), depth)?;

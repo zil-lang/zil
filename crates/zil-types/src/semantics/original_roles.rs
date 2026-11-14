@@ -438,6 +438,144 @@ impl Check<'_, '_> {
         self.escape_active.pop();
         result
     }
+    fn ensure_outer_escape(
+        &mut self,
+        owner: SemanticDefinitionId,
+        lifetime: &SemanticOuterLifeRecipe,
+        depth: usize,
+    ) -> R<()> {
+        let mut role = None;
+        self.pay(self.proof.local_roles.len(), depth)?;
+        for ((role_owner, binding), declaration) in &self.proof.local_roles {
+            if *role_owner == owner
+                && matches!(lifetime, SemanticOuterLifeRecipe::Class(actual) if actual == &declaration.lifetime)
+            {
+                role = Some((*role_owner, *binding));
+                break;
+            }
+        }
+        if let Some((owner, binding)) = role {
+            self.escape_role(owner, binding, &mut BTreeSet::new(), depth + 1)?;
+        } else if !matches!(lifetime, SemanticOuterLifeRecipe::Static)
+            && self.input_lifetime(owner, lifetime, depth + 1)?.is_none()
+        {
+            // Explicit life formals and checked sealed outer anchors are
+            // semantic inputs. A fresh body implicit borrow is not one.
+            if matches!(
+                lifetime,
+                SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ..
+                })
+            ) {
+                return Err(bad(
+                    "original result exposes an unbounded local borrow occurrence",
+                ));
+            }
+        }
+        Ok(())
+    }
+    fn ensure_sequence_escape(
+        &mut self,
+        owner: SemanticDefinitionId,
+        sequence: &SemanticClassSequenceRecipe,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(sequence.parts.len(), depth)?;
+        for part in &sequence.parts {
+            match part {
+                SemanticClassSequencePart::One(life) => {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        life,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    self.ensure_outer_escape(
+                        owner,
+                        &SemanticOuterLifeRecipe::Class(life.clone()),
+                        depth + 1,
+                    )?;
+                }
+                SemanticClassSequencePart::AllClasses { ty, .. } => {
+                    self.ensure_escape(owner, ty, depth + 1)?
+                }
+            }
+        }
+        Ok(())
+    }
+    fn ensure_retained_escape(
+        &mut self,
+        owner: SemanticDefinitionId,
+        retained: &SemanticRetainedShapeRecipe,
+        depth: usize,
+    ) -> R<()> {
+        self.ensure_sequence_escape(owner, &retained.domain, depth + 1)?;
+        for part in &retained.ports {
+            match part {
+                SemanticPortPart::One { leaf, class, .. } => {
+                    self.ensure_escape(owner, leaf, depth + 1)?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        class,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    self.ensure_outer_escape(
+                        owner,
+                        &SemanticOuterLifeRecipe::Class(class.clone()),
+                        depth + 1,
+                    )?;
+                }
+                SemanticPortPart::FromType { ty, classes } => {
+                    self.ensure_escape(owner, ty, depth + 1)?;
+                    self.ensure_sequence_escape(owner, classes, depth + 1)?;
+                }
+            }
+        }
+        for part in &retained.retained {
+            match part {
+                SemanticRetainedPart::One { parent, .. } => {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        parent,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    self.ensure_outer_escape(
+                        owner,
+                        &SemanticOuterLifeRecipe::Class(parent.clone()),
+                        depth + 1,
+                    )?;
+                }
+                SemanticRetainedPart::All { parents, .. } => {
+                    self.ensure_sequence_escape(owner, parents, depth + 1)?
+                }
+            }
+        }
+        for part in &retained.nominal {
+            match part {
+                SemanticNominalPart::One { class, .. } => {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        class,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    self.ensure_outer_escape(
+                        owner,
+                        &SemanticOuterLifeRecipe::Class(class.clone()),
+                        depth + 1,
+                    )?;
+                }
+                SemanticNominalPart::FromType { ty, classes, .. } => {
+                    self.ensure_escape(owner, ty, depth + 1)?;
+                    self.ensure_sequence_escape(owner, classes, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
     fn ensure_escape_inner(
         &mut self,
         owner: SemanticDefinitionId,
@@ -450,36 +588,16 @@ impl Check<'_, '_> {
                 lifetime, inner, ..
             }
             | SemanticTypeRecipe::Desc { lifetime, inner } => {
-                let mut role = None;
-                self.pay(self.proof.local_roles.len(), depth)?;
-                for ((role_owner, binding), declaration) in &self.proof.local_roles {
-                    if *role_owner == owner
-                        && matches!(lifetime, SemanticOuterLifeRecipe::Class(actual) if actual == &declaration.lifetime)
-                    {
-                        role = Some((*role_owner, *binding));
-                        break;
-                    }
-                }
-                if let Some((owner, binding)) = role {
-                    self.escape_role(owner, binding, &mut BTreeSet::new(), depth + 1)?;
-                } else if !matches!(lifetime, SemanticOuterLifeRecipe::Static)
-                    && self.input_lifetime(owner, lifetime, depth + 1)?.is_none()
-                {
-                    // Explicit life formals and checked sealed outer anchors are
-                    // semantic inputs. A fresh body implicit borrow is not one.
-                    if matches!(
-                        lifetime,
-                        SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
-                            scope: SemanticScopeRef::Ancestor(0),
-                            ..
-                        })
-                    ) {
-                        return Err(bad(
-                            "original result exposes an unbounded local borrow occurrence",
-                        ));
-                    }
-                }
+                self.ensure_outer_escape(owner, lifetime, depth + 1)?;
                 self.ensure_escape(owner, inner, depth + 1)?;
+            }
+            SemanticTypeRecipe::Task { result, retained }
+            | SemanticTypeRecipe::MutexGuard {
+                payload: result,
+                retained,
+            } => {
+                self.ensure_escape(owner, result, depth + 1)?;
+                self.ensure_retained_escape(owner, retained, depth + 1)?;
             }
             SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
                 for field in fields {

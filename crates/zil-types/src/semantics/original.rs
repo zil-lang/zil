@@ -44,6 +44,8 @@ mod store;
 pub(super) mod substitute;
 #[path = "original_task_bridge.rs"]
 mod task_bridge;
+#[path = "original_task_families.rs"]
+mod task_families;
 #[path = "original_task_results.rs"]
 mod task_results;
 pub(super) use nominal_where::{NominalRequest, NominalWhere};
@@ -185,8 +187,10 @@ pub(super) struct Proof {
     pub types: BTreeMap<(SemanticDefinitionId, Query), SemanticTypeRecipe>,
     // Request-local cost diagnostics; these fields supply no semantic fact.
     pub(super) body_costs: BTreeMap<SemanticDefinitionId, (usize, usize, usize)>,
+    pub(super) stage_costs: BTreeMap<&'static str, usize>,
     body_cost_total: usize,
     task_returns: BTreeMap<(SemanticDefinitionId, NodeId), task_results::ReturnValue>,
+    task_result_types: BTreeMap<SemanticDefinitionId, SemanticTypeRecipe>,
     task_binding_sources: BTreeMap<(SemanticDefinitionId, NodeId), Option<Vec<TaskResultSource>>>,
     pub calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<SemanticActualRecipe>>,
     pub complete: BTreeSet<SemanticDefinitionId>,
@@ -710,6 +714,24 @@ impl<'a> Check<'a, '_> {
                     ));
                 }
                 return self.same(a, b);
+            }
+            (
+                SemanticTypeRecipe::Task {
+                    result: a,
+                    retained: al,
+                },
+                SemanticTypeRecipe::Task {
+                    result: b,
+                    retained: bl,
+                },
+            ) => {
+                self.same(a, b)?;
+                let owner = self
+                    .contexts
+                    .last()
+                    .copied()
+                    .ok_or_else(|| bad("original Task comparison has no lexical Gamma"))?;
+                return self.same_task_shape(owner, al, bl, 0);
             }
             (SemanticTypeRecipe::Managed(a), SemanticTypeRecipe::Managed(b))
             | (SemanticTypeRecipe::OwnedStore(a), SemanticTypeRecipe::OwnedStore(b))
@@ -2764,11 +2786,30 @@ impl<'a> Check<'a, '_> {
                     _ => None,
                 };
                 let actual = self.expr(owner, expression, variables, raw_wanted, depth + 1)?;
-                let value = if &actual == union {
+                let equal_union = match self.same(&actual, union) {
+                    Ok(()) => true,
+                    Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                        return Err(error);
+                    }
+                    Err(_) => false,
+                };
+                let value = if equal_union {
                     actual
                 } else {
-                    let is_error = &actual == error.as_ref();
-                    let is_result = &actual == result.as_ref();
+                    let is_error = match self.same(&actual, error) {
+                        Ok(()) => true,
+                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                            return Err(error);
+                        }
+                        Err(_) => false,
+                    };
+                    let is_result = match self.same(&actual, result) {
+                        Ok(()) => true,
+                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                            return Err(error);
+                        }
+                        Err(_) => false,
+                    };
                     if is_error == is_result {
                         return Err(bad(
                             "original implicit error injection is ambiguous or changes its payload type",
@@ -3690,7 +3731,7 @@ impl<'a> Check<'a, '_> {
                     bound_lifetimes: signature.bound_lifetimes,
                     invocation_lifetimes: signature.invocation_lifetimes,
                     parameters: signature.parameters.clone(),
-                    result: self.resolve(target, &signature.result, depth + 1)?,
+                    result: self.effective_result(target, &signature.result, depth + 1)?,
                     result_mode: signature.result_mode,
                     call_kind: signature.call_kind,
                 };
@@ -4627,8 +4668,13 @@ impl<'a> Check<'a, '_> {
                 }
                 CoreStatementKind::Return(Some(value)) => {
                     let value_node = value;
-                    let target = self.resolve(owner, result, depth + 1).ok();
-                    let value = self.expr(owner, value, variables, target.as_ref(), depth + 1)?;
+                    let task_family = self.task_return_family(result);
+                    let value = if task_family {
+                        self.task_return_value(owner, value, variables, result, depth + 1)?
+                    } else {
+                        let target = self.resolve(owner, result, depth + 1).ok();
+                        self.expr(owner, value, variables, target.as_ref(), depth + 1)?
+                    };
                     self.ensure_escape(owner, &value, depth + 1)?;
                     let infer = matches!(
                         result,
@@ -4660,7 +4706,7 @@ impl<'a> Check<'a, '_> {
                             ));
                         }
                         self.same(&value, hidden)?;
-                    } else {
+                    } else if !task_family {
                         self.same(&value, &expected)?;
                     }
                     self.record_task_return(
@@ -5495,6 +5541,7 @@ impl<'a> Check<'a, '_> {
             .capture_names
             .insert(definition.id, names.clone());
         self.captures.insert(definition.id, names);
+        self.finish_task_result(definition.id, 0)?;
         if !self
             .proof
             .types
@@ -5642,7 +5689,14 @@ fn check_requested(
         requested_snapshot,
         escape_active: Vec::new(),
     };
+    check.pay(1024, 0)?;
+    let phase_start = *check.left;
     check.associated_inventory(0)?;
+    check.proof.proof_mut()?.stage_costs.insert(
+        "associated_inventory",
+        phase_start.saturating_sub(*check.left),
+    );
+    let phase_start = *check.left;
     for definition in &program.definitions {
         if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
             check.canonical_carrier(definition, 0)?;
@@ -5669,10 +5723,36 @@ fn check_requested(
             ));
         }
     }
+    check.proof.proof_mut()?.stage_costs.insert(
+        "all_functions_and_carriers",
+        phase_start.saturating_sub(*check.left),
+    );
+    let phase_start = *check.left;
     check.finish_effects()?;
+    check
+        .proof
+        .proof_mut()?
+        .stage_costs
+        .insert("finish_effects", phase_start.saturating_sub(*check.left));
+    let phase_start = *check.left;
     check.associated_obligations(0)?;
+    check.proof.proof_mut()?.stage_costs.insert(
+        "associated_obligations",
+        phase_start.saturating_sub(*check.left),
+    );
+    let phase_start = *check.left;
     check.cache_closed_opaque_domains()?;
+    check.proof.proof_mut()?.stage_costs.insert(
+        "closed_opaque_finalize",
+        phase_start.saturating_sub(*check.left),
+    );
+    let phase_start = *check.left;
     protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
+    check
+        .proof
+        .proof_mut()?
+        .stage_costs
+        .insert("protocol_cleanup", phase_start.saturating_sub(*check.left));
     check.proof.proof_mut()?.pure_queries_ready = true;
     check.proof.into_owned()
 }
