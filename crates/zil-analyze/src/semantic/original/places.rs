@@ -105,10 +105,14 @@ impl Solver<'_, '_> {
                     selected: term,
                 }
             }
-            CoreExprKind::Group(inner) => {
+            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
                 let Some(place) = self.place(frame, inner, record, b, depth + 1)? else {
                     return Ok(None);
                 };
+                if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
+                    let expected = self.recipe(frame, ty, b, depth + 1)?;
+                    self.unify(place.selected, expected, depth + 1, b)?;
+                }
                 place
             }
             CoreExprKind::Member {
