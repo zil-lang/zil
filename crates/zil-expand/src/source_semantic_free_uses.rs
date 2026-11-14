@@ -17,6 +17,7 @@ struct Free<'a> {
     found: Vec<(String, NodeId)>,
     scopes: Option<Vec<OriginalClosureScope>>,
     value_uses: Option<Vec<NodeId>>,
+    typing_stages: bool,
 }
 impl Builder<'_, '_, '_, '_> {
     pub(in crate::source_semantics) fn original_free_uses(
@@ -31,6 +32,7 @@ impl Builder<'_, '_, '_, '_> {
             found: Vec::new(),
             scopes: None,
             value_uses: None,
+            typing_stages: false,
         };
         for (index, parameter) in parameters.iter().enumerate() {
             let ordinal = u32::try_from(index)
@@ -57,6 +59,7 @@ impl Builder<'_, '_, '_, '_> {
             found: Vec::new(),
             scopes: Some(Vec::new()),
             value_uses: None,
+            typing_stages: false,
         };
         for (index, parameter) in parameters.iter().enumerate() {
             let ordinal = u32::try_from(index)
@@ -84,6 +87,7 @@ impl Builder<'_, '_, '_, '_> {
             found: Vec::new(),
             scopes: None,
             value_uses: Some(Vec::new()),
+            typing_stages: true,
         };
         for (ordinal, parameter) in parameters.iter().enumerate() {
             let ordinal = u32::try_from(ordinal)
@@ -430,7 +434,13 @@ impl Builder<'_, '_, '_, '_> {
             | CoreStatementKind::Defer(body) => self.free_block(body, free, depth + 1)?,
             // These computations belong to their actual CT staging proof,
             // not the runtime closure's capture directory.
-            CoreStatementKind::CompileTime(_) => {}
+            CoreStatementKind::CompileTime(statement) => {
+                if free.typing_stages {
+                    let scope = free.bound.len();
+                    self.free_statement(statement, free, depth + 1)?;
+                    free.bound.truncate(scope);
+                }
+            }
             CoreStatementKind::Break | CoreStatementKind::Continue => {}
             CoreStatementKind::Unsupported(_) => {
                 return Err(unsupported(
@@ -479,10 +489,16 @@ impl Builder<'_, '_, '_, '_> {
                 self.free_expr(left, free, depth + 1)?;
                 self.free_expr(right, free, depth + 1)?;
             }
-            CoreExprKind::TypeApply { callee, .. } | CoreExprKind::GenericApply { callee, .. } => {
-                // Written Const/Type/Life actuals are semantic/CT arguments,
-                // never independent runtime reads of a parent local.
+            CoreExprKind::TypeApply { callee, .. } => self.free_expr(callee, free, depth + 1)?,
+            CoreExprKind::GenericApply { callee, arguments } => {
                 self.free_expr(callee, free, depth + 1)?;
+                if free.typing_stages {
+                    for argument in arguments {
+                        if let CoreGenericArgument::Const(value) = argument {
+                            self.free_expr(value, free, depth + 1)?;
+                        }
+                    }
+                }
             }
             CoreExprKind::Call { callee, arguments }
             | CoreExprKind::CallDynSlot {
@@ -560,11 +576,24 @@ impl Builder<'_, '_, '_, '_> {
                 self.free_expr(then_value, free, depth + 1)?;
                 self.free_expr(else_value, free, depth + 1)?;
             }
-            CoreExprKind::CompileTime(_)
-            | CoreExprKind::Splice(_)
-            | CoreExprKind::CompileTimeBlock(_)
-            | CoreExprKind::SyntaxQuote { .. }
-            | CoreExprKind::SyntaxIsland { .. } => {}
+            CoreExprKind::CompileTime(value) | CoreExprKind::Splice(value) => {
+                if free.typing_stages {
+                    self.free_expr(value, free, depth + 1)?;
+                }
+            }
+            CoreExprKind::CompileTimeBlock(body) => {
+                if free.typing_stages {
+                    self.free_block(body, free, depth + 1)?;
+                }
+            }
+            CoreExprKind::SyntaxQuote { template, .. } => {
+                if free.typing_stages {
+                    for hole in &template.holes {
+                        self.free_expr(&hole.value, free, depth + 1)?;
+                    }
+                }
+            }
+            CoreExprKind::SyntaxIsland { .. } => {}
             CoreExprKind::Literal(_)
             | CoreExprKind::Integer(_)
             | CoreExprKind::Float(_)

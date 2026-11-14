@@ -167,6 +167,78 @@ fn original_site(
     site_nodes.push(SemanticOriginalSiteNode { site, node });
     Ok(marker)
 }
+// Type-only stages have original sites too. These rows describe actual
+// original operations, not runtime mint obligations: no ledger event or AST
+// proof token is created for an operation which a CT rewrite may consume.
+fn directory_site(
+    program: &mut program::Program,
+    definition: SemanticDefinitionId,
+    node: SemanticOriginalNode,
+    path: Vec<u32>,
+    kind: SemanticSiteRecipeKind,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<()> {
+    let row = program
+        .modules
+        .iter_mut()
+        .find(|(id, _)| *id == definition.module)
+        .and_then(|(_, module)| {
+            module
+                .definitions
+                .iter_mut()
+                .find(|row| row.id == definition)
+        })
+        .ok_or_else(|| error(span, "type-stage original owner is absent"))?;
+    let SemanticDefinitionBody::FunctionWithBody {
+        sites, site_nodes, ..
+    } = &mut row.body
+    else {
+        return Err(error(
+            span,
+            "type-stage original owner has no complete body",
+        ));
+    };
+    let site = SemanticSiteId(
+        u32::try_from(sites.len())
+            .map_err(|_| error(span, "type-stage original site namespace exhausted"))?,
+    );
+    budget.lineage_push(
+        sites,
+        SemanticSiteRecipe {
+            id: site,
+            occurrence_path: path,
+            kind,
+        },
+        span,
+    )?;
+    budget.lineage_push(site_nodes, SemanticOriginalSiteNode { site, node }, span)
+}
+// A function-valued projection/application is one value occurrence. Its
+// module/member/type-application prefixes and assignment destinations are
+// not additional FunctionRef results or invented value reads.
+fn projection_value(
+    body: &mut SourceBody<'_>,
+    path: &[u32],
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<bool> {
+    if path.is_empty() {
+        return Ok(true);
+    }
+    let child = *path.last().expect("nonempty path");
+    let Some(parent) = body.locate(&path[..path.len() - 1], budget, span)? else {
+        return Ok(true);
+    };
+    Ok(match parent.node {
+        body_nodes::Node::Statement(statement) => {
+            !matches!(&statement.kind,s::StmtKind::Assign {..} if child==0)
+        }
+        body_nodes::Node::Expression(expression) => !matches!(&expression.kind,
+            s::ExprKind::Call {..}|s::ExprKind::TypeApply {..}|s::ExprKind::Member {..} if child==0),
+        body_nodes::Node::NonRuntime => false,
+    })
+}
 fn observation_operand(
     body: &mut SourceBody<'_>,
     path: &[u32],
@@ -275,15 +347,17 @@ fn operations(
     let nodes = directory.nodes;
     for original in nodes {
         let observation = observation_operand(body, &original.path, budget, span)?;
+        let projection_value = projection_value(body, &original.path, budget, span)?;
         let Some(located) = body.locate(&original.path, budget, span)? else {
             return Err(error(
                 span,
                 "original operation no longer identifies its actual syntax node",
             ));
         };
-        if !located.runtime || located.child {
+        if located.child || matches!(located.node, body_nodes::Node::NonRuntime) {
             continue;
         }
+        let runtime = located.runtime;
         let mut path = Vec::new();
         budget.lineage_bytes((original.path.len() + 1) * 4, span)?;
         path.push(40);
@@ -303,6 +377,18 @@ fn operations(
                     source: SemanticOriginalTypeSource::Binding(original.id),
                 };
                 prepay_recipe(&expected, budget, statement.span, 0)?;
+                if !runtime {
+                    directory_site(
+                        program,
+                        definition,
+                        SemanticOriginalNode::Statement(original.id),
+                        path,
+                        SemanticSiteRecipeKind::DeclareLocal { expected },
+                        budget,
+                        statement.span,
+                    )?;
+                    continue;
+                }
                 statement.semantic = original_site(
                     program,
                     definition,
@@ -334,6 +420,12 @@ fn operations(
                     && matches!(
                         expression.kind,
                         s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_)
+                    );
+                let observed_projection = observation
+                    && projection_value
+                    && matches!(
+                        expression.kind,
+                        s::ExprKind::Member { .. } | s::ExprKind::TypeApply { .. }
                     );
                 if observed_name {
                     implicit_observation(program, definition, &path, budget, expression.span)?;
@@ -371,11 +463,34 @@ fn operations(
                                 SemanticEmissionRole::Ascription,
                             ))
                         }
+                        s::ExprKind::Member { .. } | s::ExprKind::TypeApply { .. }
+                            if observed_projection =>
+                        {
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::TypeUse {
+                                    expected: expected.clone(),
+                                },
+                                Action::TypeUse(expected),
+                                SemanticEmissionRole::Ascription,
+                            ))
+                        }
                         s::ExprKind::MetaEval(_)
                         | s::ExprKind::Unary {
                             op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
                             ..
                         } => {
+                            implicit_observation(
+                                program,
+                                definition,
+                                &path,
+                                budget,
+                                expression.span,
+                            )?;
                             let expected = SemanticTypeRecipe::OriginalType {
                                 scope: SemanticScopeRef::Ancestor(0),
                                 source: SemanticOriginalTypeSource::Expression(original.id),
@@ -403,6 +518,20 @@ fn operations(
                                 },
                                 Action::Construct(expected),
                                 SemanticEmissionRole::Construct,
+                            ))
+                        }
+                        s::ExprKind::Closure { .. } if !runtime => {
+                            let expected = SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Expression(original.id),
+                            };
+                            prepay_recipe(&expected, budget, expression.span, 0)?;
+                            Some((
+                                SemanticSiteRecipeKind::TypeUse {
+                                    expected: expected.clone(),
+                                },
+                                Action::TypeUse(expected),
+                                SemanticEmissionRole::Ascription,
                             ))
                         }
                         s::ExprKind::Closure { .. } => {
@@ -436,6 +565,18 @@ fn operations(
                     }
                 };
                 if let Some((kind, action, role)) = action {
+                    if !runtime {
+                        directory_site(
+                            program,
+                            definition,
+                            SemanticOriginalNode::Expression(original.id),
+                            path,
+                            kind,
+                            budget,
+                            expression.span,
+                        )?;
+                        continue;
+                    }
                     expression.semantic = original_site(
                         program,
                         definition,
@@ -491,4 +632,143 @@ pub(super) fn function(
         normalizer.budget,
         function.span,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
+    use std::collections::BTreeMap;
+    use zil_base::{FileId, SourceUnit};
+
+    fn prepare(text: &str) -> (Vec<s::Module>, program::Program) {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "original-stage-sites.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &BTreeMap::new(),
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        program::prepare(&[&parsed], &origins, &[Vec::new()], &mut limits.clone()).unwrap()
+    }
+
+    #[test]
+    fn ct_inner_calls_have_original_sites_without_runtime_mint_tokens() {
+        let (mut syntax, program) = prepare(
+            "fn inc(value:i32)->i32{return value+1}fn main()->i32{let folded=#((inc(41),42));return folded.0}",
+        );
+        let main = program.modules[0]
+            .1
+            .definitions
+            .iter()
+            .find(|row| row.id.index == 1)
+            .unwrap();
+        let SemanticDefinitionBody::FunctionWithBody {
+            sites, site_nodes, ..
+        } = &main.body
+        else {
+            panic!()
+        };
+        let calls: Vec<_> = sites
+            .iter()
+            .filter(|site| matches!(site.kind, SemanticSiteRecipeKind::OriginalCall))
+            .collect();
+        assert_eq!(calls.len(), 1);
+        let site = calls[0];
+        assert!(
+            site_nodes.iter().any(|row| row.site == site.id
+                && matches!(row.node, SemanticOriginalNode::Expression(_)))
+        );
+        let s::ItemKind::Function(main) = &mut syntax[0].items[1].kind else {
+            panic!()
+        };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut body = SourceBody::Function(&mut main.body);
+        let located = body
+            .locate(&site.occurrence_path[1..], &mut budget, main.span)
+            .unwrap()
+            .unwrap();
+        assert!(!located.runtime);
+        let body_nodes::Node::Expression(expression) = located.node else {
+            panic!()
+        };
+        assert!(matches!(expression.kind, s::ExprKind::Call { .. }));
+        assert!(expression.semantic.raw_index().is_none());
+        let wrapper = sites
+            .iter()
+            .filter(|site| matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }))
+            .find(|site| {
+                let located = body
+                    .locate(&site.occurrence_path[1..], &mut budget, main.span)
+                    .unwrap()
+                    .unwrap();
+                matches!(
+                    located.node,
+                    body_nodes::Node::Expression(s::Expr {
+                        kind: s::ExprKind::MetaEval(_),
+                        ..
+                    })
+                )
+            })
+            .unwrap();
+        let located = body
+            .locate(&wrapper.occurrence_path[1..], &mut budget, main.span)
+            .unwrap()
+            .unwrap();
+        let body_nodes::Node::Expression(expression) = located.node else {
+            panic!()
+        };
+        assert!(expression.semantic.raw_index().is_some());
+    }
+
+    #[test]
+    fn function_value_apply_has_one_outer_value_site_and_no_callee_token() {
+        let (mut syntax, program) = prepare(
+            "fn identity<T:Copy>(value:T)->T{return value}fn main()->i32{let callbacks=[identity::<i32>];return callbacks[0](42)}",
+        );
+        let main = program.modules[0]
+            .1
+            .definitions
+            .iter()
+            .find(|row| row.id.index == 1)
+            .unwrap();
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &main.body else {
+            panic!()
+        };
+        let s::ItemKind::Function(main) = &mut syntax[0].items[1].kind else {
+            panic!()
+        };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut body = SourceBody::Function(&mut main.body);
+        let mut applies = 0;
+        for site in sites {
+            if !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) {
+                continue;
+            }
+            let located = body
+                .locate(&site.occurrence_path[1..], &mut budget, main.span)
+                .unwrap()
+                .unwrap();
+            if let body_nodes::Node::Expression(s::Expr {
+                kind: s::ExprKind::TypeApply { callee, .. },
+                semantic,
+                ..
+            }) = located.node
+            {
+                applies += 1;
+                assert!(semantic.raw_index().is_some());
+                assert!(callee.semantic.raw_index().is_none());
+            }
+        }
+        assert_eq!(applies, 1);
+    }
 }
