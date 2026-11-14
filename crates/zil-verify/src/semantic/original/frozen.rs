@@ -60,7 +60,7 @@ impl CheckedOriginal {
                 (Ty::Desc{inner,..},Type::Desc(actual))=>self.core_abi_type(module,context,inner,actual,env,active,b)?,
                 (Ty::Slice(inner),Type::Slice{element})=>self.core_abi_type(module,context,inner,element,env,active,b)?,
                 (Ty::Tuple(a),Type::Tuple(c))if a.len()==c.len()=>{for(a,c)in a.iter().zip(c){if !self.core_abi_type(module,context,a,c,env,active,b)?{return Ok(false);}}true},
-                (Ty::Array(element,length),Type::Array{element:actual,length:actual_length})=>self.external_array_length(module,length,b)?==*actual_length&&self.core_abi_type(module,context,element,actual,env,active,b)?,
+                (Ty::Array(element,length),Type::Array{element:actual,length:actual_length})=>self.external_array_length(module,length,b)?==u64::from(*actual_length)&&self.core_abi_type(module,context,element,actual,env,active,b)?,
                 (Ty::Nominal(id,arguments),_)=>self.external_nominal(module,context,*id,arguments,actual,env,active,b)?,
                 (Ty::Code{kind:SemanticCodeKind::ForeignCallback,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes},Type::ForeignCallback{parameters:actual,result:actual_result})=>{
                     if *call_kind!=CallKind::Direct||*bound_lifetimes!=0||*invocation_lifetimes!=0||*result_mode!=PassingMode::Infer||modes.len()!=parameters.len()||modes.iter().any(|mode|*mode!=PassingMode::Infer)||parameters.len()!=actual.len(){return Ok(false);}
