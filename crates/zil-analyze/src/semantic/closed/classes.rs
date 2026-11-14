@@ -1091,14 +1091,41 @@ impl Check<'_, '_> {
                 return Err(fail("header binder has duplicate semantic embeddings"));
             }
         }
-        value::class(
-            instance,
-            selected
-                .ok_or_else(|| fail("actual header binder has no complete original embedding"))?,
-            self.inventory,
-            b,
-            0,
-        )
+        let expression = selected
+            .ok_or_else(|| fail("actual header binder has no complete original embedding"))?;
+        if let SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Parameter(parameter),
+            path,
+            mode,
+        } = expression
+        {
+            return self.parameter_header_class(
+                instance,
+                binder,
+                *parameter,
+                path,
+                Some(*mode),
+                None,
+                b,
+            );
+        }
+        if let SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Parameter(parameter),
+            path,
+            class,
+        } = expression
+        {
+            return self.parameter_header_class(
+                instance,
+                binder,
+                *parameter,
+                path,
+                None,
+                Some(*class),
+                b,
+            );
+        }
+        value::class(instance, expression, self.inventory, b, 0)
     }
 }
 

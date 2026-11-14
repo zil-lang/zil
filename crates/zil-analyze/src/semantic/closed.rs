@@ -20,6 +20,7 @@ mod function_values;
 mod mutex;
 mod nominal_fields;
 mod operations;
+mod parameter_classes;
 mod pattern_places;
 mod protocol_values;
 mod registration;

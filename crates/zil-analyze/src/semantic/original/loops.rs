@@ -173,7 +173,13 @@ impl Solver<'_, '_> {
             }
         }
         let mut exits = flow.breaks;
-        if entered && condition.is_some() {
+        // A literal true test has no false edge. Prove the body and every
+        // back edge normally; only a real break can leave this loop. This is
+        // source control flow, never a selected actual iteration count.
+        let may_test_false = pattern.is_some()
+            || condition
+                .is_some_and(|condition| !matches!(condition.kind, CoreExprKind::Bool(true)));
+        if entered && may_test_false {
             // Zero iterations and each later false test are possible. Repeated
             // tests have the same type/affine preconditions just proved above.
             let zero_exit = self.copy_locals(&after_condition, b)?;
