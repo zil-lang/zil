@@ -42,8 +42,8 @@ use zil_llvm_api::model as m;
 
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::{
-    BinaryOp, BlockId, CallableCleanup, CallableKind, CallableReturnSource, ClosureDefinition, ClosureId,
-    Constant, FunctionId, Instruction, InstructionKind, LirModule, LirView, LocalId,
+    BinaryOp, BlockId, CallableCleanup, CallableKind, CallableReturnSource, ClosureDefinition,
+    ClosureId, Constant, FunctionId, Instruction, InstructionKind, LirModule, LirView, LocalId,
     ResourceDefinition, ScalarLayout, Terminator, Type, TypedFunction, UnaryOp, ValueId,
 };
 use zil_verify::VerifiedModule;
@@ -1007,6 +1007,17 @@ fn bind_lir<'a>(
         let task_result = closure.kind == CallableKind::FnOnce
             && closure.parameters.is_empty()
             && matches!(&closure.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}));
+        // Full callable type/metadata visits were paid before exact LIR
+        // binding. A qualified plain aggregate keeps its verified semantic
+        // domain while using its existing physical inline layout; no target
+        // or owning leaf is admitted by this representation-only predicate.
+        let plain_result =
+            verified.uses_stored_borrows() && stored_borrows::pure_composite(&closure.result);
+        let plain_parameters = verified.uses_stored_borrows()
+            && closure
+                .parameters
+                .iter()
+                .all(stored_borrows::pure_composite);
         let mut captures_supported = true;
         for ty in &closure.captures {
             if !captures_supported {
@@ -1024,7 +1035,7 @@ fn bind_lir<'a>(
                 || ty.is_package_address()
                 || (resources::supported_type(ty, lir.resources)
                     && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })));
-            if legacy {
+            if legacy || (verified.uses_stored_borrows() && stored_borrows::pure_composite(ty)) {
                 continue;
             }
             let (package, package_sum) =
@@ -1044,13 +1055,13 @@ fn bind_lir<'a>(
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || verified_address_result || task_result || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || verified_address_result || task_result || plain_result || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
                     if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !captures_supported
-            || !closure.parameters.iter().all(|ty| {
+            || !plain_parameters && !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
                     || (captured_fixed_signature && qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
@@ -1859,8 +1870,16 @@ impl FunctionEmitter<'_> {
             for (index, instruction) in block.instructions[..end].iter().enumerate() {
                 let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}|Type::Task{..})))
                     || if let InstructionKind::DropClosure { local } = instruction.kind {
-                        self.task_ownership.is_some() && tasks::cleanup_group(self.dyn_module, &self.function.locals[local.0 as usize].ty, self.machine_meter)?.is_some()
-                    } else { false };
+                        self.task_ownership.is_some()
+                            && tasks::cleanup_group(
+                                self.dyn_module,
+                                &self.function.locals[local.0 as usize].ty,
+                                self.machine_meter,
+                            )?
+                            .is_some()
+                    } else {
+                        false
+                    };
                 // The paid whole-CFG may-owner proof must be vacant on every
                 // incoming path. A same-block scan misses moves before a branch.
                 let vacated_pollable_drop =
