@@ -21,6 +21,9 @@ unsafe extern "C" {
     fn LLVMGetReturnType(ty: Handle) -> Handle;
     fn LLVMCountParamTypes(ty: Handle) -> c_uint;
     fn LLVMGetParamTypes(ty: Handle, out: *mut Handle);
+    fn LLVMGetParam(function: Handle, index: c_uint) -> Handle;
+    fn LLVMBasicBlockAsValue(block: Handle) -> Handle;
+    fn LLVMSetValueName2(value: Handle, name: *const c_char, len: usize);
     fn LLVMIsFunctionVarArg(ty: Handle) -> c_int;
     fn LLVMGetFunctionCallConv(function: Handle) -> c_uint;
     fn LLVMGetAttributeCountAtIndex(function: Handle, index: c_uint) -> c_uint;
@@ -133,7 +136,7 @@ unsafe fn eligible_signature(function: Handle) -> bool {
     if !params.into_iter().all(|ty| unsafe { primitive(ty) }) {
         return false;
     }
-    if unsafe { LLVMCountBasicBlocks(function) } > 4 {
+    if unsafe { LLVMCountBasicBlocks(function) } > 128 {
         return false;
     }
     let mut block = unsafe { LLVMGetFirstBasicBlock(function) };
@@ -142,7 +145,7 @@ unsafe fn eligible_signature(function: Handle) -> bool {
         let mut instruction = unsafe { LLVMGetFirstInstruction(block) };
         while !instruction.is_null() {
             instructions += 1;
-            if instructions > 64 {
+            if instructions > 512 {
                 return false;
             }
             instruction = unsafe { LLVMGetNextInstruction(instruction) };
@@ -239,7 +242,7 @@ fn integer_intrinsic(name: &str) -> bool {
 }
 
 fn closed_key(text: &str, name: &str) -> Option<String> {
-    if text.len() > 16 * 1024 || text.lines().count() > 128 {
+    if text.len() > 16 * 1024 || text.lines().count() > 512 {
         return None;
     }
     // No memory, constant pools, address identity, exceptional state, module
@@ -311,11 +314,32 @@ struct Selection {
     definitions: Vec<String>,
 }
 
+// Only a print-only clone is passed here. Let LLVM assign deterministic local
+// slots in function order instead of rewriting printed text or global names.
+// The clone is never optimized, used as a producer, or sent to code generation.
+unsafe fn clear_local_names(function: Handle) {
+    let ty = unsafe { LLVMGlobalGetValueType(function) };
+    for index in 0..unsafe { LLVMCountParamTypes(ty) } {
+        unsafe { LLVMSetValueName2(LLVMGetParam(function, index), c"".as_ptr(), 0) };
+    }
+    let mut block = unsafe { LLVMGetFirstBasicBlock(function) };
+    while !block.is_null() {
+        unsafe { LLVMSetValueName2(LLVMBasicBlockAsValue(block), c"".as_ptr(), 0) };
+        let mut instruction = unsafe { LLVMGetFirstInstruction(block) };
+        while !instruction.is_null() {
+            unsafe { LLVMSetValueName2(instruction, c"".as_ptr(), 0) };
+            instruction = unsafe { LLVMGetNextInstruction(instruction) };
+        }
+        block = unsafe { LLVMGetNextBasicBlock(block) };
+    }
+}
+
 fn select(module: &Module, stats: &mut EmissionReuseStats) -> Option<Selection> {
     let mut definitions = Vec::new();
     let mut aliases = BTreeMap::new();
     let mut bodies = BTreeMap::<String, String>::new();
     let mut bytes = 0usize;
+    let mut print_clone: Option<Module> = None;
     // SAFETY: iteration and all inspection finish while this module stays live.
     let mut function = unsafe { LLVMGetFirstFunction(module.0) };
     let mut count = 0usize;
@@ -336,7 +360,25 @@ fn select(module: &Module, stats: &mut EmissionReuseStats) -> Option<Selection> 
             definitions.push(name.clone());
             if source_symbol(&name) && unsafe { eligible_signature(function) } {
                 stats.considered_functions += 1;
-                let printed = unsafe { take_message(LLVMPrintValueToString(function)) };
+                // Keep this owner separate from BOTH the original optimized
+                // module and try_emit's later speculative machine producer.
+                // Create it lazily, so modules without candidates do not clone.
+                if print_clone.is_none() {
+                    let clone = Module(unsafe { LLVMCloneModule(module.0) });
+                    if clone.0.is_null() {
+                        return None;
+                    }
+                    print_clone = Some(clone);
+                }
+                let printable = print_clone.as_ref()?;
+                let symbol = CString::new(name.as_str()).ok()?;
+                let printable_function =
+                    unsafe { LLVMGetNamedFunction(printable.0, symbol.as_ptr()) };
+                if printable_function.is_null() {
+                    return None;
+                }
+                unsafe { clear_local_names(printable_function) };
+                let printed = unsafe { take_message(LLVMPrintValueToString(printable_function)) };
                 bytes = bytes.checked_add(printed.len())?;
                 if bytes > MAX_KEY_BYTES {
                     return None;
@@ -625,6 +667,184 @@ mod tests {
             closed_key(&range, "zil.fn.1"),
             closed_key(&range.replace("-250, 251", "-249, 251"), "zil.fn.1")
         );
+    }
+
+    #[test]
+    fn long_current_bodies_with_distinct_local_names_keep_complete_ordinary_object() {
+        use crate::model::{
+            self as m, Arg, Attr, Block, Function, Inst, Item, Linkage, Op, Param, Signature, Ty,
+            Val,
+        };
+        let program = m::Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "current-emission-local-alpha-test".into(),
+            items: (0..12)
+                .map(|i| {
+                    let argument = format!("fn.{i}.arg");
+                    let mut value = argument.clone();
+                    let mut instructions = Vec::new();
+                    for round in 0..32 {
+                        let added = format!("fn.{i}.round.{round}.add");
+                        let multiplied = format!("fn.{i}.round.{round}.mul");
+                        let reduced = format!("fn.{i}.round.{round}.rem");
+                        // Mix the unknown original argument back in each time:
+                        // range propagation cannot erase the later remainders.
+                        for (name, opcode, left, right) in [
+                            (
+                                added.clone(),
+                                "add",
+                                m::local(value),
+                                m::local(argument.clone()),
+                            ),
+                            (
+                                multiplied.clone(),
+                                "mul",
+                                m::local(added),
+                                Val::Int(3 + 2 * (i % 3)),
+                            ),
+                            (reduced.clone(), "srem", m::local(multiplied), Val::Int(251)),
+                        ] {
+                            instructions.push(Inst::new(
+                                Some(name),
+                                Op::Binary {
+                                    opcode: opcode.into(),
+                                    ty: Ty::Int(32),
+                                    left,
+                                    right,
+                                },
+                            ));
+                        }
+                        value = reduced;
+                    }
+                    instructions.push(Inst::new(
+                        None,
+                        Op::Return(Some(Arg::new(Ty::Int(32), m::local(value)))),
+                    ));
+                    Item::Function(Function {
+                        name: format!("zil.fn.{i}"),
+                        linkage: Linkage::External,
+                        signature: Signature::new(
+                            Ty::Int(32),
+                            vec![Param::new(Ty::Int(32), argument)],
+                        ),
+                        attrs: vec![Attr::NoInline],
+                        blocks: Some(
+                            vec![Block {
+                                name: format!("fn.{i}.entry"),
+                                instructions,
+                            }]
+                            .into(),
+                        ),
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into(),
+        };
+        let config = Config {
+            triple: "x86_64-unknown-linux-gnu",
+            optimization: Optimization::O2,
+        };
+        // The ordinary API initializes the target and supplies the full object
+        // oracle. Build the same current O2 unit below to inspect the ACTUAL
+        // post-O2 instruction count before exercising selection and emission.
+        let ordinary =
+            super::super::compile_module(&program, &config, FunctionMerging::Disabled, &|| false)
+                .unwrap();
+        let context = Context(unsafe { LLVMContextCreate() });
+        assert!(!context.0.is_null());
+        let mut target = ptr::null_mut();
+        let mut message = ptr::null_mut();
+        let failed = unsafe {
+            LLVMGetTargetFromTriple(
+                c"x86_64-unknown-linux-gnu".as_ptr(),
+                &mut target,
+                &mut message,
+            )
+        };
+        let message = unsafe { take_message(message) };
+        assert_eq!(failed, 0, "{message}");
+        assert!(!target.is_null());
+        let machine = Machine(unsafe {
+            LLVMCreateTargetMachine(
+                target,
+                c"x86_64-unknown-linux-gnu".as_ptr(),
+                c"x86-64".as_ptr(),
+                c"".as_ptr(),
+                2,
+                2,
+                0,
+            )
+        });
+        assert!(!machine.0.is_null());
+        let layout = Layout(unsafe { LLVMCreateTargetDataLayout(machine.0) });
+        assert!(!layout.0.is_null());
+        let schedule = crate::preflight::validate(&program).unwrap();
+        let module =
+            super::super::builder::build(context.0, &program, layout.0, &schedule, &|| false)
+                .unwrap();
+        verify(&module).unwrap();
+        unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
+        let options = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
+        assert!(!options.0.is_null());
+        unsafe {
+            LLVMPassBuilderOptionsSetVerifyEach(options.0, 0);
+            LLVMPassBuilderOptionsSetLoopInterleaving(options.0, 1);
+            LLVMPassBuilderOptionsSetLoopVectorization(options.0, 1);
+            LLVMPassBuilderOptionsSetSLPVectorization(options.0, 1);
+            LLVMPassBuilderOptionsSetMergeFunctions(options.0, 0);
+        }
+        let failure =
+            unsafe { LLVMRunPasses(module.0, c"default<O2>".as_ptr(), machine.0, options.0) };
+        if !failure.is_null() {
+            let message = unsafe { LLVMGetErrorMessage(failure) };
+            let detail = unsafe { text(message) };
+            if !message.is_null() {
+                unsafe { LLVMDisposeErrorMessage(message) };
+            }
+            panic!("{detail}");
+        }
+        verify(&module).unwrap();
+        let mut originals = Vec::new();
+        let mut function = unsafe { LLVMGetFirstFunction(module.0) };
+        while !function.is_null() {
+            if unsafe { LLVMIsDeclaration(function) } == 0 {
+                let mut count = 0;
+                let mut block = unsafe { LLVMGetFirstBasicBlock(function) };
+                while !block.is_null() {
+                    let mut instruction = unsafe { LLVMGetFirstInstruction(block) };
+                    while !instruction.is_null() {
+                        count += 1;
+                        instruction = unsafe { LLVMGetNextInstruction(instruction) };
+                    }
+                    block = unsafe { LLVMGetNextBasicBlock(block) };
+                }
+                assert!((65..=512).contains(&count), "post-O2 instructions: {count}");
+                let printed = unsafe { take_message(LLVMPrintValueToString(function)) };
+                assert!(
+                    printed.contains(&format!("%fn.{}.arg", originals.len())),
+                    "the different current parameter names must survive O2"
+                );
+                originals.push((function, printed));
+            }
+            function = unsafe { LLVMGetNextFunction(function) };
+        }
+        assert_eq!(originals.len(), 12);
+        let (reused, stats) = try_emit(&module, &machine, &config, &|| false).unwrap();
+        assert!(!stats.fallback, "{stats:?}");
+        assert_eq!(stats.reused_functions, 9, "{stats:?}");
+        assert_eq!(stats.distinct_bodies, 3, "{stats:?}");
+        assert_eq!(
+            ordinary.bytes,
+            reused.expect("must use reconstructed native object")
+        );
+        for (function, before) in originals {
+            assert_eq!(
+                before,
+                unsafe { take_message(LLVMPrintValueToString(function)) },
+                "selection and speculative production must not mutate current names or IR"
+            );
+        }
+        verify(&module).unwrap();
     }
 
     #[test]
