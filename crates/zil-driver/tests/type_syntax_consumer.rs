@@ -329,10 +329,16 @@ fn rejection(entry: &str) -> (Phase, &'static str, &'static [&'static str]) {
         | "neg_ident_in_runtime_main.zil" => (Phase::Ct, "E-CT-RUNTIME", &[]),
         "neg_duplicate_export_main.zil" => (Phase::Expand, "E-NAME-DUPLICATE", &["duplicate"]),
         "neg_private_reflection_main.zil" => (Phase::Ct, "E-CT-VISIBILITY", &[]),
-        "neg_nominal_identity_main.zil" => (Phase::Types, "E-TYPE-MISMATCH", &[]),
-        "neg_duplicate_owned_input_main.zil" => {
-            (Phase::Analyze, "E-UNINITIALIZED", &["not initialized"])
-        }
+        "neg_nominal_identity_main.zil" => (
+            Phase::Types,
+            "E-SEMANTIC-ORIGINAL",
+            &["rigid whole type or lifetime anchor"],
+        ),
+        "neg_duplicate_owned_input_main.zil" => (
+            Phase::Types,
+            "E-SEMANTIC-ORIGINAL",
+            &["original give transfers an unavailable or borrowed value"],
+        ),
         "neg_runtime_read_in_ct_main.zil" => (Phase::Ct, "E-CT-RUNTIME", &["runtime binding"]),
         "neg_unknown_provider_export_main.zil" => (Phase::Expand, "E-SYNTAX-LOCK-ENTRY", &[]),
         "neg_member_owner_main.zil" => (

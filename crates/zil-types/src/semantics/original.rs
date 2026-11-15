@@ -48,6 +48,8 @@ mod task_bridge;
 mod task_families;
 #[path = "original_task_results.rs"]
 mod task_results;
+#[path = "original_task_unify.rs"]
+mod task_unify;
 pub(super) use nominal_where::{NominalRequest, NominalWhere};
 pub(super) use task_results::SourceBindings;
 pub(crate) use task_results::{TaskResultSource, TaskReturnSources};
@@ -2193,6 +2195,27 @@ impl<'a> Check<'a, '_> {
                 SemanticTypeRecipe::AsyncRegistration(b),
             ) => self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?,
             (
+                SemanticTypeRecipe::Task {
+                    result: a,
+                    retained: left,
+                },
+                SemanticTypeRecipe::Task {
+                    result: b,
+                    retained: right,
+                },
+            ) => {
+                self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?;
+                self.unify_task_shape(
+                    left,
+                    right,
+                    formals,
+                    solutions,
+                    implicit,
+                    invocation,
+                    depth + 1,
+                )?;
+            }
+            (
                 SemanticTypeRecipe::ErrorUnion {
                     error: a,
                     result: ar,
@@ -2723,6 +2746,22 @@ impl<'a> Check<'a, '_> {
                 op: UnaryOp::Negate,
                 operand: inner,
             } => self.contextual_integer(inner, depth + 1),
+            CoreExprKind::Binary { op, left, right }
+                if !matches!(
+                    op,
+                    BinaryOp::Equal
+                        | BinaryOp::NotEqual
+                        | BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual
+                        | BinaryOp::And
+                        | BinaryOp::Or
+                ) =>
+            {
+                Ok(self.contextual_integer(left, depth + 1)?
+                    && self.contextual_integer(right, depth + 1)?)
+            }
             _ => Ok(false),
         }
     }
@@ -3562,8 +3601,22 @@ impl<'a> Check<'a, '_> {
                 self.same(&condition, &SemanticTypeRecipe::Atom(Type::Bool))?;
                 let mut left = self.clone_variables(variables)?;
                 let mut right = self.clone_variables(variables)?;
-                let a = self.expr(owner, then_value, &mut left, wanted, depth + 1)?;
-                let b = self.expr(owner, else_value, &mut right, Some(&a), depth + 1)?;
+                let (a, b) = if wanted.is_none()
+                    && self.contextual_integer(then_value, depth + 1)?
+                    && !self.contextual_integer(else_value, depth + 1)?
+                {
+                    // Each branch has its own original state. Check the
+                    // independently typed peer once before defaulting the
+                    // context-dependent integer arm, just as for binary peers.
+                    let b = self.expr(owner, else_value, &mut right, None, depth + 1)?;
+                    let context = self.logical(owner, &b, depth + 1)?;
+                    let a = self.expr(owner, then_value, &mut left, Some(&context), depth + 1)?;
+                    (a, b)
+                } else {
+                    let a = self.expr(owner, then_value, &mut left, wanted, depth + 1)?;
+                    let b = self.expr(owner, else_value, &mut right, Some(&a), depth + 1)?;
+                    (a, b)
+                };
                 self.same(&a, &b)?;
                 self.merge_variables(variables, &[left, right])?;
                 a
