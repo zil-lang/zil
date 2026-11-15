@@ -1,6 +1,20 @@
 //! Complete zero persistent domains for plain nominal inventory entries.
 //! This proof creates no Copy, ownership, address, loan or access authority.
 use super::*;
+use std::hash::{Hash, Hasher};
+
+fn type_hash(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<u64> {
+    shape_work(ty, limits, b)?;
+    let before = b.remaining();
+    crate::dyn_metadata::ty(ty, b)?;
+    b.spend(
+        before - b.remaining(),
+        "zero nominal complete structural hash",
+    )?;
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    ty.hash(&mut hash);
+    Ok(hash.finish())
+}
 
 pub(super) fn validate(
     module: &TypedModule,
@@ -27,9 +41,44 @@ fn exact<'a>(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<&'a LifeNominalInstance> {
-    fee(b, module.life_instances.len())?;
+    let module_key = module as *const TypedModule as usize;
+    if b.nominal_zero_instances
+        .as_ref()
+        .is_none_or(|(owner, _)| *owner != module_key)
+    {
+        let mut index = BTreeMap::<u64, Vec<usize>>::new();
+        fee(b, module.life_instances.len())?;
+        for (position, instance) in module.life_instances.iter().enumerate() {
+            let hash = type_hash(&instance.ty, limits, b)?;
+            b.lookup(index.len(), "zero nominal exact identity index")?;
+            fee(b, 1)?;
+            index.entry(hash).or_default().push(position);
+        }
+        b.nominal_zero_instances = Some((module_key, index));
+    }
+    let hash = type_hash(ty, limits, b)?;
+    let (_, index) = b.nominal_zero_instances.as_ref().unwrap();
+    let index_len = index.len();
+    b.lookup(index_len, "zero nominal exact identity lookup")?;
+    let width = b
+        .nominal_zero_instances
+        .as_ref()
+        .unwrap()
+        .1
+        .get(&hash)
+        .map_or(0, Vec::len);
+    fee(b, width)?;
+    let candidates = b
+        .nominal_zero_instances
+        .as_ref()
+        .unwrap()
+        .1
+        .get(&hash)
+        .cloned()
+        .unwrap_or_default();
     let mut selected = None;
-    for instance in &module.life_instances {
+    for position in candidates {
+        let instance = &module.life_instances[position];
         shape_work(ty, limits, b)?;
         shape_work(&instance.ty, limits, b)?;
         crate::dyn_metadata::ty(ty, b)?;
@@ -401,13 +450,20 @@ fn type_zero(
                 // Some(0) alone is never enough. Original environment binding,
                 // actual captures and callable access remain separate gates.
                 fee(b, module.closures.len())?;
-                let closure = module.closures.get(id.0 as usize)
+                let closure = module
+                    .closures
+                    .get(id.0 as usize)
                     .filter(|closure| closure.id == *id)
                     .ok_or_else(|| failure("zero closure has no exact actual environment"))?;
-                if !closure.storage_life.as_ref().is_some_and(|life| life.fixed_binder_count == 0)
+                if !closure
+                    .storage_life
+                    .as_ref()
+                    .is_some_and(|life| life.fixed_binder_count == 0)
                     || !closure.lending_captures.is_empty()
                 {
-                    return Err(failure("zero closure retains an unknown or nonzero complete domain"));
+                    return Err(failure(
+                        "zero closure retains an unknown or nonzero complete domain",
+                    ));
                 }
                 fee(b, closure.captures.len())?;
                 for capture in &closure.captures {
@@ -440,7 +496,9 @@ fn type_zero(
                 || !interface.associated_types.is_empty()
                 || !interface.associated_constants.is_empty()
             {
-                return Err(failure("zero Dyn requires its complete original Context and mixed domain"));
+                return Err(failure(
+                    "zero Dyn requires its complete original Context and mixed domain",
+                ));
             }
             fee(b, module.dyn_declarations.len())?;
             let mut declaration = None;
@@ -451,10 +509,13 @@ fn type_zero(
                     return Err(failure("zero Dyn has ambiguous original declarations"));
                 }
             }
-            let declaration = declaration.ok_or_else(|| failure("zero Dyn has no original declaration"))?;
+            let declaration =
+                declaration.ok_or_else(|| failure("zero Dyn has no original declaration"))?;
             crate::dyn_metadata::recipe_declaration(declaration, b)?;
             if declaration.kind != DynDeclarationKind::Trait || !declaration.parameters.is_empty() {
-                return Err(failure("zero Dyn changes its original trait kind or complete arity"));
+                return Err(failure(
+                    "zero Dyn changes its original trait kind or complete arity",
+                ));
             }
             Ok(())
         }
@@ -463,7 +524,9 @@ fn type_zero(
             // live protocol phase and synchronous/asynchronous teardown are
             // independently reconstructed by registration's actual consumer.
             if !matches!(environment.as_ref(), Type::Closure(_)) {
-                return Err(failure("zero registration has no concrete callback environment"));
+                return Err(failure(
+                    "zero registration has no concrete callback environment",
+                ));
             }
             type_zero(module, environment, limits, b, active, depth + 1)
         }

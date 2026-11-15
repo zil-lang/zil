@@ -1065,6 +1065,15 @@ pub(super) fn check(
             return Err(fail("completed dynamic table identity is repeated"));
         }
     }
+    for function in &module.functions {
+        b.spend(1, WORK)?;
+        if function.dyn_instance.is_some() {
+            b.lookup(b.semantic_dyn_functions_proven.len(), WORK)?;
+            if !b.semantic_dyn_functions_proven.insert(function.id) {
+                return Err(fail("completed original method specialization is repeated"));
+            }
+        }
+    }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
     // No semantic context manufactures a target, loan, epoch or effect.
     Ok(())

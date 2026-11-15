@@ -1165,6 +1165,459 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+    // A static call can instantiate a trait body without creating a vtable.
+    // Authenticate that actual function against the original definition and
+    // every semantic world before publishing its metadata-completion marker.
+    fn standalone_class(
+        &self,
+        scope: DynInstantiationScope,
+        binder: StorageBinder,
+        expected: &value::Class,
+        classes: &mut BTreeMap<StorageBinder, value::Class>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let valid = match binder {
+            StorageBinder::Fixed(index) => index < scope.fixed_binder_count,
+            StorageBinder::Invocation(index) => index < scope.invocation_binder_count,
+        };
+        if !valid {
+            return Err(fail(
+                "standalone method class leaves its full lexical domain",
+            ));
+        }
+        b.lookup(classes.len(), WORK)?;
+        if let Some(old) = classes.get(&binder) {
+            if old != expected {
+                return Err(fail(
+                    "standalone method conflates distinct original class occurrences",
+                ));
+            }
+        } else {
+            b.spend(1, WORK)?;
+            classes.insert(binder, expected.clone());
+        }
+        Ok(())
+    }
+    fn standalone_value(
+        &self,
+        scope: DynInstantiationScope,
+        actual: &DynTypeValue,
+        expected: &Value,
+        classes: &mut BTreeMap<StorageBinder, value::Class>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        crate::dyn_metadata::recipe(actual, b)?;
+        crate::dyn_metadata::ty(&expected.ty, b)?;
+        crate::dyn_metadata::shape(&expected.life, b)?;
+        b.spend(expected.classes.len(), WORK)?;
+        if actual.ty != expected.ty
+            || actual.life != expected.life
+            || actual.classes.len() != expected.classes.len()
+            || actual.life.binder_count as usize != actual.classes.len()
+        {
+            return Err(fail(
+                "standalone method changes a complete Self or Type actual domain",
+            ));
+        }
+        self.actual_type(&expected.ty, b)?;
+        for (binder, image) in actual.classes.iter().zip(&expected.classes) {
+            self.standalone_class(scope, *binder, image, classes, b)?;
+        }
+        Ok(())
+    }
+    fn standalone_actuals(
+        &self,
+        scope: DynInstantiationScope,
+        actuals: &[DynGenericActual],
+        world: &SemanticInstance,
+        classes: &mut BTreeMap<StorageBinder, value::Class>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let original = self.inventory.definition(world.definition, b)?;
+        if actuals.len() != world.actuals.len() || actuals.len() != original.parameters.len() {
+            return Err(fail(
+                "standalone method changes its original full mixed arity",
+            ));
+        }
+        for (actual, expected) in actuals.iter().zip(&world.actuals) {
+            crate::dyn_metadata::recipe(actual, b)?;
+            let expected = self.actual_value(world, expected, b, 0)?;
+            match (actual, expected) {
+                (DynGenericActual::QualifiedType(actual), value::Argument::Type(expected)) => {
+                    self.standalone_value(scope, actual, &expected, classes, b)?;
+                }
+                (DynGenericActual::Type(actual), value::Argument::Type(expected)) => {
+                    self.actual_type(actual, b)?;
+                    crate::dyn_metadata::ty(&expected.ty, b)?;
+                    crate::dyn_metadata::shape(&expected.life, b)?;
+                    b.spend(expected.classes.len(), WORK)?;
+                    if actual != &expected.ty
+                        || !empty(&expected.life)
+                        || !expected.classes.is_empty()
+                    {
+                        return Err(fail(
+                            "standalone plain Type actual omits its original complete domain",
+                        ));
+                    }
+                }
+                (DynGenericActual::Const(actual), value::Argument::Const { carrier, value }) => {
+                    crate::dyn_metadata::ty(&carrier, b)?;
+                    if actual.ty() != carrier || *actual != value {
+                        return Err(fail(
+                            "standalone Const actual changes its original carrier or bits",
+                        ));
+                    }
+                }
+                (DynGenericActual::Life(actual), value::Argument::Life(expected)) => {
+                    self.standalone_class(scope, *actual, &expected, classes, b)?;
+                }
+                _ => {
+                    return Err(fail(
+                        "standalone method changes an original mixed actual kind",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn standalone_contract(
+        &self,
+        method: SemanticDefinitionId,
+        signature: &SemanticSignatureRecipe,
+        contract: &DynContractRecipe,
+        resume_bound: TaskResumeBound,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        crate::dyn_metadata::recipe(contract, b)?;
+        let mut requires = Vec::new();
+        let mut reads = Vec::new();
+        let mut writes = Vec::new();
+        for (index, parameter) in signature.parameters.iter().enumerate() {
+            let position = StoragePosition {
+                base: StorageBase::Parameter(
+                    u32::try_from(index)
+                        .map_err(|_| fail("standalone parameter ordinal overflow"))?,
+                ),
+                path: Vec::new(),
+            };
+            if let SemanticTypeRecipe::Address { mutable, .. } = &parameter.ty {
+                self.push_value(
+                    &mut requires,
+                    DynRequirementRecipe::Read(position.clone()),
+                    b,
+                )?;
+                self.push_value(&mut reads, position.clone(), b)?;
+                if *mutable {
+                    self.push_value(
+                        &mut requires,
+                        DynRequirementRecipe::Write(position.clone()),
+                        b,
+                    )?;
+                    self.push_value(&mut writes, position, b)?;
+                }
+            }
+        }
+        // These are the ordinary signature's access prerequisites. No dynamic
+        // metadata grants an additional hold, state, cleanup or thread theorem.
+        if contract.requires.as_ref() != Some(&requires)
+            || contract
+                .guarantees
+                .as_ref()
+                .is_none_or(|rows| !rows.is_empty())
+            || contract.hold.as_ref().is_none_or(|rows| !rows.is_empty())
+            || contract.call.as_ref() != Some(&DynCallAccess { reads, writes })
+            || contract.cleanup.as_ref().is_none_or(|cleanup| {
+                cleanup.environment
+                    || !cleanup.positions.is_empty()
+                    || !cleanup.access.reads.is_empty()
+                    || !cleanup.access.writes.is_empty()
+                    || !cleanup.effects.is_empty()
+            })
+            || contract
+                .threads
+                .as_ref()
+                .is_none_or(|threads| threads.transfer || threads.share)
+            || contract.resume
+                != Some(match resume_bound {
+                    TaskResumeBound::Local => DynResumeBound::Local,
+                    TaskResumeBound::Transfer => DynResumeBound::Transfer,
+                })
+        {
+            return Err(unknown(
+                "standalone method contract needs its complete nonordinary access or protocol refinement",
+            ));
+        }
+        let result = match &signature.result {
+            SemanticTypeRecipe::Address {
+                mutable, lifetime, ..
+            } => {
+                let mode = if *mutable {
+                    StoredBorrowMode::ExclusiveAddress
+                } else {
+                    StoredBorrowMode::SharedAddress
+                };
+                let leaf = || DynTypePattern::Semantic {
+                    scope: method,
+                    ty: Box::new(signature.result.clone()),
+                };
+                crate::dyn_metadata::recipe(&signature.result, b)?;
+                let mut sources = Vec::new();
+                self.push_value(
+                    &mut sources,
+                    DynStorageSourceRecipe::Static { leaf: leaf(), mode },
+                    b,
+                )?;
+                for (index, parameter) in signature.parameters.iter().enumerate() {
+                    let SemanticTypeRecipe::Address {
+                        lifetime: input, ..
+                    } = &parameter.ty
+                    else {
+                        continue;
+                    };
+                    crate::dyn_metadata::recipe(&parameter.ty, b)?;
+                    crate::dyn_metadata::recipe(&signature.result, b)?;
+                    if input != lifetime {
+                        continue;
+                    }
+                    let position = StoragePosition {
+                        base: StorageBase::Parameter(
+                            u32::try_from(index)
+                                .map_err(|_| fail("standalone result source ordinal overflow"))?,
+                        ),
+                        path: Vec::new(),
+                    };
+                    if parameter.ty == signature.result {
+                        self.push_value(
+                            &mut sources,
+                            DynStorageSourceRecipe::Exact(position.clone()),
+                            b,
+                        )?;
+                    }
+                    if index == 0 {
+                        self.push_value(
+                            &mut sources,
+                            DynStorageSourceRecipe::OwnedView {
+                                head: position,
+                                leaf: leaf(),
+                                mode,
+                            },
+                            b,
+                        )?;
+                    }
+                }
+                DynResultSourceRecipe::Borrow {
+                    sources,
+                    mutable: *mutable,
+                }
+            }
+            _ => match signature.result_mode {
+                PassingMode::Create => DynResultSourceRecipe::Create,
+                PassingMode::Give => DynResultSourceRecipe::Give,
+                _ => DynResultSourceRecipe::Value,
+            },
+        };
+        if contract.result.as_ref() != Some(&result) {
+            return Err(fail(
+                "standalone method contract changes its original result mode or source relation",
+            ));
+        }
+        let effects = contract
+            .effects
+            .as_ref()
+            .ok_or_else(|| unknown("standalone method effect contract is unknown"))?;
+        let expected = [
+            DynEffectRecipe::Alloc,
+            DynEffectRecipe::Io,
+            DynEffectRecipe::Block,
+            DynEffectRecipe::Ffi,
+            DynEffectRecipe::Reenter,
+            DynEffectRecipe::Panic,
+        ];
+        b.spend(effects.len().saturating_mul(expected.len() + 1), WORK)?;
+        if effects.len() != expected.len() + usize::from(signature.call_kind == CallKind::Suspend)
+            || expected
+                .iter()
+                .any(|effect| effects.iter().filter(|row| *row == effect).count() != 1)
+            || (signature.call_kind == CallKind::Suspend
+                && effects
+                    .iter()
+                    .filter(|row| **row == DynEffectRecipe::Suspend)
+                    .count()
+                    != 1)
+        {
+            return Err(unknown(
+                "standalone method needs its precise declared effect refinement",
+            ));
+        }
+        Ok(())
+    }
+    fn standalone_definition(
+        &self,
+        function: &TypedFunction,
+        actual: &DynFunctionInstance,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        crate::dyn_metadata::recipe(actual, b)?;
+        let method =
+            original::definition_scope(self.program, actual.definition, self.inventory, b)?;
+        let original = self.inventory.definition(method, b)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature,
+            foreign,
+            resume_bound,
+            ..
+        } = &original.body
+        else {
+            return Err(fail(
+                "standalone specialization lacks its complete original method body",
+            ));
+        };
+        let parent_definition = original
+            .parent
+            .ok_or_else(|| fail("standalone method omits its true lexical parent"))?;
+        let parent = self.inventory.definition(parent_definition, b)?;
+        let declaration = match &parent.body {
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration })
+            | SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                declaration, ..
+            })
+            | SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl {
+                declaration,
+                ..
+            }) => *declaration,
+            _ => {
+                return Err(fail(
+                    "standalone method has another original declaration owner",
+                ));
+            }
+        };
+        let owner = self.inventory.original_dyn(declaration, b)?;
+        let mut definition = None;
+        for row in owner
+            .method_definitions
+            .as_ref()
+            .ok_or_else(|| unknown("standalone definition inventory is unknown"))?
+        {
+            b.spend(1, WORK)?;
+            if row.id == actual.definition && definition.replace(row).is_some() {
+                return Err(fail("standalone original definition is repeated"));
+            }
+        }
+        let definition = definition
+            .ok_or_else(|| fail("standalone method belongs to another original declaration"))?;
+        self.dyn_signature_bridge(method, signature, &definition.signature, b)?;
+        self.standalone_contract(
+            method,
+            signature,
+            &definition.signature.contract,
+            *resume_bound,
+            b,
+        )?;
+        if foreign.is_some()
+            || function.foreign.is_some()
+            || function.environment.is_some()
+            || function.call_kind != signature.call_kind
+            || function.resume_bound != *resume_bound
+            || function.parameters.len() != signature.parameters.len()
+        {
+            return Err(fail(
+                "standalone function changes its original entry kind or full parameter arity",
+            ));
+        }
+        let mut registered = false;
+        for row in &definition.instances {
+            crate::dyn_metadata::recipe(row, b)?;
+            if row.function == DynFunctionTarget::Typed(function.id) {
+                if registered
+                    || row.receiver != actual.receiver
+                    || row.declaration_actuals != actual.declaration_actuals
+                    || row.method_actuals != actual.method_actuals
+                {
+                    return Err(fail(
+                        "standalone target changes or repeats its exact full specialization registry",
+                    ));
+                }
+                registered = true;
+            }
+        }
+        if !registered {
+            return Err(fail(
+                "standalone function is absent from its original exact specialization registry",
+            ));
+        }
+        let worlds = self.function_worlds(function.id, b)?;
+        if worlds.is_empty() {
+            return Err(fail(
+                "standalone method has no independently checked original world",
+            ));
+        }
+        for world in worlds {
+            if world.definition != method || world.environment.is_some() {
+                return Err(fail(
+                    "standalone function includes another original definition or capture world",
+                ));
+            }
+            let parent = self.inventory.instance(
+                world
+                    .parent
+                    .ok_or_else(|| fail("standalone method world omits its original parent"))?,
+                b,
+            )?;
+            if parent.definition != parent_definition {
+                return Err(fail(
+                    "standalone method world changes its exact original lexical owner",
+                ));
+            }
+            self.scope_arguments(parent, b)?;
+            let receiver = self.original_scope_self(parent, b, 0)?;
+            let self_type = world
+                .self_type
+                .as_ref()
+                .ok_or_else(|| fail("standalone method world omits its full original Self"))?;
+            if self.resolved(world, self_type, b, 0)? != receiver {
+                return Err(fail(
+                    "standalone method Self differs from its complete lexical provider",
+                ));
+            }
+            let mut classes = BTreeMap::new();
+            self.standalone_value(actual.scope, &actual.receiver, &receiver, &mut classes, b)?;
+            self.standalone_actuals(
+                actual.scope,
+                &actual.declaration_actuals,
+                parent,
+                &mut classes,
+                b,
+            )?;
+            self.standalone_actuals(actual.scope, &actual.method_actuals, world, &mut classes, b)?;
+            self.header_relation(world, function, signature, b)?;
+            if actual.header_embedding.len() != world.header_embedding.len() {
+                return Err(fail(
+                    "standalone method loses a complete actual header embedding",
+                ));
+            }
+            let mut seen = BTreeSet::new();
+            for row in &actual.header_embedding {
+                b.lookup(seen.len(), WORK)?;
+                if !seen.insert(row.from) {
+                    return Err(fail("standalone method repeats an actual header binder"));
+                }
+                let class = self.header_class(world, row.from, b)?;
+                self.standalone_class(actual.scope, row.to, &class, &mut classes, b)?;
+            }
+            let count = (actual.scope.fixed_binder_count as usize)
+                .checked_add(actual.scope.invocation_binder_count as usize)
+                .ok_or_else(|| fail("standalone lexical class domain overflows"))?;
+            if classes.len() != count {
+                return Err(fail(
+                    "standalone method invents an ungrounded lexical class",
+                ));
+            }
+            // instances() subsequently checks every parameter/result mode,
+            // complete value qualification and original requirement; sites()
+            // checks every original operation against this exact world's CFG.
+        }
+        Ok(())
+    }
     pub(super) fn dyn_tables(&self, b: &mut Budget) -> CompileResult<()> {
         let mut interfaces = BTreeSet::new();
         for interface in &self.module.dyn_interfaces {
@@ -1280,8 +1733,10 @@ impl Check<'_, '_> {
         }
         for function in &self.module.functions {
             b.spend(1, WORK)?;
-            if function.dyn_instance.is_some() && !functions.contains(&function.id) {
-                return Err(unknown("unselected dynamic function specialization needs its complete original standalone definition bridge"));
+            if let Some(instance) = &function.dyn_instance {
+                if !functions.contains(&function.id) {
+                    self.standalone_definition(function, instance, b)?;
+                }
             }
         }
         Ok(())

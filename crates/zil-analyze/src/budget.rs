@@ -33,6 +33,9 @@ pub(super) struct Budget {
     remaining: usize,
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
+    // Complete immutable request-local Type lookup only; no domain or runtime
+    // qualification is retained here. Hash collisions still compare full IR.
+    pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<usize>>)>,
     // Only shape nodes borrowed from this request's immutable module enter.
     // The result indexes raw slots; no qualification or semantic flow is cached.
     physical_slot_paths: BTreeMap<usize, BTreeMap<Vec<zil_ir::PlaceProjection>, (u32, bool)>>,
@@ -65,6 +68,9 @@ pub(super) struct Budget {
     // actual semantic sites were checked in this immutable request. This
     // supplies no memory, loan, cleanup-effect or storage-source authority.
     pub(super) semantic_dyn_tables_proven: BTreeSet<zil_ir::DynVtableId>,
+    // Exact actual method specializations whose original definition, every
+    // full world and CFG correspondence completed. No vtable/effect authority.
+    pub(super) semantic_dyn_functions_proven: BTreeSet<FunctionId>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -216,6 +222,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             costs: BTreeMap::new(),
             metadata_costs: BTreeMap::new(),
+            nominal_zero_instances: None,
             physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
             large_tag_layout: false,
@@ -230,6 +237,7 @@ impl Budget {
             semantic_closures_proven: BTreeSet::new(),
             semantic_declarations_proven: BTreeSet::new(),
             semantic_dyn_tables_proven: BTreeSet::new(),
+            semantic_dyn_functions_proven: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
@@ -2175,30 +2183,11 @@ pub(super) fn preflight(
         budget.input(1, "dynamic definition instance presence")?;
         if let Some(instance) = &function.dyn_instance {
             super::dyn_metadata::recipe(instance, budget)?;
-            let mut proven = false;
-            budget.spend(
-                module.dyn_vtables.len(),
-                "dynamic function completed table inventory",
+            budget.lookup(
+                budget.semantic_dyn_functions_proven.len(),
+                "dynamic function completed original definition identity",
             )?;
-            for table in &module.dyn_vtables {
-                budget.lookup(
-                    budget.semantic_dyn_tables_proven.len(),
-                    "dynamic function completed table identity",
-                )?;
-                budget.spend(
-                    table.entries.len(),
-                    "dynamic function exact actual table entries",
-                )?;
-                if budget.semantic_dyn_tables_proven.contains(&table.id)
-                    && table
-                        .entries
-                        .iter()
-                        .any(|entry| entry.function == function.id)
-                {
-                    proven = true;
-                }
-            }
-            if !proven {
+            if !budget.semantic_dyn_functions_proven.contains(&function.id) {
                 return Err(super::bad(
                     "dynamic function instance requires its complete definition proof",
                 ));
