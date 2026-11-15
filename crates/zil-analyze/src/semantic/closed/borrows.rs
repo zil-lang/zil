@@ -186,8 +186,17 @@ impl Check<'_, '_> {
         if actual.ty != expected.ty {
             return Ok(false);
         }
+        crate::dyn_metadata::shape(&actual.life, b)?;
+        crate::dyn_metadata::shape(&expected.life, b)?;
+        b.spend(
+            actual.classes.len().saturating_add(expected.classes.len()),
+            WORK,
+        )?;
+        if actual == expected {
+            return Ok(true);
+        }
         if !matches!(actual.ty, Type::Address { .. }) {
-            return Ok(actual == expected);
+            return Ok(false);
         }
         if original::strings::is_byte_type(&actual.ty)
             && empty(&actual.life)

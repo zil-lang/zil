@@ -147,6 +147,7 @@ pub(super) enum LocalAnchor {
     Environment(u32),
     Pattern(u32),
 }
+#[derive(Clone)]
 struct Borrow {
     anchor: Option<LocalAnchor>,
     expression: Option<NodeId>,
@@ -1819,7 +1820,9 @@ impl Solver<'_, '_> {
                     let local = if let CoreExprKind::Name(name) = &head.kind {
                         self.local(frame, name, b)?
                     } else {
-                        None
+                        self.place(frame, head, false, b, depth + 1)?
+                            .filter(|place| !place.path.is_empty())
+                            .map(|place| place.selected)
                     };
                     let (parameters, result) = if let Some(local) = local {
                         if let CoreExprKind::Name(name) = &head.kind {

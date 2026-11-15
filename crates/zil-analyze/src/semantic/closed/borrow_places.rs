@@ -15,6 +15,66 @@ struct Origin {
 }
 
 impl Check<'_, '_> {
+    pub(super) fn checked_owned_place(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        id: ValueId,
+        source: &original::borrow_places::Source,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if source.indirect || source.index.is_some() || source.expression.is_some() {
+            return Err(fail(
+                "owning callable cannot move through an indirect original place",
+            ));
+        }
+        let local = self.anchored_local(
+            instance,
+            function,
+            source
+                .anchor
+                .ok_or_else(|| fail("owning callable has no original anchor"))?,
+            b,
+        )?;
+        let (block, index, instruction) = self.defining(function, id, b)?;
+        b.spend(source.path.len().saturating_add(1), WORK)?;
+        let matches = match &instruction.kind {
+            InstructionKind::TakeLocal { local: actual } => {
+                *actual == local && source.path.is_empty()
+            }
+            InstructionKind::TakePackageField {
+                local: actual,
+                index: field,
+            } => *actual == local && source.path.as_slice() == [*field],
+            InstructionKind::TakeTupleField {
+                local: actual,
+                path,
+            } => {
+                *actual == local
+                    && path.iter().copied().eq(source
+                        .path
+                        .iter()
+                        .copied()
+                        .map(PlaceProjection::Field))
+            }
+            _ => false,
+        };
+        if !matches || function.values.get(id.0 as usize) != Some(&source.inner.ty) {
+            return Err(fail(
+                "owning callable takes another original place, field or full type",
+            ));
+        }
+        let root = self.local_value(instance, function, local, (block, index), b, 0)?;
+        if root != source.root
+            || self.borrow_field_type(&root.ty, &source.path, b)? != &source.inner.ty
+        {
+            return Err(fail(
+                "owning callable loses its original root and complete child domain",
+            ));
+        }
+        Ok(())
+    }
+
     fn borrow_field_type<'a>(
         &self,
         mut ty: &'a Type,

@@ -7,6 +7,7 @@ pub(super) struct AbstractCall {
     parameter: u32,
     pub(super) subject: Term,
     receiver: Term,
+    place: Option<Borrow>,
     signature_owner: SemanticDefinitionId,
     pub(super) signature: SemanticSignatureRecipe,
     kind: CallableKind,
@@ -15,6 +16,7 @@ pub(super) struct AbstractCall {
 }
 pub(in crate::semantic) struct AbstractBoundary {
     pub(in crate::semantic) parameter: u32,
+    pub(in crate::semantic) place: Option<borrow_places::Source>,
     pub(in crate::semantic) subject: crate::semantic::value::Value,
     pub(in crate::semantic) receiver: crate::semantic::value::Value,
     pub(in crate::semantic) signature_owner: SemanticDefinitionId,
@@ -164,7 +166,57 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<Option<(Vec<Term>, Term)>> {
         self.step(depth, b)?;
-        let root = self.root(local, b)?;
+        let root = self.type_root(local, b)?;
+        if let Kind::Rigid(owner, ordinal) = self.state.arena[root] {
+            let (kind, signature) = self.callable_premise(owner, ordinal, b)?;
+            let place = self.borrow_place(frame, callee, b, depth + 1)?;
+            match kind {
+                CallableKind::FnOnce if place.indirect => {
+                    return Err(fail("abstract FnOnce cannot move through a borrowed place"));
+                }
+                CallableKind::FnMut if !place.mutable => {
+                    return Err(fail("abstract FnMut needs its original mutable place"));
+                }
+                CallableKind::FunctionPointer => return Ok(None),
+                _ => {}
+            }
+            let context = self.premise_frame(frame, owner, b)?;
+            let (parameters, result) =
+                self.invocation_scheme(&context, &signature, b, depth + 1)?;
+            b.spend(parameters.len().saturating_add(place.path.len() + 1), WORK)?;
+            let saved = AbstractCall {
+                parameter: 0,
+                subject: root,
+                receiver: local,
+                place: Some(Borrow {
+                    anchor: place.anchor,
+                    expression: place.expression,
+                    index: place.index,
+                    root: place.root,
+                    path: place.path,
+                    indirect: place.indirect,
+                    inner: place.inner,
+                    slice: None,
+                }),
+                signature_owner: owner,
+                signature,
+                kind,
+                parameters: parameters.clone(),
+                result,
+            };
+            b.lookup(self.state.abstract_calls.len(), WORK)?;
+            if self
+                .state
+                .abstract_calls
+                .insert((frame.definition, call), saved)
+                .is_some()
+            {
+                return Err(fail(
+                    "abstract place call has competing original resolutions",
+                ));
+            }
+            return Ok(Some((parameters, result)));
+        }
         let Kind::Address { mutable, inner, .. } = self.state.arena[root] else {
             return Ok(None);
         };
@@ -245,6 +297,7 @@ impl Solver<'_, '_> {
             parameter,
             subject,
             receiver: local,
+            place: None,
             signature_owner: owner,
             signature,
             kind,
@@ -308,6 +361,23 @@ impl Checked {
         crate::dyn_metadata::recipe(&call.signature, b)?;
         Ok(Some(AbstractBoundary {
             parameter: call.parameter,
+            place: call
+                .place
+                .as_ref()
+                .map(|source| -> CompileResult<borrow_places::Source> {
+                    b.spend(source.path.len(), WORK)?;
+                    Ok(borrow_places::Source {
+                        anchor: source.anchor,
+                        expression: source.expression,
+                        index: source.index,
+                        root: self.value(source.root, context, program, inventory, b, 0)?,
+                        path: source.path.clone(),
+                        inner: self.value(source.inner, context, program, inventory, b, 0)?,
+                        indirect: source.indirect,
+                        slice: source.slice,
+                    })
+                })
+                .transpose()?,
             subject: self.value(call.subject, context, program, inventory, b, 0)?,
             receiver: self.value(call.receiver, context, program, inventory, b, 0)?,
             signature_owner: call.signature_owner,

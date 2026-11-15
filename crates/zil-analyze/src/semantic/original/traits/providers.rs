@@ -256,7 +256,32 @@ impl Solver<'_, '_> {
             }
         }
         let (owner, actuals) = selected.ok_or_else(|| {
-            fail("original receiver trait application has no complete matching provider")
+            let mut errors =
+                fail("original receiver trait application has no complete matching provider");
+            let actual = self.type_root(receiver, b).ok();
+            let context = actual.map(|actual| match &self.state.arena[actual] {
+                Kind::Nominal {
+                    definition,
+                    arguments,
+                    ..
+                } => format!("nominal {:?}, arguments {:?}", definition, arguments),
+                Kind::Rigid(owner, ordinal) => format!("rigid {:?} mixed {}", owner, ordinal),
+                Kind::Associated {
+                    receiver,
+                    declaration,
+                    member,
+                    ..
+                } => format!(
+                    "associated receiver {} trait {:?} member {}",
+                    receiver, declaration, member
+                ),
+                kind => format!("kind {:?}", std::mem::discriminant(kind)),
+            });
+            errors[0].notes.push(format!(
+                "receiver {:?}, trait {:?}, arguments {:?}",
+                context, declaration, arguments
+            ));
+            errors
         })?;
         b.spend(actuals.len(), WORK)?;
         let frame = trait_frame(owner, actuals.clone());

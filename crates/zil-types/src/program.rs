@@ -668,8 +668,12 @@ fn check_resolved_program_in_context(
     mark_cost("program: emitter closure finish", remaining);
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resources, &mut remaining, limits)
+    let has_mutex = tasks::add_definition(&functions, &mut resources, &mut remaining, limits)
         .map_err(|e| vec![e])?;
+    if has_mutex {
+        generic_mutex::add_definitions(&functions, &mut resources, limits, &mut remaining)
+            .map_err(|e| vec![e])?;
+    }
     registration::add_definitions(&functions, &mut resources, &mut remaining)
         .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;

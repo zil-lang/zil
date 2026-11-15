@@ -47,81 +47,123 @@ impl Check<'_, '_> {
                 .filter(|b| b.id == block)
                 .and_then(|b| b.instructions.get(index))
                 .ok_or_else(|| fail("abstract invocation has no actual instruction"))?;
-            let InstructionKind::CallClosureBorrowed {
-                callee,
-                kind,
-                arguments,
-            } = &instruction.kind
-            else {
-                return Err(unknown(
-                    "abstract original borrowed receiver needs its exact actual borrowed-call opcode",
-                ));
+            let (callee, kind, arguments) = match &instruction.kind {
+                InstructionKind::CallClosureBorrowed {
+                    callee,
+                    kind,
+                    arguments,
+                } => (*callee, *kind, arguments),
+                InstructionKind::CallClosureOnce { callee, arguments }
+                    if boundary.place.is_some() =>
+                {
+                    (*callee, CallableKind::FnOnce, arguments)
+                }
+                _ => {
+                    return Err(unknown(
+                        "abstract invocation changes its actual receiver opcode",
+                    ));
+                }
             };
-            if *kind != boundary.kind || boundary.signature.call_kind != CallKind::Direct {
+            if kind != boundary.kind || boundary.signature.call_kind != CallKind::Direct {
                 return Err(unknown(
                     "abstract callable needs its complete requested invocation ABI and receiver mode",
                 ));
             }
-            let parameter = self.anchored_local(
-                instance,
-                function,
-                original::LocalAnchor::Parameter(boundary.parameter),
-                b,
-            )?;
             operations::available_before(
                 function,
                 (block, index, SemanticSiteEdge::Before),
-                *callee,
+                callee,
                 b,
             )?;
-            if self.receiver_local(function, *callee, b, 0)? != parameter {
-                return Err(fail(
-                    "abstract call selects another original receiver parameter",
-                ));
-            }
-            let receiver = self.ssa_value(instance, function, *callee, b, 0)?;
-            let Type::Address { mutable, inner } = &receiver.ty else {
-                return Err(fail(
-                    "abstract call receiver is not an actual environment address",
-                ));
-            };
-            let Type::Address {
-                mutable: expected_mutable,
-                ..
-            } = &boundary.receiver.ty
-            else {
-                return Err(fail(
-                    "original abstract receiver lost its reference carrier",
-                ));
-            };
-            if (*mutable && !*expected_mutable)
-                || (*kind == CallableKind::FnMut && !*mutable)
-                || inner.as_ref() != &boundary.subject.ty
-            {
-                return Err(fail(
-                    "abstract call changes its original complete receiver type or mode",
-                ));
-            }
-            let expected_mutable = *expected_mutable;
-            let mut expected_receiver = boundary.receiver;
-            if !*mutable && expected_mutable {
-                let Type::Address { inner, .. } = &expected_receiver.ty else {
-                    unreachable!()
-                };
-                crate::dyn_metadata::ty(inner, b)?;
-                expected_receiver.ty = Type::Address {
-                    mutable: false,
-                    inner: inner.clone(),
-                };
-                if expected_receiver.life.slots.len() != 1 {
-                    return Err(fail("original receiver omits its outer occurrence"));
+            if let Some(source) = &boundary.place {
+                if kind == CallableKind::FnOnce {
+                    self.checked_owned_place(instance, function, callee, source, b)?;
+                } else {
+                    self.checked_borrow_place(
+                        instance, function, callee, source, false, false, b, 0,
+                    )?;
+                    let Some(Type::Address { mutable, inner }) =
+                        function.values.get(callee.0 as usize)
+                    else {
+                        return Err(fail(
+                            "abstract place receiver loses its environment address",
+                        ));
+                    };
+                    if inner.as_ref() != &boundary.subject.ty
+                        || kind == CallableKind::FnMut && !*mutable
+                    {
+                        return Err(fail(
+                            "abstract place invocation changes its full type or mode",
+                        ));
+                    }
                 }
-                expected_receiver.life.slots[0].mode = StoredBorrowMode::SharedAddress;
-            }
-            if !self.outer_role(instance, function, &receiver, &expected_receiver, b, 0)? {
-                return Err(fail(
-                    "abstract receiver does not satisfy its original head role",
-                ));
+                if source.inner != boundary.subject {
+                    return Err(fail(
+                        "abstract place invocation changes its full original child domain",
+                    ));
+                }
+            } else {
+                let parameter = self.anchored_local(
+                    instance,
+                    function,
+                    original::LocalAnchor::Parameter(boundary.parameter),
+                    b,
+                )?;
+                operations::available_before(
+                    function,
+                    (block, index, SemanticSiteEdge::Before),
+                    callee,
+                    b,
+                )?;
+                if self.receiver_local(function, callee, b, 0)? != parameter {
+                    return Err(fail(
+                        "abstract call selects another original receiver parameter",
+                    ));
+                }
+                let receiver = self.ssa_value(instance, function, callee, b, 0)?;
+                let Type::Address { mutable, inner } = &receiver.ty else {
+                    return Err(fail(
+                        "abstract call receiver is not an actual environment address",
+                    ));
+                };
+                let Type::Address {
+                    mutable: expected_mutable,
+                    ..
+                } = &boundary.receiver.ty
+                else {
+                    return Err(fail(
+                        "original abstract receiver lost its reference carrier",
+                    ));
+                };
+                if (*mutable && !*expected_mutable)
+                    || (kind == CallableKind::FnMut && !*mutable)
+                    || inner.as_ref() != &boundary.subject.ty
+                {
+                    return Err(fail(
+                        "abstract call changes its original complete receiver type or mode",
+                    ));
+                }
+                let expected_mutable = *expected_mutable;
+                let mut expected_receiver = boundary.receiver;
+                if !*mutable && expected_mutable {
+                    let Type::Address { inner, .. } = &expected_receiver.ty else {
+                        unreachable!()
+                    };
+                    crate::dyn_metadata::ty(inner, b)?;
+                    expected_receiver.ty = Type::Address {
+                        mutable: false,
+                        inner: inner.clone(),
+                    };
+                    if expected_receiver.life.slots.len() != 1 {
+                        return Err(fail("original receiver omits its outer occurrence"));
+                    }
+                    expected_receiver.life.slots[0].mode = StoredBorrowMode::SharedAddress;
+                }
+                if !self.outer_role(instance, function, &receiver, &expected_receiver, b, 0)? {
+                    return Err(fail(
+                        "abstract receiver does not satisfy its original head role",
+                    ));
+                }
             }
             let Type::Closure(id) = boundary.subject.ty else {
                 return Err(unknown(
