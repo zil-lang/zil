@@ -139,3 +139,22 @@ impl CheckedOriginal {
         Ok(Some(result))
     }
 }
+
+impl CheckedOriginal {
+    /// The structural cursor admits a Member only as a possible nullary enum
+    /// constructor. Its checked nominal operation must exist even when no
+    /// actual instance or emitted instruction is present for this definition.
+    pub(super) fn check_constructor_sites(&self,index:&super::index::Index<'_>,b:&mut Budget)->Check<()> {
+        for function in index.definitions.values(){
+            for site in function.sites{
+                b.spend(1)?;
+                if !matches!(site.kind,SemanticSiteRecipeKind::Construct{..}){continue;}
+                let Some(super::index::Node::Expression(expression))=function.nodes.get(&site.id)else{continue;};
+                if matches!(expression.kind,CoreExprKind::Member{..})&&!self.constructors.contains_key(&(function.definition.id,site.id)){
+                    return Err(bad("original Member formation is not its independently checked nominal constructor"));
+                }
+            }
+        }
+        Ok(())
+    }
+}
