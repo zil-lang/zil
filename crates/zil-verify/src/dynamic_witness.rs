@@ -59,6 +59,13 @@ pub(crate) fn intrinsic_domain(
     Ok((domain.count, domain.pending_sources))
 }
 
+/// Complete actual inventory and the existing independent structural rule.
+/// Pending source/loan/phase obligations remain with their normal consumers.
+pub(crate) fn structural_actual(module:&TypedModule,ty:&Type,bound:DynStructuralBound,b:&mut Budget)->Check<()> {
+    intrinsic_domain(module,ty,b)?;
+    structural::actual(module,ty,bound,b)
+}
+
 /// Reuse the independent full Typed inventory while the semantic context
 /// separately validates every class expression and its original scope.
 pub(crate) fn check_type_value(

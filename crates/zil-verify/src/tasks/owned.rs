@@ -230,29 +230,12 @@ fn aggregate_resources<'a>(t: &'a Type, budget: &mut Budget) -> Check<Vec<&'a Ty
     }
     Ok(leaves)
 }
-pub(super) fn result_type(t: &Type, budget: &mut Budget) -> Check<bool> {
-    if *t == Type::I32 {
-        return Ok(true);
-    }
-    if let Type::Address {
-        mutable: false,
-        inner,
-    } = t
-    {
-        return Ok(retained_pointee(inner));
-    }
-    if let Type::Managed(payload) = t {
-        return if payload.as_ref() == &Type::ByteBuffer {
-            Ok(true)
-        } else {
-            record(payload, budget)
-        };
-    }
-    if record(t, budget)? {
-        return Ok(true);
-    }
-    complete_aggregate(t, budget)
+pub(super) fn result_type(module:&TypedModule,t:&Type,budget:&mut Budget)->Check<bool>{
+    crate::dynamic_witness::structural_actual(module,t,DynStructuralBound::Value,budget)?;
+    crate::dynamic_witness::structural_actual(module,t,DynStructuralBound::SyncDrop,budget)?;
+    Ok(true)
 }
+
 fn package(t: &Type, budget: &mut Budget) -> Check<bool> {
     let Type::Package { fields, .. } = t else {
         return Ok(false);
@@ -337,7 +320,10 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             pollable_storage(module, environment, budget)
         }
         Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
-        Type::Address { inner, .. } => pollable_storage(module, inner, budget),
+        Type::Address { .. } => {
+            crate::dynamic_witness::structural_actual(module,t,DynStructuralBound::SyncDrop,budget)?;
+            Ok(true)
+        },
         Type::Closure(id) => {
             if !matches!(
                 super::input_scope::domain(t, budget)?,
@@ -373,7 +359,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                         _ => {}
                     }
                 }
-                if let Type::Address { mutable, inner } = capture {
+                if let Type::Address { mutable, .. } = capture {
                     let Some(life) = &c.storage_life else {
                         return Ok(false);
                     };
@@ -388,9 +374,10 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                     };
                     let variable=life.bindings.iter().any(|row|row.position==position&&matches!(row.binder,StorageBinder::Fixed(class)if class<life.fixed_binder_count));
                     let literal = !*mutable && life.static_bindings.contains(&position);
-                    if !(variable || literal) || !retained_pointee(inner) {
+                    if !(variable || literal) {
                         return Ok(false);
                     }
+                    crate::dynamic_witness::structural_actual(module,capture,DynStructuralBound::SyncDrop,budget)?;
                     // Eligibility only: actual capture sources, all parent
                     // loans and every static dependency remain ordinary WF.
                     continue;
@@ -401,7 +388,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                     complete_aggregate(capture, budget)?
                 };
                 if !complete {
-                    return Ok(false);
+                    crate::dynamic_witness::structural_actual(module,capture,DynStructuralBound::SyncDrop,budget)?;
                 }
                 for leaf in aggregate_resources(capture, budget)? {
                     let Type::Managed(payload) = leaf else {
@@ -422,7 +409,11 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             }
             Ok(true)
         }
-        _ => storage(t, budget),
+        _ => {
+            if storage(t,budget)? {return Ok(true);}
+            crate::dynamic_witness::structural_actual(module,t,DynStructuralBound::SyncDrop,budget)?;
+            Ok(true)
+        },
     }
 }
 // This is a whole root slot profile, not a recursive addition to storage():
@@ -476,6 +467,22 @@ fn driver_call(
 ) -> Check<()> {
     helper_graph(module, first, budget, span, true)
 }
+fn dyn_callees(module:&TypedModule,interface:DynInterfaceId,slot:u32,b:&mut Budget)->Check<(CallKind,Vec<FunctionId>)>{
+    let actual=crate::dynamic_ports::interface(module,interface,b)?;
+    let kind=actual.slots.get(slot as usize).ok_or_else(||reject("E-VERIFY-TASK",None,"Task dynamic call has no complete interface slot"))?.call_kind;
+    let mut targets=Vec::new();
+    b.spend(module.dyn_vtables.len())?;
+    for table in &module.dyn_vtables {
+        if table.interface!=interface{continue;}
+        crate::dynamic_ports::validate_table(module,table,b)?;
+        b.spend(table.entries.len())?;
+        let mut entries=table.entries.iter().filter(|entry|entry.slot==slot);
+        let target=entries.next().ok_or_else(||reject("E-VERIFY-TASK",None,"Task dynamic provider omits its actual slot"))?;
+        if entries.next().is_some(){return Err(reject("E-VERIFY-TASK",None,"Task dynamic provider repeats its actual slot"));}
+        targets.push(target.function);
+    }
+    Ok((kind,targets))
+}
 fn task_driver_signature(f: &TypedFunction) -> Check<bool> {
     // The enclosing helper graph prepaid its parameter directory.
     let mut actual_tasks = 0;
@@ -522,9 +529,8 @@ fn helper_graph(
         )?;
         if f.call_kind != CallKind::Direct
             || f.environment.is_some()
-            || f.callable_contract.is_some()
-            || f.callable_return_contract.is_some()
-            || !(record(&f.return_type, budget)? || complete_aggregate(&f.return_type, budget)?)
+            || f.callable_return_contract.is_some() && !matches!(f.return_type,Type::Closure(_))
+            || !(record(&f.return_type, budget)? || result_type(module,&f.return_type, budget)?)
         {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -572,11 +578,7 @@ fn helper_graph(
                 storage(t, budget)?
             };
             if !supported && !complete_aggregate(t, budget)? {
-                return Err(reject(
-                    "E-VERIFY-TASK",
-                    span,
-                    "task cleanup retains unsupported owned or borrowed storage",
-                ));
+                crate::dynamic_witness::structural_actual(module,t,DynStructuralBound::SyncDrop,budget)?;
             }
         }
         for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
@@ -630,6 +632,11 @@ fn helper_graph(
             for i in &b.instructions {
                 budget.spend(1)?;
                 match &i.kind {
+                    InstructionKind::CallDynSlot{interface,slot,..}=>{
+                        let(kind,targets)=dyn_callees(module,*interface,*slot,budget)?;
+                        if kind!=CallKind::Direct{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task synchronous cleanup calls a suspending dynamic slot"));}
+                        pending.extend(targets.into_iter().map(|target|(target,borrowed_driver)));
+                    }
                     InstructionKind::TaskPoll { .. }
                     | InstructionKind::TaskValid { .. }
                     | InstructionKind::TaskRequestCancel { .. }
@@ -653,6 +660,10 @@ fn helper_graph(
                     | InstructionKind::AsyncRegistrationFinishDestroy { .. }
                         if closed_retirement => {}
                     InstructionKind::Constant(_)
+                    | InstructionKind::MakeDynBorrow{..}
+                    | InstructionKind::MakeDynOwned{..}
+                    | InstructionKind::BorrowDynOwned{..}
+                    | InstructionKind::DropDynOwned{..}
                     | InstructionKind::Load(_)
                     | InstructionKind::Store { .. }
                     | InstructionKind::StorageLive(_)
@@ -723,18 +734,18 @@ pub(super) fn profile(
 ) -> Check<Vec<FunctionId>> {
     if f.foreign.is_some()
         || f.environment.is_some()
-        || f.callable_return_contract.is_some()
+        || f.callable_return_contract.is_some() && !matches!(f.return_type,Type::Closure(_))
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer
             && (if matches!(f.return_type, Type::Address { mutable: false, .. }) {
-                result_type(&f.return_type, budget)?
+                result_type(module,&f.return_type, budget)?
             } else {
-                record(&f.return_type, budget)? || result_type(&f.return_type, budget)?
+                record(&f.return_type, budget)? || result_type(module,&f.return_type, budget)?
             })
             || matches!(f.result_mode, PassingMode::Give | PassingMode::Create)
-                && (matches!(f.return_type, Type::Managed(_))
-                    || matches!(&f.return_type, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(_))))
-                && result_type(&f.return_type, budget)?)
+                && !f.return_type.is_copy_value()
+                && !matches!(f.return_type,Type::Address{..}|Type::Desc(_))
+                && result_type(module,&f.return_type, budget)?)
         || module.resources.iter().any(|r| r.teardown == Some(f.id))
     {
         return Err(reject(
@@ -764,8 +775,7 @@ pub(super) fn profile(
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
             && !complete_aggregate(local_type(f, *parameter, span)?, budget)?
-            && !(matches!(local_type(f, *parameter, span)?, Type::Closure(_))
-                && pollable_storage(module, local_type(f, *parameter, span)?, budget)?)
+            && !pollable_storage(module, local_type(f, *parameter, span)?, budget)?
             && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
         {
             return Err(reject(
@@ -776,7 +786,6 @@ pub(super) fn profile(
         }
     }
     let mut checked = BTreeSet::new();
-    let mut enum_frame = false;
     for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
         // Preserve the exact former path for every already supported type.
         let new_enum = !pollable_storage(module, t, budget)?;
@@ -788,7 +797,6 @@ pub(super) fn profile(
             ));
         }
         let leaves = if new_enum {
-            enum_frame = true;
             aggregate_resources(t, budget)?
         } else {
             match t {
@@ -851,23 +859,23 @@ pub(super) fn profile(
         for i in &b.instructions {
             budget.spend(1)?;
             match &i.kind {
-                InstructionKind::PlaceTagLocal { local, path } if enum_frame => {
-                    let ty = local_type(f, *local, Some(i.span))?;
-                    resources::charge_payload(ty, budget)?;
-                    if !path.is_empty() || !sums::owned_enum(ty) {
-                        return Err(unsupported(
-                            "Enum continuation tag view requires a complete owning Enum local and empty path",
-                            Some(i.span),
-                        ));
+                InstructionKind::CallDynSlot{interface,slot,..}=>{
+                    let(kind,targets)=dyn_callees(module,*interface,*slot,budget)?;
+                    for target in targets {
+                        if kind==CallKind::Suspend{children.push(target);}
+                        else{driver_call(module,target,budget,Some(i.span))?;}
                     }
-                    // Actual current-tag, initialization and loan permission
-                    // remain obligations of the ordinary independent kernels.
+                }
+                InstructionKind::PlaceTagLocal { .. } => {
+                    // Validate the complete actual nested tag path. Resource
+                    // initialization and active-arm debts remain independent.
+                    crate::check_instruction(module,f,i,budget)?;
                 }
                 InstructionKind::VariantTagLocal { .. }
                 | InstructionKind::ReadVariantLocal { .. }
                 | InstructionKind::UnpackVariant { .. }
                 | InstructionKind::DropEnum { .. }
-                    if enum_frame => {}
+                | InstructionKind::TakeVariantField { .. } => {}
                 InstructionKind::Call { function, .. }
                 | InstructionKind::ForeignCall { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
@@ -940,6 +948,10 @@ pub(super) fn profile(
                     children.push(*function);
                 }
                 InstructionKind::TaskCreate { .. }
+                | InstructionKind::MakeDynBorrow{..}
+                | InstructionKind::MakeDynOwned{..}
+                | InstructionKind::BorrowDynOwned{..}
+                | InstructionKind::DropDynOwned{..}
                 | InstructionKind::TaskCreateOwned { .. }
                 | InstructionKind::TaskPoll { .. }
                 | InstructionKind::TaskValid { .. }

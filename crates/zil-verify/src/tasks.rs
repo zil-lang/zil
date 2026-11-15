@@ -668,7 +668,7 @@ pub(super) fn carrier(
     }
     resources::charge_payload(payload, budget)?;
     if let Type::Task { result, .. } = payload.as_ref()
-        && !owned::result_type(result, budget)?
+        && !owned::result_type(module,result, budget)?
     {
         return Err(unsupported(
             "general owning task result lowering is not yet admitted by this frame profile",

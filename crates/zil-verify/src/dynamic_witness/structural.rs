@@ -2,6 +2,10 @@
 //! erase a borrow domain, grant an access, or retire a live cleanup debt.
 use super::*;
 
+pub(super) fn actual(module:&TypedModule,ty:&Type,bound:DynStructuralBound,b:&mut Budget)->Check<()> {
+    walk(module,ty,bound,&mut Vec::new(),b,0)
+}
+
 pub(super) fn check(
     module: &TypedModule,
     value: &terms::Value,
