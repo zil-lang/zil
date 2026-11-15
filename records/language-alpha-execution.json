@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-14T16:25:28.746730+00:00",
+  "updated_at_utc": "2026-11-15T14:56:48.508428+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -15,7 +15,7 @@
   },
   "active_branch": "task/language-alpha",
   "latest_ready_source": "fbbc395c595881b3aaf06d59780d44b5c3a74af5",
-  "current_candidate_under_validation": null,
+  "current_candidate_under_validation": "b014a37bc",
   "wip_backup": {
     "archive_commit": "90d7881baf28e97375cb2caec1e48d6b9bd1c1a9",
     "source_base": "fd028ceb3807b986eb3600664f32266a837c8139",
@@ -112,7 +112,7 @@
     "public_profile": "13 positive anchors retained; full CT/C/native/failure exits remain required. No additional positive declared illegal.",
     "root_correction": "Overbroad type-occurrence cleanup ABI upper reverted in full, 3c24419bd."
   },
-  "execution_state": "HALTED BY USER; personal review only; no implementation agents or builds running",
+  "execution_state": "RESUMED BY USER; complete functional chains under personal audit constraints",
   "last_completed_candidate": "243c05a737750c0091e7b719ba8003e9e6e027b9",
   "personal_workflow_audit": {
     "reviewer": "root personally",
@@ -128,5 +128,14 @@
       "total": 4
     },
     "implementation_paused": true
+  },
+  "resumption_20261115": {
+    "source_checkpoint": "b014a37bc",
+    "ordinary_provenance_fix": "95eb7bed5",
+    "complete_world_value_sharing": "9903f8ccf",
+    "generic_symbolic_result_callee_owner": "74eabfb3e",
+    "resource_formation_before_qualification": "9b46d74c3",
+    "scope": "Existing complete Source/negative/raw-Wire/native/cleanup acceptance; no requirement reduction",
+    "candidate_run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-ordinary-domains-and-runtime-layouts"
   }
 }

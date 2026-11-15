@@ -22,6 +22,8 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
+2026-11-15（Asia/Shanghai）用户已明确恢复施工，按亲审结论实施。Root负责普通语言/来源/布局的完整组合链；资源执行链、独立Verify及Types规模链围绕实际工程集中接通，不再按单字段交付。停工现场完整保留；当前最新验收仍1/13，第一轮来源一致性修复已越过旧门，尚无新Alpha接受声明。
+
 2026-11-15（Asia/Shanghai）用户要求停止施工并由 root 本人审核，不使用子代理审查。全部实施与审查代理及构建已停止；最新完整候选243c05a73仍正向1/13、预期负例4/4，Alpha未接受。源码fd028ceb3与全部活动WIP已同步/固定归档90d7881b并读回校验。具体算法不一致、完整消费者遗漏、调度问题及已更新执行约束见[亲自审核](records/language-alpha-personal-workflow-audit-20261115.md)；仅文档与现场保全，不自动恢复施工。
 
 2026-11-13 用户进一步明确：局部切片过多，立即整合为大功能分支，终态施工且不承担历史兼容。当前统一源码入口为 `task/language-alpha`（共同树 `/workspace/zil-public-integration`，由原公共集成分支承接，包含已接受 main9170）；Source/CT、Types、两独立核、FullW、Task 在不相交模块中并行，root 单写 Git/公共表示与统一候选测试。旧10条活动源码分支已全部迁移、固定归档于archive@4df26352并退役，旧树exact detach/raw保留；当前唯一语言施工入口为Alpha，不再旧分支开发。近期交付为核心功能 Alpha；1.0 的完整泛化及产品性能目标保留而不混算。
