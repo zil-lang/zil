@@ -41,7 +41,8 @@ impl CheckedOriginal {
                 },
                 CoreExprKind::Index{object,index}=>{
                     let (object,mut place)=self.place(module,context,object,env,bindings,active,b)?;let mut storage=self.resolved(&object,b)?;
-                    if let Ty::Address{inner,..}=storage{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}storage=*inner;place=None;}
+                    if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}
+                    if let Ty::Address{inner,..}=storage{storage=*inner;place=None;}
                     // Runtime indices accept every actual integer carrier.
                     // An existing u32/i16 index is not implicitly a usize, and
                     // an unsuffixed value keeps normal original inference.
