@@ -4171,6 +4171,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
+            || stored_borrows::pure_composite(ty)
             || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
             || ty.is_shared_sync_cell_address()
             || qualified_capture_address(ty)

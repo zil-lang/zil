@@ -116,16 +116,14 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
                     CoreStatementKind::TupleBinding { initializer, .. } => {
                         push(&mut stack, Work::Expr(initializer), b)?
                     }
-                    CoreStatementKind::Assign { target, value } => {
-                        // A bare destination denotes a declared place, not a
-                        // read of its (possibly uninitialized) old occupant.
-                        if matches!(target.kind, CoreExprKind::Name(_)) {
-                            navigation_node(target, &mut navigation, b)?;
-                        }
-                        push(&mut stack, Work::Expr(value), b)?;
-                        push(&mut stack, Work::Expr(target), b)?;
-                    }
-                    CoreStatementKind::CompoundAssign { target, value, .. } => {
+                    CoreStatementKind::Assign { target, value }
+                    | CoreStatementKind::CompoundAssign { target, value, .. } => {
+                        // The target denotes a place in both forms. Compound
+                        // assignment's old-value read belongs to its actual
+                        // elaborated read, not another whole-value target
+                        // event. Explicit index/dereference operands remain
+                        // genuine evaluations in the expression walk below.
+                        navigation_node(target, &mut navigation, b)?;
                         push(&mut stack, Work::Expr(value), b)?;
                         push(&mut stack, Work::Expr(target), b)?;
                     }

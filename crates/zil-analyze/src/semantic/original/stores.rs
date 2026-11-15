@@ -1,5 +1,6 @@
 //! Store schemes retain ownership of initialized entries. A borrowed element
-//! has its own original occurrence; it is never a copied whole element.
+//! retains its actual manager-view lifetime; a declaration occurrence does not
+//! replace that source. It is never a copied whole element.
 use super::*;
 impl Solver<'_, '_> {
     #[allow(clippy::too_many_arguments)]
@@ -36,6 +37,7 @@ impl Solver<'_, '_> {
             ));
         }
         let mut inputs = Vec::new();
+        let mut manager_life = None;
         let element = if new {
             match written {
                 [CoreGenericArgument::Type(element)] => {
@@ -130,12 +132,21 @@ impl Solver<'_, '_> {
                     "original Store operation selects another resource family",
                 ));
             };
-            if matches!(
+            let descriptor = if matches!(
                 self.state.arena[selected],
                 Kind::Wrapped(Wrapper::Managed, _)
             ) {
-                self.describe_argument(frame, &arguments[0], &place, selected, b, depth + 1)?;
-            }
+                self.describe_argument(frame, &arguments[0], &place, selected, b, depth + 1)?
+            } else {
+                selected
+            };
+            let descriptor = self.type_root(descriptor, b)?;
+            let Kind::Desc { life, .. } = self.state.arena[descriptor] else {
+                return Err(fail(
+                    "original Store view lacks its exact descriptor lifetime",
+                ));
+            };
+            manager_life = Some(life);
             Self::push(&mut inputs, place.root, b)?;
             Self::push(&mut inputs, place.selected, b)?;
             b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
@@ -184,9 +195,9 @@ impl Solver<'_, '_> {
                 if intrinsic == sealed::Intrinsic::StoreReserve {
                     self.atom(Type::Bool, b)?
                 } else {
-                    let ordinal = self.native_result_occurrence(frame.definition, node, b)?;
-                    let life =
-                        self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+                    let life = manager_life.ok_or_else(|| {
+                        fail("original Store borrow lacks its complete manager source lifetime")
+                    })?;
                     self.term(
                         Kind::Address {
                             mutable: intrinsic == sealed::Intrinsic::StoreAtMut,
@@ -246,65 +257,5 @@ impl Solver<'_, '_> {
             ));
         }
         Ok(result)
-    }
-
-    fn native_result_occurrence(
-        &self,
-        definition: SemanticDefinitionId,
-        node: NodeId,
-        b: &mut Budget,
-    ) -> CompileResult<u32> {
-        let original = self.inventory.definition(definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody {
-            sites, site_nodes, ..
-        } = &original.body
-        else {
-            return Err(fail("original native result has no source body"));
-        };
-        let index = self
-            .indexes
-            .get(&definition)
-            .ok_or_else(|| fail("original native result has no complete node index"))?;
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(sites.len().saturating_add(1), WORK)?;
-            let matches = match link.node {
-                SemanticOriginalNode::Expression(id) => id == node,
-                SemanticOriginalNode::Statement(id) => {
-                    matches!(&index.get_stmt(id,b)?.kind,CoreStatementKind::Binding{initializer:Some(value),..} if value.id==node)
-                }
-            };
-            if !matches {
-                continue;
-            }
-            for site in sites {
-                if site.id != link.site
-                    || !matches!(
-                        site.kind,
-                        SemanticSiteRecipeKind::TypeUse { .. }
-                            | SemanticSiteRecipeKind::DeclareLocal { .. }
-                    )
-                {
-                    continue;
-                }
-                for row in &original.implicit_lifetimes {
-                    b.spend(
-                        row.occurrence_path
-                            .len()
-                            .saturating_add(site.occurrence_path.len() + 1),
-                        WORK,
-                    )?;
-                    if row.occurrence_path == site.occurrence_path {
-                        if selected.is_some_and(|old| old != row.ordinal) {
-                            return Err(fail(
-                                "original native result has competing declaration occurrences",
-                            ));
-                        }
-                        selected = Some(row.ordinal);
-                    }
-                }
-            }
-        }
-        selected.ok_or_else(||unknown("original borrowed native result lacks its complete original declaration occurrence"))
     }
 }
