@@ -1,20 +1,20 @@
 {
   "task": "G10.5.1.15",
-  "status": "Complete checked call-class/import/pruning chain implemented. Finite full workflows and product disk beat Rust at1000/2500/5105 with51 current runtime cases passed. NOT all-scenario Rust success: restart/interface/private5105 and10k/25k token capacity fail; main merge Hold.",
-  "updated_Asia_Shanghai": "2026-11-16T03:28:03.117325+08:00",
-  "read_goal": "636c74329ff189d0763404783f892adbc3d8efb2",
+  "status": "Actual pinned Rust/Cargo source pain audit complete: finite027 cold/O2 short-history disk gains remain; time-space cleanup/longhistory/debug/test/workspace and persistent compiler restart not solved. Whole-project10000-function contract is a separate hard capacity gap. Every lag/proactive direction must cite Rust actual implementation before the one full dependency/CGU/cache construction chain.",
+  "updated_Asia_Shanghai": "2026-11-16T05:05:52.923132+08:00",
+  "read_goal": "586094864031c8605a0a6b04aa9c38bf8980302b",
   "source": "027695318436fcb1f8994d0dc9802a0b2349c362",
   "tree": "83fd7b71aadb6f5c1000a70590bd8707114d667f",
   "binary_sha256": "5b3a309a7860dca3a1d3f15e7c930ec7d3f3a3fa59286e6d91c67e0067c0743f",
-  "delivery": "53c077e723fbd3aa43e96962260d4834d33ce96b",
+  "delivery": "7be53850d4f95059a9fe3e73bba17db711bce81d",
   "branch": "research/full-push-native",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "report": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/full-push-compact-checkpoint.md",
-  "exact_bindings": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/full-push-compact-checkpoint.json",
-  "weighted_report": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/call-classes-reviews-20261115/weighted-coverage.json",
-  "capacity_report": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/call-classes-reviews-20261115/capacity.json",
-  "recovery": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
-  "formal_recovery": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
+  "report": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/full-push-compact-checkpoint.md",
+  "exact_bindings": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/full-push-compact-checkpoint.json",
+  "weighted_report": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/call-classes-reviews-20261115/weighted-coverage.json",
+  "capacity_report": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/call-classes-reviews-20261115/capacity.json",
+  "recovery": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
+  "formal_recovery": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
   "implementation": [
     "Explicit closed executable + incremental O2 + LLVM API/full O2 + merging off only. Exact supported integer direct-call DAG classes before complete imports; complete normalized Function equality authorizes, hashes select only; addresses/entry/unsupported/cycles excluded and all original definitions retained by this pass. Complete original model validation precedes a nonempty rewrite.",
     "Rebuild/reinternalize current whole unit after scalar-body replay, then prune only unreachable Internal/Private definitions from complete structured call/address reachability rooted at every nonlocal definition and every retained global initializer. Complete original unpruned units checked before deletion, structured errors/cancellation preserved. Actual unit vector stays16, including real empty LLVM units.",
@@ -349,7 +349,8 @@
     "Window04 tool-failed/incomplete at historical stale layout;05d scans strictly validated envelopes for a unique complete current physical layout. Stale-only still rejected; failed04/replay/tool19 tests preserved.",
     "027 current full workflow leads at finite1000/2500/5105 but interface and process restart lose at every size; private8 at5105 loses10.754vs9.859s. All negatives retained.",
     "10105/25105: both actual main and027 reject all original snapshots at default lex token limit; Rust check/native observed. Verify0 on lex failure is not a successful semantic rejection. No invalid-build timing or disk ratios. Firstcheck validator failure preserved with56 saved-response replays; native84requests complete/0infrastructurefailures/capacity false.",
-    "Synthetic102-file scalar families do not establish industrial workspace/generic/proc-macro/async coverage or minute-scale ZIL capacity success. Capacity timings excluded due host evidence maintenance; no sustained capacity runtime qualification."
+    "Synthetic102-file scalar families do not establish industrial workspace/generic/proc-macro/async coverage or minute-scale ZIL capacity success. Capacity timings excluded due host evidence maintenance; no sustained capacity runtime qualification.",
+    "20261116 actual Rust implementation audit: default10000 function hard cap also precludes original10105/25105 projects, beyond observed lex cap. Current lower disk does not prove cleanup preserves hot edits; Rust has GC and optional LLVM merging already. O2 single-crate native/no-debug results do not establish debug/test/multicrate/longhistory or current successful check superiority."
   ],
   "stock_main_candidate": {
     "source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
@@ -384,14 +385,14 @@
     },
     "external_controller_source_appendix": "call-classes-reviews-20261115/capacity-controller-provenance.json"
   },
-  "next": "Continue the large-project capacity plus fresh construction/restart/interface chain; actual5105 private003 backend machine331.9ms+partition240.0ms+object614.7ms,2500 restart machine144.5ms+partition50.3ms dominate while objects are cache hits. Do not chase millisecond no-op ratios ahead of these waits. No main merge before a separately reviewed minimal default-off scope and required main gates.",
+  "next": "One chain based on actual Rust58cf/Cargo5f94: tracked header/body/ABI/name dependencies and equal-result cutoff -> class/call/import updates -> current unit authorization and cached-product choice before MachineOutput expansion -> red-unit full checks/O2 -> referenced cache publication and bounded history cleanup. Preserve independent current Verify and all stronger integrity checks. Joint cold/resident/real compiler restart/edit and space-budget/cleanup-history tests, no CargoFresh guarantee relabel. Actual >10000-function project cannot fit unchanged whole-project limit; capacity contract/independent package boundary is separate explicit design, not a repeated-charge optimization.",
   "main_merge": false,
   "research_defaults_enabled": false,
   "previous_record": {
-    "immutable_goal": "636c74329ff189d0763404783f892adbc3d8efb2",
+    "immutable_goal": "586094864031c8605a0a6b04aa9c38bf8980302b",
     "path": "records/compiler-incremental-demand-continuation.json",
-    "compiled_source": "789f879f249c7f45a5c84ce062be30f9c0985740",
-    "delivery": "dff584ce518dfcf44b97375f86263989392dc937"
+    "compiled_source": "027695318436fcb1f8994d0dc9802a0b2349c362",
+    "delivery": "53c077e723fbd3aa43e96962260d4834d33ce96b"
   },
   "historical_98fa_record_as_read": {
     "task": "G10.5.1.15",
@@ -486,5 +487,50 @@
       "path": "records/compiler-incremental-demand-continuation.json",
       "note": "Full prior decisions/results remain in this fixed Git blob and fixed archives; replaced stale107KB cumulative current-state document with this compact latest index."
     }
+  },
+  "pain_audit": {
+    "date_Asia_Shanghai": "2026-11-16",
+    "report": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/rust-pain-reviews-20261116/review.md",
+    "data": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/rust-pain-reviews-20261116/audit.json",
+    "rust_implementation_review": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/rust-pain-reviews-20261116/rust-implementation-review.md",
+    "rust_reference_policy": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/rust-pain-reviews-20261116/rust-reference-policy.json",
+    "new_benchmark": false,
+    "verdict": "Finite O2 scalar cold/disk gains true; persistent restart, fixed-space cleanup tradeoff, longhistory/debug/test/workspace not solved. Rust already has session GC/sharing and O2 merging; compare actual implementation before every direction.",
+    "capacity_hard_limits": {
+      "whole_project_tokens": 1000000,
+      "whole_project_functions": 10000,
+      "unchanged_contract_cannot_admit_actual_10105_or_25105_functions": true
+    },
+    "recovery": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json",
+    "recovery_verified": {
+      "archive_sha256": "3c0f9588efb6cdb7bb6dbe29746b92d5f2d2877498c99d9c0b94c1c2b245cee0",
+      "archive_bytes": 372435,
+      "parts": 1,
+      "regular_files": 53,
+      "logical_bytes": 1498530,
+      "fresh_restore_verified": true
+    }
+  },
+  "rust_reference_policy": {
+    "scope": "Every current or proposed compile-time/cache-space optimization must compare actual Rust source, including proactive designs. Evidence of absence must be bounded, not assumed.",
+    "rustc_source": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "cargo_source": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+    "required_fields": [
+      "Pinned Rust file/function and relevant flags",
+      "Current ZIL consumer and measured absolute cost",
+      "Actual mechanism difference, measured facts vs hypotheses",
+      "What is borrowed and what stronger ZIL safety obligations remain",
+      "One complete implementation chain and unified source/runtime/time-space acceptance"
+    ],
+    "current_covered_mechanisms": [
+      "Cargo fingerprint/Fresh",
+      "Ordered actual-query dependency tracking and result-green cutoff",
+      "Early CGU work-product decision before LLVM construction",
+      "On-demand disk query loading/cache promotion and stable IDs",
+      "Incremental session hardlink/copy/current/live lock-safe GC",
+      "MonoItem dedup, CGU inline-item partition, O2 LLVM MergeFunctions",
+      "Default ThinLocal/pre-LTO stage identity vs final-object reuse"
+    ],
+    "not_claimed": "Entire Rust compiler audited; universal superiority; new compiler optimization; new benchmark; same current Verify guarantee from Cargo Fresh."
   }
 }
