@@ -14,8 +14,10 @@ struct Check<'a, 'b> {
     view: super::materialize::ActualDirectory<'a>,
     ledger: &'a super::emission::Ledger,
     where_session: super::original::NominalWhere<'a>,
-    requests:
-        std::collections::BTreeMap<SemanticDefinitionId, Vec<super::original::NominalRequest>>,
+    requests: std::collections::BTreeMap<
+        SemanticDefinitionId,
+        std::rc::Rc<Vec<super::original::NominalRequest>>,
+    >,
     limits: &'b Limits,
     left: &'b mut usize,
     active: Vec<usize>,
@@ -998,7 +1000,7 @@ impl<'a> Check<'a, '_> {
             .ok_or_else(|| bad("nominal source request index disappeared"))?;
         let result = (|| {
             let mut matched = false;
-            for request in &requests {
+            for request in requests.iter() {
                 let SemanticTypeRecipe::Nominal { arguments, .. } = &request.recipe else {
                     return Err(bad("nominal original request lost its declared kind"));
                 };

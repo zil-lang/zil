@@ -35,7 +35,7 @@ struct Apply<'a, 'b> {
     allow_root_invocation: bool,
     forall: Option<(u32, u32)>,
     inference_seen: Option<&'b mut bool>,
-    nominal_filter: Option<SemanticDefinitionId>,
+    nominal_filter: Option<Option<SemanticDefinitionId>>,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -707,7 +707,7 @@ impl<'a> Apply<'a, '_> {
     fn ty(&mut self, ty: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
         if self.nominal_filter.is_some_and(|target|
-            matches!(ty, SemanticTypeRecipe::Nominal { definition, .. } if *definition == target))
+            matches!(ty, SemanticTypeRecipe::Nominal { definition, .. } if target.is_none_or(|target| *definition == target)))
             && self.bound_depth == 0 && self.invocation_depth == 0
         {
             crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
@@ -1426,9 +1426,11 @@ pub(crate) fn delayed_types(
 }
 /// Find declaration uses in the current original lexical domain. Quantified
 /// code domains and an opaque's callee-owned hidden body are not caller uses.
+/// `None` collects all declarations in one traversal of the immutable input;
+/// `Some` keeps the exact declaration filter. Neither mode establishes a bound.
 pub(crate) fn nominal_types(
     value: &SemanticTypeRecipe,
-    definition: SemanticDefinitionId,
+    definition: Option<SemanticDefinitionId>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Vec<SemanticTypeRecipe>> {
