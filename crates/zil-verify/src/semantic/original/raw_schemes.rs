@@ -8,6 +8,9 @@ impl CheckedOriginal {
         for declaration in &module.dyn_declarations {
             dynamic_metadata::scoped_declaration(module,declaration,b)?;
             if !identities.insert(declaration.id) { return Err(bad("original trait/impl inventory repeats a declaration identity")); }
+            // Builtin Drop has an exact sealed original body and identity,
+            // but no user DynProvider/FullW recipe. Preserve that distinction.
+            if dynamic_metadata::sealed_drop_metadata(module,declaration,b)? { continue; }
             let scope = dynamic_witness::semantic_external::original_scope(module, declaration.id, b)?;
             self.current = Some(scope.id);
             let env = self.environment(module, context, scope.id, active, b)?;

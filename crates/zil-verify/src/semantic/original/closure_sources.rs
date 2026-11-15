@@ -118,11 +118,35 @@ impl CheckedOriginal {
 impl CheckedOriginal {
     pub(in crate::semantic) fn static_literal(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Option<Vec<u8>>>{
         let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static literal original body is absent"))?;
-        let Some(index::Node::Expression(mut expression))=function.nodes.get(&site).copied() else{return Ok(None);};
+        let expression=match function.nodes.get(&site).copied(){Some(index::Node::Expression(expression))=>expression,Some(index::Node::Statement(statement))=>match &statement.kind{CoreStatementKind::Binding{initializer:Some(expression),..}=>expression,_=>return Ok(None)},None=>return Ok(None)};
+        self.checked_static_literal(definition,expression,b)
+    }
+    pub(in crate::semantic) fn static_call_literals(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,receiver_argument:bool,b:&mut Budget)->Check<Option<(usize,Vec<(usize,Vec<u8>)>)>>{
+        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static Call literal has no exact original body"))?;
+        let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{return Ok(None);};
+        let CoreExprKind::Call{arguments,..}=&call.kind else{return Ok(None);};
+        if !self.call_targets.contains_key(&(definition,site))&&!self.trait_calls.contains_key(&(definition,site))&&!self.callable_nodes.contains_key(&(definition,call.id)){return Ok(None);}
+        let offset=usize::from(receiver_argument&&self.trait_calls.get(&(definition,site)).is_some_and(|row|row.receiver_mode.is_some()));
+        let mut literals=Vec::new();for(ordinal,argument)in arguments.iter().enumerate(){if let Some(bytes)=self.checked_static_literal(definition,argument,b)?{literals.push((ordinal+offset,bytes));}}
+        Ok(Some((arguments.len()+offset,literals)))
+    }
+    fn checked_static_literal(&self,definition:SemanticDefinitionId,mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<Option<Vec<u8>>>{
         loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=>expression=inner,_=>break}}
         let CoreExprKind::String(text)=&expression.kind else{return Ok(None);};
-        let ty=self.injections.get(&(definition,expression.id)).map(|(_,payload)|payload.clone()).unwrap_or(self.original_type(definition,&SemanticOriginalTypeSource::Expression(expression.id),b)?);
+        let ty=if let Some((_,payload))=self.injections.get(&(definition,expression.id)){payload.clone()}else{self.original_type(definition,&SemanticOriginalTypeSource::Expression(expression.id),b)?};
         if !matches!(self.resolved(&ty,b)?,Ty::Address{mutable:false,life:Life::Static,ref inner}if matches!(inner.as_ref(),Ty::Slice(child)if child.as_ref()==&Ty::Atom(Type::U8))){return Err(bad("original static literal changes its complete byte-slice role"));}
-        b.spend(text.len())?;Ok(Some(text.as_bytes().to_vec()))
+        b.spend(text.len().saturating_mul(2))?;
+        let invalid=||bad("original static string has an invalid scalar/escape spelling");
+        let mut chars=text.strip_prefix('"').and_then(|text|text.strip_suffix('"')).ok_or_else(invalid)?.chars();
+        let mut bytes=Vec::new();
+        while let Some(mut ch)=chars.next(){
+            if ch=='\\'{ch=match chars.next().ok_or_else(invalid)?{
+                'n'=>'\n','r'=>'\r','t'=>'\t','0'=>'\0','\\'=>'\\','\''=>'\'','"'=>'"',
+                'u'=>{if chars.next()!=Some('{'){return Err(invalid());}let mut digits=0;let mut scalar=0u32;loop{let ch=chars.next().ok_or_else(invalid)?;if ch=='}'{if digits==0{return Err(invalid());}break;}if digits==6||!ch.is_ascii_hexdigit(){return Err(invalid());}scalar=scalar*16+ch.to_digit(16).ok_or_else(invalid)?;digits+=1;}char::from_u32(scalar).ok_or_else(invalid)?},
+                _=>return Err(invalid()),
+            };}else if matches!(ch,'"'|'\n'|'\r'){return Err(invalid());}
+            let mut encoded=[0;4];bytes.extend_from_slice(ch.encode_utf8(&mut encoded).as_bytes());
+        }
+        b.spend(bytes.len())?;Ok(Some(bytes))
     }
 }

@@ -23,12 +23,19 @@ pub(super) fn with_active(module: &TypedModule, instance: &LifeNominalInstance, 
             // cannot provide its original occurrence or map it to no class.
             (LifeParameterKind::Lifetime, _) => return Err(err("plain nominal omits a persistent lifetime actual")),
             (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => zero(module, ty, limits, b, active)?,
+            (LifeParameterKind::Type, LifeNominalActual::QualifiedType{ty,life}) => {
+                if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Err(err("plain nominal cannot erase a nonzero qualified Type actual"));}
+                // Empty metadata is not a zero-domain proof. The complete
+                // actual type independently establishes Known0 below.
+                zero(module,ty,limits,b,active)?;
+            },
             (LifeParameterKind::Const(ty), LifeNominalActual::Const(value)) if value.ty() == *ty && (ty.is_integer() || ty.is_float() || matches!(ty, Type::Unit | Type::Bool)) => { type_work(ty, limits, b)?; },
             _ => return Err(err("plain nominal changes its full-ordinal actual kind or constant carrier")),
         }
     }
     if declaration.id.compiler {
-        let [LifeNominalActual::Type(actual)] = instance.arguments.as_slice() else { return Err(err("plain builtin nominal omits its complete Type argument")); };
+        let [argument] = instance.arguments.as_slice() else { return Err(err("plain builtin nominal omits its complete Type argument")); };
+        let actual=match argument{LifeNominalActual::Type(ty)|LifeNominalActual::QualifiedType{ty,..}=>ty,_=>return Err(err("plain builtin nominal changes its actual full-ordinal Type kind"))};
         let Type::Enum { name, variants } = &instance.ty else { return Err(err("plain builtin nominal is not its actual enum")); };
         b.spend(name.len().saturating_add(variants.len()).saturating_add(96))?;
         let option = option_address::declaration(declaration);

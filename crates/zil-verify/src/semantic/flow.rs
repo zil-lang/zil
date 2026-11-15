@@ -421,7 +421,7 @@ impl CheckedContext {
         let mut anchors=Vec::<(SemanticClassExpr,ClassKey)>::new();
         for(ordinal,value)in checked.iter().enumerate(){match value{
             CheckedActual::Life(key)=>anchors.push((SemanticClassExpr::Environment{scope:SemanticScopeRef::Ancestor(0),ordinal:ordinal as u32},key.clone())),
-            CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::phantom_only(value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
+            CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::complete_environment(module,value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
             _=>{},
         }}
         for value in &checked{b.spend(1)?;match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{dynamic_metadata::ty(&value.ty,b)?;b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;},CheckedActual::Life(_)=>{}}}
@@ -449,10 +449,8 @@ impl CheckedContext {
                 anchors.push((SemanticClassExpr::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal:*ordinal},value.classes[binder].clone()));
                 capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
-            }else if value.classes.is_empty()&&value.statics.is_empty(){
-                self.classfree_capture(module,creator,child,index as u32,*capture,b)?;
             }else{
-                let ordinal=self.phantom_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
+                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
                 logical_captures.insert(index as u32,ordinal);
             }
             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;
@@ -491,16 +489,7 @@ impl CheckedContext {
         for (index,_) in captures.iter().enumerate() {
             if let Some(ordinal)=logical_captures.get(&(index as u32)){
                 let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
-                for class in 0..value.classes.len(){
-                    b.spend(relation.classes.len().saturating_add(child.header_embedding.len()))?;
-                    let mut rows=relation.classes.iter().filter(|row|row.position.base==StorageBase::Capture(index as u32)&&row.position.path.is_empty()&&row.position.class==class as u32);
-                    let row=rows.next().ok_or_else(||bad("logical capture class lacks its complete actual header occurrence"))?;
-                    if rows.next().is_some(){return Err(bad("logical capture class has repeated header occurrences"));}
-                    let mut embedding=child.header_embedding.iter().filter(|map|map.header==row.binder);
-                    let map=embedding.next().ok_or_else(||bad("logical capture class has no original environment embedding"))?;
-                    let expected=SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(*ordinal as u32),path:vec![],class:class as u32};
-                    if !matches!(row.binder,StorageBinder::Fixed(_))||embedding.next().is_some()||map.actual!=expected{return Err(bad("logical capture class maps another original environment occurrence"));}
-                }
+                self.environment_capture_header(relation,child,index as u32,*ordinal,value,b)?;
                 continue;
             }
             if value_at(values,captures[index])?.classes.is_empty(){continue;}
