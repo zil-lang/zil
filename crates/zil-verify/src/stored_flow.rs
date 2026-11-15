@@ -6922,6 +6922,7 @@ fn check_with_mask(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
+            let ordinary_value=super::stored_owned::ordinary_store_value(ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?||pure_copy::ordinary_owned_value(ty,b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
@@ -6935,6 +6936,7 @@ fn check_with_mask(
                 && !closed_dyn_value
                 && !neutral_owner
                 && !compound_profile
+                && !ordinary_value
             {
                 super::stored_owned::value_type(ty, b)?;
             }
@@ -6948,9 +6950,7 @@ fn check_with_mask(
             } else {
                 false
             };
-            if !(super::stored_owned::ordinary_store_value(ty,b)?
-                || super::stored_owned::ordinary_byte_value(ty,b)?
-                || pure_copy::ordinary_owned_value(ty,b)?
+            if !(ordinary_value
                 || byte_value
                 || closed_dyn_value
                 || super::stored_callables::value(module, ty)
