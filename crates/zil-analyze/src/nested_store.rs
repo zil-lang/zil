@@ -114,6 +114,13 @@ fn value_inner(
         Type::U16 | Type::I16 => (2, 2),
         Type::U32 | Type::I32 | Type::F32 => (4, 4),
         Type::I64 | Type::U64 | Type::Usize | Type::Isize | Type::F64 => (8, 8),
+        // Code identities have pointer representation. Signature, original
+        // identity and complete class-domain checks remain separate proofs.
+        Type::FunctionPointer { .. }
+        | Type::BorrowedFunctionPointer { .. }
+        | Type::ForeignCallback { .. }
+        | Type::ForeignHandle => (8, 8),
+        Type::OwnedDyn { .. } => (16, 8),
         Type::Managed(payload) => match payload.as_ref() {
             Type::ByteBuffer => {
                 resource(module, zil_ir::BYTE_BUFFER_RESOURCE_NAME, payload, true, b)?;
@@ -190,14 +197,12 @@ fn value_inner(
         Type::ErrorUnion { error, result } if ty.is_copy_value() => {
             let (e, ea) = value_inner(error, module, b, active)?;
             let (r, ra) = value_inner(result, module, b, active)?;
-            let alignment = 4u64.max(ea).max(ra);
-            (
-                align(
-                    checked(align(4, alignment)?.checked_add(e.max(r)))?,
-                    alignment,
-                )?,
-                alignment,
-            )
+            // The executable ErrorUnion is { i1, Error, Result }; both arm
+            // fields occupy inline storage even though only one is live.
+            let alignment = ea.max(ra);
+            let after_error = checked(align(1, ea)?.checked_add(e))?;
+            let after_result = checked(align(after_error, ra)?.checked_add(r))?;
+            (align(after_result, alignment)?, alignment)
         }
         Type::Closure(id) => {
             b.spend(
