@@ -1069,55 +1069,65 @@ impl Check<'_, '_> {
                         ));
                     }
                 };
-                let target = self.function_instance(callee, b)?;
-                if target.definition != original
-                    || actuals.len() != expected_actuals.len()
-                    || target.actuals.len() != expected_actuals.len()
-                {
+                // A machine body may have several independently checked
+                // invocation worlds. Check this boundary against every one;
+                // no global representative identifies their local classes.
+                let worlds = self.function_worlds(callee, b)?;
+                if worlds.is_empty() {
                     return Err(fail(
-                        "actual BodyCall changes its independently inferred original target or mixed arity",
+                        "actual BodyCall has no complete original target world",
                     ));
                 }
-                for (ordinal, ((proposed, callee), expected)) in actuals
-                    .iter()
-                    .zip(&target.actuals)
-                    .zip(&expected_actuals)
-                    .enumerate()
-                {
-                    let proposed = self.actual_value(instance, proposed, b, 0)?;
-                    if proposed != *expected {
+                for target in worlds {
+                    if target.definition != original
+                        || actuals.len() != expected_actuals.len()
+                        || target.actuals.len() != expected_actuals.len()
+                    {
                         return Err(fail(
-                            "actual BodyCall differs from original caller-domain mixed inference",
+                            "actual BodyCall changes its independently inferred original target or mixed arity",
                         ));
                     }
-                    let callee = self.actual_value(target, callee, b, 0)?;
-                    let valid = match (expected, callee) {
-                        (
-                            crate::semantic::value::Argument::Life(_),
-                            crate::semantic::value::Argument::Life(
-                                crate::semantic::value::Class::Formal(owner, index),
-                            ),
-                        ) => owner == target.id && index as usize == ordinal,
-                        (
-                            crate::semantic::value::Argument::Type(expected),
-                            crate::semantic::value::Argument::Type(actual),
-                        ) => actual.ty == expected.ty && actual.life == expected.life,
-                        (
-                            crate::semantic::value::Argument::Const {
-                                carrier: expected,
-                                value,
-                            },
-                            crate::semantic::value::Argument::Const {
-                                carrier: actual,
-                                value: actual_value,
-                            },
-                        ) => *expected == actual && *value == actual_value,
-                        _ => false,
-                    };
-                    if !valid {
-                        return Err(fail(
-                            "actual BodyCall target changes its independent original rigid mixed context",
-                        ));
+                    for (ordinal, ((proposed, callee), expected)) in actuals
+                        .iter()
+                        .zip(&target.actuals)
+                        .zip(&expected_actuals)
+                        .enumerate()
+                    {
+                        let proposed = self.actual_value(instance, proposed, b, 0)?;
+                        if proposed != *expected {
+                            return Err(fail(
+                                "actual BodyCall differs from original caller-domain mixed inference",
+                            ));
+                        }
+                        let callee = self.actual_value(target, callee, b, 0)?;
+                        let valid = match (expected, callee) {
+                            (
+                                crate::semantic::value::Argument::Life(_),
+                                crate::semantic::value::Argument::Life(
+                                    crate::semantic::value::Class::Formal(owner, index),
+                                ),
+                            ) => owner == target.id && index as usize == ordinal,
+                            (
+                                crate::semantic::value::Argument::Type(expected),
+                                crate::semantic::value::Argument::Type(actual),
+                            ) => actual.ty == expected.ty && actual.life == expected.life,
+                            (
+                                crate::semantic::value::Argument::Const {
+                                    carrier: expected,
+                                    value,
+                                },
+                                crate::semantic::value::Argument::Const {
+                                    carrier: actual,
+                                    value: actual_value,
+                                },
+                            ) => *expected == actual && *value == actual_value,
+                            _ => false,
+                        };
+                        if !valid {
+                            return Err(fail(
+                                "actual BodyCall target changes its independent original rigid mixed context",
+                            ));
+                        }
                     }
                 }
                 self.arguments(point.function, arguments, &parameters, b)?;

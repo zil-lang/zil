@@ -1739,82 +1739,113 @@ impl Check<'_, '_> {
                 "semantic local class transport exceeds its finite CFG depth",
             ));
         }
-        let block = function
-            .blocks
-            .get(at.0.0 as usize)
-            .filter(|block| block.id == at.0)
-            .ok_or_else(|| fail("semantic local class has no actual block"))?;
-        for instruction in block.instructions.iter().take(at.1).rev() {
-            b.spend(1, WORK)?;
-            match instruction.kind {
-                InstructionKind::BindPackageCapture {
-                    local: target,
-                    index,
-                } if target == local => {
-                    return self.capture_whole_value(instance, function, index, b, depth + 1);
-                }
-                InstructionKind::EndPackageCapture { local: target, .. } if target == local => {
-                    return Err(fail(
-                        "semantic Package class read crosses an ended capture view",
-                    ));
-                }
-                InstructionKind::Store {
-                    local: target,
-                    value,
-                } if target == local => {
-                    return self.ssa_value(instance, function, value, b, depth + 1);
-                }
-                InstructionKind::StorageLive(target)
-                | InstructionKind::StorageDead(target)
-                | InstructionKind::TakeLocal { local: target }
-                    if target == local =>
-                {
-                    return Err(fail("semantic local class crosses a vacant activation"));
-                }
-                _ => {}
+        // Solve the finite set of reaching local definitions. A CFG backedge
+        // does not add type depth or mint a new class; every concrete incoming
+        // origin must still produce the same complete value in this world.
+        let initialized = crate::initialize(function, b)?;
+        let mut pending = vec![(local, at.0, at.1)];
+        let mut seen = BTreeSet::new();
+        let mut selected = None;
+        while let Some((local, at_block, end)) = pending.pop() {
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert((local, at_block, end)) {
+                continue;
             }
-        }
-        if at.0 == function.entry {
-            if let Some(parameter) = function
-                .parameters
-                .iter()
-                .position(|candidate| *candidate == local)
-            {
+            let block = function
+                .blocks
+                .get(at_block.0 as usize)
+                .filter(|block| block.id == at_block)
+                .ok_or_else(|| fail("semantic local class has no actual block"))?;
+            let mut origin = None;
+            let mut assigned = false;
+            for (index, instruction) in block.instructions.iter().enumerate().take(end).rev() {
+                b.spend(1, WORK)?;
+                match instruction.kind {
+                    InstructionKind::BindPackageCapture {
+                        local: target,
+                        index,
+                    } if target == local => {
+                        origin = Some(self.capture_whole_value(
+                            instance,
+                            function,
+                            index,
+                            b,
+                            depth + 1,
+                        )?);
+                        assigned = true;
+                        break;
+                    }
+                    InstructionKind::EndPackageCapture { local: target, .. } if target == local => {
+                        return Err(fail(
+                            "semantic Package class read crosses an ended capture view",
+                        ));
+                    }
+                    InstructionKind::Store {
+                        local: target,
+                        value,
+                    } if target == local => {
+                        operations::available_before(
+                            function,
+                            (at_block, index, SemanticSiteEdge::Before),
+                            value,
+                            b,
+                        )?;
+                        let (source_block, source_index, source) =
+                            self.defining(function, value, b)?;
+                        match source.kind {
+                            InstructionKind::Load(source)
+                            | InstructionKind::TakeLocal { local: source } => {
+                                b.spend(1, WORK)?;
+                                pending.push((source, source_block, source_index));
+                            }
+                            _ => {
+                                origin =
+                                    Some(self.ssa_value(instance, function, value, b, depth + 1)?)
+                            }
+                        }
+                        assigned = true;
+                        break;
+                    }
+                    InstructionKind::StorageLive(target)
+                    | InstructionKind::StorageDead(target)
+                    | InstructionKind::TakeLocal { local: target }
+                        if target == local =>
+                    {
+                        return Err(fail("semantic local class crosses a vacant activation"));
+                    }
+                    _ => {}
+                }
+            }
+            if !assigned && at_block == function.entry {
+                let parameter = function
+                    .parameters
+                    .iter()
+                    .position(|candidate| *candidate == local)
+                    .ok_or_else(|| {
+                        fail("semantic local entry has no initialized parameter origin")
+                    })?;
                 let definition = self.inventory.definition(instance.definition, b)?;
                 let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
                 else {
                     return Err(fail("semantic parameter has no complete original header"));
                 };
-                return self.recipe_value(
-                    instance,
-                    &signature
-                        .parameters
-                        .get(parameter)
-                        .ok_or_else(|| fail("semantic original parameter is absent"))?
-                        .ty,
-                    b,
-                    depth + 1,
+                origin = Some(
+                    self.recipe_value(
+                        instance,
+                        &signature
+                            .parameters
+                            .get(parameter)
+                            .ok_or_else(|| fail("semantic original parameter is absent"))?
+                            .ty,
+                        b,
+                        depth + 1,
+                    )?,
                 );
             }
-        }
-        let initialized = crate::initialize(function, b)?;
-        let mut selected = None;
-        for predecessor in &function.blocks {
-            b.spend(1, WORK)?;
-            if !initialized.reachable[predecessor.id.0 as usize] {
-                continue;
-            }
-            if matches!(predecessor.terminator,Terminator::Jump(next) if next==at.0)
-                || matches!(predecessor.terminator,Terminator::Branch {then_block,else_block,..} if then_block==at.0||else_block==at.0)
-            {
-                let value = self.local_value(
-                    instance,
-                    function,
-                    local,
-                    (predecessor.id, predecessor.instructions.len()),
-                    b,
-                    depth + 1,
-                )?;
+            if let Some(value) = origin {
+                crate::dyn_metadata::ty(&value.ty, b)?;
+                crate::dyn_metadata::shape(&value.life, b)?;
+                b.spend(value.classes.len().saturating_add(1), WORK)?;
                 if selected.as_ref().is_some_and(|old| old != &value) {
                     return Err(unknown(
                         "semantic local needs its complete joined role/source dependency relation",
@@ -1822,8 +1853,25 @@ impl Check<'_, '_> {
                 }
                 selected = Some(value);
             }
+            if assigned {
+                continue;
+            }
+            let mut incoming = at_block == function.entry;
+            for predecessor in &initialized.predecessors[at_block.0 as usize] {
+                b.spend(1, WORK)?;
+                if initialized.reachable[*predecessor] {
+                    incoming = true;
+                    let previous = &function.blocks[*predecessor];
+                    pending.push((local, previous.id, previous.instructions.len()));
+                }
+            }
+            if !incoming {
+                return Err(fail(
+                    "semantic local has no initialized actual class origin",
+                ));
+            }
         }
-        selected.ok_or_else(|| fail("semantic local has no initialized actual class origin"))
+        selected.ok_or_else(|| fail("semantic local cycle has no initialized actual class origin"))
     }
 }
 

@@ -2098,9 +2098,34 @@ pub(super) fn preflight(
         budget.input(1, "dynamic definition instance presence")?;
         if let Some(instance) = &function.dyn_instance {
             super::dyn_metadata::recipe(instance, budget)?;
-            return Err(super::bad(
-                "dynamic function instance requires its complete definition proof",
-            ));
+            let mut proven = false;
+            budget.spend(
+                module.dyn_vtables.len(),
+                "dynamic function completed table inventory",
+            )?;
+            for table in &module.dyn_vtables {
+                budget.lookup(
+                    budget.semantic_dyn_tables_proven.len(),
+                    "dynamic function completed table identity",
+                )?;
+                budget.spend(
+                    table.entries.len(),
+                    "dynamic function exact actual table entries",
+                )?;
+                if budget.semantic_dyn_tables_proven.contains(&table.id)
+                    && table
+                        .entries
+                        .iter()
+                        .any(|entry| entry.function == function.id)
+                {
+                    proven = true;
+                }
+            }
+            if !proven {
+                return Err(super::bad(
+                    "dynamic function instance requires its complete definition proof",
+                ));
+            }
         }
         if let Some(bindings) = &function.retained_return_sources {
             count(
