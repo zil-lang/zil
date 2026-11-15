@@ -246,7 +246,7 @@ impl CheckedContext {
                 {
                     return Ok(());
                 }
-                InstructionKind::ReborrowAddress { address, .. } => value = *address,
+                InstructionKind::ReborrowAddress { address, .. } | InstructionKind::AddressSlice { address, .. } => value = *address,
                 _ => {
                     return Err(bad(
                         "intrinsic descriptor selects another original buffer value",

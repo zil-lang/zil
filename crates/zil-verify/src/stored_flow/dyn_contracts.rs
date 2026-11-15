@@ -28,9 +28,22 @@ fn header(module:&TypedModule,request:&ContractRequest,b:&mut Budget)->Check<()>
     for operand in &request.operands{crate::dynamic_witness::check_type_value(module,&operand.value,request.scope,b)?;}
     if let Some(actual)=&request.actual_header{
         signature_life::charge(actual,b)?;
-        if actual.bindings.len()!=request.expected_header.bindings.len()||actual.static_bindings!=request.expected_header.static_bindings||actual.classes.len()!=request.expected_header.classes.len(){return Err(bad("original executable contract loses a whole header occurrence"));}
-        for row in &actual.bindings{let mut image=request.header_embedding.iter().filter(|map|map.from==row.binder);let map=image.next().ok_or_else(||bad("contract actual input binder has no exact original image"))?;if image.next().is_some()||!request.expected_header.bindings.iter().any(|expected|expected.position==row.position&&expected.binder==map.to){return Err(bad("contract input occurrence changes its original scoped role"));}}
-        for row in &actual.classes{let mut image=request.header_embedding.iter().filter(|map|map.from==row.binder);let map=image.next().ok_or_else(||bad("contract actual class has no exact original image"))?;if image.next().is_some()||!request.expected_header.classes.iter().any(|expected|expected.position==row.position&&expected.binder==map.to){return Err(bad("contract actual full intrinsic class changes its original occurrence"));}}
+        // A Callable's expected header is its public P/R scheme. The actual
+        // entry also contains its real Capture and invocation Receiver roles;
+        // callable() checks that complete environment independently below.
+        let public=|base:StorageBase|!matches!(request.origin,Origin::Callable{..})||matches!(base,StorageBase::Parameter(_)|StorageBase::Result);
+        let static_output=|pos:&StoragePosition|matches!(request.origin,Origin::Callable{..})&&pos.base==StorageBase::Result&&request.expected_header.bindings.iter().any(|row|row.position==*pos);
+        let public_bindings=actual.bindings.iter().filter(|row|public(row.position.base)).collect::<Vec<_>>();
+        let public_statics=actual.static_bindings.iter().filter(|row|public(row.base)).collect::<Vec<_>>();
+        if public_bindings.len()+public_statics.iter().filter(|pos|static_output(pos)).count()!=request.expected_header.bindings.len()||actual.classes.iter().filter(|row|public(row.position.base)).count()!=request.expected_header.classes.len()||public_statics.iter().any(|pos|!request.expected_header.static_bindings.contains(pos)&&!static_output(pos))||request.expected_header.static_bindings.iter().any(|pos|!public_statics.contains(&pos)){return Err(bad("original executable contract loses a complete public header occurrence"));}
+        for expected in &request.expected_header.bindings{
+            if actual.static_bindings.contains(&expected.position)&&static_output(&expected.position){continue;}
+            let mut rows=public_bindings.iter().filter(|row|row.position==expected.position);
+            let row=rows.next().ok_or_else(||bad("contract public input occurrence is absent"))?;if rows.next().is_some(){return Err(bad("contract public input occurrence is duplicated"));}
+            let mut image=request.header_embedding.iter().filter(|map|map.from==row.binder);let map=image.next().ok_or_else(||bad("contract actual input binder has no exact original image"))?;
+            if image.next().is_some()||expected.binder!=map.to{return Err(bad("contract input occurrence changes its original scoped role"));}
+        }
+        for row in actual.classes.iter().filter(|row|public(row.position.base)){let mut image=request.header_embedding.iter().filter(|map|map.from==row.binder);let map=image.next().ok_or_else(||bad("contract actual class has no exact original image"))?;if image.next().is_some()||!request.expected_header.classes.iter().any(|expected|expected.position==row.position&&expected.binder==map.to){return Err(bad("contract actual full intrinsic class changes its original occurrence"));}}
     }else if request.parameters.iter().any(|value|value.life.binder_count!=0)||request.result.life.binder_count!=0||!request.expected_header.bindings.is_empty()||!request.expected_header.classes.is_empty()||!request.expected_header.static_bindings.is_empty(){return Err(bad("class-bearing original contract actual header is Unknown"));}
     match &request.origin{
         Origin::TableSlot{table,slot,member,definition}=>{let table=module.dyn_vtables.iter().find(|row|row.id==*table).ok_or_else(||bad("contract original table is absent"))?;let iface=crate::dynamic_ports::interface(module,table.interface,b)?;if iface.slots.get(*slot as usize).is_none_or(|row|row.member!=*member)||!table.entries.iter().any(|entry|entry.slot==*slot&&entry.function==f.id)||f.dyn_instance.as_ref().is_none_or(|instance|instance.definition!=*definition){return Err(bad("contract request changes its exact table/member/definition entry"));}},
@@ -44,15 +57,30 @@ fn callable(module:&TypedModule,request:&CallableRequest,b:&mut Budget)->Check<(
     if request.receiver.ty!=Type::Closure(*closure)||definition.function!=request.contract.function||!crate::closures::supports(definition.kind,request.kind)||request.receiver.life.binder_count as usize!=request.intrinsic_classes.len(){return Err(bad("callable contract changes its whole actual environment or call kind"));}
     crate::dynamic_witness::check_type_value(module,&request.receiver,request.contract.scope,b)?;
     let actual=request.contract.actual_header.as_ref().ok_or_else(||bad("callable actual complete header is Unknown"))?;
+    if definition.storage_life.as_ref()!=Some(actual)||actual.fixed_binder_count!=request.receiver.life.binder_count||request.receiver.classes.len()!=request.intrinsic_classes.len(){return Err(bad("callable full environment changes its exact fixed intrinsic domain"));}
+    signature_life::closure_relation(module,&definition.parameters,&definition.captures,definition.kind,crate::stored_callables::life_result(definition),actual,None)?;
+    // All free classes survive, including ghosts and classes sharing an outside
+    // image. Fixed(i) is matched by its actual intrinsic position, never by an
+    // inverse image lookup or a same-typed capture.
+    for(index,image)in request.receiver.classes.iter().enumerate(){let mut rows=request.contract.header_embedding.iter().filter(|row|row.from==StorageBinder::Fixed(index as u32));if rows.next().is_none_or(|row|row.to!=*image)||rows.next().is_some(){return Err(bad("callable whole environment loses an exact fixed class image"));}}
+    for map in &request.contract.header_embedding{match map.from{
+        StorageBinder::Fixed(index)=>if index>=actual.fixed_binder_count{return Err(bad("callable embedding invents a fixed environment class"));},
+        StorageBinder::Invocation(index)=>if index>=actual.invocation_binder_count||!request.rigid.iter().any(|row|row.actual==map.from&&row.image==map.to){return Err(bad("callable embedding invents an unproved invocation role"));},
+    }}
+    crate::dynamic_witness::check_callable_environment(module,request,b)?;
     for row in &request.rigid{let valid=match row.actual{StorageBinder::Fixed(index)=>index<actual.fixed_binder_count,StorageBinder::Invocation(index)=>index<actual.invocation_binder_count};if !valid||!request.contract.header_embedding.iter().any(|map|map.from==row.actual&&map.to==row.image)||!request.contract.expected_header.origins.iter().any(|occurrence|match occurrence{Occurrence::Borrow{origin,..}|Occurrence::Class{origin,..}=>*origin==row.required}){return Err(bad("callable actual rigid role loses its complete original occurrence"));}}
-    for row in &request.fixed_relations{b.spend(actual.bindings.len().saturating_add(request.contract.expected_header.origins.len()))?;if !actual.bindings.iter().any(|binding|binding.position==row.position&&binding.binder==row.lexical)||!request.intrinsic_classes.contains(&row.actual)||!request.contract.expected_header.origins.iter().any(|occurrence|matches!(occurrence,Occurrence::Borrow{position,origin,..}if *position==row.position&&*origin==row.required)){return Err(bad("callable Fixed role changes its exact actual input occurrence"));}}
+    for row in &request.fixed_relations{b.spend(actual.bindings.len().saturating_add(request.contract.expected_header.origins.len()))?;
+        let matched=actual.bindings.iter().any(|binding|binding.position==row.position&&match binding.binder{StorageBinder::Fixed(index)=>request.receiver.classes.get(index as usize)==Some(&row.lexical)&&request.intrinsic_classes.get(index as usize)==Some(&row.actual),StorageBinder::Invocation(_)=>false});
+        if !matched||!request.contract.expected_header.origins.iter().any(|occurrence|matches!(occurrence,Occurrence::Borrow{position,binder,origin}if *position==row.position&&*binder==row.lexical&&*origin==row.required)){return Err(bad("callable Fixed role changes its exact actual input occurrence"));}
+    }
     Ok(())
 }
 fn source_upper(module:&TypedModule,request:&ContractRequest,actual:&Source,upper:&[StorageSource],result_path:&[PlaceProjection],b:&mut Budget)->Check<()>{
     if actual.base==HoldRoot::Static{
         let pos=StoragePosition{base:StorageBase::Result,path:result_path.iter().copied().map(ContractProjection::Place).collect()};
         let proven=match &actual.static_dependency{StaticProvenance::Literal=>true,StaticProvenance::Conditional(key)=>b.proven_static_occurrences.contains(key),_=>false};
-        if !proven||!request.expected_header.static_bindings.contains(&pos){return Err(bad("contract static result has no exact actual literal/header proof"));}return Ok(());
+        let declared=request.expected_header.static_bindings.contains(&pos)||matches!(request.origin,Origin::Callable{..})&&request.actual_header.as_ref().is_some_and(|header|header.static_bindings.contains(&pos))&&request.expected_header.bindings.iter().any(|row|row.position==pos);
+        if !proven||!declared{return Err(bad("contract static result has no exact actual literal/header proof"));}return Ok(());
     }
     let actual=position(request,module,actual,b)?.ok_or_else(||bad("contract result retains activation-local storage"))?;
     if !crate::exact_storage_sources_contain(upper,&actual)?{return Err(bad("actual returned target exceeds its independently instantiated original source upper"));}Ok(())

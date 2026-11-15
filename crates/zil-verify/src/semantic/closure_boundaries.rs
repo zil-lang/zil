@@ -63,7 +63,11 @@ impl CheckedContext {
         let mode=if mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
         let mut value=parent.clone();value.ty=Type::Address{mutable,inner:inner.clone()};
         let mut outer=value.life.slots.iter().enumerate().filter(|(_,slot)|slot.path.is_empty());
-        let index=outer.next().map(|(i,_)|i).ok_or_else(||unsupported("actual reborrow requires its independently bounded outer/static occurrence",None))?;
+        let Some(index)=outer.next().map(|(i,_)|i)else{
+            let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
+            if mutable||statics.next().is_none()||statics.next().is_some(){return Err(bad("actual reborrow has neither one bounded head nor an exact shared static source"));}
+            return Ok(value);
+        };
         if outer.next().is_some(){return Err(bad("actual reborrow outer scope has duplicate variable occurrences"));}
         b.spend(value.classes.len().saturating_add(value.life.slots.len()).saturating_add(value.life.retained.len()).saturating_add(value.life.nominal_arguments.len()))?;
         let mut old=value.classes.clone();let mut origins=value.origins.clone();let mut classes=Vec::new();let mut mapped_origins=Vec::new();

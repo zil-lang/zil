@@ -16,6 +16,7 @@ mod trait_members;
 mod worlds;
 mod task_operations;
 mod dyn_values;
+mod static_values;
 mod callbacks;
 mod scoped_threads;
 #[derive(Clone,PartialEq,Eq)]
@@ -197,6 +198,7 @@ impl CheckedContext {
                     }
                 }
                 let produced=match &instruction.kind {
+                    InstructionKind::StaticUtf8{..}=>Some(self.static_utf8(module,instance,f,instruction,b)?),
                     InstructionKind::Constant(constant)=>{
                         let value=atomic(&constant.ty(),b)?;
                         for site in sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..})){
@@ -252,7 +254,7 @@ impl CheckedContext {
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
-                    InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
@@ -728,7 +730,7 @@ impl CheckedContext {
             for block in &f.blocks {b.spend(block.instructions.len())?;for instruction in &block.instructions {if instruction.result==Some(value) {if producer.is_some(){return Err(bad("implicit address has several actual SSA definitions"));}producer=Some(instruction);}}}
             let instruction=producer.ok_or_else(||bad("implicit address actual SSA definition is absent"))?;
             match &instruction.kind {
-                InstructionKind::ReborrowAddress{address,..}=>value=*address,
+                InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}=>value=*address,
                 InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}if !description=>break,
                 InstructionKind::DescribeLocal{..}|InstructionKind::DescribePackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::DescribeAddress{..}if description=>break,
                 _=>return Ok(()),
@@ -791,6 +793,7 @@ impl CheckedContext {
             if let Some(origin)=self.nominal_claim_origin(&actual.origins[index],expected_origin,source.as_ref(),environment,b)?{actual.origins[index]=origin;}
             else if let Some(origin)=source{actual.origins[index]=origin;}
         }
+        self.claim_static_obligations(&mut actual,expected,b)?;
         if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe"));}
         Ok(())
     }

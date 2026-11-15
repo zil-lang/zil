@@ -14,7 +14,7 @@ impl CheckedContext{
             b.spend(1)?;if !seen.insert(value){return Err(bad("projected buffer has a cyclic actual producer chain"));}
             let(block,index,instruction)=producer(f,value,b)?;
             match &instruction.kind{
-                InstructionKind::ReborrowAddress{address,..}|InstructionKind::DescribeAddress{address}=>value=*address,
+                InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}|InstructionKind::DescribeAddress{address}=>value=*address,
                 InstructionKind::AddressField{address,index}=>{let ty=f.values.get(address.0 as usize).ok_or_else(||bad("field address operand is absent"))?;consume_field(ty,*index,&mut fields,b)?;value=*address;},
                 InstructionKind::ExtractField{aggregate,index}=>{let ty=f.values.get(aggregate.0 as usize).ok_or_else(||bad("field aggregate operand is absent"))?;consume_field(ty,*index,&mut fields,b)?;value=*aggregate;},
                 InstructionKind::DescribePackageField{local,index}|InstructionKind::ReadPackageField{local,index}|InstructionKind::TakePackageField{local,index}|InstructionKind::BorrowPackageField{local,index,..}=>{

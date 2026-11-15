@@ -48,6 +48,23 @@ impl CheckedContext{
                 let key=parent.classes.get(row.binder as usize).cloned().ok_or_else(||bad("actual index parent class is absent"))?;
                 dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(key)},&[child],active,b).map(Some)
             },
+            InstructionKind::AddressSlice{address,start,end}=>{
+                let parent=value_at(values,*address)?;
+                for bound in start.iter().chain(end.iter()){if !value_at(values,*bound)?.ty.is_integer(){return Err(bad("actual slice bound lacks its independently checked integer carrier"));}}
+                let Type::Address{mutable,inner}=&parent.ty else{return Err(bad("actual slice lacks its complete parent address"));};
+                let storage=match inner.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
+                if !matches!(storage,Type::Array{..}|Type::Slice{..}){return Err(bad("actual slice changes its original array/slice carrier"));}
+                let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Element],b)?;
+                let mut slice=CheckedType{ty:Type::Slice{element:Box::new(child.ty.clone())},life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+                self.attach_child(environment,&mut slice,&child,vec![LifeTypeProjection::Element],None,b)?;slice.life.binder_count=slice.classes.len() as u32;
+                let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+                let mut heads=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);
+                let outer=if let Some(row)=heads.next(){if heads.next().is_some(){return Err(bad("actual slice has duplicate parent head occurrences"));}Some(parent.classes.get(row.binder as usize).cloned().ok_or_else(||bad("actual slice parent class is absent"))?)}else{
+                    let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
+                    if *mutable||statics.next().is_none()||statics.next().is_some(){return Err(bad("actual slice has neither one real parent head nor an exact shared static source"));}None
+                };
+                dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer},&[slice],active,b).map(Some)
+            },
             InstructionKind::SliceLength{address}=>{value_at(values,*address)?;Ok(Some(atomic(&Type::I64,b)?))},
             _=>Err(bad("another actual operation reached the finite product consumer")),
         }

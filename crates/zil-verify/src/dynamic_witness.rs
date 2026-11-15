@@ -76,3 +76,22 @@ pub(crate) fn check_type_value(
 ) -> Check<()> {
     values::check(module, value, scope, budget).map(|_| ())
 }
+
+/// Rebuild every physical/retained/owning environment leaf from the exact
+/// actual closure header. This is a second consumer of the original request,
+/// not a source/loan/cleanup certificate; those remain with the CFG kernels.
+pub(crate) fn check_callable_environment(module:&TypedModule,request:&requests::CallableRequest,b:&mut Budget)->Check<()>{
+    use requests::{IntrinsicScope as S,IntrinsicRoot as R};
+    b.spend(request.receiver.classes.len().saturating_add(request.intrinsic_classes.len()))?;
+    if request.receiver.classes.len()!=request.intrinsic_classes.len(){return Err(bad("callable environment omits a whole intrinsic class"));}
+    let terms=request.receiver.classes.iter().zip(&request.intrinsic_classes).map(|(image,origin)|terms::LifeTerm{
+        image:*image,origin:terms::Origin{
+            owner:match origin.scope{S::Semantic(frame)=>terms::Owner::Semantic(frame),S::Function(function)=>terms::Owner::Function(function),S::Witness{table,node}=>terms::Owner::Witness(table,node)},
+            root:match origin.root{R::Receiver=>terms::Root::Receiver,R::DeclarationType(index)=>terms::Root::DeclarationType(index),R::MethodType(index)=>terms::Root::MethodType(index),R::ApplicationType(index)=>terms::Root::ApplicationType(index),R::Lexical(binder)=>terms::Root::Lexical(binder),R::Quantified(scope,index)=>terms::Root::Quantified(scope,index),R::Semantic(scope,index)=>terms::Root::Semantic(scope,index)},class:origin.class,
+        }
+    }).collect();
+    let value=terms::Value{raw:request.receiver.clone(),terms};
+    let leaves=inventory::self_leaves(module,&value,request.contract.scope,b)?;
+    b.spend(leaves.len().saturating_add(request.contract.self_leaves.len()))?;
+    if leaves!=request.contract.self_leaves{return Err(bad("callable hidden environment changes an exact actual mode/source/whole-child occurrence"));}Ok(())
+}

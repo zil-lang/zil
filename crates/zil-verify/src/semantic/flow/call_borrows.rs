@@ -6,6 +6,7 @@ impl CheckedContext {
     pub(super) fn instantiate_call_heads(&self,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()>{
         if arguments.len()!=signature.parameters.len(){return Err(bad("Call head substitution changes its actual arity"));}
         let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
+        let mut static_heads=Vec::<ClassKey>::new();
         for(index,((expected,_),actual))in signature.parameters.iter().zip(arguments).enumerate(){
             for slot in &expected.life.slots{
                 b.spend(1)?;if !slot.path.is_empty(){continue;}
@@ -14,7 +15,13 @@ impl CheckedContext {
                     ||matches!(source,ClassKey::Outer{scope,operand:OperandKey::Parameter(ordinal),path,mode}if *scope==key&&*ordinal==index as u32&&path.is_empty()&&*mode==slot.mode);
                 if !fresh{continue;}
                 let mut slots=actual.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==slot.mode);
-                let actual_slot=slots.next().ok_or_else(||unsupported("Call fresh input head needs its complete actual static/borrow role",None))?;
+                let Some(actual_slot)=slots.next()else{
+                    let mut statics=actual.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&actual.ty));
+                    if slot.mode!=StoredBorrowMode::SharedAddress||actual.ty!=expected.ty||statics.next().is_none()||statics.next().is_some(){return Err(unsupported("Call fresh input head needs its complete actual static/borrow role",None));}
+                    if invocation.iter().any(|(key,_)|key==source){return Err(bad("Call repeated invocation head mixes static and variable actual roles"));}
+                    if !static_heads.contains(source){static_heads.push(source.clone());}continue;
+                };
+                if static_heads.contains(source){return Err(bad("Call repeated invocation head mixes variable and static actual roles"));}
                 if slots.next().is_some(){return Err(bad("Call argument has duplicate head occurrences"));}
                 let image=actual.classes.get(actual_slot.binder as usize).ok_or_else(||bad("Call actual head class is absent"))?;
                 b.spend(invocation.len())?;
@@ -24,7 +31,12 @@ impl CheckedContext {
         }
         let mut boundary=trait_members::Boundary::default();for(source,image)in invocation{boundary.class(self,environment,&source,&image,b)?;}
         for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
-        signature.result=boundary.project_type(self,environment,&signature.result,b)?;Ok(())
+        signature.result=boundary.project_type(self,environment,&signature.result,b)?;
+        for source in static_heads{
+            for(parameter,_)in &mut signature.parameters{static_call_head(parameter,&source,b)?;}
+            static_call_head(&mut signature.result,&source,b)?;
+            signature.invocation.retain(|key|key!=&source);
+        }Ok(())
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call_argument(&self,module:&TypedModule,caller:&SemanticInstance,argument:ValueId,values:&[Option<CheckedType>],expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<bool>{
@@ -82,4 +94,22 @@ fn loaded_parameter(f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<bool>{
     for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&selected.replace(operation).is_some(){return Err(bad("Call parameter head has several actual SSA definitions"));}}}
     b.spend(f.parameters.len())?;
     Ok(matches!(selected.map(|row|&row.kind),Some(InstructionKind::Load(local))if f.parameters.contains(local)))
+}
+
+// Specialize only a fresh outer invocation occurrence. An intrinsic child
+// remains a variable class even when it happens to have the same outside image.
+fn static_call_head(value:&mut CheckedType,source:&ClassKey,b:&mut Budget)->Check<()>{
+    b.spend(value.classes.len().saturating_add(value.life.slots.len()).saturating_add(value.life.retained.len()).saturating_add(value.life.nominal_arguments.len()))?;
+    let indices=value.classes.iter().enumerate().filter(|(_,key)|*key==source).map(|(index,_)|index as u32).collect::<Vec<_>>();
+    for index in indices.into_iter().rev(){
+        let mut outer=value.life.slots.iter().filter(|row|row.binder==index);
+        let row=outer.next().ok_or_else(||bad("static invocation cannot erase a whole intrinsic child class"))?;
+        if !row.path.is_empty()||row.mode!=StoredBorrowMode::SharedAddress||outer.next().is_some()||value.life.retained.iter().any(|row|row.binder==index)||value.life.nominal_arguments.iter().any(|row|row.binder==index)||!matches!(value.ty,Type::Address{mutable:false,..}){return Err(bad("static invocation shares a retained or non-shared original role"));}
+        value.life.slots.retain(|row|row.binder!=index);
+        for row in &mut value.life.slots{if row.binder>index{row.binder-=1;}}
+        for row in &mut value.life.retained{if row.binder>index{row.binder-=1;}}
+        for row in &mut value.life.nominal_arguments{if row.binder>index{row.binder-=1;}}
+        value.classes.remove(index as usize);value.origins.remove(index as usize);value.life.binder_count=value.classes.len() as u32;
+        let row=StaticOccurrence::Direct{path:vec![],leaf:value.ty.clone(),mode:StoredBorrowMode::SharedAddress};if !value.statics.contains(&row){value.statics.push(row);}
+    }Ok(())
 }

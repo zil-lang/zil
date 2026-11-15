@@ -673,6 +673,14 @@ pub(in crate::stored_flow) fn cleanup_proof(
                     }
                 }
             }
+            Type::Closure(id) => {
+                let closure=crate::closures::definition(module,*id,None)?;
+                // Dropping the environment recursively drops every retained
+                // capture. Invoking FnOnce is a separate actual CFG action;
+                // it cannot turn a type-wide Task capture into SyncDrop.
+                b.spend(closure.captures.len())?;
+                pending.extend(closure.captures.iter().map(|ty|(ty,depth+1)));
+            }
             Type::Tuple(fields) => {
                 b.spend(fields.len())?;
                 pending.extend(fields.iter().map(|ty| (ty, depth + 1)));

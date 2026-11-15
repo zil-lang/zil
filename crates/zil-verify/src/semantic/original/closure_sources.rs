@@ -115,3 +115,14 @@ impl CheckedOriginal {
         selected.ok_or_else(||bad("implicit capture has no exact original free-value use"))
     }
 }
+impl CheckedOriginal {
+    pub(in crate::semantic) fn static_literal(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Option<Vec<u8>>>{
+        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static literal original body is absent"))?;
+        let Some(index::Node::Expression(mut expression))=function.nodes.get(&site).copied() else{return Ok(None);};
+        loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=>expression=inner,_=>break}}
+        let CoreExprKind::String(text)=&expression.kind else{return Ok(None);};
+        let ty=self.injections.get(&(definition,expression.id)).map(|(_,payload)|payload.clone()).unwrap_or(self.original_type(definition,&SemanticOriginalTypeSource::Expression(expression.id),b)?);
+        if !matches!(self.resolved(&ty,b)?,Ty::Address{mutable:false,life:Life::Static,ref inner}if matches!(inner.as_ref(),Ty::Slice(child)if child.as_ref()==&Ty::Atom(Type::U8))){return Err(bad("original static literal changes its complete byte-slice role"));}
+        b.spend(text.len())?;Ok(Some(text.as_bytes().to_vec()))
+    }
+}
