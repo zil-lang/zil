@@ -12,6 +12,7 @@ mod implicit;
 mod instantiate;
 mod keys;
 mod matching;
+pub(crate) mod semantic_patterns;
 mod queries;
 mod scopes;
 mod structural;

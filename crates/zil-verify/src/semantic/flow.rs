@@ -97,6 +97,8 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         if function.foreign.is_none()&&!program.instances.iter().any(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==function.id)) {return Err(bad("semantic programme omits an actual function instance"));}
     }
     context.publish_constructor_classes(module,&checked_worlds,b)?;
+    b.spend(1)?;
+    b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active)));
     Ok(())
 }
 impl CheckedContext {

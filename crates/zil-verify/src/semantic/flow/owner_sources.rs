@@ -41,6 +41,7 @@ impl CheckedContext{
             BufferRoot::Capture=>{
                 self.captured_local_alias(module,caller,f,local,node,b)?;
             },
+            BufferRoot::Pattern=>self.pattern_local_root(module,caller,f,local,node,b)?,
         }Ok(())
     }
     fn captured_local_alias(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,node:NodeId,b:&mut Budget)->Check<()>{
@@ -105,6 +106,91 @@ impl CheckedContext{
             matched=true;
         }
         if !matched{return Err(bad("buffer capture projection has no exact sealed original creator occurrence"));}Ok(())
+    }
+}
+
+impl CheckedContext {
+    fn pattern_local_root(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,node:NodeId,b:&mut Budget)->Check<()>{
+        let(subject,path,name,span)=self.original.borrow().as_ref().ok_or_else(||bad("pattern address has no independent original body proof"))?.pattern_place(module,caller.definition,node,b)?;
+        let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("pattern address local is absent"))?;
+        if declaration.name!=name||declaration.span!=span{return Err(bad("pattern address changes its exact original binding declaration"));}
+        let definition=self.definition(module,caller.definition,b)?;
+        let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("pattern address owner has no complete original body"));};
+        let program=module.semantic.as_ref().ok_or_else(||bad("pattern address programme is absent"))?;
+        let mut subjects=BTreeSet::new();
+        for original in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(subject)){
+            b.spend(program.sites.len())?;
+            for site in program.sites.iter().filter(|site|site.instance==caller.id&&site.recipe==original.site){
+                match site.action{
+                    SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}=>{subjects.insert(value);},
+                    SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}=>{
+                        let SemanticSiteAddress::Typed{block,instruction,..}=site.at else{return Err(bad("pattern subject retains a nonactual original call"));};
+                        if let Some(value)=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize)).and_then(|instruction|instruction.result){subjects.insert(value);}
+                    },
+                    _=>{},
+                }
+            }
+        }
+        if subjects.is_empty(){return Err(bad("pattern address has no exact actual original subject occurrence"));}
+        let mut live=None;let mut initial=None;
+        for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){
+            if instruction.kind==InstructionKind::StorageLive(local){
+                if instruction.span!=span||live.replace((block.id,index)).is_some(){return Err(bad("pattern local changes or repeats its original declaration point"));}
+                let store=block.instructions.get(index+1).ok_or_else(||bad("pattern local lacks its actual initial storage transfer"))?;
+                let InstructionKind::Store{local:target,value}=store.kind else{return Err(bad("pattern local declaration is not followed by its actual initial storage transfer"));};
+                if target!=local||store.span!=span{return Err(bad("pattern local initial transfer changes its original binding point"));}
+                initial=Some(value);
+            }
+        }}
+        let value=initial.ok_or_else(||bad("pattern address has no complete actual binding activation"))?;
+        self.pattern_projection_source(module,f,value,&path,&subjects,b)
+    }
+    fn pattern_projection_source(&self,module:&TypedModule,f:&TypedFunction,value:ValueId,path:&[PlaceProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
+        let mut pending=vec![(false,value.0,path.to_vec(),false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();let mut rooted=false;
+        while let Some((local,index,mut path,exit))=pending.pop(){
+            b.spend(path.len().saturating_add(1))?;let key=(local,index,path.clone());
+            if exit{active.remove(&key);proven.insert(key);continue;}
+            if proven.contains(&key){continue;}
+            if !active.insert(key.clone()){return Err(bad("pattern binding projection has a cyclic actual source"));}
+            pending.push((local,index,path.clone(),true));
+            if !local&&path.is_empty()&&subjects.contains(&ValueId(index)){rooted=true;continue;}
+            if local{
+                let mut found=false;
+                for block in &f.blocks{b.spend(block.instructions.len())?;for instruction in &block.instructions{match &instruction.kind{
+                    InstructionKind::Store{local:target,value}if target.0==index=>{found=true;pending.push((false,value.0,path.clone(),false));},
+                    InstructionKind::UnpackTuple{local:source,fields}|InstructionKind::UnpackVariant{local:source,fields,..}=>{
+                        b.spend(fields.len())?;
+                        for(ordinal,target)in fields.iter().enumerate().filter(|(_,target)|target.0==index){
+                            let mut path=path.clone();
+                            let step=match instruction.kind{InstructionKind::UnpackVariant{variant,..}=>PlaceProjection::Variant(VariantProjection{variant,index:ordinal as u32}),_=>PlaceProjection::Field(ordinal as u32)};
+                            if path.pop()!=Some(step){return Err(bad("pattern unpack changes its exact original selected field"));}
+                            crate::check_instruction(module,f,instruction,b)?;pending.push((true,source.0,path.clone(),false));found=true;
+                        }
+                    },_=>{},
+                }}}
+                if !found{return Err(bad("pattern binding lacks its complete actual initializer source"));}
+            }else{
+                let(_,_,instruction)=producer(f,ValueId(index),b)?;
+                crate::check_instruction(module,f,instruction,b)?;
+                match &instruction.kind{
+                    InstructionKind::Load(source)|InstructionKind::TakeLocal{local:source}=>pending.push((true,source.0,path,false)),
+                    InstructionKind::ReadErrorUnion{value,is_error}|InstructionKind::TakeErrorUnion{value,is_error}=>{
+                        if path.pop()!=Some(PlaceProjection::ErrorArm(*is_error)){return Err(bad("pattern binding changes its exact original ErrorUnion arm"));}pending.push((false,value.0,path,false));
+                    },
+                    InstructionKind::ExtractField{aggregate,index}=>{
+                        if path.pop()!=Some(PlaceProjection::Field(*index)){return Err(bad("pattern binding changes its exact original product field"));}pending.push((false,aggregate.0,path,false));
+                    },
+                    InstructionKind::TakeVariantField{local, path:actual}|InstructionKind::TakeTupleField{local,path:actual}=>{
+                        for step in actual.iter().rev(){b.spend(1)?;if path.pop()!=Some(*step){return Err(bad("pattern binding changes its exact original selected place"));}}pending.push((true,local.0,path,false));
+                    },
+                    InstructionKind::ReadVariantLocal{local,path:actual}=>{
+                        for step in actual.iter().rev(){b.spend(1)?;if path.pop()!=Some(PlaceProjection::Variant(*step)){return Err(bad("pattern read changes its exact original selected variant"));}}pending.push((true,local.0,path,false));
+                    },
+                    _=>return Err(unsupported("pattern address needs its complete actual original subject projection",Some(instruction.span))),
+                }
+            }
+        }
+        if !rooted{return Err(bad("pattern binding projection never reaches its exact original subject"));}Ok(())
     }
 }
 

@@ -483,15 +483,7 @@ impl<'a> Graph<'a> {
     ) -> Check<terms::Value> {
         self.prepare_type(env, pattern, b, 0)?;
         match pattern {
-            DynTypePattern::Semantic { scope, .. } => {
-                let expected = env.args.semantic_owner.as_ref().ok_or_else(|| {
-                    bad("semantic expression has no independently selected original owner")
-                })?;
-                bridge::owner(self.module, expected, *scope, b)?;
-                Err(bad(
-                    "semantic type bridge requires its checked lexical owner interpreter",
-                ))
-            }
+            DynTypePattern::Semantic { scope, ty } => semantic_patterns::value(self.module,*scope,ty,&env.receiver,&mut env.args,None,b),
             DynTypePattern::SelfType => {
                 dynamic_metadata::recipe(&env.receiver.raw, b)?;
                 Ok(env.receiver.clone())

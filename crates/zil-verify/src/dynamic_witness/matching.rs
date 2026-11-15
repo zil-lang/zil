@@ -68,7 +68,7 @@ impl Arguments<'_> {
         }
         self.terms.bind(pattern, actual, b)
     }
-    fn life(
+    pub(super) fn life(
         &mut self,
         pattern: DynLifePattern,
         actual: terms::LifeTerm,
@@ -136,7 +136,7 @@ impl Arguments<'_> {
     }
 }
 
-fn nominal<'a>(
+pub(super) fn nominal<'a>(
     module: &'a TypedModule,
     ty: &Type,
     b: &mut Budget,
@@ -162,7 +162,7 @@ fn class(value: &DynTypeValue, intrinsic: u32, b: &mut Budget) -> Check<StorageB
         .copied()
         .ok_or_else(|| bad("actual nominal occurrence has no complete intrinsic class map"))
 }
-fn nested(
+pub(super) fn nested(
     parent: &terms::Value,
     ty: &Type,
     life: &StorageLifeShape,
@@ -232,7 +232,7 @@ pub(super) fn ty(
     let receiver = terms::Value::anchored(receiver, args.owner, terms::Root::Receiver, b)?;
     walk(module, pattern, &actual, &receiver, args, b, 0)
 }
-fn walk(
+pub(super) fn walk(
     module: &TypedModule,
     pattern: &DynTypePattern,
     actual: &terms::Value,
@@ -246,14 +246,9 @@ fn walk(
         return Err(limit("original actual type matching depth exceeded"));
     }
     match pattern {
-        DynTypePattern::Semantic { scope, .. } => {
-            let expected = args.semantic_owner.as_ref().ok_or_else(|| {
-                bad("semantic match has no independently selected original owner")
-            })?;
-            bridge::owner(module, expected, *scope, b)?;
-            return Err(bad(
-                "semantic match requires the shared checked type interpreter",
-            ));
+        DynTypePattern::Semantic { scope, ty } => {
+            let expected=semantic_patterns::value(module,*scope,ty,receiver,args,Some(actual),b)?;
+            if !external::equal(&expected.raw,&actual.raw,b)?{return Err(bad("original semantic recipe differs from the complete actual nominal/intrinsic value"));}
         }
         DynTypePattern::SelfType => {
             dynamic_metadata::recipe(&receiver.raw, b)?;
@@ -403,7 +398,7 @@ fn walk(
     }
     Ok(())
 }
-fn intrinsic_child(
+pub(super) fn intrinsic_child(
     module: &TypedModule,
     parent: &terms::Value,
     child: &Type,

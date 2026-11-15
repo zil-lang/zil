@@ -15,7 +15,7 @@ impl Numeric {
 #[derive(Clone,Copy,PartialEq,Eq)]
 pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32},Place{definition:SemanticDefinitionId,node:NodeId}}
 #[derive(Clone,Copy)]
-pub(in crate::semantic) enum BufferRoot {Local{node:NodeId},Parameter{ordinal:u32},Capture}
+pub(in crate::semantic) enum BufferRoot {Local{node:NodeId},Parameter{ordinal:u32},Capture,Pattern}
 #[derive(Clone,Copy)]
 pub(in crate::semantic) struct Use {pub(in crate::semantic) kind:Intrinsic,pub(in crate::semantic) buffer:Option<BufferSource>,pub(in crate::semantic) worker:Option<SemanticDefinitionId>,pub(in crate::semantic) providers:Option<[SemanticDefinitionId;3]>}
 impl Intrinsic {
