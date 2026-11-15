@@ -5039,9 +5039,9 @@ impl Checked {
                     found = Some(borrow_places::Source {
                         role: source.role.as_ref().map(|role| -> CompileResult<_> {
                             Ok((
-                                self.life_value(role.occurrence, context, inventory, b, 0)?,
-                                role.upper.map(|upper| self.life_value(upper, context, inventory, b, 0)).transpose()?,
-                                self.life_value(role.selected, context, inventory, b, 0)?,
+                                self.life_value(role.occurrence, context, inventory, b)?,
+                                role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
+                                self.life_value(role.selected, context, inventory, b)?,
                             ))
                         }).transpose()?,
                         anchor: source.anchor,

@@ -598,6 +598,7 @@ impl Solver<'_, '_> {
                     receiver,
                     receiver_anchor: anchor,
                     receiver_place: receiver_place.map(|place| Borrow {
+                        role: None,
                         anchor: place.anchor,
                         expression: place.expression,
                         index: place.index,
