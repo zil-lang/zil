@@ -1316,31 +1316,51 @@ impl Check<'_, '_> {
         }
         let name = path[0].as_str();
         if name == "owned_dyn" {
-            let interface = match &callee.kind {
-                CoreExprKind::TypeApply { type_arguments, .. } if type_arguments.len() == 1 => {
-                    self.resolve(owner, &type_arguments[0], depth + 1)?
-                }
-                CoreExprKind::GenericApply { arguments, .. } if arguments.len() == 1 => {
-                    let CoreGenericArgument::Type(ty) = &arguments[0] else {
-                        return Err(bad("owned dyn changes its sole original Type actual kind"));
-                    };
-                    self.resolve(owner, ty, depth + 1)?
-                }
+            // Both language schemes preserve the written interface first and
+            // the optional whole Context second. A Context operand contributes
+            // its full intrinsic domain; it is not a fresh empty interface.
+            let (interface, context) = match &callee.kind {
+                CoreExprKind::TypeApply { type_arguments, .. } => match type_arguments.as_slice() {
+                    [interface] => (interface, None),
+                    [interface, context] => (interface, Some(context)),
+                    _ => return Err(bad("owned dyn changes its original Type actual arity")),
+                },
+                CoreExprKind::GenericApply { arguments, .. } => match arguments.as_slice() {
+                    [CoreGenericArgument::Type(interface)] => (interface, None),
+                    [
+                        CoreGenericArgument::Type(interface),
+                        CoreGenericArgument::Type(context),
+                    ] => (interface, Some(context)),
+                    _ => return Err(bad("owned dyn changes its ordered original Type actuals")),
+                },
                 _ => {
                     return Err(bad(
                         "owned dyn requires its full written original dyn interface",
                     ));
                 }
             };
+            let mut interface = self.resolve(owner, interface, depth + 1)?;
             let SemanticTypeRecipe::Dyn {
                 owned: false,
                 interface: descriptor,
-            } = &interface
+            } = &mut interface
             else {
                 return Err(bad(
                     "owned dyn Type argument is not its real borrowed interface recipe",
                 ));
             };
+            if let Some(context) = context {
+                if !matches!(descriptor.context, SemanticDynContextRecipe::Closed) {
+                    return Err(bad(
+                        "owned dyn writes two competing original Context operands",
+                    ));
+                }
+                descriptor.context = SemanticDynContextRecipe::Type(Box::new(self.resolve(
+                    owner,
+                    context,
+                    depth + 1,
+                )?));
+            }
             let [source] = arguments.as_slice() else {
                 return Err(bad("owned dyn changes its one-source construction scheme"));
             };

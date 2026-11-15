@@ -515,7 +515,12 @@ pub(super) fn propose<'a>(
     // Written raw Core claims are retained exactly and independently checked;
     // only absent producer proposals are synthesized from the typed header.
     if let Some(written) = &f.retained_return_sources {
-        inference::charge_return_sources(written, limits, f.span, |n| walk.pay(n))?;
+        inference::charge_return_sources(written, limits, f.span, |charge| match charge {
+            inference::ReturnSourceCharge::Work(work) => walk.pay(work),
+            inference::ReturnSourceCharge::Type(ty) => {
+                inference::charge_type_snapshot(ty, f.span, limits, walk.left, 1)
+            }
+        })?;
         return Ok(Some(written.clone()));
     }
     Ok(Some(proposed))

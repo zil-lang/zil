@@ -1052,26 +1052,27 @@ fn interface_fingerprint(
         })?;
         bytes.push(u8::from(export.retained_return_sources.is_some()));
         if let Some(bindings) = &export.retained_return_sources {
-            let mut work = bindings.len().saturating_add(1);
-            for binding in bindings {
-                work = work
-                    .saturating_add(binding.position.path.len())
-                    .saturating_add(binding.sources.len())
-                    .saturating_add(1);
-                for atom in &binding.sources {
-                    let source = crate::exact_storage_source(atom).map_err(|error| vec![error])?;
-                    work = work.saturating_add(source.path.len()).saturating_add(1);
+            inference::charge_return_sources(bindings, limits, Span::default(), |charge| {
+                match charge {
+                    inference::ReturnSourceCharge::Work(work) => {
+                        *remaining =
+                            remaining
+                                .checked_sub(work.saturating_mul(8))
+                                .ok_or_else(|| {
+                                    Diagnostic::limit(
+                                        Phase::Types,
+                                        "retained result export source budget exceeded",
+                                        None,
+                                    )
+                                })?;
+                        Ok(())
+                    }
+                    inference::ReturnSourceCharge::Type(ty) => {
+                        inference::charge_type_snapshot(ty, Span::default(), limits, remaining, 8)
+                    }
                 }
-            }
-            *remaining = remaining
-                .checked_sub(work.saturating_mul(64))
-                .ok_or_else(|| {
-                    vec![Diagnostic::limit(
-                        Phase::Types,
-                        "retained result export source budget exceeded",
-                        None,
-                    )]
-                })?;
+            })
+            .map_err(|error| vec![error])?;
             bytes.extend_from_slice(&retained_return_sources_fingerprint(bindings).0);
         }
         bytes.push(u8::from(export.reference_return_bound.is_some()));
