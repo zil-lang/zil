@@ -48,12 +48,6 @@ pub(crate) fn program(
     stored::OrdinaryStats::step(&ledger.ordinary_stats, "finish: relocation", left, |left| {
         super::lower::program(&mut result, module, ledger, limits, left)
     })?;
-    stored::OrdinaryStats::step(
-        &ledger.ordinary_stats,
-        "finish: actual Dyn registry relocation",
-        left,
-        |left| super::materialize::dynamic::relocate(&result, module, ledger, limits, left),
-    )?;
     #[cfg(test)]
     {
         super::source_probe::record_stage(module, "after-lower")?;
@@ -123,6 +117,14 @@ pub(crate) fn program(
         "finish: full materialization",
         left,
         |left| super::materialize::program(&mut result, module, ledger, limits, left),
+    )?;
+    // Dyn specialization proposals need the complete actual Self, mixed
+    // actuals and header images, including classes absent from the header.
+    stored::OrdinaryStats::step(
+        &ledger.ordinary_stats,
+        "finish: actual Dyn registry relocation",
+        left,
+        |left| super::materialize::dynamic::relocate(&result, module, ledger, limits, left),
     )?;
     #[cfg(test)]
     super::source_probe::record(module, &result, limits, left)?;

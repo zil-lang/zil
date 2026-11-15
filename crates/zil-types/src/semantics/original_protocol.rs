@@ -1780,11 +1780,15 @@ impl<'a> Engine<'a, '_> {
                             op,
                             RegistrationOp::AsyncFinish | RegistrationOp::AsyncFinishChecked
                         ) {
-                            if phase != CLOSED {
+                            if op == RegistrationOp::AsyncFinishChecked && phase != CLOSED {
                                 return Err(failure(
                                     "original registration reclamation is not dominated by Closed for this owning root",
                                 ));
                             }
+                            // The unchecked operation retains the sealed runtime
+                            // CLOSED guard: a nonclosed execution faults without
+                            // reclaiming anything. Only its successful return
+                            // retires the owning generation here.
                             self.change(state, root, CLOSED, true, depth)?;
                             return Ok(Value::Plain);
                         }
