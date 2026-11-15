@@ -4491,7 +4491,8 @@ impl Solver<'_, '_> {
                             } else {
                                 true
                             };
-                            if callbacks > 2
+                            if *kind != LifeNominalKind::Package
+                                || callbacks > 2
                                 || !same_callback
                                 || !self.capability(
                                     root,
