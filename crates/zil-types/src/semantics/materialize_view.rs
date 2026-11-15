@@ -14,6 +14,7 @@ struct SourceDirectory<'a> {
     context: std::rc::Rc<super::super::original_context::OriginalContext>,
     positions: BTreeMap<SemanticInstanceId, usize>,
     functions: BTreeMap<FunctionId, usize>,
+    nominals: BTreeMap<LifeDeclarationId, Vec<usize>>,
     parents: std::cell::RefCell<BTreeMap<ParentKey, ParentSolution>>,
 }
 pub(in crate::semantics) struct ActualDirectory<'a> {
@@ -51,10 +52,21 @@ impl<'a> ActualDirectory<'a> {
         limits: &Limits,
         left: &mut usize,
     ) -> R<Self> {
+        Self::indexed(module, program, context, "world", limits, left)
+    }
+    pub(in crate::semantics) fn indexed(
+        module: &'a TypedModule,
+        program: &'a SemanticModule,
+        context: &std::rc::Rc<super::super::original_context::OriginalContext>,
+        tag: &'static str,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Self> {
         let count = program
             .instances
             .len()
-            .saturating_add(module.functions.len());
+            .saturating_add(module.functions.len())
+            .saturating_add(module.life_instances.len());
         if count > limits.max_nodes {
             return Err(Diagnostic::limit(
                 Phase::Types,
@@ -84,12 +96,17 @@ impl<'a> ActualDirectory<'a> {
                 ));
             }
         }
-        let mut directory = Self::from_module_at(module, "world");
+        let mut nominals: BTreeMap<LifeDeclarationId, Vec<usize>> = BTreeMap::new();
+        for (offset, row) in module.life_instances.iter().enumerate() {
+            nominals.entry(row.declaration).or_default().push(offset);
+        }
+        let mut directory = Self::from_module_at(module, tag);
         directory.source = Some(SourceDirectory {
             program,
             context: context.clone(),
             positions,
             functions,
+            nominals,
             parents: Default::default(),
         });
         Ok(directory)
@@ -124,6 +141,25 @@ impl<'a> ActualDirectory<'a> {
             .positions
             .get(&id)
             .and_then(|offset| program.instances.get(*offset)))
+    }
+    // Candidate offsets only: the consumer must still compare complete mixed
+    // actuals, physical hint and class domain, and reject all ambiguity.
+    pub(super) fn nominal_positions(
+        &self,
+        declaration: LifeDeclarationId,
+        left: &mut usize,
+    ) -> R<Option<&[usize]>> {
+        let Some(source) = &self.source else {
+            Self::source_fee(left, self.life_instances.len())?;
+            return Ok(None);
+        };
+        Self::source_fee(
+            left,
+            source.nominals.len().saturating_add(1).ilog2() as usize + 1,
+        )?;
+        Ok(Some(
+            source.nominals.get(&declaration).map_or(&[], Vec::as_slice),
+        ))
     }
     pub(super) fn function_lookup_work(&self) -> usize {
         self.source.as_ref().map_or_else(

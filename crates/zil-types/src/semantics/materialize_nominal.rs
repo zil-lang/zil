@@ -289,9 +289,20 @@ impl Eval<'_, '_, '_> {
             }
             expected.push(value);
         }
-        self.fee(self.module.life_instances.len())?;
+        let module = self.module;
+        let positions = module.nominal_positions(*declaration, self.left)?;
+        let indexed = positions
+            .into_iter()
+            .flatten()
+            .map(|offset| &module.life_instances[*offset]);
+        let unindexed = module.life_instances.iter().take(if positions.is_some() {
+            0
+        } else {
+            module.life_instances.len()
+        });
         let mut found = None;
-        for instance in self.module.life_instances {
+        for instance in indexed.chain(unindexed) {
+            self.fee(1)?;
             if instance.declaration != *declaration {
                 continue;
             }

@@ -1961,9 +1961,21 @@ pub(super) fn program(
     // The immutable original definitions never change in this pass. Borrow
     // the complete old input while constructing independent mutable outputs;
     // do not deep-copy every original body merely to avoid a borrow conflict.
+    let directory = if let Some(context) = ledger.original.context() {
+        ActualDirectory::indexed(
+            module,
+            &*program,
+            context,
+            "materialize::program",
+            limits,
+            left,
+        )?
+    } else {
+        ActualDirectory::from_module_at(module, "materialize::program")
+    };
     let mut eval = Eval {
         input: &*program,
-        module: &ActualDirectory::from_module_at(module, "materialize::program"),
+        module: &directory,
         ledger,
         limits,
         left,
@@ -2150,6 +2162,7 @@ pub(super) fn program(
         }
     }
     drop(eval);
+    drop(directory);
     program.instances = instances;
     program.sites = sites;
     Ok(())
