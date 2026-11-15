@@ -189,8 +189,53 @@ fn capture_impl(
                         bad(item.span, "captured original declaration is absent")
                     })?);
                 }
+                let (original, generated) = match resolved.declarations() {
+                    DeclarationPlacement::Aligned(supplied) => {
+                        budget.identity_work(supplied.len(), module.span)?;
+                        let row = supplied
+                            .iter()
+                            .find(|row| row.module == module.id)
+                            .ok_or_else(|| {
+                                bad(module.span, "aligned original source tree is absent")
+                            })?;
+                        if row.original.id != module.id {
+                            return Err(bad(
+                                module.span,
+                                "aligned original source tree changes module",
+                            ));
+                        }
+                        budget
+                            .identity_work(row.generated.trees.len().saturating_add(1), module.span)?;
+                        budget.lineage_bytes(
+                            row.generated
+                                .trees
+                                .len()
+                                .saturating_mul(
+                                    std::mem::size_of::<std::sync::Arc<GeneratedSourceTree>>(),
+                                ),
+                            module.span,
+                        )?;
+                        (row.original.clone(), row.generated.clone())
+                    }
+                    DeclarationPlacement::Original => {
+                        let original = budget.retained_copy(module.span, |budget| {
+                            for item in &module.items {
+                                budget.item(item)?;
+                            }
+                            budget.lineage_bytes(std::mem::size_of::<Module>(), module.span)?;
+                            Ok(std::sync::Arc::new((*module).clone()))
+                        })?;
+                        (original, GeneratedSourceCatalog::default())
+                    }
+                    DeclarationPlacement::Unavailable => {
+                        return Err(bad(module.span, "original source tree is unavailable"));
+                    }
+                };
+                budget.lineage_bytes(std::mem::size_of::<ModuleDeclarationOrigins>(), module.span)?;
                 captured.push(ModuleDeclarationOrigins {
                     module: module.id,
+                    original,
+                    generated,
                     items,
                 });
             }

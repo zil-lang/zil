@@ -23,6 +23,12 @@ impl Builder<'_, '_, '_, '_> {
                     }
                 }
             }
+            if let Some(actual) = self.alias_actual(name, span)? {
+                return match actual {
+                    SemanticActualRecipe::Life(value) => Ok(value),
+                    _ => Err(error(span, "alias Lifetime formal has another actual kind")),
+                };
+            }
             self.formal(name, 2, span)?
                 .map(SemanticLifeRecipe::Formal)
                 .ok_or_else(|| error(span, "life occurrence has no original lexical formal"))
@@ -551,6 +557,15 @@ impl Builder<'_, '_, '_, '_> {
             }
 
             s::TypeKind::Named { path: names, args } => {
+                if let [name] = names.as_slice()
+                    && args.is_empty()
+                    && let Some(actual) = self.alias_actual(name, ty.span)?
+                {
+                    return match actual {
+                        SemanticActualRecipe::Type(value) => Ok(value),
+                        _ => Err(error(ty.span, "alias Type formal has another actual kind")),
+                    };
+                }
                 if let Some(recipe) = self.builtin_type(ty, path, depth, payload)? {
                     return Ok(recipe);
                 }
@@ -713,6 +728,12 @@ impl Builder<'_, '_, '_, '_> {
                 }
                 let row = self.named(names, ty.span)?;
                 let arguments = self.actuals(row, args, path, depth + 1)?;
+                if matches!(
+                    self.inventory.declarations[row].item.kind,
+                    s::ItemKind::TypeAlias(_)
+                ) {
+                    return self.alias_type(row, arguments, path, depth + 1, payload);
+                }
                 let result = SemanticTypeRecipe::Nominal {
                     definition: self.id(row),
                     arguments,
@@ -726,11 +747,11 @@ impl Builder<'_, '_, '_, '_> {
                     })
                 } else if matches!(
                     self.inventory.declarations[row].item.kind,
-                    s::ItemKind::TypeAlias(_) | s::ItemKind::Trait(_)
+                    s::ItemKind::Trait(_)
                 ) {
                     Err(unsupported(
                         ty.span,
-                        "alias/trait value needs its actual original recipe substitution",
+                        "trait value needs its actual original recipe substitution",
                     ))
                 } else {
                     Ok(result)

@@ -444,7 +444,7 @@ impl Builder<'_, '_, '_, '_> {
                     ("declaration", identity.declaration_path.as_slice()),
                 ] {
                     let appended = if label == "declaration" {
-                        2 + row.path.len().saturating_sub(1)
+                        2 + row.source_path.len().saturating_sub(1)
                     } else {
                         0
                     };
@@ -460,7 +460,7 @@ impl Builder<'_, '_, '_, '_> {
                     if label == "declaration" {
                         let text = self.text("member", row.item.span)?;
                         self.push(&mut candidate, text, row.item.span)?;
-                        for ordinal in row.path.iter().skip(1) {
+                        for ordinal in row.source_path.iter().skip(1) {
                             let text = self.text(&ordinal.to_string(), row.item.span)?;
                             self.push(&mut candidate, text, row.item.span)?;
                         }

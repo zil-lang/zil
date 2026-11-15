@@ -811,6 +811,31 @@ pub(super) fn uncontextual_float(
         _ => Ok(false),
     }
 }
+/// A contextual width may come from the other operand, before either operand
+/// executes. Explicit suffixes retain their own width and still must agree.
+pub(super) fn uncontextual_integer(
+    expression: &Expr,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<bool> {
+    budget.node(expression.span, depth)?;
+    match &expression.kind {
+        ExprKind::Literal(Literal::Integer(text)) => {
+            budget.text(text, expression.span)?;
+            Ok(![
+                "usize", "isize", "u64", "i64", "u32", "i32", "u16", "i16", "u8", "i8",
+            ]
+            .iter()
+            .any(|suffix| text.ends_with(suffix)))
+        }
+        ExprKind::Group(inner)
+        | ExprKind::Unary {
+            op: UnaryOp::Negate,
+            operand: inner,
+        } => uncontextual_integer(inner, budget, depth + 1),
+        _ => Ok(false),
+    }
+}
 pub(super) fn floating(ty: &TypeRef) -> bool {
     matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "f32" | "f64")))
 }
@@ -3750,12 +3775,14 @@ impl Check<'_, '_, '_> {
         } else {
             expected
         };
-        let float_hint = if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
+        let peer_hint = if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
             self.value_hint(right, state, 1, false)?.filter(floating)
+        } else if operand_hint.is_none() && uncontextual_integer(left, self.budget, 0)? {
+            self.value_hint(right, state, 1, false)?.filter(integer)
         } else {
             None
         };
-        let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
+        let lhs = self.expr(left, state, operand_hint.or(peer_hint.as_ref()), false)?;
         let rhs = self.expr(right, state, Some(&lhs), false)?;
         if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
             return Err(needs_bound());

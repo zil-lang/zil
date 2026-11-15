@@ -2628,6 +2628,18 @@ pub(crate) fn materialize_scoped<'a>(
             rows.items = moved;
         }
     }
+    if let Some(origins) = &mut declaration_origins {
+        for rows in origins {
+            let catalog = &materializer.environment.generated_catalog;
+            materializer.environment.budget.reserve_analysis_work(catalog.trees.len() as u64 + 1)?;
+            let count = catalog.trees.iter().filter(|tree| tree.module.id == rows.module).count();
+            materializer.environment.budget.reserve_temporary_bytes(
+                count as u64 * std::mem::size_of::<Arc<zil_expand::source_context::GeneratedSourceTree>>() as u64,
+            )?;
+            rows.generated.trees = catalog.trees.iter()
+                .filter(|tree| tree.module.id == rows.module).cloned().collect();
+        }
+    }
     materializer.audit_self_constant_coverage(&output, imports)?;
     if !materializer.declaration_lineage_preserved {
         declaration_origins = None;

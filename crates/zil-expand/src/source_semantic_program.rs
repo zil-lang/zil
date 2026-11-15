@@ -1243,6 +1243,10 @@ pub(crate) fn prepare(
                 .iter_mut()
                 .find(|m| m.id == row.module)
                 .ok_or_else(|| error(row.item.span, "original function module is absent"))?;
+            // `path` is the actual CT output placement. The independent
+            // source_path/declaration mapping was checked against the complete
+            // frozen original/generated tree before any semantic token exists.
+            // In particular a retained member's output ordinal is not its ID.
             let item = item_mut(target, &row.path)
                 .ok_or_else(|| error(row.item.span, "actual cloned original function is absent"))?;
             let function = match &mut item.kind {
@@ -1307,6 +1311,7 @@ pub(crate) fn prepare(
                 lexical_offset: 0,
                 implicit: Vec::new(),
                 bound_lives: Vec::new(),
+                alias_frames: Vec::new(),
                 invocations: Vec::new(),
                 closures: Vec::new(),
                 next_body_nodes: Vec::new(),
@@ -1325,6 +1330,7 @@ pub(crate) fn prepare(
             lexical_offset: 0,
             implicit: Vec::new(),
             bound_lives: Vec::new(),
+            alias_frames: Vec::new(),
             invocations: Vec::new(),
             closures: Vec::new(),
             next_body_nodes: Vec::new(),

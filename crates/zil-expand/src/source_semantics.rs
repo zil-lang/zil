@@ -5,6 +5,8 @@ use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, Phase, Span};
 use zil_ir::*;
 use zil_syntax::ast as s;
 
+#[path = "source_semantic_aliases.rs"]
+mod aliases;
 #[path = "source_semantic_body.rs"]
 mod body;
 #[path = "source_semantic_body_nodes.rs"]
@@ -237,6 +239,7 @@ struct Builder<'s, 'i, 'b, 'l> {
     lexical_offset: u32,
     implicit: Vec<SemanticImplicitLifetime>,
     bound_lives: Vec<Vec<String>>,
+    alias_frames: Vec<aliases::AliasFrame>,
     invocations: Vec<InvocationFrame>,
     closures: Vec<closures::ClosureTemplate>,
     next_body_nodes: Vec<(ModuleId, u32)>,
@@ -405,7 +408,7 @@ impl Builder<'_, '_, '_, '_> {
         if original.parent.is_some() {
             let member = self.text("member", original.item.span)?;
             self.push(&mut output.declaration_path, member, original.item.span)?;
-            for ordinal in original.path.iter().skip(1) {
+            for ordinal in original.source_path.iter().skip(1) {
                 let number = ordinal.to_string();
                 let number = self.text(&number, original.item.span)?;
                 self.push(&mut output.declaration_path, number, original.item.span)?;
@@ -465,6 +468,7 @@ pub fn collect_original_semantics<'a>(
             lexical_offset: 0,
             implicit: Vec::new(),
             bound_lives: Vec::new(),
+            alias_frames: Vec::new(),
             invocations: Vec::new(),
             closures: Vec::new(),
             next_body_nodes: originals.next_by_module.clone(),

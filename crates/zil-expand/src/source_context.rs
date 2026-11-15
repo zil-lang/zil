@@ -83,6 +83,12 @@ pub struct DeclarationOrigin {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModuleDeclarationOrigins {
     pub module: ModuleId,
+    /// Frozen namespace captured before CT removes or moves roots and members.
+    /// This raw syntax establishes addresses only, never semantic permission.
+    pub original: std::sync::Arc<zil_syntax::ast::Module>,
+    /// Complete generated event ancestry, including a parent ItemList whose
+    /// declarations were all consumed during a later materialization event.
+    pub generated: GeneratedSourceCatalog,
     /// Aligned with the actual module item vector, including imports until the
     /// same transformation removes both. No spelling/span reconstruction.
     pub items: Vec<DeclarationOrigin>,

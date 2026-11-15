@@ -57,6 +57,11 @@ pub(super) fn origins_cost(
         + 2 * std::mem::size_of::<usize>()) as u64
         + (origins.len() as u64) * std::mem::size_of::<ModuleDeclarationOrigins>() as u64;
     for module in origins {
+        // The source snapshot and generated trees are immutable Arc payloads;
+        // only the catalog's pointer vector is copied with these module rows.
+        budget.reserve_analysis_work(module.generated.trees.len() as u64 + 1)?;
+        bytes = bytes.saturating_add(module.generated.trees.len() as u64
+            * std::mem::size_of::<Arc<zil_expand::source_context::GeneratedSourceTree>>() as u64);
         budget.reserve_analysis_work(module.items.len() as u64)?;
         bytes = bytes.saturating_add(
             module.items.len() as u64

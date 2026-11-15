@@ -126,15 +126,20 @@ impl Engine<'_> {
                         | BinaryOp::GreaterEqual
                 )
             });
-            let float_hint = if hint.is_none()
+            let peer_hint = if hint.is_none()
                 && check::uncontextual_float(left, &mut self.budget, depth + 1)?
             {
                 self.value_hint(right, env, depth + 1, false)?
                     .filter(check::floating)
+            } else if hint.is_none()
+                && check::uncontextual_integer(left, &mut self.budget, depth + 1)?
+            {
+                self.value_hint(right, env, depth + 1, false)?
+                    .filter(check::integer)
             } else {
                 None
             };
-            let hint = hint.or(float_hint.as_ref());
+            let hint = hint.or(peer_hint.as_ref());
             let left_type = self.expr_expected(left, env, hint, depth + 1)?;
             self.expr_expected(right, env, hint.or(left_type.as_ref()), depth + 1)?;
             if matches!(
