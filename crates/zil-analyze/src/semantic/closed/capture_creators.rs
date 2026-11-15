@@ -2,13 +2,18 @@
 //! Navigation need not fabricate an executable whole-name read in the child.
 use super::*;
 use crate::semantic::value::Value;
+pub(super) struct CreatorBinding {
+    pub(super) capture: u32,
+    pub(super) lexical: Value,
+    pub(super) stored: Value,
+}
 impl Check<'_, '_> {
     pub(super) fn capture_creator_bindings(
         &self,
         instance: &SemanticInstance,
         closure: &ClosureDefinition,
         b: &mut Budget,
-    ) -> CompileResult<BTreeMap<u32, (u32, Value)>> {
+    ) -> CompileResult<BTreeMap<u32, CreatorBinding>> {
         let definition = self.inventory.definition(instance.definition, b)?;
         let parent = self.inventory.instance(
             instance
@@ -22,6 +27,49 @@ impl Check<'_, '_> {
             ));
         };
         let function = self.inventory.function(target, b)?;
+        let parent_definition = self.inventory.definition(parent.definition, b)?;
+        let source_index = super::super::original_index::index(parent_definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            sites, site_nodes, ..
+        } = &parent_definition.body
+        else {
+            return Err(fail(
+                "capture creator has no complete original function body",
+            ));
+        };
+        let mut moved = None;
+        for recipe in sites {
+            b.spend(1, WORK)?;
+            if !matches!(recipe.kind, SemanticSiteRecipeKind::Closure { definition: target, .. } if target == definition.id)
+            {
+                continue;
+            }
+            for link in site_nodes {
+                b.spend(1, WORK)?;
+                if link.site != recipe.id {
+                    continue;
+                }
+                let SemanticOriginalNode::Expression(node) = link.node else {
+                    return Err(fail(
+                        "capture creator original role is not a closure expression",
+                    ));
+                };
+                let CoreExprKind::Closure { move_capture, .. } =
+                    &source_index.get_expr(node, b)?.kind
+                else {
+                    return Err(fail(
+                        "capture creator original role changes its closure operation",
+                    ));
+                };
+                if moved.replace(*move_capture).is_some() {
+                    return Err(fail(
+                        "capture creator has competing original ownership modes",
+                    ));
+                }
+            }
+        }
+        let moved =
+            moved.ok_or_else(|| fail("capture creator has no exact original closure mode"))?;
         let environment = instance
             .environment
             .as_ref()
@@ -41,6 +89,7 @@ impl Check<'_, '_> {
             crate::dyn_metadata::recipe(&formal.source, b)?;
             let expected = self.resolved(parent, actual, b, 0)?;
             let mut selected = None;
+            let mut stored = None;
             let mut creators = 0usize;
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
@@ -73,12 +122,21 @@ impl Check<'_, '_> {
                             b,
                         )?;
                         let value = self.ssa_value(parent, function, *operand, b, 0)?;
-                        if value != expected || closure.captures.get(capture) != Some(&expected.ty)
-                        {
+                        let same_lexical = value == expected
+                            || !moved
+                                && matches!(&value.ty, Type::Address { inner, .. } if inner.as_ref() == &expected.ty)
+                                && self.pointee(&value, b)? == expected;
+                        if !same_lexical || closure.captures.get(capture) != Some(&value.ty) {
                             return Err(fail(
                                 "actual creator changes its captured lexical value or intrinsic class image",
                             ));
                         }
+                        if stored.as_ref().is_some_and(|old| old != &value) {
+                            return Err(fail(
+                                "actual creators disagree on the complete stored capture head or child domain",
+                            ));
+                        }
+                        stored = Some(value);
                         let capture = u32::try_from(capture)
                             .map_err(|_| fail("physical capture ordinal overflow"))?;
                         if this.replace(capture).is_some() {
@@ -106,11 +164,13 @@ impl Check<'_, '_> {
             b.lookup(result.len(), WORK)?;
             result.insert(
                 ordinal,
-                (
-                    selected
+                CreatorBinding {
+                    capture: selected
                         .ok_or_else(|| fail("captured value has no physical original operand"))?,
-                    expected,
-                ),
+                    lexical: expected,
+                    stored: stored
+                        .ok_or_else(|| fail("captured value has no complete stored head"))?,
+                },
             );
         }
         Ok(result)

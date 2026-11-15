@@ -221,7 +221,7 @@ pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
 pub(super) fn capture(t: &Type) -> bool {
     scalar(t)
         || matches!(t, Type::Address { mutable: false, inner }
-        if scalar(inner) || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())
+        if inner.is_copy_value() || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())
             || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()))
 }
@@ -234,7 +234,7 @@ pub(super) fn mutable_context_capture(t: &Type) -> bool {
 }
 pub(super) fn exclusive_capture(t: &Type) -> bool {
     mutable_context_capture(t)
-        || matches!(t, Type::Address { mutable: true, inner } if scalar(inner)
+        || matches!(t, Type::Address { mutable: true, inner } if inner.is_copy_value()
             || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))
 }
 pub(super) fn resource_payload(t: &Type, b: &mut Budget) -> CompileResult<bool> {
@@ -269,6 +269,39 @@ pub(super) fn ordinary_capture(
     }
     closed_callback_data(inner, b)?;
     super::stored_flow::owned::ordinary_value(module, t, b)
+}
+/// Complete original environment formation and actual ordinary owner
+/// qualification are separate obligations. This selects the existing resource
+/// consumers; it grants no borrowed target, mutation or synchronous cleanup.
+pub(super) fn semantic_owned_capture(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !matches!(
+        ty,
+        Type::Managed(_) | Type::Package { .. } | Type::ErrorUnion { .. }
+    ) {
+        return Ok(false);
+    }
+    b.lookup(
+        b.semantic_closures_proven.len(),
+        "completed ordinary owner environment",
+    )?;
+    if !b.semantic_closures_proven.contains(&closure.id) {
+        return Ok(false);
+    }
+    if !module
+        .closures
+        .get(closure.id.0 as usize)
+        .is_some_and(|actual| std::ptr::eq(actual, closure))
+    {
+        return Err(bad(
+            "ordinary owner capture is not its exact immutable environment",
+        ));
+    }
+    super::stored_flow::owned::ordinary_value(module, ty, b)
 }
 /// Copy nominal data with phantom classes is an ordinary environment value,
 /// not an Address capture. Eligibility here requires the completed independent
@@ -383,12 +416,14 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     || exclusive_capture(t)
                     || semantic_copy_capture(module, d, t, b)?
                     || owned_capture(t, b)?
+                    || semantic_owned_capture(module, d, t, b)?
                     || ordinary_capture(module, t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
                     || capture(t)
                     || exclusive_capture(t)
+                    || semantic_owned_capture(module, d, t, b)?
                     || b.returned_borrowed_environments.contains(&d.id)
                         && (owned_capture(t, b)?
                             || matches!(t, Type::Closure(child)
@@ -561,6 +596,10 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
                     || d.captures.get(*index as usize).is_some_and(|ty| {
                         matches!(ty, Type::Closure(child) if finite(module,*child))
                             || matches!(ty, Type::OwnedDyn { .. })
+                            || matches!(
+                                ty,
+                                Type::Managed(_) | Type::Package { .. } | Type::ErrorUnion { .. }
+                            )
                     })
             }),
         InstructionKind::TakeCapture { index } => f
@@ -568,7 +607,12 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .and_then(|id| module.closures.get(id.0 as usize))
             .and_then(|d| d.captures.get(*index as usize))
             .is_some_and(|ty| {
-                matches!(ty,Type::Closure(child) if finite(module,*child)) || exclusive_capture(ty)
+                matches!(ty,Type::Closure(child) if finite(module,*child))
+                    || exclusive_capture(ty)
+                    || matches!(
+                        ty,
+                        Type::Managed(_) | Type::Package { .. } | Type::ErrorUnion { .. }
+                    )
             }),
         _ => called(module, f, &i.kind).is_some(),
     }
@@ -579,6 +623,42 @@ pub(super) fn types(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if let InstructionKind::BorrowCapture { index, .. } | InstructionKind::TakeCapture { index } =
+        &i.kind
+        && let Some(definition) = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+        && let Some(ty) = definition.captures.get(*index as usize)
+        && semantic_owned_capture(module, definition, ty, b)?
+    {
+        match &i.kind {
+            InstructionKind::BorrowCapture { mutable, .. } => {
+                if *mutable && definition.kind == CallableKind::Fn {
+                    return Err(bad(
+                        "shared environment entry cannot mutably borrow an owning capture",
+                    ));
+                }
+                if !matches!(i.result.and_then(|value|f.values.get(value.0 as usize)),
+                    Some(Type::Address { mutable: actual, inner }) if actual == mutable && inner.as_ref() == ty)
+                {
+                    return Err(bad(
+                        "ordinary owner capture borrow changes its complete type or actual mode",
+                    ));
+                }
+            }
+            InstructionKind::TakeCapture { .. } => {
+                if definition.kind != CallableKind::FnOnce
+                    || i.result.and_then(|value| f.values.get(value.0 as usize)) != Some(ty)
+                {
+                    return Err(bad(
+                        "ordinary owner capture transfer requires a real consuming entry and exact complete type",
+                    ));
+                }
+            }
+            _ => unreachable!(),
+        }
+        return Ok(());
+    }
     if let InstructionKind::CallClosureOnce { callee, .. } = &i.kind
         && let Some(Type::Closure(id)) = f.values.get(callee.0 as usize)
         && let Some(d) = module.closures.get(id.0 as usize)

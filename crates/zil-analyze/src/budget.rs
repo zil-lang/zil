@@ -1768,6 +1768,9 @@ pub(super) fn preflight(
             if super::stored_callables::semantic_copy_capture(module, closure, ty, budget)? {
                 continue;
             }
+            if super::stored_callables::semantic_owned_capture(module, closure, ty, budget)? {
+                continue;
+            }
             if closure
                 .storage_life
                 .as_ref()

@@ -87,7 +87,7 @@ fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileRe
 // Complete ordinary owner values may accompany stored inputs without being a
 // Fixed closure environment. This classification grants no stored target:
 // actual producers, initialization, transfers and cleanup use the CFG ledgers.
-pub(in crate) fn ordinary_value(
+pub(crate) fn ordinary_value(
     module: &TypedModule,
     ty: &Type,
     b: &mut Budget,
@@ -301,7 +301,10 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
     let mut candidates = vec![false; module.closures.len()];
     for (index, d) in module.closures.iter().enumerate() {
         fee(b, d.captures.len().saturating_add(1))?;
-        if d.storage_life.is_some() {
+        if d.storage_life
+            .as_ref()
+            .is_some_and(|life| life.fixed_binder_count > 0)
+        {
             for capture in &d.captures {
                 candidates[index] |= super::super::stored_callables::owned_capture(capture, b)?;
             }

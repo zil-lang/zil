@@ -22,10 +22,10 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("environment binding has another actual closure entry"))?;
         let creators = self.capture_creator_bindings(instance, closure, b)?;
         b.lookup(creators.len(), WORK)?;
-        if let Some((capture, _)) = creators.get(&ordinal) {
+        if let Some(binding) = creators.get(&ordinal) {
             // This is binding identity from every real MakeClosure. It does
             // not assert that a later occupant still has its initial data.
-            return Ok(*capture);
+            return Ok(binding.capture);
         }
         let definition = self.inventory.definition(instance.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
@@ -118,6 +118,47 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("actual whole capture ordinal is absent"))?;
         self.actual_type(ty, b)?;
         self.capture_directory(closure.id, b)?;
+        if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+            let creators = self.capture_creator_bindings(instance, closure, b)?;
+            let mut selected = None;
+            for binding in creators.values() {
+                b.spend(1, WORK)?;
+                if binding.capture != index {
+                    continue;
+                }
+                if selected.replace(&binding.stored).is_some() {
+                    return Err(fail(
+                        "actual captured head has several original lexical sources",
+                    ));
+                }
+            }
+            let stored = selected.ok_or_else(|| {
+                fail("actual captured head has no complete original creator binding")
+            })?;
+            let contract = closure
+                .storage_life
+                .as_ref()
+                .ok_or_else(|| unknown("actual captured head has no complete header domain"))?;
+            let mut classes = Vec::new();
+            for (class, source) in stored.classes.iter().enumerate() {
+                let (_, _, binder) =
+                    self.capture_class_header(contract, index, stored, class as u32, b)?;
+                let actual = self.header_class(instance, binder, b)?;
+                if actual != *source {
+                    return Err(fail(
+                        "actual captured head changes its original outer or intrinsic child class",
+                    ));
+                }
+                self.push_value(&mut classes, actual, b)?;
+            }
+            crate::dyn_metadata::ty(&stored.ty, b)?;
+            crate::dyn_metadata::shape(&stored.life, b)?;
+            return Ok(Value {
+                ty: stored.ty.clone(),
+                life: stored.life.clone(),
+                classes,
+            });
+        }
         let weak_mutex = matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32));
         let life = match ty {
             Type::BorrowedStorage { life, .. } => {
