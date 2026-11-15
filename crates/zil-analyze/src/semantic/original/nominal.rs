@@ -169,7 +169,11 @@ impl Solver<'_, '_> {
             } else {
                 false
             };
-            if canonical_template || conditional {
+            if canonical_template {
+                continue;
+            }
+            if conditional && let Some(owner) = self.nominal_declaration {
+                self.conditional_known_fields(*field, owner, b, depth + 1)?;
                 continue;
             }
             Self::push(
@@ -199,6 +203,43 @@ impl Solver<'_, '_> {
             },
             b,
         )
+    }
+
+    fn conditional_known_fields(
+        &mut self,
+        term: Term,
+        owner: SemanticDefinitionId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let root = self.type_root(term, b)?;
+        let children = match &self.state.arena[root] {
+            Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
+                b.spend(fields.len(), WORK)?;
+                fields.clone()
+            }
+            Kind::Array { element, .. } => vec![*element],
+            Kind::ErrorUnion { error, result } => vec![*error, *result],
+            // Pointer and manager formation has its own existing complete
+            // boundary; an unknown pointee does not make its carrier non-Value.
+            _ => return Ok(()),
+        };
+        for child in children {
+            if self.conditional_field(child, owner, b, depth + 1)? {
+                self.conditional_known_fields(child, owner, b, depth + 1)?;
+            } else {
+                Self::push(
+                    &mut self.needs,
+                    Need {
+                        term: child,
+                        predicate: Predicate::Value,
+                    },
+                    b,
+                )?;
+            }
+        }
+        Ok(())
     }
 
     fn conditional_field(

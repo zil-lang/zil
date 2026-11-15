@@ -1256,6 +1256,26 @@ impl Solver<'_, '_> {
         self.step(depth, b)?;
         let expected = self.type_root(expected, b)?;
         let actual = self.type_root(actual, b)?;
+        for term in [expected, actual] {
+            let work = match &self.state.arena[term] {
+                Kind::Nominal {
+                    arguments, fields, ..
+                } => arguments.len().saturating_add(fields.len()),
+                Kind::Closure {
+                    parameters,
+                    environment,
+                    ..
+                } => parameters.len().saturating_add(environment.len()),
+                Kind::Code {
+                    parameters, modes, ..
+                } => parameters.len().saturating_add(modes.len()),
+                Kind::Tuple(fields) => fields.len(),
+                Kind::Task(task) => task.work(),
+                Kind::Dyn(ty) => ty.work(),
+                _ => 1,
+            };
+            b.spend(work, WORK)?;
+        }
         match (
             self.state.arena[expected].clone(),
             self.state.arena[actual].clone(),
@@ -2739,20 +2759,16 @@ impl Solver<'_, '_> {
                         // Ordinary return values are the success arm of the
                         // declaration's real ErrorUnion, never a new error type
                         // inferred from a selected concrete caller.
-                        let arm = if self.same_original(actual, error, b, depth + 1)?
-                            && !self.same_original(actual, result, b, depth + 1)?
-                        {
-                            error
-                        } else {
-                            result
-                        };
+                        let is_error = self.same_original(actual, error, b, depth + 1)?
+                            && !self.same_original(actual, result, b, depth + 1)?;
+                        let arm = if is_error { error } else { result };
                         self.unify(value, arm, depth + 1, b)?;
                         if let Some(node) = returned_node {
                             b.lookup(self.state.return_injections.len(), WORK)?;
                             if self
                                 .state
                                 .return_injections
-                                .insert((frame.definition, node), (frame.result, arm == error))
+                                .insert((frame.definition, node), (frame.result, is_error))
                                 .is_some()
                             {
                                 return Err(fail(
