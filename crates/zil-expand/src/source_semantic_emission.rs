@@ -50,7 +50,7 @@ pub(crate) struct Ledger {
     entries: Vec<Option<Pending>>,
     // One coordinate bucket per actual owner/node. Role and occurrence are
     // still exact within the bucket; no type or recipe chooses an owner.
-    emitted: std::collections::BTreeMap<(SemanticInstanceId, NodeId), Vec<Completed>>,
+    emitted: Vec<((SemanticInstanceId, NodeId), Vec<Completed>)>,
     injection_payloads: Vec<(SemanticInstanceId, NodeId, NodeId, Injection)>,
     owners: Vec<OriginalOwner>,
     templates: Vec<OriginalTemplate>,
@@ -62,13 +62,7 @@ struct Completed {
     role: SemanticEmissionRole,
 }
 fn lookup_work(entries: usize, budget: &mut Budget<'_>, span: Span) -> R<()> {
-    budget.identity_work(
-        entries
-            .checked_ilog2()
-            .map_or(1, |n| n as usize + 2)
-            .saturating_mul(12),
-        span,
-    )
+    budget.identity_work(entries.checked_ilog2().map_or(1, |n| n as usize + 2), span)
 }
 struct OriginalTemplate {
     injection: Option<Injection>,
@@ -99,6 +93,70 @@ fn deferred(
     })
 }
 impl Ledger {
+    /// The complete actual mint log is available before its first event is
+    /// consumed. Prebuild coordinates only; each token/creator/role still has
+    /// to pass `take`, and every completed occurrence retains its own receipt.
+    pub(crate) fn prepare_emissions(
+        &mut self,
+        wanted: impl ExactSizeIterator<Item = (u32, NodeId, NodeId)>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        let span = Span::default();
+        if !self.emitted.is_empty() {
+            return Err(unavailable(
+                "actual emission directory was already prepared or consumed",
+            ));
+        }
+        let count = wanted.len();
+        budget.lineage_bytes(
+            count
+                .checked_mul(std::mem::size_of::<(
+                    (SemanticInstanceId, NodeId),
+                    Vec<Completed>,
+                )>())
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Expand,
+                        "actual emission directory allocation overflow",
+                        Some(span),
+                    )
+                })?,
+            span,
+        )?;
+        self.emitted.try_reserve_exact(count).map_err(|_| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "actual emission directory allocation failed",
+                Some(span),
+            )
+        })?;
+        for (marker, creator, node) in wanted {
+            budget.identity_work(1, span)?;
+            let pending = self
+                .entries
+                .get(marker as usize)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| unavailable("actual emission directory has no unconsumed token"))?;
+            if pending.creator != Some(creator) {
+                return Err(unavailable(
+                    "actual emission directory changes its Core creator",
+                ));
+            }
+            self.emitted.push(((pending.instance, node), Vec::new()));
+        }
+        budget.identity_work(
+            count
+                .saturating_mul(count.checked_ilog2().map_or(1, |n| n as usize + 1))
+                .saturating_mul(12),
+            span,
+        )?;
+        self.emitted.sort_unstable_by_key(|(key, _)| *key);
+        budget.identity_work(count, span)?;
+        // Only empty lookup coordinates coalesce. No actual occurrence,
+        // recipe, creator or role has been consumed or discarded here.
+        self.emitted.dedup_by_key(|(key, _)| *key);
+        Ok(())
+    }
     fn clone_events(events: &[Event], budget: &mut Budget<'_>, span: Span) -> R<Vec<Event>> {
         budget.lineage_bytes(
             events
@@ -742,7 +800,9 @@ impl Ledger {
             })?;
         let key = (instance, node);
         lookup_work(self.emitted.len(), budget, span)?;
-        if let Some(rows) = self.emitted.get(&key) {
+        let position = self.emitted.binary_search_by_key(&key, |(key, _)| *key);
+        if let Ok(index) = position {
+            let rows = &self.emitted[index].1;
             for old in rows {
                 budget.identity_work(1, span)?;
                 if old.occurrence == occurrence && old.role == role {
@@ -758,23 +818,19 @@ impl Ledger {
             recipe: pending.events[event].recipe,
             role,
         };
-        lookup_work(self.emitted.len(), budget, span)?;
-        match self.emitted.entry(key) {
-            std::collections::btree_map::Entry::Occupied(mut entry) => {
-                budget.lineage_push(entry.get_mut(), completed, span)?;
-            }
-            std::collections::btree_map::Entry::Vacant(entry) => {
-                // Every nonempty tree node owns at least one actual coordinate;
-                // one full internal node per new key bounds retained storage.
-                budget.lineage_bytes(
-                    12 * (std::mem::size_of::<((SemanticInstanceId, NodeId), Vec<Completed>)>()
-                        + std::mem::size_of::<usize>())
-                        + 64,
-                    span,
-                )?;
+        match position {
+            Ok(index) => budget.lineage_push(&mut self.emitted[index].1, completed, span)?,
+            Err(index) => {
+                // Direct incremental users do not supply a complete mint log.
+                // Insert into the same exact sorted directory and pay moves.
+                let row_bytes =
+                    std::mem::size_of::<((SemanticInstanceId, NodeId), Vec<Completed>)>();
+                budget
+                    .identity_work((self.emitted.len() - index).saturating_mul(row_bytes), span)?;
                 let mut rows = Vec::new();
                 budget.lineage_push(&mut rows, completed, span)?;
-                entry.insert(rows);
+                budget.lineage_push(&mut self.emitted, (key, rows), span)?;
+                self.emitted[index..].rotate_right(1);
             }
         }
         let pending = self.entries[token as usize]
@@ -1055,8 +1111,11 @@ impl Ledger {
             for (site, role) in &injection.payload {
                 lookup_work(self.emitted.len(), budget, span)?;
                 let mut count = 0usize;
-                if let Some(rows) = self.emitted.get(&(*instance, *payload)) {
-                    for row in rows {
+                if let Ok(index) = self
+                    .emitted
+                    .binary_search_by_key(&(*instance, *payload), |(key, _)| *key)
+                {
+                    for row in &self.emitted[index].1 {
                         budget.identity_work(1, span)?;
                         // Occurrence deliberately does not collapse here:
                         // exactly one physical payload must select this role.
@@ -1129,6 +1188,7 @@ mod tests {
         let mut ledger = Ledger::default();
         let span = Span::default();
         let role = SemanticEmissionRole::Construct;
+        let mut pending = Vec::new();
         for (owner, occurrence) in [(instance(0), 0), (instance(0), 1), (instance(1), 0)] {
             let marker = ledger
                 .record_bundle(
@@ -1143,6 +1203,17 @@ mod tests {
                     span,
                 )
                 .unwrap();
+            pending.push((owner, occurrence, marker));
+        }
+        ledger
+            .prepare_emissions(
+                pending
+                    .iter()
+                    .map(|(_, _, marker)| (marker.raw_index().unwrap(), NodeId(4), NodeId(12))),
+                &mut budget,
+            )
+            .unwrap();
+        for (owner, occurrence, marker) in pending {
             ledger
                 .take(
                     marker,
@@ -1169,11 +1240,11 @@ mod tests {
         // Distinct occurrences were valid emissions, but cannot both stand in
         // for one exact payload receipt. A set must not silently deduplicate.
         assert!(ledger.finish(&mut budget, span).is_err());
-        ledger
+        let index = ledger
             .emitted
-            .get_mut(&(instance(0), NodeId(12)))
-            .unwrap()
-            .pop();
+            .binary_search_by_key(&(instance(0), NodeId(12)), |(key, _)| *key)
+            .unwrap();
+        ledger.emitted[index].1.pop();
         ledger.finish(&mut budget, span).unwrap();
         ledger.injection_payloads[0].1 = NodeId(99);
         assert!(ledger.finish(&mut budget, span).is_err());

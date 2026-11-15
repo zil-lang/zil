@@ -702,6 +702,12 @@ impl Program {
                 .map(|(module, row)| (*module, row.creator, row.node, row.statement)),
             budget,
         )?;
+        self.ledger.prepare_emissions(
+            self.nodes
+                .iter()
+                .map(|(_, row)| (row.marker, row.creator, row.node)),
+            budget,
+        )?;
         for (module, _) in outputs {
             for function in &module.core.functions {
                 inventory.block(
@@ -721,9 +727,10 @@ impl Program {
                 )
             })?;
             let node = inventory
-                .nodes
-                .get(&(module, emission.creator, emission.node, emission.statement))
-                .and_then(|node| *node)
+                .get(
+                    &(module, emission.creator, emission.node, emission.statement),
+                    budget,
+                )?
                 .ok_or_else(|| {
                     error(
                         Span::default(),
