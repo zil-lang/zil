@@ -339,6 +339,18 @@ impl Engine<'_> {
         };
         let result = {
             self.expr(condition, env, depth + 1)?;
+            let numeric_hint =
+                if expected.is_none() && error_context.is_none() && anonymous_context.is_none() {
+                    let first = self.value_hint(then_value, env, depth + 1, false)?;
+                    let hint = match first {
+                        Some(value) => Some(value),
+                        None => self.value_hint(else_value, env, depth + 1, false)?,
+                    };
+                    hint.filter(|ty| check::integer(ty) || check::floating(ty))
+                } else {
+                    None
+                };
+            let expected = expected.or(numeric_hint.as_ref());
             let ty = self.expr_expected(then_value, env, expected.or(error_context), depth + 1)?;
             // The erased E!R expectation does not make its first payload
             // the expected nominal type of a distinct enum alternative.

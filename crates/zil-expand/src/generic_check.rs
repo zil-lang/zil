@@ -5812,6 +5812,17 @@ impl Check<'_, '_, '_> {
                 )?;
                 let mut a = self.clone_state(state)?;
                 let mut b = self.clone_state(state)?;
+                let numeric_hint = if expected.is_none() {
+                    let first = self.value_hint(then_value, state, 0, false)?;
+                    let hint = match first {
+                        Some(value) => Some(value),
+                        None => self.value_hint(else_value, state, 0, false)?,
+                    };
+                    hint.filter(|ty| integer(ty) || floating(ty))
+                } else {
+                    None
+                };
+                let expected = expected.or(numeric_hint.as_ref());
                 let lhs = self.expr(then_value, &mut a, expected, borrowing)?;
                 let aliases_a = self.alias_result_copy(e.span)?;
                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;
