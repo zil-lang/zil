@@ -12,9 +12,9 @@ pub(super) fn owner<'a>(
         .semantic
         .as_ref()
         .ok_or_else(|| bad("semantic type bridge original program is Unknown"))?;
-    program_owner(semantic,expected,requested,b)
+    program_owner(semantic,&module.dyn_declarations,expected,requested,b)
 }
-pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,expected:&SemanticDynOwner,requested:SemanticDefinitionId,b:&mut Budget)->Check<&'a SemanticDefinition>{
+pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,declarations:&[DynDeclaration],expected:&SemanticDynOwner,requested:SemanticDefinitionId,b:&mut Budget)->Check<&'a SemanticDefinition>{
     b.spend(
         semantic
             .dyn_scopes
@@ -77,8 +77,8 @@ pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,expected:&SemanticDy
         | SemanticDynOwner::MethodSignature {
             declaration: id, ..
         } => {
-            b.spend(module.dyn_declarations.len())?;
-            let mut rows = module.dyn_declarations.iter().filter(|d| d.id == *id);
+            b.spend(declarations.len())?;
+            let mut rows = declarations.iter().filter(|d| d.id == *id);
             let declaration = rows
                 .next()
                 .ok_or_else(|| bad("semantic bridge has no actual original Dyn declaration"))?;
@@ -115,7 +115,7 @@ pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,expected:&SemanticDy
         }
         SemanticDynOwner::MethodDefinition(id) => {
             let mut selected = None;
-            for declaration in &module.dyn_declarations {
+            for declaration in declarations {
                 let rows = declaration
                     .method_definitions
                     .as_ref()

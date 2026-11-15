@@ -39,7 +39,7 @@ impl<'s> FrozenContext<'s> {
             dynamic_metadata::recipe(semantic,b)?;
             b.spend(module.core.dyn_declarations.len().saturating_add(semantic.dyn_scopes.len()))?;
             for declaration in &module.core.dyn_declarations {
-                dynamic_metadata::program_declaration(semantic,declaration,b)?;
+                dynamic_metadata::program_declaration(semantic,&module.core.dyn_declarations,declaration,b)?;
                 if let Some(previous)=dyn_declarations.insert(declaration.id,declaration){if previous!=declaration{return Err(bad("frozen source changes a complete original trait/impl declaration identity"));}}
             }
             for scope in &semantic.dyn_scopes {
@@ -122,9 +122,11 @@ impl<'s> FrozenContext<'s> {
         // These are original read-only definitions, not execution targets.
         // E may carry equal publication copies but cannot replace S's owner,
         // full signature, associated RHS, premises or lexical scope.
+        b.spend(self.dyn_declarations.len())?;
+        let frozen_declarations=self.dyn_declarations.values().map(|row|(**row).clone()).collect::<Vec<_>>();
         let mut seen=BTreeSet::new();
         for declaration in &execution.dyn_declarations {
-            dynamic_metadata::program_declaration(&semantic,declaration,b)?;
+            dynamic_metadata::program_declaration(&semantic,&frozen_declarations,declaration,b)?;
             if !seen.insert(declaration.id)||!self.dyn_declarations.get(&declaration.id).is_some_and(|source|**source==*declaration){return Err(bad("CT execution replaces or invents a frozen original trait/impl declaration"));}
         }
         let mut scopes=Vec::new();
@@ -133,7 +135,7 @@ impl<'s> FrozenContext<'s> {
             if scopes.contains(&scope.owner)||!self.dyn_scopes.iter().any(|source|**source==*scope){return Err(bad("CT execution replaces or invents an original dynamic lexical owner"));}
             scopes.push(scope.owner.clone());
         }
-        view.dyn_declarations=self.dyn_declarations.values().map(|row|(*row).clone()).collect();
+        view.dyn_declarations=frozen_declarations;
         let mut originals=BTreeSet::new();
         for definition in &raw.definitions {
             b.spend(1)?;

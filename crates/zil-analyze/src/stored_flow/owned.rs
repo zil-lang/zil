@@ -552,7 +552,7 @@ pub(super) fn owning_head_description(
     ordinary_value(module, actual, b)
 }
 
-pub(super) fn instruction(
+pub(in crate) fn instruction(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,

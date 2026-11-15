@@ -250,8 +250,8 @@ pub(super) fn scoped_declaration(module:&TypedModule,declaration:&DynDeclaration
     let owner=if module.semantic.is_some(){Some(crate::dynamic_witness::semantic_external::original_scope(module,declaration.id,b)?.id)}else{None};
     declaration_at(declaration,owner,b)
 }
-pub(super) fn program_declaration(program:&SemanticModule,declaration:&DynDeclaration,b:&mut Budget)->Check<()> {
-    let owner=crate::dynamic_witness::semantic_external::original_program_scope(program,declaration.id,b)?;
+pub(super) fn program_declaration(program:&SemanticModule,declarations:&[DynDeclaration],declaration:&DynDeclaration,b:&mut Budget)->Check<()> {
+    let owner=crate::dynamic_witness::semantic_external::original_program_scope(program,declarations,declaration.id,b)?;
     declaration_in_scope(declaration,owner,b)
 }
 pub(super) fn declaration_in_scope(declaration:&DynDeclaration,owner:&SemanticDefinition,b:&mut Budget)->Check<()> {
