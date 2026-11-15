@@ -5,6 +5,7 @@ use zil_base::NodeId;
 
 mod abstract_calls;
 mod body_equivalence;
+mod borrow_roles;
 pub(super) mod borrow_places;
 mod buffers;
 mod capabilities;
@@ -149,7 +150,14 @@ pub(super) enum LocalAnchor {
     Pattern(u32),
 }
 #[derive(Clone)]
+struct ViewSelection {
+    occurrence: Term,
+    upper: Option<Term>,
+    selected: Term,
+}
+#[derive(Clone)]
 struct Borrow {
+    role: Option<ViewSelection>,
     anchor: Option<LocalAnchor>,
     expression: Option<NodeId>,
     index: Option<NodeId>,
@@ -251,6 +259,7 @@ pub(super) struct Checked {
     string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
+    view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -272,7 +281,7 @@ struct Solver<'a, 'i> {
     loops: Vec<loops::LoopFrame>,
     trait_state: traits::State,
     capture_state: captures::CaptureState,
-    receiving: Vec<Term>,
+    receiving: Vec<(SemanticDefinitionId, NodeId, Term)>,
     field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
     nominal_declaration: Option<SemanticDefinitionId>,
 }
@@ -1509,7 +1518,7 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
-        Self::push(&mut self.receiving, expected, b)?;
+        Self::push(&mut self.receiving, (frame.definition, value.id, expected), b)?;
         let result = self.expression(frame, value, b, depth);
         self.receiving
             .pop()
@@ -1625,8 +1634,11 @@ impl Solver<'_, '_> {
                         self.term(Kind::Tuple(terms), b)?
                     }
                 }
-                CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
-                    self.expression(frame, value, b, depth + 1)?
+                CoreExprKind::Group(inner) | CoreExprKind::CompileTime(inner) => {
+                    match self.receiving_for(frame, value.id, b)? {
+                        Some(expected) => self.expression_expected(frame, inner, expected, b, depth + 1)?,
+                        None => self.expression(frame, inner, b, depth + 1)?,
+                    }
                 }
                 CoreExprKind::Try(value) => {
                     let value = self.expression(frame, value, b, depth + 1)?;
@@ -1691,8 +1703,8 @@ impl Solver<'_, '_> {
                     output
                 }
                 CoreExprKind::Ascribed { ty, value } => {
-                    let actual = self.expression(frame, value, b, depth + 1)?;
                     let expected = self.recipe(frame, ty, b, depth + 1)?;
+                    let actual = self.expression_expected(frame, value, expected, b, depth + 1)?;
                     self.unify(actual, expected, depth + 1, b)?;
                     expected
                 }
@@ -1762,6 +1774,17 @@ impl Solver<'_, '_> {
                     }
                     let inner = place.inner;
                     let source_life = place.source_life;
+                    let row = self.borrow_occurrence(frame.definition, value.id, b)?;
+                    let occurrence = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+                    self.remember_view_upper(frame.definition, row, source_life, b)?;
+                    let wanted = match self.receiving_for(frame, value.id, b)? {
+                        Some(expected) => match self.state.arena[self.type_root(expected, b)?] {
+                            Kind::Address { life, inner: expected, .. } => { self.unify(inner, expected, depth + 1, b)?; Some(life) },
+                            _ => None,
+                        },
+                        None => None,
+                    };
+                    let life = self.select_view_life(frame, occurrence, source_life, wanted, b, depth + 1)?;
                     b.lookup(self.state.borrows.len(), WORK)?;
                     if self
                         .state
@@ -1769,6 +1792,7 @@ impl Solver<'_, '_> {
                         .insert(
                             (frame.definition, value.id),
                             Borrow {
+                                role: Some(ViewSelection { occurrence, upper: source_life, selected: life }),
                                 anchor: place.anchor,
                                 expression: place.expression,
                                 index: place.index,
@@ -1785,11 +1809,6 @@ impl Solver<'_, '_> {
                             "original borrow occurrence has competing source binders",
                         ));
                     }
-                    let row = self.borrow_occurrence(frame.definition, value.id, b)?;
-                    let life = match source_life {
-                        Some(life) => life,
-                        None => self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?,
-                    };
                     self.term(
                         Kind::Address {
                             mutable: *op == UnaryOp::BorrowMut,
@@ -3863,6 +3882,7 @@ pub(super) fn check(
             string_literals: BTreeMap::new(),
             return_injections: BTreeMap::new(),
             dyn_creations: BTreeMap::new(),
+            view_uppers: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -5017,6 +5037,13 @@ impl Checked {
                     }
                     b.spend(source.path.len(), WORK)?;
                     found = Some(borrow_places::Source {
+                        role: source.role.as_ref().map(|role| -> CompileResult<_> {
+                            Ok((
+                                self.life_value(role.occurrence, context, inventory, b, 0)?,
+                                role.upper.map(|upper| self.life_value(upper, context, inventory, b, 0)).transpose()?,
+                                self.life_value(role.selected, context, inventory, b, 0)?,
+                            ))
+                        }).transpose()?,
                         anchor: source.anchor,
                         expression: source.expression,
                         index: source.index,

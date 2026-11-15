@@ -44,7 +44,7 @@ impl Solver<'_, '_> {
                     self.recipe(frame, element, b, depth + 1)?
                 }
                 [] => {
-                    let receiving = self.receiving.last().copied();
+                    let receiving = self.receiving_for(frame, node, b)?;
                     let mut selected = None;
                     if let Some(receiving) = receiving {
                         let mut root = self.type_root(receiving, b)?;

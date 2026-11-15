@@ -201,6 +201,14 @@ impl Solver<'_, '_> {
     }
     /// Source Name expressions denote the original address value. Reborrowing
     /// it for one call does not consume that reference or equate a new SSA head.
+    pub(super) fn borrowed_argument_expected(
+        &mut self, frame: &mut Frame, value: &SemanticOriginalExpr, expected: Term, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Term> {
+        Self::push(&mut self.receiving, (frame.definition, value.id, expected), b)?;
+        let result = self.borrowed_argument(frame, value, b, depth);
+        self.receiving.pop().ok_or_else(|| fail("original borrowed argument loses its exact receiving frame"))?;
+        result
+    }
     pub(super) fn borrowed_argument(
         &mut self,
         frame: &mut Frame,
@@ -212,7 +220,14 @@ impl Solver<'_, '_> {
         if let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } =
             &value.kind
         {
-            let term = self.borrowed_argument(frame, inner, b, depth + 1)?;
+            let wanted = match &value.kind {
+                CoreExprKind::Ascribed { ty, .. } => Some(self.recipe(frame, ty, b, depth + 1)?),
+                _ => self.receiving_for(frame, value.id, b)?,
+            };
+            let term = match wanted {
+                Some(expected) => self.borrowed_argument_expected(frame, inner, expected, b, depth + 1)?,
+                None => self.borrowed_argument(frame, inner, b, depth + 1)?,
+            };
             if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
                 let expected = self.recipe(frame, ty, b, depth + 1)?;
                 self.unify(term, expected, depth + 1, b)?;
@@ -282,7 +297,7 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let expected_root = self.type_root(expected, b)?;
-        if let Kind::Desc { inner: payload, .. } = self.state.arena[expected_root]
+        if let Kind::Desc { life: wanted_life, inner: payload } = self.state.arena[expected_root]
             && let Some(place) = self.place(frame, value, false, b, depth + 1)?
             && let Kind::Wrapped(Wrapper::Managed, actual_payload) =
                 self.state.arena[self.type_root(place.selected, b)?]
@@ -298,11 +313,11 @@ impl Solver<'_, '_> {
             })?;
             let _ = anchor;
             let described =
-                self.describe_argument(frame, value, &place, place.selected, b, depth + 1)?;
+                self.describe_argument_role(frame, value, &place, place.selected, Some(wanted_life), b, depth + 1)?;
             return self.unify(described, expected, depth + 1, b);
         }
         let actual = if matches!(self.state.arena[expected_root], Kind::Address { .. }) {
-            self.borrowed_argument(frame, value, b, depth + 1)?
+            self.borrowed_argument_expected(frame, value, expected, b, depth + 1)?
         } else {
             self.expression_expected(frame, value, expected, b, depth + 1)?
         };

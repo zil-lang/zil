@@ -108,6 +108,7 @@ impl Checked {
                 .map(|source| -> CompileResult<borrow_places::Source> {
                     b.spend(source.path.len(), WORK)?;
                     Ok(borrow_places::Source {
+                        role: None,
                         anchor: source.anchor,
                         expression: source.expression,
                         index: source.index,

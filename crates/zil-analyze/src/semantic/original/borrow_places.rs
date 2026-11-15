@@ -17,6 +17,7 @@ pub(super) struct Place {
 }
 
 pub(in crate::semantic) struct Source {
+    pub role: Option<(crate::semantic::value::Class, Option<crate::semantic::value::Class>, crate::semantic::value::Class)>,
     pub anchor: Option<LocalAnchor>,
     pub expression: Option<NodeId>,
     pub index: Option<NodeId>,

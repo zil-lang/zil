@@ -31,6 +31,11 @@ impl Checked {
             };
             b.spend(source.path.len(), WORK)?;
             let source = descriptions::Source {
+                role: (
+                    self.life_value(source.role.occurrence, context, inventory, b, 0)?,
+                    source.role.upper.map(|upper| self.life_value(upper, context, inventory, b, 0)).transpose()?,
+                    self.life_value(source.role.selected, context, inventory, b, 0)?,
+                ),
                 anchor: source.anchor,
                 root: self.value(source.root, context, program, inventory, b, 0)?,
                 source: self.value(source.source, context, program, inventory, b, 0)?,

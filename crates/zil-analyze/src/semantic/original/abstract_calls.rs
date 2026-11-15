@@ -231,6 +231,7 @@ impl Solver<'_, '_> {
                 subject: root,
                 receiver: local,
                 place: Some(Borrow {
+                    role: None,
                     anchor: place.anchor,
                     expression: place.expression,
                     index: place.index,
@@ -414,6 +415,7 @@ impl Checked {
                 .map(|source| -> CompileResult<borrow_places::Source> {
                     b.spend(source.path.len(), WORK)?;
                     Ok(borrow_places::Source {
+                        role: None,
                         anchor: source.anchor,
                         expression: source.expression,
                         index: source.index,

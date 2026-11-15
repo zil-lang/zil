@@ -89,6 +89,17 @@ impl Solver<'_, '_> {
         if frame.expressions.insert(operand.id, inner).is_some() {
             return Err(fail("original range place node is reused"));
         }
+        let ordinal = self.borrow_occurrence(frame.definition, node, b)?;
+        let occurrence = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+        self.remember_view_upper(frame.definition, ordinal, source_life, b)?;
+        let wanted = match self.receiving_for(frame, node, b)? {
+            Some(expected) => match self.state.arena[self.type_root(expected, b)?] {
+                Kind::Address { life, inner: expected, .. } => { self.unify(inner, expected, depth + 1, b)?; Some(life) },
+                _ => None,
+            },
+            None => None,
+        };
+        let life = self.select_view_life(frame, occurrence, source_life, wanted, b, depth + 1)?;
         b.lookup(self.state.borrows.len(), WORK)?;
         if self
             .state
@@ -96,6 +107,7 @@ impl Solver<'_, '_> {
             .insert(
                 (frame.definition, node),
                 Borrow {
+                    role: Some(ViewSelection { occurrence, upper: source_life, selected: life }),
                     anchor: place.anchor,
                     expression: place.expression,
                     index: place.index,
@@ -114,11 +126,6 @@ impl Solver<'_, '_> {
         {
             return Err(fail("original range borrow has competing backing places"));
         }
-        let ordinal = self.borrow_occurrence(frame.definition, node, b)?;
-        let life = match source_life {
-            Some(life) => life,
-            None => self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?,
-        };
         self.term(
             Kind::Address {
                 mutable,

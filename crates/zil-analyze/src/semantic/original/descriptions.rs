@@ -3,6 +3,7 @@
 //! permission to an unrelated same-typed resource.
 use super::*;
 pub(super) struct Description {
+    pub(super) role: ViewSelection,
     pub(super) anchor: LocalAnchor,
     pub(super) root: Term,
     pub(super) path: Vec<u32>,
@@ -10,6 +11,7 @@ pub(super) struct Description {
     pub(super) output: Term,
 }
 pub(in crate::semantic) struct Source {
+    pub(in crate::semantic) role: (crate::semantic::value::Class, Option<crate::semantic::value::Class>, crate::semantic::value::Class),
     pub(in crate::semantic) anchor: LocalAnchor,
     pub(in crate::semantic) root: crate::semantic::value::Value,
     pub(in crate::semantic) path: Vec<u32>,
@@ -23,6 +25,19 @@ impl Solver<'_, '_> {
         value: &SemanticOriginalExpr,
         place: &places::Place,
         source: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.describe_argument_role(frame, value, place, source, None, b, depth)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn describe_argument_role(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        place: &places::Place,
+        source: Term,
+        wanted: Option<Term>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
@@ -47,7 +62,10 @@ impl Solver<'_, '_> {
                 }
                 errors
             })?;
-        let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+        let occurrence = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+        let upper = self.description_upper(place, source, b, depth + 1)?;
+        self.remember_view_upper(frame.definition, row, upper, b)?;
+        let life = self.select_view_life(frame, occurrence, upper, wanted, b, depth + 1)?;
         let output = self.term(
             Kind::Desc {
                 life,
@@ -64,6 +82,7 @@ impl Solver<'_, '_> {
             .insert(
                 (frame.definition, value.id),
                 Description {
+                    role: ViewSelection { occurrence, upper, selected: life },
                     anchor,
                     root: place.root,
                     path,
