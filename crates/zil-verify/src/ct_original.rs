@@ -11,6 +11,7 @@ mod builtins;
 mod calls;
 mod declarations;
 mod expressions;
+mod memory;
 mod statements;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -327,7 +328,15 @@ impl<'a, 'l, 'm> Checker<'a, 'l, 'm> {
                 Some(span),
             ));
         }
-        self.meter.charge(n, Some(span))
+        self.meter.charge(n, Some(span)).map_err(|errors| {
+            errors.into_iter().next().unwrap_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Ct,
+                    "CT original verification meter rejected without a diagnostic",
+                    Some(span),
+                )
+            })
+        })
     }
     fn alloc(&mut self, n: usize, span: Span) -> R<()> {
         self.work(n.saturating_add(1), span)?;
@@ -362,7 +371,7 @@ impl<'a, 'l, 'm> Checker<'a, 'l, 'm> {
         if a != b {
             return Err(bad(
                 span,
-                format!("original CT types differ: {a:?} and {b:?}"),
+                "original CT types differ in the complete declaration context",
             ));
         }
         Ok(())
@@ -410,26 +419,7 @@ impl<'a, 'l, 'm> Checker<'a, 'l, 'm> {
         Ok(())
     }
     fn environment_copy(&mut self, env: &Env, span: Span) -> R<Env> {
-        self.work(env.values.len().saturating_add(env.generics.len()), span)?;
-        for (name, actual) in &env.generics {
-            self.work(name.len(), span)?;
-            match actual {
-                Actual::Type(ty) => self.type_work(ty, span, 0)?,
-                Actual::Const(value) => self.constant_work(value, span, 0)?,
-                _ => {}
-            }
-        }
-        for binding in &env.values {
-            self.work(binding.name.len(), span)?;
-            self.type_work(&binding.value.ty, span, 0)?;
-            if let Some(value) = &binding.value.constant {
-                self.constant_work(value, span, 0)?;
-            }
-            if let Some(ty) = &binding.value.represented {
-                self.type_work(ty, span, 0)?;
-            }
-        }
-        Ok(env.clone())
+        self.copy_environment(env, span)
     }
     fn collect(
         &mut self,
@@ -499,16 +489,12 @@ impl<'a, 'l, 'm> Checker<'a, 'l, 'm> {
                     .iter()
                     .find(|row| row.alias == alias)
                     .ok_or_else(|| bad(item.span, "CT import has no actual frozen edge"))?;
-                let builtin = match import
-                    .path
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-                    .as_slice()
-                {
-                    ["std", "meta"] => Some(CtOriginalImportTarget::Meta),
-                    ["std", "syntax"] => Some(CtOriginalImportTarget::Syntax),
-                    _ => None,
+                let builtin = if import.path.as_slice() == ["std", "meta"] {
+                    Some(CtOriginalImportTarget::Meta)
+                } else if import.path.as_slice() == ["std", "syntax"] {
+                    Some(CtOriginalImportTarget::Syntax)
+                } else {
+                    None
                 };
                 if builtin.is_some_and(|expected| edge.target != expected)
                     || builtin.is_none()
@@ -584,7 +570,7 @@ impl<'a, 'l, 'm> Checker<'a, 'l, 'm> {
                 .ok_or_else(|| {
                     bad(
                         span,
-                        format!("unknown original CT declaration {}", path.join("::")),
+                        "unknown original CT declaration in the complete source scope",
                     )
                 })?;
             if matches.len() != 1 {

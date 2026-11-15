@@ -81,11 +81,11 @@ impl<'a> Checker<'a, '_, '_> {
                     }
                     Err(_) => return Ok(false),
                 };
-                if !active.insert(id) {
-                    return Ok(false);
-                }
                 if let Some(result) = self.ct_catalogue.get(&id) {
                     return Ok(*result);
+                }
+                if !active.insert(id) {
+                    return Ok(false);
                 }
                 let row = self.declarations[id];
                 let target = self.selection_environment(id, depth + 1)?;
@@ -189,7 +189,11 @@ impl<'a> Checker<'a, '_, '_> {
                 formal.name.len() + std::mem::size_of::<Actual>(),
                 formal.span,
             )?;
-            env.generics.push((formal.name.clone(), actual));
+            self.append(
+                &mut env.generics,
+                (formal.name.clone(), actual),
+                formal.span,
+            )?;
         }
         Ok(env)
     }
@@ -245,7 +249,11 @@ impl<'a> Checker<'a, '_, '_> {
                     })
                 }
             };
-            env.generics.push((parameter.name.clone(), actual));
+            self.append(
+                &mut env.generics,
+                (parameter.name.clone(), actual),
+                parameter.span,
+            )?;
         }
         Ok(env)
     }
@@ -354,7 +362,7 @@ impl<'a> Checker<'a, '_, '_> {
         self.checking.insert(id);
         let result = (|| {
             let (parameters, result) = self.signature(id, &mut env, depth + 1)?;
-            env.result = result.clone();
+            env.result = self.duplicate_type(&result, function.span)?;
             let mut names = BTreeSet::new();
             for (parameter, ty) in function.params.iter().zip(parameters) {
                 if !names.insert(parameter.name.as_str())
@@ -370,11 +378,15 @@ impl<'a> Checker<'a, '_, '_> {
                     parameter.name.len() + std::mem::size_of::<Binding>(),
                     parameter.span,
                 )?;
-                env.values.push(Binding {
-                    name: parameter.name.clone(),
-                    value: Value::typed(ty),
-                    mutable: false,
-                });
+                self.append(
+                    &mut env.values,
+                    Binding {
+                        name: parameter.name.clone(),
+                        value: Value::typed(ty),
+                        mutable: false,
+                    },
+                    parameter.span,
+                )?;
             }
             match &function.body {
                 s::FunctionBody::Block(body) => {
@@ -409,7 +421,7 @@ impl<'a> Checker<'a, '_, '_> {
                 "CT signature has no actual function definition",
             ));
         };
-        let mut parameters = vec![];
+        let mut parameters = self.vector(function.params.len(), function.span)?;
         for parameter in &function.params {
             let ty = self.ty(env, &parameter.ty, false, depth + 1)?;
             self.copy_type(&ty, parameter.span, depth + 1)?;
@@ -438,7 +450,7 @@ impl<'a> Checker<'a, '_, '_> {
             ));
         }
         let mut target = self.environment(id, depth + 1)?;
-        let mut actuals = vec![];
+        let mut actuals = self.vector(parameters.len(), span)?;
         for (parameter, arg) in parameters.iter().zip(args) {
             self.step(span, depth)?;
             let actual = match (&parameter.kind, arg) {
@@ -481,7 +493,7 @@ impl<'a> Checker<'a, '_, '_> {
                     let Some(Actual::Const(value)) = caller.actual(&path[0]) else {
                         return Err(bad(span, "CT Const actual has no original scalar binder"));
                     };
-                    let value = value.clone();
+                    let value = self.duplicate_constant(value, span)?;
                     let expected = self.ty(&mut target, carrier, false, depth + 1)?;
                     self.same(&expected, &Ty::Scalar(value.carrier), span)?;
                     Actual::Const(value)
@@ -499,7 +511,7 @@ impl<'a> Checker<'a, '_, '_> {
                 .rev()
                 .find(|(n, _)| n == &parameter.name)
             {
-                *slot = actual.clone();
+                *slot = self.duplicate_actual(&actual, span)?;
             }
             actuals.push(actual);
         }
@@ -527,7 +539,7 @@ impl<'a> Checker<'a, '_, '_> {
                 .rev()
                 .find(|(name, _)| name == &parameter.name)
             {
-                *slot = actual.clone();
+                *slot = self.duplicate_actual(&actual, span)?;
             }
         }
         Ok(env)
@@ -546,7 +558,7 @@ impl<'a> Checker<'a, '_, '_> {
                 if fields.is_empty() {
                     unit()
                 } else {
-                    let mut values = vec![];
+                    let mut values = self.vector(fields.len(), source.span)?;
                     for field in fields {
                         values.push(self.ty(env, field, represented, depth + 1)?);
                     }
@@ -558,15 +570,19 @@ impl<'a> Checker<'a, '_, '_> {
                 for field in fields {
                     let ty = self.ty(env, field, represented, depth + 1)?;
                     match ty {
-                        Ty::Sum(ts) => values.extend(ts),
-                        ty => values.push(ty),
+                        Ty::Sum(ts) => {
+                            for ty in ts {
+                                self.append(&mut values, ty, source.span)?;
+                            }
+                        }
+                        ty => self.append(&mut values, ty, source.span)?,
                     }
                 }
                 let mut unique = vec![];
                 for ty in values {
                     self.work(unique.len() + 1, source.span)?;
                     if !unique.contains(&ty) {
-                        unique.push(ty);
+                        self.append(&mut unique, ty, source.span)?;
                     }
                 }
                 if unique.len() < 2 {
@@ -576,10 +592,26 @@ impl<'a> Checker<'a, '_, '_> {
                     ));
                 }
                 self.work(unique.len().saturating_mul(unique.len()), source.span)?;
-                unique.sort_by_cached_key(|ty| format!("{ty:?}"));
+                // Canonicalize the complete private identities without a
+                // Debug-string allocation or a spelling-based identity key.
+                for i in 1..unique.len() {
+                    let mut j = i;
+                    while j > 0 {
+                        self.type_work(&unique[j - 1], source.span, 0)?;
+                        self.type_work(&unique[j], source.span, 0)?;
+                        if super::memory::type_order(&unique[j - 1], &unique[j])
+                            != std::cmp::Ordering::Greater
+                        {
+                            break;
+                        }
+                        unique.swap(j - 1, j);
+                        j -= 1;
+                    }
+                }
                 Ty::Sum(unique)
             }
             s::TypeKind::Array { element, length } => {
+                self.alloc(std::mem::size_of::<Ty>(), source.span)?;
                 let element = Box::new(self.ty(env, element, represented, depth + 1)?);
                 match length {
                     Some(expr) => {
@@ -609,168 +641,15 @@ impl<'a> Checker<'a, '_, '_> {
                 }
             }
             s::TypeKind::Named { path, args } => {
-                if path.len() == 1 {
-                    if path[0] == "Self" && args.is_empty() {
-                        if let Some(host) = self.declarations[env.owner].parent {
-                            if matches!(
-                                self.declarations[host].item.kind,
-                                s::ItemKind::Aggregate(_) | s::ItemKind::Enum(_)
-                            ) {
-                                let mut offset = 0;
-                                let mut parent = self.declarations[host].parent;
-                                while let Some(id) = parent {
-                                    self.work(1, source.span)?;
-                                    offset += formals(self.declarations[id].item).len();
-                                    parent = self.declarations[id].parent;
-                                }
-                                let actuals = env
-                                    .generics
-                                    .iter()
-                                    .skip(offset)
-                                    .take(formals(self.declarations[host].item).len())
-                                    .map(|(_, actual)| actual.clone())
-                                    .collect();
-                                return Ok(Ty::Nominal(host, actuals));
-                            }
-                        }
-                    }
-                    if let Some(actual) = env.actual(&path[0]) {
-                        if !args.is_empty() {
-                            return Err(bad(
-                                source.span,
-                                "original CT formal is not a type constructor",
-                            ));
-                        }
-                        let Actual::Type(ty) = actual else {
-                            return Err(bad(
-                                source.span,
-                                "original CT type selects a Const or Life formal",
-                            ));
-                        };
-                        return Ok(ty.clone());
-                    }
-                    if let Some(scalar) = scalar(&path[0]) {
-                        if !args.is_empty() {
-                            return Err(bad(source.span, "CT scalar takes no type arguments"));
-                        }
-                        return Ok(Ty::Scalar(scalar));
-                    }
-                    if let Some(meta) = meta(&path[0]) {
-                        if !args.is_empty() {
-                            return Err(bad(source.span, "CT atom takes no type arguments"));
-                        }
-                        return Ok(Ty::Meta(meta));
-                    }
-                    if path[0] == "Syntax" {
-                        let [
-                            s::GenericArg::Type(s::TypeRef {
-                                kind: s::TypeKind::Named { path, args },
-                                ..
-                            }),
-                        ] = args.as_slice()
-                        else {
-                            return Err(bad(
-                                source.span,
-                                "CT Syntax requires its exact original category",
-                            ));
-                        };
-                        if path.len() != 1 || !args.is_empty() {
-                            return Err(bad(source.span, "invalid CT syntax category"));
-                        }
-                        return Ok(Ty::Meta(Meta::Syntax(
-                            category(&path[0])
-                                .ok_or_else(|| bad(source.span, "unknown CT syntax category"))?,
-                        )));
-                    }
-                    if path[0] == "List" {
-                        let [s::GenericArg::Type(inner)] = args.as_slice() else {
-                            return Err(bad(source.span, "CT List requires one Type argument"));
-                        };
-                        return Ok(Ty::List(Box::new(self.ty(
-                            env,
-                            inner,
-                            represented,
-                            depth + 1,
-                        )?)));
-                    }
-                    if represented {
-                        let runtime = match path[0].as_str() {
-                            "ByteBuffer" => Some("ByteBuffer"),
-                            "ForeignHandle" => Some("ForeignHandle"),
-                            "CWideString" => Some("CWideString"),
-                            "Managed" => Some("Managed"),
-                            "Desc" => Some("Desc"),
-                            "Store" => Some("Store"),
-                            _ => None,
-                        };
-                        if let Some(runtime) = runtime {
-                            let count = if matches!(runtime, "Managed" | "Desc" | "Store") {
-                                1
-                            } else {
-                                0
-                            };
-                            if args.len() != count {
-                                return Err(bad(
-                                    source.span,
-                                    "runtime Type constructor has incomplete arguments",
-                                ));
-                            }
-                            let mut values = vec![];
-                            for arg in args {
-                                let s::GenericArg::Type(ty) = arg else {
-                                    return Err(bad(
-                                        source.span,
-                                        "runtime Type constructor expects Type",
-                                    ));
-                                };
-                                values.push(Actual::Type(self.ty(env, ty, true, depth + 1)?));
-                            }
-                            return Ok(Ty::Runtime(runtime, values));
-                        }
-                    }
-                }
-                let id = self.resolve(env, path, source.span)?;
-                let row = self.declarations[id];
-                match &row.item.kind {
-                    s::ItemKind::TypeAlias(alias) => {
-                        if !self.aliases.insert(id) {
-                            return Err(bad(source.span, "cyclic original CT type alias"));
-                        }
-                        let result = (|| {
-                            let actuals = self.actuals(env, id, args, depth + 1, source.span)?;
-                            let mut target =
-                                self.instantiate(id, &actuals, depth + 1, source.span)?;
-                            self.ty(
-                                &mut target,
-                                alias.value.as_ref().ok_or_else(|| {
-                                    bad(source.span, "CT type alias has no original value")
-                                })?,
-                                represented,
-                                depth + 1,
-                            )
-                        })();
-                        self.aliases.remove(&id);
-                        return result;
-                    }
-                    s::ItemKind::Aggregate(_) | s::ItemKind::Enum(_) => {
-                        let actuals = self.actuals(env, id, args, depth + 1, source.span)?;
-                        self.copy_bounds(id, env, depth + 1)?;
-                        Ty::Nominal(id, actuals)
-                    }
-                    _ => {
-                        return Err(bad(
-                            source.span,
-                            "CT type path selects a non-type declaration",
-                        ));
-                    }
-                }
+                self.named_type(env, path, args, represented, source.span, depth + 1)?
             }
             s::TypeKind::Reference {
                 mutable,
                 inner,
                 lifetime,
             } if represented => {
-                let mut args = vec![Actual::Type(self.ty(env, inner, true, depth + 1)?)];
+                let mut args = self.vector(2, source.span)?;
+                args.push(Actual::Type(self.ty(env, inner, true, depth + 1)?));
                 if let Some(name) = lifetime {
                     let Some(Actual::Life(binder)) = env.actual(name) else {
                         return Err(bad(
@@ -783,7 +662,7 @@ impl<'a> Checker<'a, '_, '_> {
                 Ty::Runtime(if *mutable { "AddressMut" } else { "Address" }, args)
             }
             s::TypeKind::Function { params, result } if represented => {
-                let mut args = vec![];
+                let mut args = self.vector(params.len().saturating_add(1), source.span)?;
                 for ty in params {
                     args.push(Actual::Type(self.ty(env, ty, true, depth + 1)?));
                 }
@@ -792,24 +671,30 @@ impl<'a> Checker<'a, '_, '_> {
             }
             s::TypeKind::ForLifetime { lifetime, inner } if represented => {
                 let ordinal=env.generics.iter().filter(|(_,actual)|matches!(actual,Actual::Life(binder)if binder.owner==usize::MAX)).count();
-                env.generics.push((
-                    lifetime.clone(),
-                    Actual::Life(Binder {
-                        owner: usize::MAX,
-                        ordinal,
-                    }),
-                ));
+                self.alloc(lifetime.len(), source.span)?;
+                self.append(
+                    &mut env.generics,
+                    (
+                        lifetime.clone(),
+                        Actual::Life(Binder {
+                            owner: usize::MAX,
+                            ordinal,
+                        }),
+                    ),
+                    source.span,
+                )?;
                 let result = self.ty(env, inner, true, depth + 1);
                 env.generics.pop();
-                Ty::Runtime("ForLife", vec![Actual::Type(result?)])
+                let mut args = self.vector(1, source.span)?;
+                args.push(Actual::Type(result?));
+                Ty::Runtime("ForLife", args)
             }
-            s::TypeKind::Error { error, result } if represented => Ty::Runtime(
-                "ErrorUnion",
-                vec![
-                    Actual::Type(self.ty(env, error, true, depth + 1)?),
-                    Actual::Type(self.ty(env, result, true, depth + 1)?),
-                ],
-            ),
+            s::TypeKind::Error { error, result } if represented => {
+                let mut args = self.vector(2, source.span)?;
+                args.push(Actual::Type(self.ty(env, error, true, depth + 1)?));
+                args.push(Actual::Type(self.ty(env, result, true, depth + 1)?));
+                Ty::Runtime("ErrorUnion", args)
+            }
             s::TypeKind::MetaEval(expr) | s::TypeKind::MetaSplice(expr) => {
                 let value = self.expression(env, expr, Some(&Ty::Meta(Meta::Type)), depth + 1)?;
                 value.represented.ok_or_else(|| {
@@ -836,6 +721,24 @@ impl<'a> Checker<'a, '_, '_> {
             }
         };
         Ok(ty)
+    }
+    pub(super) fn variant_fields<'v>(
+        &mut self,
+        fields: &'v s::VariantFields,
+        span: Span,
+    ) -> R<Vec<&'v s::TypeRef>> {
+        let count = match fields {
+            s::VariantFields::Unit => 0,
+            s::VariantFields::Tuple(fields) => fields.len(),
+            s::VariantFields::Record(fields) => fields.len(),
+        };
+        let mut output = self.vector(count, span)?;
+        match fields {
+            s::VariantFields::Unit => {}
+            s::VariantFields::Tuple(fields) => output.extend(fields.iter().map(|field| &field.ty)),
+            s::VariantFields::Record(fields) => output.extend(fields.iter().map(|field| &field.ty)),
+        };
+        Ok(output)
     }
     pub(super) fn copy_argument(&mut self, ty: &Ty, span: Span, depth: usize) -> R<()> {
         self.step(span, depth)?;
@@ -1026,5 +929,158 @@ impl<'a> Checker<'a, '_, '_> {
                 "a represented runtime Type cannot become a pure CT value",
             )),
         }
+    }
+    pub(super) fn named_type(
+        &mut self,
+        env: &mut Env,
+        path: &[String],
+        args: &[s::GenericArg],
+        represented: bool,
+        span: Span,
+        depth: usize,
+    ) -> R<Ty> {
+        self.step(span, depth)?;
+        let result = {
+            if path.len() == 1 {
+                if path[0] == "Self" && args.is_empty() {
+                    if let Some(host) = self.declarations[env.owner].parent {
+                        if matches!(
+                            self.declarations[host].item.kind,
+                            s::ItemKind::Aggregate(_) | s::ItemKind::Enum(_)
+                        ) {
+                            let mut offset = 0;
+                            let mut parent = self.declarations[host].parent;
+                            while let Some(id) = parent {
+                                self.work(1, span)?;
+                                offset += formals(self.declarations[id].item).len();
+                                parent = self.declarations[id].parent;
+                            }
+                            let count = formals(self.declarations[host].item).len();
+                            let mut actuals = self.vector(count, span)?;
+                            for (_, actual) in env.generics.iter().skip(offset).take(count) {
+                                actuals.push(self.duplicate_actual(&actual, span)?);
+                            }
+                            return Ok(Ty::Nominal(host, actuals));
+                        }
+                    }
+                }
+                if let Some(actual) = env.actual(&path[0]) {
+                    if !args.is_empty() {
+                        return Err(bad(span, "original CT formal is not a type constructor"));
+                    }
+                    let Actual::Type(ty) = actual else {
+                        return Err(bad(span, "original CT type selects a Const or Life formal"));
+                    };
+                    return self.duplicate_type(ty, span);
+                }
+                if let Some(scalar) = scalar(&path[0]) {
+                    if !args.is_empty() {
+                        return Err(bad(span, "CT scalar takes no type arguments"));
+                    }
+                    return Ok(Ty::Scalar(scalar));
+                }
+                if let Some(meta) = meta(&path[0]) {
+                    if !args.is_empty() {
+                        return Err(bad(span, "CT atom takes no type arguments"));
+                    }
+                    return Ok(Ty::Meta(meta));
+                }
+                if path[0] == "Syntax" {
+                    let [
+                        s::GenericArg::Type(s::TypeRef {
+                            kind: s::TypeKind::Named { path, args },
+                            ..
+                        }),
+                    ] = args
+                    else {
+                        return Err(bad(span, "CT Syntax requires its exact original category"));
+                    };
+                    if path.len() != 1 || !args.is_empty() {
+                        return Err(bad(span, "invalid CT syntax category"));
+                    }
+                    return Ok(Ty::Meta(Meta::Syntax(
+                        category(&path[0])
+                            .ok_or_else(|| bad(span, "unknown CT syntax category"))?,
+                    )));
+                }
+                if path[0] == "List" {
+                    let [s::GenericArg::Type(inner)] = args else {
+                        return Err(bad(span, "CT List requires one Type argument"));
+                    };
+                    self.alloc(std::mem::size_of::<Ty>(), span)?;
+                    return Ok(Ty::List(Box::new(self.ty(
+                        env,
+                        inner,
+                        represented,
+                        depth + 1,
+                    )?)));
+                }
+                if represented {
+                    let runtime = match path[0].as_str() {
+                        "ByteBuffer" => Some("ByteBuffer"),
+                        "ForeignHandle" => Some("ForeignHandle"),
+                        "CWideString" => Some("CWideString"),
+                        "Managed" => Some("Managed"),
+                        "Desc" => Some("Desc"),
+                        "Store" => Some("Store"),
+                        _ => None,
+                    };
+                    if let Some(runtime) = runtime {
+                        let count = if matches!(runtime, "Managed" | "Desc" | "Store") {
+                            1
+                        } else {
+                            0
+                        };
+                        if args.len() != count {
+                            return Err(bad(
+                                span,
+                                "runtime Type constructor has incomplete arguments",
+                            ));
+                        }
+                        let mut values = self.vector(args.len(), span)?;
+                        for arg in args {
+                            let s::GenericArg::Type(ty) = arg else {
+                                return Err(bad(span, "runtime Type constructor expects Type"));
+                            };
+                            values.push(Actual::Type(self.ty(env, ty, true, depth + 1)?));
+                        }
+                        return Ok(Ty::Runtime(runtime, values));
+                    }
+                }
+            }
+            let id = self.resolve(env, path, span)?;
+            let row = self.declarations[id];
+            match &row.item.kind {
+                s::ItemKind::TypeAlias(alias) => {
+                    if !self.aliases.insert(id) {
+                        return Err(bad(span, "cyclic original CT type alias"));
+                    }
+                    let result = (|| {
+                        let actuals = self.actuals(env, id, args, depth + 1, span)?;
+                        let mut target = self.instantiate(id, &actuals, depth + 1, span)?;
+                        self.ty(
+                            &mut target,
+                            alias
+                                .value
+                                .as_ref()
+                                .ok_or_else(|| bad(span, "CT type alias has no original value"))?,
+                            represented,
+                            depth + 1,
+                        )
+                    })();
+                    self.aliases.remove(&id);
+                    return result;
+                }
+                s::ItemKind::Aggregate(_) | s::ItemKind::Enum(_) => {
+                    let actuals = self.actuals(env, id, args, depth + 1, span)?;
+                    self.copy_bounds(id, env, depth + 1)?;
+                    Ty::Nominal(id, actuals)
+                }
+                _ => {
+                    return Err(bad(span, "CT type path selects a non-type declaration"));
+                }
+            }
+        };
+        Ok(result)
     }
 }

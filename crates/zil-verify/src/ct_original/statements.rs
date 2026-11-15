@@ -37,7 +37,7 @@ impl Checker<'_, '_, '_> {
                         "original CT return cannot leave a block expression",
                     ));
                 }
-                let expected = env.result.clone();
+                let expected = self.duplicate_type(&env.result, span)?;
                 if let Some(expr) = expr {
                     self.expression(env, expr, Some(&expected), depth + 1)?;
                 } else {
@@ -46,11 +46,15 @@ impl Checker<'_, '_, '_> {
                 Ok(true)
             }
             s::StmtKind::Yield(expr) => {
-                let Some(expected) = env.yielding.clone() else {
-                    return Err(bad(
-                        span,
-                        "CT yield has no enclosing original block expression",
-                    ));
+                let expected = match &env.yielding {
+                    Some(Some(ty)) => Some(self.duplicate_type(ty, span)?),
+                    Some(None) => None,
+                    None => {
+                        return Err(bad(
+                            span,
+                            "CT yield has no enclosing original block expression",
+                        ));
+                    }
                 };
                 let value = self.expression(env, expr, expected.as_ref(), depth + 1)?;
                 if expected.is_none() {
@@ -168,19 +172,15 @@ impl Checker<'_, '_, '_> {
                         s::PatternKind::Name(_) | s::PatternKind::Wildcard => catch_all = true,
                         s::PatternKind::Constructor { path, .. } => {
                             if matches!(value.ty, Ty::Sum(_)) {
-                                let source = s::TypeRef {
-                                    kind: s::TypeKind::Named {
-                                        path: path.clone(),
-                                        args: vec![],
-                                    },
-                                    span: arm.span,
-                                };
-                                covered_types.push(self.ty(
+                                let ty = self.named_type(
                                     &mut branch,
-                                    &source,
+                                    path,
+                                    &[],
                                     false,
+                                    arm.span,
                                     depth + 1,
-                                )?);
+                                )?;
+                                self.append(&mut covered_types, ty, arm.span)?;
                             }
                             if let Some(name) = path.last() {
                                 variants.insert(name.as_str());
@@ -242,6 +242,7 @@ impl Checker<'_, '_, '_> {
                     };
                     self.merge_yield(env, &yes, span)?;
                     self.merge_yield(env, &no, span)?;
+                    self.invalidate_values(env);
                     Ok(a && b)
                 }
                 s::MetaStatement::For {
@@ -254,6 +255,7 @@ impl Checker<'_, '_, '_> {
                     self.bind(&mut inner, binding, Value::typed(element), false, span)?;
                     self.block(&mut inner, body, depth + 1)?;
                     self.merge_yield(env, &inner, span)?;
+                    self.invalidate_values(env);
                     Ok(false)
                 }
                 s::MetaStatement::Emit(expr) => {
@@ -280,7 +282,11 @@ impl Checker<'_, '_, '_> {
         depth: usize,
     ) -> R<Value> {
         let mut inner = self.environment_copy(env, block.span)?;
-        inner.yielding = Some(expected.cloned());
+        inner.yielding = Some(
+            expected
+                .map(|ty| self.duplicate_type(ty, block.span))
+                .transpose()?,
+        );
         inner.loops = 0;
         let terminal = self.block(&mut inner, block, depth + 1)?;
         if !terminal {
@@ -302,7 +308,7 @@ impl Checker<'_, '_, '_> {
             if let Some(Some(expected)) = &target.yielding {
                 self.same(ty, expected, span)?;
             } else if target.yielding.is_some() {
-                target.yielding = Some(Some(ty.clone()));
+                target.yielding = Some(Some(self.duplicate_type(ty, span)?));
             }
         }
         Ok(())
@@ -363,11 +369,15 @@ impl Checker<'_, '_, '_> {
         span: Span,
     ) -> R<()> {
         self.alloc(name.len() + std::mem::size_of::<Binding>(), span)?;
-        env.values.push(Binding {
-            name: name.to_owned(),
-            value,
-            mutable,
-        });
+        self.append(
+            &mut env.values,
+            Binding {
+                name: name.to_owned(),
+                value,
+                mutable,
+            },
+            span,
+        )?;
         Ok(())
     }
     fn pattern(
@@ -382,15 +392,14 @@ impl Checker<'_, '_, '_> {
         let span = pattern.span;
         self.pattern_names(pattern, &mut BTreeSet::new(), depth + 1)?;
         match &pattern.kind {
-            s::PatternKind::Name(name) => self.bind(env, name, value.clone(), mutable, span),
+            s::PatternKind::Name(name) => {
+                let value = self.duplicate_value(value, span)?;
+                self.bind(env, name, value, mutable, span)
+            }
             s::PatternKind::Wildcard => Ok(()),
             s::PatternKind::Literal(literal) => {
-                let expression = s::Expr {
-                    kind: s::ExprKind::Literal(literal.clone()),
-                    span,
-                    semantic: Default::default(),
-                };
-                self.expression(env, &expression, Some(&value.ty), depth + 1)?;
+                let literal = self.literal(literal, Some(&value.ty), false, span)?;
+                self.same(&literal.ty, &value.ty, span)?;
                 Ok(())
             }
             s::PatternKind::Tuple(patterns) => {
@@ -404,20 +413,14 @@ impl Checker<'_, '_, '_> {
                     ));
                 }
                 for (pattern, ty) in patterns.iter().zip(fields) {
-                    self.pattern(env, pattern, &Value::typed(ty.clone()), mutable, depth + 1)?;
+                    let ty = self.duplicate_type(ty, span)?;
+                    self.pattern(env, pattern, &Value::typed(ty), mutable, depth + 1)?;
                 }
                 Ok(())
             }
             s::PatternKind::Constructor { path, arguments } => {
                 if let Ty::Sum(members) = &value.ty {
-                    let source = s::TypeRef {
-                        kind: s::TypeKind::Named {
-                            path: path.clone(),
-                            args: vec![],
-                        },
-                        span,
-                    };
-                    let member = self.ty(env, &source, false, depth + 1)?;
+                    let member = self.named_type(env, path, &[], false, span, depth + 1)?;
                     if members.iter().filter(|ty| **ty == member).count() != 1
                         || arguments.len() != 1
                     {
@@ -461,15 +464,7 @@ impl Checker<'_, '_, '_> {
                     .iter()
                     .find(|row| row.name == *name)
                     .ok_or_else(|| bad(span, "CT variant pattern names no original variant"))?;
-                let fields = match &variant.fields {
-                    s::VariantFields::Unit => vec![],
-                    s::VariantFields::Tuple(fields) => {
-                        fields.iter().map(|field| &field.ty).collect()
-                    }
-                    s::VariantFields::Record(fields) => {
-                        fields.iter().map(|field| &field.ty).collect()
-                    }
-                };
+                let fields = self.variant_fields(&variant.fields, span)?;
                 if fields.len() != arguments.len() {
                     return Err(bad(
                         span,
@@ -490,14 +485,7 @@ impl Checker<'_, '_, '_> {
                         "CT record pattern has no original nominal identity",
                     ));
                 };
-                let source = s::TypeRef {
-                    kind: s::TypeKind::Named {
-                        path: path.clone(),
-                        args: vec![],
-                    },
-                    span,
-                };
-                let expected = self.ty(env, &source, false, depth + 1)?;
+                let expected = self.named_type(env, path, &[], false, span, depth + 1)?;
                 if expected != value.ty {
                     return Err(bad(
                         span,
@@ -571,7 +559,7 @@ impl Checker<'_, '_, '_> {
                 if !binding.mutable {
                     return Err(bad(expr.span, "original CT assignment target is immutable"));
                 }
-                Ok(binding.value.ty.clone())
+                self.duplicate_type(&binding.value.ty, expr.span)
             }
             s::ExprKind::Group(inner) => self.mutable_place(env, inner, depth + 1),
             s::ExprKind::Member { object, member } => {
@@ -580,8 +568,8 @@ impl Checker<'_, '_, '_> {
                     s::MemberName::Name(name) => self.field(env, &ty, name, depth + 1, expr.span),
                     s::MemberName::TupleIndex(index) => match ty {
                         Ty::Tuple(fields) => fields
-                            .get(*index as usize)
-                            .cloned()
+                            .into_iter()
+                            .nth(*index as usize)
                             .ok_or_else(|| bad(expr.span, "CT write tuple ordinal is absent")),
                         _ => Err(bad(expr.span, "CT projected write is not a tuple")),
                     },

@@ -16,14 +16,14 @@ impl Checker<'_, '_, '_> {
         if args.iter().any(|arg| arg.spread) {
             return Err(bad(span, "CT standard Call cannot spread an argument"));
         }
-        let mut values = vec![];
+        let mut values = self.vector(args.len(), span)?;
         for arg in args {
             values.push(self.expression(env, &arg.value, None, depth + 1)?);
         }
-        let types = values
-            .iter()
-            .map(|value| value.ty.clone())
-            .collect::<Vec<_>>();
+        let mut types = self.vector(values.len(), span)?;
+        for value in &values {
+            types.push(self.duplicate_type(&value.ty, span)?);
+        }
         let type_ty = Ty::Meta(Meta::Type);
         let text = Ty::Meta(Meta::Text);
         let tree = Ty::Meta(Meta::TokenTree);
@@ -66,8 +66,11 @@ impl Checker<'_, '_, '_> {
                     constructor == "Array" && i == 1 || value.represented.is_some()
                 }) {
                     let represented = if constructor == "Array" {
-                        match (&values[0].represented, &values[1].constant) {
-                            (Some(element), Some(length)) => {
+                        let mut arguments = values.into_iter();
+                        let element = arguments.next().and_then(|value| value.represented);
+                        let length = arguments.next().and_then(|value| value.constant);
+                        match (element, length) {
+                            (Some(element), Some(mut length)) => {
                                 if matches!(length.term,Term::Integer(n)if n<0||n>u32::MAX as i128)
                                 {
                                     return Err(bad(
@@ -75,40 +78,29 @@ impl Checker<'_, '_, '_> {
                                         "CT Type array cardinality is outside the finite domain",
                                     ));
                                 }
-                                Some(Ty::Array(
-                                    Box::new(element.clone()),
-                                    Constant {
-                                        carrier: Scalar::Usize,
-                                        term: length.term.clone(),
-                                    },
-                                ))
+                                length.carrier = Scalar::Usize;
+                                self.alloc(std::mem::size_of::<Ty>(), span)?;
+                                Some(Ty::Array(Box::new(element), length))
                             }
                             _ => None,
                         }
-                    } else {
-                        let mut actuals = vec![];
-                        for value in &values {
-                            actuals.push(Actual::Type(
-                                value.represented.clone().ok_or_else(signature_error)?,
-                            ));
+                    } else if constructor == "Tuple" {
+                        let mut fields = self.vector(values.len(), span)?;
+                        for value in values {
+                            fields.push(value.represented.ok_or_else(signature_error)?);
                         }
-                        if constructor == "Tuple" {
-                            Some(if actuals.is_empty() {
-                                unit()
-                            } else {
-                                Ty::Tuple(
-                                    actuals
-                                        .into_iter()
-                                        .map(|arg| match arg {
-                                            Actual::Type(ty) => ty,
-                                            _ => unreachable!(),
-                                        })
-                                        .collect(),
-                                )
-                            })
+                        Some(if fields.is_empty() {
+                            unit()
                         } else {
-                            Some(Ty::Runtime(constructor, actuals))
+                            Ty::Tuple(fields)
+                        })
+                    } else {
+                        let mut actuals = self.vector(values.len(), span)?;
+                        for value in values {
+                            actuals
+                                .push(Actual::Type(value.represented.ok_or_else(signature_error)?));
                         }
+                        Some(Ty::Runtime(constructor, actuals))
                     };
                     result.represented = represented;
                 }
@@ -131,6 +123,7 @@ impl Checker<'_, '_, '_> {
                     if !all_types || types.is_empty() {
                         return Err(signature_error());
                     }
+                    self.alloc(std::mem::size_of::<Ty>(), span)?;
                     Ty::List(Box::new(Ty::Meta(Meta::Impl)))
                 }
                 "layout" => {
@@ -143,6 +136,7 @@ impl Checker<'_, '_, '_> {
                     if !exact(&[Ty::Meta(Meta::Shape)]) {
                         return Err(signature_error());
                     }
+                    self.alloc(std::mem::size_of::<Ty>(), span)?;
                     Ty::List(Box::new(Ty::Meta(Meta::Field)))
                 }
                 "complete" | "shape_complete" => {
@@ -185,6 +179,7 @@ impl Checker<'_, '_, '_> {
                     if !exact(&[Ty::Meta(Meta::Layout)]) {
                         return Err(signature_error());
                     }
+                    self.alloc(std::mem::size_of::<Ty>(), span)?;
                     Ty::List(Box::new(Ty::Scalar(Scalar::I64)))
                 }
                 _ => {

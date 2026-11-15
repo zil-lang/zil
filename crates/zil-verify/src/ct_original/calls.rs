@@ -34,7 +34,8 @@ impl Checker<'_, '_, '_> {
                 let host = self.resolve(env, &path, span)?;
                 let actuals = self.actuals(env, host, arguments, depth + 1, span)?;
                 host_actuals = Some((host, actuals));
-                path.push(member.clone());
+                self.alloc(member.len(), span)?;
+                self.append(&mut path, member.clone(), span)?;
                 path
             } else {
                 self.path(callee, depth + 1)?
@@ -74,6 +75,9 @@ impl Checker<'_, '_, '_> {
                         span,
                         "CT scalar conversion has a nonnumeric original operand",
                     ));
+                }
+                if value.constant.is_some() {
+                    self.alloc(std::mem::size_of::<Constant>(), span)?;
                 }
                 let constant = value.constant.map(|value| Constant {
                     carrier: target,
@@ -120,7 +124,11 @@ impl Checker<'_, '_, '_> {
                 let nominal = host_actuals
                     .as_ref()
                     .filter(|(id, _)| *id == owner)
-                    .map(|(_, actuals)| Ty::Nominal(owner, actuals.clone()))
+                    .map(|(_, actuals)| {
+                        self.duplicate_actuals(actuals, span)
+                            .map(|actuals| Ty::Nominal(owner, actuals))
+                    })
+                    .transpose()?
                     .or(known);
                 return self.variant(
                     env,
@@ -163,7 +171,7 @@ impl Checker<'_, '_, '_> {
                     .iter_mut()
                     .find(|(name, _)| name == &parameter.name)
                 {
-                    *slot = actual.clone();
+                    *slot = self.duplicate_actual(actual, span)?;
                 }
             }
         }
@@ -191,7 +199,7 @@ impl Checker<'_, '_, '_> {
                 let value = self.expression(env, &arg.value, hint, depth + 1)?;
                 self.infer(pattern, &value.ty, id, &mut solutions, depth + 1, arg.span)?;
             }
-            let mut actuals = vec![];
+            let mut actuals = self.vector(function.generics.len(), span)?;
             for ordinal in 0..function.generics.len() {
                 let value = solutions.remove(&ordinal).ok_or_else(|| {
                     bad(
@@ -211,7 +219,7 @@ impl Checker<'_, '_, '_> {
                 .rev()
                 .find(|(name, _)| name == &parameter.name)
             {
-                *slot = actual.clone();
+                *slot = self.duplicate_actual(actual, span)?;
             }
         }
         let (parameters, result) = self.signature(id, &mut target, depth + 1)?;
@@ -244,14 +252,7 @@ impl Checker<'_, '_, '_> {
                 },
             ))),
             s::ItemKind::TypeAlias(_) => {
-                let source = s::TypeRef {
-                    kind: s::TypeKind::Named {
-                        path: path.to_vec(),
-                        args: vec![],
-                    },
-                    span,
-                };
-                let ty = self.ty(env, &source, false, depth + 1)?;
+                let ty = self.named_type(env, path, &[], false, span, depth + 1)?;
                 if let Ty::Nominal(owner, _) = &ty {
                     if matches!(self.declarations[*owner].item.kind, s::ItemKind::Enum(_)) {
                         return Ok(Some((*owner, Some(ty))));
@@ -290,7 +291,9 @@ impl Checker<'_, '_, '_> {
                 if let Some(old) = solutions.get(&binder.ordinal) {
                     return self.same(old, actual, span);
                 }
-                solutions.insert(binder.ordinal, actual.clone());
+                self.alloc(std::mem::size_of::<(usize, Ty)>().saturating_mul(2), span)?;
+                let actual = self.duplicate_type(actual, span)?;
+                solutions.insert(binder.ordinal, actual);
                 return Ok(());
             }
         }
@@ -349,7 +352,7 @@ impl Checker<'_, '_, '_> {
                     "CT enum context has another original declaration",
                 ));
             }
-            actuals.clone()
+            self.duplicate_actuals(actuals, span)?
         } else if enumeration.generics.is_empty() {
             vec![]
         } else {
@@ -358,7 +361,7 @@ impl Checker<'_, '_, '_> {
                 "CT generic variant needs its exact original nominal arguments",
             ));
         };
-        let ty = Ty::Nominal(id, actuals.clone());
+        let ty = Ty::Nominal(id, self.duplicate_actuals(&actuals, span)?);
         self.copy_type(&ty, span, depth + 1)?;
         let variant = enumeration
             .variants
@@ -366,11 +369,7 @@ impl Checker<'_, '_, '_> {
             .find(|row| row.name == name)
             .ok_or_else(|| bad(span, "CT constructor names no original enum variant"))?;
         let mut target = self.instantiate(id, &actuals, depth + 1, span)?;
-        let fields = match &variant.fields {
-            s::VariantFields::Unit => vec![],
-            s::VariantFields::Tuple(fields) => fields.iter().map(|field| &field.ty).collect(),
-            s::VariantFields::Record(fields) => fields.iter().map(|field| &field.ty).collect(),
-        };
+        let fields = self.variant_fields(&variant.fields, span)?;
         if fields.len() != arguments.len() || arguments.iter().any(|arg| arg.spread) {
             return Err(bad(
                 span,

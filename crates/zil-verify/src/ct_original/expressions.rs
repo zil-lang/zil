@@ -18,10 +18,8 @@ impl Checker<'_, '_, '_> {
             s::ExprKind::ReceiverMember(name) => {
                 let receiver = env
                     .value("self")
-                    .ok_or_else(|| bad(span, "original CT receiver field has no self parameter"))?
-                    .value
-                    .ty
-                    .clone();
+                    .ok_or_else(|| bad(span, "original CT receiver field has no self parameter"))?;
+                let receiver = self.duplicate_type(&receiver.value.ty, span)?;
                 Value::typed(self.field(env, &receiver, name, depth + 1, span)?)
             }
             s::ExprKind::Group(inner) | s::ExprKind::MetaEval(inner) => {
@@ -39,7 +37,7 @@ impl Checker<'_, '_, '_> {
                 if context.is_some_and(|types| types.len() != fields.len()) {
                     return Err(bad(span, "original CT tuple arity differs from its type"));
                 }
-                let mut types = vec![];
+                let mut types = self.vector(fields.len(), span)?;
                 for (i, field) in fields.iter().enumerate() {
                     types.push(
                         self.expression(env, field, context.and_then(|ts| ts.get(i)), depth + 1)?
@@ -57,7 +55,9 @@ impl Checker<'_, '_, '_> {
                     Some(Ty::Array(inner, _) | Ty::List(inner)) => Some(inner.as_ref()),
                     _ => None,
                 };
-                let mut element = context.cloned();
+                let mut element = context
+                    .map(|ty| self.duplicate_type(ty, span))
+                    .transpose()?;
                 for field in fields {
                     let value = self.expression(env, field, element.as_ref(), depth + 1)?;
                     if element.is_none() {
@@ -66,6 +66,7 @@ impl Checker<'_, '_, '_> {
                 }
                 let element = element
                     .ok_or_else(|| bad(span, "empty CT array has no original element type"))?;
+                self.alloc(std::mem::size_of::<Ty>(), span)?;
                 Value::typed(if matches!(expected, Some(Ty::List(_))) {
                     Ty::List(Box::new(element))
                 } else {
@@ -114,7 +115,10 @@ impl Checker<'_, '_, '_> {
                         ),
                         (Term::Integer(n), s::UnaryOp::BitNot) => Term::Integer(!n),
                         (Term::Bool(v), s::UnaryOp::Not) => Term::Bool(!v),
-                        _ => Term::Unary(*op, Box::new(constant)),
+                        _ => {
+                            self.alloc(std::mem::size_of::<Constant>(), span)?;
+                            Term::Unary(*op, Box::new(constant))
+                        }
                     };
                     value.constant = Some(Constant { carrier, term });
                 }
@@ -174,19 +178,18 @@ impl Checker<'_, '_, '_> {
                         "original CT binary operator is not justified by its own scalar carrier",
                     ));
                 }
-                let ty = if comparison {
-                    bool_ty()
-                } else {
-                    left.ty.clone()
-                };
+                let ty = if comparison { bool_ty() } else { left.ty };
                 let mut result = Value::typed(ty);
                 if let (Some(left), Some(right)) = (left.constant, right.constant) {
                     let Ty::Scalar(carrier) = result.ty else {
                         return Err(bad(span, "CT constant result has no scalar carrier"));
                     };
-                    let term = self
-                        .constant_binary(*op, &left, &right, span)?
-                        .unwrap_or_else(|| Term::Binary(*op, Box::new(left), Box::new(right)));
+                    let term = if let Some(term) = self.constant_binary(*op, &left, &right, span)? {
+                        term
+                    } else {
+                        self.alloc(std::mem::size_of::<Constant>().saturating_mul(2), span)?;
+                        Term::Binary(*op, Box::new(left), Box::new(right))
+                    };
                     result.constant = Some(Constant { carrier, term });
                 }
                 result
@@ -230,11 +233,11 @@ impl Checker<'_, '_, '_> {
                             ));
                         };
                         fields
-                            .get(
+                            .into_iter()
+                            .nth(
                                 usize::try_from(index)
                                     .map_err(|_| bad(span, "negative CT tuple index"))?,
                             )
-                            .cloned()
                             .ok_or_else(|| bad(span, "CT tuple index is out of range"))?
                     }
                     _ => {
@@ -274,10 +277,12 @@ impl Checker<'_, '_, '_> {
                 let object = self.expression(env, object, None, depth + 1)?;
                 let ty = match member {
                     s::MemberName::TupleIndex(index) => match &object.ty {
-                        Ty::Tuple(fields) => fields
-                            .get(*index as usize)
-                            .cloned()
-                            .ok_or_else(|| bad(span, "CT tuple member ordinal is absent"))?,
+                        Ty::Tuple(fields) => {
+                            let ty = fields
+                                .get(*index as usize)
+                                .ok_or_else(|| bad(span, "CT tuple member ordinal is absent"))?;
+                            self.duplicate_type(ty, span)?
+                        }
                         _ => return Err(bad(span, "CT tuple member needs a tuple receiver")),
                     },
                     s::MemberName::Name(name) => {
@@ -317,14 +322,7 @@ impl Checker<'_, '_, '_> {
                         "CT Type application selects a non-type declaration",
                     ));
                 }
-                let source = s::TypeRef {
-                    kind: s::TypeKind::Named {
-                        path,
-                        args: arguments.clone(),
-                    },
-                    span,
-                };
-                Value::type_value(self.ty(env, &source, true, depth + 1)?)
+                Value::type_value(self.named_type(env, &path, arguments, true, span, depth + 1)?)
             }
             s::ExprKind::Record { ty, base, fields } => {
                 let nominal = match ty {
@@ -334,12 +332,15 @@ impl Checker<'_, '_, '_> {
                         .ok_or_else(|| {
                             bad(span, "CT record constructor has no original nominal Type")
                         })?,
-                    None => expected.cloned().ok_or_else(|| {
-                        bad(
-                            span,
-                            "CT record initializer has no original nominal context",
-                        )
-                    })?,
+                    None => self.duplicate_type(
+                        expected.ok_or_else(|| {
+                            bad(
+                                span,
+                                "CT record initializer has no original nominal context",
+                            )
+                        })?,
+                        span,
+                    )?,
                 };
                 let Ty::Nominal(id, actuals) = &nominal else {
                     return Err(bad(span, "CT record initializer is not a nominal product"));
@@ -432,7 +433,7 @@ impl Checker<'_, '_, '_> {
                 if &value.ty != expected {
                     let matches = members.iter().filter(|member| **member == value.ty).count();
                     if matches == 1 {
-                        return Ok(Value::typed(expected.clone()));
+                        return Ok(Value::typed(self.duplicate_type(expected, span)?));
                     }
                 }
             }
@@ -455,8 +456,8 @@ impl Checker<'_, '_, '_> {
                 let Some(mut path) = self.path(object, depth + 1)? else {
                     return Ok(None);
                 };
-                self.alloc(name.len() + std::mem::size_of::<String>(), expr.span)?;
-                path.push(name.clone());
+                self.alloc(name.len(), expr.span)?;
+                self.append(&mut path, name.clone(), expr.span)?;
                 Ok(Some(path))
             }
             _ => Ok(None),
@@ -466,14 +467,14 @@ impl Checker<'_, '_, '_> {
         if path.len() == 1 {
             if let Some(binding) = env.value(&path[0]) {
                 self.type_work(&binding.value.ty, span, depth + 1)?;
-                return Ok(binding.value.clone());
+                return self.duplicate_value(&binding.value, span);
             }
             if let Some(actual) = env.actual(&path[0]) {
                 return match actual {
-                    Actual::Type(ty) => Ok(Value::type_value(ty.clone())),
+                    Actual::Type(ty) => Ok(Value::type_value(self.duplicate_type(ty, span)?)),
                     Actual::Const(value) => Ok(Value {
                         ty: Ty::Scalar(value.carrier),
-                        constant: Some(value.clone()),
+                        constant: Some(self.duplicate_constant(value, span)?),
                         represented: None,
                     }),
                     Actual::Life(_) => Err(bad(span, "a CT Life formal is not a value or Type")),
@@ -486,29 +487,22 @@ impl Checker<'_, '_, '_> {
                 path[0].as_str(),
                 "ByteBuffer" | "ForeignHandle" | "CWideString"
             ) {
-                let ty = s::TypeRef {
-                    kind: s::TypeKind::Named {
-                        path: path.to_vec(),
-                        args: vec![],
-                    },
+                return Ok(Value::type_value(self.named_type(
+                    env,
+                    path,
+                    &[],
+                    true,
                     span,
-                };
-                return Ok(Value::type_value(self.ty(env, &ty, true, depth + 1)?));
+                    depth + 1,
+                )?));
             }
         }
         let id = self.resolve(env, path, span)?;
         let row = self.declarations[id];
         match &row.item.kind {
-            s::ItemKind::Aggregate(_) | s::ItemKind::Enum(_) | s::ItemKind::TypeAlias(_) => {
-                let ty = s::TypeRef {
-                    kind: s::TypeKind::Named {
-                        path: path.to_vec(),
-                        args: vec![],
-                    },
-                    span,
-                };
-                Ok(Value::type_value(self.ty(env, &ty, true, depth + 1)?))
-            }
+            s::ItemKind::Aggregate(_) | s::ItemKind::Enum(_) | s::ItemKind::TypeAlias(_) => Ok(
+                Value::type_value(self.named_type(env, path, &[], true, span, depth + 1)?),
+            ),
             s::ItemKind::Const(constant) => {
                 if !self.constants.insert(id) {
                     return Err(bad(span, "cyclic original CT constant"));
@@ -548,12 +542,14 @@ impl Checker<'_, '_, '_> {
         self.step(expr.span, depth)?;
         Ok(match &expr.kind {
             s::ExprKind::Name(name) => {
-                env.value(name)
-                    .map(|b| b.value.ty.clone())
-                    .or_else(|| match env.actual(name) {
+                if let Some(binding) = env.value(name) {
+                    Some(self.duplicate_type(&binding.value.ty, expr.span)?)
+                } else {
+                    match env.actual(name) {
                         Some(Actual::Const(c)) => Some(Ty::Scalar(c.carrier)),
                         _ => None,
-                    })
+                    }
+                }
             }
             s::ExprKind::Group(inner) | s::ExprKind::Unary { operand: inner, .. } => {
                 return self.operand_hint(env, inner, depth + 1);
@@ -578,7 +574,7 @@ impl Checker<'_, '_, '_> {
         .find(|suffix| text.ends_with(suffix))
         .and_then(scalar)
     }
-    fn literal(
+    pub(super) fn literal(
         &mut self,
         literal: &s::Literal,
         expected: Option<&Ty>,
@@ -605,11 +601,19 @@ impl Checker<'_, '_, '_> {
                     Some(Ty::Scalar(s)) if !matches!(s, Scalar::Bool | Scalar::Unit) => Some(*s),
                     _ => None,
                 };
-                let carrier = self.suffix(text).or(context).unwrap_or(if floating {
-                    Scalar::F64
-                } else {
-                    Scalar::I32
-                });
+                let carrier = self
+                    .suffix(text)
+                    .or_else(|| {
+                        if text.starts_with("@bits:f32:") {
+                            Some(Scalar::F32)
+                        } else if text.starts_with("@bits:f64:") {
+                            Some(Scalar::F64)
+                        } else {
+                            None
+                        }
+                    })
+                    .or(context)
+                    .unwrap_or(if floating { Scalar::F64 } else { Scalar::I32 });
                 if floating != matches!(carrier, Scalar::F32 | Scalar::F64) {
                     return Err(bad(
                         span,
@@ -642,6 +646,7 @@ impl Checker<'_, '_, '_> {
                         return Err(bad(span, "original CT generated float has another width"));
                     }
                     let value = if negative { value.negate() } else { value };
+                    self.alloc(26, span)?;
                     Term::Literal(value.generated_spelling())
                 } else {
                     let mut digits = text.as_str();
@@ -653,6 +658,7 @@ impl Checker<'_, '_, '_> {
                             break;
                         }
                     }
+                    self.alloc(digits.len(), span)?;
                     let digits = digits.replace('_', "");
                     let (radix, digits) = if let Some(s) = digits.strip_prefix("0x") {
                         (16, s)
@@ -759,6 +765,12 @@ impl Checker<'_, '_, '_> {
         span: Span,
     ) -> R<Ty> {
         self.step(span, depth)?;
+        if matches!(
+            (ty, name),
+            (Ty::Meta(Meta::Shape), "fields") | (Ty::Meta(Meta::Layout), "field_offsets")
+        ) {
+            self.alloc(std::mem::size_of::<Ty>(), span)?;
+        }
         if let Some(ty) = self.meta_field(ty, name) {
             return Ok(ty);
         }
@@ -793,10 +805,13 @@ impl Checker<'_, '_, '_> {
         self.step(tree.span, depth)?;
         for entry in &tree.children {
             match entry {
-                s::QuoteTokenTreeEntry::Token { text, span } => self.work(text.len() + 1, *span)?,
+                s::QuoteTokenTreeEntry::Token { text, span } => {
+                    self.step(*span, depth + 1)?;
+                    self.work(text.len(), *span)?;
+                }
                 s::QuoteTokenTreeEntry::Tree(tree) => self.quote_tree(tree, holes, depth + 1)?,
                 s::QuoteTokenTreeEntry::Hole { index, span } => {
-                    self.work(1, *span)?;
+                    self.step(*span, depth + 1)?;
                     if *index as usize >= holes {
                         return Err(bad(
                             *span,
