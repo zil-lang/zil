@@ -794,6 +794,64 @@ fn whole_machine_native_history_restore_and_next_private_edit_match_fresh_output
     }
 }
 
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[test]
+fn closed_call_class_policy_switch_cannot_reuse_another_transform_policy() {
+    let directory = TestDirectory::new();
+    let mut options = BuildOptions::new(directory.0.join("call-class-policy"));
+    options.backend = NativeBackend::LlvmApi;
+    options.optimization = Optimization::O2;
+    options.closed_executable = true;
+    options.incremental_o2 = true;
+    options.codegen.units = 2;
+    options.object_cache = Some(directory.0.join("call-class-objects"));
+    options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
+    let mut session = BackendSession::default();
+    for (index, merging) in [
+        FunctionMerging::Disabled,
+        FunctionMerging::Disabled,
+        FunctionMerging::AfterOptimization,
+        FunctionMerging::Disabled,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        options.function_merging = merging;
+        let current = history_fixture(42, 99);
+        let raw = lir(&current);
+        let mut actual = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &options,
+            &|| false,
+            None,
+            Some(&mut session),
+        )
+        .unwrap();
+        actual.commit_object_cache();
+        assert_eq!(
+            session.transformed.as_ref().unwrap().call_classes_enabled,
+            merging == FunctionMerging::Disabled
+        );
+        assert_eq!(session.summary().reused_machine_transforms, index == 1);
+        let ir = fs::read(&actual.llvm_ir).unwrap();
+        let elf = fs::read(&actual.executable).unwrap();
+        let mut fresh = options.clone();
+        fresh.object_cache = None;
+        let reference = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &fresh,
+            &|| false,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(ir, fs::read(reference.llvm_ir).unwrap());
+        assert_eq!(elf, fs::read(reference.executable).unwrap());
+    }
+}
+
 #[test]
 fn machine_product_push_keeps_equal_root_and_patches_only_changed_result_leaves() {
     let limits = Limits::default();

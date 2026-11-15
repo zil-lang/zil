@@ -265,6 +265,9 @@ fn same_products(left: &ScalarProducts, right: &ScalarProducts) -> bool {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TransformProduct {
     pub(crate) input: ScalarIdentity,
+    /// This optional pass depends on flags beyond the raw lowering identity.
+    pub(crate) call_classes_enabled: bool,
+    pub(crate) call_classes: Option<crate::machine_call_classes::Stats>,
     pub(crate) machine: crate::machine_output::MachineOutput,
 }
 #[derive(Clone, Debug)]

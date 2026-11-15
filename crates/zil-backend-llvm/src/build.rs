@@ -118,11 +118,14 @@ pub struct CodegenSummary {
     pub task_abis: Vec<crate::TaskAbiArtifact>,
     pub timings: BackendTimings,
     pub link_tool_identities: crate::InstalledToolIdentitySummary,
+    /// Completed transformed graph: eligible functions, classes, rewritten calls.
+    /// Retained producer properties when backend_work reuses this transform.
+    pub call_classes: Option<(usize, usize, usize)>,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.final_artifact
@@ -141,7 +144,10 @@ impl CodegenSummary {
                 .collect::<Vec<_>>()
                 .join(","),
             self.timings.to_json(),
-            self.link_tool_identities.to_json()
+            self.link_tool_identities.to_json(),
+            self.call_classes.map_or_else(|| "null".into(), |(functions, classes, calls)| format!(
+                "{{\"eligible_functions\":{functions},\"equivalence_classes\":{classes},\"rewritten_calls\":{calls},\"scope\":\"completed transformed graph; retained on transform reuse\"}}"
+            ))
         )
     }
 }
@@ -399,20 +405,29 @@ pub fn build_view_with_cancellation_and_session(
     };
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
-    // input before mutation. Ordinary O2 skips both passes.
+    // input before mutation. Ordinary O2 skips these passes. Closed call classes
+    // additionally require the complete current original-model preflight.
+    let call_classes_enabled = options.closed_executable
+        && options.incremental_o2
+        && options.backend == NativeBackend::LlvmApi
+        && options.optimization == Optimization::O2
+        && options.function_merging == FunctionMerging::Disabled;
     let transform_input = session
         .as_ref()
         .and_then(|session| session.lower.identity());
+    let mut call_classes = None;
     let reused_transform = session
         .as_ref()
         .and_then(|session| session.transformed.as_ref())
         .filter(|cached| {
-            transform_input
-                .as_ref()
-                .is_some_and(|input| crate::incremental::same_identity(&cached.input, input))
+            cached.call_classes_enabled == call_classes_enabled
+                && transform_input
+                    .as_ref()
+                    .is_some_and(|input| crate::incremental::same_identity(&cached.input, input))
         })
         .cloned();
     if let Some(cached) = reused_transform {
+        call_classes = cached.call_classes;
         let fingerprint = machine.fingerprint.clone();
         machine = cached.machine.clone();
         machine.fingerprint = fingerprint;
@@ -424,11 +439,41 @@ pub fn build_view_with_cancellation_and_session(
             let mut flat = machine.to_module();
             crate::machine_checked_add_chain::fold_checked_add_chains(&mut flat);
             crate::machine_scalar::fold_known_leaf_calls(&mut flat, lir);
+            if call_classes_enabled {
+                check_cancelled(cancelled)?;
+                // The class pass reads and stages a complete model. A source
+                // capability or a hash is not its machine admission proof.
+                zil_llvm_api::validate_module(&flat).map_err(api_error)?;
+                let mut protected = std::collections::BTreeSet::from([
+                    "main".to_owned(),
+                    "zil.pe.entry".to_owned(),
+                ]);
+                for function in lir.functions {
+                    let entry = match options.emit.entry {
+                        EntryPoint::Main => function.name == "main",
+                        EntryPoint::ReturnValue(id) | EntryPoint::Test(id) => function.id == id,
+                        EntryPoint::None => false,
+                    };
+                    if entry
+                        || verified.is_task_export(function.id)
+                        || verified.is_suspend(function.id)
+                        || verified.task_worker_ids().contains(&function.id)
+                    {
+                        protected.insert(format!("zil.fn.{}", function.id.0));
+                        protected.insert(format!("zil.fn.{}.lc1", function.id.0));
+                    }
+                }
+                call_classes =
+                    crate::machine_call_classes::canonicalize(&mut flat, &protected, cancelled);
+                check_cancelled(cancelled)?;
+            }
             machine = flat.into();
         }
         if let (Some(session), Some(input)) = (session.as_deref_mut(), transform_input) {
             session.transformed = Some(std::sync::Arc::new(crate::incremental::TransformProduct {
                 input,
+                call_classes_enabled,
+                call_classes,
                 machine: machine.clone(),
             }));
         }
@@ -725,6 +770,13 @@ pub fn build_view_with_cancellation_and_session(
         task_abis,
         timings: BackendTimings::default(),
         link_tool_identities: crate::InstalledToolIdentitySummary::default(),
+        call_classes: call_classes.map(|stats| {
+            (
+                stats.eligible_functions,
+                stats.equivalence_classes,
+                stats.rewritten_calls,
+            )
+        }),
     };
     timings.object_ns += crate::object_cache::elapsed_ns(object_setup_started);
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";

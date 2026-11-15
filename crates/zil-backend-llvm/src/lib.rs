@@ -32,6 +32,7 @@ mod late_closed;
 mod link_cache;
 mod native_link;
 pub use incremental::{BackendSession, BackendSessionSummary};
+mod machine_call_classes;
 mod machine_cgu;
 mod machine_checked_add_chain;
 mod machine_closure_linkage;
