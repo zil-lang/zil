@@ -305,7 +305,7 @@ impl<'a> World<'a, '_> {
             .ok_or_else(|| bad("actual result has no private emission owner"))?;
         self.pay(frame.expressions.len())?;
         let original = self.definition(instance.definition)?;
-        let mut selected = None;
+        let mut selected: Option<SharedType> = None;
         for expression in frame.expressions.values() {
             self.pay(expression.instructions.len())?;
             if expression.value != Some(result)

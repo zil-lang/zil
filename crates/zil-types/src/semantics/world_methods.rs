@@ -603,7 +603,7 @@ fn invocation_inputs(
                 continue;
             }
             crate::dyn_metadata::semantic_operand_snapshot(
-                &parameters[index as usize],
+                parameters[index as usize].as_ref(),
                 world.limits,
                 world.left,
                 1,
