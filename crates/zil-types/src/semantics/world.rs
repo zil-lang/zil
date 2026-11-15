@@ -9,6 +9,8 @@ use std::rc::Rc;
 type SharedType = Rc<SemanticTypeValue>;
 #[path = "world_arguments.rs"]
 mod arguments;
+#[path = "world_borrow_roles.rs"]
+mod borrow_roles;
 #[path = "world_calls.rs"]
 mod calls;
 #[path = "world_capture.rs"]
@@ -1063,7 +1065,7 @@ impl World<'_, '_> {
         block: BlockId,
         instruction: usize,
         edge: SemanticSiteEdge,
-        values: &[Option<SharedType>],
+        values: &mut [Option<SharedType>],
         locals: &[Option<SharedType>],
         declared: &mut BTreeMap<LocalId, SharedType>,
         implicit: &mut BTreeMap<u32, SemanticClassExpr>,
@@ -1099,7 +1101,7 @@ impl World<'_, '_> {
                         expected: recipe_ty,
                     },
                 ) => {
-                    let value = match subject {
+                    let mut value = match subject {
                         SemanticOperand::Value(value) => self.get(values, *value)?,
                         SemanticOperand::Local(local) => self.local(locals, *local)?,
                         SemanticOperand::Parameter(parameter) => self.local(
@@ -1120,6 +1122,28 @@ impl World<'_, '_> {
                     };
                     let original_value = self.ty(instance.id, recipe_ty, Self::type_of(&value)?)?;
                     self.same(instance.id, expected, &original_value, implicit)?;
+                    if let SemanticOperand::Value(operand) = subject
+                        && let Some((adapted, source)) = borrow_roles::apply(
+                            self,
+                            instance,
+                            original,
+                            function,
+                            site,
+                            *operand,
+                            &value,
+                            &original_value,
+                            values,
+                            locals,
+                            implicit,
+                        )?
+                    {
+                        *values
+                            .get_mut(operand.0 as usize)
+                            .ok_or_else(|| bad("projected borrow role has no actual SSA cell"))? =
+                            Some(self.share(&adapted)?);
+                        self.value_role_sources.insert(*operand, source);
+                        value = adapted;
+                    }
                     // Only the original body's exact implicit occurrence can
                     // name a freshly emitted local borrow. A signature input,
                     // Formal or already sealed environment is never unified.
@@ -2027,7 +2051,7 @@ impl World<'_, '_> {
                     block.id,
                     index,
                     SemanticSiteEdge::Before,
-                    &values,
+                    &mut values,
                     &locals,
                     &mut declared,
                     &mut implicit,
@@ -3971,7 +3995,7 @@ impl World<'_, '_> {
                     block.id,
                     index,
                     SemanticSiteEdge::After,
-                    &values,
+                    &mut values,
                     &locals,
                     &mut declared,
                     &mut implicit,
@@ -3985,7 +4009,7 @@ impl World<'_, '_> {
                 block.id,
                 block.instructions.len(),
                 SemanticSiteEdge::Before,
-                &values,
+                &mut values,
                 &locals,
                 &mut declared,
                 &mut implicit,
