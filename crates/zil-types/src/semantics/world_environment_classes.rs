@@ -1,6 +1,7 @@
 //! A sealed class proxy is defined by its original parent-domain source. This
 //! transports class identity only; concrete Type actuals add no Gamma premise,
 //! and a parent's unscoped SSA/local occurrence cannot become a child source.
+use std::collections::BTreeSet;
 use super::*;
 
 fn rebase(world: &mut World<'_, '_>, image: &SemanticClassExpr, hops: u32) -> R<SemanticClassExpr> {
