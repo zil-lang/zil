@@ -852,7 +852,8 @@ pub(crate) fn contract_leaf(
                     .ok_or_else(|| bad("Task nested capture ordinal absent"))?;
             }
             ContractProjection::RetainedPort(ordinal) => {
-                while let Type::Managed(inner) | Type::Desc(inner) = current {
+                while let Type::Managed(inner) | Type::Desc(inner)
+                | Type::Address{inner,..} | Type::BorrowedStorage{storage:inner,..} = current {
                     current = inner;
                 }
                 let shape = match current {

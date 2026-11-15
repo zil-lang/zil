@@ -651,6 +651,7 @@ pub(super) enum TaskLoanAnchor {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct TaskPointerRoot {
     pub(super) base: HoldRoot,
+    pub(super) dynamic: bool,
     pub(super) port: Option<u32>,
     pub(super) carrier: Vec<ContractProjection>,
 }
@@ -2765,6 +2766,9 @@ fn seed(
                 p.option_variants = option_address::Variants::parameter(position as u32, b)?;
             }
         }
+        if b.task_sources() {
+            p.enum_variants = enum_address::Variants::full_parameter(position as u32,ty,b)?;
+        }
         dyn_ports::seed(
             module,
             ty,
@@ -3213,9 +3217,18 @@ fn step(
     };
     let dyn_capture_updates =
         dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
+    let task_tags = enum_address::tags::transfer(f,i,state,values,b)?;
+    let mut unpacked_tags=Vec::new();
+    if b.task_sources() && let InstructionKind::UnpackTuple{local,fields}=&i.kind {
+        b.spend(fields.len())?;
+        for(index,field)in fields.iter().enumerate(){
+            unpacked_tags.push((*field,state.locals[local.0 as usize].enum_variants
+                .project(&[PlaceProjection::Field(index as u32)],b)?));
+        }
+    }
     let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
-    let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
+    let task_transfer = task_address::transfer(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let failure_view = failure_projection(f, i, b)?;
     let failure_wrapper = task_failure::wrapper(f, i, state, values, b)?;
     let unpack_failure = failure_unpack(f, i, b)?;
@@ -4320,6 +4333,10 @@ static_dependency: StaticProvenance::NotStatic,
             ));
         }
     }
+    if let Some(tags) = task_tags {
+        out.enum_variants = tags;
+    }
+    for(local,tags)in unpacked_tags {state.locals[local.0 as usize].enum_variants=tags;}
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
     }

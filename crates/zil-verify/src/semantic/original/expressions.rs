@@ -4,6 +4,24 @@ impl CheckedOriginal {
     pub(super) fn expression(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             let id=env.current()?;self.remember_names(env,SemanticOriginalNode::Expression(expression.id),bindings,b)?;
+            if !matches!(expression.kind,CoreExprKind::If{..}|CoreExprKind::Sequence{..}) {
+                if let Some(expected)=expected {
+                    let sum=self.resolved(expected,b)?;
+                    if let Ty::ErrorUnion(error,result)=&sum {
+                        // Elaborating a contextual injection never equates
+                        // the payload with the sum or one arm with the other.
+                        let payload=self.expression(module,context,expression,env,bindings,None,active,b)?;
+                        if self.same(&payload,&sum,b)?{return Ok(payload);}
+                        let failed=self.same(&payload,error,b)?;
+                        let succeeded=self.same(&payload,result,b)?;
+                        if failed==succeeded{return Err(bad("original implicit error injection has no unique complete payload arm"));}
+                        b.spend(2)?;
+                        self.injections.insert((id,expression.id),(failed,payload));
+                        self.expressions.insert((id,expression.id),sum.clone());
+                        return Ok(sum);
+                    }
+                }
+            }
             let actual=match &expression.kind{
                 CoreExprKind::Unit=>Ty::Atom(Type::Unit),
                 CoreExprKind::Bool(_)=>Ty::Atom(Type::Bool),

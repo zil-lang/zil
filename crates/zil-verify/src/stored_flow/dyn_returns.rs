@@ -120,6 +120,7 @@ pub(super) fn complete(
     b: &mut Budget,
 ) -> Check<bool> {
     for (path, _) in dyn_ports::shape(module, ty, b)? {
+        if enum_address::inactive_path(&payload.enum_variants,ty,&path,b)?{continue;}
         if dyn_ports::find(&payload.dyn_ports, &path, b)?
             .is_none_or(|at| !payload.dyn_ports.0[at].1.known)
         {
@@ -141,6 +142,10 @@ pub(super) fn summarize(
         return Ok(());
     }
     for (path, _) in dyn_ports::shape(module, &f.return_type, b)? {
+        if enum_address::inactive_path(&payload.enum_variants,&f.return_type,&path,b)?{
+            dyn_ports::insert(&mut summary.dyn_ports,&path,&dyn_ports::Port{known:true,..dyn_ports::Port::default()},b)?;
+            continue;
+        }
         let Some(at) = dyn_ports::find(&payload.dyn_ports, &path, b)? else {
             summary.complete = false;
             continue;

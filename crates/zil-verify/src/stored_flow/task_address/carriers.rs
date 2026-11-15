@@ -39,6 +39,10 @@ pub(super) fn endpoint<'a>(
                     .get(*index as usize)
                     .ok_or_else(|| err("Task tuple carrier field absent"))?
             }
+            (Type::Array{element,length},ContractProjection::Place(PlaceProjection::Field(index))) if index<length => element,
+            (Type::Enum{variants,..},ContractProjection::Place(PlaceProjection::Variant(index))) => variants
+                .get(index.variant as usize).and_then(|(_,fields)|fields.get(index.index as usize))
+                .ok_or_else(||err("Task carrier variant/field is absent"))?,
             (
                 Type::Package { fields, .. } | Type::Record { fields, .. },
                 ContractProjection::Place(PlaceProjection::Field(index)),
@@ -65,7 +69,8 @@ pub(super) fn endpoint<'a>(
             }
         };
     }
-    while let Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } = current {
+    while let Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. }
+    | Type::BorrowedStorage{storage:inner,..} = current {
         b.spend(1)?;
         current = inner;
     }
@@ -130,6 +135,24 @@ pub(super) fn paths(
                         index as u32,
                     )));
                     pending.push((ty, child));
+                }
+            }
+            Type::Enum{variants,..}=>{
+                for(variant,(_,fields))in variants.iter().enumerate(){
+                    for(index,ty)in fields.iter().enumerate(){
+                        b.spend(path.len().saturating_add(2))?;
+                        let mut child=path.clone();
+                        child.push(ContractProjection::Place(PlaceProjection::Variant(VariantProjection{variant:variant as u32,index:index as u32})));
+                        pending.push((ty,child));
+                    }
+                }
+            }
+            Type::Array{element,length}=>{
+                if *length as usize>b.limits.max_nodes{return Err(limit("Task carrier array exceeds selected bound"));}
+                for index in 0..*length {
+                    b.spend(path.len().saturating_add(2))?;
+                    let mut child=path.clone();child.push(ContractProjection::Place(PlaceProjection::Field(index)));
+                    pending.push((element,child));
                 }
             }
             Type::ErrorUnion { error, result } => {

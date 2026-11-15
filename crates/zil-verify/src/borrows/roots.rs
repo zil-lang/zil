@@ -57,8 +57,9 @@ pub(super) fn parameter_port(
         budget.task_port_paths.push(path.to_vec());
         budget.task_port_paths.len() - 1
     };
-    let index =
-        u32::try_from(index).map_err(|_| limit("Task root namespace exceeds finite IDs"))?;
+    // The low selector bit is the private Task/Dyn endpoint namespace.
+    let index = u32::try_from(index).ok().and_then(|index|index.checked_mul(2))
+        .ok_or_else(|| limit("Task root namespace exceeds finite IDs"))?;
     Ok(Root::ParameterPort(parameter, index))
 }
 pub(super) fn capture_port(
@@ -75,7 +76,7 @@ pub(super) fn task_source(
     source: &crate::stored_flow::TaskPointerRoot,
     budget: &mut Budget,
 ) -> Check<Root> {
-    Ok(match (source.base, source.port) {
+    let mut root=match (source.base, source.port) {
         (HoldRoot::Parameter(parameter), Some(port)) => {
             budget.spend(source.carrier.len().saturating_add(1))?;
             let mut path = source.carrier.clone();
@@ -92,7 +93,14 @@ pub(super) fn task_source(
         (HoldRoot::Local(local), _) => Root::Local(local),
         (HoldRoot::Parameter(parameter), _) => Root::Parameter(parameter),
         (HoldRoot::Capture(capture), _) => Root::Capture(capture),
-    })
+    };
+    if source.dynamic {
+        match &mut root {
+            Root::ParameterPort(_,selector)|Root::CapturePort(_,selector)=>*selector|=1,
+            _=>{},
+        }
+    }
+    Ok(root)
 }
 impl Root {
     pub(super) fn coarse(self) -> HoldRoot {

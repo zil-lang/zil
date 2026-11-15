@@ -205,10 +205,16 @@ pub(super) fn shape(
             // Retained Task pointers keep their separate namespace and parent
             // proof. An owning result cannot disappear as an empty Dyn row.
             Type::Task { result, .. } if crate::dynamic_ports::has_context(module, result, b)? => {
-                return Err(unsupported(
-                    "Task Context result requires its actual ownership and port transport",
-                    None,
-                ));
+                if !b.task_sources() {
+                    return Err(unsupported(
+                        "Task Context result requires its actual ownership and port transport",
+                        None,
+                    ));
+                }
+                // R is not an initialized Dyn at this point. Its permissions
+                // are retained by the independent Task frame directory and
+                // become Dyn rows only on the Ready branch of a real poll.
+                crate::tasks::charge_result_context(ty, b)?;
             }
             _ => {}
         }
@@ -337,7 +343,7 @@ pub(super) fn moved_owner(state: &Frame, local: LocalId, b: &mut Budget) -> Chec
 /// Empty access is vacuous only for a complete actual known-empty row. Solver
 /// bottom, missing storage, or a missing producer binding is never that proof.
 #[allow(clippy::too_many_arguments)]
-fn empty_actual(
+pub(super) fn empty_actual(
     module: &TypedModule,
     f: &TypedFunction,
     argument: ValueId,
@@ -1405,7 +1411,8 @@ pub(super) fn carrier_type<'a>(
             }
         };
     }
-    if let Type::BorrowedStorage { storage, .. } = ty {
+    while let Type::BorrowedStorage { storage, .. } | Type::Address{inner:storage,..} = ty {
+        b.spend(1)?;
         ty = storage;
     }
     Ok(ty)

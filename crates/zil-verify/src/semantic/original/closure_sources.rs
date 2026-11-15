@@ -21,7 +21,11 @@ impl CheckedOriginal {
             let statement=function.bindings.get(&node).ok_or_else(||bad("original Call result binding is absent"))?;
             let CoreStatementKind::Binding{ty:None,initializer:Some(initializer),..}=&statement.kind else{return Ok(None);};initializer
         }else if let SemanticOriginalTypeSource::Expression(node)=source{let Some(expression)=function.expressions.get(node)else{return Ok(None);};*expression}else{return Ok(None);};
+        if self.injections.contains_key(&(definition,expression.id)){return Ok(None);}
         while let CoreExprKind::Group(inner)=&expression.kind{b.spend(1)?;expression=inner;}
+        // A contextual TypeUse observes the injected sum. The source Call
+        // remains its sole payload operation and has a different result role.
+        if self.injections.contains_key(&(definition,expression.id)){return Ok(None);}
         if !matches!(expression.kind,CoreExprKind::Call{..}){return Ok(None);}
         let mut selected=None;
         for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}

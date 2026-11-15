@@ -12,6 +12,28 @@ struct Candidate {
     port: u32,
 }
 
+/// A retained provider/head remains a parent loan, never a data target. The
+/// worker's source graph has already been bounded by the full input directory.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn retain_dependencies(
+    module: &TypedModule, f: &TypedFunction, instruction: &Instruction,
+    arguments: &[ValueId], values: &[Payload], state: &Frame, summary: &Summary,
+    port: u32, permission: &mut Permission, sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>, b: &mut Budget,
+) -> Check<()> {
+    for (_, row) in &summary.dyn_ports.0 {
+        for source in row.head_sources.iter().chain(&row.parent_sources) {
+            let parent = instantiate(module, f, source, arguments, values, state, b)?;
+            let retained = dyn_leases::retain(sites, loans, instruction,
+                dyn_leases::Destination::Result(port_path(&[PlaceProjection::ErrorArm(false)], port)),
+                dyn_leases::Component::Head(source.clone()),
+                StoredBorrowMode::SharedAddress, &parent, b)?;
+            add_loans(&mut permission.loans, &retained.loans, b)?;
+        }
+    }
+    Ok(())
+}
+
 fn outputs(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Vec<Output>> {
     let (result, context) =
         task_type(ty).ok_or_else(|| err("Task result upper selects another carrier"))?;
@@ -58,7 +80,12 @@ fn candidates(
         b.spend(1)?;
         type_work(&port.leaf, &b.limits.clone(), b)?;
         type_work(&output.leaf, &b.limits.clone(), b)?;
-        if port.binder != output.binder || port.mode != output.mode || port.leaf != output.leaf {
+        let mode=port.mode==output.mode || matches!((port.mode,output.mode),
+            (StoredBorrowMode::ExclusiveAddress,StoredBorrowMode::SharedAddress)
+            |(StoredBorrowMode::WritableDescription,StoredBorrowMode::ReadOnlyDescription));
+        let leaf=port.leaf==output.leaf || matches!((&port.leaf,&output.leaf),
+            (Type::Address{mutable:true,inner:source},Type::Address{mutable:false,inner:target})if source==target);
+        if port.binder != output.binder || !mode || !leaf {
             continue;
         }
         if out.len() >= b.limits.max_nodes {
@@ -107,6 +134,7 @@ pub(super) fn check_worker(
             let source = inputs::relative(module, worker, &binding.source, b)?;
             allowed.push(source);
         }
+        let mut known_empty = false;
         let sources = if matches!(row.path.last(), Some(ContractProjection::RetainedPort(_))) {
             if let Some((_, sources)) = summary
                 .task_ports
@@ -121,6 +149,18 @@ pub(super) fn check_worker(
                 .find(|(path, _)| *path == row.path)
             {
                 complete &= port.known;
+                known_empty = port.known && port.permission.sources.is_empty();
+                // Provider/head parents are checked against the entire
+                // retained input directory, separately from data targets.
+                let mut parents = Vec::new();
+                for binding in bindings {
+                    parents.push(inputs::relative(module, worker, &binding.source, b)?);
+                }
+                for source in port.head_sources.iter().chain(&port.parent_sources) {
+                    if !contains_target(&parents, source, b)? {
+                        return Err(err("Task Dyn result retains a head outside its complete input directory"));
+                    }
+                }
                 Some(port.permission.sources.as_slice())
             } else {
                 None
@@ -134,6 +174,7 @@ pub(super) fn check_worker(
                 .map(|(_, sources)| sources.as_slice())
         };
         let Some(sources) = sources else {
+            if enum_address::inactive_path(&summary.returned_enum_variants,&worker.return_type,&row.path,b)?{continue;}
             if !matches!(row.path.last(), Some(ContractProjection::RetainedPort(_))) {
                 let path = physical(&row.path, b)?;
                 summary.returned_enum_variants.work(b)?;
@@ -148,7 +189,7 @@ pub(super) fn check_worker(
             complete = false;
             continue;
         };
-        complete &= !sources.is_empty();
+        complete &= known_empty || !sources.is_empty();
         for source in sources {
             source_work(std::slice::from_ref(source), b)?;
             if !contains_target(&allowed, source, b)? {
@@ -161,11 +202,17 @@ pub(super) fn check_worker(
     Ok(complete)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn poll(
     module: &TypedModule,
+    _f: &TypedFunction,
+    instruction: &Instruction,
     task: &Type,
+    outcome: &Type,
     payload: &Payload,
     out: &mut Payload,
+    sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
     let (result, context) =
@@ -189,6 +236,13 @@ pub(super) fn poll(
             let actual = select(payload, &[], upper.port, b)?;
             join_permission(&mut permission, &actual, b)?;
         }
+        let mut destination=ready.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();
+        b.spend(row.path.len().saturating_add(destination.len()))?;
+        destination.extend_from_slice(&row.path);
+        permission=dyn_leases::retain(sites,loans,instruction,
+            dyn_leases::Destination::Result(destination),
+            dyn_leases::Component::Slot(StoragePosition{base:StorageBase::Result,path:row.path.clone()}),
+            row.mode,&permission,b)?;
         if matches!(row.path.last(), Some(ContractProjection::RetainedPort(_))) {
             let carrier = &row.path[..row.path.len() - 1];
             let endpoint = carriers::endpoint(module, result, carrier, b)?;
@@ -204,9 +258,11 @@ pub(super) fn poll(
                     insert(out, &path, &permission, b)?;
                 }
                 Type::Dyn { .. } | Type::OwnedDyn { .. } => {
-                    return Err(err(
-                        "Task Dyn result requires its complete actual provider/head dependency transport",
-                    ));
+                    dyn_ports::insert(&mut out.dyn_ports, &path, &dyn_ports::Port {
+                        permission,
+                        known: true,
+                        ..dyn_ports::Port::default()
+                    }, b)?;
                 }
                 _ => {
                     return Err(err(
@@ -220,6 +276,6 @@ pub(super) fn poll(
             add_leaf(out, &path, &permission, b)?;
         }
     }
-    out.enum_variants = enum_address::Variants::runtime_poll(b)?;
+    out.enum_variants = enum_address::Variants::runtime_poll(outcome,b)?;
     Ok(())
 }

@@ -53,6 +53,9 @@ struct VariantConstruction{definition:SemanticDefinitionId,variant:u32,actuals:V
 #[derive(Default)]
 pub(super) struct CheckedOriginal {
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+    // Contextual sum observations are distinct from the payload operation.
+    // The selected arm is solved in original Γ before any actual emission.
+    injections:BTreeMap<(SemanticDefinitionId,NodeId),(bool,Ty)>,
     bindings:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
     parameters:BTreeMap<(SemanticDefinitionId,u32),Ty>,
     results:BTreeMap<SemanticDefinitionId,Ty>,

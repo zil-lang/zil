@@ -72,7 +72,7 @@ impl Walker<'_> {
                     self.node(storage, child, &child_map, &[], &[], source, depth + 1, b)
                 }
             }
-            Type::Address { .. } | Type::Desc(_) => {
+            Type::Address { inner, .. } | Type::Desc(inner) => {
                 let mode = match ty {
                     Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
                     Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
@@ -105,6 +105,12 @@ impl Walker<'_> {
                         .get(row.binder as usize)
                         .ok_or_else(|| bad("Task input borrow escapes its full domain map"))?;
                     self.push(ty, row.mode, class, source, b)?;
+                }
+                if opaque(inner) {
+                    b.spend(semantic.len().saturating_add(1))?;
+                    let mut child = semantic.to_vec();
+                    child.push(LifeTypeProjection::Pointee);
+                    self.node(inner, life, map, &child, physical, source, depth + 1, b)?;
                 }
                 Ok(())
             }
@@ -344,7 +350,7 @@ impl Walker<'_> {
     ) -> Check<()> {
         self.depth(depth, b)?;
         match ty {
-            Type::Address { .. } | Type::Desc(_) => {
+            Type::Address { inner, .. } | Type::Desc(inner) => {
                 b.spend(
                     header
                         .bindings
@@ -377,14 +383,20 @@ impl Walker<'_> {
                         Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
                         _ => StoredBorrowMode::ReadOnlyDescription,
                     };
-                    self.push(ty, mode, class, source, b)
+                    self.push(ty, mode, class, source, b)?;
                 } else if header.static_bindings.contains(&position) {
-                    Ok(())
                 } else {
-                    Err(bad(
+                    return Err(bad(
                         "Task capture borrow has neither a variable occurrence nor a pending static declaration",
-                    ))
+                    ));
                 }
+                if opaque(inner) {
+                    b.spend(semantic.len().saturating_add(1))?;
+                    let mut child = semantic.to_vec();
+                    child.push(LifeTypeProjection::Pointee);
+                    self.header_node(inner,header,base,map,&child,contract,source,depth+1,b)?;
+                }
+                Ok(())
             }
             Type::BorrowedStorage { life, .. } => {
                 let child = header_map(header, base, map, semantic, life.binder_count, b)?;

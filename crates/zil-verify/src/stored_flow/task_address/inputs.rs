@@ -86,6 +86,7 @@ pub(super) fn relative(
                 }
                 while let Type::Managed(inner)
                 | Type::Desc(inner)
+                | Type::Address { inner, .. }
                 | Type::BorrowedStorage { storage: inner, .. } = ty
                 {
                     ty = inner;
@@ -197,6 +198,7 @@ pub(super) fn permission(
                 }
                 while let Type::Managed(inner)
                 | Type::Desc(inner)
+                | Type::Address { inner, .. }
                 | Type::BorrowedStorage { storage: inner, .. } = ty
                 {
                     ty = inner;
@@ -253,6 +255,18 @@ pub(super) fn leaf(
     Ok(ty)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn empty_opaque(
+    module: &TypedModule, f: &TypedFunction, value: ValueId,
+    path: &[ContractProjection], values: &[Payload], state: &Frame, b: &mut Budget,
+) -> Check<bool> {
+    let Some((ContractProjection::RetainedPort(port), carrier))=path.split_last() else{return Ok(false);};
+    let endpoint=carriers::endpoint(module, vt(f,value)?, carrier,b)?;
+    if !matches!(endpoint,Type::Dyn{..}|Type::OwnedDyn{..}){return Ok(false);}
+    let payload=values.get(value.0 as usize).ok_or_else(||err("Task input known-empty proof lacks its SSA payload"))?;
+    dyn_ports::empty_actual(module,f,value,payload,state,carrier,*port,b)
+}
+
 pub(super) fn inactive(
     f: &TypedFunction,
     value: ValueId,
@@ -263,6 +277,7 @@ pub(super) fn inactive(
     let Some(payload) = values.get(value.0 as usize) else {
         return Err(err("Task input inactivity proof has no SSA payload"));
     };
+    if enum_address::inactive_path(&payload.enum_variants,vt(f,value)?,path,b)?{return Ok(true);}
     if path
         .iter()
         .any(|step| !matches!(step, ContractProjection::Place(_)))
@@ -277,12 +292,6 @@ pub(super) fn inactive(
             _ => unreachable!(),
         })
         .collect::<Vec<_>>();
-    if !matches!(
-        physical.first(),
-        Some(PlaceProjection::Variant(_) | PlaceProjection::ErrorArm(_))
-    ) {
-        return Ok(false);
-    }
     payload.enum_variants.work(b)?;
     Ok(payload.enum_variants.grounded(vt(f, value)?, b)?
         && !payload.enum_variants.slot_active(&physical))

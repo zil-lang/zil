@@ -301,12 +301,15 @@ impl Equations {
         Ok(())
     }
     fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Ports> {
-        let outer = if matches!(ty, Type::Address { .. }) {
+        let outer = if matches!(ty, Type::Address { .. })
+            || b.task_sources() && matches!(ty, Type::Desc(_)) {
             Some(self.fresh(false, b)?)
         } else {
             None
         };
         let ty = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else if let Type::Desc(inner) = ty && b.task_sources() {
             inner.as_ref()
         } else {
             ty
@@ -1632,6 +1635,19 @@ fn check_with(
                                 outer.as_ref(),
                                 b,
                             )?;
+                        }
+                    }
+                    InstructionKind::DescribeLocal { local } if b.task_sources() => {
+                        if let Some(out)=out {
+                            e.ground_address(out.outer,b)?;
+                            array_outer::copy(&mut e,out,&locals[local.0 as usize],outer.as_ref(),b)?;
+                        }
+                    }
+                    InstructionKind::DescribeCapture { index } if b.task_sources() => {
+                        if let Some(out)=out {
+                            e.ground_address(out.outer,b)?;
+                            let capture=captures.get(*index as usize).ok_or_else(||bad("Task description has no actual capture class domain"))?;
+                            array_outer::copy(&mut e,out,capture,outer.as_ref(),b)?;
                         }
                     }
                     InstructionKind::Store { local, value } => array_outer::copy(

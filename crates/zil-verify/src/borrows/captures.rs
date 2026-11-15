@@ -146,6 +146,7 @@ impl Invocation<'_> {
                 return Ok(roots.clone());
             }
             Root::ParameterPort(parameter, selector) => {
+                let selector=selector/2;
                 let value = *self
                     .arguments
                     .get(parameter as usize)
@@ -160,6 +161,7 @@ impl Invocation<'_> {
                 return self.retained(value, &path, budget);
             }
             Root::CapturePort(capture, selector) => {
+                let selector=selector/2;
                 let value = self.environment_value.ok_or_else(ungrounded)?;
                 let path = budget
                     .task_port_paths

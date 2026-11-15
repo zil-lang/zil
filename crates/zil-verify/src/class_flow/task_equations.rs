@@ -117,7 +117,7 @@ fn whole_input(
             return Err(limit("Task whole input equation depth exceeded"));
         }
         match current {
-            Type::Address { inner, .. } => {
+            Type::Address { inner, .. } | Type::Desc(inner) => {
                 if class == 0 && path.is_empty() {
                     return ports
                         .outer

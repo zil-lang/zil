@@ -1,6 +1,21 @@
 //! Ordinary shared-borrow sums reconstructed from the complete nominal instance.
 //! The verifier maintains its own sorted tag sets and actual source leaves.
 use super::*;
+pub(super) mod tags;
+
+pub(super) fn inactive_path(tags:&Variants,ty:&Type,path:&[ContractProjection],b:&mut Budget)->Check<bool>{
+    let mut physical=Vec::new();
+    for step in path {
+        b.spend(1)?;
+        match step {
+            ContractProjection::Place(step)=>physical.push(*step),
+            ContractProjection::RetainedPort(_)=>break,
+            _=>return Ok(false),
+        }
+    }
+    if physical.is_empty(){return Ok(false);}
+    Ok(tags.grounded(ty,b)?&&!tags.slot_active(&physical))
+}
 
 pub(super) fn poll_declaration(d: &LifeNominalDeclaration) -> bool {
     d.id.compiler
@@ -526,56 +541,30 @@ pub(super) struct Variants {
     nested: Vec<(Path, Variants)>,
 }
 impl Variants {
-    pub(super) fn runtime_poll(b: &mut Budget) -> Check<Self> {
-        b.spend(7)?;
-        Ok(Self {
-            domain: 2,
-            constructed: vec![0, 1],
-            nested: vec![(
-                vec![PlaceProjection::ErrorArm(false)],
-                Self {
-                    domain: 2,
-                    constructed: vec![0, 1],
-                    ..Self::default()
-                },
-            )],
-            ..Self::default()
-        })
+    pub(super) fn runtime_poll(outcome: &Type, b: &mut Budget) -> Check<Self> {
+        Self::runtime(outcome,0,b)
     }
+
     pub(super) fn present(&self) -> bool {
-        self.domain != 0
+        self.domain != 0 || !self.nested.is_empty()
     }
     pub(super) fn grounded(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
+        if b.task_sources(){return self.full_grounded(ty,0,b);}
         b.spend(1)?;
-        if !self.present() || (self.constructed.is_empty() && self.inputs.is_empty()) {
-            return Ok(false);
-        }
+        if !self.present() || self.constructed.is_empty()&&self.inputs.is_empty(){return Ok(false);}
         match ty {
-            Type::ErrorUnion { error, result } => {
-                if self.domain != 2 {
-                    return Ok(false);
-                }
-                for (arm, child) in [(false, result.as_ref()), (true, error.as_ref())] {
-                    if self.active(u32::from(arm)) && signature(child) {
-                        let Some(actual) = self
-                            .nested
-                            .iter()
-                            .find(|(p, _)| p.as_slice() == [PlaceProjection::ErrorArm(arm)])
-                            .map(|(_, v)| v)
-                        else {
-                            return Ok(false);
-                        };
-                        if !actual.grounded(child, b)? {
-                            return Ok(false);
-                        }
+            Type::ErrorUnion{error,result}=>{
+                if self.domain!=2{return Ok(false);}
+                for(arm,child)in [(false,result.as_ref()),(true,error.as_ref())]{
+                    if self.active(u32::from(arm))&&signature(child){
+                        let Some((_,nested))=self.nested.iter().find(|(path,_)|path.as_slice()==[PlaceProjection::ErrorArm(arm)])else{return Ok(false);};
+                        if !nested.grounded(child,b)?{return Ok(false);}
                     }
                 }
                 Ok(true)
             }
-            Type::BorrowedStorage { storage, .. } => Ok(
-                matches!(storage.as_ref(),Type::Enum { variants,.. } if self.domain as usize==variants.len()),
-            ),
-            _ => Ok(false),
+            Type::BorrowedStorage{storage,..}=>Ok(matches!(storage.as_ref(),Type::Enum{variants,..}if self.domain as usize==variants.len())),
+            _=>Ok(false),
         }
     }
 
@@ -584,19 +573,9 @@ impl Variants {
             && (!self.inputs.is_empty() || self.constructed.binary_search(&tag).is_ok())
     }
     pub(super) fn slot_active(&self, path: &[PlaceProjection]) -> bool {
-        match path.first() {
-            Some(PlaceProjection::Variant(p)) => self.active(p.variant),
-            Some(PlaceProjection::ErrorArm(arm)) => {
-                self.active(u32::from(*arm))
-                    && self
-                        .nested
-                        .iter()
-                        .find(|(p, _)| p.as_slice() == [PlaceProjection::ErrorArm(*arm)])
-                        .is_some_and(|(_, child)| child.slot_active(&path[1..]))
-            }
-            _ => false,
-        }
+        self.path_active(path)
     }
+
     pub(super) fn work(&self, b: &mut Budget) -> Check<()> {
         if self.present() {
             b.spend(

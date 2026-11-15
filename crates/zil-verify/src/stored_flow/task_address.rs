@@ -661,6 +661,8 @@ pub(super) fn transfer(
     state: &mut Frame,
     values: &[Payload],
     summaries: &[Summary],
+    sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<Option<Payload>> {
     if !b.task_sources() || !operation(&i.kind) {
@@ -690,6 +692,7 @@ pub(super) fn transfer(
             let produced = i
                 .result
                 .ok_or_else(|| err("Task constructor result is absent"))?;
+            out.enum_variants=enum_address::Variants::runtime(vt(f,produced)?,0,b)?;
             let (_, context) = task_type(vt(f, produced)?)
                 .ok_or_else(|| err("Task constructor has no actual retained context"))?;
             b.spend(context.ports.len().saturating_add(port_bindings.len()))?;
@@ -717,10 +720,17 @@ pub(super) fn transfer(
                         "Task retained port differs from its exact complete input occurrence",
                     ));
                 }
-                let permission =
+                let mut permission =
                     inputs::permission(module, f, input, &row.source.path, values, state, b)?;
+                permission = dyn_leases::retain(sites,loans,i,
+                    dyn_leases::Destination::Result(port_path(&[PlaceProjection::ErrorArm(false)],ordinal as u32)),
+                    dyn_leases::Component::Slot(row.source.clone()),port.mode,&permission,b)?;
+                results::retain_dependencies(module, f, i, arguments, values, state,
+                    &summaries[target.id.0 as usize], ordinal as u32,
+                    &mut permission, sites, loans, b)?;
                 all_inputs &= !permission.sources.is_empty()
-                    || inputs::inactive(f, input, &row.source.path, values, b)?;
+                    || inputs::inactive(f, input, &row.source.path, values, b)?
+                    || inputs::empty_opaque(module, f, input, &row.source.path, values, state, b)?;
                 insert(
                     &mut out,
                     &port_path(&[PlaceProjection::ErrorArm(false)], ordinal as u32),
@@ -773,7 +783,12 @@ pub(super) fn transfer(
             state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::TaskPoll { task } if shape(vt(f, *task)?) => {
-            results::poll(module, vt(f, *task)?, get(*task)?, &mut out, b)?;
+            let outcome=i.result.map(|id|vt(f,id)).transpose()?.ok_or_else(||err("Task poll lacks its complete actual outcome"))?;
+            results::poll(module, f, i, vt(f, *task)?, outcome, get(*task)?, &mut out, sites, loans, b)?;
+        }
+        InstructionKind::TaskPollClose { .. } => {
+            let outcome=i.result.map(|id|vt(f,id)).transpose()?.ok_or_else(||err("Task close poll lacks its complete actual outcome"))?;
+            out.enum_variants=enum_address::Variants::runtime(outcome,0,b)?;
         }
         InstructionKind::MakeErrorUnion { value, is_error }
             if shape(vt(
@@ -801,7 +816,6 @@ pub(super) fn transfer(
         InstructionKind::TaskYield
         | InstructionKind::TaskValid { .. }
         | InstructionKind::TaskRequestCancel { .. }
-        | InstructionKind::TaskPollClose { .. }
         | InstructionKind::TaskFinishDestroy { .. } => {}
         _ => return Ok(None),
     }
@@ -856,7 +870,7 @@ fn anchors(
                 .copied()
                 .map(ContractProjection::Place)
                 .collect::<Vec<_>>();
-            if let Some(PortOrigin::Task { carrier, port }) = &source.retained_port {
+            if let Some(PortOrigin::Task { carrier, port }|PortOrigin::Dyn{carrier,port}) = &source.retained_port {
                 path.extend_from_slice(carrier);
                 path.push(ContractProjection::RetainedPort(*port));
             }
@@ -892,8 +906,9 @@ pub(super) fn checked_sources(
         for source in &p.address.sources {
             row.pointer.push(TaskPointerRoot {
                 base: source.base,
+                dynamic:matches!(source.retained_port,Some(PortOrigin::Dyn{..})),
                 carrier: match &source.retained_port {
-                    Some(PortOrigin::Task { carrier, .. }) => {
+                    Some(PortOrigin::Task { carrier, .. }|PortOrigin::Dyn{carrier,..}) => {
                         b.spend(carrier.len().saturating_add(source.leaf.len()))?;
                         source
                             .leaf
@@ -906,10 +921,7 @@ pub(super) fn checked_sources(
                     _ => Vec::new(),
                 },
                 port: match &source.retained_port {
-                    Some(PortOrigin::Task { port, .. }) => Some(*port),
-                    Some(PortOrigin::Dyn { .. }) => {
-                        return Err(err("Task snapshot cannot erase a Dyn port namespace"));
-                    }
+                    Some(PortOrigin::Task { port, .. }|PortOrigin::Dyn{port,..}) => Some(*port),
                     None => None,
                 },
             });
@@ -924,15 +936,17 @@ pub(super) fn checked_sources(
             row.payload_parents
                 .extend(anchors(f, ValueId(id as u32), permission, &s.loans, b)?);
         }
-        for (path, permission) in &p.task_ports {
+        for (path, permission) in p.task_ports.iter().map(|(path,permission)|(path,permission))
+            .chain(p.dyn_ports.0.iter().map(|(path,port)|(path,&port.permission))) {
             b.spend(path.len().saturating_add(permission.sources.len()))?;
             let mut targets = Vec::new();
             for source in &permission.sources {
                 row.public.push(source.base);
                 targets.push(TaskPointerRoot {
                     base: source.base,
+                    dynamic:matches!(source.retained_port,Some(PortOrigin::Dyn{..})),
                     carrier: match &source.retained_port {
-                        Some(PortOrigin::Task { carrier, .. }) => {
+                        Some(PortOrigin::Task { carrier, .. }|PortOrigin::Dyn{carrier,..}) => {
                             b.spend(carrier.len().saturating_add(source.leaf.len()))?;
                             source
                                 .leaf
@@ -945,10 +959,7 @@ pub(super) fn checked_sources(
                         _ => Vec::new(),
                     },
                     port: match &source.retained_port {
-                        Some(PortOrigin::Task { port, .. }) => Some(*port),
-                        Some(PortOrigin::Dyn { .. }) => {
-                            return Err(err("Task snapshot cannot erase a Dyn port namespace"));
-                        }
+                        Some(PortOrigin::Task { port, .. }|PortOrigin::Dyn{port,..}) => Some(*port),
                         None => None,
                     },
                 });
@@ -961,6 +972,7 @@ pub(super) fn checked_sources(
             targets.sort();
             targets.dedup();
             row.retained.push((path.clone(), targets));
+            row.payload_parents.extend(anchors(f,ValueId(id as u32),permission,&s.loans,b)?);
         }
         for count in [
             row.pointer.len(),
