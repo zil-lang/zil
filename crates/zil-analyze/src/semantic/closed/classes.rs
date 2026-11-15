@@ -647,6 +647,27 @@ impl Check<'_, '_> {
     /// external image or generating a memory root. Each local class receives
     /// its own token while reconstructing the original application.
     pub(super) fn nominal_inventory(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
+        self.nominal_inventory_source(ty, b).map(|_| ())
+    }
+    pub(super) fn nominal_inventory_source(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<(SemanticDefinitionId, Vec<Argument>)> {
+        self.nominal_inventory_source_at(ty, b, 0)
+    }
+    pub(super) fn nominal_inventory_source_at(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<(SemanticDefinitionId, Vec<Argument>)> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual nominal exceeds its complete substitution depth",
+            ));
+        }
         let index =
             crate::stored_flow::nominal_instance_index(self.module, ty, self.inventory.limits, b)?;
         let instance = &self.module.life_instances[index];
@@ -739,12 +760,12 @@ impl Check<'_, '_> {
             };
             self.push_value(&mut args, argument, b)?;
         }
-        if self.nominal_value(definition, &args, b, 0)?.ty != *ty {
+        if self.nominal_value(definition, &args, b, depth)?.ty != *ty {
             return Err(fail(
                 "nominal inventory differs from full original substitution",
             ));
         }
-        Ok(())
+        Ok((definition, args))
     }
     pub(super) fn has_ghost_capture(&self, id: ClosureId, b: &mut Budget) -> CompileResult<bool> {
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;

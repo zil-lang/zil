@@ -211,63 +211,22 @@ impl Check<'_, '_> {
             self.inventory.limits,
             b,
         )?;
-        let mut original = None;
-        for instance in &self.module.life_instances {
-            b.spend(1, WORK)?;
-            crate::dyn_metadata::ty(payload, b)?;
-            crate::dyn_metadata::ty(&instance.ty, b)?;
-            if instance.ty != *payload {
-                continue;
+        // This same complete call freshly reconstructs all original mixed
+        // arguments, fields and N/kappa before returning the unique identity.
+        // Cleanup/provider obligations below remain independent and uncached.
+        let (original, arguments) = self.nominal_inventory_source_at(payload, b, depth + 1)?;
+        if !matches!(
+            self.inventory.definition(original, b)?.body,
+            SemanticDefinitionBody::Nominal {
+                kind: LifeNominalKind::Resource,
+                ..
             }
-            let mut found = None;
-            for definition in self.inventory.definitions.values() {
-                b.spend(1, WORK)?;
-                if let SemanticDefinitionBody::Nominal {
-                    declaration,
-                    kind: LifeNominalKind::Resource,
-                    ..
-                } = &definition.body
-                {
-                    if *declaration == instance.declaration
-                        && found.replace(definition.id).is_some()
-                    {
-                        return Err(fail(
-                            "actual resource payload has multiple original definitions",
-                        ));
-                    }
-                }
-            }
-            let definition = found.ok_or_else(|| {
-                fail("actual resource payload is not its original resource declaration")
-            })?;
-            let mut arguments = Vec::new();
-            for actual in &instance.arguments {
-                let LifeNominalActual::Type(ty) = actual else {
-                    return Err(unknown(
-                        "actual resource cleanup needs its complete mixed lifetime and constant substitution",
-                    ));
-                };
-                crate::dyn_metadata::ty(ty, b)?;
-                self.push_value(&mut arguments, ty.clone(), b)?;
-            }
-            let expected =
-                self.nominal_actual(definition, &arguments, b, depth + 1)?;
-            crate::dyn_metadata::ty(&expected, b)?;
-            crate::dyn_metadata::ty(payload, b)?;
-            if expected != *payload {
-                return Err(fail(
-                    "actual resource payload changes its original complete field substitution",
-                ));
-            }
-            if original.replace(definition).is_some() {
-                return Err(fail(
-                    "actual resource payload has multiple complete nominal instances",
-                ));
-            }
+        ) {
+            return Err(fail(
+                "actual resource payload is not its original resource declaration",
+            ));
         }
-        let original = original.ok_or_else(|| {
-            fail("actual resource payload omits its complete original nominal identity")
-        })?;
+        self.qualify_resource_nominal(original, &arguments, b, depth + 1)?;
         let drop = original::resources::drop_method(original, self.inventory, b)?;
         let mut actual = None;
         for resource in &self.module.resources {

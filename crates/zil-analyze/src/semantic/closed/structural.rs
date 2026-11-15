@@ -5,6 +5,35 @@ use crate::semantic::value::{self, Argument};
 use original::Predicate;
 
 impl Check<'_, '_> {
+    pub(super) fn qualify_resource_nominal(
+        &self,
+        owner: SemanticDefinitionId,
+        arguments: &[Argument],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual nominal premises exceed their complete depth",
+            ));
+        }
+        let definition = self.inventory.definition(owner, b)?;
+        if definition.parameters.len() != arguments.len() {
+            return Err(fail("actual resource loses its complete mixed arguments"));
+        }
+        for (formal, actual) in definition.parameters.iter().zip(arguments) {
+            b.spend(1, WORK)?;
+            let (SemanticFormal::Type { requirements }, Argument::Type(_)) = (formal, actual)
+            else {
+                return Err(unknown(
+                    "actual resource cleanup needs its complete mixed lifetime and constant substitution",
+                ));
+            };
+            self.nominal_requirements(owner, arguments, requirements, b, depth + 1)?;
+        }
+        self.nominal_requirements(owner, arguments, &definition.requirements, b, depth + 1)
+    }
     /// Adapt the old zero-domain nominal entry to the complete original field
     /// interpreter. Zero is proved from every actual, never from a port count.
     pub(super) fn nominal_actual(
@@ -271,47 +300,19 @@ impl Check<'_, '_> {
     }
 
     fn structural_nominal_identity(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
-        self.nominal_inventory(ty, b)?;
-        let mut declaration = None;
-        for entry in &self.module.life_instances {
-            crate::dyn_metadata::ty(&entry.ty, b)?;
-            crate::dyn_metadata::ty(ty, b)?;
-            if entry.ty == *ty && declaration.replace(entry.declaration).is_some() {
-                return Err(fail(
-                    "structural nominal has competing exact catalogue identities",
-                ));
-            }
-        }
-        let declaration = declaration
-            .ok_or_else(|| fail("structural nominal has no exact original catalogue identity"))?;
-        let mut owner = None;
-        for definition in self.inventory.definitions.values() {
-            b.spend(1, WORK)?;
-            if let SemanticDefinitionBody::Nominal {
-                declaration: identity,
-                kind,
+        let (owner, _) = self.nominal_inventory_source(ty, b)?;
+        let declaration = self.inventory.definition(owner, b)?;
+        if matches!(
+            declaration.body,
+            SemanticDefinitionBody::Nominal {
+                kind: LifeNominalKind::Resource,
                 ..
-            } = &definition.body
-            {
-                if *identity != declaration {
-                    continue;
-                }
-                if *kind == LifeNominalKind::Resource {
-                    return Err(fail(
-                        "raw resource payload is not an ordinary structural value",
-                    ));
-                }
-                if owner.replace(definition.id).is_some() {
-                    return Err(fail(
-                        "structural nominal has competing original definitions",
-                    ));
-                }
             }
+        ) {
+            return Err(fail(
+                "raw resource payload is not an ordinary structural value",
+            ));
         }
-        original::resources::ordinary_drop_absent(
-            owner.ok_or_else(|| fail("structural nominal omits its original declaration"))?,
-            self.inventory,
-            b,
-        )
+        original::resources::ordinary_drop_absent(owner, self.inventory, b)
     }
 }
