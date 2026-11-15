@@ -729,3 +729,26 @@ pub(super) fn recipe_table(value: &DynVtable, b: &mut Budget) -> Check<()> {
     }
     recipe_rows(&value.implementation_witnesses, work)
 }
+
+/// A source builtin Drop directory is an identity record, not an open user
+/// trait scheme. Its absent dynamic recipes remain Unknown; actual resource
+/// cleanup is independently checked against the original sealed Drop body.
+pub(crate) fn sealed_drop_metadata(module:&TypedModule,declaration:&DynDeclaration,b:&mut Budget)->Check<bool>{
+    let Some(program)=&module.semantic else{return Ok(false);};
+    b.spend(program.dyn_scopes.len().saturating_add(program.definitions.len()))?;
+    let mut bindings=program.dyn_scopes.iter().filter(|row|row.owner==SemanticDynOwner::Declaration(declaration.id));
+    let Some(binding)=bindings.next() else{return Ok(false);};if bindings.next().is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is duplicated"));}
+    let Some(owner)=program.definitions.iter().find(|row|row.id==binding.scope) else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is absent"));};
+    if !matches!(owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})){return Ok(false);}
+    let owner=crate::dynamic_witness::semantic_external::original_scope(module,declaration.id,b)?;
+    declaration_in_scope(declaration,owner,b)?;
+    if declaration.implemented_trait.is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop metadata cannot implement an open dynamic trait"));}
+    let [member]=declaration.members.as_slice() else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original member inventory differs"));};
+    let DynMemberKind::Method(kinds)=&member.kind else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop member is not a method"));};
+    let mut methods=program.definitions.iter().filter(|row|row.parent==Some(owner.id)&&row.kind==SemanticDefinitionKind::Method);
+    let method=methods.next().ok_or_else(||reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop has no original method body"))?;
+    if methods.next().is_some()||member.name!="drop"||kinds.len()!=method.parameters.len(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop changes its actual original method identity or mixed arity"));}
+    for(kind,formal)in kinds.iter().zip(&method.parameters){if !matches!((kind,formal),(LifeParameterKind::Type,SemanticFormal::Type{..})|(LifeParameterKind::Lifetime,SemanticFormal::Lifetime))&&!matches!((kind,formal),(LifeParameterKind::Const(a),SemanticFormal::Const{carrier:SemanticTypeRecipe::Atom(z)})if a==z){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop method changes its ordered original formal kind"));}}
+    if !matches!(method.body,SemanticDefinitionBody::FunctionWithBody{body:SemanticOriginalFunctionBody::Defined(_),..}){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original method has no Defined body"));}
+    Ok(true)
+}

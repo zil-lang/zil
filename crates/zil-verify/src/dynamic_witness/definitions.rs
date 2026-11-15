@@ -63,6 +63,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
     )?;
     let mut definitions = Vec::new();
     for declaration in &module.dyn_declarations {
+        if dynamic_metadata::sealed_drop_metadata(module,declaration,b)?{continue;}
         let rows = declaration
             .method_definitions
             .as_ref()

@@ -398,6 +398,7 @@ struct Budget {
     // Paid source-expression inventory only; never an actual reborrow proof.
     dyn_reborrow_sources: bool,
     pending_dyn_tables: BTreeSet<DynVtableId>,
+    pending_dyn_contracts: dynamic_witness::requests::Pending,
     pending_dyn_returns: BTreeSet<FunctionId>,
     pending_dyn_captures: BTreeSet<ClosureId>,
     dyn_static_classes: Vec<stored_flow::DynStaticObligation>,
@@ -519,6 +520,7 @@ impl Budget {
             dyn_contexts: false,
             dyn_reborrow_sources: false,
             pending_dyn_tables: BTreeSet::new(),
+            pending_dyn_contracts: dynamic_witness::requests::Pending::default(),
             pending_dyn_returns: BTreeSet::new(),
             pending_dyn_captures: BTreeSet::new(),
             dyn_static_classes: Vec::new(),
@@ -1423,6 +1425,7 @@ fn check_module_budget(
             "output-only Dyn class lacks a completed actual static or no-target proof",
         ));
     }
+    if !budget.pending_dyn_contracts.methods.is_empty()||!budget.pending_dyn_contracts.callables.is_empty(){return Err(unsupported("dynamic original contract has no completed independent actual CFG proof",None));}
     if !budget.pending_dyn_tables.is_empty() {
         return Err(unsupported(
             "Context provider lacks a completed independent access/effect proof",

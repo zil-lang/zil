@@ -494,10 +494,11 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
     for declaration in &module.dyn_declarations {
         dynamic_metadata::scoped_declaration(module,declaration,b)?;
         dynamic_metadata::recipe_declaration(declaration, b)?;
-        super::implicit::check(declaration, b)?;
+        if !dynamic_metadata::sealed_drop_metadata(module,declaration,b)?{super::implicit::check(declaration, b)?;}
     }
     let mut edges = Vec::new();
     for declaration in &module.dyn_declarations {
+        if dynamic_metadata::sealed_drop_metadata(module,declaration,b)?{continue;}
         let mut scope = Scope {
             owner: SemanticDynOwner::Declaration(declaration.id),
             declaration: &declaration.parameters,

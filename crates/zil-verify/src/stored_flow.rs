@@ -15,6 +15,7 @@ mod dyn_closed;
 mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
+mod dyn_contracts;
 mod dyn_returns;
 mod foreign_calls;
 
@@ -7193,6 +7194,7 @@ fn solve_check(
         static_borrows::validate(module, graphs, &solved, mask, b)?;
     }
     dyn_providers::validate(module, &summaries, b)?;
+    dyn_contracts::validate(module,&summaries,b)?;
     let mut checked_task_sources = if b.task_sources() {
         Some(Vec::with_capacity(module.functions.len()))
     } else {

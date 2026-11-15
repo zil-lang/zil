@@ -439,7 +439,7 @@ pub(super) fn effects(
     }
     Ok(())
 }
-fn selected(table: &DynVtable, source: &Source, b: &mut Budget) -> Check<Option<StoragePosition>> {
+pub(in crate::stored_flow) fn selected(table: &DynVtable, source: &Source, b: &mut Budget) -> Check<Option<StoragePosition>> {
     b.spend(table.ports.len().saturating_add(width(source)))?;
     let HoldRoot::Parameter(parameter) = source.base else {
         return Ok(None);
@@ -487,9 +487,7 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
     }
     for table in &module.dyn_vtables {
         let iface = crate::dynamic_ports::interface(module, table.interface, b)?;
-        if iface.context.is_none() {
-            continue;
-        }
+        if iface.context.is_none()&&!b.pending_dyn_tables.contains(&table.id){continue;}
         for entry in &table.entries {
             let summary = summaries
                 .get(entry.function.0 as usize)
@@ -633,7 +631,7 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
 
 /// Saved external values are dependencies, not owned teardown payloads. Actual
 /// owned descendants still require their exact independently proved cleanup.
-fn cleanup_proof(
+pub(in crate::stored_flow) fn cleanup_proof(
     module: &TypedModule,
     root: &Type,
     claim: &DynCleanupContract,

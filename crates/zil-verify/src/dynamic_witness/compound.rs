@@ -96,7 +96,7 @@ impl Walk<'_, '_> {
                     }
                 }
             }
-            Type::Closure(_) | Type::Task { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+            Type::Closure(_) | Type::Task { .. } | Type::MutexGuard { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
                 let domain = self.inventory.domain(ty, b)?;
                 self.pending |= domain.pending_sources;
                 self.boundary(semantic, domain.count, b)?;

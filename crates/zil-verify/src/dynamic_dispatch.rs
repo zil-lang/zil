@@ -256,26 +256,16 @@ fn dyn_address(ty: &Type) -> bool {
 /// Charge every raw list before cloning, fingerprinting or indexing it. This
 /// branch is inactive for old modules, preserving their exact budget path.
 pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> {
-    for f in &module.functions {
-        budget.spend(1)?;
-        if let Some(instance) = &f.dyn_instance {
-            crate::dynamic_metadata::recipe(instance, budget)?;
-            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
-            return Err(bad(
-                "dynamic function instance requires its complete definition proof",
-                None,
-            ));
-        }
-    }
-    for table in &module.dyn_vtables {
-        crate::dynamic_metadata::recipe_table(table, budget)?;
-        if table.self_life.is_some() || table.implementation_witnesses.is_some() {
-            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
-            return Err(bad(
-                "dynamic implementation recipes require their complete static proof",
-                None,
-            ));
-        }
+    for table in &module.dyn_vtables{crate::dynamic_metadata::recipe_table(table,budget)?;}
+    let full=module.functions.iter().any(|f|f.dyn_instance.is_some())||module.dyn_vtables.iter().any(|table|table.self_life.is_some()||table.implementation_witnesses.is_some())||module.dyn_declarations.iter().any(|d|d.implicit_lifetimes.is_some()||d.direct_supertraits.is_some()||d.requirements.is_some()||d.associated_definitions.is_some()||d.method_signatures.is_some()||d.method_definitions.is_some());
+    if full{
+        let pending=crate::dynamic_witness::declaration_graph(module,budget)?;
+        for function in &module.functions{if let Some(instance)=&function.dyn_instance{crate::dynamic_metadata::recipe(instance,budget)?;if !pending.methods.iter().any(|request|request.function==function.id&&request.specialization.as_ref()==Some(instance))&&!pending.callables.iter().any(|request|request.contract.function==function.id&&request.contract.specialization.as_ref()==Some(instance)){return Err(bad("actual dynamic specialization has no exact complete original executable request",None));}}}
+        budget.spend(pending.methods.len().saturating_add(pending.callables.len()))?;
+        budget.pending_dyn_contracts.methods.extend(pending.methods);
+        budget.pending_dyn_contracts.callables.extend(pending.callables);
+        let executing=!budget.pending_dyn_contracts.methods.is_empty()||!budget.pending_dyn_contracts.callables.is_empty()||!module.dyn_vtables.is_empty();
+        budget.dyn_contexts|=executing;budget.stored_borrows|=executing;
     }
 
     if !module.target.is_supported_x64_llvm() {
@@ -326,18 +316,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dynamic_metadata::scoped_declaration(module,declaration,budget)?;
-        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
-            || declaration.requirements.is_some()
-            || declaration.associated_definitions.is_some()
-            || declaration.method_signatures.is_some()
-            || declaration.method_definitions.is_some()
-        {
-            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
-            return Err(bad(
-                "dynamic declaration recipes require their complete static proof",
-                None,
-            ));
-        }
+        crate::dynamic_metadata::sealed_drop_metadata(module,declaration,budget)?;
         if declaration.kind == DynDeclarationKind::Trait
             && (declaration.implemented_trait.is_some() || declaration.self_pattern.is_some())
         {
@@ -400,7 +379,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         if !interfaces.insert(item.id) {
             return Err(bad("duplicate dyn interface identity", None));
         }
-        if item.context.is_some() {
+        if item.context.is_some()||full {
             crate::dynamic_ports::validate_interface(module, item, budget)?;
             continue;
         }
@@ -543,11 +522,11 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             .iter()
             .find(|d| d.id == item.implementation)
             .ok_or_else(|| bad("dyn implementation declaration absent", None))?;
-        if iface.context.is_some() {
+        if iface.context.is_some()||full {
             crate::dynamic_ports::validate_table(module, item, budget)?;
             if item.id.module != implementation.id.module
                 || implementation.kind != DynDeclarationKind::Impl
-                || item.owned_storage != Some(DynOwnedStorage::Heap)
+                || item.owned_storage.is_some_and(|route|route!=DynOwnedStorage::Heap)
                 || item.cleanup.is_some()
                 || item.entries.len() != iface.slots.len()
             {

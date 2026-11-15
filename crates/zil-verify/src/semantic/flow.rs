@@ -311,6 +311,14 @@ impl CheckedContext {
                     InstructionKind::CallDynSlot{..}=>self.actual_dyn_call(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::BorrowDynOwned{..}|InstructionKind::MakeDynBorrow{..}=>Some(self.actual_dyn_borrow(module,f,instruction,&state,&values,scope,&environment,active,b)?),
                     InstructionKind::DropMutexGuard{..}=>{self.drop_mutex_guard(module,f,instruction,&mut state,b)?;None},
+                    InstructionKind::DropClosure{local}=>{
+                        crate::closures::check_resource_instruction(module,f,instruction,b)?;
+                        if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_ref){
+                            if f.locals.get(local.0 as usize).is_none_or(|row|row.ty!=value.ty)||!matches!(value.ty,Type::Closure(_)){return Err(bad("closure cleanup changes its complete initialized original local"));}
+                            dynamic_witness::intrinsic_domain(module,&value.ty,b)?;
+                        }
+                        state.locals[local.0 as usize]=None;None
+                    },
                     InstructionKind::DropDynOwned{local}=>{crate::dynamic_dispatch::instruction(module,f,instruction,b)?;let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased cleanup has no complete initialized owner"))?;if !matches!(owner.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}dynamic_witness::structural_actual(module,&owner.ty,DynStructuralBound::SyncDrop,b)?;state.locals[local.0 as usize]=None;None},
                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{
