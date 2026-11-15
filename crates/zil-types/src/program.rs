@@ -747,7 +747,16 @@ fn check_resolved_program_in_context(
         // discharge when no original semantic program was supplied.
         stored::ordinary_inventory(&module, limits, &mut remaining).map_err(|e| vec![e])?;
     }
+    // Materialization and origin discovery finalize complete callable headers.
+    // Publish the same headers the executable carries before computing any
+    // interface identity; early emission snapshots are not final contracts.
+    for export in &mut root_functions {
+        finalize_export_header(export, &module, &mut remaining, limits)?;
+    }
     for interface in &mut interfaces {
+        for export in &mut interface.exports {
+            finalize_export_header(export, &module, &mut remaining, limits)?;
+        }
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
         interface.signature_fingerprint =
             interface_fingerprint(&interface.exports, target, &module, &mut remaining, limits)?;
@@ -791,6 +800,106 @@ fn imports_for<'a>(
         }
     }
     Ok(imports)
+}
+
+fn finalize_export_header(
+    export: &mut ScalarFunction,
+    module: &TypedModule,
+    remaining: &mut usize,
+    limits: &Limits,
+) -> CompileResult<()> {
+    let invalid = || {
+        vec![Diagnostic::error(
+            Phase::Types,
+            "E-INTERFACE-IDENTITY",
+            None,
+            "final interface does not select its exact environment-free function",
+        )]
+    };
+    let function = module
+        .functions
+        .get(export.function.0 as usize)
+        .filter(|function| function.id == export.function)
+        .ok_or_else(invalid)?;
+    if function.environment.is_some() || function.parameters.len() != export.parameters.len() {
+        return Err(invalid());
+    }
+    *remaining = remaining
+        .checked_sub(function.parameters.len().saturating_add(1))
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "final interface header inventory exceeded",
+                None,
+            )]
+        })?;
+    for ((_, published), local) in export.parameters.iter_mut().zip(&function.parameters) {
+        let actual = &function
+            .locals
+            .get(local.0 as usize)
+            .filter(|declaration| declaration.id == *local)
+            .ok_or_else(invalid)?
+            .ty;
+        inference::charge_type_snapshot(actual, function.span, limits, remaining, 1)
+            .map_err(|error| vec![error])?;
+        *published = actual.clone();
+    }
+    inference::charge_type_snapshot(&function.return_type, function.span, limits, remaining, 1)
+        .map_err(|error| vec![error])?;
+    if let Some(contract) = &function.storage_life {
+        borrowed_fp::charge_contract(
+            contract,
+            |work| {
+                *remaining = remaining.checked_sub(work).ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "final interface class relation snapshot exceeded",
+                        None,
+                    )
+                })?;
+                Ok(())
+            },
+            1,
+        )
+        .map_err(|error| vec![error])?;
+    }
+    if let Some(instance) = &function.dyn_instance {
+        dyn_metadata::semantic_operand_snapshot(instance, limits, remaining, 1)
+            .map_err(|error| vec![error])?;
+    }
+    if let Some(sources) = &function.retained_return_sources {
+        *remaining = remaining
+            .checked_sub(sources.len().saturating_add(1))
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "final interface retained source inventory exceeded",
+                    None,
+                )]
+            })?;
+        for source in sources {
+            dyn_metadata::semantic_operand_snapshot(source, limits, remaining, 1)
+                .map_err(|error| vec![error])?;
+        }
+    }
+    if let Some(bound) = &function.reference_return_bound {
+        *remaining = remaining
+            .checked_sub(bound.len().saturating_add(1))
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "final interface result bound snapshot exceeded",
+                    None,
+                )]
+            })?;
+    }
+    export.result = function.return_type.clone();
+    export.result_mode = function.result_mode;
+    export.dyn_instance = function.dyn_instance.clone();
+    export.storage_life = function.storage_life.clone();
+    export.reference_return_bound = function.reference_return_bound.clone();
+    export.retained_return_sources = function.retained_return_sources.clone();
+    Ok(())
 }
 
 fn interface_fingerprint(
