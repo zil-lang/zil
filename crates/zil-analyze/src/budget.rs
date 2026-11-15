@@ -38,7 +38,7 @@ pub(super) struct Budget {
     // Immutable nominal candidate directory plus complete comparison bounds.
     // Keys only filter candidates; all collisions still compare the full IR.
     // No domain, class or runtime qualification is retained here.
-    pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<(usize, usize)>>>)>,
+    pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<(usize, usize)>>)>,
     // Successful zero-domain formation at registered immutable roots only.
     // No classes, images or access/cleanup qualifications are cached.
     pub(super) nominal_zero_formed: Option<(usize, [usize; 8], BTreeSet<usize>)>,
