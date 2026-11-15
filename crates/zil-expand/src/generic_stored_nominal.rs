@@ -837,16 +837,15 @@ impl<'a> Engine<'a> {
                     TypeKind::Tuple(fields) => fields.as_slice(),
                     _ => std::slice::from_ref(context),
                 };
-                if sources.is_empty() {
-                    return Err(error(
-                        context.span,
-                        "Task retained context needs an actual port",
-                    ));
-                }
                 let mut classes = Vec::new();
+                let mut next_port = 0u32;
                 let fixed_input = !matches!(base, zil_ir::StorageBase::Result);
-                for (port, source) in sources.iter().enumerate() {
+                for source in sources {
                     self.budget.node(source.span, depth + 1)?;
+                    self.budget.ty(source)?;
+                    if crate::type_ref(source).is_b0_scalar() {
+                        continue;
+                    }
                     let TypeKind::Reference {
                         lifetime: Some(name),
                         ..
@@ -861,10 +860,13 @@ impl<'a> Engine<'a> {
                     if !classes.contains(&life) {
                         classes.push(life);
                     }
-                    path.push(zil_ir::ContractProjection::RetainedPort(
-                        u32::try_from(port)
-                            .map_err(|_| error(source.span, "Task port overflow"))?,
-                    ));
+                    // Physical port numbering is compact; the complete
+                    // Context input ordinals remain in Task's retained map.
+                    let port = next_port;
+                    next_port = next_port
+                        .checked_add(1)
+                        .ok_or_else(|| error(source.span, "Task port overflow"))?;
+                    path.push(zil_ir::ContractProjection::RetainedPort(port));
                     occurrences.push(stored_types::Occurrence {
                         position: stored_types::OccurrencePosition::Borrow(
                             zil_ir::StoragePosition {

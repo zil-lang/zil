@@ -1,6 +1,8 @@
 //! Complete signature occurrences from an already interpreted whole type.
 //! These rows propose no permission, constructor or class equality.
 use crate::*;
+#[path = "header_task_rows.rs"]
+mod tasks;
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-HEADER-ROWS", Span::default(), message)
 }
@@ -52,6 +54,8 @@ pub(in crate::semantics) fn append(
     pay(left, count.saturating_add(1))?;
     pay(left, classes.len().saturating_mul(2))?;
     let mut covered = vec![false; classes.len()];
+    pay(left, life.retained.len())?;
+    let mut expanded = vec![false; life.retained.len()];
     for slot in &life.slots {
         path(left, limits, slot.path.len())?;
         let image = classes
@@ -72,6 +76,18 @@ pub(in crate::semantics) fn append(
             image.clone(),
         ));
     }
+    let task_root = tasks::append(
+        ty,
+        life,
+        classes,
+        base,
+        bindings,
+        classes_out,
+        &mut covered,
+        &mut expanded,
+        limits,
+        left,
+    )?;
     let opaque = matches!(
         ty,
         Type::BorrowedStorage { .. }
@@ -81,7 +97,7 @@ pub(in crate::semantics) fn append(
             | Type::Dyn { .. }
             | Type::OwnedDyn { .. }
     );
-    if opaque {
+    if opaque && !task_root {
         for (class, image) in classes.iter().enumerate() {
             crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
             covered[class] = true;
@@ -94,8 +110,11 @@ pub(in crate::semantics) fn append(
                 image.clone(),
             ));
         }
-    } else {
-        for row in &life.retained {
+    } else if !opaque {
+        for (index, row) in life.retained.iter().enumerate() {
+            if expanded[index] {
+                continue;
+            }
             path(left, limits, row.path.len())?;
             let image = classes
                 .get(row.binder as usize)
