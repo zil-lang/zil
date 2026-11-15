@@ -75,8 +75,8 @@ impl Domain {
         let mut found = None;
         for (fixed, rows) in [(true, &self.fixed), (false, &self.invocation)] {
             for (index, candidate) in rows.iter().enumerate() {
-                crate::dyn_metadata::semantic_operand_snapshot(candidate, limits, left, 0)?;
-                crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 0)?;
+                crate::dyn_metadata::semantic_operand_snapshot(candidate, limits, left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
                 if candidate == image {
                     let index = u32::try_from(index)
                         .map_err(|_| bad("Dyn lexical class ordinal overflows"))?;
@@ -421,7 +421,7 @@ pub(super) fn complete(
                     limits,
                     left,
                 )?;
-                crate::dyn_metadata::semantic_operand_snapshot(&value, limits, left, 0)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&value, limits, left, 1)?;
                 if instance.self_type.as_ref() != Some(&value)
                     || !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == inner.as_ref())
                 {
@@ -517,8 +517,8 @@ pub(super) fn complete(
             return Err(bad("Dyn method has multiple original emitted instances"));
         }
         if let Some(old) = &function.dyn_instance {
-            crate::dyn_metadata::semantic_operand_snapshot(old, limits, left, 0)?;
-            crate::dyn_metadata::semantic_operand_snapshot(&actual, limits, left, 0)?;
+            crate::dyn_metadata::semantic_operand_snapshot(old, limits, left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&actual, limits, left, 1)?;
             if old != &actual {
                 return Err(bad(
                     "Dyn proposed function changes its complete original instantiation",
@@ -533,7 +533,7 @@ pub(super) fn complete(
             .ok_or_else(|| bad("Dyn original method directory disappeared"))?[mi];
         let mut found = false;
         for old in &definition.instances {
-            crate::dyn_metadata::semantic_operand_snapshot(old, limits, left, 0)?;
+            crate::dyn_metadata::semantic_operand_snapshot(old, limits, left, 1)?;
             let target = match old.function {
                 DynFunctionTarget::Typed(id) => id == function.id,
                 DynFunctionTarget::Core { module, source } => {

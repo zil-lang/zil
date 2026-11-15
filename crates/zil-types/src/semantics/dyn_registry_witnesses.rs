@@ -46,8 +46,8 @@ fn pair(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
-    crate::dyn_metadata::semantic_operand_snapshot(local, limits, left, 0)?;
-    crate::dyn_metadata::semantic_operand_snapshot(context, limits, left, 0)?;
+    crate::dyn_metadata::semantic_operand_snapshot(local, limits, left, 1)?;
+    crate::dyn_metadata::semantic_operand_snapshot(context, limits, left, 1)?;
     match (local, context) {
         (DynGenericActual::Type(a), DynGenericActual::Type(b)) if a == b => Ok(()),
         (DynGenericActual::Const(a), DynGenericActual::Const(b)) if a == b => Ok(()),
@@ -197,7 +197,7 @@ pub(super) fn complete(
             limits,
             left,
         )?;
-        crate::dyn_metadata::semantic_operand_snapshot(&value, limits, left, 0)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&value, limits, left, 1)?;
         if instance.self_type.as_ref() != Some(&value)
             || !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if *ty == table.self_type)
         {
@@ -323,7 +323,7 @@ pub(super) fn complete(
         push(&mut witnesses, witness, limits, left)?;
         if let Some(old) = &table.implementation_witnesses {
             for row in old {
-                crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 0)?;
+                crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
             }
             if old != &witnesses {
                 return Err(bad(
