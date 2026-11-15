@@ -1,0 +1,378 @@
+{
+  "source": "f19fc847c5774a2472bd3af85019b5c937546010",
+  "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
+  "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "LLVM_rebuilt": false,
+  "default_budgets_unchanged": true,
+  "timing": "O2/CGU16/jobs1; native functional jobs8 and runtime samples outside original compile timing. Check separate. Fresh user artifact roots, not OS-cold caches.",
+  "disk_scope": "Explicit user cache/output roots; global inode dedup lstat/st_blocks request boundaries, not transient peaks. SDK, host target, source and evidence excluded.",
+  "schema": "zil.native-dependency-cache-time-space-results.v1",
+  "scope": "Separate retain and full clear-on-restart windows; same original cold source identities, six requests two blocks. Clearing occurs after cold+unchanged, before private edit. Not partial history GC, equal quota, a symmetric full-product clean or complete end-to-end timer. ZIL program/IR retained; Rust target including executable cleared. Candidate-boundary delete_ns combines ZIL+Rust cache deletion and cannot be assigned to either language.",
+  "states": {
+    "retain": {
+      "window": "out/runs/native-dependency-cache-retain-01",
+      "schema": "closed-import-cache-retain-runtime-v1",
+      "summary_sha256": "c03575221ea0f7e51353abda111c5c82ccd8503582994965fcf621a27dbadfe4",
+      "rows_sha256": "1eb6ac7db62107086444901f29511bc12c3bd4f7d45f3990ca4759b2cece807f",
+      "quality": {
+        "execution_complete": true,
+        "accepted": false,
+        "candidate_rust_accepted": true,
+        "rows": 72,
+        "quality_cells": 24
+      },
+      "source_bound_runtime_cases": 10,
+      "sizes": {
+        "2500": {
+          "request_median_ms": {
+            "cold": {
+              "baseline": 3258.1862695,
+              "candidate": 1280.6050505,
+              "rust": 1817.5597895
+            },
+            "unchanged": {
+              "baseline": 240.5013535,
+              "candidate": 32.114343,
+              "rust": 48.947973000000005
+            },
+            "warm-restart": {
+              "baseline": 430.09808250000003,
+              "candidate": 423.09221449999995,
+              "rust": 31.8774075
+            },
+            "private-001": {
+              "baseline": 634.3076145,
+              "candidate": 746.9791224999999,
+              "rust": 501.58731250000005
+            },
+            "error": {
+              "baseline": 215.0548905,
+              "candidate": 177.51096,
+              "rust": 492.4521205
+            },
+            "recovery": {
+              "baseline": 2214.160528,
+              "candidate": 973.0697975,
+              "rust": 1194.9583465
+            }
+          },
+          "compile_request_total_median_ms": {
+            "baseline": 6992.3087385,
+            "candidate": 3633.3714879999998,
+            "rust": 4087.3829495
+          },
+          "boundary_peak_MiB": {
+            "baseline": 10.1953125,
+            "candidate": 7.029296875,
+            "rust": 30.9921875
+          },
+          "restart_boundaries": [
+            {
+              "block": 0,
+              "action": "retain",
+              "candidate_and_rust_combined_delete_ms": 0.000601,
+              "validation_scan_delete_ms": 11.618291,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 4.46484375,
+                "rust": 12.3984375
+              },
+              "after_MiB": {
+                "candidate": 4.46484375,
+                "rust": 12.3984375
+              },
+              "freed_MiB": {
+                "candidate": 0.0,
+                "rust": 0.0
+              }
+            },
+            {
+              "block": 1,
+              "action": "retain",
+              "candidate_and_rust_combined_delete_ms": 0.000971,
+              "validation_scan_delete_ms": 11.9611,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 4.46484375,
+                "rust": 12.3984375
+              },
+              "after_MiB": {
+                "candidate": 4.46484375,
+                "rust": 12.3984375
+              },
+              "freed_MiB": {
+                "candidate": 0.0,
+                "rust": 0.0
+              }
+            }
+          ],
+          "cold_source_identity": [
+            "01ad1fb5f38147ef90d866ad7eb067591b18c83482c826f5aac8a7ccde5b8e9b"
+          ]
+        },
+        "5105": {
+          "request_median_ms": {
+            "cold": {
+              "candidate": 4096.152254,
+              "rust": 7182.061068999999
+            },
+            "unchanged": {
+              "candidate": 49.565191,
+              "rust": 30.3735205
+            },
+            "warm-restart": {
+              "candidate": 1597.0560945,
+              "rust": 23.863484
+            },
+            "private-001": {
+              "candidate": 2772.6712184999997,
+              "rust": 1508.13377
+            },
+            "error": {
+              "candidate": 768.341451,
+              "rust": 1733.4165555
+            },
+            "recovery": {
+              "candidate": 2744.742744,
+              "rust": 5945.476214
+            }
+          },
+          "compile_request_total_median_ms": {
+            "candidate": 12028.528953000001,
+            "rust": 16423.324612999997
+          },
+          "boundary_peak_MiB": {
+            "candidate": 26.302734375,
+            "rust": 58.69140625
+          },
+          "restart_boundaries": [
+            {
+              "block": 0,
+              "action": "retain",
+              "candidate_and_rust_combined_delete_ms": 0.000931,
+              "validation_scan_delete_ms": 28.164737,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 17.40234375,
+                "rust": 29.85546875
+              },
+              "after_MiB": {
+                "candidate": 17.40234375,
+                "rust": 29.85546875
+              },
+              "freed_MiB": {
+                "candidate": 0.0,
+                "rust": 0.0
+              }
+            },
+            {
+              "block": 1,
+              "action": "retain",
+              "candidate_and_rust_combined_delete_ms": 0.000601,
+              "validation_scan_delete_ms": 16.516393,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 17.3984375,
+                "rust": 29.85546875
+              },
+              "after_MiB": {
+                "candidate": 17.3984375,
+                "rust": 29.85546875
+              },
+              "freed_MiB": {
+                "candidate": 0.0,
+                "rust": 0.0
+              }
+            }
+          ],
+          "cold_source_identity": [
+            "892fbc295a4cd51abec61c1cd600079126b1d473e1a85671f506353dfe333627"
+          ]
+        }
+      }
+    },
+    "clear": {
+      "window": "out/runs/native-dependency-cache-clear-01",
+      "schema": "closed-import-cache-clear-on-restart-runtime-v1",
+      "summary_sha256": "4c4c711d10f0027b55a0ba4fba8e198d6b5cfdac452ce1be1210ccab4870081c",
+      "rows_sha256": "418eeb6d0696305c9a9d817d760a31a2efb5ae3dcb55e605d89708609a7d8222",
+      "quality": {
+        "execution_complete": true,
+        "accepted": false,
+        "candidate_rust_accepted": true,
+        "rows": 72,
+        "quality_cells": 24
+      },
+      "source_bound_runtime_cases": 10,
+      "sizes": {
+        "2500": {
+          "request_median_ms": {
+            "cold": {
+              "baseline": 2840.146713,
+              "candidate": 1380.1460625,
+              "rust": 2040.201255
+            },
+            "unchanged": {
+              "baseline": 270.8474815,
+              "candidate": 44.7668075,
+              "rust": 56.51442899999999
+            },
+            "warm-restart": {
+              "baseline": 3147.4101220000002,
+              "candidate": 1858.0445475000001,
+              "rust": 1643.5599135000002
+            },
+            "private-001": {
+              "baseline": 518.8752035,
+              "candidate": 436.957087,
+              "rust": 511.898743
+            },
+            "error": {
+              "baseline": 136.6149615,
+              "candidate": 192.10394300000002,
+              "rust": 672.4711465
+            },
+            "recovery": {
+              "baseline": 2552.1724670000003,
+              "candidate": 993.0358000000001,
+              "rust": 1346.1151685
+            }
+          },
+          "compile_request_total_median_ms": {
+            "baseline": 9466.0669485,
+            "candidate": 4905.0542475,
+            "rust": 6270.7606555
+          },
+          "boundary_peak_MiB": {
+            "baseline": 10.19140625,
+            "candidate": 7.0625,
+            "rust": 30.9921875
+          },
+          "restart_boundaries": [
+            {
+              "block": 0,
+              "action": "full-clear",
+              "candidate_and_rust_combined_delete_ms": 3.109406,
+              "validation_scan_delete_ms": 11.277231,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 4.46875,
+                "rust": 12.3984375
+              },
+              "after_MiB": {
+                "candidate": 1.62109375,
+                "rust": 0.0
+              },
+              "freed_MiB": {
+                "candidate": 2.84765625,
+                "rust": 12.3984375
+              }
+            },
+            {
+              "block": 1,
+              "action": "full-clear",
+              "candidate_and_rust_combined_delete_ms": 4.695607,
+              "validation_scan_delete_ms": 12.181548,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 4.4609375,
+                "rust": 12.3984375
+              },
+              "after_MiB": {
+                "candidate": 1.62109375,
+                "rust": 0.0
+              },
+              "freed_MiB": {
+                "candidate": 2.83984375,
+                "rust": 12.3984375
+              }
+            }
+          ],
+          "cold_source_identity": [
+            "01ad1fb5f38147ef90d866ad7eb067591b18c83482c826f5aac8a7ccde5b8e9b"
+          ]
+        },
+        "5105": {
+          "request_median_ms": {
+            "cold": {
+              "candidate": 4467.852256,
+              "rust": 6802.9172045
+            },
+            "unchanged": {
+              "candidate": 53.6164735,
+              "rust": 34.9413715
+            },
+            "warm-restart": {
+              "candidate": 3798.0660445000003,
+              "rust": 6386.3038925
+            },
+            "private-001": {
+              "candidate": 1196.1655355,
+              "rust": 1275.139401
+            },
+            "error": {
+              "candidate": 820.6710745,
+              "rust": 1744.1518575
+            },
+            "recovery": {
+              "candidate": 2665.158508,
+              "rust": 5832.420759500001
+            }
+          },
+          "compile_request_total_median_ms": {
+            "candidate": 13001.529891999999,
+            "rust": 22075.874486499997
+          },
+          "boundary_peak_MiB": {
+            "candidate": 26.353515625,
+            "rust": 58.69140625
+          },
+          "restart_boundaries": [
+            {
+              "block": 0,
+              "action": "full-clear",
+              "candidate_and_rust_combined_delete_ms": 8.934703,
+              "validation_scan_delete_ms": 20.647061,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 17.43359375,
+                "rust": 29.85546875
+              },
+              "after_MiB": {
+                "candidate": 6.87890625,
+                "rust": 0.0
+              },
+              "freed_MiB": {
+                "candidate": 10.5546875,
+                "rust": 29.85546875
+              }
+            },
+            {
+              "block": 1,
+              "action": "full-clear",
+              "candidate_and_rust_combined_delete_ms": 7.92889,
+              "validation_scan_delete_ms": 17.263757,
+              "scope": "validation, snapshots, deletion; receipt writing excluded",
+              "before_MiB": {
+                "candidate": 17.41015625,
+                "rust": 29.85546875
+              },
+              "after_MiB": {
+                "candidate": 6.87890625,
+                "rust": 0.0
+              },
+              "freed_MiB": {
+                "candidate": 10.53125,
+                "rust": 29.85546875
+              }
+            }
+          ],
+          "cold_source_identity": [
+            "892fbc295a4cd51abec61c1cd600079126b1d473e1a85671f506353dfe333627"
+          ]
+        }
+      }
+    }
+  }
+}

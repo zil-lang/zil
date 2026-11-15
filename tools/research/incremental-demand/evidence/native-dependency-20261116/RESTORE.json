@@ -1,0 +1,52 @@
+{
+  "schema": "zil.native-dependency-recovery.v1",
+  "compiled_source": "f19fc847c5774a2472bd3af85019b5c937546010",
+  "compiled_tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
+  "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
+  "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "250172bf85739b529bc5bcd22c4038ce4a9f232b49e96a9bbdd4c7038cca5d84",
+  "archive_sha256": "c42df6dd86b30a1249521f167e38a8a39d4871291c43843d2d18d6b9c0d7c4b1",
+  "archive_bytes": 1228271760,
+  "parts": 49,
+  "regular_files": 106448,
+  "logical_bytes": 4777702955,
+  "scope": "Exact f19 dependency-chain current528/reused200 gates, earliest failures/controller03 precompiler failure, frozen build binaries/pins/controllers and peer/Astra source reviews; independent check2505 chain+diamond/5005 wide306requests102quality; retain and full-cache-clear realrestart144originalrequests48quality20sourcebound runtime cases allRust gates pass, all negative compile cases preserved. Root matrices serial/no hostarchive overlap. Raw formal324/108/51 is separate immutable afc97106d dependency with complete fresh proof; its duplicate localraw retired after everyfileverification. Current/prior retirement ledgers and representative originalraw copies included. Check/native schemas distinct, independentVerify/budgets/fullO2 unchanged; no partialGC, equalquota, symmetricclean, totalend-to-end or universalRust superiority claim.",
+  "payload_root_mapping": "repository-relative paths under out/runs and out/binaries",
+  "fresh_restore_verified": true,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "fresh_verify_receipt_sha256": "23508ea92901efa88f0335d9548f6836e1e498f15891363b5a2a14232a9e3bcd",
+  "fresh_scratch_retired": true,
+  "original_check_cache_raw_retained": true,
+  "dependencies": {
+    "formal_native_324_requests_51_runtime": "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json",
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "prior027_all_failures_and_capacity": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
+    "prior_actual_rust_source": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json"
+  },
+  "formal_raw_local_retired": "out/runs/native-dependency-retired-current-formal-01.json (every original hash, parts, pushed manifest and fresh receipt verified before deletion); restore the fixed formal dependency instead of assuming old local files.",
+  "all_windows": {
+    "original_requests": 774,
+    "functional_cells": 258,
+    "source_bound_runtime_cases": 71,
+    "all_Rust_runtime_gates_passed": true,
+    "main5105_regression": "unknown ResourceLimit",
+    "check_valid": true,
+    "native_full_finite_workflow_leads": true,
+    "all_scenario_Rust_goal": "OPEN"
+  },
+  "LLVM_rebuilt": false,
+  "research_defaults_enabled": false,
+  "main_merge": false,
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/native-dependency-20261116",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "recovery_limit": "Evidence and immutable binaries, not installation. Clone exact compiler source, restore SDK18/native-link from V32 and stock LLVM/Rust dependencies, rebind absolute paths and verify hashes. Verify formal companion into a separate fresh root honoring its window-relative payload mapping. Do not rebuild LLVM or compute user disk savings from restored hardlink topology. Check/native, retained/clear, startup/cleanup/compile timers remain distinct. Not industrial/debug/test/multicrate, partial history GC, equalquota or universal Rust success."
+}

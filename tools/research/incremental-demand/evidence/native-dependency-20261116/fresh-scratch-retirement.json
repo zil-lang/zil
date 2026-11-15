@@ -1,0 +1,8 @@
+{
+  "status": "retired-after-full-fresh-verification",
+  "path": "/workspace/zil-recovery/native-dependency-core-fresh-01",
+  "scope": "Only the exact verifier-created scratch; all106448files checked before deletion, original current check/cache raw retained. Host research storage, not product cache savings.",
+  "archive_sha256": "c42df6dd86b30a1249521f167e38a8a39d4871291c43843d2d18d6b9c0d7c4b1",
+  "fresh_receipt_sha256": "23508ea92901efa88f0335d9548f6836e1e498f15891363b5a2a14232a9e3bcd",
+  "unix_ns": 1794784411572077073
+}

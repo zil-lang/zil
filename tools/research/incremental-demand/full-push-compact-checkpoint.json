@@ -6,7 +6,7 @@
   "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
   "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Full consumed-header/result-equality/current-layout-item chain implemented and gated; current finite full workflows beat Rust but all-scenario goal remains OPEN. Check/cache-lifecycle windows pending; main Hold.",
+  "status": "Full dependency/result/current-layout-item chain implemented and all planned same-source windows completed. Finite native/check workflows and disk beat Rust, but individual hot/restart/interface losses and >10k capacity remain. No universal win/main merge.",
   "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
   "LLVM_rebuilt": false,
   "research_defaults_enabled": false,
@@ -44,8 +44,33 @@
     },
     "source_bound_runtime_cases": 51,
     "runtime_R_over_B_GM": 4.137381218685457,
-    "check_windows": "pending",
-    "cache_lifecycle": "pending"
+    "check_windows": {
+      "requests": 306,
+      "quality_cells": 102,
+      "all_valid": true,
+      "report": "native-dependency-reviews-20261116/check-coverage.json",
+      "scenarios": [
+        "2505functions simple chain",
+        "2505functions simple diamond",
+        "5005functions simple wide"
+      ],
+      "workflow_wait_reduction_vs_rust": [
+        0.46141780724719705,
+        0.31364942371664783,
+        0.4345652782337711
+      ]
+    },
+    "cache_lifecycle": {
+      "requests": 144,
+      "quality_cells": 48,
+      "source_bound_runtime_cases": 20,
+      "all_Rust_runtime_gates_passed": true,
+      "report": "native-dependency-reviews-20261116/cache-time-space.json",
+      "cleaning_boundary": "Separate retain and full clear-on-restart windows; same original cold source identities, six requests two blocks. Clearing occurs after cold+unchanged, before private edit. Not partial history GC, equal quota, a symmetric full-product clean or complete end-to-end timer. ZIL program/IR retained; Rust target including executable cleared. Candidate-boundary delete_ns combines ZIL+Rust cache deletion and cannot be assigned to either language."
+    },
+    "total_original_requests": 774,
+    "total_functional_cells": 258,
+    "total_source_bound_runtime_cases": 71
   },
   "current_formal_f19": {
     "compiler_source": "f19fc847c5774a2472bd3af85019b5c937546010",
@@ -321,6 +346,8 @@
   },
   "new_performance_not_assigned_to_prior_sources": true,
   "unresolved": [
+    "New5105 retained restart1.597s+firstedit2.773s=4.370s, Rust0.0239+1.508=1.532s. Clear restart3.798+edit1.196=4.994s vsRust6.386+1.275=7.661s. Retaining remains0.624s faster for ZIL pair; clearing is not a solution. Whole-Typed hit bypasses upstream parser/producer/inference/CT epochs. Existing disk format lacks their actual owners/dependencies/fees; do not hydrate them from Typed validity/hash or move rebuilding outside timers. Source/Astra reports contain exact paths and bounded next options.",
+    "Clear2500 restart1.858s vsRust1.644s loses; retained2500 nextprivate0.747s vs0.502s loses. Cache policies are separate windows, not a symmetric full-product cleanup/partial-GC/industry-frequency result.",
     "5105 eight private edits10.962s vs Rust9.894s; retained-cache restart1.273s vs0.032s; interface2.195s vs1.800s.",
     "2500 broad1.386s vsRust1.164s; interface1.009s vs0.780s.1000 interface0.755s vs0.677s. Full-workflow lead does not close individual losses.",
     "Actual positions-to-interface adjacency still invalidates all frontend modules and CT owners; two independent static reviews confirmed mapped-placement optimization opportunity. Do not introduce broad raw namespace or old-position authority to fix this.",
@@ -341,17 +368,22 @@
     "every_future_direction": "Actual Rust implementation, exact ZIL consumer/input/cost difference, facts vs hypotheses, preserve stronger current checks, one whole-chain acceptance."
   },
   "recovery": {
-    "current_formal": "evidence/native-dependency-formal-20261116/RESTORE.json",
+    "current_formal": "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json",
     "prior027_formal": "https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
     "prior027_core_negative_capacity": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
     "prior_rust_source_audit": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json",
     "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
     "historical98fa": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c formal59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628; never relabelled",
-    "current_formal_fresh_verified": true
+    "current_formal_fresh_verified": true,
+    "current_core": "evidence/native-dependency-20261116/RESTORE.json",
+    "current_core_fresh_verified": true,
+    "current_formal_local_raw_retired": true
   },
   "local_retirements": [
     "closed-project-window-05 original raw retired only after immutable committed archive/parts/fresh receipt and every local file hash match; full restore from05f270 above.",
-    "expanded-large-capacity-check-01 and expanded-large-capacity-native-01 retired by same proof against53c077 above; ledger out/runs/native-dependency-retired-capacity-01.json. Host evidence storage only, not product savings."
+    "expanded-large-capacity-check-01 and expanded-large-capacity-native-01 retired by same proof against53c077 above; ledger out/runs/native-dependency-retired-capacity-01.json. Host evidence storage only, not product savings.",
+    "Current f19 formal native raw retired after immutable afc97106d archive+allparts+fresh receipt+every236872localfile hash; ledger is in current core. Current check/cache raw and binaries retained."
   ],
-  "next": "Finish same-f19 independent check and retain/clear lifecycle windows, retain all negatives, then archive/fresh verify/push exact evidence. Next backend chain should prioritize actual class/import/CGU construction and persistent restart dependencies; no default-budget or Verify/O2 reduction."
+  "next": "Prioritize actual restart+first-edit and eight-private absolute waits. Whole-Typed cache cannot mint missing upstream owners/fees. Bounded full-chain options: real fine-grained disk consumer records with current binding/replay, or explicitly measured normal cold-session initialization preserving object cache (count all work, may lose); downstream reuse exact local checked-add/class/reference facts under complete current inputs, representative/import decisions and original checks. Do not promise all4221ms machine+partition bucket is removable or alter O2/budgets/Verify.",
+  "main_merge_assessment": "Hold whole research branch: it contains research tools/evidence and large production divergence. Clean production/test extraction and main product acceptance are not complete; no goal/archive/research evidence merged into main."
 }
