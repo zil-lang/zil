@@ -190,8 +190,15 @@ def object_abi(data, expected, cross, model):
     require(undefined <= reloc_names, 'undefined scalar import lacks actual relocation')
     for r in table['relocations']:
         s = r['symbol']
+        section = table['sections'][s['section']] if s['section'] < len(table['sections']) else None
+        constant_pool = (s['kind'] == 0 and s['bind'] == 0 and s['visibility'] == 0
+                         and re.fullmatch(r'\.LCPI\d+_\d+', s['name']) is not None
+                         and section is not None and section[1] == 1 and section[2] == 18
+                         and section[9] > 0 and s['address'] % section[9] == 0
+                         and s['address']+section[9] <= section[5]
+                         and r['kind'] == 2 and r['addend'] == -4)
         require((s['name'] in funcs or s['name'] in undefined) or
-                (s['kind'] == 3 and s['section'] < len(table['sections']) and table['sections'][s['section']][2] & 4),
+                (s['kind'] == 3 and section is not None and section[2] & 4) or constant_pool,
                 'unknown address/data relocation outside scalar call/unwind envelope')
     return {'functions': funcs, 'undefined': sorted(undefined), 'relocated_imports': sorted(undefined & reloc_names)}
 

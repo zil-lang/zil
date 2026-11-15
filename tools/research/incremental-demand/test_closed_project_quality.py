@@ -149,6 +149,27 @@ class ClosedProjectTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             quality.elf_table(self.object_bytes('main')[:70])
 
+    def test_readonly_machine_constant_pool_does_not_admit_writable_data(self):
+        symbol = dict(name='.LCPI0_0', kind=0, bind=0, visibility=0, section=1, address=0, size=0)
+        readonly = (0, 1, 18, 0, 0, 16, 0, 0, 16, 16)
+        table = {'symbols': [symbol], 'sections': [(0,)*10, readonly],
+                 'relocations': [dict(symbol=symbol, kind=2, offset=0, addend=-4)]}
+        model = {'definitions': set(), 'foreign': set()}
+        with patch.object(quality, 'elf_table', return_value=table):
+            quality.object_abi(b'', set(), set(), model)
+        for change in ('writable', 'unknown_name', 'outside_entry', 'address_relocation'):
+            bad = copy.deepcopy(table)
+            if change == 'writable':
+                section = list(readonly); section[2] |= 1; bad['sections'][1] = tuple(section)
+            elif change == 'unknown_name':
+                bad['symbols'][0]['name'] = 'user_global'
+            elif change == 'outside_entry':
+                bad['symbols'][0]['address'] = 16
+            else:
+                bad['relocations'][0]['kind'] = 1
+            with self.subTest(change=change), patch.object(quality, 'elf_table', return_value=bad), self.assertRaises(ValueError):
+                quality.object_abi(b'', set(), set(), model)
+
     def oracle(self):
         return types.SimpleNamespace(oracle=lambda case, data, label: {
             'exit': 0, 'stdout_hex': bytes([data[0] if data else 0]).hex(), 'stderr_hex': ''})
