@@ -1985,7 +1985,7 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
         }
         if !matches!(
             (d.kind, storage),
-            (LifeNominalKind::Record, Type::Record { .. })
+            (LifeNominalKind::Record | LifeNominalKind::Resource, Type::Record { .. })
                 | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {

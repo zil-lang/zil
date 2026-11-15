@@ -53,7 +53,7 @@ fn walk(
         && !task_failure::declaration(decl))
         || !matches!(
             (decl.kind, storage.as_ref()),
-            (LifeNominalKind::Record, Type::Record { .. })
+            (LifeNominalKind::Record | LifeNominalKind::Resource, Type::Record { .. })
                 | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         )

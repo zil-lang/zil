@@ -12,7 +12,7 @@ pub(super) fn with_active(module: &TypedModule, instance: &LifeNominalInstance, 
     let declaration = declarations.next().ok_or_else(|| err("plain nominal has no original declaration"))?;
     if declarations.next().is_some() || declaration.parameters.len() != instance.arguments.len()
         || !matches!((declaration.kind, &instance.ty),
-            (LifeNominalKind::Record, Type::Record { .. }) |
+            (LifeNominalKind::Record | LifeNominalKind::Resource, Type::Record { .. }) |
             (LifeNominalKind::Package, Type::Package { .. }) |
             (LifeNominalKind::Enum, Type::Enum { .. })) {
         return Err(err("plain nominal declaration kind or full mixed arity differs"));

@@ -13,7 +13,8 @@ impl CheckedOriginal {
                     let definition=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{receiver_parameter:Some(ordinal),..}=&definition.body else{return Err(bad("original receiver shorthand has no true source receiver parameter"));};
                     let owner=env.current()?;let receiver=bindings.values().find(|row|matches!(row.identity,Binder::Parameter{definition,ordinal:actual} if definition==owner&&actual==*ordinal)).ok_or_else(||bad("original receiver parameter is absent"))?;
                     self.read_original(module,context,&Place{binder:receiver.identity.clone(),fields:vec![]},&receiver.ty,env,false,active,b)?;
-                    let storage=match self.resolved(&receiver.ty,b)?{Ty::Address{inner,..}|Ty::Desc{inner,..}=>*inner,_=>return Err(bad("original receiver shorthand lacks an actual borrowed/description receiver"))};
+                    let(storage,observed)=self.field_observation_storage(module,context,&receiver.ty,b)?;
+                    if !observed{return Err(bad("original receiver shorthand lacks an actual resource or borrowed receiver"));}
                     (self.field(module,context,&storage,member,env,active,b)?,None)
                 },
                 CoreExprKind::Group(inner)=>self.place(module,context,inner,env,bindings,active,b)?,
@@ -21,10 +22,10 @@ impl CheckedOriginal {
                     let (pointer,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&pointer,env,false,active,b)?;}
                     match self.resolved(&pointer,b)?{Ty::Address{inner,..}=>(*inner,None),_=>return Err(bad("original dereference requires a real Address"))}
                 },
-                CoreExprKind::Member{object,member,owner}=>{
-                    let (object,mut place)=self.place(module,context,object,env,bindings,active,b)?;
-                    let mut storage=self.resolved(&object,b)?;
-                    if let Ty::Address{inner,..}|Ty::Desc{inner,..}=storage{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}storage=*inner;place=None;}
+                CoreExprKind::Member{object:source_object,member,owner}=>{
+                    let (object,mut place)=self.place(module,context,source_object,env,bindings,active,b)?;
+                    let(storage,observed)=self.field_observation_storage(module,context,&object,b)?;
+                    if observed{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}self.observed_argument(source_object,&object,env,b)?;place=None;}
                     if let Some(owner)=owner{let expected=self.ty(module,context,owner,env,active,b)?;self.unify(&storage,&expected,b)?;}
                     let ty=self.field(module,context,&storage,member,env,active,b)?;if let Some(place)=&mut place{place.fields.push(member.clone());}(ty,place)
                 },
@@ -87,5 +88,24 @@ impl CheckedOriginal {
         };
         b.spend(1)?;self.expressions.insert((env.current()?,expression.id),effective.clone());
         Ok(effective)
+    }
+}
+
+impl CheckedOriginal {
+    /// Resource fields are observed through the actual owner, just as through
+    /// an explicit description. The returned storage is a nominal selector;
+    /// it grants no field move, new manager, copy qualification or access mode.
+    fn field_observation_storage(&self,module:&TypedModule,context:&CheckedContext,ty:&Ty,b:&mut Budget)->Check<(Ty,bool)>{
+        let mut storage=self.resolved(ty,b)?;let mut observed=false;
+        loop{b.spend(1)?;match storage{
+            Ty::Address{inner,..}|Ty::Desc{inner,..}=>{storage=self.resolved(&inner,b)?;observed=true;},
+            Ty::Managed(inner)=>{
+                let payload=self.resolved(&inner,b)?;
+                let Ty::Nominal(id,_) = &payload else{return Err(bad("original managed field receiver has no nominal resource declaration"));};
+                if !matches!(context.definition(module,*id,b)?.body,SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Resource,..}){return Err(bad("original managed field receiver changes its canonical resource category"));}
+                storage=payload;observed=true;
+            },
+            _=>return Ok((storage,observed)),
+        }}
     }
 }
