@@ -647,28 +647,42 @@ impl Check<'_, '_> {
     /// external image or generating a memory root. Each local class receives
     /// its own token while reconstructing the original application.
     pub(super) fn nominal_inventory(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
-        let mut selected = None;
-        for (index, instance) in self.module.life_instances.iter().enumerate() {
-            crate::dyn_metadata::ty(&instance.ty, b)?;
-            crate::dyn_metadata::ty(ty, b)?;
-            if instance.ty == *ty && selected.replace((index, instance)).is_some() {
-                return Err(fail("nominal type has duplicate exact inventory entries"));
-            }
-        }
-        let (index, instance) =
-            selected.ok_or_else(|| fail("nominal type has no complete actual inventory"))?;
+        let index =
+            crate::stored_flow::nominal_instance_index(self.module, ty, self.inventory.limits, b)?;
+        let instance = &self.module.life_instances[index];
         let index = u32::try_from(index).map_err(|_| fail("nominal inventory ordinal overflow"))?;
-        let mut definition = None;
-        for candidate in self.inventory.definitions.values() {
-            b.spend(1, WORK)?;
-            if matches!(candidate.body,SemanticDefinitionBody::Nominal {declaration,..} if declaration==instance.declaration)
-                && definition.replace(candidate.id).is_some()
-            {
-                return Err(fail("nominal type has ambiguous original definitions"));
+        let cached = {
+            let cache = self.nominal_definitions.borrow();
+            b.lookup(cache.len(), WORK)?;
+            cache.get(&instance.declaration).copied()
+        };
+        let definition = if let Some(definition) = cached {
+            definition
+        } else {
+            let mut selected = None;
+            for candidate in self.inventory.definitions.values() {
+                b.spend(1, WORK)?;
+                if matches!(candidate.body,SemanticDefinitionBody::Nominal {declaration,..} if declaration==instance.declaration)
+                    && selected.replace(candidate.id).is_some()
+                {
+                    return Err(fail("nominal type has ambiguous original definitions"));
+                }
             }
+            let definition =
+                selected.ok_or_else(|| fail("nominal type has no full original definition"))?;
+            let mut cache = self.nominal_definitions.borrow_mut();
+            b.lookup(cache.len(), WORK)?;
+            cache.insert(instance.declaration, definition);
+            definition
+        };
+        // Only identity lookup was reused. Every current scope, complete
+        // argument image and intrinsic N/kappa is reconstructed below.
+        if !matches!(self.inventory.definition(definition, b)?.body, SemanticDefinitionBody::Nominal { declaration, .. } if declaration == instance.declaration)
+        {
+            return Err(fail(
+                "nominal inventory changes its exact original declaration",
+            ));
         }
-        let definition =
-            definition.ok_or_else(|| fail("nominal type has no full original definition"))?;
         let life = match ty {
             Type::BorrowedStorage { life, .. } => life.clone(),
             _ => value::empty(),

@@ -36,6 +36,9 @@ pub(super) struct Budget {
     // Complete immutable request-local Type lookup only; no domain or runtime
     // qualification is retained here. Hash collisions still compare full IR.
     pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<usize>>)>,
+    // Successful zero-domain formation at registered immutable roots only.
+    // No classes, images or access/cleanup qualifications are cached.
+    pub(super) nominal_zero_formed: Option<(usize, [usize; 8], BTreeSet<usize>)>,
     // Only shape nodes borrowed from this request's immutable module enter.
     // The result indexes raw slots; no qualification or semantic flow is cached.
     physical_slot_paths: BTreeMap<usize, BTreeMap<Vec<zil_ir::PlaceProjection>, (u32, bool)>>,
@@ -223,6 +226,7 @@ impl Budget {
             costs: BTreeMap::new(),
             metadata_costs: BTreeMap::new(),
             nominal_zero_instances: None,
+            nominal_zero_formed: None,
             physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
             large_tag_layout: false,

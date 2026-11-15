@@ -785,6 +785,7 @@ pub(in crate::semantic) fn original_associated(
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         trait_queries: std::cell::RefCell::new(Vec::new()),
+        nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };
     checker.associated_actual(receiver, declaration, arguments, member, b, depth)
 }
@@ -809,6 +810,7 @@ pub(in crate::semantic) fn original_self(
                 original,
                 scope_queries: std::cell::RefCell::new(BTreeSet::new()),
                 trait_queries: std::cell::RefCell::new(Vec::new()),
+                nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
             };
             return checker.original_scope_self(context, b, depth + 1);
         }

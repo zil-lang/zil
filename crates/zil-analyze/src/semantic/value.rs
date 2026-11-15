@@ -522,6 +522,8 @@ pub(super) fn nominal(
     };
     let mut selected = None;
     for instance in &inventory.module.life_instances {
+        b.spend(1, WORK)?;
+        if instance.declaration != *declaration { continue; }
         b.spend(
             instance.arguments.len().saturating_add(expected.len() + 1),
             WORK,
@@ -567,7 +569,7 @@ pub(super) fn nominal(
                     }
                     _ => actual == expected,
                 });
-        if instance.declaration != *declaration || !arguments_equal {
+        if !arguments_equal {
             continue;
         }
         crate::dyn_metadata::ty(&instance.ty, b)?;

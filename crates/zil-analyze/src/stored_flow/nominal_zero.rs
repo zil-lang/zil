@@ -35,12 +35,12 @@ pub(super) fn validate_type(
     type_zero(module, ty, limits, b, &mut Vec::new(), 0)
 }
 
-fn exact<'a>(
-    module: &'a TypedModule,
+pub(super) fn exact_index(
+    module: &TypedModule,
     ty: &Type,
     limits: &Limits,
     b: &mut Budget,
-) -> CompileResult<&'a LifeNominalInstance> {
+) -> CompileResult<usize> {
     let module_key = module as *const TypedModule as usize;
     if b.nominal_zero_instances
         .as_ref()
@@ -83,13 +83,22 @@ fn exact<'a>(
         shape_work(&instance.ty, limits, b)?;
         crate::dyn_metadata::ty(ty, b)?;
         crate::dyn_metadata::ty(&instance.ty, b)?;
-        if instance.ty == *ty && selected.replace(instance).is_some() {
+        if instance.ty == *ty && selected.replace(position).is_some() {
             return Err(failure(
                 "zero nominal type has ambiguous complete instances",
             ));
         }
     }
     selected.ok_or_else(|| failure("zero nominal type lacks its complete instance"))
+}
+
+fn exact<'a>(
+    module: &'a TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<&'a LifeNominalInstance> {
+    Ok(&module.life_instances[exact_index(module, ty, limits, b)?])
 }
 
 fn empty(life: &StorageLifeShape) -> bool {
@@ -114,6 +123,41 @@ fn instance_zero(
     let key = instance as *const LifeNominalInstance as usize;
     if active.contains(&key) {
         return Err(failure("cyclic complete zero nominal domain"));
+    }
+    // A deep occurrence still runs its own depth-bounded proof. Reusing only
+    // depth-zero successes cannot hide a longer current dependency path.
+    let cache = if depth == 0 && active.is_empty() {
+        fee(b, module.life_instances.len().saturating_add(8))?;
+        let root = module
+            .life_instances
+            .iter()
+            .position(|actual| std::ptr::eq(actual, instance));
+        let phase = [
+            b.semantic_zero_closures.len(),
+            b.semantic_closures_proven.len(),
+            b.semantic_declarations_proven.len(),
+            b.semantic_dyn_tables_proven.len(),
+            b.semantic_dyn_functions_proven.len(),
+            limits.max_call_depth,
+            b.partial_depth,
+            b.helper_nodes,
+        ];
+        root.map(|root| (module as *const TypedModule as usize, phase, root))
+    } else {
+        None
+    };
+    if let Some((module, phase, root)) = cache {
+        if b.nominal_zero_formed
+            .as_ref()
+            .is_none_or(|(owner, prior, _)| *owner != module || *prior != phase)
+        {
+            b.nominal_zero_formed = Some((module, phase, BTreeSet::new()));
+        }
+        let count = b.nominal_zero_formed.as_ref().unwrap().2.len();
+        b.lookup(count, "complete zero nominal root formation lookup")?;
+        if b.nominal_zero_formed.as_ref().unwrap().2.contains(&root) {
+            return Ok(());
+        }
     }
     fee(b, 1)?;
     active.push(key);
@@ -224,6 +268,17 @@ fn instance_zero(
     }
     physical_zero(module, storage, limits, b, active, depth + 1)?;
     active.pop();
+    if let Some((module, phase, root)) = cache {
+        // No partial/negative/Pending result reaches this publication.
+        if b.nominal_zero_formed
+            .as_ref()
+            .is_some_and(|(owner, prior, _)| *owner == module && *prior == phase)
+        {
+            let count = b.nominal_zero_formed.as_ref().unwrap().2.len();
+            b.lookup(count, "complete zero nominal root formation insertion")?;
+            b.nominal_zero_formed.as_mut().unwrap().2.insert(root);
+        }
+    }
     Ok(())
 }
 

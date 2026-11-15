@@ -57,6 +57,7 @@ struct Check<'a, 'i> {
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
     trait_queries: std::cell::RefCell<Vec<traits::Query>>,
+    nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
 }
 impl Check<'_, '_> {
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
@@ -999,6 +1000,7 @@ pub(super) fn check(
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         trait_queries: std::cell::RefCell::new(Vec::new()),
+        nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };
     checker.dyn_tables(b)?;
     checker.instances(b)?;

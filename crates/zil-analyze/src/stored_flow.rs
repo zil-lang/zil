@@ -53,6 +53,9 @@ pub(super) fn validate_plain_nominal_zero(
 ) -> CompileResult<()> {
     nominal_zero::validate_type(module, ty, limits, b)
 }
+pub(super) fn nominal_instance_index(module: &TypedModule, ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<usize> {
+    nominal_zero::exact_index(module, ty, limits, b)
+}
 pub(super) mod option_address;
 mod retained;
 #[cfg(test)]
