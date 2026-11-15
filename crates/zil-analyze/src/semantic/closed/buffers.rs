@@ -30,6 +30,32 @@ impl Check<'_, '_> {
             | InstructionKind::TakeLocal { local } => {
                 Ok((Origin::Local(*local, block, index), Vec::new()))
             }
+            InstructionKind::BorrowPlaceLocal { local, path, mutable } => {
+                let declaration = function.locals.get(local.0 as usize)
+                    .filter(|item| item.id == *local)
+                    .ok_or_else(|| fail("actual manager place has no exact local declaration"))?;
+                if *mutable && !declaration.mutable {
+                    return Err(fail("actual manager place strengthens an immutable local"));
+                }
+                b.spend(path.len().saturating_add(1), WORK)?;
+                let mut fields = Vec::new();
+                fields.try_reserve(path.len())
+                    .map_err(|_| original::resource("actual manager place path allocation failed"))?;
+                for step in path {
+                    let PlaceProjection::Field(field) = step else {
+                        return Err(unknown("actual manager place needs its exact selected variant or indexed source"));
+                    };
+                    fields.push(*field);
+                }
+                let leaf = self.borrow_field_type(&declaration.ty, &fields, b)?;
+                crate::dyn_metadata::ty(leaf, b)?;
+                if !matches!(function.values.get(id.0 as usize), Some(Type::Address { mutable: actual, inner })
+                    if actual == mutable && inner.as_ref() == leaf)
+                {
+                    return Err(fail("actual manager place changes its full field type or mode"));
+                }
+                Ok((Origin::Local(*local, block, index), fields))
+            }
             InstructionKind::BorrowCapture { index, .. }
             | InstructionKind::ReadCapture { index } => Ok((Origin::Capture(*index), Vec::new())),
             InstructionKind::ReborrowAddress { address, mutable } => {
@@ -159,6 +185,7 @@ impl Check<'_, '_> {
         }
         let actual = match origin {
             Origin::Local(actual, at_block, at_index) => {
+                operations::initialized_local_before(function, (at_block, at_index), actual, b)?;
                 if self.anchored_local(instance, function, anchor, b)? != actual {
                     return Err(fail(
                         "actual ByteBuffer operation selects another original parent place",

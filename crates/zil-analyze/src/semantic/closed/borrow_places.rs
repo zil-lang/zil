@@ -247,7 +247,7 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    fn borrow_field_type<'a>(
+    pub(super) fn borrow_field_type<'a>(
         &self,
         mut ty: &'a Type,
         path: &[u32],

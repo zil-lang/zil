@@ -206,6 +206,18 @@ fn analyze_budgeted_context(
     let mut stored_holds = None;
     let ordinary_input_heads =
         budget.stored_borrows && signature_life::ordinary_heads::module(module, limits, budget)?;
+    if ordinary_input_heads && !module.closures.is_empty() {
+        // Input-only heads keep the whole ordinary resource/Hold solution.
+        // Their concrete callback definitions, caller roles and exact current
+        // class flow remain independent mandatory proofs before that routing.
+        stored_callables::definitions(module, budget)?;
+        stored_callables::roles(module, &hold_graphs, budget)?;
+        for function in &module.functions {
+            if function.storage_life.is_some() {
+                class_flow::check(module, function, &hold_graphs[function.id.0 as usize].1, budget)?;
+            }
+        }
+    }
     if !ordinary_input_heads
         && (budget.stored_borrows || budget.task_sources() || budget.masked_stored_tasks())
     {

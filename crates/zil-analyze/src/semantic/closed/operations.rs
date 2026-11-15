@@ -33,6 +33,21 @@ pub(super) fn available_before(
     Ok(())
 }
 
+pub(super) fn initialized_local_before(
+    function: &TypedFunction,
+    at: (BlockId, usize),
+    local: LocalId,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let initialization = crate::shared_initialization(function, b)?;
+    let block = function.blocks.get(at.0.0 as usize)
+        .filter(|block| block.id == at.0 && at.1 <= block.instructions.len())
+        .ok_or_else(|| fail("resource source has no exact initialized local boundary"))?;
+    Point { function, block, instruction: at.1, edge: SemanticSiteEdge::Before,
+        initialization: &initialization }.local(local, b)?;
+    Ok(())
+}
+
 impl Point<'_> {
     fn local(&self, local: LocalId, b: &mut Budget) -> CompileResult<&Type> {
         b.spend(self.function.locals.len().saturating_add(1), WORK)?;
