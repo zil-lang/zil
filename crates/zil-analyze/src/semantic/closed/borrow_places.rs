@@ -251,7 +251,11 @@ impl Check<'_, '_> {
                     *offset,
                     b,
                 )?;
-                if function.values.get(offset.0 as usize) != Some(&Type::I64) {
+                if !function
+                    .values
+                    .get(offset.0 as usize)
+                    .is_some_and(Type::is_integer)
+                {
                     let mut errors =
                         fail("actual indexed borrow has another checked index carrier");
                     errors[0].notes.push(format!(

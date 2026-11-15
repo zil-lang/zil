@@ -91,7 +91,11 @@ impl Check<'_, '_> {
                             *bound,
                             b,
                         )?;
-                        if function.values.get(bound.0 as usize) != Some(&Type::I64) {
+                        if !function
+                            .values
+                            .get(bound.0 as usize)
+                            .is_some_and(Type::is_integer)
+                        {
                             return Err(fail("actual range bound loses its checked index carrier"));
                         }
                     }
