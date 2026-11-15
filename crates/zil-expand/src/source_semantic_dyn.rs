@@ -1751,6 +1751,46 @@ pub(super) fn publish(
             )?;
         }
     }
+    // Sealed builtin implementations retain their real lexical owner even
+    // though their raw collector rows are not complete user-Dyn recipes.
+    // Publishing this identity link grants no interface/provider qualification.
+    for (core, _) in cores.iter_mut() {
+        let semantic = core.semantic.as_ref().ok_or_else(|| {
+            error(
+                Span::default(),
+                "builtin owner has no original semantic program",
+            )
+        })?;
+        let mut owners = Vec::new();
+        for declaration in &core.dyn_declarations {
+            for definition in &semantic.definitions {
+                budget.node(Span::default(), 0)?;
+                if definition.identity == declaration.identity
+                    && matches!(
+                        definition.body,
+                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
+                            trait_kind: SemanticBuiltinTrait::Drop,
+                            ..
+                        })
+                    )
+                {
+                    budget.lineage_push(
+                        &mut owners,
+                        (declaration.id, definition.id),
+                        Span::default(),
+                    )?;
+                }
+            }
+        }
+        for (declaration, scope) in owners {
+            binding(
+                core,
+                SemanticDynOwner::Declaration(declaration),
+                scope,
+                budget,
+            )?;
+        }
+    }
     witnesses(cores, budget)
 }
 
@@ -1874,27 +1914,26 @@ mod tests {
         assert_eq!(core.dyn_declarations.len(), 4);
         let mut dynamic_scopes = 0;
         for declaration in &core.dyn_declarations {
-            if !semantic
+            let binding = semantic
                 .dyn_scopes
                 .iter()
-                .any(|binding| binding.owner == SemanticDynOwner::Declaration(declaration.id))
-            {
-                // The raw collector also preserves the original sealed Drop
-                // impl. It is a BuiltinImpl scope, not a fabricated user Dyn
-                // trait provider. Its complete body remains in Semantic.
-                assert!(semantic.definitions.iter().any(|definition| definition.id
-                    == SemanticDefinitionId {
-                        module: declaration.id.module,
-                        index: declaration.id.declaration.0
-                    }
-                    && matches!(
-                        definition.body,
-                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
-                            trait_kind: SemanticBuiltinTrait::Drop,
-                            ..
-                        })
-                    )));
+                .find(|binding| binding.owner == SemanticDynOwner::Declaration(declaration.id))
+                .expect("every raw declaration has its exact original lexical owner");
+            let definition = semantic
+                .definitions
+                .iter()
+                .find(|definition| definition.id == binding.scope)
+                .unwrap();
+            if matches!(
+                definition.body,
+                SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
+                    trait_kind: SemanticBuiltinTrait::Drop,
+                    ..
+                })
+            ) {
+                assert_eq!(definition.identity, declaration.identity);
                 assert!(declaration.implemented_trait.is_none());
+                assert!(declaration.method_definitions.is_none());
                 continue;
             }
             dynamic_scopes += 1;

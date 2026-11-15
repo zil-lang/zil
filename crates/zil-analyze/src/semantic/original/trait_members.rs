@@ -122,6 +122,13 @@ pub(super) fn declaration_scope(
             ),
             DynDeclarationKind::Impl,
         ) => *actual == declaration,
+        (
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl {
+                trait_kind: SemanticBuiltinTrait::Drop,
+                ..
+            }),
+            DynDeclarationKind::Impl,
+        ) => true,
         _ => false,
     };
     if !valid {
