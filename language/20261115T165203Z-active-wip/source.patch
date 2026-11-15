@@ -1,0 +1,256 @@
+diff --git a/crates/zil-verify/src/dynamic_dispatch.rs b/crates/zil-verify/src/dynamic_dispatch.rs
+index 1ef9f5e19..6889b25da 100644
+--- a/crates/zil-verify/src/dynamic_dispatch.rs
++++ b/crates/zil-verify/src/dynamic_dispatch.rs
+@@ -256,26 +256,16 @@ fn dyn_address(ty: &Type) -> bool {
+ /// Charge every raw list before cloning, fingerprinting or indexing it. This
+ /// branch is inactive for old modules, preserving their exact budget path.
+ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> {
+-    for f in &module.functions {
+-        budget.spend(1)?;
+-        if let Some(instance) = &f.dyn_instance {
+-            crate::dynamic_metadata::recipe(instance, budget)?;
+-            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
+-            return Err(bad(
+-                "dynamic function instance requires its complete definition proof",
+-                None,
+-            ));
+-        }
+-    }
+-    for table in &module.dyn_vtables {
+-        crate::dynamic_metadata::recipe_table(table, budget)?;
+-        if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+-            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
+-            return Err(bad(
+-                "dynamic implementation recipes require their complete static proof",
+-                None,
+-            ));
+-        }
++    for table in &module.dyn_vtables{crate::dynamic_metadata::recipe_table(table,budget)?;}
++    let full=module.functions.iter().any(|f|f.dyn_instance.is_some())||module.dyn_vtables.iter().any(|table|table.self_life.is_some()||table.implementation_witnesses.is_some())||module.dyn_declarations.iter().any(|d|d.implicit_lifetimes.is_some()||d.direct_supertraits.is_some()||d.requirements.is_some()||d.associated_definitions.is_some()||d.method_signatures.is_some()||d.method_definitions.is_some());
++    if full{
++        let pending=crate::dynamic_witness::declaration_graph(module,budget)?;
++        for function in &module.functions{if let Some(instance)=&function.dyn_instance{crate::dynamic_metadata::recipe(instance,budget)?;if !pending.methods.iter().any(|request|request.function==function.id&&request.specialization.as_ref()==Some(instance))&&!pending.callables.iter().any(|request|request.contract.function==function.id&&request.contract.specialization.as_ref()==Some(instance)){return Err(bad("actual dynamic specialization has no exact complete original executable request",None));}}}
++        budget.spend(pending.methods.len().saturating_add(pending.callables.len()))?;
++        budget.pending_dyn_contracts.methods.extend(pending.methods);
++        budget.pending_dyn_contracts.callables.extend(pending.callables);
++        let executing=!budget.pending_dyn_contracts.methods.is_empty()||!budget.pending_dyn_contracts.callables.is_empty()||!module.dyn_vtables.is_empty();
++        budget.dyn_contexts|=executing;budget.stored_borrows|=executing;
+     }
+ 
+     if !module.target.is_supported_x64_llvm() {
+@@ -326,18 +316,6 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()>
+     let mut identities = BTreeSet::new();
+     for declaration in &module.dyn_declarations {
+         crate::dynamic_metadata::scoped_declaration(module,declaration,budget)?;
+-        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
+-            || declaration.requirements.is_some()
+-            || declaration.associated_definitions.is_some()
+-            || declaration.method_signatures.is_some()
+-            || declaration.method_definitions.is_some()
+-        {
+-            let _pending = crate::dynamic_witness::declaration_graph(module, budget)?;
+-            return Err(bad(
+-                "dynamic declaration recipes require their complete static proof",
+-                None,
+-            ));
+-        }
+         if declaration.kind == DynDeclarationKind::Trait
+             && (declaration.implemented_trait.is_some() || declaration.self_pattern.is_some())
+         {
+@@ -400,7 +378,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()>
+         if !interfaces.insert(item.id) {
+             return Err(bad("duplicate dyn interface identity", None));
+         }
+-        if item.context.is_some() {
++        if item.context.is_some()||full {
+             crate::dynamic_ports::validate_interface(module, item, budget)?;
+             continue;
+         }
+@@ -543,11 +521,11 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()>
+             .iter()
+             .find(|d| d.id == item.implementation)
+             .ok_or_else(|| bad("dyn implementation declaration absent", None))?;
+-        if iface.context.is_some() {
++        if iface.context.is_some()||full {
+             crate::dynamic_ports::validate_table(module, item, budget)?;
+             if item.id.module != implementation.id.module
+                 || implementation.kind != DynDeclarationKind::Impl
+-                || item.owned_storage != Some(DynOwnedStorage::Heap)
++                || item.owned_storage.is_some_and(|route|route!=DynOwnedStorage::Heap)
+                 || item.cleanup.is_some()
+                 || item.entries.len() != iface.slots.len()
+             {
+diff --git a/crates/zil-verify/src/dynamic_metadata.rs b/crates/zil-verify/src/dynamic_metadata.rs
+index 0b9f08723..3872118c4 100644
+--- a/crates/zil-verify/src/dynamic_metadata.rs
++++ b/crates/zil-verify/src/dynamic_metadata.rs
+@@ -729,3 +729,26 @@ pub(super) fn recipe_table(value: &DynVtable, b: &mut Budget) -> Check<()> {
+     }
+     recipe_rows(&value.implementation_witnesses, work)
+ }
++
++/// A source builtin Drop directory is an identity record, not an open user
++/// trait scheme. Its absent dynamic recipes remain Unknown; actual resource
++/// cleanup is independently checked against the original sealed Drop body.
++pub(crate) fn sealed_drop_metadata(module:&TypedModule,declaration:&DynDeclaration,b:&mut Budget)->Check<bool>{
++    let Some(program)=&module.semantic else{return Ok(false);};
++    b.spend(program.dyn_scopes.len().saturating_add(program.definitions.len()))?;
++    let mut bindings=program.dyn_scopes.iter().filter(|row|row.owner==SemanticDynOwner::Declaration(declaration.id));
++    let Some(binding)=bindings.next() else{return Ok(false);};if bindings.next().is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is duplicated"));}
++    let Some(owner)=program.definitions.iter().find(|row|row.id==binding.scope) else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is absent"));};
++    if !matches!(owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})){return Ok(false);}
++    let owner=crate::dynamic_witness::semantic_external::original_scope(module,declaration.id,b)?;
++    declaration_in_scope(declaration,owner,b)?;
++    if declaration.implemented_trait.is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop metadata cannot implement an open dynamic trait"));}
++    let [member]=declaration.members.as_slice() else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original member inventory differs"));};
++    let DynMemberKind::Method(kinds)=&member.kind else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop member is not a method"));};
++    let mut methods=program.definitions.iter().filter(|row|row.parent==Some(owner.id)&&row.kind==SemanticDefinitionKind::Method);
++    let method=methods.next().ok_or_else(||reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop has no original method body"))?;
++    if methods.next().is_some()||member.name!="drop"||kinds.len()!=method.parameters.len(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop changes its actual original method identity or mixed arity"));}
++    for(kind,formal)in kinds.iter().zip(&method.parameters){if !matches!((kind,formal),(LifeParameterKind::Type,SemanticFormal::Type{..})|(LifeParameterKind::Lifetime,SemanticFormal::Lifetime))&&!matches!((kind,formal),(LifeParameterKind::Const(a),SemanticFormal::Const{carrier:SemanticTypeRecipe::Atom(z)})if a==z){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop method changes its ordered original formal kind"));}}
++    if !matches!(method.body,SemanticDefinitionBody::FunctionWithBody{body:SemanticOriginalFunctionBody::Defined(_),..}){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original method has no Defined body"));}
++    Ok(true)
++}
+diff --git a/crates/zil-verify/src/dynamic_witness/compound.rs b/crates/zil-verify/src/dynamic_witness/compound.rs
+index a6fae6cc1..b4fa85cad 100644
+--- a/crates/zil-verify/src/dynamic_witness/compound.rs
++++ b/crates/zil-verify/src/dynamic_witness/compound.rs
+@@ -96,7 +96,7 @@ impl Walk<'_, '_> {
+                     }
+                 }
+             }
+-            Type::Closure(_) | Type::Task { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
++            Type::Closure(_) | Type::Task { .. } | Type::MutexGuard { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+                 let domain = self.inventory.domain(ty, b)?;
+                 self.pending |= domain.pending_sources;
+                 self.boundary(semantic, domain.count, b)?;
+diff --git a/crates/zil-verify/src/dynamic_witness/declarations.rs b/crates/zil-verify/src/dynamic_witness/declarations.rs
+index 1b4526c88..c5729f519 100644
+--- a/crates/zil-verify/src/dynamic_witness/declarations.rs
++++ b/crates/zil-verify/src/dynamic_witness/declarations.rs
+@@ -494,10 +494,11 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
+     for declaration in &module.dyn_declarations {
+         dynamic_metadata::scoped_declaration(module,declaration,b)?;
+         dynamic_metadata::recipe_declaration(declaration, b)?;
+-        super::implicit::check(declaration, b)?;
++        if !dynamic_metadata::sealed_drop_metadata(module,declaration,b)?{super::implicit::check(declaration, b)?;}
+     }
+     let mut edges = Vec::new();
+     for declaration in &module.dyn_declarations {
++        if dynamic_metadata::sealed_drop_metadata(module,declaration,b)?{continue;}
+         let mut scope = Scope {
+             owner: SemanticDynOwner::Declaration(declaration.id),
+             declaration: &declaration.parameters,
+diff --git a/crates/zil-verify/src/dynamic_witness/definitions.rs b/crates/zil-verify/src/dynamic_witness/definitions.rs
+index 8f4b7a071..e6d2636ce 100644
+--- a/crates/zil-verify/src/dynamic_witness/definitions.rs
++++ b/crates/zil-verify/src/dynamic_witness/definitions.rs
+@@ -63,6 +63,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
+     )?;
+     let mut definitions = Vec::new();
+     for declaration in &module.dyn_declarations {
++        if dynamic_metadata::sealed_drop_metadata(module,declaration,b)?{continue;}
+         let rows = declaration
+             .method_definitions
+             .as_ref()
+diff --git a/crates/zil-verify/src/lib.rs b/crates/zil-verify/src/lib.rs
+index 9812b6aae..0361043ac 100644
+--- a/crates/zil-verify/src/lib.rs
++++ b/crates/zil-verify/src/lib.rs
+@@ -398,6 +398,7 @@ struct Budget {
+     // Paid source-expression inventory only; never an actual reborrow proof.
+     dyn_reborrow_sources: bool,
+     pending_dyn_tables: BTreeSet<DynVtableId>,
++    pending_dyn_contracts: dynamic_witness::requests::Pending,
+     pending_dyn_returns: BTreeSet<FunctionId>,
+     pending_dyn_captures: BTreeSet<ClosureId>,
+     dyn_static_classes: Vec<stored_flow::DynStaticObligation>,
+@@ -519,6 +520,7 @@ impl Budget {
+             dyn_contexts: false,
+             dyn_reborrow_sources: false,
+             pending_dyn_tables: BTreeSet::new(),
++            pending_dyn_contracts: dynamic_witness::requests::Pending::default(),
+             pending_dyn_returns: BTreeSet::new(),
+             pending_dyn_captures: BTreeSet::new(),
+             dyn_static_classes: Vec::new(),
+@@ -1423,6 +1425,7 @@ fn check_module_budget(
+             "output-only Dyn class lacks a completed actual static or no-target proof",
+         ));
+     }
++    if !budget.pending_dyn_contracts.methods.is_empty()||!budget.pending_dyn_contracts.callables.is_empty(){return Err(unsupported("dynamic original contract has no completed independent actual CFG proof",None));}
+     if !budget.pending_dyn_tables.is_empty() {
+         return Err(unsupported(
+             "Context provider lacks a completed independent access/effect proof",
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index 0b69f5839..c1bdab422 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -311,6 +311,14 @@ impl CheckedContext {
+                     InstructionKind::CallDynSlot{..}=>self.actual_dyn_call(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                     InstructionKind::BorrowDynOwned{..}|InstructionKind::MakeDynBorrow{..}=>Some(self.actual_dyn_borrow(module,f,instruction,&state,&values,scope,&environment,active,b)?),
+                     InstructionKind::DropMutexGuard{..}=>{self.drop_mutex_guard(module,f,instruction,&mut state,b)?;None},
++                    InstructionKind::DropClosure{local}=>{
++                        crate::closures::check_resource_instruction(module,f,instruction,b)?;
++                        if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_ref){
++                            if f.locals.get(local.0 as usize).is_none_or(|row|row.ty!=value.ty)||!matches!(value.ty,Type::Closure(_)){return Err(bad("closure cleanup changes its complete initialized original local"));}
++                            dynamic_witness::intrinsic_domain(module,&value.ty,b)?;
++                        }
++                        state.locals[local.0 as usize]=None;None
++                    },
+                     InstructionKind::DropDynOwned{local}=>{crate::dynamic_dispatch::instruction(module,f,instruction,b)?;let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased cleanup has no complete initialized owner"))?;if !matches!(owner.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}dynamic_witness::structural_actual(module,&owner.ty,DynStructuralBound::SyncDrop,b)?;state.locals[local.0 as usize]=None;None},
+                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                     InstructionKind::MakeClosure{closure,captures}=>{
+diff --git a/crates/zil-verify/src/stored_flow.rs b/crates/zil-verify/src/stored_flow.rs
+index 14ac828fd..420549e3d 100644
+--- a/crates/zil-verify/src/stored_flow.rs
++++ b/crates/zil-verify/src/stored_flow.rs
+@@ -15,6 +15,7 @@ mod dyn_closed;
+ mod dyn_leases;
+ mod dyn_ports;
+ mod dyn_providers;
++mod dyn_contracts;
+ mod dyn_returns;
+ mod foreign_calls;
+ 
+@@ -7193,6 +7194,7 @@ fn solve_check(
+         static_borrows::validate(module, graphs, &solved, mask, b)?;
+     }
+     dyn_providers::validate(module, &summaries, b)?;
++    dyn_contracts::validate(module,&summaries,b)?;
+     let mut checked_task_sources = if b.task_sources() {
+         Some(Vec::with_capacity(module.functions.len()))
+     } else {
+diff --git a/crates/zil-verify/src/stored_flow/dyn_providers.rs b/crates/zil-verify/src/stored_flow/dyn_providers.rs
+index dd91da1a8..60f1c21db 100644
+--- a/crates/zil-verify/src/stored_flow/dyn_providers.rs
++++ b/crates/zil-verify/src/stored_flow/dyn_providers.rs
+@@ -439,7 +439,7 @@ pub(super) fn effects(
+     }
+     Ok(())
+ }
+-fn selected(table: &DynVtable, source: &Source, b: &mut Budget) -> Check<Option<StoragePosition>> {
++pub(in crate::stored_flow) fn selected(table: &DynVtable, source: &Source, b: &mut Budget) -> Check<Option<StoragePosition>> {
+     b.spend(table.ports.len().saturating_add(width(source)))?;
+     let HoldRoot::Parameter(parameter) = source.base else {
+         return Ok(None);
+@@ -487,9 +487,7 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
+     }
+     for table in &module.dyn_vtables {
+         let iface = crate::dynamic_ports::interface(module, table.interface, b)?;
+-        if iface.context.is_none() {
+-            continue;
+-        }
++        if iface.context.is_none()&&!b.pending_dyn_tables.contains(&table.id){continue;}
+         for entry in &table.entries {
+             let summary = summaries
+                 .get(entry.function.0 as usize)
+@@ -633,7 +631,7 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
+ 
+ /// Saved external values are dependencies, not owned teardown payloads. Actual
+ /// owned descendants still require their exact independently proved cleanup.
+-fn cleanup_proof(
++pub(in crate::stored_flow) fn cleanup_proof(
+     module: &TypedModule,
+     root: &Type,
+     claim: &DynCleanupContract,
