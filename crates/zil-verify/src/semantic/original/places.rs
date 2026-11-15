@@ -55,7 +55,12 @@ impl CheckedOriginal {
     pub(super) fn argument(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,expected:&Ty,mode:PassingMode,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         if let Ty::Desc{life:expected_life,inner:payload}=self.resolved(expected,b)?{if matches!(mode,PassingMode::Infer|PassingMode::Describe){
             let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}
-            return match self.resolved(&actual,b)?{Ty::Managed(inner)=>{self.unify(&inner,&payload,b)?;let life=Life::Local(env.current()?,expression.id);self.unify_life(&life,&expected_life,b)?;Ok(Ty::Desc{life,inner})},Ty::Desc{life,inner}=>{self.unify(&inner,&payload,b)?;self.unify_life(&life,&expected_life,b)?;Ok(Ty::Desc{life,inner})},_=>Err(bad("original description argument has no actual owner or description"))};
+            let effective=match self.resolved(&actual,b)?{Ty::Managed(inner)=>{self.unify(&inner,&payload,b)?;let life=Life::Local(env.current()?,expression.id);self.unify_life(&life,&expected_life,b)?;Ty::Desc{life,inner}},Ty::Desc{life,inner}=>{self.unify(&inner,&payload,b)?;self.unify_life(&life,&expected_life,b)?;Ty::Desc{life,inner}},_=>return Err(bad("original description argument has no actual owner or description"))};
+            // Only this actual argument occurrence is a description. The
+            // lexical binding and parameter declaration retain their owning
+            // category, source identity and complete intrinsic domain.
+            b.spend(1)?;self.expressions.insert((env.current()?,expression.id),effective.clone());
+            return Ok(effective);
         }}
         match mode{
             PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe=>{

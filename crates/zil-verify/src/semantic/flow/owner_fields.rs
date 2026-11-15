@@ -79,7 +79,7 @@ impl CheckedContext{
     fn owner_description(&self,module:&TypedModule,owner:&CheckedType,instruction:&Instruction,scope:ScopeKey,environment:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType>{
         let Type::Managed(_payload)=&owner.ty else{return Err(bad("actual owner description does not describe a complete Managed field"));};
         let child=self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?;let result=instruction.result.ok_or_else(||bad("actual owner description result is absent"))?;
-        let mode=StoredBorrowMode::ReadOnlyDescription;let key=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
+        let mode=StoredBorrowMode::WritableDescription;let key=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
         dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(key)},&[child],active,b)
     }
     fn owner_address(&self,child:&CheckedType,instruction:&Instruction,scope:ScopeKey,mutable:bool,environment:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType>{

@@ -69,6 +69,7 @@ impl CheckedContext {
                     .type_recipe(module, definition, source, environment, b)?;
                 self.evaluate_type(module, &recipe, environment, external, active, b)
             }
+            SemanticTypeRecipe::Dyn{owned,interface}=>self.evaluate_dyn(module,*owned,interface,environment,external,active,b),
             SemanticTypeRecipe::Code{kind:SemanticCodeKind::ForeignCallback,signature}=>{
                 let signature=self.evaluate_signature(module,signature,environment,external,active,b)?;
                 self.foreign_callback_code(module,&signature,b)
@@ -155,7 +156,8 @@ impl CheckedContext {
                         StoredBorrowMode::ExclusiveAddress
                     }
                     SemanticTypeRecipe::Address { .. } => StoredBorrowMode::SharedAddress,
-                    _ => StoredBorrowMode::ReadOnlyDescription,
+                    _ if matches!(lifetime,SemanticOuterLifeRecipe::Static)=>StoredBorrowMode::ReadOnlyDescription,
+                    _ => StoredBorrowMode::WritableDescription,
                 };
                 let outer = match lifetime {
                     SemanticOuterLifeRecipe::Class(life) => {

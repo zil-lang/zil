@@ -38,6 +38,7 @@ impl CheckedOriginal {
             Ty::Opaque(id,arguments)=>Ty::Opaque(id,self.map_invocation_arguments(&arguments,life,depth+1,b)?),
             Ty::Projection{receiver,declaration,arguments,member}=>Ty::Projection{receiver:Box::new(self.map_invocation_type(&receiver,life,depth+1,b)?),declaration,arguments:self.map_invocation_arguments(&arguments,life,depth+1,b)?,member},
             Ty::Closure(id,arguments,environment)=>Ty::Closure(id,self.map_invocation_arguments(&arguments,life,depth+1,b)?,self.map_invocation_arguments(&environment,life,depth+1,b)?),
+            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.map_invocation_arguments(std::slice::from_ref(arg),life,depth+1,b)?.remove(0)),b)?)),
             Ty::Carrier{kind,child,retained}=>{
                 // map()'s two closures cannot simultaneously borrow one life
                 // mapper. Walk a closed copy in two passes: first children,

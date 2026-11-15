@@ -46,6 +46,7 @@ impl CheckedOriginal {
             SemanticTypeRecipe::MutexGuard{payload,retained}=>Ty::Carrier{kind:CarrierKind::MutexGuard,child:Box::new(self.ty(module,context,payload,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
             SemanticTypeRecipe::Task{result,retained}=>Ty::Carrier{kind:CarrierKind::Task,child:Box::new(self.ty(module,context,result,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
             SemanticTypeRecipe::Registration(inner)|SemanticTypeRecipe::AsyncRegistration(inner)=>Ty::Carrier{kind:if matches!(recipe,SemanticTypeRecipe::Registration(_)){CarrierKind::Registration}else{CarrierKind::AsyncRegistration},child:Box::new(self.ty(module,context,inner,env,active,b)?),retained:Box::default()},
+            SemanticTypeRecipe::Dyn{owned,interface}=>Ty::Dyn(Box::new(self.dyn_type(module,context,*owned,interface,env,active,b)?)),
             SemanticTypeRecipe::OwnedStore(inner)=>Ty::Store(Box::new(self.ty(module,context,inner,env,active,b)?)),
             SemanticTypeRecipe::Array{element,length}=>Ty::Array(Box::new(self.ty(module,context,element,env,active,b)?),Box::new(self.constant(module,context,length,&Ty::Atom(Type::Usize),env,active,b)?)),
             SemanticTypeRecipe::ErrorUnion{error,result}=>Ty::ErrorUnion(Box::new(self.ty(module,context,error,env,active,b)?),Box::new(self.ty(module,context,result,env,active,b)?)),
@@ -89,7 +90,7 @@ impl CheckedOriginal {
             SemanticConstRecipe::Unary{op,operand_type,value}=>{let operand=self.ty(module,context,operand_type,env,active,b)?;self.unify(&operand,carrier,b)?;ConstValue::Unary(*op,Box::new(self.constant(module,context,value,&operand,env,active,b)?))},
             SemanticConstRecipe::Binary{op,operand_type,left,right}=>{let operand=self.ty(module,context,operand_type,env,active,b)?;self.unify(&operand,carrier,b)?;ConstValue::Binary(*op,Box::new(self.constant(module,context,left,&operand,env,active,b)?),Box::new(self.constant(module,context,right,&operand,env,active,b)?))},
             SemanticConstRecipe::Convert{source_type,target_type,value}=>{let source=self.ty(module,context,source_type,env,active,b)?;let target=self.ty(module,context,target_type,env,active,b)?;self.unify(&target,carrier,b)?;ConstValue::Convert(Box::new(self.constant(module,context,value,&source,env,active,b)?))},
-            _=>return Err(unsupported("original associated constant requires a complete original witness",None)),
+            SemanticConstRecipe::AssociatedConst{receiver,application,member}=>{let receiver=self.ty(module,context,receiver,env,active,b)?;let mut arguments=Vec::new();for recipe in &application.arguments{arguments.push(self.actual(module,context,recipe,env,active,b)?);}let result=self.dyn_associated_constant(module,context,&receiver,&DynApplication{declaration:application.declaration,arguments},*member,env,active,b)?;self.unify(&result.carrier,carrier,b)?;return Ok(result);},
         };Ok(Const{carrier:Box::new(carrier.clone()),value})
     }
     pub(super) fn signature(&mut self,module:&TypedModule,context:&CheckedContext,signature:&SemanticSignatureRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{

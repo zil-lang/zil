@@ -50,6 +50,10 @@ impl CheckedOriginal {
             let ty=self.resolved(ty,b)?;
             Ok(match ty{
                 Ty::Atom(Type::ByteBuffer)=>true,
+                // Owned erasure has a sealed synchronous destructor upper.
+                // Each original erasure proves its source SyncDrop; the actual
+                // table/cleanup graph is a separate mandatory gate.
+                Ty::Dyn(value)=>value.owned,
                 Ty::Managed(ref inner)=>self.resource_sync_drop(module,context,inner,env,active,b)?,
                 Ty::Carrier{kind:CarrierKind::MutexGuard,child,..}=>self.value_type(module,context,&child,env,active,b)?,
                 Ty::Address{..}|Ty::Desc{..}=>true,

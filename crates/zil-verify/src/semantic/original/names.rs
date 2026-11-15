@@ -13,7 +13,19 @@ impl CheckedOriginal {
             SemanticOriginalTypeSource::NameAt{at,name}=>{let(kind,node)=node_key(*at);b.spend(name.len())?;self.name_binders_at.get(&(definition,kind,node,name.clone()))},
             _=>None,
         };
-        Ok(match binder {Some(Binder::Parameter{definition:owner,ordinal})if *owner==definition=>Some(*ordinal),_=>None})
+        Ok(match binder {
+            Some(Binder::Parameter{definition:owner,ordinal})if *owner==definition=>{
+                if let SemanticOriginalTypeSource::Expression(node)=source{
+                    let expression=self.expressions.get(&(definition,*node)).ok_or_else(||bad("original parameter expression has no checked effective role"))?;
+                    let parameter=self.parameters.get(&(definition,*ordinal)).ok_or_else(||bad("original parameter occurrence has no declaration type"))?;
+                    // An implicit Describe creates a new outer occurrence at
+                    // the call. Reusing the whole manager parameter here would
+                    // erase that head and bypass its real Describe instruction.
+                    if self.resolved(expression,b)?!=self.resolved(parameter,b)?{return Ok(None);}
+                }
+                Some(*ordinal)
+            },_=>None,
+        })
     }
     /// An imported/static member chain is a declaration path only when its
     /// root is not an actual runtime value and the complete path has a real

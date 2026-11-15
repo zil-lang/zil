@@ -40,6 +40,7 @@ impl CheckedOriginal {
                 Ty::Array(child,_)|Ty::Store(child)|Ty::Managed(child)=>self.closed_value(module,context,&child,env,active,b)?,
                 Ty::Carrier{child,retained,..}=>{if !retained.domain.is_empty()||!retained.ports.is_empty()||!retained.retained.is_empty()||!retained.nominal.is_empty(){return Ok(false);}self.closed_value(module,context,&child,env,active,b)?},
                 Ty::ErrorUnion(error,result)=>self.closed_value(module,context,&error,env,active,b)?&&self.closed_value(module,context,&result,env,active,b)?,
+                Ty::Dyn(value)=>{if !value.owned||value.explicit_life(b)?{return Ok(false);}let mut types=Vec::new();value.types(&mut types,b)?;for ty in types{if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);}}true},
                 Ty::Function(id)=>self.checked.contains(&id),
                 Ty::Code{bound_lifetimes,invocation_lifetimes,parameters,result,..}=>{if bound_lifetimes!=0||invocation_lifetimes!=0{return Ok(false);}for parameter in parameters{if !self.closed_value(module,context,&parameter,env,active,b)?{return Ok(false);}}self.closed_value(module,context,&result,env,active,b)?},
                 Ty::Closure(definition,arguments,sealed)=>{

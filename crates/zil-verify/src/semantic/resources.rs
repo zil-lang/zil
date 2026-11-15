@@ -16,7 +16,7 @@ impl CheckedContext {
         if !self.resource_recipe(module,recipe,environment,0,b)?{return Ok(value);}
         let constructor=match mode{
             PassingMode::Create|PassingMode::Give=>dynamic_witness::semantic_external::Constructor::Managed,
-            PassingMode::Infer|PassingMode::Describe=>{let ordinal=parameter.ok_or_else(||unsupported("bare resource result has no original owning/borrow result mode",None))?;let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;let mode=StoredBorrowMode::ReadOnlyDescription;dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(ClassKey::Outer{scope:frame.key,operand:OperandKey::Parameter(ordinal),path:vec![],mode})}},
+            PassingMode::Infer|PassingMode::Describe=>{let ordinal=parameter.ok_or_else(||unsupported("bare resource result has no original owning/borrow result mode",None))?;let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;let mode=StoredBorrowMode::WritableDescription;dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(ClassKey::Outer{scope:frame.key,operand:OperandKey::Parameter(ordinal),path:vec![],mode})}},
             _=>return Err(bad("original resource payload uses a nonresource signature mode")),
         };
         dynamic_witness::semantic_external::construct(self,environment,constructor,&[value],active,b)

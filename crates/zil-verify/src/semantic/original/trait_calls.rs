@@ -21,6 +21,8 @@ impl CheckedOriginal {
         let applications=self.original_method_applications(module,context,&receiver,member,env,active,b)?;
         if applications.is_empty(){return Ok(None);}if applications.len()!=1{return Err(bad("original member call has multiple complete trait applications"));}
         let(declaration,trait_arguments,ordinal,method)=applications.into_iter().next().unwrap();
+        let mut receiver=receiver;
+        if let Ty::Dyn(value)=&mut receiver{value.owned=false;}
         let original=context.definition(module,method,b)?;
         let SemanticDefinitionBody::FunctionWithBody{signature,receiver_parameter:Some(0),..}=&original.body else{return Err(unsupported("original trait call requires its exact first receiver parameter",None));};
         let scope=dynamic_witness::semantic_external::original_scope(module,declaration,b)?;
@@ -39,12 +41,12 @@ impl CheckedOriginal {
         if prototype.parameters.len()!=arguments.len()+1{return Err(bad("original member receiver/value arity differs"));}
         self.execute_effect(env,prototype.call_kind,b)?;
         let mode=prototype.modes[0];let receiver_parameter=self.resolved(&prototype.parameters[0],b)?;
-        let receiver_mode=match &receiver_parameter{Ty::Address{mutable,..}=>Some(if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress}),Ty::Desc{..}=>Some(StoredBorrowMode::ReadOnlyDescription),_=>None};
+        let receiver_mode=match &receiver_parameter{Ty::Address{mutable,..}=>Some(if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress}),Ty::Desc{..}=>Some(StoredBorrowMode::WritableDescription),_=>None};
         if mode==PassingMode::BorrowMut{
             match self.resolved(&object_type,b)?{Ty::Address{mutable:true,..}=>{if let Some(place)=&place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}},Ty::Address{mutable:false,..}|Ty::Desc{..}=>return Err(bad("original mutable trait receiver crosses a shared observation")),_=>self.mutable_place(module,context,object,env,bindings,active,b)?,}
         }
         if let Some(place)=&place{self.read_original(module,context,place,&object_type,env,!matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe),active,b)?;}
-        let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:Life::ReceiverRole(env.current()?,call.id,receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:Life::ReceiverRole(env.current()?,call.id,StoredBorrowMode::ReadOnlyDescription),inner:Box::new(receiver.clone())},_=>object_type};
+        let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:Life::ReceiverRole(env.current()?,call.id,receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:Life::ReceiverRole(env.current()?,call.id,StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
         self.unify(&actual_receiver,&prototype.parameters[0],b)?;
         for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
         for requirement in &original.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}

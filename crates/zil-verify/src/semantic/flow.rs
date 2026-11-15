@@ -15,6 +15,7 @@ mod call_borrows;
 mod trait_members;
 mod worlds;
 mod task_operations;
+mod dyn_values;
 mod callbacks;
 mod scoped_threads;
 #[derive(Clone,PartialEq,Eq)]
@@ -221,7 +222,7 @@ impl CheckedContext {
                         crate::resources::check_type_for(module,&owner.ty,Some(instruction.span),b)?;
                         let child=self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?;
                         let result=instruction.result.ok_or_else(||bad("actual description has no result"))?;
-                        let mode=StoredBorrowMode::ReadOnlyDescription;
+                        let mode=StoredBorrowMode::WritableDescription;
                         let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
                         Some(dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},&[child],active,b)?)
                     }
@@ -236,7 +237,7 @@ impl CheckedContext {
                         if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})){self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?}
                         else{let source=&value_at(&values,*value)?.ty;if (!source.is_integer()&&!source.is_float())||(!target.is_integer()&&!target.is_float()){return Err(bad("numeric operation has a nonnumeric endpoint"));}Some(atomic(target,b)?)}
                     }
-                    InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}|InstructionKind::WithScopedThread{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeDynOwned{..}|InstructionKind::TaskYield|InstructionKind::ByteBufferNew|InstructionKind::ByteBufferReserve{..}|InstructionKind::ByteBufferPush{..}|InstructionKind::ByteBufferTruncate{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}|InstructionKind::ByteBufferBorrow{..}|InstructionKind::OwnedStoreNew{..}|InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}|InstructionKind::OwnedStoreLen{..}|InstructionKind::OwnedStoreCapacity{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskPoll{..}|InstructionKind::TaskRequestCancel{..}|InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}|InstructionKind::MutexCreate{..}|InstructionKind::MutexLock{..}|InstructionKind::MutexValue{..}|InstructionKind::MutexUnlock{..}|InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}|InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}|InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}|InstructionKind::WithScopedThread{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::ReadCapture{index}|InstructionKind::TakeCapture{index}=>{
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)
@@ -298,6 +299,9 @@ impl CheckedContext {
                         else if module.functions.get(callee.0 as usize).is_some_and(|row|row.foreign.is_some()){return Err(bad("ordinary Call substitutes for an original foreign execution"));}
                         result
                     },
+                    InstructionKind::CallDynSlot{..}=>self.actual_dyn_call(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::BorrowDynOwned{..}|InstructionKind::MakeDynBorrow{..}=>Some(self.actual_dyn_borrow(module,f,instruction,&state,&values,scope,&environment,active,b)?),
+                    InstructionKind::DropDynOwned{local}=>{crate::dynamic_dispatch::instruction(module,f,instruction,b)?;let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased cleanup has no complete initialized owner"))?;if !matches!(owner.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}dynamic_witness::structural_actual(module,&owner.ty,DynStructuralBound::SyncDrop,b)?;state.locals[local.0 as usize]=None;None},
                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
@@ -684,11 +688,17 @@ impl CheckedContext {
         let source_recipe=if let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:original_source}=source_recipe{
             let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original implicit address lacks its complete body proof"))?;
             source=original.original_address_source(module,instance.definition,original_source,b)?;
+            if source.is_none(){source=original.original_description_source(instance.definition,original_source,b)?;}
             expanded=original.type_recipe(module,instance.definition,original_source,environment,b)?;&expanded
         }else{source_recipe};
-        let SemanticTypeRecipe::Address{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}=source_recipe else{return Ok(());};
+        let (ordinal,description)=match source_recipe{
+            SemanticTypeRecipe::Address{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}=>(*ordinal,false),
+            SemanticTypeRecipe::Desc{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}=>(*ordinal,true),
+            _=>return Ok(()),
+        };
+        if description&&source.is_none(){return Ok(());}
         b.spend(definition.implicit_lifetimes.len())?;
-        if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==*ordinal&&row.occurrence_path==recipe.occurrence_path){return Ok(());}
+        if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==ordinal&&row.occurrence_path==recipe.occurrence_path){return Ok(());}
         let SemanticOperand::Value(mut value)=*subject else{return Ok(());};
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("implicit occurrence belongs to a nonexecutable scope"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("implicit occurrence actual function is absent"))?;
@@ -701,7 +711,8 @@ impl CheckedContext {
             let instruction=producer.ok_or_else(||bad("implicit address actual SSA definition is absent"))?;
             match &instruction.kind {
                 InstructionKind::ReborrowAddress{address,..}=>value=*address,
-                InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}=>break,
+                InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}if !description=>break,
+                InstructionKind::DescribeLocal{..}|InstructionKind::DescribePackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::DescribeAddress{..}if description=>break,
                 _=>return Ok(()),
             }
         }
@@ -711,7 +722,7 @@ impl CheckedContext {
         let actual=actual.classes.get(a.binder as usize).ok_or_else(||bad("real implicit borrow has no outer class"))?;
         let expected=expected.classes.get(e.binder as usize).ok_or_else(||bad("original implicit borrow has no outer class"))?;
         let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
-        let original=ClassKey::Implicit{scope:frame.key,ordinal:*ordinal};
+        let original=ClassKey::Implicit{scope:frame.key,ordinal};
         if expected!=&original {return Err(bad("implicit occurrence resolved to another original lifetime"));}
         // This original declaration names this exact actual borrow occurrence;
         // it is not equality inferred from a shared outside image or header.

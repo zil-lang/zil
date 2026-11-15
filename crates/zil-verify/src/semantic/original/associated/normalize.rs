@@ -26,6 +26,7 @@ impl CheckedOriginal {
             Ty::Slice(inner)=>Ty::Slice(Box::new(self.normalize_original_type_at(module,context,&inner,caller,active,depth+1,b)?)),
             Ty::Array(inner,length)=>Ty::Array(Box::new(self.normalize_original_type_at(module,context,&inner,caller,active,depth+1,b)?),length),
             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.normalize_original_type_at(module,context,&error,caller,active,depth+1,b)?),Box::new(self.normalize_original_type_at(module,context,&result,caller,active,depth+1,b)?)),
+            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.normalize_original_arguments(module,context,std::slice::from_ref(arg),caller,active,depth+1,b)?.remove(0)),b)?)),
             Ty::Carrier{kind,child,retained}=>{
                 let retained=retained.map(|ty,b|self.normalize_original_type_at(module,context,ty,caller,active,depth+1,b),|life,b|{b.spend(1)?;Ok(life.clone())},b)?;
                 Ty::Carrier{kind,child:Box::new(self.normalize_original_type_at(module,context,&child,caller,active,depth+1,b)?),retained:Box::new(retained)}

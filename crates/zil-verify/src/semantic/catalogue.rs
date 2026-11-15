@@ -207,7 +207,7 @@ impl CheckedContext {
             }
             (SemanticSiteRecipeKind::OriginalCall,SemanticSiteAction::BodyCall{actuals})=>{
                 let row=actual.ok_or_else(||bad("original body Call selects a terminator"))?;
-                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}|InstructionKind::MakeVariant{..})&&original::intrinsics::Intrinsic::actual(&row.kind).is_none(){return Err(bad("original body Call selects another actual operation"));}
+                if !matches!(row.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}|InstructionKind::MakeVariant{..}|InstructionKind::CallDynSlot{..})&&original::intrinsics::Intrinsic::actual(&row.kind).is_none(){return Err(bad("original body Call selects another actual operation"));}
                 for actual in actuals {raw_actual(actual,b)?;}
             }
             (SemanticSiteRecipeKind::CallableCall{..},SemanticSiteAction::CallableCall{callee})=>{
@@ -302,7 +302,7 @@ fn raw_type(recipe:&SemanticTypeRecipe,b:&mut Budget)->Check<()> {
         SemanticTypeRecipe::AssociatedType{receiver,application,..}=>{raw_type(receiver,b)?;for actual in &application.arguments {raw_actual_recipe(actual,b)?;}Ok(())},
         SemanticTypeRecipe::Code{signature,..}=>{for parameter in &signature.parameters {raw_type(&parameter.ty,b)?;}raw_type(&signature.result,b)},
         SemanticTypeRecipe::Task{result,retained}|SemanticTypeRecipe::MutexGuard{payload:result,retained}=>{raw_type(result,b)?;raw_retained(retained,b)},
-        SemanticTypeRecipe::Dyn{interface,..}=>{for actual in &interface.application.arguments{raw_actual_recipe(actual,b)?;}match &interface.context{SemanticDynContextRecipe::Closed=>{},SemanticDynContextRecipe::Type(ty)=>raw_type(ty,b)?,SemanticDynContextRecipe::Shape(shape)=>{raw_retained(shape,b)?;return Err(unsupported("explicit Dyn retained Context shape requires its complete independent source-domain consumer",None));}}for associated in &interface.associated{for actual in &associated.application.arguments{raw_actual_recipe(actual,b)?;}match &associated.value{SemanticAssociatedRecipe::Type(ty)=>raw_type(ty,b)?,SemanticAssociatedRecipe::Const{carrier,value}=>{raw_type(carrier,b)?;raw_const(value,b)?;}}}Ok(())},
+        SemanticTypeRecipe::Dyn{interface,..}=>{for actual in &interface.application.arguments{raw_actual_recipe(actual,b)?;}match &interface.context{SemanticDynContextRecipe::Closed=>{},SemanticDynContextRecipe::Type(ty)=>raw_type(ty,b)?,SemanticDynContextRecipe::Shape(shape)=>raw_retained(shape,b)?,}for associated in &interface.associated{for actual in &associated.application.arguments{raw_actual_recipe(actual,b)?;}match &associated.value{SemanticAssociatedRecipe::Type(ty)=>raw_type(ty,b)?,SemanticAssociatedRecipe::Const{carrier,value}=>{raw_type(carrier,b)?;raw_const(value,b)?;}}}Ok(())},
         _=>Ok(()),
     }
 }

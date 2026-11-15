@@ -21,6 +21,7 @@ impl CheckedOriginal {
             Ty::Slice(inner)=>Ty::Slice(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
             Ty::Managed(inner)=>Ty::Managed(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
             Ty::Store(inner)=>Ty::Store(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
+            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.apply_arguments(std::slice::from_ref(arg),env,depth+1,b)?.remove(0)),b)?)),
             Ty::Carrier{kind,child,retained}=>Ty::Carrier{kind,child:Box::new(self.apply_type_at(&child,env,depth+1,b)?),retained:Box::new(retained.map(|ty,b|self.apply_type_at(ty,env,depth+1,b),|life,b|self.apply_life(life,env,b),b)?)},
             Ty::Array(inner,length)=>Ty::Array(Box::new(self.apply_type_at(&inner,env,depth+1,b)?),Box::new(self.apply_constant(&length,env,depth+1,b)?)),
             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.apply_type_at(&error,env,depth+1,b)?),Box::new(self.apply_type_at(&result,env,depth+1,b)?)),

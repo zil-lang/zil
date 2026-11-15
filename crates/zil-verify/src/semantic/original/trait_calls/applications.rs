@@ -3,6 +3,7 @@ type Application=(LifeDeclarationId,Vec<Arg>,u32,SemanticDefinitionId);
 impl CheckedOriginal {
     pub(in crate::semantic::original) fn original_method_applications(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,name:&str,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<Application>>{
         let mut applications=Vec::<(LifeDeclarationId,Vec<Arg>)>::new();
+        if let Ty::Dyn(value)=receiver{for application in self.dyn_applications(module,context,value,caller,active,b)?{applications.push((application.declaration,application.arguments));}}
         for(index,frame)in caller.lexical.iter().enumerate(){
             let definition=context.definition(module,frame.definition,b)?;
             let mut lexical=caller.clone();lexical.lexical=lexical.lexical[index..].to_vec();
@@ -16,7 +17,7 @@ impl CheckedOriginal {
         }
         // A source-visible concrete nominal may also select its original impl
         // scheme. An abstract I is never decomposed using a current instance.
-        if !matches!(receiver,Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Infer(_)){
+        if !matches!(receiver,Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Infer(_)|Ty::Dyn(_)){
             for application in self.original_receiver_applications(module,context,receiver,name,caller,active,b)?{applications.push(application);}
         }
         let programme=module.semantic.as_ref().ok_or_else(||bad("original method selection programme is absent"))?;

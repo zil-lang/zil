@@ -158,3 +158,16 @@ impl CheckedOriginal {
         Ok(())
     }
 }
+
+impl CheckedOriginal {
+    /// An implicit description's head belongs to the exact adapted argument
+    /// occurrence. Its underlying manager still comes from the original Place.
+    pub(in crate::semantic) fn original_description_source(&self,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>> {
+        let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};
+        let ty=self.original_type(definition,source,b)?;
+        let Ty::Desc{life,..}=ty else{return Ok(None);};
+        if self.resolved_life(&life,b)?!=Life::Local(definition,*node){return Ok(None);}
+        if !self.value_places.contains_key(&(definition,*node)){return Err(unsupported("original implicit description requires its complete checked manager Place",None));}
+        Ok(Some(intrinsics::BufferSource::Place{definition,node:*node}))
+    }
+}

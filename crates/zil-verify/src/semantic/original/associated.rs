@@ -16,6 +16,7 @@ pub(super) fn has_projection(ty:&Ty,b:&mut Budget)->Check<bool>{
         Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)=>pending.push(inner),
         Ty::Array(inner,length)=>{pending.push(inner);pending.push(&length.carrier);},
         Ty::ErrorUnion(error,result)=>{pending.push(error);pending.push(result);},
+        Ty::Dyn(value)=>value.types(&mut pending,b)?,
         Ty::Carrier{child,retained,..}=>{pending.push(child);retained.types(&mut pending,b)?;},
         Ty::Code{parameters,result,..}=>{pending.extend(parameters);pending.push(result);},
         _=>{},
@@ -26,6 +27,7 @@ impl CheckedOriginal{
     #[allow(clippy::too_many_arguments)]
     pub(super) fn associated_type(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,declaration:LifeDeclarationId,arguments:&[Arg],member:u32,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let receiver=self.resolved(receiver,b)?;let arguments=self.resolve_arguments(arguments,0,b)?;
+        if let Ty::Dyn(value)=&receiver{for row in &value.associated{if row.member==member&&row.application.declaration==declaration&&self.same_arguments_readonly(&row.application.arguments,&arguments,b)?{return match &row.value{Arg::Type(ty)=>self.resolved(ty,b),_=>Err(bad("erased associated Type selects a Const member"))};}}return Err(bad("erased receiver omits its exact associated Type binding"));}
         let scope=dynamic_witness::semantic_external::original_scope(module,declaration,b)?;
         if !matches!(scope.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration:actual})if actual==declaration){return Err(bad("original associated type application does not name a trait scope"));}
         b.spend(module.dyn_declarations.len())?;let mut declarations=module.dyn_declarations.iter().filter(|row|row.id==declaration);let original=declarations.next().ok_or_else(||bad("original associated type declaration is absent"))?;

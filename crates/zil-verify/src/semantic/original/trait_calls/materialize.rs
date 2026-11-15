@@ -27,10 +27,9 @@ impl CheckedOriginal {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=target.target else{return Err(bad("receiver role caller retains a nonexecutable target"));};
         let function=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("receiver role actual function is absent"))?;
         let instruction=function.blocks.get(block.0 as usize).filter(|row|row.id==block).and_then(|row|row.instructions.get(instruction as usize)).ok_or_else(||bad("receiver role actual instruction is absent"))?;
-        let arguments=match &instruction.kind{InstructionKind::Call{arguments,..}|InstructionKind::SuspendCall{arguments,..}=>arguments,_=>return Err(bad("receiver role actual site is not a checked ordinary method Call"))};
-        let value=*arguments.first().ok_or_else(||bad("receiver role actual Call omits its receiver"))?;
+        let value=match &instruction.kind{InstructionKind::Call{arguments,..}|InstructionKind::SuspendCall{arguments,..}=>*arguments.first().ok_or_else(||bad("receiver role actual Call omits its receiver"))?,InstructionKind::CallDynSlot{callee,..}=>*callee,_=>return Err(bad("receiver role actual site is not a checked method Call"))};
         let ty=function.values.get(value.0 as usize).ok_or_else(||bad("receiver role actual operand is absent"))?;
-        if !matches!((mode,ty),(StoredBorrowMode::SharedAddress,Type::Address{mutable:false,..})|(StoredBorrowMode::ExclusiveAddress,Type::Address{mutable:true,..})|(StoredBorrowMode::ReadOnlyDescription,Type::Desc(_))){return Err(bad("receiver role actual outer borrowing mode differs"));}
+        if !matches!((mode,ty),(StoredBorrowMode::SharedAddress,Type::Address{mutable:false,..})|(StoredBorrowMode::ExclusiveAddress,Type::Address{mutable:true,..})|(StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription,Type::Desc(_))){return Err(bad("receiver role actual outer borrowing mode differs"));}
         Ok(SemanticClassExpr::OuterOccurrence{operand:SemanticOperand::Value(value),path:vec![],mode})
     }
 }

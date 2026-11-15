@@ -8,6 +8,7 @@ impl CheckedOriginal {
         active.with_query(DependencyKey{kind:QueryKind::Requirement,token},b,|active,b|{
             let scope=dynamic_witness::semantic_external::original_scope(module,declaration,b)?;
             if !matches!(scope.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration:actual})if actual==declaration)||scope.parameters.len()!=arguments.len(){return Err(bad("original trait obligation loses its trait identity or full mixed arity"));}
+            if let Ty::Dyn(value)=self.resolved(receiver,b)?{for application in self.dyn_applications(module,context,&value,caller,active,b)?{if application.declaration==declaration&&self.same_arguments_readonly(&application.arguments,arguments,b)?{return Ok(());}}return Err(bad("erased receiver does not expose this complete original trait application"));}
             if self.trait_premise(module,context,receiver,declaration,arguments,caller,active,b)?{return Ok(());}
             let mut target=self.environment(module,context,scope.id,active,b)?;
             target.lexical[0].actuals=self.resolve_arguments(arguments,0,b)?;

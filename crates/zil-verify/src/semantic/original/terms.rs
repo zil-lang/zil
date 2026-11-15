@@ -18,6 +18,7 @@ pub(super) enum Ty {
     Managed(Box<Ty>),
     Store(Box<Ty>),
     Carrier{kind:CarrierKind,child:Box<Ty>,retained:Box<Retained>},
+    Dyn(Box<DynType>),
     ErrorUnion(Box<Ty>,Box<Ty>),
     Closure(SemanticDefinitionId,Vec<Arg>,Vec<Arg>),
     Function(SemanticDefinitionId),

@@ -11,6 +11,7 @@ use std::cell::{RefCell,Cell};
 mod lifetimes;
 mod relations;
 mod evaluate;
+mod dyn_types;
 mod requirements;
 mod constants;
 mod nominal;

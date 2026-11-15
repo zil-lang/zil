@@ -731,6 +731,7 @@ impl CheckedOriginal {
                 }
                 self.task_zero_domain(module, context, &result, env, active, b, depth + 1)?
             }
+            Ty::Dyn(value)=>{let mut types=Vec::new();value.types(&mut types,b)?;if value.explicit_life(b)?{return Ok(false);}for ty in types{if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)?{return Ok(false);}}true},
             Ty::Closure(..) => false,
         })
     }

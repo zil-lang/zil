@@ -27,6 +27,11 @@ impl CheckedOriginal {
         // remains its sole payload operation and has a different result role.
         if self.injections.contains_key(&(definition,expression.id)){return Ok(None);}
         if !matches!(expression.kind,CoreExprKind::Call{..}){return Ok(None);}
+        let result=self.expressions.get(&(definition,expression.id)).ok_or_else(||bad("original Call result lacks its checked effective type"))?;
+        // A later Describe occurrence observes the same manager through a new
+        // outer head. Only the unchanged whole result role can reuse its Call
+        // receipt; all adapted roles retain their own original recipe.
+        if !self.same(&checked,result,b)?{return Ok(None);}
         let mut selected=None;
         for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}
         Ok(selected)

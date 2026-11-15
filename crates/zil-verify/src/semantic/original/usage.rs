@@ -84,6 +84,7 @@ pub(super) fn has_inference(ty:&Ty,substitutions:&BTreeMap<u64,Ty>,b:&mut Budget
         Ty::Tuple(fields)=>pending.extend(fields),
         Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>pending.push(inner),
         Ty::Nominal(_,arguments)|Ty::Opaque(_,arguments)|Ty::Closure(_,arguments,_)|Ty::Projection{arguments,..}=>{if let Ty::Projection{receiver,..}=ty{pending.push(receiver);}for argument in arguments{match argument{Arg::Type(ty)=>pending.push(ty),Arg::Const(value)=>pending.push(&value.carrier),_=>{}}}},
+        Ty::Dyn(value)=>value.types(&mut pending,b)?,
         Ty::Carrier{child,retained,..}=>{pending.push(child);retained.types(&mut pending,b)?;},
         Ty::ErrorUnion(error,result)=>{pending.push(error);pending.push(result);},
         Ty::Code{parameters,result,..}=>{pending.extend(parameters);pending.push(result);},

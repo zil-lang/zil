@@ -3,6 +3,7 @@
 use super::*;
 use zil_base::NodeId;
 mod terms;
+mod dyn_types;
 mod recipes;
 mod bodies;
 mod index;
@@ -46,6 +47,7 @@ mod opaque;
 pub(super) mod intrinsics;
 use usage::{Binder,Place,Uses};
 use terms::*;
+use dyn_types::*;
 use std::collections::{BTreeMap,BTreeSet};
 #[derive(Clone)]
 pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) callable_kind:Option<CallableKind>}
@@ -153,6 +155,7 @@ impl CheckedOriginal {
             Ty::Slice(inner)=>Ty::Slice(Box::new(self.resolve_at(inner,depth+1,b)?)),
             Ty::Managed(inner)=>Ty::Managed(Box::new(self.resolve_at(inner,depth+1,b)?)),
             Ty::Store(inner)=>Ty::Store(Box::new(self.resolve_at(inner,depth+1,b)?)),
+            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.resolve_arguments(std::slice::from_ref(arg),depth+1,b)?.remove(0)),b)?)),
             Ty::Carrier{kind,child,retained}=>Ty::Carrier{kind:*kind,child:Box::new(self.resolve_at(child,depth+1,b)?),retained:Box::new(retained.map(|ty,b|self.resolve_at(ty,depth+1,b),|life,b|self.resolved_life(life,b),b)?)},
             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.resolve_at(error,depth+1,b)?),Box::new(self.resolve_at(result,depth+1,b)?)),
             Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{let mut values=Vec::new();for parameter in parameters{values.push(self.resolve_at(parameter,depth+1,b)?);}Ty::Code{kind:*kind,parameters:values,result:Box::new(self.resolve_at(result,depth+1,b)?),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes}},
@@ -184,6 +187,7 @@ impl CheckedOriginal {
             (Ty::Managed(a),Ty::Managed(c))|(Ty::Store(a),Ty::Store(c))|(Ty::Slice(a),Ty::Slice(c))=>self.unify(a,c,b),
             (Ty::ErrorUnion(a,r),Ty::ErrorUnion(c,s))=>{self.unify(a,c,b)?;self.unify(r,s,b)},
             (Ty::Array(a,n),Ty::Array(c,m)) if n==m=>self.unify(a,c,b),
+            (Ty::Dyn(a),Ty::Dyn(z))=>self.unify_dyn(a,z,b),
             (Ty::Carrier{kind:a,child:x,retained:ar},Ty::Carrier{kind:c,child:y,retained:cr}) if a==c&&ar==cr=>self.unify(x,y,b),
             (Ty::Nominal(a,aa),Ty::Nominal(c,ca)) | (Ty::Opaque(a,aa),Ty::Opaque(c,ca)) if a==c&&aa.len()==ca.len()=>{for(a,c)in aa.iter().zip(ca){match(a,c){(Arg::Type(a),Arg::Type(c))=>self.unify(a,c,b)?,(Arg::Life(a),Arg::Life(c))=>self.unify_life(a,c,b)?,_ if a==c=>{},_=>return Err(bad("original nominal actuals require a proved equality"))}}Ok(())},
             _=>Err(bad(&format!("original body relates independent rigid type/const identities without an original equality (actual {}, expected {})",type_category(&left),type_category(&right)))),
@@ -210,5 +214,5 @@ impl CheckedOriginal {
     }
 }
 fn atom_category(ty:&Type)->&'static str{match ty{Type::Unit=>"Unit",Type::Bool=>"Bool",Type::I8=>"i8",Type::I16=>"i16",Type::I32=>"i32",Type::I64=>"i64",Type::Isize=>"isize",Type::U8=>"u8",Type::U16=>"u16",Type::U32=>"u32",Type::U64=>"u64",Type::Usize=>"usize",Type::F32=>"f32",Type::F64=>"f64",Type::ForeignHandle=>"ForeignHandle",Type::CWideString=>"CWideString",Type::ByteBuffer=>"ByteBuffer",Type::SyncCell(_)=>"SyncCell",_=>"NonAtomicType"}}
-fn type_category(ty:&Ty)->String{match ty{Ty::Atom(ty)=>atom_category(ty).into(),Ty::Variable(definition,ordinal)=>format!("TypeFormal({definition:?},{ordinal})"),Ty::SelfType(definition)=>format!("Self({definition:?})"),Ty::Nominal(definition,args)=>format!("Nominal({definition:?},{} actuals)",args.len()),Ty::Opaque(definition,args)=>format!("Opaque({definition:?},{} actuals)",args.len()),Ty::Projection{declaration,member,..}=>format!("Projection({declaration:?},{member})"),Ty::Tuple(fields)=>format!("Tuple({} fields)",fields.len()),Ty::Array(_,length)=>format!("Array(length carrier {}, {})",match length.carrier.as_ref(){Ty::Atom(ty)=>atom_category(ty),_=>"symbolic"},match &length.value{ConstValue::Value(_)=>"literal",ConstValue::Variable(..)=>"formal",_=>"expression"}),Ty::Address{mutable,..}=>if *mutable{"ExclusiveAddress".into()}else{"SharedAddress".into()},Ty::Desc{..}=>"Description".into(),Ty::Managed(_)=>"Managed".into(),Ty::Store(_)=>"Store".into(),Ty::Carrier{kind,..}=>format!("{kind:?}"),Ty::Closure(definition,..)=>format!("Closure({definition:?})"),Ty::Function(definition)=>format!("Function({definition:?})"),Ty::Code{..}=>"Code".into(),Ty::ErrorUnion(..)=>"ErrorUnion".into(),Ty::Slice(_)=>"Slice".into(),Ty::SealedError(kind)=>format!("{kind:?}"),Ty::Infer(id)=>format!("Infer({id})")}}
-fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::Carrier{child,retained,..}=>{queue.push(child);retained.types(&mut queue,b)?;},Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)|Ty::Opaque(_,arguments)|Ty::Projection{arguments,..}=>{if let Ty::Projection{receiver,..}=ty{queue.push(receiver);}for actual in arguments{match actual{Arg::Type(ty)=>queue.push(ty),Arg::Const(value)=>queue.push(&value.carrier),_=>{}}}},_=>{}}}Ok(false)}
+fn type_category(ty:&Ty)->String{match ty{Ty::Atom(ty)=>atom_category(ty).into(),Ty::Variable(definition,ordinal)=>format!("TypeFormal({definition:?},{ordinal})"),Ty::SelfType(definition)=>format!("Self({definition:?})"),Ty::Nominal(definition,args)=>format!("Nominal({definition:?},{} actuals)",args.len()),Ty::Opaque(definition,args)=>format!("Opaque({definition:?},{} actuals)",args.len()),Ty::Projection{declaration,member,..}=>format!("Projection({declaration:?},{member})"),Ty::Tuple(fields)=>format!("Tuple({} fields)",fields.len()),Ty::Array(_,length)=>format!("Array(length carrier {}, {})",match length.carrier.as_ref(){Ty::Atom(ty)=>atom_category(ty),_=>"symbolic"},match &length.value{ConstValue::Value(_)=>"literal",ConstValue::Variable(..)=>"formal",_=>"expression"}),Ty::Address{mutable,..}=>if *mutable{"ExclusiveAddress".into()}else{"SharedAddress".into()},Ty::Desc{..}=>"Description".into(),Ty::Managed(_)=>"Managed".into(),Ty::Store(_)=>"Store".into(),Ty::Dyn(value)=>format!("Dyn(owned={},trait={:?})",value.owned,value.application.declaration),Ty::Carrier{kind,..}=>format!("{kind:?}"),Ty::Closure(definition,..)=>format!("Closure({definition:?})"),Ty::Function(definition)=>format!("Function({definition:?})"),Ty::Code{..}=>"Code".into(),Ty::ErrorUnion(..)=>"ErrorUnion".into(),Ty::Slice(_)=>"Slice".into(),Ty::SealedError(kind)=>format!("{kind:?}"),Ty::Infer(id)=>format!("Infer({id})")}}
+fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::Dyn(value)=>value.types(&mut queue,b)?,Ty::Carrier{child,retained,..}=>{queue.push(child);retained.types(&mut queue,b)?;},Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)|Ty::Opaque(_,arguments)|Ty::Projection{arguments,..}=>{if let Ty::Projection{receiver,..}=ty{queue.push(receiver);}for actual in arguments{match actual{Arg::Type(ty)=>queue.push(ty),Arg::Const(value)=>queue.push(&value.carrier),_=>{}}}},_=>{}}}Ok(false)}
