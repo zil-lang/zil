@@ -41,6 +41,7 @@ fn expression_pair<'a>(source:&'a CoreExpr,actual:&'a SemanticOriginalExpr,annot
         (K::Integer(a),K::Integer(c))|(K::Float(a),K::Float(c))|(K::String(a),K::String(c))|(K::Name(a),K::Name(c))|(K::Character(a),K::Character(c)) if a==c=>b.spend(a.len())?,
         (K::Unary{op:a,operand:x},K::Unary{op:c,operand:y}) if a==c=>expression_pair(x,y,annotations,level+1,b)?,
         (K::Binary{op:a,left:x,right:y},K::Binary{op:c,left:z,right:w}) if a==c=>{expression_pair(x,z,annotations,level+1,b)?;expression_pair(y,w,annotations,level+1,b)?;},
+        (K::Range{start:a,end:x},K::Range{start:c,end:y})=>{expression_pair(a,c,annotations,level+1,b)?;expression_pair(x,y,annotations,level+1,b)?;},
         // FrozenContext has already selected the one actual outer query's
         // payload. Nested stage markers retain their own original occurrence
         // identity and complete subtree; they are not stripped a second time.
@@ -77,6 +78,11 @@ fn statement_pair<'a>(source:&'a CoreStatement,actual:&'a SemanticOriginalStatem
         (K::If{condition:a,then_body:x,else_body:p},K::If{condition:c,then_body:y,else_body:q})=>{expression_pair(a,c,out,level+1,b)?;block_pair(x,y,out,level+1,b)?;match(p,q){(Some(a),Some(c))=>block_pair(a,c,out,level+1,b)?,(None,None)=>{},_=>return Err(bad("CT wrapper changes original branch inventory"))}},
         (K::While{condition:a,body:x},K::While{condition:c,body:y})=>{expression_pair(a,c,out,level+1,b)?;block_pair(x,y,out,level+1,b)?;},
         (K::ForRange{name:a,start:x,end:p,body:r},K::ForRange{name:c,start:y,end:q,body:s})if a==c=>{expression_pair(x,y,out,level+1,b)?;expression_pair(p,q,out,level+1,b)?;block_pair(r,s,out,level+1,b)?;},
+        (K::ForEach{pattern:a,iterator:x,body:p},K::ForEach{pattern:c,iterator:y,body:q})=>{
+            if a.span!=c.span{return Err(bad("CT wrapper changes its exact original range pattern occurrence"));}
+            match(&a.kind,&c.kind){(CorePatternKind::Name(a),CorePatternKind::Name(c))if a==c=>b.spend(a.len())?,(CorePatternKind::Wildcard,CorePatternKind::Wildcard)=>{},_=>return Err(bad("CT wrapper changes its original irrefutable range binding"))}
+            expression_pair(x,y,out,level+1,b)?;block_pair(p,q,out,level+1,b)?;
+        },
         (K::Block(a),K::Block(c))|(K::Loop(a),K::Loop(c))=>block_pair(a,c,out,level+1,b)?,
         (K::Break,K::Break)|(K::Continue,K::Continue)=>{},
         _=>return Err(unsupported("CT query/wrapper requires complete matching for this statement family",None)),

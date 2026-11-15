@@ -77,7 +77,20 @@ impl CheckedOriginal {
                 CoreExprKind::RecordConstructor{definition,fields}=>{let ty=match expected.or(self.binding_families.get(&(id,expression.id))){Some(ty)=>match self.resolved(ty,b)?{Ty::Managed(inner)=>*inner,ty=>ty},None=>{let definition=definition.ok_or_else(||bad("original record constructor has no identity or context"))?;let row=context.definition(module,definition,b)?;if !row.parameters.is_empty(){return Err(unsupported("original generic record constructor needs full context inference",None));}Ty::Nominal(definition,vec![])}};if definition.is_some_and(|id|!matches!(ty,Ty::Nominal(actual,_)if id==actual)){return Err(bad("original record constructor changes declaration"));}self.record(module,context,&ty,fields,None,env,bindings,active,b)?;self.constructed_resource(module,context,ty,expression,env,b)?},
                 CoreExprKind::RecordUpdate{ty,base,fields}=>{let annotation=ty.as_ref().map(|ty|self.ty(module,context,ty,env,active,b)).transpose()?;let base=self.expression(module,context,base,env,bindings,annotation.as_ref().or(expected),active,b)?;self.record(module,context,&base,fields,Some(&base),env,bindings,active,b)?;base},
                 CoreExprKind::Sequence{bindings:initializers,value}=>{let before=self.live_keys(env,b)?;let mut locals=bindings.clone();for(name,initializer)in initializers{let actual=self.expression(module,context,initializer,env,&locals,None,active,b)?;let binding=Binding{ty:actual,mutable:false,identity:Binder::Local{definition:id,node:initializer.id,name:name.clone()}};self.declare(env,&binding,b)?;locals.insert(name.clone(),binding);}let value=self.expression(module,context,value,env,&locals,expected,active,b)?;self.exit_scope(env,&before,b)?;value},
-                CoreExprKind::If{condition,then_value,else_value}=>{self.condition_original(module,context,condition,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;let yes=self.expression(module,context,then_value,env,bindings,expected,active,b)?;let yes_uses=self.use_snapshot(env,b)?;self.set_uses(env,before)?;let no=self.expression(module,context,else_value,env,bindings,Some(&yes),active,b)?;let no_uses=self.use_snapshot(env,b)?;self.unify(&yes,&no,b)?;self.join_uses(env,&yes_uses,&no_uses,b)?;yes},
+                CoreExprKind::If{condition,then_value,else_value}=>{
+                    self.condition_original(module,context,condition,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;
+                    let(yes,yes_uses,no,no_uses)=if Self::contextual_numeric_literal(then_value,b)?{
+                        // A pure unsuffixed arm has no value-use/effect order
+                        // to execute. Collect its peer's carrier first, while
+                        // checking both original arms from the same live Γ.
+                        let no=self.expression(module,context,else_value,env,bindings,expected,active,b)?;let no_uses=self.use_snapshot(env,b)?;self.set_uses(env,before)?;
+                        let yes=self.expression(module,context,then_value,env,bindings,Some(&no),active,b)?;let yes_uses=self.use_snapshot(env,b)?;(yes,yes_uses,no,no_uses)
+                    }else{
+                        let yes=self.expression(module,context,then_value,env,bindings,expected,active,b)?;let yes_uses=self.use_snapshot(env,b)?;self.set_uses(env,before)?;
+                        let no=self.expression(module,context,else_value,env,bindings,Some(&yes),active,b)?;let no_uses=self.use_snapshot(env,b)?;(yes,yes_uses,no,no_uses)
+                    };
+                    self.unify(&yes,&no,b)?;self.join_uses(env,&yes_uses,&no_uses,b)?;yes
+                },
                 CoreExprKind::Closure{..}=>{
                     let original=context.definition(module,id,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&original.body else{return Err(bad("closure creator has no original operations"));};
                     let mut children=site_nodes.iter().filter_map(|row|if row.node==SemanticOriginalNode::Expression(expression.id){sites.iter().find(|site|site.id==row.site).and_then(|site|if let SemanticSiteRecipeKind::Closure{definition,..}=site.kind{Some(definition)}else{None})}else{None});

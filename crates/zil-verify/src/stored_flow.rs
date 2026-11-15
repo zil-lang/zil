@@ -1627,6 +1627,7 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
             | Type::U32
             | Type::F32
             | Type::F64 => {}
+            Type::FunctionPointer{..}|Type::ForeignCallback{..}=>if !pure_copy::code_atom(current,b)?{return Ok(false);},
             _ => return Ok(false),
         }
     }

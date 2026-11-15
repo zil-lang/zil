@@ -137,6 +137,7 @@ fn pure_profile(ty: &Type, b: &mut Budget, qualified: bool) -> Check<bool> {
             | Type::U32
             | Type::F32
             | Type::F64 => {}
+            Type::FunctionPointer{..}|Type::ForeignCallback{..}=>if !super::pure_copy::code_atom(ty,b)?{return Ok(false);},
             _ => return Ok(false),
         }
     }

@@ -19,6 +19,14 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
     )
 }
 
+pub(super) fn code_atom(ty:&Type,b:&mut Budget)->Check<bool>{
+    match ty{
+        Type::FunctionPointer{..}=>crate::class_flow::plain_pointer_type(ty,b),
+        Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;crate::native_values::callback_signature(parameters,result,None)?;Ok(true)},
+        _=>Ok(false),
+    }
+}
+
 // Ordinary owning unions have a tag/debt in the independent resource kernel,
 // but no stored-address permission. Admit only an actual complete union whose
 // children contain no address, qualified carrier, callable or retained task.
@@ -27,9 +35,9 @@ pub(super) fn ordinary_owned_union(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.sums && !b.masked_stored_tasks() {
-        return Ok(false);
-    }
+    // Flat owning ErrorUnion/Package values predate the sum-extension work
+    // flag. Authenticate the complete actual shape here; a scheduling flag
+    // neither supplies this proof nor excludes an ordinary existing carrier.
     if ordinary_owned_enum(f,i,b)?{return Ok(true);}
     let union = match &i.kind {
         InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
@@ -351,6 +359,9 @@ fn ordinary(ty: &Type, b: &mut Budget, depth: usize) -> Check<()> {
         | Type::U32
         | Type::F32
         | Type::F64 => {}
+        Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{
+            if !code_atom(ty,b)?{return Err(unsupported("pure Copy code atom lacks its complete finite signature/ABI domain",None));}
+        },
         Type::Record { fields, .. } => {
             for (_, field) in fields {
                 ordinary(field, b, depth + 1)?;
@@ -394,6 +405,9 @@ fn ordinary(ty: &Type, b: &mut Budget, depth: usize) -> Check<()> {
 }
 
 pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> {
+    types_inner(f,i,b).map_err(|mut failure|{if failure.span.is_none(){failure.span=Some(i.span);}failure})
+}
+fn types_inner(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> {
     let output = vt(
         f,
         i.result
@@ -650,6 +664,7 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Ch
             | Type::F32
             | Type::F64
             | Type::ByteBuffer => {}
+            Type::FunctionPointer{..}|Type::ForeignCallback{..}=>if !code_atom(ty,b)?{return Ok(false);},
             _ => return Ok(false),
         }
     }

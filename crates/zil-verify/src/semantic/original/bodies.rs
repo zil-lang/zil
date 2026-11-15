@@ -131,7 +131,19 @@ impl CheckedOriginal {
                         let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let backedge=self.use_snapshot(env,b)?;
                         if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;false
                     },
-                    CoreStatementKind::ForRange{name,start,end,body}=>{let ty=self.expression(module,context,start,env,bindings,None,active,b)?;let end=self.expression(module,context,end,env,bindings,Some(&ty),active,b)?;self.unify(&ty,&end,b)?;if !matches!(self.resolved(&ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original range endpoints are not integers"));}let mut inner=bindings.clone();let binding=Binding{ty,mutable:false,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};self.declare(env,&binding,b)?;inner.insert(name.clone(),binding);let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false},
+                    CoreStatementKind::ForRange{name,start,end,body}=>{let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;let scope_before=self.live_keys(env,b)?;let mut inner=bindings.clone();let binding=Binding{ty,mutable:false,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};self.declare(env,&binding,b)?;inner.insert(name.clone(),binding);let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&scope_before,b)?;}else{self.exit_scope(env,&scope_before,b)?;}let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false},
+                    CoreStatementKind::ForEach{pattern,iterator,body}=>{
+                        let mut range=iterator;while let CoreExprKind::Group(inner)=&range.kind{b.spend(1)?;range=inner;}
+                        let CoreExprKind::Range{start,end}=&range.kind else{return Err(unsupported("original iteration needs its complete checked iterator protocol",Some(iterator.span)));};
+                        if !matches!(pattern.kind,CorePatternKind::Name(_)|CorePatternKind::Wildcard){return Err(bad("integer range requires one irrefutable original value pattern"));}
+                        self.remember_names(env,SemanticOriginalNode::Expression(iterator.id),bindings,b)?;
+                        let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;
+                        let before=self.use_snapshot(env,b)?;let scope_before=self.live_keys(env,b)?;let mut inner=bindings.clone();
+                        self.pattern_root(module,context,statement.id,&[],pattern,&ty,false,env,&mut inner,active,b)?;
+                        let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;
+                        if returns{self.forget_scope(env,&scope_before,b)?;}else{self.exit_scope(env,&scope_before,b)?;}
+                        let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false
+                    },
                     CoreStatementKind::Match{value,arms}=>{
                         let ty=self.expression(module,context,value,env,bindings,None,active,b)?;let before=self.use_snapshot(env,b)?;let mut continuing=None;let mut all=!arms.is_empty();
                         for(arm_index,arm)in arms.iter().enumerate(){self.set_uses(env,before.clone())?;let arm_live=self.live_keys(env,b)?;let mut inner=bindings.clone();self.pattern_root(module,context,statement.id,&[arm_index as u32],&arm.pattern,&ty,false,env,&mut inner,active,b)?;
@@ -162,6 +174,13 @@ impl CheckedOriginal {
 }
 
 impl CheckedOriginal {
+    #[allow(clippy::too_many_arguments)]
+    fn range_endpoints(&mut self,module:&TypedModule,context:&CheckedContext,start:&SemanticOriginalExpr,end:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        let(left,right)=if Self::contextual_numeric_literal(start,b)?{
+            let right=self.expression(module,context,end,env,bindings,None,active,b)?;let left=self.expression(module,context,start,env,bindings,Some(&right),active,b)?;(left,right)
+        }else{let left=self.expression(module,context,start,env,bindings,None,active,b)?;let right=self.expression(module,context,end,env,bindings,Some(&left),active,b)?;(left,right)};
+        self.unify(&left,&right,b)?;let ty=self.resolved(&left,b)?;if !matches!(&ty,Ty::Atom(ty)if ty.is_integer()){return Err(bad("original range endpoints are not one complete integer carrier"));}Ok(ty)
+    }
     fn constant_true(mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
         loop {
             b.spend(1)?;
@@ -202,7 +221,8 @@ impl CheckedOriginal {
                     b.spend(text.len().saturating_add(12))?;
                     if ["isize","usize","i64","i32","i16","i8","u64","u32","u16","u8","f64","f32"].iter().any(|suffix|text.ends_with(*suffix)){return Ok(false);}
                 },
-                CoreExprKind::Group(inner)|CoreExprKind::Unary{op:UnaryOp::Negate|UnaryOp::BitNot,operand:inner}=>pending.push(inner),
+                CoreExprKind::Group(inner)|CoreExprKind::CompileTime(inner)|CoreExprKind::Unary{op:UnaryOp::Negate|UnaryOp::BitNot,operand:inner}=>pending.push(inner),
+                CoreExprKind::Sequence{bindings,value}if bindings.is_empty()=>pending.push(value),
                 CoreExprKind::Binary{op:BinaryOp::Add|BinaryOp::Subtract|BinaryOp::Multiply|BinaryOp::Divide|BinaryOp::Remainder|BinaryOp::AddWrapping|BinaryOp::SubtractWrapping|BinaryOp::MultiplyWrapping|BinaryOp::BitAnd|BinaryOp::BitOr|BinaryOp::BitXor|BinaryOp::ShiftLeft|BinaryOp::ShiftRight,left,right}=>{pending.push(left);pending.push(right);},
                 _=>return Ok(false),
             }

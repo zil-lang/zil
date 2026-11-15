@@ -981,6 +981,8 @@ fn closed_copy(ty: &Type, b: &mut Budget) -> Check<bool> {
                 todo.extend([error.as_ref(), result.as_ref()]);
             }
             ty if scalar(ty) => {}
+            Type::FunctionPointer{..}=>if !super::plain_pointer_type(ty,b)?{return Ok(false);},
+            Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;crate::native_values::callback_signature(parameters,result,None)?;},
             _ => return Ok(false),
         }
     }

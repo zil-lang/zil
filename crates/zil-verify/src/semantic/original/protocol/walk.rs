@@ -280,6 +280,13 @@ impl<'a> Engine<'a> {
                 self.expression(end, &mut state, depth + 1, b)?;
                 return self.range_body(body, state, deferred, depth + 1, b);
             }
+            ForEach{iterator,body,..}=>{
+                let mut range=iterator;while let CoreExprKind::Group(inner)=&range.kind{b.spend(1)?;range=inner;}
+                let CoreExprKind::Range{start,end}=&range.kind else{return Err(unsupported("original iteration protocol lacks its complete range/iterator body",Some(iterator.span)));};
+                self.expression(start,&mut state,depth+1,b)?;
+                self.expression(end,&mut state,depth+1,b)?;
+                return self.range_body(body,state,deferred,depth+1,b);
+            }
             _ => {
                 return Err(unsupported(
                     "original protocol statement has no complete CFG/cleanup rule",

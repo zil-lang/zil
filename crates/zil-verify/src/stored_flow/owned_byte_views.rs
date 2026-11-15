@@ -302,6 +302,12 @@ pub(super) fn seed_description(
     if !matches!(vt(f,result)?,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer) {
         return Ok(None);
     }
+    if matches!(selection(module,f,result,i.span,b)?,Head::Flow){
+        // The step has just published this descriptor's independently formed
+        // local/field root. Reading the old SSA result at the fixed-point
+        // bottom would overwrite that new producer with an empty permission.
+        return Ok(None);
+    }
     Ok(Some(actual_permission(
         module, f, result, i.span, values, b,
     )?))
