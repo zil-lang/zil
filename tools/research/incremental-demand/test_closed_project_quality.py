@@ -474,6 +474,27 @@ class ClosedProjectTests(unittest.TestCase):
                 blob = matrix.matched.blob(args.out, b'symbols'+item['sha256'].encode())
                 return {'path': blob['archive'], 'sha256': blob['sha256']}
             with patch.object(matrix.matched, 'symbols', symbols):
+                # A previous valid envelope can describe an older call graph.
+                # It sorts first here but must never become current provenance.
+                prior = matrix.matched.layout_units((layouts/('b'*64+'.layout')).read_bytes())
+                prior[0]['imports'] = [3]
+                stale = (16).to_bytes(4, 'little')
+                for unit in prior:
+                    stale += unit['owner'].to_bytes(4, 'little')
+                    for group in ('prelude', 'declarations', 'imports', 'definitions'):
+                        stale += len(unit[group]).to_bytes(4, 'little')
+                        stale += b''.join(i.to_bytes(4, 'little') for i in unit[group])
+                (layouts/('a'*64+'.layout')).write_bytes(b'ZILCGU01'+bytes.fromhex('a'*64)+bytes.fromhex(matrix.rc.sha(stale))+stale)
+                imports_args = self.args(out)
+                imports_args.complete_imports = True
+                current = quality.inventory(imports_args, report, cache, llvm, 'c'*64)
+                self.assertEqual(current['object_count'], 16)
+                good = layouts/('b'*64+'.layout')
+                saved = good.read_bytes()
+                good.unlink()
+                with self.assertRaises(ValueError):
+                    quality.inventory(imports_args, report, cache, llvm, 'c'*64)
+                good.write_bytes(saved)
                 inv = quality.inventory(self.args(out), report, cache, llvm, 'c'*64)
                 self.assertEqual(inv['object_count'], 16)
                 self.assertEqual(inv['removed_functions'], [])

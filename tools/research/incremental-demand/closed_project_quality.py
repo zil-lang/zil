@@ -438,7 +438,14 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         if (not items or any(i >= len(items) for i in indices) or sorted(owned) != sorted(definitions)
                 or (not getattr(args, 'complete_imports', False) and any(u['imports'] for u in units))):
             continue
-        expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+        try:
+            expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+        except ValueError:
+            # A persistent cache retains prior request layouts. A valid envelope
+            # can describe an older call graph; it is not current provenance.
+            # Only complete current closures matching physical objects survive
+            # below, and at least one unique current layout remains mandatory.
+            continue
         private = import_names(units, items)
         actual = [set(o['defined_functions']) for o in objects]
         if not all(a <= e | p for a, e, p in zip(actual, expected, private)):
