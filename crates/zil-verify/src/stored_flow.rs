@@ -2271,6 +2271,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         for ty in &parameters {
             if !fixed_environment(module, ty, b)
                 && !super::stored_callables::borrowed_capture_input(ty)
+                && !super::stored_callables::complete_value_input(module,ty,b)?
                 && !super::stored_owned::owner(ty)
                 && !super::stored_owned::ordinary_byte_value(ty,b)?
                 && !super::stored_owned::ordinary_store_value(ty,b)?

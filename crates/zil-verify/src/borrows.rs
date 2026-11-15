@@ -989,7 +989,7 @@ fn reconstruct(
                             | InstructionKind::BorrowLocalMut { local }
                             | InstructionKind::BorrowDynOwned { local, .. } => {
                                 row.push(Root::Local(*local));
-                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)|Type::MutexGuard{..})
                                     && let Some(captures) = state.get(local)
                                 {
                                     roots_join(&mut row, captures, budget)?;

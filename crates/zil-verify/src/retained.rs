@@ -407,6 +407,12 @@ pub(super) fn check_claim(
             "callable result cleanup must name every owned capture exactly in field order",
         ));
     }
+    // An owning returned environment is still an actual factory result when
+    // its complete external pointer directory is Known0. Schedule the same
+    // constructor/return/ownership CFG consumer; no source or cleanup follows
+    // merely from an empty directory or this structural qualification.
+    budget.returned_environment_sources = true;
+    budget.nested_callable_sources = true;
     Ok(())
 }
 

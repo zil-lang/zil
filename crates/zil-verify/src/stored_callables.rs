@@ -399,6 +399,14 @@ fn described_mutex_capture(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bo
     super::generic_mutex::definition(module,resource,b)?;
     Ok(super::dynamic_witness::intrinsic_domain(module,manager,b)?.0==0)
 }
+pub(super) fn complete_value_input(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
+    let (value,borrowed)=if let Type::Address{inner,..}=ty{(inner.as_ref(),true)}else{(ty,false)};
+    if matches!(value,Type::Address{..}|Type::Desc(_)){return Ok(false);}
+    if !borrowed && !(super::signature_life::closed_owned_parameter(value)||matches!(value,Type::FunctionPointer{..}|Type::ForeignCallback{..})){return Ok(false);}
+    if super::dynamic_witness::intrinsic_domain(module,value,b)?.0!=0{return Ok(false);}
+    super::dynamic_witness::structural_actual(module,value,DynStructuralBound::Value,b)?;
+    Ok(true)
+}
 pub(super) fn captured_profile(
     module: &TypedModule,
     d: &ClosureDefinition,
@@ -424,6 +432,7 @@ pub(super) fn captured_profile(
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         if !borrowed_capture_input(ty)
+            && !complete_value_input(module,ty,b)?
             && !super::stored_flow::context_capture_type(module, ty, b)?
             && !inline_qualified_capture(module, ty, b)?
         {
@@ -453,6 +462,7 @@ pub(super) fn captured_profile(
         };
         b.task_retained_environments |= matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()));
         if !(borrowed_capture_input(ty)
+            || complete_value_input(module,ty,b)?
             || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
             || super::stored_owned::owner(ty)
             || super::stored_owned::ordinary_byte_value(ty,b)?
