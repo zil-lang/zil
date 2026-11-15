@@ -26,21 +26,27 @@ fn fee(left: &mut usize, n: usize) -> R<()> {
 }
 fn definition<'a>(
     program: &'a SemanticModule,
+    proof: &Proof,
     id: SemanticDefinitionId,
     left: &mut usize,
 ) -> R<&'a SemanticDefinition> {
-    fee(left, program.definitions.len())?;
-    let mut rows = program.definitions.iter().filter(|row| row.id == id);
-    let row = rows
-        .next()
-        .ok_or_else(|| bad("original substitution domain definition is absent"))?;
-    if rows.next().is_some() {
-        return Err(bad("original substitution domain definition is duplicated"));
-    }
-    Ok(row)
+    // This directory belongs to the same immutable original program. Its
+    // construction rejects duplicate identities before any original checking;
+    // each lookup still checks the actual row, never a concrete type image.
+    fee(
+        left,
+        proof.definition_positions.len().saturating_add(1).ilog2() as usize + 2,
+    )?;
+    proof
+        .definition_positions
+        .get(&id)
+        .and_then(|position| program.definitions.get(*position))
+        .filter(|row| row.id == id)
+        .ok_or_else(|| bad("original substitution domain definition is absent"))
 }
 fn ancestry(
     program: &SemanticModule,
+    proof: &Proof,
     id: SemanticDefinitionId,
     limits: &Limits,
     left: &mut usize,
@@ -59,7 +65,7 @@ fn ancestry(
         if result.contains(&id) {
             return Err(bad("original substitution domain ancestry is cyclic"));
         }
-        next = definition(program, id, left)?.parent;
+        next = definition(program, proof, id, left)?.parent;
         result.push(id);
     }
     Ok(result)
@@ -139,7 +145,7 @@ pub(super) fn carrier(
     limits: &Limits,
     left: &mut usize,
 ) -> R<SemanticTypeRecipe> {
-    let source = definition(program, mapping.source, left)?;
+    let source = definition(program, proof, mapping.source, left)?;
     let Some(SemanticFormal::Const { carrier }) = source.parameters.get(ordinal as usize) else {
         return Err(bad(
             "original carrier request does not select a Const formal",
@@ -193,6 +199,59 @@ pub(super) fn requirement(
         },
     )
 }
+/// Map one declaration's complete obligation sequence under a single checked
+/// lexical/actual correspondence. No obligation is assumed or discharged here.
+/// The caller must prove every returned requirement in its own original Gamma.
+pub(super) fn requirements<'a>(
+    program: &SemanticModule,
+    proof: &Proof,
+    values: impl IntoIterator<Item = &'a SemanticRequirementRecipe>,
+    mapping: DomainMapping<'_>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<SemanticRequirementRecipe>> {
+    let mut values = values.into_iter().peekable();
+    fee(left, 1)?;
+    if values.peek().is_none() {
+        return Ok(Vec::new());
+    }
+    in_mapping(
+        program,
+        proof,
+        mapping,
+        None,
+        true,
+        limits,
+        left,
+        |substitution, scopes, allow, left| {
+            let mut result = Vec::new();
+            for value in values {
+                if result.len() >= limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "original obligation sequence node limit exceeded",
+                        None,
+                    ));
+                }
+                // Covers the amortized vector allocation/movement in addition
+                // to each complete recipe's own copy and substitution charge.
+                fee(
+                    left,
+                    2 * std::mem::size_of::<SemanticRequirementRecipe>() + 1,
+                )?;
+                result.push(substitute::requirement_in_domains(
+                    value,
+                    substitution,
+                    scopes,
+                    allow,
+                    limits,
+                    left,
+                )?);
+            }
+            Ok(result)
+        },
+    )
+}
 pub(super) fn requirement_with_self(
     program: &SemanticModule,
     proof: &Proof,
@@ -225,9 +284,9 @@ fn in_mapping<T>(
     left: &mut usize,
     run: impl FnOnce(&substitute::Substitution<'_>, &BTreeMap<u32, u32>, bool, &mut usize) -> R<T>,
 ) -> R<T> {
-    let source = definition(program, mapping.source, left)?;
-    let source_chain = ancestry(program, mapping.source, limits, left)?;
-    let use_chain = ancestry(program, mapping.use_definition, limits, left)?;
+    let source = definition(program, proof, mapping.source, left)?;
+    let source_chain = ancestry(program, proof, mapping.source, limits, left)?;
+    let use_chain = ancestry(program, proof, mapping.use_definition, limits, left)?;
     kinds(source, mapping.arguments, left)?;
     let mut scopes = BTreeMap::new();
     fee(left, source_chain.len().saturating_mul(use_chain.len()))?;
@@ -270,7 +329,7 @@ fn in_mapping<T>(
                 "original nominal own arguments cannot be replaced by a parent Scope vector",
             ));
         }
-        let original = definition(program, method.parent, left)?;
+        let original = definition(program, proof, method.parent, left)?;
         if !matches!(original.body, SemanticDefinitionBody::Scope(_)) {
             return Err(bad(
                 "original method parent mapping names a non-Scope declaration",
@@ -300,7 +359,7 @@ fn in_mapping<T>(
         if !check_carriers {
             continue;
         }
-        let original = definition(program, source_chain[*hop as usize], left)?;
+        let original = definition(program, proof, source_chain[*hop as usize], left)?;
         for (formal, actual) in original.parameters.iter().zip(*actuals) {
             if let (
                 SemanticFormal::Const { carrier },
@@ -338,4 +397,247 @@ fn in_mapping<T>(
         mapping.source == mapping.use_definition,
         left,
     )
+}
+
+#[cfg(test)]
+mod mapping_tests {
+    use super::*;
+    fn id(index: u32) -> SemanticDefinitionId {
+        SemanticDefinitionId {
+            module: zil_base::ModuleId(0),
+            index,
+        }
+    }
+    fn formal(hop: u32, ordinal: u32) -> SemanticFormalRef {
+        SemanticFormalRef {
+            scope: SemanticScopeRef::Ancestor(hop),
+            ordinal,
+        }
+    }
+    fn fixture() -> (SemanticModule, Proof, Vec<SemanticActualRecipe>) {
+        let definitions = (0..3)
+            .map(|index| SemanticDefinition {
+                id: id(index),
+                identity: LifeDeclarationIdentity {
+                    package: "mapping-test".into(),
+                    module_path: vec![],
+                    declaration_path: vec![index.to_string()],
+                    generation_path: vec![],
+                },
+                parent: (index != 0).then_some(id(0)),
+                kind: SemanticDefinitionKind::Function,
+                parameters: if index == 1 {
+                    vec![
+                        SemanticFormal::Type {
+                            requirements: vec![],
+                        },
+                        SemanticFormal::Lifetime,
+                        SemanticFormal::Const {
+                            carrier: SemanticTypeRecipe::Atom(Type::I32),
+                        },
+                    ]
+                } else {
+                    vec![SemanticFormal::Lifetime]
+                },
+                implicit_lifetimes: vec![],
+                requirements: vec![],
+                environment: vec![],
+                body: SemanticDefinitionBody::Function {
+                    signature: SemanticSignatureRecipe {
+                        bound_lifetimes: 0,
+                        invocation_lifetimes: 0,
+                        parameters: vec![],
+                        result: SemanticTypeRecipe::Atom(Type::Unit),
+                        result_mode: PassingMode::Copy,
+                        call_kind: CallKind::Direct,
+                    },
+                    sites: vec![],
+                },
+            })
+            .collect();
+        let program = SemanticModule {
+            definitions,
+            instances: vec![],
+            sites: vec![],
+            dyn_scopes: vec![],
+        };
+        let mut proof = Proof::default();
+        proof.definition_positions = std::rc::Rc::new(
+            program
+                .definitions
+                .iter()
+                .enumerate()
+                .map(|(position, row)| (row.id, position))
+                .collect(),
+        );
+        let actuals = vec![
+            SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(Type::I64)),
+            SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(formal(0, 0))),
+            SemanticActualRecipe::Const {
+                carrier: SemanticTypeRecipe::Atom(Type::I32),
+                value: SemanticConstRecipe::Value(Constant::I32(7)),
+            },
+        ];
+        (program, proof, actuals)
+    }
+    #[test]
+    fn batched_obligations_keep_full_mixed_and_protected_domains() {
+        let (program, proof, actuals) = fixture();
+        let values = vec![
+            SemanticRequirementRecipe::TypeEqual {
+                left: SemanticTypeRecipe::Formal(formal(0, 0)),
+                right: SemanticTypeRecipe::Atom(Type::I64),
+            },
+            SemanticRequirementRecipe::ConstEqual {
+                carrier: SemanticTypeRecipe::Atom(Type::I32),
+                left: SemanticConstRecipe::Formal(formal(0, 2)),
+                right: SemanticConstRecipe::Value(Constant::I32(7)),
+            },
+            SemanticRequirementRecipe::ForAll {
+                lifetimes: 1,
+                requirements: vec![
+                    SemanticRequirementRecipe::Outlives {
+                        longer: SemanticLifeRecipe::Formal(formal(0, 1)),
+                        shorter: SemanticLifeRecipe::Bound { depth: 0, index: 0 },
+                    },
+                    SemanticRequirementRecipe::LifeEqual {
+                        left: SemanticLifeRecipe::Formal(formal(1, 0)),
+                        right: SemanticLifeRecipe::Formal(formal(1, 0)),
+                    },
+                ],
+            },
+        ];
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        let actual = requirements(
+            &program,
+            &proof,
+            &values,
+            DomainMapping {
+                source: id(1),
+                use_definition: id(2),
+                arguments: &actuals,
+                parent_call: None,
+            },
+            &limits,
+            &mut left,
+        )
+        .unwrap();
+        assert_eq!(
+            actual[0],
+            SemanticRequirementRecipe::TypeEqual {
+                left: SemanticTypeRecipe::Atom(Type::I64),
+                right: SemanticTypeRecipe::Atom(Type::I64),
+            }
+        );
+        assert_eq!(
+            actual[1],
+            SemanticRequirementRecipe::ConstEqual {
+                carrier: SemanticTypeRecipe::Atom(Type::I32),
+                left: SemanticConstRecipe::Value(Constant::I32(7)),
+                right: SemanticConstRecipe::Value(Constant::I32(7)),
+            }
+        );
+        let SemanticRequirementRecipe::ForAll {
+            requirements: nested,
+            ..
+        } = &actual[2]
+        else {
+            panic!()
+        };
+        assert_eq!(
+            nested[0],
+            SemanticRequirementRecipe::Outlives {
+                longer: SemanticLifeRecipe::Formal(formal(0, 0)),
+                shorter: SemanticLifeRecipe::Bound { depth: 0, index: 0 },
+            }
+        );
+        for (value, expected) in values.iter().zip(&actual) {
+            assert_eq!(
+                &requirement(
+                    &program,
+                    &proof,
+                    value,
+                    DomainMapping {
+                        source: id(1),
+                        use_definition: id(2),
+                        arguments: &actuals,
+                        parent_call: None,
+                    },
+                    &limits,
+                    &mut left
+                )
+                .unwrap(),
+                expected
+            );
+        }
+        let mut wrong = actuals.clone();
+        wrong.swap(0, 1);
+        assert!(
+            requirements(
+                &program,
+                &proof,
+                &values,
+                DomainMapping {
+                    source: id(1),
+                    use_definition: id(2),
+                    arguments: &wrong,
+                    parent_call: None,
+                },
+                &limits,
+                &mut left
+            )
+            .is_err()
+        );
+        wrong = actuals.clone();
+        let SemanticActualRecipe::Const { carrier, .. } = &mut wrong[2] else {
+            panic!()
+        };
+        *carrier = SemanticTypeRecipe::Atom(Type::I64);
+        assert!(
+            requirements(
+                &program,
+                &proof,
+                &values,
+                DomainMapping {
+                    source: id(1),
+                    use_definition: id(2),
+                    arguments: &wrong,
+                    parent_call: None,
+                },
+                &limits,
+                &mut left
+            )
+            .is_err()
+        );
+        let mut unrelated = program.clone();
+        unrelated.definitions[2].parent = None;
+        assert!(
+            requirements(
+                &unrelated,
+                &proof,
+                &values,
+                DomainMapping {
+                    source: id(1),
+                    use_definition: id(2),
+                    arguments: &actuals,
+                    parent_call: None,
+                },
+                &limits,
+                &mut left
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn declaration_index_rejects_wrong_row_and_ancestry_cycle() {
+        let (mut program, mut proof, _) = fixture();
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        std::rc::Rc::make_mut(&mut proof.definition_positions).insert(id(1), 2);
+        assert!(definition(&program, &proof, id(1), &mut left).is_err());
+        std::rc::Rc::make_mut(&mut proof.definition_positions).insert(id(1), 1);
+        program.definitions[0].parent = Some(id(1));
+        assert!(ancestry(&program, &proof, id(1), &limits, &mut left).is_err());
+    }
 }

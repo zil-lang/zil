@@ -218,35 +218,47 @@ impl<'a> NominalWhere<'a> {
                 "original nominal obligation has no true nominal declaration",
             ));
         }
+        let before_mapping = *check.left;
+        let mapped = super::super::instantiate::requirements(
+            self.program,
+            self.proof,
+            declaration
+                .requirements
+                .iter()
+                .chain(
+                    declaration
+                        .parameters
+                        .iter()
+                        .flat_map(|formal| match formal {
+                            SemanticFormal::Type { requirements } => requirements.as_slice(),
+                            _ => &[],
+                        }),
+                ),
+            super::super::instantiate::DomainMapping {
+                source: *definition,
+                use_definition: caller,
+                arguments,
+                parent_call: None,
+            },
+            limits,
+            check.left,
+        )
+        .map_err(|mut error| {
+            error.notes.push(format!(
+                "original nominal obligation mapping work {}",
+                before_mapping.saturating_sub(*check.left)
+            ));
+            error
+        })?;
+        let mapping_work = before_mapping.saturating_sub(*check.left);
+        let before_proof = *check.left;
         let result = (|| {
-            for requirement in
-                declaration
-                    .requirements
-                    .iter()
-                    .chain(
-                        declaration
-                            .parameters
-                            .iter()
-                            .flat_map(|formal| match formal {
-                                SemanticFormal::Type { requirements } => requirements.as_slice(),
-                                _ => &[],
-                            }),
-                    )
-            {
-                let mapped = super::super::instantiate::requirement(
-                    self.program,
-                    self.proof,
-                    requirement,
-                    super::super::instantiate::DomainMapping {
-                        source: *definition,
-                        use_definition: caller,
-                        arguments,
-                        parent_call: None,
-                    },
-                    limits,
-                    check.left,
-                )?;
-                check.satisfy_requirement(caller, &mapped, 0)?;
+            for (ordinal, requirement) in mapped.iter().enumerate() {
+                check.satisfy_requirement(caller, requirement, 0).map_err(|mut error| {
+                    error.notes.push(format!("original nominal obligation {ordinal}/{}; mapping work {mapping_work}; requirement proof work {}",
+                        mapped.len(), before_proof.saturating_sub(*check.left)));
+                    error
+                })?;
             }
             Ok(())
         })();
@@ -405,42 +417,41 @@ impl Proof {
                 return Err(bad("where call changes an original mixed argument kind"));
             }
         }
-        for requirement in original
-            .requirements
-            .iter()
-            .chain(original.parameters.iter().flat_map(|formal| match formal {
-                SemanticFormal::Type { requirements } => requirements.as_slice(),
-                _ => &[],
-            }))
-        {
-            if matches!(
-                requirement,
-                SemanticRequirementRecipe::Callable {
-                    ty: SemanticTypeRecipe::OriginalType {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        source: SemanticOriginalTypeSource::Result,
-                    },
-                    ..
-                }
-            ) {
-                // This is an exit obligation of the independently checked
-                // callee body, never a caller assumption about an arbitrary F.
-                continue;
-            }
-            let mapped = super::super::instantiate::requirement(
-                program,
-                self,
-                requirement,
-                super::super::instantiate::DomainMapping {
-                    source: target,
-                    use_definition: caller,
-                    arguments,
-                    parent_call: self.method_calls.contains_key(&key).then_some(site),
-                },
-                limits,
-                check.left,
-            )?;
-            check.satisfy_requirement(caller, &mapped, 0)?;
+        let mapped = super::super::instantiate::requirements(
+            program,
+            self,
+            original
+                .requirements
+                .iter()
+                .chain(original.parameters.iter().flat_map(|formal| match formal {
+                    SemanticFormal::Type { requirements } => requirements.as_slice(),
+                    _ => &[],
+                }))
+                .filter(|requirement| {
+                    !matches!(
+                        requirement,
+                        // Exit obligations belong to the independently checked
+                        // callee body; they are not premises in the caller Gamma.
+                        SemanticRequirementRecipe::Callable {
+                            ty: SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Result,
+                            },
+                            ..
+                        }
+                    )
+                }),
+            super::super::instantiate::DomainMapping {
+                source: target,
+                use_definition: caller,
+                arguments,
+                parent_call: self.method_calls.contains_key(&key).then_some(site),
+            },
+            limits,
+            check.left,
+        )?;
+        for requirement in &mapped {
+            check.satisfy_requirement(caller, requirement, 0)?;
         }
         for argument in arguments {
             crate::dyn_metadata::semantic_operand_snapshot(argument, limits, check.left, 1)?;
