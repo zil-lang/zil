@@ -479,7 +479,11 @@ impl State {
             .saturating_add(before.saturating_sub(after));
         Ok(())
     }
-    fn key(&self, world: &mut World<'_, '_>) -> R<zil_base::Fingerprint> {
+    fn key(
+        &self,
+        world: &mut World<'_, '_>,
+        domains: &mut DomainDigests,
+    ) -> R<zil_base::Fingerprint> {
         let mut digest = zil_base::FingerprintBuilder::new();
         hash_binary(
             &mut digest,
@@ -542,8 +546,8 @@ impl State {
             }
             hash_binary(&mut digest, world.left, &reservation.path)?;
             hash_roots(&mut digest, world.left, &reservation.roots)?;
-            hash_domain(&mut digest, world, &reservation.parent)?;
-            hash_domain(&mut digest, world, &reservation.expected)?;
+            hash_domain(&mut digest, world, domains, &reservation.parent)?;
+            hash_domain(&mut digest, world, domains, &reservation.expected)?;
         }
         for cells in [&self.locals, &self.values] {
             world.pay(cells.len().saturating_add(8))?;
@@ -552,7 +556,7 @@ impl State {
                 if let Some(value) = value {
                     world.pay(8)?;
                     digest.update(&ordinal.to_le_bytes());
-                    hash_domain(&mut digest, world, value)?;
+                    hash_domain(&mut digest, world, domains, value)?;
                 }
             }
         }
@@ -561,7 +565,7 @@ impl State {
         for (local, value) in &self.declared {
             world.pay(4)?;
             digest.update(&local.0.to_le_bytes());
-            hash_domain(&mut digest, world, value)?;
+            hash_domain(&mut digest, world, domains, value)?;
         }
         Ok(digest.digest())
     }
@@ -695,12 +699,18 @@ fn hash_roots(
     }
     Ok(())
 }
+// A retained Rc makes this exact allocation immutable and prevents pointer
+// reuse. This table only abbreviates the same complete life/classes bytes;
+// it contains no reaching-state or class-equation conclusion.
+#[derive(Default)]
+struct DomainDigests(BTreeMap<usize, (SharedType, zil_base::Fingerprint)>);
 fn hash_domain(
     digest: &mut zil_base::FingerprintBuilder,
     world: &mut World<'_, '_>,
-    value: &SemanticTypeValue,
+    domains: &mut DomainDigests,
+    value: &SharedType,
 ) -> R<()> {
-    let SemanticTypeValue::Resolved { life, classes, .. } = value else {
+    let SemanticTypeValue::Resolved { life, classes, .. } = value.as_ref() else {
         return Err(bad("canonical CFG key has an unresolved whole type"));
     };
     world.pay(1)?;
@@ -713,12 +723,46 @@ fn hash_domain(
         digest.update(&[0]);
     } else {
         digest.update(&[1]);
-        charge_value_domain(world, value)?;
-        hash_binary(digest, world.left, life)?;
-        hash_binary(digest, world.left, &classes.len())?;
-        for image in classes {
-            hash_image(digest, world.left, image)?;
-        }
+        let key = Rc::as_ptr(value) as usize;
+        world.pay(index::search(domains.0.len()))?;
+        let fingerprint = if let Some((retained, fingerprint)) = domains.0.get(&key) {
+            world.pay(1)?;
+            if !Rc::ptr_eq(retained, value) {
+                return Err(bad(
+                    "immutable CFG domain cache changes its retained allocation",
+                ));
+            }
+            *fingerprint
+        } else {
+            if domains.0.len() >= world.limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "immutable CFG domain cache exceeds node limit",
+                    None,
+                ));
+            }
+            charge_value_domain(world, value)?;
+            let mut encoded = zil_base::FingerprintBuilder::new();
+            hash_binary(&mut encoded, world.left, life)?;
+            hash_binary(&mut encoded, world.left, &classes.len())?;
+            for image in classes {
+                hash_image(&mut encoded, world.left, image)?;
+            }
+            let fingerprint = encoded.digest();
+            world.pay(
+                index::search(domains.0.len())
+                    .saturating_add(std::mem::size_of::<(
+                        usize,
+                        SharedType,
+                        zil_base::Fingerprint,
+                    )>())
+                    .saturating_add(1),
+            )?;
+            domains.0.insert(key, (value.clone(), fingerprint));
+            fingerprint
+        };
+        world.pay(fingerprint.0.len())?;
+        digest.update(&fingerprint.0);
     }
     Ok(())
 }
@@ -781,6 +825,7 @@ pub(super) struct Cfg {
     reachable_from: Vec<BTreeSet<usize>>,
     instance: SemanticInstanceId,
     seen: Vec<BTreeMap<zil_base::Fingerprint, Vec<usize>>>,
+    domains: DomainDigests,
 }
 impl Cfg {
     pub fn new(
@@ -912,6 +957,7 @@ impl Cfg {
             reachable_from,
             instance,
             seen: (0..count).map(|_| BTreeMap::new()).collect(),
+            domains: DomainDigests::default(),
         })
     }
     pub fn index(&self, block: BlockId) -> R<usize> {
@@ -1195,7 +1241,7 @@ impl Cfg {
             .saturating_add(before.saturating_sub(*world.left));
         canonical?;
         let before = *world.left;
-        let key = state.key(world);
+        let key = state.key(world, &mut self.domains);
         world.key_work = world
             .key_work
             .saturating_add(before.saturating_sub(*world.left));
