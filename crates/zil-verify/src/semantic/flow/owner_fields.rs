@@ -54,7 +54,14 @@ impl CheckedContext{
             InstructionKind::AddressField{address,index}=>{
                 let parent=value_at(values,*address)?;let Type::Address{mutable,inner}=&parent.ty else{return Err(bad("actual field address lacks a typed parent address"));};
                 actual_field(inner,*index,b)?;
-                let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Place(PlaceProjection::Field(*index))],b)?;
+                // An actual resource-head Address contains the Managed
+                // position, whose payload has its own complete child domain.
+                // The raw kernel above proves this exact canonical head role;
+                // keep both projections rather than erasing the owner layer.
+                let mut path=vec![LifeTypeProjection::Pointee];
+                if matches!(inner.as_ref(),Type::Managed(_)){path.push(LifeTypeProjection::Pointee);}
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+                let child=self.child_value(module,parent,&path,b)?;
                 let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
                 let slot=parent.life.slots.iter().find(|slot|slot.path.is_empty()&&slot.mode==mode).ok_or_else(||bad("actual field address has no complete parent head occurrence"))?;
                 let key=parent.classes.get(slot.binder as usize).cloned().ok_or_else(||bad("actual field parent head class is absent"))?;

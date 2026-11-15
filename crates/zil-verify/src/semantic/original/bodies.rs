@@ -7,7 +7,9 @@ impl CheckedOriginal {
         if self.checked.contains(&id){return Ok(());}
         if !self.active.insert(id){return Err(bad("original closure/body checking cycle has no established prototype"));}
         let previous=self.current.replace(id);
+        let previous_premises=self.premise_environment.take();
         let result=self.definition_inner(module,context,id,active,b).map_err(|mut error|{error.message.push_str(&format!(" [original definition {id:?}]"));error});
+        self.premise_environment=previous_premises;
         self.current=previous;self.active.remove(&id);
         if result.is_ok(){self.checked.insert(id);}result
     }

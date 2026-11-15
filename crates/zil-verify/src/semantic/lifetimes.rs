@@ -134,7 +134,7 @@ pub(super) fn select<'a>(ty:&'a Type,path:&[LifeTypeProjection],b:&mut Budget)->
             (LifeTypeProjection::Place(PlaceProjection::Field(i)),Type::Array{element,length})if i<length=>element,
             (LifeTypeProjection::Place(PlaceProjection::Variant(index)),Type::Enum{variants,..})=>variants.get(index.variant as usize).and_then(|(_,fields)|fields.get(index.index as usize)).ok_or_else(||bad("class enum variant/field is absent"))?,
             (LifeTypeProjection::Place(PlaceProjection::ErrorArm(arm)),Type::ErrorUnion{error,result})=>if *arm {error} else {result},
-            _=>return Err(unsupported("semantic type occurrence selector requires its exact child inventory",None)),
+            _=>return Err(unsupported(format!("semantic type occurrence selector requires its exact child inventory [step {step:?}, selected {current:?}, complete path {path:?}]"),None)),
         };
     }
     Ok(current)

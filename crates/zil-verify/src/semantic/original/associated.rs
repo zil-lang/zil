@@ -26,6 +26,7 @@ pub(super) fn has_projection(ty:&Ty,b:&mut Budget)->Check<bool>{
 impl CheckedOriginal{
     #[allow(clippy::too_many_arguments)]
     pub(super) fn associated_type(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,declaration:LifeDeclarationId,arguments:&[Arg],member:u32,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        let evidence=self.proof_environment(env,b)?;let env=&evidence;
         let receiver=self.resolved(receiver,b)?;let arguments=self.resolve_arguments(arguments,0,b)?;
         if let Ty::Dyn(value)=&receiver{for row in &value.associated{if row.member==member&&row.application.declaration==declaration&&self.same_arguments_readonly(&row.application.arguments,&arguments,b)?{return match &row.value{Arg::Type(ty)=>self.resolved(ty,b),_=>Err(bad("erased associated Type selects a Const member"))};}}return Err(bad("erased receiver omits its exact associated Type binding"));}
         let scope=dynamic_witness::semantic_external::original_scope(module,declaration,b)?;

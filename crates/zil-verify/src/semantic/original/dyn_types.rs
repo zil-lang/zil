@@ -129,6 +129,7 @@ impl CheckedOriginal {
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn dyn_associated_constant(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,application:&DynApplication,member:u32,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Const>{
+        let evidence=self.proof_environment(caller,b)?;let caller=&evidence;
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Const,token},b,|active,b|{
             let receiver=self.resolved(receiver,b)?;
             if let Ty::Dyn(value)=&receiver{for row in &value.associated{if row.member==member&&row.application.declaration==application.declaration&&self.same_arguments_readonly(&row.application.arguments,&application.arguments,b)?{return match &row.value{Arg::Const(value)=>Ok(value.clone()),_=>Err(bad("erased associated Const selects a Type binding"))};}}return Err(bad("erased associated Const omits its complete original binding"));}

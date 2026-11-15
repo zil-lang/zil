@@ -85,6 +85,7 @@ pub(super) struct CheckedOriginal {
     checked:BTreeSet<SemanticDefinitionId>,
     equalities:BTreeMap<SemanticDefinitionId,Vec<(Ty,Ty)>>,
     current:Option<SemanticDefinitionId>,
+    premise_environment:Option<Env>,
     free_values:BTreeMap<SemanticDefinitionId,BTreeMap<String,Binding>>,
     uses:BTreeMap<SemanticDefinitionId,Uses>,
     used:BTreeMap<SemanticDefinitionId,BTreeSet<Binder>>,

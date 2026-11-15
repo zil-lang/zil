@@ -153,6 +153,17 @@ impl CheckedOriginal {
         }Ok(result)
     }
     pub(super) fn obligation(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        // Type recipes keep the target's scope, but every recursively selected
+        // provider must discharge its requirements in the actual caller's Γ.
+        // In particular a target's pending where clauses are not premises.
+        let evidence=self.proof_environment(caller,b)?;
+        if self.current!=Some(evidence.current()?){return Err(bad("original obligation has no exact active caller environment"));}
+        let previous=self.premise_environment.replace(evidence);
+        let result=self.obligation_inner(module,context,requirement,target,previous.as_ref().unwrap_or(caller),active,b);
+        self.premise_environment=previous;
+        result
+    }
+    fn obligation_inner(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         b.spend(1)?;
         match requirement {
             SemanticRequirementRecipe::TypeEqual{left,right}=>{let left=self.ty(module,context,left,target,active,b)?;let right=self.ty(module,context,right,target,active,b)?;if !self.same(&left,&right,b)?{return Err(bad("original caller does not prove target TypeEqual requirement"));}Ok(())},
