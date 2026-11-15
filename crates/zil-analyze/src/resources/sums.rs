@@ -17,7 +17,7 @@ mod tag_forgetting_tests;
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
         Type::BorrowedStorage { storage, .. } => owned(storage),
-        Type::Managed(_) => true,
+        Type::Managed(_) | Type::Closure(_) => true,
         Type::Tuple(fields) => fields.iter().any(owned),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned(t)),
         Type::Enum { variants, .. } => variants.iter().any(|(_, fs)| fs.iter().any(owned)),
@@ -98,6 +98,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 Ok((store, owner))
             }
             Type::Package { name, fields } => {
+                // The complete State profile independently checks every
+                // concrete callback/environment and ordinary field. Its
+                // closures remain affine leaves in the actual origin tree.
+                if crate::resources::product::admit_callback_head(module, ty, budget)? {
+                    return Ok((false, true));
+                }
                 if name.is_empty() {
                     return Err(error("ordinary Product identity or owner is absent"));
                 }
@@ -389,7 +395,7 @@ impl Tree {
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
         let node = match package_storage(ty) {
-            Type::Managed(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
+            Type::Managed(_) | Type::Closure(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
             Type::Tuple(fields) => {
                 budget.spend(fields.len(), "Tuple tree children")?;
                 Node::Product(
@@ -644,6 +650,7 @@ impl Tree {
             (Node::Copy, ty) => Ok(!matches!(
                 ty,
                 Type::Managed(_)
+                    | Type::Closure(_)
                     | Type::Tuple(_)
                     | Type::Package { .. }
                     | Type::Enum { .. }

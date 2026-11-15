@@ -345,6 +345,23 @@ pub(crate) fn domain(ty: &Type, b: &mut Budget) -> CompileResult<Domain> {
     })
 }
 
+/// Query the complete immutable data domain in this actual module. The
+/// existing builder uses only these two raw bounds from the current request;
+/// scope formation grants no target, ownership, call mode or cleanup right.
+pub(crate) fn known_zero(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let mut answer = domain(ty, b)?;
+    if answer == Domain::Unknown && b.task_input_scopes.is_none() && !module.closures.is_empty() {
+        let limits = Limits {
+            max_nodes: b.helper_nodes,
+            max_call_depth: b.partial_depth,
+            ..Limits::default()
+        };
+        b.task_input_scopes = Some(build(module, &limits, b)?);
+        answer = domain(ty, b)?;
+    }
+    Ok(answer == Domain::Known(0))
+}
+
 /// Dispatch only a complete, explicitly empty relation. This is no source,
 /// ownership or cleanup proof; those ledgers still inspect every instruction.
 pub(crate) fn empty_relation(c: &StorageLifeContract) -> bool {

@@ -371,7 +371,7 @@ pub(super) fn closure_relation_resource_scopes(
         )
         .chain(std::iter::once((StorageBase::Result, result)))
     {
-        if let Some(root) = store_resource_root(module, base, ty, b)? {
+        if let Some(root) = resource_signature_root(module, base, ty, b)? {
             roots.push(root);
         }
     }
@@ -435,30 +435,28 @@ fn store_resource_root<'a>(
         return Ok(None);
     }
     crate::ownership_store::payload_definition(module, payload, b)?;
-    let mut domain = crate::tasks::input_scope::domain(payload, b)?;
-    if domain == crate::tasks::input_scope::Domain::Unknown
-        && b.task_input_scopes.is_none()
-        && !module.closures.is_empty()
-    {
-        // This existing structural scope builder consumes exactly these two
-        // bounds; use the current request's bounds, never its default values.
-        let limits = zil_base::Limits {
-            max_nodes: b.helper_nodes,
-            max_call_depth: b.partial_depth,
-            ..zil_base::Limits::default()
-        };
-        b.task_input_scopes = Some(crate::tasks::input_scope::build(module, &limits, b)?);
-        domain = crate::tasks::input_scope::domain(payload, b)?;
-    }
-    if domain != crate::tasks::input_scope::Domain::Known(0) {
-        return Ok(None);
-    }
+    if !crate::tasks::input_scope::known_zero(module, payload, b)? { return Ok(None); }
     b.type_work(ty, false, "actual zero Store signature occurrence")?;
     b.spend(1, "actual zero Store signature root")?;
     Ok(Some(ZeroResourceRoot {
         base,
         whole_type: ty,
     }))
+}
+fn resource_signature_root<'a>(
+    module: &TypedModule, base: StorageBase, ty: &'a Type, b: &mut Budget,
+) -> CompileResult<Option<ZeroResourceRoot<'a>>> {
+    if let Some(root) = store_resource_root(module, base, ty, b)? { return Ok(Some(root)); }
+    let target = match ty { Type::Address { inner, .. } => inner.as_ref(), other => other };
+    if !matches!(target, Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })
+        || !crate::resources::sums::owned(target)
+        || !crate::tasks::input_scope::known_zero(module, target, b)?
+    { return Ok(None); }
+    // Prove every possible arm and the full callback Product before recording
+    // its zero free domain. This does not prove a move, target or cleanup edge.
+    crate::resources::sums::admit(module, target, b)?;
+    b.spend(1, "complete ordinary resource signature root")?;
+    Ok(Some(ZeroResourceRoot { base, whole_type: ty }))
 }
 fn opaque_resource(ty: &Type) -> Option<&Type> {
     let ty = if let Type::Address { inner, .. } = ty {
@@ -498,7 +496,7 @@ pub(super) fn function_relation_resource_scopes(
         .map(|(index, ty)| (StorageBase::Parameter(index as u32), ty))
         .chain(std::iter::once((StorageBase::Result, result)))
     {
-        if let Some(root) = store_resource_root(module, base, ty, b)? {
+        if let Some(root) = resource_signature_root(module, base, ty, b)? {
             roots.push(root);
         }
         if let Some(resource) = opaque_resource(ty) {

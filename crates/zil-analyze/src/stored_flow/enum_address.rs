@@ -51,9 +51,7 @@ pub(super) fn arguments(instance: &LifeNominalInstance, b: &mut Budget) -> Compi
     let mut next = 0;
     for (ordinal, actual) in instance.arguments.iter().enumerate() {
         fee(b, 1)?;
-        let LifeNominalActual::Type(ty @ Type::Address { mutable: false, .. }) = actual else {
-            continue;
-        };
+        let Some(ty) = option_address::shared_actual(actual, b)? else { continue; };
         let row = life
             .retained
             .get(next)
@@ -1128,11 +1126,13 @@ pub(super) fn refine(
 
 pub(super) fn poll_instance(instance: &LifeNominalInstance, b: &mut Budget) -> CompileResult<()> {
     fee(b, 96)?;
-    let (Type::BorrowedStorage { storage, life }, [LifeNominalActual::Type(actual)]) =
+    let (Type::BorrowedStorage { storage, life }, [argument]) =
         (&instance.ty, instance.arguments.as_slice())
     else {
         return Err(failure("Poll has no complete qualified Type actual"));
     };
+    let actual = option_address::shared_actual(argument, b)?
+        .ok_or_else(|| failure("Poll has no complete shared Address actual"))?;
     let Type::Enum { name, variants } = storage.as_ref() else {
         return Err(failure("Poll has no actual Enum layout"));
     };
