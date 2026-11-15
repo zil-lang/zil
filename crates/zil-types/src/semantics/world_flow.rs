@@ -550,71 +550,32 @@ impl State {
             hash_domain(&mut digest, world, domains, &reservation.expected)?;
         }
         for cells in [&self.locals, &self.values] {
-            world.pay(cells.len().saturating_add(8))?;
-            digest.update(&cells.len().to_le_bytes());
+            world.pay(cells.len())?;
+            hash_binary(&mut digest, world.left, &cells.len())?;
             for (ordinal, value) in cells.iter().enumerate() {
                 if let Some(value) = value {
-                    world.pay(8)?;
-                    digest.update(&ordinal.to_le_bytes());
+                    hash_binary(&mut digest, world.left, &ordinal)?;
                     hash_domain(&mut digest, world, domains, value)?;
                 }
             }
         }
-        world.pay(self.declared.len().saturating_add(8))?;
-        digest.update(&self.declared.len().to_le_bytes());
+        world.pay(self.declared.len())?;
+        hash_binary(&mut digest, world.left, &self.declared.len())?;
         for (local, value) in &self.declared {
-            world.pay(4)?;
-            digest.update(&local.0.to_le_bytes());
+            hash_binary(&mut digest, world.left, local)?;
             hash_domain(&mut digest, world, domains, value)?;
         }
         Ok(digest.digest())
     }
 }
-// The key is private to this request. Encode the actual structure directly:
-// Debug field names and punctuation have no role in exact state identity.
-// Every byte supplied by Hash is paid, including collection lengths and tags.
-struct StateDigest<'a> {
-    digest: &'a mut zil_base::FingerprintBuilder,
-    left: &'a mut usize,
-    exhausted: bool,
-}
-impl std::hash::Hasher for StateDigest<'_> {
-    fn finish(&self) -> u64 {
-        // This adapter feeds the complete FingerprintBuilder; no caller uses
-        // the lossy standard Hasher finish value.
-        0
-    }
-    fn write(&mut self, value: &[u8]) {
-        if self.exhausted {
-            return;
-        }
-        if let Some(left) = self.left.checked_sub(value.len()) {
-            *self.left = left;
-            self.digest.update(value);
-        } else {
-            self.exhausted = true;
-        }
-    }
-}
+// Shared private query encoding retains every complete field, collection
+// boundary and scalar value, charging actual bytes without Debug text.
 fn hash_binary(
     digest: &mut zil_base::FingerprintBuilder,
     left: &mut usize,
     value: &impl std::hash::Hash,
 ) -> R<()> {
-    let mut sink = StateDigest {
-        digest,
-        left,
-        exhausted: false,
-    };
-    std::hash::Hash::hash(value, &mut sink);
-    if sink.exhausted {
-        return Err(Diagnostic::limit(
-            Phase::Types,
-            "canonical CFG state digest work exceeded",
-            None,
-        ));
-    }
-    Ok(())
+    super::super::original::protocol::hash_into(digest, left, value)
 }
 fn hash_operand(
     digest: &mut zil_base::FingerprintBuilder,

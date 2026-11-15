@@ -1,7 +1,6 @@
 //! Request-local memoization of complete original recipes. A digest selects a
 //! bucket only: owner and full recipe equality remain mandatory on every hit.
 use super::*;
-use std::fmt::Write;
 type Key = (SemanticDefinitionId, zil_base::Fingerprint);
 
 pub(super) struct Table<T> {
@@ -72,44 +71,153 @@ fn fee(left: &mut usize, amount: usize) -> R<()> {
     })?;
     Ok(())
 }
+// This private, request-local key includes complete derived-Hash structure.
+// Scalar values use a self-delimiting integer encoding; byte/string payloads
+// remain complete. Work is charged for every actual byte written, in addition
+// to the caller's complete grammar/depth/node validation before hashing.
 struct Sink<'a> {
-    digest: zil_base::FingerprintBuilder,
+    digest: &'a mut zil_base::FingerprintBuilder,
     left: &'a mut usize,
+    exhausted: bool,
 }
-impl Write for Sink<'_> {
-    fn write_str(&mut self, bytes: &str) -> std::fmt::Result {
-        *self.left = self.left.checked_sub(bytes.len()).ok_or(std::fmt::Error)?;
-        self.digest.update(bytes.as_bytes());
-        Ok(())
+impl Sink<'_> {
+    fn integer(&mut self, mut value: u128) {
+        let mut bytes = [0u8; 19];
+        let mut count = 0;
+        loop {
+            let mut byte = (value & 127) as u8;
+            value >>= 7;
+            if value != 0 {
+                byte |= 128;
+            }
+            bytes[count] = byte;
+            count += 1;
+            if value == 0 {
+                break;
+            }
+        }
+        std::hash::Hasher::write(self, &bytes[..count]);
     }
+}
+impl std::hash::Hasher for Sink<'_> {
+    fn finish(&self) -> u64 {
+        // Consumers use the full fingerprint, never Hasher's lossy finish.
+        u64::from_le_bytes(
+            self.digest.clone().digest().0[..8]
+                .try_into()
+                .expect("eight bytes"),
+        )
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        if self.exhausted {
+            return;
+        }
+        if let Some(left) = self.left.checked_sub(bytes.len()) {
+            *self.left = left;
+            self.digest.update(bytes);
+        } else {
+            self.exhausted = true;
+        }
+    }
+    fn write_u8(&mut self, value: u8) {
+        self.integer(value as u128);
+    }
+    fn write_u16(&mut self, value: u16) {
+        self.integer(value as u128);
+    }
+    fn write_u32(&mut self, value: u32) {
+        self.integer(value as u128);
+    }
+    fn write_u64(&mut self, value: u64) {
+        self.integer(value as u128);
+    }
+    fn write_u128(&mut self, value: u128) {
+        self.integer(value as u128);
+    }
+    fn write_usize(&mut self, value: usize) {
+        self.integer(value as u128);
+    }
+    fn write_i8(&mut self, value: i8) {
+        let signed = value as i128;
+        self.integer(((signed as u128) << 1) ^ ((signed >> 127) as u128));
+    }
+    fn write_i16(&mut self, value: i16) {
+        let signed = value as i128;
+        self.integer(((signed as u128) << 1) ^ ((signed >> 127) as u128));
+    }
+    fn write_i32(&mut self, value: i32) {
+        let signed = value as i128;
+        self.integer(((signed as u128) << 1) ^ ((signed >> 127) as u128));
+    }
+    fn write_i64(&mut self, value: i64) {
+        let signed = value as i128;
+        self.integer(((signed as u128) << 1) ^ ((signed >> 127) as u128));
+    }
+    fn write_i128(&mut self, value: i128) {
+        let signed = value as i128;
+        self.integer(((signed as u128) << 1) ^ ((signed >> 127) as u128));
+    }
+    fn write_isize(&mut self, value: isize) {
+        let signed = value as i128;
+        self.integer(((signed as u128) << 1) ^ ((signed >> 127) as u128));
+    }
+}
+pub(in crate::semantics) fn hash_into(
+    digest: &mut zil_base::FingerprintBuilder,
+    left: &mut usize,
+    value: &impl std::hash::Hash,
+) -> R<()> {
+    let mut sink = Sink {
+        digest,
+        left,
+        exhausted: false,
+    };
+    std::hash::Hash::hash(value, &mut sink);
+    if sink.exhausted {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "original semantic query digest budget exceeded",
+            None,
+        ));
+    }
+    Ok(())
 }
 pub(super) fn digest(
     recipe: &SemanticTypeRecipe,
     limits: &Limits,
     left: &mut usize,
 ) -> R<zil_base::Fingerprint> {
-    // Validate the entire grammar, its depth and allocation bounds before
-    // recursive Debug traversal. Derived Debug includes every recipe field;
-    // streaming avoids a second unbounded textual allocation. This identity is
-    // private to this request and never an external or persistent certificate.
+    // Hash every complete recipe field after its actual depth/node bounds
+    // have been checked. The digest selects a bucket, never a theorem.
     crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
-    let mut sink = Sink {
-        digest: zil_base::FingerprintBuilder::new(),
-        left,
-    };
-    write!(&mut sink, "{recipe:?}").map_err(|_| {
-        Diagnostic::limit(
-            Phase::Types,
-            "original type cache digest budget exceeded",
-            None,
-        )
-    })?;
-    Ok(sink.digest.digest())
+    let mut digest = zil_base::FingerprintBuilder::new();
+    hash_into(&mut digest, left, recipe)?;
+    Ok(digest.digest())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn complete_integer_keys_keep_high_bits_sign_and_actual_byte_cost() {
+        fn check(value: &impl std::hash::Hash, bytes: &[u8]) {
+            let mut left = 100;
+            let mut digest = zil_base::FingerprintBuilder::new();
+            hash_into(&mut digest, &mut left, value).unwrap();
+            assert_eq!(digest.digest(), zil_base::Fingerprint::of(bytes));
+            assert_eq!(left, 100 - bytes.len());
+        }
+        check(&0u128, &[0]);
+        check(&127u64, &[127]);
+        check(&128u64, &[128, 1]);
+        check(&-1i128, &[1]);
+        let mut largest = [255; 19];
+        largest[18] = 3;
+        check(&u128::MAX, &largest);
+        check(&i128::MIN, &largest);
+        largest[0] = 254;
+        check(&i128::MAX, &largest);
+    }
     fn owner(index: u32) -> SemanticDefinitionId {
         SemanticDefinitionId {
             module: zil_base::ModuleId(0),

@@ -2,10 +2,9 @@
 //! contains emitted targets, actual class images, loans or execution facts.
 use super::*;
 use std::cell::RefCell;
-use std::fmt::Write;
 use std::rc::Rc;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Query {
     Type(SemanticTypeRecipe),
     WhereEntry,
@@ -82,17 +81,6 @@ impl Query {
         }
     }
 }
-struct Sink<'a> {
-    digest: zil_base::FingerprintBuilder,
-    left: &'a mut usize,
-}
-impl Write for Sink<'_> {
-    fn write_str(&mut self, value: &str) -> std::fmt::Result {
-        *self.left = self.left.checked_sub(value.len()).ok_or(std::fmt::Error)?;
-        self.digest.update(value.as_bytes());
-        Ok(())
-    }
-}
 impl Cache {
     pub(super) fn lookup(
         &self,
@@ -102,18 +90,9 @@ impl Cache {
         left: &mut usize,
     ) -> R<(Key, Option<Value>)> {
         query.snapshot(limits, left)?;
-        let mut sink = Sink {
-            digest: zil_base::FingerprintBuilder::new(),
-            left,
-        };
-        write!(&mut sink, "{query:?}").map_err(|_| {
-            Diagnostic::limit(
-                Phase::Types,
-                "original pure source query digest work exceeded",
-                None,
-            )
-        })?;
-        let key = (owner, sink.digest.digest());
+        let mut digest = zil_base::FingerprintBuilder::new();
+        protocol::hash_into(&mut digest, left, query)?;
+        let key = (owner, digest.digest());
         let rows = self.0.borrow();
         fee(left, rows.rows.len().saturating_add(1).ilog2() as usize + 1)?;
         if let Some(bucket) = rows.rows.get(&key) {
