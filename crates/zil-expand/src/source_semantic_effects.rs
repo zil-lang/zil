@@ -978,7 +978,17 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 self.pattern(pattern, depth + 1)?;
                 self.block(body, depth + 1)?;
                 self.locals.truncate(base);
-                if matches!(statement.kind, S::ForEach { .. }) {
+                // The source spelling `for pattern in start..end` has the
+                // same builtin integer iteration as ForRange. Ordinary
+                // iterator protocols retain their fixed Suspend upper.
+                let mut iterator = value;
+                while let CoreExprKind::Group(inner) = &iterator.kind {
+                    self.budget.node(iterator.span, depth + 1)?;
+                    iterator = inner;
+                }
+                if matches!(statement.kind, S::ForEach { .. })
+                    && !matches!(iterator.kind, CoreExprKind::Range { .. })
+                {
                     self.vertex.suspend = true;
                 }
             }
