@@ -121,7 +121,7 @@ impl CheckedOriginal {
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
                 self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
             },
-            Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>self.invoke(module,context,&Prototype{parameters,result:*result,environment:env.clone(),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,callable_kind:None},arguments,env,bindings,active,b),
+            Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>self.invoke(module,context,&Prototype{parameters,result:*result,environment:env.clone(),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,premise_bounds:vec![],callable_kind:None},arguments,env,bindings,active,b),
             Ty::Address{mutable,inner,..}=>{
                 if written_types.is_some()||written_mixed.is_some(){return Err(bad("original borrowed callable has a written generic application"));}
                 let target=self.resolved(&inner,b)?;
@@ -161,9 +161,53 @@ impl CheckedOriginal {
     pub(super) fn callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
         if let Ty::Opaque(owner,arguments)=self.resolved(ty,b)?{return self.opaque_callable(module,context,owner,&arguments,active,b);}
         let mut result=None;
-        for(index,frame)in env.lexical.iter().enumerate(){let definition=context.definition(module,frame.definition,b)?;let mut lexical=env.clone();lexical.lexical=lexical.lexical[index..].to_vec();let mut requirements=definition.requirements.iter().collect::<Vec<_>>();for formal in &definition.parameters{if let SemanticFormal::Type{requirements:rows}=formal{requirements.extend(rows);}}
-            for requirement in requirements{if let SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=requirement{let receiver=self.ty(module,context,receiver,&lexical,active,b)?;if self.same(&receiver,ty,b)?{let mut prototype=self.signature(module,context,signature,&lexical,active,b)?;prototype.callable_kind=Some(*kind);if let Some(previous)=&result{let previous:&Prototype=previous;if previous.parameters.len()!=prototype.parameters.len()||previous.modes!=prototype.modes||previous.result_mode!=prototype.result_mode||previous.call_kind!=prototype.call_kind||previous.bound_lifetimes!=prototype.bound_lifetimes||previous.invocation_lifetimes!=prototype.invocation_lifetimes{return Err(unsupported("original Callable overloads need exact role selection",None));}let(parameters,result)=self.callable_signature_types(previous,&prototype,b)?;for(a,c)in parameters.iter().zip(&prototype.parameters){if !self.same(a,c,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}if !self.same(&result,&prototype.result,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}result=Some(prototype);}}}
-        }Ok(result)
+        for(index,frame)in env.lexical.iter().enumerate(){
+            let definition=context.definition(module,frame.definition,b)?;
+            let mut lexical=self.copy_environment(env,b)?;lexical.lexical.drain(..index);
+            for requirement in &definition.requirements{self.callable_premise_row(module,context,requirement,ty,&lexical,&[],&mut result,active,b)?;}
+            for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.callable_premise_row(module,context,requirement,ty,&lexical,&[],&mut result,active,b)?;}}}
+        }
+        Ok(result)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn callable_premise_row(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,ty:&Ty,env:&Env,quantifiers:&[Vec<Life>],result:&mut Option<Prototype>,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+        let token=active.fresh(b)?;
+        active.with_query(DependencyKey{kind:QueryKind::Requirement,token},b,|active,b|{
+            match requirement{
+                SemanticRequirementRecipe::ForAll{lifetimes,requirements}=>{
+                    let mut selected=self.copy_environment(env,b)?;
+                    b.spend(quantifiers.iter().fold(quantifiers.len(),|n,frame|n.saturating_add(frame.len())))?;
+                    let mut owned=quantifiers.to_vec();
+                    // Zero frames retain their recipe identity but do not
+                    // consume Bound depth. Nonzero frames keep exact nesting.
+                    if *lifetimes!=0{
+                        b.spend((*lifetimes as usize).saturating_mul(2).saturating_add(1))?;
+                        let frame=(0..*lifetimes).map(|index|Life::Bound(token,index)).collect::<Vec<_>>();
+                        selected.bounds.insert(0,frame.clone());owned.push(frame);
+                    }
+                    for row in requirements{self.callable_premise_row(module,context,row,ty,&selected,&owned,result,active,b)?;}
+                },
+                SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=>{
+                    let receiver=self.ty(module,context,receiver,env,active,b)?;
+                    if !self.same(&receiver,ty,b)?{return Ok(());}
+                    let mut prototype=self.signature(module,context,signature,env,active,b)?;
+                    b.spend(quantifiers.iter().fold(quantifiers.len(),|n,frame|n.saturating_add(frame.len())))?;
+                    prototype.premise_bounds=quantifiers.to_vec();prototype.callable_kind=Some(*kind);
+                    if let Some(previous)=result.as_ref(){
+                        if previous.parameters.len()!=prototype.parameters.len()||previous.modes!=prototype.modes||previous.result_mode!=prototype.result_mode||previous.call_kind!=prototype.call_kind||previous.bound_lifetimes!=prototype.bound_lifetimes||previous.invocation_lifetimes!=prototype.invocation_lifetimes{return Err(unsupported("original Callable overloads need exact role selection",None));}
+                        let(parameters,return_type)=self.callable_signature_types(previous,&prototype,b)?;
+                        for(a,c)in parameters.iter().zip(&prototype.parameters){if !self.same(a,c,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}
+                        if !self.same(&return_type,&prototype.result,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}
+                        // These are conjunctions on the same original receiver,
+                        // not interchangeable concrete values with equal Σ.
+                        if callable_accepts(previous.callable_kind,*kind){return Ok(());}
+                    }
+                    *result=Some(prototype);
+                },
+                _=>{},
+            }
+            Ok(())
+        })
     }
     #[track_caller]
     pub(super) fn obligation(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
@@ -184,7 +228,7 @@ impl CheckedOriginal {
             SemanticRequirementRecipe::LifeEqual{left,right}=>{let left=self.life(module,context,left,target,active,b)?;let right=self.life(module,context,right,target,active,b)?;if self.same_life(&left,&right,b)?{Ok(())}else{Err(bad("original caller does not prove the target lifetime equality"))}},
             SemanticRequirementRecipe::Callable{ty,signature,kind}=>{
                 let receiver=self.ty(module,context,ty,target,active,b)?;let receiver=self.resolved(&receiver,b)?;let wanted=self.signature(module,context,signature,target,active,b)?;
-                let actual=match &receiver{Ty::Closure(id,..)=>self.prototypes.get(id).cloned(),Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>Some(Prototype{parameters:parameters.clone(),result:*result.clone(),environment:caller.clone(),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes,callable_kind:None}),_=>self.callable_premise(module,context,&receiver,caller,active,b)?}.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?;
+                let actual=match &receiver{Ty::Closure(id,..)=>self.prototypes.get(id).cloned(),Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>Some(Prototype{parameters:parameters.clone(),result:*result.clone(),environment:caller.clone(),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes,premise_bounds:vec![],callable_kind:None}),_=>self.callable_premise(module,context,&receiver,caller,active,b)?}.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?;
                 if !callable_accepts(actual.callable_kind,*kind){return Err(unsupported("original Callable source capability is not independently established",None));}
                 if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}let(parameters,result)=self.callable_signature_types(&actual,&wanted,b)?;for(actual,wanted)in parameters.iter().zip(&wanted.parameters){if !self.same(actual,wanted,b)?{return Err(bad("original Callable requirement parameters lack their original relation"));}}if !self.same(&result,&wanted.result,b)?{return Err(bad("original Callable requirement result lacks its original relation"));}Ok(())
             },
@@ -235,6 +279,12 @@ impl CheckedOriginal {
     fn callable_signature_types(&self,actual:&Prototype,wanted:&Prototype,b:&mut Budget)->Check<(Vec<Ty>,Ty)>{
         if actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable comparison changes its complete code binder domain"));}
         let mut mapping=Vec::new();
+        if actual.premise_bounds.len()!=wanted.premise_bounds.len(){return Err(bad("original Callable comparison changes its quantified premise nesting"));}
+        for(a,z)in actual.premise_bounds.iter().zip(&wanted.premise_bounds){
+            b.spend(a.len().saturating_add(z.len()).saturating_add(1))?;
+            if a.len()!=z.len(){return Err(bad("original Callable comparison changes a quantified premise frame"));}
+            for(a,z)in a.iter().zip(z){mapping.push((a.clone(),z.clone()));}
+        }
         if actual.invocation_lifetimes!=0{
             if actual.environment.invocation.len()!=actual.invocation_lifetimes as usize||wanted.environment.invocation.len()!=wanted.invocation_lifetimes as usize{return Err(bad("original Callable comparison lacks its exact invocation binder frame"));}
             for(a,z)in actual.environment.invocation.iter().zip(&wanted.environment.invocation){mapping.push((a.clone(),z.clone()));}

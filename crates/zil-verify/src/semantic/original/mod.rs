@@ -51,7 +51,7 @@ use terms::*;
 use dyn_types::*;
 use std::collections::{BTreeMap,BTreeSet};
 #[derive(Clone)]
-pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) callable_kind:Option<CallableKind>}
+pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) premise_bounds:Vec<Vec<Life>>,pub(super) callable_kind:Option<CallableKind>}
 struct VariantConstruction{definition:SemanticDefinitionId,variant:u32,actuals:Vec<Arg>}
 #[derive(Default)]
 pub(super) struct CheckedOriginal {
