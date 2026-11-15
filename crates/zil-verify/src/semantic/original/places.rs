@@ -76,3 +76,16 @@ impl CheckedOriginal {
         }
     }
 }
+
+impl CheckedOriginal {
+    /// Closed observation schemes use the same argument-category adaptation
+    /// as ordinary Describe parameters. Exclusive owner addresses stay intact.
+    pub(super) fn observed_argument(&mut self,expression:&SemanticOriginalExpr,value:&Ty,env:&Env,b:&mut Budget)->Check<Ty>{
+        let effective=match self.resolved(value,b)?{
+            Ty::Managed(inner)=>Ty::Desc{life:Life::Local(env.current()?,expression.id),inner},
+            value=>value,
+        };
+        b.spend(1)?;self.expressions.insert((env.current()?,expression.id),effective.clone());
+        Ok(effective)
+    }
+}

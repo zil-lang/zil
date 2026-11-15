@@ -616,10 +616,9 @@ impl CheckedOriginal {
         if let Some(place) = place {
             self.read_original(module, context, &place, &value, env, false, active, b)?;
         }
-        Ok((
-            self.resolved(&value, b)?,
-            self.operation_source(expression, env, bindings, b)?,
-        ))
+        let source=self.operation_source(expression, env, bindings, b)?;
+        let effective=self.observed_argument(expression,&value,env,b)?;
+        Ok((effective,source))
     }
     pub(super) fn operation_payload(
         &self,

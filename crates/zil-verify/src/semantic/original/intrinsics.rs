@@ -83,6 +83,7 @@ impl CheckedOriginal {
             None=>return Err(unsupported("byte intrinsic needs its complete original projected/captured buffer identity",None)),
         };
         if let Some(place)=place{self.read_original(module,context,&place,&buffer,env,false,active,b)?;}
+        self.observed_argument(&arguments[0],&buffer,env,b)?;
         if arity==2{let expected=Ty::Atom(if intrinsic==Intrinsic::BytesPush{Type::U8}else{Type::I64});let value=self.expression(module,context,&arguments[1],env,bindings,Some(&expected),active,b)?;self.unify(&value,&expected,b)?;}
         self.intrinsic_calls.insert((env.current()?,site),Use{kind:intrinsic,buffer:Some(source),worker:None,providers:None});
         Ok(Ty::Atom(if matches!(intrinsic,Intrinsic::BytesLen|Intrinsic::BytesCapacity){Type::I64}else{Type::Bool}))
