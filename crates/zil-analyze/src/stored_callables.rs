@@ -659,6 +659,24 @@ pub(super) fn types(
         }
         return Ok(());
     }
+    if let InstructionKind::TakeCapture { index } = i.kind
+        && let Some(definition) = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+        && let Some(ty) = definition.captures.get(index as usize)
+        && owned_capture(ty, b)?
+    {
+        // The same-schema raw Fixed lane already proves this direct ordinary
+        // resource transfer. The wider dispatch above must consume that exact
+        // producer/mode/result proof rather than send it to the borrowed-head
+        // table below. Resource identity, live debt and cleanup stay required.
+        if !super::stored_flow::owned::instruction(module, f, i, b)? {
+            return Err(bad(
+                "ordinary resource capture has no actual consuming producer proof",
+            ));
+        }
+        return Ok(());
+    }
     if let InstructionKind::CallClosureOnce { callee, .. } = &i.kind
         && let Some(Type::Closure(id)) = f.values.get(callee.0 as usize)
         && let Some(d) = module.closures.get(id.0 as usize)
