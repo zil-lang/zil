@@ -1,0 +1,324 @@
+#!/usr/bin/env python3
+"""Small functional harness for root to run; no compiler/benchmark needed."""
+import copy
+import json
+from pathlib import Path
+import struct
+import sys
+import tempfile
+import types
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).parent))
+import closed_project_matrix as matrix
+import closed_project_quality as quality
+
+
+class ClosedProjectTests(unittest.TestCase):
+    def args(self, out=None, preset='1000'):
+        return types.SimpleNamespace(out=out, repo=matrix.ROOT, preset=preset, modules=100,
+            shape=matrix.SHAPES[preset], graph='wide', mode='o2', native_repetitions=1,
+            candidate_policy='closed', function_merging='off',
+            baseline=Path('/fixed/main'), candidate=Path('/fixed/current'),
+            native_link_profile=Path('/fixed/profile'), native_link_profile_sha256='f'*64)
+
+    def test_original_fixtures_and_interface_and_runtime_wrapper(self):
+        workloads = matrix.rc.load_workloads(matrix.ROOT)
+        requests = matrix.history(8)
+        self.assertEqual(len(requests), 18)
+        self.assertEqual(requests[-5]['name'], 'broad')
+        self.assertEqual([r['name'] for r in requests[-4:]], ['error', 'recovery', 'restore', 'warm-restart'])
+        for preset in matrix.SIZES:
+            args = self.args(preset=preset)
+            cold, meta = matrix.fixture(args, workloads, requests[0])
+            self.assertEqual(meta['shape'], 'simple' if preset == '2500' else 'short')
+            for language, expected in matrix.COLD_IDENTITIES[preset].items():
+                identity = meta['source'][language]
+                self.assertEqual((identity['source_files'], identity['source_bytes'], identity['identity_sha256']), expected)
+            if preset == '5105':
+                self.assertEqual((meta['source']['zil']['source_files'], meta['source']['zil']['source_bytes'],
+                                  meta['source']['zil']['identity_sha256']), (102, 843875, matrix.ORIGINAL5105))
+                self.assertNotIn('unused_checked', cold['zil']['m0.zil'])
+            else:
+                old, _ = matrix.large.fixture(args, workloads, requests[0])
+                self.assertEqual(old, cold)
+            interface = next(r for r in requests if r['name'] == 'interface')
+            edited, _ = matrix.fixture(args, workloads, interface)
+            self.assertIn('value(x: i32, offset: i32)', edited['zil']['m0.zil'])
+            self.assertIn('m0.value(x, 0)', edited['zil']['main.zil'])
+            wrapped, wrapped_meta = matrix.fixture(args, workloads, interface, True)
+            self.assertTrue(wrapped_meta['wrapper_only_main_changed'])
+            self.assertIn('while iteration < 10000 {', wrapped['zil']['main.zil'])
+            self.assertIn('while iteration < 10000 {', wrapped['rust']['src/main.rs'])
+            for lang in ('zil', 'rust'):
+                self.assertEqual({n: t for n, t in edited[lang].items() if n not in ('main.zil', 'src/main.rs')},
+                                 {n: t for n, t in wrapped[lang].items() if n not in ('main.zil', 'src/main.rs')})
+
+    def test_explicit_candidate_flags_never_reach_main(self):
+        args = self.args()
+        main = matrix.zil_command(args, 'baseline', Path('/src/main.zil'), Path('/work/baseline'))
+        candidate = matrix.zil_command(args, 'candidate', Path('/src/main.zil'), Path('/work/candidate'))
+        self.assertNotIn('--push-reuse', main)
+        self.assertNotIn('--closed-executable', main)
+        self.assertNotIn('--function-merging', main)
+        self.assertIn('--closed-executable', candidate)
+        self.assertEqual(candidate[-2:], ['--function-merging', 'off'])
+        args.candidate_policy = 'late'
+        with self.assertRaises(ValueError):
+            quality.policy(args)
+        args.candidate_policy = None
+        with self.assertRaises(ValueError):
+            matrix.zil_command(args, 'candidate', Path('/src/main.zil'), Path('/work/candidate'))
+
+    def test_unsupported_formal_policy_refused_before_output_or_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for closed, merging in (('late', 'off'), ('closed', 'after'), ('closed', 'before-and-after')):
+                output = Path(tmp)/'never-created'
+                with patch.object(matrix.matched, 'Worker') as worker, self.assertRaises(ValueError):
+                    matrix.main(['measure', '--out', str(output), '--pins', '/missing/pins.json',
+                                 '--candidate-policy', closed, '--function-merging', merging])
+                worker.assert_not_called()
+                self.assertFalse(output.exists())
+
+    def test_hit_requires_current_machine_preflight_and_exact_scope(self):
+        good = {'input_kind': 'object-cache', 'llvm_verification_this_request': False,
+                'producer_verified_before_after': True, 'current_machine_preflight_reused': True,
+                'preflight_ns': 19, 'cache': {'state': 'hit', 'current_preflight_ns': 19},
+                'builder_ns': 0, 'parse_ns': 0, 'optimize_ns': 0, 'emit_ns': 0}
+        self.assertTrue(quality.hit_preflight(good))
+        for field, bad in (('input_kind', 'builder'), ('llvm_verification_this_request', True),
+                           ('producer_verified_before_after', False), ('current_machine_preflight_reused', 1),
+                           ('preflight_ns', 18), ('builder_ns', 1)):
+            value = copy.deepcopy(good)
+            value[field] = bad
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                quality.hit_preflight(value)
+        for field in ('input_kind', 'current_machine_preflight_reused', 'producer_verified_before_after'):
+            value = copy.deepcopy(good)
+            del value[field]
+            with self.assertRaises(ValueError):
+                quality.hit_preflight(value)
+
+    def test_producer_archive_is_rehashed_on_hit_and_retained_consumption(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            args = self.args(out)
+            receipt = {'backend': 'llvm-api', 'pipeline': 'default<O2>', 'triple': 'x86_64-unknown-linux-gnu',
+                       'llvm_version': '23.1.4', 'verify_before_after': True, 'input_kind': 'builder',
+                       'object_bytes': 9, 'cache': {'state': 'miss', 'action_key': 'a'*64, 'corrupt': False}}
+            archive = matrix.matched.blob(out, json.dumps({'receipt': receipt, 'object_sha256': 'b'*64, 'policy': 'closed+off'}).encode(), '.producer.json')
+            item = {'action_key': 'a'*64, 'object': {'sha256': 'b'*64, 'bytes': 9}, 'producer_native_receipt': archive}
+            quality.producer_receipt(args, item)
+            mismatch = copy.deepcopy(item)
+            mismatch['object']['sha256'] = 'c'*64
+            with self.assertRaises(ValueError):
+                quality.producer_receipt(args, mismatch)
+            (out/archive['archive']).write_bytes(b'corrupt archived producer')
+            with self.assertRaises(ValueError):
+                quality.producer_receipt(args, item)
+            report = {'native_codegen': {'backend': 'llvm-api', 'requested_units': 16, 'actual_units': 16,
+                                         'jobs': 1, 'fallback': None}}
+            with patch.object(matrix.matched, 'final_artifact_scope', return_value={'before_codegen': True}), \
+                 patch.object(matrix.matched, 'retained_inventory', return_value={'objects': [item]}), \
+                 self.assertRaises(ValueError):
+                quality.inventory(args, report, out/'candidate'/'objects', b'', 'd'*64)
+
+    def test_scalar_scope_refuses_globals_callbacks_and_unknown_foreign(self):
+        source = ('declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
+                  'define i32 @main() {\n %x = call i32 @getchar()\n ret i32 %x\n}\n')
+        quality.scalar_model(source.encode())
+        for bad in (source+'@address = global i32 0\n', source.replace('@getchar()', '%callback()', 1),
+                    source.replace('call i32 @getchar()', 'call i32 %callback()'),
+                    source+'declare i32 @unknown_foreign()\n'):
+            with self.assertRaises(ValueError):
+                quality.scalar_model(bad.encode())
+
+    def test_physical_entry_and_cross_symbol_bindings_are_not_just_names(self):
+        model = {'definitions': {'main', 'zil.fn.1'}, 'foreign': {'getchar', 'putchar'}}
+        for name in ('main', 'zil.fn.1'):
+            data = self.object_bytes(name)
+            quality.object_abi(data, {name}, {name} if name != 'main' else set(), model)
+            # Same spelling and bytes; LOCAL or HIDDEN cannot bind another CGU.
+            symbol_offset = 65+len(b'\0'+name.encode()+b'\0')+24
+            for field, value in ((4, 2), (5, 2)):
+                bad = bytearray(data)
+                bad[symbol_offset+field] = value
+                with self.assertRaises(ValueError):
+                    quality.object_abi(bytes(bad), {name}, {name} if name != 'main' else set(), model)
+        with self.assertRaises(ValueError):
+            quality.elf_table(self.object_bytes('main')[:70])
+
+    def oracle(self):
+        return types.SimpleNamespace(oracle=lambda case, data, label: {
+            'exit': 0, 'stdout_hex': bytes([data[0] if data else 0]).hex(), 'stderr_hex': ''})
+
+    def outcomes(self, oracle):
+        return [{'stdin_hex': data.hex(), 'valid': True, 'actual': oracle.oracle('scalar', data, ''),
+                 'expected': oracle.oracle('scalar', data, '')} for data in quality.INPUTS]
+
+    def test_exhaustive_oracle_rejects_missing_duplicate_and_forged_expected(self):
+        oracle = self.oracle()
+        outcomes = self.outcomes(oracle)
+        quality.checked_oracles({'native': outcomes}, oracle, 1)
+        for bad in (outcomes[:-1], outcomes+[outcomes[0]], [outcomes[0]]+outcomes[2:]):
+            with self.assertRaises(ValueError):
+                quality.checked_oracles({'native': bad}, oracle, 1)
+        bad = copy.deepcopy(outcomes)
+        bad[-1]['actual'] = bad[-1]['expected'] = {'exit': 0, 'stdout_hex': '00', 'stderr_hex': ''}
+        with self.assertRaises(ValueError):
+            quality.checked_oracles({'native': bad}, oracle, 1)
+
+    def triplet(self, out):
+        oracle = self.oracle()
+        report = {'status': 'Success', 'phase': 'link', 'diagnostics': [], 'verification_runs': 1,
+                  'query_events': [{'phase': 'verify', 'disposition': 'executed'}],
+                  'input_fingerprint': 'same', 'source_files': {'0': '/src/main.zil'}, 'scalar_interfaces': []}
+        rows = []
+        for arm in matrix.matched.ARMS:
+            functions = ['main', 'zil.fn.0'] if arm == 'baseline' else ['main']
+            objects = [{'defined_functions': functions}]+[{'defined_functions': []} for _ in range(15)]
+            inv = {'objects': objects, 'object_count': 16, 'current_layout_matches': ['x'],
+                   'compiler_summary': {'actual_units': 16}, 'removed_functions': ['zil.fn.0']}
+            rows.append({'arm': arm, 'request': 'cold', 'valid': True, 'resident': {'report': copy.deepcopy(report)},
+                         'executable': matrix.matched.blob(out, b'\x7fELF'+arm.encode(), '.elf'),
+                         'inventory': inv, 'native': self.outcomes(oracle)})
+        return rows, oracle
+
+    def test_new_protocol_records_unequal_elf_and_requires_current_verify(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            rows, oracle = self.triplet(out)
+            with patch.object(quality, 'executable_abi', return_value={'scope': 'mock ABI; tested separately'}):
+                result = quality.quality(rows, self.args(out), oracle)
+            self.assertTrue(result['valid'])
+            self.assertFalse(result['complete_ELF_equal'])
+            self.assertTrue(result['runtime_acceptance_pending'])
+            rows[1]['resident']['report']['verification_runs'] = 0
+            with self.assertRaises(ValueError):
+                quality.quality(rows, self.args(out), oracle)
+            self.assertIn('identical complete ELF', matrix.matched.QUALITY_POLICY['machine'])
+
+    def test_main_resource_failure_is_explicit_and_never_a_ratio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            rows, oracle = self.triplet(out)
+            rows[0] = {'arm': 'baseline', 'request': 'cold', 'valid': False,
+                'resident': {'report': {'status': 'ResourceLimit', 'phase': 'expand', 'verification_runs': 0,
+                    'diagnostics': [{'category': 'ResourceLimit'}]}},
+                'publication_before': {'program': {'exists': False}},
+                'publication_after': {'program': {'exists': False}}}
+            with patch.object(quality, 'executable_abi', return_value={'scope': 'mock ABI; tested separately'}):
+                result = quality.quality(rows, self.args(out), oracle, allow_main_limit=True)
+            self.assertTrue(result['main_resource_limit'])
+            self.assertFalse(result['main_success'])
+            self.assertIsNone(result['complete_ELF_equal'])
+            samples = [{'arm': arm, 'valid': True, 'block': b, 'measurement': {'wall_ms': value}}
+                       for b in range(2) for arm, value in (('candidate', 2), ('rust', 3))]
+            comparison = quality.paired_comparison(samples, 2, ('candidate', 'rust'))
+            self.assertNotIn('candidate_over_baseline_paired_GM', comparison)
+            rows[0]['resident']['report']['status'] = 'Unsupported'
+            with self.assertRaises(ValueError):
+                quality.quality(rows, self.args(out), oracle, allow_main_limit=True)
+
+    def runtime_case(self, main=True, candidate=100, rust=100):
+        values = {'candidate': candidate, 'rust': rust}
+        if main:
+            values['baseline'] = 100
+        return {'case': '1000/cold', 'main_resource_limit': not main,
+                'samples': {arm: [{'valid': True, 'timed_out': False, 'wall_ms': value, 'wait4_maxrss_kib': 1000}
+                                  for _ in range(6)] for arm, value in values.items()}}
+
+    def test_runtime_limits_and_missing_main_never_invent_pass(self):
+        self.assertTrue(quality.runtime_decision([self.runtime_case()])['accepted'])
+        self.assertFalse(quality.runtime_decision([self.runtime_case(candidate=111, rust=111)])['accepted'])
+        self.assertFalse(quality.runtime_decision([self.runtime_case(rust=89)])['candidate_rust_accepted'])
+        result = quality.runtime_decision([self.runtime_case(main=False)])
+        self.assertTrue(result['candidate_rust_accepted'])
+        self.assertIsNone(result['main_regression_accepted'])
+        self.assertFalse(result['accepted'])
+        self.assertIsNone(result['cases'][0]['candidate_over_main'])
+        bad = self.runtime_case()
+        bad['samples']['rust'].pop()
+        with self.assertRaises(ValueError):
+            quality.runtime_decision([bad])
+
+    def test_periodic_wrapper_oracle_uses_every_seed(self):
+        args = self.args()
+        oracle = matrix.Oracle(args, None, {'name': 'cold'}, sustained=True)
+        oracle.scalar = lambda data: {'stdout_hex': int(data[0]+1).to_bytes(4, 'little').hex()}
+        for seed in (0, 65, 250):
+            expected = sum((seed+i) % 251+1 for i in range(10000)) % 1000003
+            actual = oracle.oracle('scalar', bytes([seed]), '')
+            self.assertEqual(bytes.fromhex(actual['stdout_hex']), expected.to_bytes(4, 'little'))
+
+    def test_pack_keeps_every_raw_byte_with_deduplication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            leaf = out/'native'
+            leaf.mkdir()
+            (leaf/'stdout.bin').write_bytes(b'abc')
+            (leaf/'stderr.bin').write_bytes(b'')
+            packed = matrix.packed_directory(out, leaf)
+            listing = json.loads(matrix.matched.recheck_archived(out, packed))
+            self.assertEqual(matrix.matched.recheck_archived(out, listing['stdout.bin']), b'abc')
+            self.assertEqual(matrix.matched.recheck_archived(out, listing['stderr.bin']), b'')
+            self.assertFalse(leaf.exists())
+
+    def object_bytes(self, name):
+        header = bytearray(64)
+        header[:7] = b'\x7fELF\x02\x01\x01'
+        struct.pack_into('<HHI', header, 16, 1, 62, 1)
+        struct.pack_into('<H', header, 52, 64)
+        text = b'\xc3'
+        strings = b'\0'+name.encode()+b'\0'
+        symbols = bytes(24)+struct.pack('<IBBHQQ', 1, 2, 0, 1, 0, 1)
+        # GLOBAL STT_FUNC; .text, .strtab, .symtab are real separate sections.
+        symbols = bytes(24)+struct.pack('<IBBHQQ', 1, 0x12, 0, 1, 0, 1)
+        offset = 65+len(strings)+len(symbols)
+        struct.pack_into('<Q', header, 40, offset)
+        struct.pack_into('<HH', header, 58, 64, 4)
+        sections = bytes(64)+struct.pack('<IIQQQQIIQQ', 0, 1, 6, 0, 64, 1, 0, 0, 1, 0)
+        sections += struct.pack('<IIQQQQIIQQ', 0, 3, 0, 0, 65, len(strings), 0, 0, 1, 0)
+        sections += struct.pack('<IIQQQQIIQQ', 0, 2, 0, 0, 65+len(strings), len(symbols), 2, 0, 8, 24)
+        return bytes(header)+text+strings+symbols+sections
+
+    def test_physical_closed_cgus_bind_layout_and_reject_object_swap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            cache = out/'candidate'/'objects'
+            namespace = cache/'objects-v1'/('a'*64)
+            namespace.mkdir(parents=True)
+            reports, payload = [], (16).to_bytes(4, 'little')
+            for i in range(16):
+                key = f'{i+1:064x}'
+                obj = self.object_bytes('main' if i == 0 else 'zil.fn.'+str(i))
+                (namespace/(key+'.zobj')).write_bytes(b'ZILOBJ01'+bytes.fromhex(key)+bytes.fromhex(matrix.rc.sha(obj))+len(obj).to_bytes(8, 'little')+obj)
+                reports.append({'backend': 'llvm-api', 'pipeline': 'default<O2>', 'verify_before_after': True,
+                                'triple': 'x86_64-unknown-linux-gnu', 'llvm_version': '23.1.4', 'input_kind': 'builder',
+                                'object_bytes': len(obj), 'cache': {'state': 'miss', 'action_key': key, 'corrupt': False, 'current_preflight_ns': 0}})
+                payload += i.to_bytes(4, 'little')+bytes(12)+(1).to_bytes(4, 'little')+(i+2).to_bytes(4, 'little')
+            layouts = cache/'partition-layout-v1'
+            layouts.mkdir()
+            (layouts/('b'*64+'.layout')).write_bytes(b'ZILCGU01'+bytes.fromhex('b'*64)+bytes.fromhex(matrix.rc.sha(payload))+payload)
+            report = {'native_codegen': {'backend': 'llvm-api', 'requested_units': 16, 'actual_units': 16,
+                'jobs': 1, 'fallback': None, 'object_reports': reports,
+                'object_cache': {'hits': 0, 'misses': 16, 'corrupt': 0, 'write_failures': 0,
+                                 'current_preflight_ns': 0, 'object_hit_preflight_checked_units': 0, 'object_hit_preflight_reused_units': 0}}}
+            llvm = ('; ZIL verified LLVM module\n; verified-fingerprint: '+'0'*64+'\n'
+                    'declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
+                    'define i32 @main() {\n ret i32 0\n}\n'+''.join(f'define void @zil.fn.{i}() {{\n ret void\n}}\n' for i in range(1, 16))).encode()
+            def symbols(args, item):
+                blob = matrix.matched.blob(args.out, b'symbols'+item['sha256'].encode())
+                return {'path': blob['archive'], 'sha256': blob['sha256']}
+            with patch.object(matrix.matched, 'symbols', symbols):
+                inv = quality.inventory(self.args(out), report, cache, llvm, 'c'*64)
+                self.assertEqual(inv['object_count'], 16)
+                self.assertEqual(inv['removed_functions'], [])
+                reports[0]['cache']['action_key'], reports[1]['cache']['action_key'] = reports[1]['cache']['action_key'], reports[0]['cache']['action_key']
+                with self.assertRaises(ValueError):
+                    quality.inventory(self.args(out), report, cache, llvm, 'c'*64)
+
+
+if __name__ == '__main__':
+    unittest.main()
