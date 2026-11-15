@@ -1013,7 +1013,14 @@ impl Engine<'_> {
                                 && let Some(mut result) =
                                     hints.symbolic_result(result, &callable, &mut self.budget)?
                             {
-                                self.ty(&mut result, depth + 1)?;
+                                // This retained result still contains the callee's
+                                // unresolved callable binder. Its spelling has no
+                                // meaning in the caller's original lexical Gamma.
+                                let owner =
+                                    function.semantic.raw_index().map(|_| function.semantic);
+                                self.with_nominal_owner(owner, |engine| {
+                                    engine.ty(&mut result, depth + 1)
+                                })?;
                                 self.note_single_state_value_result(&result, &callable)?;
                                 return Ok(Some(result));
                             }
@@ -1024,7 +1031,10 @@ impl Engine<'_> {
                             && let Some(mut result) =
                                 hints.symbolic_result(result, &callable, &mut self.budget)?
                         {
-                            self.ty(&mut result, depth + 1)?;
+                            let owner = function.semantic.raw_index().map(|_| function.semantic);
+                            self.with_nominal_owner(owner, |engine| {
+                                engine.ty(&mut result, depth + 1)
+                            })?;
                             self.note_single_state_value_result(&result, &callable)?;
                             return Ok(Some(result));
                         }
