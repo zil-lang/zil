@@ -7,7 +7,7 @@ fn recipe_type(
     world: &mut World<'_, '_>,
     scope: SemanticInstanceId,
     recipe: &SemanticTypeRecipe,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     crate::dyn_metadata::semantic_operand_snapshot(recipe, world.limits, world.left, 1)?;
     match super::super::materialize::actual_at(
         world.program,
@@ -18,7 +18,10 @@ fn recipe_type(
         world.limits,
         world.left,
     )? {
-        SemanticActual::Type(value) => Ok(value),
+        SemanticActual::Type(value) => {
+            world.pay(1)?;
+            Ok(Rc::new(value))
+        }
         _ => Err(bad("method original type materializes another actual kind")),
     }
 }
@@ -28,7 +31,7 @@ fn call_result(
     site: &SemanticSite,
     recipe: &SemanticTypeRecipe,
     hint: &Type,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     if matches!(recipe, SemanticTypeRecipe::Opaque { .. }) {
         super::super::materialize::call_result_at(
             world.program,
@@ -40,6 +43,7 @@ fn call_result(
             world.limits,
             world.left,
         )
+        .map(Rc::new)
     } else {
         world.ty(instance.id, recipe, hint)
     }
@@ -94,9 +98,11 @@ fn parent_value(
     world: &mut World<'_, '_>,
     value: &SemanticTypeValue,
     actuals: &[SemanticActual],
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     let mut result = world.copy(value)?;
-    let SemanticTypeValue::Resolved { classes, .. } = &mut result else {
+    let SemanticTypeValue::Resolved { classes, .. } = Rc::get_mut(&mut result)
+        .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
+    else {
         return Err(bad("method parent retains an unresolved whole type"));
     };
     for image in classes {
@@ -110,11 +116,15 @@ fn parent_actual(
     actuals: &[SemanticActual],
 ) -> R<SemanticActual> {
     Ok(match actual {
-        SemanticActual::Type(value) => SemanticActual::Type(parent_value(world, value, actuals)?),
+        SemanticActual::Type(value) => {
+            let value = parent_value(world, value, actuals)?;
+            SemanticActual::Type(world.owned(value)?)
+        }
         SemanticActual::Const { ty, value } => {
             crate::dyn_metadata::semantic_operand_snapshot(actual, world.limits, world.left, 1)?;
+            let ty = parent_value(world, ty, actuals)?;
             SemanticActual::Const {
-                ty: parent_value(world, ty, actuals)?,
+                ty: world.owned(ty)?,
                 value: value.clone(),
             }
         }
@@ -191,7 +201,7 @@ pub(super) fn evaluate(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &mut BTreeMap<u32, SemanticClassExpr>,
-) -> R<Option<SemanticTypeValue>> {
+) -> R<Option<SharedType>> {
     let mut selected = None;
     for site in world.point_sites(sites, block, index)? {
         let SemanticSiteAction::BodyCall { actuals } = &site.action else {
@@ -548,7 +558,7 @@ fn invocation_inputs(
     instance: &SemanticInstance,
     child: &SemanticInstance,
     header: &StorageLifeContract,
-    parameters: &[SemanticTypeValue],
+    parameters: &[SharedType],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<invocation::Inputs> {
     let mut mapping = invocation::Inputs::default();
@@ -563,6 +573,7 @@ fn invocation_inputs(
         let SemanticTypeValue::Resolved { life, classes, .. } = parameters
             .get(index as usize)
             .ok_or_else(|| bad("invocation header selects an absent argument role"))?
+            .as_ref()
         else {
             return Err(bad("invocation argument retains an unresolved type"));
         };
@@ -631,6 +642,7 @@ fn invocation_inputs(
         let SemanticTypeValue::Resolved { ty, life, classes } = parameters
             .get(index as usize)
             .ok_or_else(|| bad("invocation class selects an absent argument role"))?
+            .as_ref()
         else {
             return Err(bad("invocation argument retains an unresolved type"));
         };
@@ -713,7 +725,7 @@ pub(super) fn callable(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<Option<SemanticTypeValue>> {
+) -> R<Option<SharedType>> {
     let scheme = {
         let ledger = world.ledger;
         let proof = ledger.original.borrow();
@@ -904,7 +916,7 @@ pub(super) fn direct(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<Option<SemanticTypeValue>> {
+) -> R<Option<SharedType>> {
     let mut selected = None;
     for site in world.point_sites(sites, block, index)? {
         let SemanticSiteAction::BodyCall { actuals } = &site.action else {

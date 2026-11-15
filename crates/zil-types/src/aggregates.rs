@@ -2765,10 +2765,7 @@ impl<'a> Builder<'a, '_> {
         if let Some(expected) = expected {
             self.same(&ty, expected, span)?;
         }
-        let kind = InstructionKind::Call {
-            function: signature.concrete_id(span)?,
-            arguments,
-        };
+        let kind = self.direct_call(&signature, arguments, span)?;
         if ty == Type::Unit {
             self.emit(kind, None, span)?;
             self.constant(Constant::Unit, span)

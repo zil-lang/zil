@@ -173,30 +173,50 @@ impl<'a> World<'a, '_> {
         }
         Ok((d, child))
     }
-    fn copy(&mut self, value: &SemanticTypeValue) -> R<SemanticTypeValue> {
+    fn copy(&mut self, value: &SemanticTypeValue) -> R<SharedType> {
         crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
+        Ok(Rc::new(value.clone()))
+    }
+    fn share(&mut self, value: &SharedType) -> R<SharedType> {
+        self.pay(1)?;
         Ok(value.clone())
+    }
+    fn owned(&mut self, value: SharedType) -> R<SemanticTypeValue> {
+        self.pay(1)?;
+        match Rc::try_unwrap(value) {
+            Ok(value) => Ok(value),
+            Err(value) => {
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    value.as_ref(),
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                Ok(value.as_ref().clone())
+            }
+        }
     }
     fn resolved(
         &mut self,
         ty: &Type,
         life: StorageLifeShape,
         classes: Vec<SemanticClassExpr>,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
         if life.binder_count as usize != classes.len() {
             return Err(bad("whole type loses its intrinsic class count"));
         }
-        Ok(SemanticTypeValue::Resolved {
+        self.pay(1)?;
+        Ok(Rc::new(SemanticTypeValue::Resolved {
             ty: ty.clone(),
             life,
             classes,
-        })
+        }))
     }
-    fn zero(&mut self, ty: &Type) -> R<SemanticTypeValue> {
+    fn zero(&mut self, ty: &Type) -> R<SharedType> {
         self.zero_at(ty, 0)
     }
-    fn zero_at(&mut self, ty: &Type, depth: usize) -> R<SemanticTypeValue> {
+    fn zero_at(&mut self, ty: &Type, depth: usize) -> R<SharedType> {
         self.pay(1)?;
         if depth > self.limits.max_call_depth {
             return Err(Diagnostic::limit(
@@ -277,7 +297,7 @@ impl<'a> World<'a, '_> {
         block: BlockId,
         index: usize,
         result: ValueId,
-    ) -> R<Option<SemanticTypeValue>> {
+    ) -> R<Option<SharedType>> {
         let ledger = self.ledger;
         let frame = ledger
             .frames
@@ -341,7 +361,7 @@ impl<'a> World<'a, '_> {
         }
         Ok(selected)
     }
-    fn field_value(&mut self, parent: &SemanticTypeValue, index: u32) -> R<SemanticTypeValue> {
+    fn field_value(&mut self, parent: &SemanticTypeValue, index: u32) -> R<SharedType> {
         projection::field(self, parent, index)
     }
     fn ty(
@@ -349,7 +369,7 @@ impl<'a> World<'a, '_> {
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
         hint: &Type,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         let (key, cached) = self
             .types
             .lookup(scope, recipe, hint, self.limits, self.left)?;
@@ -371,7 +391,8 @@ impl<'a> World<'a, '_> {
             .types
             .evaluation_work
             .saturating_add(before.saturating_sub(*self.left));
-        let value = value?;
+        self.pay(1)?;
+        let value = Rc::new(value?);
         self.types
             .insert(key, recipe, hint, &value, self.limits, self.left)?;
         Ok(value)
@@ -381,7 +402,7 @@ impl<'a> World<'a, '_> {
         scope: SemanticInstanceId,
         ordinal: usize,
         hint: &Type,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         self.ty(
             scope,
             &SemanticTypeRecipe::OriginalType {
@@ -391,7 +412,7 @@ impl<'a> World<'a, '_> {
             hint,
         )
     }
-    fn result_value(&mut self, scope: SemanticInstanceId, hint: &Type) -> R<SemanticTypeValue> {
+    fn result_value(&mut self, scope: SemanticInstanceId, hint: &Type) -> R<SharedType> {
         self.ty(
             scope,
             &SemanticTypeRecipe::OriginalType {
@@ -407,7 +428,7 @@ impl<'a> World<'a, '_> {
             _ => Err(bad("Core type survives world materialization")),
         }
     }
-    fn get(&mut self, values: &[Option<SharedType>], id: ValueId) -> R<SemanticTypeValue> {
+    fn get(&mut self, values: &[Option<SharedType>], id: ValueId) -> R<SharedType> {
         if self.stale_values.contains(&id) {
             return Err(bad(
                 "loop-carried whole value requires a distinct live occurrence correspondence",
@@ -417,9 +438,9 @@ impl<'a> World<'a, '_> {
             .get(id.0 as usize)
             .and_then(|v| v.as_ref())
             .ok_or_else(|| bad("SSA has no reaching whole-type equation"))?;
-        self.copy(value)
+        self.share(value)
     }
-    fn local(&mut self, locals: &[Option<SharedType>], id: LocalId) -> R<SemanticTypeValue> {
+    fn local(&mut self, locals: &[Option<SharedType>], id: LocalId) -> R<SharedType> {
         self.pay(self.vacant.len())?;
         if self.vacant.iter().any(|(local, _)| *local == id) {
             return Err(bad("whole local reads an uninitialized projected occupant"));
@@ -433,7 +454,7 @@ impl<'a> World<'a, '_> {
             .get(id.0 as usize)
             .and_then(|v| v.as_ref())
             .ok_or_else(|| bad("local has no initialized whole-type occupant"))?;
-        self.copy(value)
+        self.share(value)
     }
     fn clear_vacant(&mut self, local: LocalId) -> R<()> {
         self.pay(self.vacant.len())?;
@@ -445,7 +466,7 @@ impl<'a> World<'a, '_> {
         locals: &[Option<SharedType>],
         local: LocalId,
         path: &[PlaceProjection],
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         if path.len() > self.limits.max_call_depth {
             return Err(Diagnostic::limit(
                 Phase::Types,
@@ -472,7 +493,7 @@ impl<'a> World<'a, '_> {
             .get(local.0 as usize)
             .and_then(|value| value.as_ref())
             .ok_or_else(|| bad("projected local has no initialized shell"))?;
-        let mut value = self.copy(value)?;
+        let mut value = self.share(value)?;
         for selector in path {
             self.pay(1)?;
             value = projection::place(self, &value, *selector)?;
@@ -482,6 +503,10 @@ impl<'a> World<'a, '_> {
     #[track_caller]
     fn equal(&mut self, a: &SemanticTypeValue, b: &SemanticTypeValue) -> R<()> {
         let location = std::panic::Location::caller();
+        self.pay(1)?;
+        if std::ptr::eq(a, b) {
+            return Ok(());
+        }
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
         if a != b {
@@ -512,14 +537,14 @@ impl<'a> World<'a, '_> {
         crate::dyn_metadata::semantic_operand_snapshot(&row.actual, self.limits, self.left, 1)?;
         Ok(row.actual.clone())
     }
-    fn capture(&mut self, instance: &SemanticInstance, index: u32) -> R<SemanticTypeValue> {
+    fn capture(&mut self, instance: &SemanticInstance, index: u32) -> R<SharedType> {
         self.pay(self.vacant_captures.len().saturating_add(1))?;
         if self.vacant_captures.contains(&(instance.id, index)) {
             return Err(bad("actual capture reads a transferred environment field"));
         }
         self.capture_initial(instance, index)
     }
-    fn capture_initial(&mut self, instance: &SemanticInstance, index: u32) -> R<SemanticTypeValue> {
+    fn capture_initial(&mut self, instance: &SemanticInstance, index: u32) -> R<SharedType> {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) =
             instance.target
         else {
@@ -551,7 +576,7 @@ impl<'a> World<'a, '_> {
         ty: &Type,
         image: SemanticClassExpr,
         pointee: &SemanticTypeValue,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         let (inner, mode) = match ty {
             Type::Address { mutable, inner } => (
                 inner,
@@ -607,7 +632,7 @@ impl<'a> World<'a, '_> {
         ty: &Type,
         parent: &SemanticTypeValue,
         child: &SemanticTypeValue,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         let SemanticTypeValue::Resolved { life, classes, .. } = parent else {
             return Err(bad("address projection has an unresolved parent"));
         };
@@ -659,7 +684,7 @@ impl<'a> World<'a, '_> {
             classes.clone(),
         )
     }
-    fn pointee(&mut self, value: &SemanticTypeValue) -> R<SemanticTypeValue> {
+    fn pointee(&mut self, value: &SemanticTypeValue) -> R<SharedType> {
         if !matches!(Self::type_of(value)?, Type::Address { .. } | Type::Desc(_)) {
             return Err(bad(
                 "pointee projection has no actual address or description",
@@ -672,7 +697,7 @@ impl<'a> World<'a, '_> {
         value: &SemanticTypeValue,
         actuals: &[SemanticActual],
         environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue)>,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         self.map_call_value(value, actuals, environment, &[])
     }
     fn map_call_value(
@@ -681,9 +706,11 @@ impl<'a> World<'a, '_> {
         actuals: &[SemanticActual],
         environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue)>,
         invocation: &[(SemanticClassExpr, SemanticClassExpr)],
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         let mut value = self.copy(value)?;
-        let SemanticTypeValue::Resolved { classes, .. } = &mut value else {
+        let SemanticTypeValue::Resolved { classes, .. } = Rc::get_mut(&mut value)
+            .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
+        else {
             return Err(bad("Core type survives call interpretation"));
         };
         for image in classes {
@@ -927,20 +954,47 @@ impl World<'_, '_> {
         }
         Ok(())
     }
+    fn normalized<'v>(
+        &mut self,
+        scope: SemanticInstanceId,
+        value: &'v SemanticTypeValue,
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<std::borrow::Cow<'v, SemanticTypeValue>> {
+        let SemanticTypeValue::Resolved { classes, .. } = value else {
+            return Err(bad("Core value survives normalization"));
+        };
+        self.pay(classes.len().saturating_add(1))?;
+        let mut mapped = Vec::with_capacity(classes.len());
+        let mut changed = false;
+        for image in classes {
+            let actual = self.class(scope, image, implicit)?;
+            changed |= actual != *image;
+            mapped.push(actual);
+        }
+        if !changed {
+            return Ok(std::borrow::Cow::Borrowed(value));
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
+        let mut value = value.clone();
+        let SemanticTypeValue::Resolved { classes, .. } = &mut value else {
+            return Err(bad("normalization changed its resolved constructor"));
+        };
+        *classes = mapped;
+        Ok(std::borrow::Cow::Owned(value))
+    }
     fn normalize(
         &mut self,
         scope: SemanticInstanceId,
-        value: &SemanticTypeValue,
+        value: &SharedType,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
-    ) -> R<SemanticTypeValue> {
-        let mut value = self.copy(value)?;
-        let SemanticTypeValue::Resolved { classes, .. } = &mut value else {
-            return Err(bad("Core value survives normalization"));
-        };
-        for image in classes {
-            *image = self.class(scope, image, implicit)?;
+    ) -> R<SharedType> {
+        match self.normalized(scope, value, implicit)? {
+            std::borrow::Cow::Borrowed(_) => self.share(value),
+            std::borrow::Cow::Owned(value) => {
+                self.pay(1)?;
+                Ok(Rc::new(value))
+            }
         }
-        Ok(value)
     }
     fn same(
         &mut self,
@@ -949,8 +1003,8 @@ impl World<'_, '_> {
         b: &SemanticTypeValue,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
-        let a = self.normalize(scope, a, implicit)?;
-        let b = self.normalize(scope, b, implicit)?;
+        let a = self.normalized(scope, a, implicit)?;
+        let b = self.normalized(scope, b, implicit)?;
         self.equal(&a, &b)
     }
     fn original_recipe<'a>(
@@ -1034,7 +1088,7 @@ impl World<'_, '_> {
                         .ty;
                     let actual = self.ty(instance.id, recipe, ty)?;
                     self.same(instance.id, expected, &actual, implicit)?;
-                    if let Some(old) = declared.insert(*local, Rc::new(actual)) {
+                    if let Some(old) = declared.insert(*local, actual) {
                         self.same(instance.id, &old, expected, implicit)?;
                     }
                 }
@@ -1076,7 +1130,7 @@ impl World<'_, '_> {
                             classes: actual_images,
                             ..
                         },
-                    ) = (&original_value, &value)
+                    ) = (original_value.as_ref(), value.as_ref())
                     {
                         self.pay(
                             images
@@ -1172,7 +1226,7 @@ impl World<'_, '_> {
         result: ValueId,
         ty: &Type,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
-    ) -> R<Option<SemanticTypeValue>> {
+    ) -> R<Option<SharedType>> {
         let mut selected = None;
         for site in self.point_sites(sites, block, index)? {
             let SemanticSiteAction::Construct {
@@ -1210,7 +1264,7 @@ impl World<'_, '_> {
         fields: &[ValueId],
         values: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         let mut selected = None;
         for site in self.point_sites(sites, block, index)? {
             if let SemanticSiteAction::Construct {
@@ -1691,7 +1745,7 @@ impl World<'_, '_> {
         values: &[Option<SharedType>],
         locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
-    ) -> R<SemanticTypeValue> {
+    ) -> R<SharedType> {
         let raw_value = self.copy(value)?;
         let value = if matches!(Self::type_of(value)?, Type::Address { .. }) {
             self.pointee(value)?
@@ -1849,7 +1903,6 @@ impl World<'_, '_> {
                 .ty;
             let value = self.parameter_value(instance.id, ordinal, ty)?;
             self.pay(2)?;
-            let value = Rc::new(value);
             locals[parameter.0 as usize] = Some(value.clone());
             declared.insert(*parameter, value);
         }
@@ -2220,8 +2273,7 @@ impl World<'_, '_> {
                             }
                             *locals
                                 .get_mut(local.0 as usize)
-                                .ok_or_else(|| bad("store local is absent"))? =
-                                Some(Rc::new(value));
+                                .ok_or_else(|| bad("store local is absent"))? = Some(value);
                             None
                         }
                         InstructionKind::StorageLive(local)
@@ -3015,7 +3067,7 @@ impl World<'_, '_> {
                                             let actual = self.get(&values, *operand)?;
                                             let SemanticTypeValue::Resolved {
                                                 life, classes, ..
-                                            } = &actual
+                                            } = actual.as_ref()
                                             else {
                                                 return Err(bad(
                                                     "implicit capture input retains an unresolved whole type",
@@ -3461,7 +3513,7 @@ impl World<'_, '_> {
                                 }
                                 self.clear_vacant(*target)?;
                                 self.stale_locals.remove(target);
-                                locals[target.0 as usize] = Some(Rc::new(field));
+                                locals[target.0 as usize] = Some(field);
                             }
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
@@ -3695,7 +3747,7 @@ impl World<'_, '_> {
                             {
                                 return Err(bad("capture view changes its complete actual type"));
                             }
-                            locals[local.0 as usize] = Some(Rc::new(value));
+                            locals[local.0 as usize] = Some(value);
                             None
                         }
                         InstructionKind::EndPackageCapture { local, .. } => {
@@ -3904,7 +3956,7 @@ impl World<'_, '_> {
                     }
                     *values
                         .get_mut(result.0 as usize)
-                        .ok_or_else(|| bad("SSA class result is absent"))? = Some(Rc::new(value));
+                        .ok_or_else(|| bad("SSA class result is absent"))? = Some(value);
                 } else if let Some(value) = produced {
                     if Self::type_of(&value)? != &Type::Unit {
                         return Err(bad("class-producing operation has no actual SSA result"));
@@ -4148,7 +4200,7 @@ fn program_at(
                             life: expected_life,
                             ..
                         },
-                    ) = (actual, &expected)
+                    ) = (actual, expected.as_ref())
                     else {
                         return Err(bad("whole-Type formal retains an unresolved actual"));
                     };

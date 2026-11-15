@@ -42,7 +42,7 @@ pub(super) fn environment_outer(
         scope: SemanticScopeRef::Ancestor(0),
         ordinal,
     });
-    let SemanticActual::Type(mut value) = super::super::materialize::actual_at(
+    let SemanticActual::Type(value) = super::super::materialize::actual_at(
         world.program,
         world.module,
         world.ledger,
@@ -61,6 +61,8 @@ pub(super) fn environment_outer(
             None,
         ));
     }
+    world.pay(1)?;
+    let mut value = Rc::new(value);
     for step in path {
         value = match step {
             LifeTypeProjection::Place(selector) => projection::place(world, &value, *selector)?,
@@ -72,7 +74,7 @@ pub(super) fn environment_outer(
             }
         };
     }
-    let SemanticTypeValue::Resolved { ty, life, classes } = value else {
+    let SemanticTypeValue::Resolved { ty, life, classes } = world.owned(value)? else {
         return Err(bad("outer environment projection remains unresolved"));
     };
     if !matches!(
@@ -220,7 +222,7 @@ pub(super) fn store(
     operand: ValueId,
     value: &SemanticTypeValue,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<Option<(SemanticTypeValue, Source)>> {
+) -> R<Option<(SharedType, Source)>> {
     let Some(role) = receipt(world, instance, original, sites, local)? else {
         return Ok(None);
     };

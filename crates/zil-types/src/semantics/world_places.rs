@@ -36,7 +36,7 @@ pub(super) fn path(
     world: &mut World<'_, '_>,
     value: &SemanticTypeValue,
     path: &[PlaceProjection],
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     if path.len() > world.limits.max_call_depth {
         return Err(Diagnostic::limit(
             Phase::Types,

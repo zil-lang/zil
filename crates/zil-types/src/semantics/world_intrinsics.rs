@@ -15,7 +15,7 @@ pub(super) fn evaluate(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<Option<SemanticTypeValue>> {
+) -> R<Option<SharedType>> {
     let mut selected: Option<(IntrinsicCall, &SemanticSite)> = None;
     for site in world.point_sites(sites, block, index)? {
         let actuals = match &site.action {

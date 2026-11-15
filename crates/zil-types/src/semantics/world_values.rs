@@ -16,7 +16,7 @@ pub(super) fn reference(
     foreign: bool,
     ty: &Type,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     world.pay(sites.len())?;
     let mut selected: Option<FunctionValue> = None;
     for site in sites {
@@ -130,7 +130,7 @@ pub(super) fn indirect(
     ty: &Type,
     values: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     let callee_value = world.get(values, callee)?;
     let Type::FunctionPointer { parameters, result } = World::type_of(&callee_value)? else {
         return Err(pending(

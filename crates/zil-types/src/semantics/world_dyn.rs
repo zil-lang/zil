@@ -47,7 +47,7 @@ pub(super) fn borrow(
     ty: &Type,
     image: SemanticClassExpr,
     source: &SemanticTypeValue,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     let source = match World::type_of(source)? {
         Type::OwnedDyn { .. } => {
             if mutable
@@ -82,7 +82,7 @@ pub(super) fn borrow(
         ty: Type::OwnedDyn { interface },
         life,
         classes,
-    } = source
+    } = world.owned(source)?
     else {
         return Err(bad("dynamic owner borrow has no complete retained domain"));
     };
@@ -394,7 +394,7 @@ pub(super) fn call(
     call: &IntrinsicCall,
     site: &SemanticSite,
     instruction: &InstructionKind,
-    parameters: &[SemanticTypeValue],
+    parameters: &[SharedType],
     result: &SemanticTypeValue,
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
@@ -476,7 +476,7 @@ pub(super) fn call(
     let context = world.pointee(receiver)?;
     let SemanticTypeValue::Resolved {
         classes: context, ..
-    } = &context
+    } = context.as_ref()
     else {
         return Err(bad("dynamic receiver Context remains unresolved"));
     };

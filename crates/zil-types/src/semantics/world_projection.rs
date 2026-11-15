@@ -203,7 +203,7 @@ pub(super) fn type_shape_at(
         }
         _ => {
             let value = world.zero_at(ty, depth + 1)?;
-            let SemanticTypeValue::Resolved { life, .. } = value else {
+            let SemanticTypeValue::Resolved { life, .. } = world.owned(value)? else {
                 unreachable!()
             };
             life
@@ -245,10 +245,7 @@ fn retained_snapshot(world: &mut World<'_, '_>, shape: &RetainedLifeShape) -> R<
     }
     Ok(())
 }
-pub(super) fn pointee(
-    world: &mut World<'_, '_>,
-    parent: &SemanticTypeValue,
-) -> R<SemanticTypeValue> {
+pub(super) fn pointee(world: &mut World<'_, '_>, parent: &SemanticTypeValue) -> R<SharedType> {
     let inner = match World::type_of(parent)? {
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => inner,
         _ => {
@@ -271,7 +268,7 @@ pub(super) fn place(
     world: &mut World<'_, '_>,
     parent: &SemanticTypeValue,
     selector: PlaceProjection,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     let ty = World::type_of(parent)?;
     let field = match (stored::physical(ty), selector) {
         (
@@ -356,7 +353,7 @@ pub(super) fn field(
     world: &mut World<'_, '_>,
     parent: &SemanticTypeValue,
     index: u32,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     // Field operations on a managed head address its real payload. This is
     // the same single boundary accepted by aggregates::field_ref; its entire
     // child domain comes from the retained Pointee graph, never from a zero
@@ -401,7 +398,7 @@ pub(super) fn capture(
     index: u32,
     ty: &Type,
     header: &StorageLifeContract,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     let base = StorageBase::Capture(index);
     if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
         let shape = type_shape(world, inner)?;

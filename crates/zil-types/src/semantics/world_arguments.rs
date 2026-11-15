@@ -90,8 +90,14 @@ pub(super) fn satisfy(
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
-    let actual = world.normalize(caller.id, actual, implicit)?;
-    let expected = world.normalize(caller.id, expected, implicit)?;
+    let actual = world.normalized(caller.id, actual, implicit)?;
+    let expected = world.normalized(caller.id, expected, implicit)?;
+    world.pay(1)?;
+    if std::ptr::eq(actual.as_ref(), expected.as_ref()) {
+        return Ok(());
+    }
+    crate::dyn_metadata::semantic_operand_snapshot(actual.as_ref(), world.limits, world.left, 1)?;
+    crate::dyn_metadata::semantic_operand_snapshot(expected.as_ref(), world.limits, world.left, 1)?;
     if actual == expected {
         return Ok(());
     }

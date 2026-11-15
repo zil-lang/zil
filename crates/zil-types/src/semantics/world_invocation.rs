@@ -50,9 +50,11 @@ pub(super) fn map(
     actuals: &[SemanticActual],
     environment: Option<(&StorageLifeContract, &SemanticInstance, &SemanticTypeValue)>,
     inputs: &Inputs,
-) -> R<SemanticTypeValue> {
+) -> R<SharedType> {
     let mut value = world.copy(value)?;
-    let SemanticTypeValue::Resolved { ty, life, classes } = &mut value else {
+    let SemanticTypeValue::Resolved { ty, life, classes } = Rc::get_mut(&mut value)
+        .ok_or_else(|| bad("fresh class mapping unexpectedly shares its value"))?
+    else {
         return Err(bad("static invocation retains an unresolved whole type"));
     };
     for source in &inputs.statics {

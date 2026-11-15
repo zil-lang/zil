@@ -9,7 +9,7 @@ type Key = (
 struct Entry {
     recipe: SemanticTypeRecipe,
     hint: Type,
-    value: SemanticTypeValue,
+    value: SharedType,
 }
 #[derive(Default)]
 pub(super) struct Table {
@@ -28,7 +28,7 @@ impl Table {
         hint: &Type,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<(Key, Option<SemanticTypeValue>)> {
+    ) -> R<(Key, Option<SharedType>)> {
         let before = *left;
         let recipe_key = super::super::original::protocol::recipe_key(recipe, limits, left)?;
         inference::charge_type_snapshot(hint, Span::default(), limits, left, 2)?;
@@ -42,7 +42,7 @@ impl Table {
                 inference::charge_type_snapshot(&entry.hint, Span::default(), limits, left, 1)?;
                 inference::charge_type_snapshot(hint, Span::default(), limits, left, 1)?;
                 if entry.recipe == *recipe && entry.hint == *hint {
-                    crate::dyn_metadata::semantic_operand_snapshot(&entry.value, limits, left, 1)?;
+                    index::pay(left, 1)?;
                     self.hits = self.hits.saturating_add(1);
                     self.lookup_work = self
                         .lookup_work
@@ -62,7 +62,7 @@ impl Table {
         key: Key,
         recipe: &SemanticTypeRecipe,
         hint: &Type,
-        value: &SemanticTypeValue,
+        value: &SharedType,
         limits: &Limits,
         left: &mut usize,
     ) -> R<()> {
@@ -75,7 +75,7 @@ impl Table {
         }
         crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
         inference::charge_type_snapshot(hint, Span::default(), limits, left, 1)?;
-        crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+        index::pay(left, 1)?;
         index::pay(
             left,
             index::search(self.buckets.len())

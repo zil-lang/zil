@@ -998,9 +998,23 @@ impl Builder<'_, '_> {
             let value = self.value(instruction, output.clone(), span)?;
             return Ok((value, output));
         }
-        let instruction = InstructionKind::Call {
-            function: instance,
-            arguments: values,
+        let before = self.closures.remaining_work();
+        let mut remaining = before;
+        let convention = semantics::abi::callee_kind(
+            &self.closures.semantic_emission,
+            instance,
+            &mut remaining,
+        )?;
+        self.closures.snapshot(before - remaining, span)?;
+        let instruction = match convention {
+            Some(CallKind::Suspend) => InstructionKind::SuspendCall {
+                function: instance,
+                arguments: values,
+            },
+            Some(CallKind::Direct) | None => InstructionKind::Call {
+                function: instance,
+                arguments: values,
+            },
         };
         if result == Type::Unit {
             self.emit(instruction, None, span)?;
@@ -1881,6 +1895,9 @@ fn environment_origins(
                 | InstructionKind::BorrowOwnedArrayElement { index: 0, .. } => Origin::EMPTY,
                 InstructionKind::Call {
                     function: callee, ..
+                }
+                | InstructionKind::SuspendCall {
+                    function: callee, ..
                 } => {
                     let mut factory = false;
                     'modules: for table in tables.values() {
@@ -1953,6 +1970,10 @@ fn environment_origins(
                         Origin::EMPTY
                     }
                     InstructionKind::Call {
+                        function: callee,
+                        ref arguments,
+                    }
+                    | InstructionKind::SuspendCall {
                         function: callee,
                         ref arguments,
                     } => {
@@ -2039,10 +2060,14 @@ fn forwarded_contract(
     bounds: &[CoreCallableParameter],
     state: &mut closures::State,
 ) -> R<Option<Forwarded>> {
-    let InstructionKind::Call {
+    let (InstructionKind::Call {
         function: callee,
         arguments,
-    } = &instruction.kind
+    }
+    | InstructionKind::SuspendCall {
+        function: callee,
+        arguments,
+    }) = &instruction.kind
     else {
         return Ok(None);
     };
