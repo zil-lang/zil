@@ -15,6 +15,10 @@ pub(super) fn owner<'a>(
     program_owner(semantic,&module.dyn_declarations,expected,requested,b)
 }
 pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,declarations:&[DynDeclaration],expected:&SemanticDynOwner,requested:SemanticDefinitionId,b:&mut Budget)->Check<&'a SemanticDefinition>{
+    if let Some(index)=dynamic_metadata::owner_known(semantic,declarations,expected,requested,b)?{
+        b.spend(1)?;
+        return semantic.definitions.get(index).filter(|definition|definition.id==requested).ok_or_else(||bad("immutable original owner directory selects another definition"));
+    }
     b.spend(
         semantic
             .dyn_scopes
@@ -36,8 +40,9 @@ pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,declarations:&[DynDe
     let mut definitions = semantic
         .definitions
         .iter()
-        .filter(|definition| definition.id == requested);
-    let definition = definitions
+        .enumerate()
+        .filter(|(_,definition)| definition.id == requested);
+    let (definition_index,definition) = definitions
         .next()
         .ok_or_else(|| bad("semantic bridge owner definition is absent"))?;
     if definitions.next().is_some() {
@@ -210,6 +215,7 @@ pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,declarations:&[DynDe
             ));
         }
     }
+    dynamic_metadata::owner_success(semantic,declarations,expected,requested,definition_index,b)?;
     Ok(definition)
 }
 
@@ -868,6 +874,16 @@ mod tests {
             })
             .collect();
         let limits = Limits::default();
+        let mut indexed=Budget::new(&limits);
+        indexed.structural=Some(dynamic_metadata::Structure::register(&module,&mut indexed).unwrap());
+        let before=indexed.remaining;
+        owner(&module,&wanted,scope(0),&mut indexed).unwrap();
+        let cold=before-indexed.remaining;let before=indexed.remaining;
+        owner(&module,&wanted,scope(0),&mut indexed).unwrap();
+        assert!(before-indexed.remaining<cold);
+        assert!(owner(&module,&wanted,scope(1),&mut indexed).is_err());
+        let wrong_kind=SemanticDynOwner::MethodDefinition(DynDefinitionId{module:module.module_id,source:zil_base::NodeId(80)});
+        assert!(owner(&module,&wrong_kind,scope(0),&mut indexed).is_err());
         assert_eq!(
             owner(&module, &wanted, scope(0), &mut Budget::new(&limits))
                 .unwrap()
@@ -877,6 +893,9 @@ mod tests {
         assert!(owner(&module, &wanted, scope(1), &mut Budget::new(&limits)).is_err());
         let mut wrong = module.clone();
         wrong.semantic.as_mut().unwrap().dyn_scopes[0].scope = scope(1);
+        let actual=owner(&wrong,&wanted,scope(1),&mut indexed).unwrap_err();
+        let expected=owner(&wrong,&wanted,scope(1),&mut Budget::new(&limits)).unwrap_err();
+        assert_eq!(actual,expected);
         assert!(owner(&wrong, &wanted, scope(1), &mut Budget::new(&limits)).is_err());
         let mut duplicated = module.clone();
         duplicated
@@ -896,6 +915,9 @@ mod tests {
         )
         .unwrap();
         let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let actual=owner(&decoded,&wanted,scope(1),&mut indexed).unwrap_err();
+        let expected=owner(&decoded,&wanted,scope(1),&mut Budget::new(&limits)).unwrap_err();
+        assert_eq!(actual,expected);
         assert_eq!(
             owner(&decoded, &wanted, scope(0), &mut Budget::new(&limits))
                 .unwrap()

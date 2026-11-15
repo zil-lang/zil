@@ -369,6 +369,7 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 
 struct Budget {
     remaining: usize,
+    structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
@@ -499,6 +500,7 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
             callable_source_functions: Vec::new(),
             pending_callable_sources: Vec::new(),
@@ -888,6 +890,9 @@ fn check_module_budget(
     }
 
     budget.function_count = module.functions.len();
+    let prior_structure = budget.structural.take();
+    let result = (|| {
+    budget.structural = Some(dynamic_metadata::Structure::register(module, budget)?);
     if module.semantic.is_none(){semantic::task_domains::prepare_raw_task_contexts(module,&mut budget)?;}
     budget.stored_context = true;
     if let Some(frozen)=frozen {
@@ -1476,6 +1481,9 @@ fn check_module_budget(
         task_input_fingerprint,
         task_ownership: std::mem::take(&mut budget.task_ownership),
     })
+    })();
+    budget.structural = prior_structure;
+    result
 }
 
 fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usize> {

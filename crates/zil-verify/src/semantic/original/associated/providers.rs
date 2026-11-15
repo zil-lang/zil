@@ -41,6 +41,9 @@ impl CheckedOriginal {
             let raw_trait=source.implemented_trait.as_ref().ok_or_else(||unsupported("original impl full trait application is Unknown",None))?;
             let symbolic=self.environment(module,context,definition.id,active,b)?;
             let pattern=self.ty(module,context,self_type,&symbolic,active,b)?;
+            // The whole declaration's static bounds may already be indexed;
+            // these actual copied header recipes still pay their full trees.
+            dynamic_metadata::recipe(raw_self,b)?;dynamic_metadata::recipe(raw_trait,b)?;
             let claims=dynamic_witness::semantic_external::original_requirement_recipes(module,*implementation,&[DynObligation::Trait{receiver:raw_self.clone(),application:raw_trait.clone()}],b)?;
             let [SemanticRequirementRecipe::Trait{ty:raw_pattern,application:raw_application}]=claims.as_slice() else{return Err(bad("original impl header conversion has another kind"));};
             let checked_pattern=self.ty(module,context,raw_pattern,&symbolic,active,b)?;

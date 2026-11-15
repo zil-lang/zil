@@ -1,6 +1,8 @@
 //! Bounded raw dyn metadata traversal before hashing or recursive comparisons.
 //! This grants no Context, port, cleanup or return-source authority.
 use super::*;
+mod structure;
+pub(crate) use structure::{Structure,owner_known,owner_success,resource_known,resource_success};
 fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> Check<()> {
     *nodes = nodes
         .checked_add(n)
@@ -172,6 +174,13 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
+/// Pure bounds only. Callers that clone, hash or compare the complete Type
+/// continue to use ty(), whose full traversal prepays that actual work.
+fn type_bounds_at(root:&Type,depth:usize,b:&mut Budget)->Check<()>{
+    if structure::type_known(root,depth,b)?{return Ok(());}
+    ty_at(root,depth,b)?;
+    structure::type_success(root,depth,b)
+}
 
 /// Pay the entire public retained directory independently of its Context type.
 /// A forged directory need not have the Context's size or paths.
@@ -255,6 +264,14 @@ pub(super) fn program_declaration(program:&SemanticModule,declarations:&[DynDecl
     declaration_in_scope(declaration,owner,b)
 }
 pub(super) fn declaration_in_scope(declaration:&DynDeclaration,owner:&SemanticDefinition,b:&mut Budget)->Check<()> {
+    if matches!(owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})){
+        // This comparison still occurs even when the declaration's bounds
+        // are known. Keep the full identity-read payment before equality.
+        for identity in [&owner.identity,&declaration.identity]{
+            b.spend(identity.package.len().saturating_add(identity.module_path.len()).saturating_add(identity.declaration_path.len()).saturating_add(identity.generation_path.len()).saturating_add(1))?;
+            for text in identity.module_path.iter().chain(&identity.declaration_path){b.spend(text.len())?;}
+        }
+    }
     let valid=match (&owner.body,declaration.kind) {
         (SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration:id}),DynDeclarationKind::Trait)=>*id==declaration.id,
         (SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl{declaration:id,..}|SemanticScopeRecipe::TraitImpl{declaration:id,..}),DynDeclarationKind::Impl)=>*id==declaration.id,
@@ -265,6 +282,7 @@ pub(super) fn declaration_in_scope(declaration:&DynDeclaration,owner:&SemanticDe
     declaration_at(declaration,Some(owner.id),b)
 }
 fn declaration_at(declaration:&DynDeclaration,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<()> {
+    if structure::declaration_known(declaration,owner,b)?{return Ok(());}
     recipe_declaration(declaration, b)?;
     pattern_at(declaration, owner, b)?;
     kinds(&declaration.parameters, b)?;
@@ -299,6 +317,7 @@ fn declaration_at(declaration:&DynDeclaration,owner:Option<SemanticDefinitionId>
             DynMemberKind::Type => {}
         }
     }
+    structure::declaration_success(declaration,owner,b)?;
     Ok(())
 }
 pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budget) -> Check<()> {
@@ -691,6 +710,25 @@ impl DynRecipeVisitor for RecipeWork<'_> {
 }
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> Check<()> {
     value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
+}
+/// A registered immutable recipe may reuse only its structural bounds. This
+/// is not a prepayment for cloning/comparing it, or a semantic obligation.
+pub(super) fn bounds_recipe<T:DynRecipeMetadata+'static>(value:&T,b:&mut Budget)->Check<()>{
+    if structure::recipe_known(value,b)?{return Ok(());}
+    value.visit_dyn_metadata(&mut BoundsWork(RecipeWork{b,nodes:0}),0)?;
+    structure::recipe_success(value,b)
+}
+struct BoundsWork<'a>(RecipeWork<'a>);
+impl DynRecipeVisitor for BoundsWork<'_>{
+    type Error=Diagnostic;
+    fn node(&mut self,d:usize)->Check<()>{self.0.node(d)}
+    fn rows(&mut self,n:usize,d:usize)->Check<()>{self.0.rows(n,d)}
+    fn ty(&mut self,value:&Type,d:usize)->Check<()>{self.0.node(d)?;type_bounds_at(value,d,self.0.b)}
+    fn life(&mut self,value:&StorageLifeShape,d:usize)->Check<()>{self.0.life(value,d)}
+    fn identity(&mut self,value:&LifeDeclarationIdentity,d:usize)->Check<()>{self.0.identity(value,d)}
+    fn position(&mut self,value:&StoragePosition,d:usize)->Check<()>{self.0.position(value,d)}
+    fn constant(&mut self,value:&Constant,d:usize)->Check<()>{self.0.constant(value,d)}
+    fn text(&mut self,value:&str,d:usize)->Check<()>{self.0.text(value,d)}
 }
 /// The same bounded primitive visitors used by complete recipe traversal.
 pub(super) fn life_shape(value:&StorageLifeShape,b:&mut Budget)->Check<()>{

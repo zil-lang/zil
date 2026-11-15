@@ -190,6 +190,7 @@ pub(super) fn check_type_for(
         ));
     };
     charge_payload(inner, budget)?;
+    if dynamic_metadata::resource_known(module,inner,budget)?{return Ok(());}
     check_type(inner, span)?;
     // Equal-length string comparison examines at most name.len() bytes. The
     // table has unique names, so at most one full payload comparison follows.
@@ -210,6 +211,7 @@ pub(super) fn check_type_for(
             "resource type is absent from its nominal definition table",
         ));
     }
+    dynamic_metadata::resource_success(module,inner,budget)?;
     Ok(())
 }
 

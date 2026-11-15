@@ -53,7 +53,7 @@ impl CheckedContext {
         result
     }
     fn requirement(&self,module:&TypedModule,recipe:&SemanticRequirementRecipe,environment:&EvalEnv,mode:RequirementMode,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
-        dynamic_metadata::recipe(recipe,b)?;
+        dynamic_metadata::bounds_recipe(recipe,b)?;
         match recipe {
             SemanticRequirementRecipe::LifeEqual{left,right}=>{
                 let left=self.life(module,left,environment,b)?;let right=self.life(module,right,environment,b)?;
