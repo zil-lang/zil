@@ -1,13 +1,125 @@
 //! Original lexical values are bound at each real environment construction.
 //! Navigation need not fabricate an executable whole-name read in the child.
 use super::*;
-use crate::semantic::value::Value;
+use crate::semantic::value::{Class, Value};
 pub(super) struct CreatorBinding {
     pub(super) capture: u32,
     pub(super) lexical: Value,
     pub(super) stored: Value,
 }
 impl Check<'_, '_> {
+    /// Relate an original free-name borrow occurrence to the physical head
+    /// saved by every actual creator. The original lexical value remains the
+    /// complete pointee; this equation supplies no data or loan permission.
+    pub(super) fn captured_implicit_head(
+        &self,
+        instance: &SemanticInstance,
+        binder: StorageBinder,
+        ordinal: u32,
+        b: &mut Budget,
+    ) -> CompileResult<Option<Class>> {
+        if !matches!(binder, StorageBinder::Fixed(_)) {
+            return Ok(None);
+        }
+        let SemanticInstanceTarget::Function(target) = &instance.target else {
+            return Ok(None);
+        };
+        let function = self.inventory.function(target, b)?;
+        let Some(closure) = function
+            .environment
+            .and_then(|id| self.module.closures.get(id.0 as usize))
+        else {
+            return Ok(None);
+        };
+        if closure.function != function.id {
+            return Err(fail("capture head changes its actual entry"));
+        }
+        let definition = self.inventory.definition(instance.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
+        else {
+            return Ok(None);
+        };
+        let mut occurrence = None;
+        for row in &definition.implicit_lifetimes {
+            b.spend(row.occurrence_path.len().saturating_add(1), WORK)?;
+            if row.ordinal == ordinal && occurrence.replace(row).is_some() {
+                return Err(fail(
+                    "capture head repeats its original implicit occurrence",
+                ));
+            }
+        }
+        let occurrence = occurrence
+            .ok_or_else(|| fail("capture head omits its original implicit occurrence"))?;
+        let mut lexical = None;
+        for recipe in recipes {
+            b.spend(
+                recipe
+                    .occurrence_path
+                    .len()
+                    .saturating_add(occurrence.occurrence_path.len())
+                    .saturating_add(1),
+                WORK,
+            )?;
+            if recipe.occurrence_path != occurrence.occurrence_path {
+                continue;
+            }
+            let Some(capture) =
+                self.original
+                    .capture_recipe_ordinal(instance.definition, recipe, b)?
+            else {
+                continue;
+            };
+            if lexical.is_some_and(|old| old != capture) {
+                return Err(fail(
+                    "capture head occurrence selects several original lexical bindings",
+                ));
+            }
+            lexical = Some(capture);
+        }
+        let Some(lexical) = lexical else {
+            return Ok(None);
+        };
+        let creators = self.capture_creator_bindings(instance, closure, b)?;
+        let Some(binding) = creators.get(&lexical) else {
+            return Ok(None);
+        };
+        // A move capture already has its original complete class image. Only
+        // a real extra physical Address head needs this occurrence equation.
+        let Type::Address { inner, .. } = &binding.stored.ty else {
+            return Ok(None);
+        };
+        if inner.as_ref() != &binding.lexical.ty
+            || self.pointee(&binding.stored, b)? != binding.lexical
+        {
+            return Ok(None);
+        }
+        let [slot] = binding.stored.life.slots.as_slice() else {
+            return Err(fail("capture head loses its exact outer slot"));
+        };
+        if !slot.path.is_empty() {
+            return Err(fail("capture head changes its whole outer slot"));
+        }
+        let contract = closure
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| fail("capture head has no actual header"))?;
+        let (_, physical, selected) =
+            self.capture_class_header(contract, binding.capture, &binding.stored, slot.binder, b)?;
+        if !physical || selected != binder {
+            return Err(fail(
+                "original capture head is attached to another physical header occurrence",
+            ));
+        }
+        Ok(Some(
+            binding
+                .stored
+                .classes
+                .get(slot.binder as usize)
+                .cloned()
+                .ok_or_else(|| fail("capture head lacks its complete original class"))?,
+        ))
+    }
+
     pub(super) fn capture_creator_bindings(
         &self,
         instance: &SemanticInstance,

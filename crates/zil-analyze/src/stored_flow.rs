@@ -6335,6 +6335,7 @@ fn windows(
             if let Some(flow) = &byte_flow {
                 for permission in flow.reads(
                     module,
+                    f,
                     i,
                     values,
                     &state,

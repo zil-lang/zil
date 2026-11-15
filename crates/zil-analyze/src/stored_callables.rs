@@ -623,6 +623,11 @@ pub(super) fn types(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if super::stored_flow::task_capture_instruction(module, f, i, b)? {
+        // The generic environment dispatcher consumes the existing exact
+        // opaque Task head/transfer proof, including its true entry mode.
+        return Ok(());
+    }
     if let InstructionKind::BorrowCapture { index, .. } | InstructionKind::TakeCapture { index } =
         &i.kind
         && let Some(definition) = f

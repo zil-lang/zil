@@ -178,6 +178,12 @@ pub(super) fn inventory(
                     fee(b, 2)?;
                     edges.push((index, function.0 as usize));
                 }
+                if let Some((closure, _)) =
+                    super::super::stored_callables::called(module, f, &i.kind)
+                {
+                    fee(b, 2)?;
+                    edges.push((index, closure.function.0 as usize));
+                }
             }
         }
     }
@@ -209,20 +215,9 @@ pub(super) fn inventory(
     }
     for (index, f) in module.functions.iter().enumerate() {
         fee(b, 1)?;
-        let companion = if f.storage_life.is_some() && !legacy_task_signature(f) {
-            fee(b, f.parameters.len())?;
-            f.parameters
-                .iter()
-                .any(|p| description(&f.locals[p.0 as usize].ty))
-        } else {
-            false
-        };
-        if companion && covered(&b.composition_stored, index) && !marked[index] {
-            return Err(closed());
-        }
         if marked[index]
             && covered(&b.composition_stored, index)
-            && (f.foreign.is_some() || f.environment.is_some() || f.call_kind != CallKind::Direct)
+            && (f.foreign.is_some() || f.call_kind != CallKind::Direct)
         {
             return Err(closed());
         }
@@ -258,24 +253,16 @@ pub(super) fn inventory(
                 if covered(&b.composition_stored, index) {
                     if let Some(arguments) = indirect_arguments(&i.kind) {
                         fee(b, arguments.len())?;
-                        if arguments
-                            .iter()
-                            .any(|id| description(&f.values[id.0 as usize]))
+                        if super::super::stored_callables::called(module, f, &i.kind).is_none()
+                            && arguments
+                                .iter()
+                                .any(|id| description(&f.values[id.0 as usize]))
                         {
                             return Err(closed());
                         }
                     }
-                    if let InstructionKind::MakeClosure { closure, .. } = i.kind {
-                        fee(b, 1)?;
-                        let entry = module
-                            .closures
-                            .get(closure.0 as usize)
-                            .ok_or_else(closed)?
-                            .function;
-                        if marked[entry.0 as usize] {
-                            return Err(closed());
-                        }
-                    }
+                    // Constructing an environment does not execute its body.
+                    // Actual invocation edges above carry its read effects.
                 }
             }
         }
@@ -354,12 +341,19 @@ fn new_origin(
 pub(super) struct Point {
     values: BTreeMap<ValueId, Vec<Permission>>,
     locals: BTreeMap<LocalId, Vec<Permission>>,
+    views: BTreeMap<LocalId, u32>,
 }
 fn tracked(ty: &Type) -> bool {
     description(ty) || matches!(ty, Type::Address { .. })
 }
 fn point_work(p: &Point, b: &mut Budget) -> CompileResult<()> {
-    fee(b, p.values.len().saturating_add(p.locals.len()))?;
+    fee(
+        b,
+        p.values
+            .len()
+            .saturating_add(p.locals.len())
+            .saturating_add(p.views.len()),
+    )?;
     for row in p.values.values().chain(p.locals.values()) {
         fee(b, row.len())?;
         for permission in row {
@@ -377,6 +371,18 @@ fn point_join(to: &mut Point, from: &Point, b: &mut Budget) -> CompileResult<()>
     for (key, row) in &from.locals {
         ordered(b, to.locals.len(), 1)?;
         add(to.locals.entry(*key).or_default(), row, b)?;
+    }
+    for (local, capture) in &from.views {
+        ordered(b, to.views.len(), 1)?;
+        if to
+            .views
+            .insert(*local, *capture)
+            .is_some_and(|old| old != *capture)
+        {
+            return Err(failure(
+                "Byte query capture view has ambiguous actual sources",
+            ));
+        }
     }
     Ok(())
 }
@@ -446,6 +452,14 @@ fn step(
         point.revoke(result.unwrap().0 as usize, b)?;
     }
     match i.kind {
+        InstructionKind::BindPackageCapture { local, index } => {
+            ordered(b, point.views.len(), 1)?;
+            point.views.insert(local, index);
+        }
+        InstructionKind::EndPackageCapture { local, .. } => {
+            ordered(b, point.views.len(), 1)?;
+            point.views.remove(&local);
+        }
         InstructionKind::Store { local, value } if tracked(&f.locals[local.0 as usize].ty) => {
             let row = copy_origins(point.value(value, b)?, b)?;
             ordered(b, point.locals.len(), 1)?;
@@ -454,6 +468,7 @@ fn step(
         InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
             ordered(b, point.locals.len(), 1)?;
             point.locals.remove(&local);
+            point.views.remove(&local);
         }
         _ => {}
     }
@@ -469,6 +484,20 @@ fn step(
                 out.push(new_origin(HoldRoot::Local(*local), Vec::new(), b)?);
                 false
             }
+            InstructionKind::DescribeCapture { index } => {
+                let capture = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .filter(|closure| closure.function == f.id)
+                    .and_then(|closure| closure.captures.get(*index as usize))
+                    .ok_or_else(closed)?;
+                if !matches!(capture, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
+                {
+                    return Err(closed());
+                }
+                out.push(new_origin(HoldRoot::Capture(*index), Vec::new(), b)?);
+                false
+            }
             InstructionKind::DescribePackageField { local, index } => {
                 let Type::Package { fields, .. } =
                     super::super::resources::package_storage(&f.locals[local.0 as usize].ty)
@@ -482,7 +511,11 @@ fn step(
                     return Err(closed());
                 }
                 out.push(new_origin(
-                    HoldRoot::Local(*local),
+                    point
+                        .views
+                        .get(local)
+                        .copied()
+                        .map_or(HoldRoot::Local(*local), HoldRoot::Capture),
                     vec![PlaceProjection::Field(*index)],
                     b,
                 )?);
@@ -751,6 +784,7 @@ impl Flow {
     pub(super) fn reads(
         &self,
         module: &TypedModule,
+        f: &TypedFunction,
         i: &Instruction,
         values: &[Value],
         state: &State,
@@ -766,12 +800,19 @@ impl Flow {
             }
             return Ok(out);
         }
-        let InstructionKind::Call {
-            function,
-            arguments,
-        } = &i.kind
-        else {
-            return Ok(Vec::new());
+        let (function, arguments, closure) = match &i.kind {
+            InstructionKind::Call {
+                function,
+                arguments,
+            } => (*function, arguments.as_slice(), None),
+            _ => {
+                let Some((closure, arguments)) =
+                    super::super::stored_callables::called(module, f, &i.kind)
+                else {
+                    return Ok(Vec::new());
+                };
+                (closure.function, arguments, Some(closure))
+            }
         };
         fee(b, 1)?;
         if !b.byte_query_functions[function.0 as usize] {
@@ -784,19 +825,131 @@ impl Flow {
         fee(b, prior.byte_reads.len())?;
         let mut out = Vec::new();
         for source in &prior.byte_reads {
-            let actual = self.substitute(
-                source,
-                &module.functions[function.0 as usize],
-                arguments,
-                values,
-                state,
-                point,
-                b,
-            )?;
+            let actual = if matches!(source.base, HoldRoot::Capture(_)) {
+                let closure = closure.ok_or_else(closed)?;
+                captured_read(closure, f, i, source, values, state, point, b)?
+            } else {
+                self.substitute(
+                    source,
+                    &module.functions[function.0 as usize],
+                    arguments,
+                    values,
+                    state,
+                    point,
+                    b,
+                )?
+            };
             add(&mut out, &actual, b)?;
         }
         Ok(out)
     }
+}
+
+/// A closure's query effect is relative to its real environment, never to a
+/// type-only owner. Preserve every receiver alternative and its current loan
+/// delegation before selecting the actual capture's payload.
+#[allow(clippy::too_many_arguments)]
+fn captured_read(
+    closure: &ClosureDefinition,
+    f: &TypedFunction,
+    i: &Instruction,
+    source: &Target,
+    values: &[Value],
+    state: &State,
+    point: &Point,
+    b: &mut Budget,
+) -> CompileResult<Vec<Permission>> {
+    let HoldRoot::Capture(index) = source.base else {
+        return Err(closed());
+    };
+    if source.retained_port.is_some()
+        || !source.stored.is_empty()
+        || source.heap_element.is_some()
+        || !source.heap_parents.is_empty()
+    {
+        return Err(closed());
+    }
+    let mut ty = closure.captures.get(index as usize).ok_or_else(closed)?;
+    for projection in &source.place {
+        fee(b, 1)?;
+        let (PlaceProjection::Field(field), Type::Package { fields, .. }) =
+            (projection, super::super::resources::package_storage(ty))
+        else {
+            return Err(closed());
+        };
+        ty = &fields.get(*field as usize).ok_or_else(closed)?.1;
+    }
+    if !matches!(ty, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer) {
+        return Err(closed());
+    }
+    let mut heads = match i.kind {
+        InstructionKind::CallClosureBorrowed { callee, .. } => {
+            copy_origins(point.value(callee, b)?, b)?
+        }
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. } => {
+            if !state.locals.contains_key(&callee) {
+                return Err(closed());
+            }
+            vec![new_origin(
+                local_capture_base(state, callee, b)?,
+                Vec::new(),
+                b,
+            )?]
+        }
+        InstructionKind::CallClosure { callee, .. }
+        | InstructionKind::CallClosureOnce { callee, .. } => {
+            // The consumed value must name a real whole environment producer;
+            // no temporary root is invented from its Closure type.
+            let mut producer = None;
+            for block in &f.blocks {
+                fee(b, block.instructions.len().saturating_add(1))?;
+                for instruction in &block.instructions {
+                    if instruction.result == Some(callee)
+                        && producer.replace(&instruction.kind).is_some()
+                    {
+                        return Err(closed());
+                    }
+                }
+            }
+            let base = match producer.ok_or_else(closed)? {
+                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    local_capture_base(state, *local, b)?
+                }
+                InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
+                    HoldRoot::Capture(*index)
+                }
+                _ => return Err(closed()),
+            };
+            let mut head = new_origin(base, Vec::new(), b)?;
+            fee(b, values[callee.0 as usize].pointer.loans.len())?;
+            head.loans = values[callee.0 as usize].pointer.loans.clone();
+            vec![head]
+        }
+        _ => return Err(closed()),
+    };
+    if heads.is_empty() {
+        return Err(failure(
+            "Byte query environment lacks its actual receiver origin",
+        ));
+    }
+    for head in &mut heads {
+        let mut targets = Targets::new();
+        for root in &head.targets {
+            fee(
+                b,
+                target_width(root)
+                    .saturating_add(source.place.len())
+                    .saturating_add(2),
+            )?;
+            let mut selected = root.clone();
+            selected.place.push(PlaceProjection::Field(index));
+            selected.place.extend_from_slice(&source.place);
+            targets.insert(selected);
+        }
+        head.targets = targets;
+    }
+    Ok(heads)
 }
 pub(super) fn record(
     reads: &mut Vec<Target>,
@@ -806,7 +959,7 @@ pub(super) fn record(
     for source in &permission.targets {
         fee(b, target_width(source).saturating_add(1))?;
         match source.base {
-            HoldRoot::Parameter(_) => {
+            HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
                 let mut found = false;
                 for prior in reads.iter() {
                     fee(

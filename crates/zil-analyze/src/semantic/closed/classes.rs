@@ -1113,6 +1113,14 @@ impl Check<'_, '_> {
         }
         let expression = selected
             .ok_or_else(|| fail("actual header binder has no complete original embedding"))?;
+        if let SemanticClassExpr::Implicit {
+            scope: SemanticScopeRef::Ancestor(0),
+            ordinal,
+        } = expression
+            && let Some(class) = self.captured_implicit_head(instance, binder, *ordinal, b)?
+        {
+            return Ok(class);
+        }
         if let SemanticClassExpr::OuterOccurrence {
             operand: SemanticOperand::Parameter(parameter),
             path,
