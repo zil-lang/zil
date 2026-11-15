@@ -341,6 +341,17 @@ fn zero_resource_occurrence(module:&TypedModule,ty:&Type,span:Option<Span>,b:&mu
     let payload=match head{Type::Managed(inner)|Type::Desc(inner)=>inner.as_ref(),other=>other};
     match payload{
         Type::Registration{..}|Type::AsyncRegistration{..}=>{},
+        Type::Mutex{..}=>{
+            // The manager's complete child domain is independent of its
+            // enclosing borrowed description head. Zero needs an exact
+            // sealed resource definition, not an absent header.
+            b.spend(module.resources.len())?;
+            let mut rows=module.resources.iter().filter(|row|row.payload==*payload);
+            let resource=rows.next().ok_or_else(||reject("E-VERIFY-SIGNATURE-CLASS",span,"mutex scope has no exact sealed resource definition"))?;
+            if rows.next().is_some(){return Err(reject("E-VERIFY-SIGNATURE-CLASS",span,"mutex scope has duplicate sealed resource definitions"));}
+            crate::generic_mutex::definition(module,resource,b)?;
+            if crate::dynamic_witness::intrinsic_domain(module,payload,b)?.0!=0{return Ok(false);}
+        },
         Type::Task{retained_life,..}if retained_life.binder_count==0=>{
             crate::tasks::require_closed_context(payload,span)?;
             if crate::semantic::task_domains::task_metadata_domain(module,payload,b)?!=0{return Ok(false);}

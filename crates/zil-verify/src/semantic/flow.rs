@@ -734,6 +734,11 @@ impl CheckedContext {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("implicit occurrence belongs to a nonexecutable scope"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("implicit occurrence actual function is absent"))?;
         if let Some(source)=source{self.intrinsic_buffer_source(module,instance,f,value,source,b)?;}
+        // A description may be stored in a real local environment view and
+        // loaded repeatedly. The complete original Place/source check above
+        // follows every actual alias/store to its creator; a second direct-SSA
+        // Describe-only whitelist would lose this independently proved root.
+        if !description {
         let mut seen=std::collections::BTreeSet::new();
         loop {
             b.spend(1)?;if !seen.insert(value){return Err(bad("implicit address producer cycle"));}
@@ -746,6 +751,7 @@ impl CheckedContext {
                 InstructionKind::DescribeLocal{..}|InstructionKind::DescribePackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::DescribeAddress{..}if description=>break,
                 _=>return Ok(()),
             }
+        }
         }
         if actual.ty!=expected.ty{return Ok(());}
         let Some(a)=actual.life.slots.iter().find(|row|row.path.is_empty()) else{return Ok(());};

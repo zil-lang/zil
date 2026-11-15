@@ -409,6 +409,23 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             }
             Ok(true)
         }
+        Type::Tuple(fields) => {
+            budget.spend(fields.len())?;
+            for child in fields { if !pollable_storage(module,child,budget)? {return Ok(false);} }
+            Ok(true)
+        }
+        Type::Record{fields,..}|Type::Package{fields,..}=>{
+            budget.spend(fields.len())?;
+            for(_,child)in fields{if !pollable_storage(module,child,budget)?{return Ok(false);}}
+            Ok(true)
+        }
+        Type::Enum{variants,..}=>{
+            budget.spend(variants.len())?;
+            for(_,fields)in variants{budget.spend(fields.len())?;for child in fields{if !pollable_storage(module,child,budget)?{return Ok(false);}}}
+            Ok(true)
+        }
+        Type::ErrorUnion{error,result}=>Ok(pollable_storage(module,error,budget)?&&pollable_storage(module,result,budget)?),
+        Type::Array{element,..}=>pollable_storage(module,element,budget),
         _ => {
             if storage(t,budget)? {return Ok(true);}
             crate::dynamic_witness::structural_actual(module,t,DynStructuralBound::SyncDrop,budget)?;
