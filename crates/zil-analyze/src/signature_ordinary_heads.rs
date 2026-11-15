@@ -119,9 +119,11 @@ pub(super) fn relation(
         if !head_value(module, ty, b)? {
             return Ok(false);
         }
-        if matches!(ty, Type::Address { .. }) {
+        if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             let Some(row) = rows.next() else {
-                return Err(bad("ordinary head relation omits an actual Address input"));
+                return Err(bad(
+                    "ordinary head relation omits an actual address or descriptor input",
+                ));
             };
             if row.position.base
                 != StorageBase::Parameter(
