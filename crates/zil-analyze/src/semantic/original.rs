@@ -1246,6 +1246,34 @@ impl Solver<'_, '_> {
         }
         found.ok_or_else(|| fail("original call or closure has no exact resolution site"))
     }
+    fn lexical_input_hint(
+        &mut self,
+        frame: &Frame,
+        expression: &SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Term>> {
+        self.step(depth, b)?;
+        match &expression.kind {
+            CoreExprKind::Name(name) => self.local(frame, name, b),
+            CoreExprKind::Group(inner) => self.lexical_input_hint(frame, inner, b, depth + 1),
+            CoreExprKind::Ascribed { ty, .. } | CoreExprKind::Record { ty, .. } => {
+                let term = self.recipe(frame, ty, b, depth + 1)?;
+                if matches!(expression.kind, CoreExprKind::Record { .. })
+                    && self.resource_payload(term, b)?
+                {
+                    Ok(Some(self.term(Kind::Wrapped(Wrapper::Managed, term), b)?))
+                } else {
+                    Ok(Some(term))
+                }
+            }
+            CoreExprKind::RecordUpdate { base, .. } => {
+                self.lexical_input_hint(frame, base, b, depth + 1)
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn input_hint(
         &mut self,
         expected: Term,
@@ -2237,10 +2265,8 @@ impl Solver<'_, '_> {
                                 // checks each actual exactly once in order.
                                 let mut hints = Vec::new();
                                 for argument in arguments {
-                                    let hint = match &argument.kind {
-                                        CoreExprKind::Name(name) => self.local(frame, name, b)?,
-                                        _ => None,
-                                    };
+                                    let hint =
+                                        self.lexical_input_hint(frame, argument, b, depth + 1)?;
                                     Self::push(&mut hints, hint, b)?;
                                 }
                                 let (actuals, parameters, result) = self.scheme(

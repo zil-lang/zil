@@ -252,9 +252,16 @@ impl Check<'_, '_> {
                     b,
                 )?;
                 if function.values.get(offset.0 as usize) != Some(&Type::I64) {
-                    return Err(fail(
-                        "actual indexed borrow has another checked index carrier",
+                    let mut errors =
+                        fail("actual indexed borrow has another checked index carrier");
+                    errors[0].notes.push(format!(
+                        "function {} SSA {} index {}: {:?}",
+                        function.id.0,
+                        id.0,
+                        offset.0,
+                        function.values.get(offset.0 as usize)
                     ));
+                    return Err(errors);
                 }
                 let Some(Type::Address { mutable, inner }) =
                     function.values.get(address.0 as usize)
