@@ -199,7 +199,7 @@ impl DefinitionInventory<'_, '_> {
         let mut meter =
             zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
         let result =
-            zil_verify::verify_ct_original_definitions(&originals, &generated, &limits, &mut meter);
+            zil_verify::verify_ct_original_definitions(&originals, &generated, self.target, &limits, &mut meter);
         let charged = self.budget.reserve_analysis_work(meter.spent());
         drop(generated);
         drop(originals);
