@@ -931,15 +931,26 @@ fn interface_context_fingerprint(
             },
         )
         .map_err(|e| vec![e])?;
+        let exhausted = || {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "stored interface context identity budget exceeded",
+                None,
+            )]
+        };
+        // Prepay the complete bounded structural planning pass. The shared
+        // encoder then measures the real identity, instead of charging every
+        // metadata byte as sixty-four encoded bytes or an owned snapshot.
+        *remaining = remaining.checked_sub(work).ok_or_else(exhausted)?;
+        let encoded = life_inventory_encoded_len(&module.life_declarations, &module.life_instances)
+            .ok_or_else(exhausted)?;
+        let encoding_and_hash = encoded
+            .checked_mul(2)
+            .and_then(|work| work.checked_add(128))
+            .ok_or_else(exhausted)?;
         *remaining = remaining
-            .checked_sub(work.saturating_mul(64).saturating_add(128))
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Types,
-                    "stored interface context identity budget exceeded",
-                    None,
-                )]
-            })?;
+            .checked_sub(encoding_and_hash)
+            .ok_or_else(exhausted)?;
     }
     Ok(stored
         .then(|| life_inventory_fingerprint(&module.life_declarations, &module.life_instances)))

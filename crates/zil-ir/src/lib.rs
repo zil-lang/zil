@@ -448,6 +448,28 @@ pub fn life_inventory_fingerprint(
     bytes.finish()
 }
 
+/// Exact byte count of the same versioned identity encoder. Callers bound the
+/// raw trees first, then reserve the measured encoding/hash work. This uses no
+/// temporary encoding buffer and confers no nominal or lifetime authority.
+pub fn life_inventory_encoded_len(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+) -> Option<usize> {
+    struct Length(Option<usize>);
+    impl FingerprintSink for Length {
+        fn push(&mut self, _: u8) {
+            self.0 = self.0.and_then(|length| length.checked_add(1));
+        }
+        fn extend_from_slice(&mut self, bytes: &[u8]) {
+            self.0 = self.0.and_then(|length| length.checked_add(bytes.len()));
+        }
+    }
+    let mut length = Length(Some(0));
+    length.extend_from_slice(b"ZIL-LIFE-INVENTORY-V48\0");
+    encode_life_inventory(&mut length, declarations, instances);
+    length.0
+}
+
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
 /// variants must be diagnosed as Unsupported until their checker is implemented.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
