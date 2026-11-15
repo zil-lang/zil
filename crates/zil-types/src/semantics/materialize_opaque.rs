@@ -251,6 +251,7 @@ impl Eval<'_, '_, '_> {
         caller: SemanticInstanceId,
         candidate: &SemanticInstance,
         boundary: &super::super::original::CalleeResultBoundary,
+        output: ValueId,
         depth: usize,
     ) -> R<()> {
         let SemanticTypeValue::Resolved { life, classes, .. } = value else {
@@ -337,6 +338,7 @@ impl Eval<'_, '_, '_> {
             }
         }
         for (class_index, image) in classes.iter_mut().enumerate() {
+            let local_image;
             let selected = match image {
                 SemanticClassExpr::Formal {
                     scope: SemanticScopeRef::Ancestor(0),
@@ -391,11 +393,38 @@ impl Eval<'_, '_, '_> {
                     if rows.next().is_some() {
                         return Err(bad("opaque result class relation is ambiguous"));
                     }
-                    input_images.get(&row.binder).ok_or_else(|| {
-                        unknown(
-                            "opaque result retains a callee-local class without an input boundary",
-                        )
-                    })?
+                    if let Some(input) = input_images.get(&row.binder) {
+                        input
+                    } else {
+                        let StorageBinder::Invocation(ordinal) = row.binder else {
+                            return Err(unknown(
+                                "opaque captured Fixed result lacks its sealed input boundary",
+                            ));
+                        };
+                        if ordinal >= header.invocation_binder_count
+                            || !matches!(
+                                &self.definition(candidate.definition)?.body,
+                                SemanticDefinitionBody::FunctionWithBody {
+                                    body: SemanticOriginalFunctionBody::Defined(_),
+                                    ..
+                                }
+                            )
+                        {
+                            return Err(bad(
+                                "opaque local result class lacks its complete original body domain",
+                            ));
+                        }
+                        // The complete class of this exact emitted result is
+                        // fresh to the call. Its input alternatives remain in
+                        // the independent return-source/loan proof; no input
+                        // images are identified by this coordinate.
+                        local_image = SemanticClassExpr::IntrinsicClass {
+                            operand: SemanticOperand::Value(output),
+                            path: Vec::new(),
+                            class: class_index as u32,
+                        };
+                        &local_image
+                    }
                 }
             };
             crate::dyn_metadata::semantic_operand_snapshot(selected, self.limits, self.left, 1)?;
@@ -755,9 +784,12 @@ impl Eval<'_, '_, '_> {
                 "opaque result needs its exact original direct-call target",
             ));
         };
-        let actual_result = op
+        let output = op
             .result
-            .and_then(|id| function.values.get(id.0 as usize))
+            .ok_or_else(|| bad("opaque result call has no actual result SSA"))?;
+        let actual_result = function
+            .values
+            .get(output.0 as usize)
             .ok_or_else(|| bad("opaque result call has no actual complete result SSA"))?;
         if let Some(hint) = hint {
             inference::charge_type_snapshot(
@@ -799,6 +831,7 @@ impl Eval<'_, '_, '_> {
                 caller,
                 candidate,
                 boundary,
+                output,
                 depth + 1,
             )?;
             let context = if closed {

@@ -172,24 +172,7 @@ impl Check<'_, '_> {
                     binding.ty,
                     SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
                 ) {
-                    // A real local storage root has no caller lifetime theorem.
-                    // Its loan may be shortened within this body, never promoted
-                    // to an arbitrary formal or ancestor lifetime.
-                    return self.insert_view_bound(
-                        owner,
-                        Query::Expression(expression.id),
-                        ViewBorrowBound {
-                            root: ViewBorrowRoot::Local(binding_node),
-                            lifetime: None,
-                            steps: vec![ViewBorrowStep {
-                                node: expression.id,
-                                kind: ViewBorrowStepKind::Local {
-                                    binding: binding_node,
-                                },
-                            }],
-                        },
-                        depth + 1,
-                    );
+                    return Ok(());
                 }
                 if binding.mutable || binding.written {
                     return Ok(());
@@ -288,6 +271,7 @@ impl Check<'_, '_> {
         owner: SemanticDefinitionId,
         expression: &SemanticOriginalExpr,
         operand: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
         inner: &SemanticTypeRecipe,
         occurrence: &SemanticOuterLifeRecipe,
         wanted: &SemanticOuterLifeRecipe,
@@ -295,6 +279,13 @@ impl Check<'_, '_> {
     ) -> R<SemanticOuterLifeRecipe> {
         if wanted == occurrence {
             return Ok(wanted.clone());
+        }
+        if !self
+            .proof
+            .view_bounds
+            .contains_key(&(owner, Query::Expression(operand.id)))
+        {
+            self.owned_place_bound(owner, operand, variables, depth + 1)?;
         }
         let Some(bound) = self
             .proof
@@ -342,6 +333,57 @@ impl Check<'_, '_> {
             },
         );
         Ok(wanted.clone())
+    }
+    fn owned_place_bound(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        match &expression.kind {
+            CoreExprKind::Name(name) => {
+                let Some(binding) = variables.get(name) else {
+                    return Ok(());
+                };
+                let Query::Binding(node) = binding.origin else {
+                    return Ok(());
+                };
+                if binding.origin_owner != owner
+                    || matches!(
+                        binding.ty,
+                        SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+                    )
+                {
+                    return Ok(());
+                }
+                // This is the storage explicitly borrowed at this operation;
+                // observing or moving a whole value never creates such a loan.
+                self.insert_view_bound(
+                    owner,
+                    Query::Expression(expression.id),
+                    ViewBorrowBound {
+                        root: ViewBorrowRoot::Local(node),
+                        lifetime: None,
+                        steps: vec![ViewBorrowStep {
+                            node: expression.id,
+                            kind: ViewBorrowStepKind::Local { binding: node },
+                        }],
+                    },
+                    depth + 1,
+                )
+            }
+            CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
+                self.owned_place_bound(owner, value, variables, depth + 1)?;
+                self.view_bound(owner, expression, variables, depth + 1)
+            }
+            CoreExprKind::Member { object, .. } => {
+                self.owned_place_bound(owner, object, variables, depth + 1)?;
+                self.view_bound(owner, expression, variables, depth + 1)
+            }
+            _ => Ok(()),
+        }
     }
     fn life_outlives(
         &mut self,

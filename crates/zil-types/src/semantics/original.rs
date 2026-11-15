@@ -2444,6 +2444,15 @@ impl<'a> Check<'a, '_> {
         requirement: &SemanticRequirementRecipe,
         depth: usize,
     ) -> R<()> {
+        self.satisfy_requirement_under(owner, requirement, &[], depth)
+    }
+    fn satisfy_requirement_under(
+        &mut self,
+        owner: SemanticDefinitionId,
+        requirement: &SemanticRequirementRecipe,
+        universal: &[u32],
+        depth: usize,
+    ) -> R<()> {
         self.pay(1, depth)?;
         if self
             .original_requirements(owner, depth + 1)?
@@ -2520,14 +2529,17 @@ impl<'a> Check<'a, '_> {
                 ty,
                 kind,
                 signature,
-            } => self.callable_requirement(owner, ty, *kind, signature, depth + 1)?,
-            SemanticRequirementRecipe::ForAll { requirements, .. } => {
+            } => self.callable_requirement_under(owner, ty, *kind, signature, universal, depth + 1)?,
+            SemanticRequirementRecipe::ForAll { lifetimes, requirements } => {
                 // Introduce this frame rigidly. In particular, do not use the
                 // invocation-instantiation operation here: each Bound role is
                 // arbitrary, and only the candidate's fresh invocation roles
                 // may be solved against it. No goal is installed as a premise.
+                self.pay(universal.len().saturating_add(1), depth)?;
+                let mut frames = universal.to_vec();
+                frames.push(*lifetimes);
                 for requirement in requirements {
-                    self.satisfy_requirement(owner, requirement, depth + 1)?;
+                    self.satisfy_requirement_under(owner, requirement, &frames, depth + 1)?;
                 }
             }
             _ => {
@@ -3170,6 +3182,7 @@ impl<'a> Check<'a, '_> {
                             owner,
                             expression,
                             operand,
+                            variables,
                             &inner,
                             &occurrence,
                             lifetime,

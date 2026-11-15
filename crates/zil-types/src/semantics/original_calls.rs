@@ -1045,10 +1045,19 @@ impl Check<'_, '_> {
         wanted: &SemanticSignatureRecipe,
         depth: usize,
     ) -> R<()> {
+        self.compare_callable_under(actual, wanted, &[], depth)
+    }
+    fn compare_callable_under(
+        &mut self,
+        actual: &SemanticSignatureRecipe,
+        wanted: &SemanticSignatureRecipe,
+        universal: &[u32],
+        depth: usize,
+    ) -> R<()> {
         self.pay(actual.parameters.len(), depth)?;
         if actual.parameters.len() != wanted.parameters.len()
             || actual.bound_lifetimes != wanted.bound_lifetimes
-            || actual.invocation_lifetimes != wanted.invocation_lifetimes
+            || universal.is_empty() && actual.invocation_lifetimes != wanted.invocation_lifetimes
             || actual.call_kind != wanted.call_kind
             || actual.result_mode != wanted.result_mode
         {
@@ -1083,6 +1092,117 @@ impl Check<'_, '_> {
                 &mut invocation,
                 depth + 1,
             )?;
+        }
+        if !universal.is_empty() {
+            // A goal's external Bound frames are rigid. Instantiate only the
+            // independently quantified candidate Invocation directory against
+            // their complete P/R occurrences, including retained children.
+            match (&actual.result, &wanted.result) {
+                (
+                    SemanticTypeRecipe::Address {
+                        mutable: available,
+                        lifetime: a,
+                        inner: ai,
+                    },
+                    SemanticTypeRecipe::Address {
+                        mutable: requested,
+                        lifetime: b,
+                        inner: bi,
+                    },
+                ) => {
+                    if *requested && !available {
+                        return Err(bad(
+                            "original universal callable result strengthens shared access",
+                        ));
+                    }
+                    self.unify(
+                        ai,
+                        bi,
+                        &[],
+                        &mut [],
+                        &mut implicit,
+                        &mut invocation,
+                        depth + 1,
+                    )?;
+                    if !matches!(a, SemanticOuterLifeRecipe::Static) {
+                        self.unify_outer(
+                            a,
+                            b,
+                            &[],
+                            &mut [],
+                            &mut implicit,
+                            &mut invocation,
+                            depth + 1,
+                        )?;
+                    }
+                }
+                _ => self.unify(
+                    &actual.result,
+                    &wanted.result,
+                    &[],
+                    &mut [],
+                    &mut implicit,
+                    &mut invocation,
+                    depth + 1,
+                )?,
+            }
+            self.pay(actual.invocation_lifetimes as usize, depth)?;
+            if actual.invocation_lifetimes as usize > self.limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "universal callable invocation domain exceeded",
+                    None,
+                ));
+            }
+            let mut arbitrary = None;
+            for (frame, count) in universal.iter().enumerate().rev() {
+                if *count != 0 {
+                    arbitrary = Some(SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound {
+                        depth: u32::try_from(universal.len() - frame - 1)
+                            .map_err(|_| bad("universal callable Bound depth overflows"))?
+                            .checked_add(u32::from(wanted.bound_lifetimes != 0))
+                            .ok_or_else(|| bad("universal callable Bound frame overflows"))?,
+                        index: 0,
+                    }));
+                    break;
+                }
+            }
+            if arbitrary.is_none() && wanted.invocation_lifetimes != 0 {
+                arbitrary = Some(SemanticOuterLifeRecipe::Class(
+                    SemanticLifeRecipe::Invocation(0),
+                ));
+            }
+            // Keep every original ordinal, even an unused phantom. Assigning
+            // its arbitrary instance does not collapse the candidate domain.
+            for ordinal in 0..actual.invocation_lifetimes {
+                if !invocation.contains_key(&ordinal) {
+                    let image = arbitrary.as_ref().ok_or_else(|| {
+                        pending(
+                            "universal callable phantom role has no complete instantiation domain",
+                        )
+                    })?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        image,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    invocation.insert(ordinal, image.clone());
+                }
+            }
+            if actual.bound_lifetimes != 0 {
+                // Solver images were observed inside this signature's own
+                // Bound frame. Store them outside that frame before the
+                // substitution traversal lifts them back into each occurrence.
+                for image in implicit.values_mut().chain(invocation.values_mut()) {
+                    if let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound {
+                        depth, ..
+                    }) = image
+                    {
+                        *depth = depth.checked_sub(1).ok_or_else(|| bad("invocation instantiation depends on a signature-private Bound role"))?;
+                    }
+                }
+            }
         }
         let substitution = substitute::Substitution {
             frames: &[],
@@ -1137,6 +1257,17 @@ impl Check<'_, '_> {
         wanted: &SemanticSignatureRecipe,
         depth: usize,
     ) -> R<()> {
+        self.callable_requirement_under(owner, ty, required, wanted, &[], depth)
+    }
+    pub(super) fn callable_requirement_under(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        required: CallableKind,
+        wanted: &SemanticSignatureRecipe,
+        universal: &[u32],
+        depth: usize,
+    ) -> R<()> {
         let value = self.observation_type(owner, ty, depth + 1)?;
         if let Some((kind, actual)) = self.concrete_callable(&value, depth + 1)? {
             if !compatible(kind, required) {
@@ -1144,7 +1275,7 @@ impl Check<'_, '_> {
                     "original concrete callable lacks the required invocation kind",
                 ));
             }
-            self.compare_callable(&actual, wanted, depth + 1)?;
+            self.compare_callable_under(&actual, wanted, universal, depth + 1)?;
             if required == CallableKind::FnOnce
                 && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
                 && wanted.call_kind == CallKind::Direct
@@ -1157,52 +1288,11 @@ impl Check<'_, '_> {
             return Ok(());
         }
         for requirement in self.original_requirements(owner, depth + 1)?.iter() {
-            if let SemanticRequirementRecipe::ForAll {
-                lifetimes,
-                requirements,
-            } = requirement
+            for (premise, kind, signature) in
+                self.callable_premises(requirement, &value, &mut Vec::new(), depth + 1)?
             {
-                self.pay(requirements.len(), depth)?;
-                for requirement in requirements {
-                    let SemanticRequirementRecipe::Callable {
-                        ty: premise,
-                        kind,
-                        signature,
-                    } = requirement
-                    else {
-                        continue;
-                    };
-                    if premise == &value && compatible(*kind, required) {
-                        // Elimination of an independently declared premise is
-                        // separate from rigid introduction of a caller goal.
-                        let signature = substitute::universal_callable(
-                            signature,
-                            *lifetimes,
-                            self.limits,
-                            self.left,
-                        )?;
-                        self.compare_callable(&signature, wanted, depth + 1)?;
-                        if required == CallableKind::FnOnce
-                            && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
-                            && wanted.call_kind == CallKind::Direct
-                            && !self.cleanup_capability(owner, &value, depth + 1)?
-                        {
-                            return Err(bad(
-                                "original Direct FnOnce universal adaptation lacks synchronous environment teardown",
-                            ));
-                        }
-                        return Ok(());
-                    }
-                }
-            }
-            if let SemanticRequirementRecipe::Callable {
-                ty: premise,
-                kind,
-                signature,
-            } = requirement
-            {
-                if premise == &value && compatible(*kind, required) {
-                    self.compare_callable(&signature, wanted, depth + 1)?;
+                if premise == &value && compatible(kind, required) {
+                    self.compare_callable_under(&signature, wanted, universal, depth + 1)?;
                     if required == CallableKind::FnOnce
                         && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
                         && wanted.call_kind == CallKind::Direct
@@ -1219,6 +1309,65 @@ impl Check<'_, '_> {
         Err(bad(
             "original caller lacks a complete callable role premise",
         ))
+    }
+    fn callable_premises<'p>(
+        &mut self,
+        requirement: &'p SemanticRequirementRecipe,
+        value: &SemanticTypeRecipe,
+        frames: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<
+        Vec<(
+            &'p SemanticTypeRecipe,
+            CallableKind,
+            SemanticSignatureRecipe,
+        )>,
+    > {
+        self.pay(1, depth)?;
+        let mut candidates = Vec::new();
+        match requirement {
+            SemanticRequirementRecipe::ForAll {
+                lifetimes,
+                requirements,
+            } => {
+                self.pay(
+                    requirements
+                        .len()
+                        .saturating_add(frames.len())
+                        .saturating_add(1),
+                    depth,
+                )?;
+                frames.push(*lifetimes);
+                let result: R<()> = (|| {
+                    for requirement in requirements {
+                        candidates.extend(self.callable_premises(
+                            requirement,
+                            value,
+                            frames,
+                            depth + 1,
+                        )?);
+                    }
+                    Ok(())
+                })();
+                frames.pop();
+                result?;
+            }
+            SemanticRequirementRecipe::Callable {
+                ty,
+                kind,
+                signature,
+            } if ty == value => {
+                let signature = substitute::universal_callable_frames(
+                    signature,
+                    frames,
+                    self.limits,
+                    self.left,
+                )?;
+                candidates.push((ty, *kind, signature));
+            }
+            _ => {}
+        }
+        Ok(candidates)
     }
     pub(super) fn callable_call(
         &mut self,
@@ -1261,49 +1410,8 @@ impl Check<'_, '_> {
         let mut selected = self.concrete_callable(&value, depth + 1)?;
         if selected.is_none() {
             for requirement in self.original_requirements(owner, depth + 1)?.iter() {
-                let candidates = match requirement {
-                    SemanticRequirementRecipe::Callable {
-                        ty,
-                        kind,
-                        signature,
-                    } => {
-                        self.pay(1, depth)?;
-                        crate::dyn_metadata::semantic_operand_snapshot(
-                            signature.as_ref(),
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                        vec![(ty, *kind, signature.as_ref().clone())]
-                    }
-                    SemanticRequirementRecipe::ForAll {
-                        lifetimes,
-                        requirements,
-                    } => {
-                        self.pay(requirements.len(), depth)?;
-                        let mut candidates = Vec::new();
-                        for requirement in requirements.iter() {
-                            if let SemanticRequirementRecipe::Callable {
-                                ty,
-                                kind,
-                                signature,
-                            } = requirement
-                            {
-                                if ty == &value {
-                                    let signature = substitute::universal_callable(
-                                        &signature,
-                                        *lifetimes,
-                                        self.limits,
-                                        self.left,
-                                    )?;
-                                    candidates.push((ty, *kind, signature));
-                                }
-                            }
-                        }
-                        candidates
-                    }
-                    _ => Vec::new(),
-                };
+                let candidates =
+                    self.callable_premises(requirement, &value, &mut Vec::new(), depth + 1)?;
                 for (ty, kind, signature) in candidates {
                     if ty == &value {
                         if selected.is_some() {

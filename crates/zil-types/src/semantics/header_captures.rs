@@ -12,212 +12,391 @@ pub(in crate::semantics) fn populate(
     left: &mut usize,
     complete: &mut BTreeSet<SemanticInstanceId>,
 ) -> R<()> {
-    let mut changes = Vec::new();
     let view = super::super::materialize::ActualDirectory::from_module(module);
-    pay(left, program.instances.len())?;
-    for instance in &program.instances {
-        let Some(environment) = &instance.environment else {
-            continue;
-        };
-        let SemanticClosureTarget::Typed(id) = environment.closure else {
-            return Err(bad("whole capture embedding retains a Core closure"));
-        };
-        pay(
-            left,
-            module
-                .closures
-                .len()
-                .saturating_add(module.functions.len())
-                .saturating_add(program.definitions.len()),
-        )?;
-        let definition = module
-            .closures
-            .iter()
-            .find(|d| d.id == id)
-            .ok_or_else(|| bad("whole capture has no actual definition"))?;
-        let entry = module
-            .functions
-            .iter()
-            .find(|f| f.id == definition.function)
-            .ok_or_else(|| bad("whole capture has no actual entry"))?;
-        let Some(header) = &definition.storage_life else {
-            continue;
-        };
-        if header.fixed_binder_count == 0 {
-            continue;
-        }
-        crate::borrowed_fp::charge_contract(header, |work| pay(left, work), 2)?;
-        if let Some(actual) = &entry.storage_life {
-            crate::borrowed_fp::charge_contract(actual, |work| pay(left, work), 2)?;
-        }
-        if entry.environment != Some(id) || entry.storage_life.as_ref() != Some(header) {
-            return Err(bad(
-                "whole capture and entry have different complete directories",
-            ));
-        }
-        let original = program
-            .definitions
-            .iter()
-            .find(|d| d.id == instance.definition)
-            .ok_or_else(|| bad("whole capture lost its original definition"))?;
-        let (SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. }
-        | SemanticDefinitionBody::Function { sites: recipes, .. }) = &original.body
-        else {
-            return Err(bad("whole capture original has no code signature"));
-        };
-        let mut images = BTreeMap::new();
-        let captures = creator_captures(program, &view, ledger, instance, id, limits, left)?;
-        for (capture, ordinal, actual_ty) in captures {
-            let Some(value) = capture_value(
-                program, &view, ledger, instance, original, recipes, ordinal, &actual_ty, limits,
-                left,
-            )?
-            else {
+    loop {
+        let mut changes = Vec::new();
+        let mut blocked = false;
+        pay(left, program.instances.len())?;
+        for instance in &program.instances {
+            if complete.contains(&instance.id) {
+                continue;
+            }
+            let Some(environment) = &instance.environment else {
                 continue;
             };
-            let mut bindings = Vec::new();
-            let mut classes = Vec::new();
-            let mut statics = Vec::new();
-            super::super::creator_headers::rows::append(
-                &value,
-                StorageBase::Capture(capture),
-                &mut bindings,
-                &mut classes,
-                &mut statics,
-                limits,
+            let SemanticClosureTarget::Typed(id) = environment.closure else {
+                return Err(bad("whole capture embedding retains a Core closure"));
+            };
+            pay(
                 left,
+                module
+                    .closures
+                    .len()
+                    .saturating_add(module.functions.len())
+                    .saturating_add(program.definitions.len()),
             )?;
-            for (position, image) in bindings {
-                pay(
+            let definition = module
+                .closures
+                .iter()
+                .find(|d| d.id == id)
+                .ok_or_else(|| bad("whole capture has no actual definition"))?;
+            let entry = module
+                .functions
+                .iter()
+                .find(|f| f.id == definition.function)
+                .ok_or_else(|| bad("whole capture has no actual entry"))?;
+            let Some(header) = &definition.storage_life else {
+                continue;
+            };
+            if header.fixed_binder_count == 0 {
+                continue;
+            }
+            crate::borrowed_fp::charge_contract(header, |work| pay(left, work), 2)?;
+            if let Some(actual) = &entry.storage_life {
+                crate::borrowed_fp::charge_contract(actual, |work| pay(left, work), 2)?;
+            }
+            if entry.environment != Some(id) || entry.storage_life.as_ref() != Some(header) {
+                return Err(bad(
+                    "whole capture and entry have different complete directories",
+                ));
+            }
+            let original = program
+                .definitions
+                .iter()
+                .find(|d| d.id == instance.definition)
+                .ok_or_else(|| bad("whole capture lost its original definition"))?;
+            let (SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. }
+            | SemanticDefinitionBody::Function { sites: recipes, .. }) = &original.body
+            else {
+                return Err(bad("whole capture original has no code signature"));
+            };
+            let mut images = BTreeMap::new();
+            let captures = creator_captures(program, &view, ledger, instance, id, limits, left)?;
+            let mut ready = true;
+            for (_, _, ty) in &captures {
+                ready &= capture_dependencies_ready(program, module, ty, limits, left, 0)?;
+            }
+            if !ready {
+                blocked = true;
+                continue;
+            }
+            for (capture, ordinal, actual_ty) in captures {
+                let Some(value) = capture_value(
+                    program, &view, ledger, instance, original, recipes, ordinal, &actual_ty,
+                    limits, left,
+                )?
+                else {
+                    continue;
+                };
+                let mut bindings = Vec::new();
+                let mut classes = Vec::new();
+                let mut statics = Vec::new();
+                super::super::creator_headers::rows::append(
+                    &value,
+                    StorageBase::Capture(capture),
+                    &mut bindings,
+                    &mut classes,
+                    &mut statics,
+                    limits,
                     left,
-                    header
+                )?;
+                for (position, image) in bindings {
+                    pay(
+                        left,
+                        header
+                            .bindings
+                            .len()
+                            .saturating_mul(position.path.len().saturating_add(1)),
+                    )?;
+                    let mut rows = header
                         .bindings
-                        .len()
-                        .saturating_mul(position.path.len().saturating_add(1)),
-                )?;
-                let mut rows = header
-                    .bindings
-                    .iter()
-                    .filter(|row| row.position == position);
-                let Some(row) = rows.next() else {
-                    return Err(bad(
-                        "whole capture outer occurrence is absent from its actual header",
-                    ));
-                };
-                if rows.next().is_some() {
-                    return Err(bad("whole capture outer occurrence is duplicated"));
+                        .iter()
+                        .filter(|row| row.position == position);
+                    let Some(row) = rows.next() else {
+                        return Err(bad(
+                            "whole capture outer occurrence is absent from its actual header",
+                        ));
+                    };
+                    if rows.next().is_some() {
+                        return Err(bad("whole capture outer occurrence is duplicated"));
+                    }
+                    put(
+                        &mut images,
+                        row.binder,
+                        image,
+                        original,
+                        header,
+                        limits,
+                        left,
+                    )?;
                 }
-                put(
-                    &mut images,
-                    row.binder,
-                    image,
-                    original,
-                    header,
-                    limits,
-                    left,
-                )?;
-            }
-            for (position, image) in classes {
-                pay(
-                    left,
-                    header
-                        .classes
-                        .len()
-                        .saturating_mul(position.path.len().saturating_add(1)),
-                )?;
-                let mut rows = header.classes.iter().filter(|row| row.position == position);
-                let Some(row) = rows.next() else {
-                    return Err(bad(
-                        "whole capture intrinsic class is absent from its actual header",
-                    ));
-                };
-                if rows.next().is_some() {
-                    return Err(bad("whole capture intrinsic class is duplicated"));
+                for (position, image) in classes {
+                    pay(
+                        left,
+                        header
+                            .classes
+                            .len()
+                            .saturating_mul(position.path.len().saturating_add(1)),
+                    )?;
+                    let mut rows = header.classes.iter().filter(|row| row.position == position);
+                    let Some(row) = rows.next() else {
+                        return Err(bad(
+                            "whole capture intrinsic class is absent from its actual header",
+                        ));
+                    };
+                    if rows.next().is_some() {
+                        return Err(bad("whole capture intrinsic class is duplicated"));
+                    }
+                    put(
+                        &mut images,
+                        row.binder,
+                        image,
+                        original,
+                        header,
+                        limits,
+                        left,
+                    )?;
                 }
-                put(
-                    &mut images,
-                    row.binder,
-                    image,
-                    original,
-                    header,
-                    limits,
-                    left,
-                )?;
-            }
-            for position in statics {
-                pay(
-                    left,
-                    header
+                for position in statics {
+                    pay(
+                        left,
+                        header
+                            .static_bindings
+                            .len()
+                            .saturating_mul(position.path.len().saturating_add(1)),
+                    )?;
+                    if header
                         .static_bindings
-                        .len()
-                        .saturating_mul(position.path.len().saturating_add(1)),
-                )?;
-                if header
-                    .static_bindings
-                    .iter()
-                    .filter(|row| **row == position)
-                    .count()
-                    != 1
-                {
-                    return Err(bad(
-                        "whole capture constant occurrence differs from its actual header",
-                    ));
-                }
-            }
-        }
-        if images.len() != header.fixed_binder_count as usize {
-            continue;
-        }
-        pay(left, header.fixed_binder_count as usize)?;
-        if (0..header.fixed_binder_count).any(|fixed| !images.contains_key(&fixed)) {
-            continue;
-        }
-        let mut embedding: Vec<_> = images
-            .into_iter()
-            .map(|(fixed, actual)| SemanticHeaderBinding {
-                header: StorageBinder::Fixed(fixed),
-                actual,
-            })
-            .collect();
-        for row in &instance.header_embedding {
-            crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
-            match row.header {
-                StorageBinder::Fixed(fixed) => {
-                    if embedding.get(fixed as usize) != Some(row) {
+                        .iter()
+                        .filter(|row| **row == position)
+                        .count()
+                        != 1
+                    {
                         return Err(bad(
-                            "whole capture embedding differs from its original complete images",
+                            "whole capture constant occurrence differs from its actual header",
                         ));
                     }
                 }
-                StorageBinder::Invocation(index) => {
-                    if index >= header.invocation_binder_count {
-                        return Err(bad(
-                            "whole capture retains an out-of-domain invocation image",
-                        ));
+            }
+            if images.len() != header.fixed_binder_count as usize {
+                continue;
+            }
+            pay(left, header.fixed_binder_count as usize)?;
+            if (0..header.fixed_binder_count).any(|fixed| !images.contains_key(&fixed)) {
+                continue;
+            }
+            let mut embedding: Vec<_> = images
+                .into_iter()
+                .map(|(fixed, actual)| SemanticHeaderBinding {
+                    header: StorageBinder::Fixed(fixed),
+                    actual,
+                })
+                .collect();
+            for row in &instance.header_embedding {
+                crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
+                match row.header {
+                    StorageBinder::Fixed(fixed) => {
+                        if embedding.get(fixed as usize) != Some(row) {
+                            return Err(bad(
+                                "whole capture embedding differs from its original complete images",
+                            ));
+                        }
                     }
-                    embedding.push(row.clone());
+                    StorageBinder::Invocation(index) => {
+                        if index >= header.invocation_binder_count {
+                            return Err(bad(
+                                "whole capture retains an out-of-domain invocation image",
+                            ));
+                        }
+                        embedding.push(row.clone());
+                    }
                 }
             }
+            changes.push((instance.id, embedding));
         }
-        changes.push((instance.id, embedding));
-    }
-    for (id, embedding) in changes {
-        pay(
-            left,
-            program
+        let progress = !changes.is_empty();
+        for (id, embedding) in changes {
+            pay(
+                left,
+                program
+                    .instances
+                    .len()
+                    .saturating_add(complete.len().saturating_add(1).ilog2() as usize + 1),
+            )?;
+            let instance = program
                 .instances
-                .len()
-                .saturating_add(complete.len().saturating_add(1).ilog2() as usize + 1),
-        )?;
-        let instance = program
-            .instances
-            .iter_mut()
-            .find(|instance| instance.id == id)
-            .ok_or_else(|| bad("whole capture instance disappeared"))?;
-        instance.header_embedding = embedding;
-        complete.insert(id);
+                .iter_mut()
+                .find(|instance| instance.id == id)
+                .ok_or_else(|| bad("whole capture instance disappeared"))?;
+            instance.header_embedding = embedding;
+            complete.insert(id);
+        }
+        if !blocked {
+            return Ok(());
+        }
+        if !progress {
+            return Err(Diagnostic::unsupported(
+                Phase::Types,
+                "captured closure graph has an unresolved complete Fixed dependency",
+                None,
+            ));
+        }
     }
-    Ok(())
+}
+
+/// A captured child must have its entire actual Fixed directory before an
+/// enclosing whole value can be interpreted. The worklist publishes only
+/// independently formed rows; dependency order supplies no class equation.
+fn capture_dependencies_ready(
+    program: &SemanticModule,
+    module: &TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    left: &mut usize,
+    depth: usize,
+) -> R<bool> {
+    pay(left, 1)?;
+    if depth > limits.max_call_depth {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "capture dependency depth exceeded",
+            None,
+        ));
+    }
+    let mut ready = true;
+    match ty {
+        Type::Closure(id) => {
+            pay(
+                left,
+                module
+                    .closures
+                    .len()
+                    .saturating_add(program.instances.len()),
+            )?;
+            let child = module
+                .closures
+                .iter()
+                .find(|row| row.id == *id)
+                .ok_or_else(|| bad("capture dependency has no actual closure"))?;
+            let header = child
+                .storage_life
+                .as_ref()
+                .ok_or_else(|| bad("capture dependency has no complete actual domain"))?;
+            let mut instances = program.instances.iter().filter(|row| {
+                row.target
+                    == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
+                        child.function,
+                    ))
+                    && row
+                        .environment
+                        .as_ref()
+                        .is_some_and(|env| env.closure == SemanticClosureTarget::Typed(*id))
+            });
+            let instance = instances
+                .next()
+                .ok_or_else(|| bad("capture dependency has no exact actual semantic instance"))?;
+            if instances.next().is_some() {
+                return Err(bad(
+                    "capture dependency has ambiguous actual semantic instances",
+                ));
+            }
+            pay(
+                left,
+                (header.fixed_binder_count as usize)
+                    .saturating_mul(instance.header_embedding.len().saturating_add(1)),
+            )?;
+            ready = (0..header.fixed_binder_count).all(|fixed| {
+                instance
+                    .header_embedding
+                    .iter()
+                    .filter(|row| row.header == StorageBinder::Fixed(fixed))
+                    .count()
+                    == 1
+            });
+        }
+        Type::Address { inner, .. }
+        | Type::Managed(inner)
+        | Type::Desc(inner)
+        | Type::OwnedStore { element: inner }
+        | Type::Mutex { payload: inner }
+        | Type::Registration { environment: inner }
+        | Type::AsyncRegistration { environment: inner }
+        | Type::Slice { element: inner }
+        | Type::Array { element: inner, .. }
+        | Type::Opaque { hidden: inner, .. }
+        | Type::BorrowedStorage { storage: inner, .. } => {
+            ready &= capture_dependencies_ready(program, module, inner, limits, left, depth + 1)?;
+        }
+        Type::Task {
+            result,
+            retained_life,
+        }
+        | Type::MutexGuard {
+            payload: result,
+            retained_life,
+        } => {
+            ready &= capture_dependencies_ready(program, module, result, limits, left, depth + 1)?;
+            for port in &retained_life.ports {
+                ready &= capture_dependencies_ready(
+                    program,
+                    module,
+                    &port.leaf,
+                    limits,
+                    left,
+                    depth + 1,
+                )?;
+            }
+        }
+        Type::Tuple(fields) => {
+            for field in fields {
+                ready &=
+                    capture_dependencies_ready(program, module, field, limits, left, depth + 1)?;
+            }
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (_, field) in fields {
+                ready &=
+                    capture_dependencies_ready(program, module, field, limits, left, depth + 1)?;
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    ready &= capture_dependencies_ready(
+                        program,
+                        module,
+                        field,
+                        limits,
+                        left,
+                        depth + 1,
+                    )?;
+                }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            ready &= capture_dependencies_ready(program, module, error, limits, left, depth + 1)?;
+            ready &= capture_dependencies_ready(program, module, result, limits, left, depth + 1)?;
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        }
+        | Type::ForeignCallback { parameters, result } => {
+            for parameter in parameters {
+                ready &= capture_dependencies_ready(
+                    program,
+                    module,
+                    parameter,
+                    limits,
+                    left,
+                    depth + 1,
+                )?;
+            }
+            ready &= capture_dependencies_ready(program, module, result, limits, left, depth + 1)?;
+        }
+        _ => {}
+    }
+    Ok(ready)
 }
 
 #[allow(clippy::too_many_arguments)]

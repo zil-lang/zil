@@ -458,10 +458,24 @@ impl Check<'_, '_> {
                     ));
                 }
                 self.call_requirements(owner, callee, arguments, depth + 1)?;
-                self.contexts.push(*definition);
-                let result = self.cleanup_capability(*definition, hidden, depth + 1);
-                self.contexts.pop();
-                return result;
+                // The original definition remains checked under its abstract
+                // premises. This application has its own complete mixed
+                // arguments and may prove cleanup of that specialized value;
+                // it never installs SyncDrop(F) in the defining Gamma.
+                let specialized = super::super::instantiate::ty(
+                    self.program,
+                    &self.proof,
+                    hidden,
+                    super::super::instantiate::DomainMapping {
+                        source: *definition,
+                        use_definition: owner,
+                        arguments,
+                        parent_call: None,
+                    },
+                    self.limits,
+                    self.left,
+                )?;
+                return self.cleanup_capability(owner, &specialized, depth + 1);
             }
             SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
                 for field in fields {
