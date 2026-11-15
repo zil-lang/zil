@@ -140,6 +140,7 @@ fn admit_shape(
         if name.is_empty() {
             return Err(error("Product nominal identity is empty"));
         }
+        let product_name = name;
         for (name, ty) in entries {
             budget.product(
                 name.len(),
@@ -196,9 +197,15 @@ fn admit_shape(
                             None,
                         )]);
                     }
-                    return Err(error(
+                    let mut diagnostics = error(
                         "ordinary Product has an unsupported owning or borrowed child",
-                    ));
+                    );
+                    for diagnostic in &mut diagnostics {
+                        diagnostic.notes.push(format!(
+                            "actual Product {product_name}, field {name}, complete child {ty:?}"
+                        ));
+                    }
+                    return Err(diagnostics);
                 }
             }
         }

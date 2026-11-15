@@ -5698,12 +5698,14 @@ fn separate(
     b: &mut Budget,
 ) -> CompileResult<()> {
     if intersects(left, right, b)? {
-        return Err(vec![Diagnostic::error(
+        let mut diagnostic = Diagnostic::error(
             Phase::Analyze,
             "E-BORROW-CONFLICT",
             None,
             "simultaneously live access overlaps an actual stored target/parent loan",
-        )]);
+        );
+        diagnostic.notes.push(format!("actual conflicting targets: access={left:?}; held={right:?}"));
+        return Err(vec![diagnostic]);
     }
     if may_alias(left, right) {
         let width = target_width(left)
@@ -5773,7 +5775,17 @@ fn permission_tail(
         if write || loan.mutable {
             for target in &permission.targets {
                 for held in &loan.targets {
-                    separate(target, held, apart, b)?;
+                    separate(target, held, apart, b).map_err(|mut errors| {
+                        for error in &mut errors {
+                            if error.code == "E-BORROW-CONFLICT" {
+                                error.notes.push(format!(
+                                    "actual live loan {id}: mutable={}, receiver_head={}, parents={:?}; access_write={write}, access_loans={:?}, ancestors={ignore:?}",
+                                    loan.mutable, loan.receiver_head, loan.parents, permission.loans,
+                                ));
+                            }
+                        }
+                        errors
+                    })?;
                 }
             }
         }
@@ -7147,7 +7159,7 @@ fn windows(
                 for error in &mut errors {
                     error
                         .notes
-                        .push(format!("actual stored access in {}: {:?}", f.name, i.kind));
+                        .push(format!("actual stored access in {} block {bi} instruction {position}: {:?}", f.name, i.kind));
                 }
                 errors
             })?;
