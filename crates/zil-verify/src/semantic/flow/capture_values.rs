@@ -3,7 +3,7 @@
 //! borrows; field reads later use the independently checked capture directory.
 use super::*;
 impl CheckedContext {
-    pub(super) fn capture_creator_source(&self,module:&TypedModule,creator:&SemanticInstance,f:&TypedFunction,mut value:ValueId,source:original::intrinsics::BufferSource,b:&mut Budget)->Check<bool>{
+    pub(in crate::semantic) fn capture_creator_source(&self,module:&TypedModule,creator:&SemanticInstance,f:&TypedFunction,mut value:ValueId,source:original::intrinsics::BufferSource,b:&mut Budget)->Check<bool>{
         let local=self.buffer_source_local(module,creator,f,source,b)?;
         let mut seen=BTreeSet::new();loop{
             b.spend(1)?;if !seen.insert(value){return Err(bad("capture creator has a cyclic actual producer chain"));}
