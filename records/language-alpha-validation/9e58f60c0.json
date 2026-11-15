@@ -1,0 +1,244 @@
+{
+  "candidate": "9e58f60c045c4d19d8f64c8aa8e90cd258651747",
+  "accepted": false,
+  "scope": "Complete foundation source/check and existing small native chains; no Alpha acceptance",
+  "run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-projected-resource-consumers",
+  "cli_build": 0,
+  "foundation_positives": {
+    "passed": 1,
+    "total": 13
+  },
+  "intended_negatives": {
+    "passed": 4,
+    "total": 4
+  },
+  "small_native": {
+    "passed": 16,
+    "total": 16
+  },
+  "semantic_regressions": {
+    "Types": {
+      "passed": 14,
+      "failed": 0
+    },
+    "Verify": {
+      "passed": 29,
+      "failed": 0
+    }
+  },
+  "failure_matrix": [
+    {
+      "family": "scalars",
+      "status": "Success",
+      "diagnostics": []
+    },
+    {
+      "family": "patterns",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "constructor ghost site does not name the actual defining opcode/result",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "family": "generic-libraries",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original body relates independent rigid type/const identities without an original equality (actual Managed, expected Store) [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 4 }), expression NodeId(1)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 4 }]",
+          "span": {
+            "file": 0,
+            "start": 104,
+            "end": 115
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "family": "closures",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "qualified callbacks require finite scalar/shared capture environments and scalar results",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "family": "ownership",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "original call has no complete lexical declaration or core scheme",
+          "span": null,
+          "notes": [
+            "original definition module 2 index 7, expression 8"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "dynamic-abstraction",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original body Call selects another actual operation",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "family": "async-ownership",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "actual instruction lacks complete independent semantic transfer",
+          "span": {
+            "file": 0,
+            "start": 156,
+            "end": 162
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "family": "threads",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-MUTEX",
+          "message": "mutex head lacks one exact sealed resource definition",
+          "span": {
+            "file": 0,
+            "start": 49,
+            "end": 65
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "family": "foreign-lifecycle",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "qualified callbacks require finite scalar/shared capture environments and scalar results",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "family": "owning-collections",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-SEMANTIC-WORLD",
+          "message": "actual whole type or rigid original classes disagree",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": [
+            "actual class equation at crates/zil-types/src/semantics/world.rs:1009; actual point Some((SemanticInstanceId { module: ModuleId(1), index: 10 }, FunctionId(12), BlockId(3), 11, Discriminant(112))); left complete value Resolved { ty: Address { mutable: false, inner: Package { name: \"@module0:$module0_Value\", fields: [(\"bytes\", Managed(ByteBuffer)), (\"id\", I64)] } }, life: StorageLifeShape { binder_count: 1, slots: [StorageLifeSlot { path: [], binder: 0, mode: SharedAddress }], retained: [], nominal_arguments: [] }, classes: [OuterOccurrence { operand: Value(ValueId(18)), path: [], mode: SharedAddress }] }; right complete value Resolved { ty: Address { mutable: false, inner: Package { name: \"@module0:$module0_Value\", fields: [(\"bytes\", Managed(ByteBuffer)), (\"id\", I64)] } }, life: StorageLifeShape { binder_count: 1, slots: [StorageLifeSlot { path: [], binder: 0, mode: SharedAddress }], retained: [], nominal_arguments: [] }, classes: [Formal { scope: Ancestor(0), ordinal: 0 }] }",
+            "actual world work: entry allowance 2934005, failing instance SemanticInstanceId { module: ModuleId(1), index: 10 }/definition SemanticDefinitionId { module: ModuleId(1), index: 12 } began 781255, consumed 66981, remaining 714274; type cache hits 110, misses 267, lookup work 125679, evaluation work 187921; state snapshots 153 work 62660, comparisons 8 work 6354; unreachable correspondence entries retired 37",
+            "complete actual world pass: stage complete actual CFG; instance Some(SemanticInstanceId { module: ModuleId(1), index: 10 }); definition Some(SemanticDefinitionId { module: ModuleId(1), index: 12 }); entry allowance 2934005; consumed 2219731; remaining 714274",
+            "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 163063, first_allowance: 9999974, last_remaining: 9836911 }, \"abi: fixed source ABI selection\": PassStats { calls: 1, work: 3328, first_allowance: 6293513, last_remaining: 6290185 }, \"abi: original function heads\": PassStats { calls: 1, work: 19, first_allowance: 9999993, last_remaining: 9999974 }, \"abi: seal original context\": PassStats { calls: 1, work: 835, first_allowance: 6294348, last_remaining: 6293513 }, \"abi: universal original body check\": PassStats { calls: 1, work: 3541861, first_allowance: 9836911, last_remaining: 6295050 }, \"finish: actual Dyn registry relocation\": PassStats { calls: 1, work: 182, first_allowance: 5514062, last_remaining: 5513880 }, \"finish: actual worlds\": PassStats { calls: 1, work: 2219731, first_allowance: 2934005, last_remaining: 714274 }, \"finish: capture domains\": PassStats { calls: 1, work: 45, first_allowance: 5128188, last_remaining: 5128143 }, \"finish: complete headers\": PassStats { calls: 1, work: 45, first_allowance: 5128350, last_remaining: 5128305 }, \"finish: creator headers\": PassStats { calls: 1, work: 187248, first_allowance: 4467844, last_remaining: 4280596 }, \"finish: deferred nominals\": PassStats { calls: 1, work: 385485, first_allowance: 5513835, last_remaining: 5128350 }, \"finish: full materialization\": PassStats { calls: 1, work: 1346591, first_allowance: 4280596, last_remaining: 2934005 }, \"finish: ghost capture\": PassStats { calls: 1, work: 45, first_allowance: 5513880, last_remaining: 5513835 }, \"finish: header bindings\": PassStats { calls: 1, work: 117, first_allowance: 5128305, last_remaining: 5128188 }, \"finish: ordinary inventory\": PassStats { calls: 1, work: 3192, first_allowance: 5128143, last_remaining: 5124951 }, \"finish: original nominal catalog\": PassStats { calls: 1, work: 657107, first_allowance: 5124951, last_remaining: 4467844 }, \"finish: original publication snapshot\": PassStats { calls: 1, work: 158677, first_allowance: 5932996, last_remaining: 5774319 }, \"finish: relocation\": PassStats { calls: 1, work: 260257, first_allowance: 5774319, last_remaining: 5514062 }, \"finish: verify original inputs\": PassStats { calls: 1, work: 160318, first_allowance: 6093314, last_remaining: 5932996 }, \"program: actual signatures and dynamic inventory\": PassStats { calls: 1, work: 2116, first_allowance: 6290185, last_remaining: 6288069 }, \"program: all actual body emission and helpers\": PassStats { calls: 1, work: 161964, first_allowance: 6268817, last_remaining: 6106853 }, \"program: emitter closure finish\": PassStats { calls: 1, work: 0, first_allowance: 6106853, last_remaining: 6106853 }, \"program: generic templates and shared contexts\": PassStats { calls: 1, work: 19252, first_allowance: 6288069, last_remaining: 6268817 }, \"program: local origins and protocol metadata\": PassStats { calls: 1, work: 19, first_allowance: 6093340, last_remaining: 6093321 }, \"program: original ABI and universal source\": PassStats { calls: 1, work: 3709815, first_allowance: 10000000, last_remaining: 6290185 }, \"program: resource and output metadata\": PassStats { calls: 1, work: 13513, first_allowance: 6106853, last_remaining: 6093340 }, \"program: stored elements and closing transfers\": PassStats { calls: 1, work: 0, first_allowance: 6106853, last_remaining: 6106853 }}, original_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 8 }: (1, 3381, 3381), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (1, 3381, 3381), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (1, 15, 15), SemanticDefinitionId { module: ModuleId(0), index: 11 }: (1, 1019933, 102947), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (1, 4407, 4407), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (1, 1197, 1197), SemanticDefinitionId { module: ModuleId(1), index: 7 }: (2, 26438, 26438), SemanticDefinitionId { module: ModuleId(1), index: 8 }: (2, 13953, 13953), SemanticDefinitionId { module: ModuleId(1), index: 9 }: (2, 5714, 5714), SemanticDefinitionId { module: ModuleId(1), index: 10 }: (2, 142509, 141793), SemanticDefinitionId { module: ModuleId(1), index: 11 }: (1, 14139, 14139), SemanticDefinitionId { module: ModuleId(1), index: 12 }: (2, 40026, 40026), SemanticDefinitionId { module: ModuleId(1), index: 13 }: (1, 46523, 46523), SemanticDefinitionId { module: ModuleId(1), index: 14 }: (2, 207843, 207843), SemanticDefinitionId { module: ModuleId(1), index: 15 }: (2, 41410, 41410), SemanticDefinitionId { module: ModuleId(1), index: 16 }: (2, 62554, 62554), SemanticDefinitionId { module: ModuleId(1), index: 17 }: (2, 698293, 289726), SemanticDefinitionId { module: ModuleId(1), index: 18 }: (2, 70008, 70008), SemanticDefinitionId { module: ModuleId(1), index: 19 }: (1, 2163, 2163), SemanticDefinitionId { module: ModuleId(1), index: 20 }: (2, 250, 250), SemanticDefinitionId { module: ModuleId(2), index: 4 }: (1, 18043, 18043), SemanticDefinitionId { module: ModuleId(2), index: 5 }: (1, 13121, 13121), SemanticDefinitionId { module: ModuleId(2), index: 6 }: (1, 15064, 15064), SemanticDefinitionId { module: ModuleId(2), index: 7 }: (1, 18311, 18311), SemanticDefinitionId { module: ModuleId(2), index: 8 }: (1, 13820, 13820), SemanticDefinitionId { module: ModuleId(2), index: 9 }: (1, 19996, 19996), SemanticDefinitionId { module: ModuleId(2), index: 10 }: (1, 51275, 51275), SemanticDefinitionId { module: ModuleId(2), index: 11 }: (1, 26092, 26092), SemanticDefinitionId { module: ModuleId(2), index: 12 }: (1, 14154, 14154), SemanticDefinitionId { module: ModuleId(2), index: 13 }: (1, 17360, 17360), SemanticDefinitionId { module: ModuleId(3), index: 3 }: (1, 3206, 3206), SemanticDefinitionId { module: ModuleId(3), index: 4 }: (1, 3838, 3838), SemanticDefinitionId { module: ModuleId(3), index: 5 }: (1, 4119, 4119), SemanticDefinitionId { module: ModuleId(3), index: 6 }: (1, 5589, 5589), SemanticDefinitionId { module: ModuleId(3), index: 7 }: (1, 36933, 18232), SemanticDefinitionId { module: ModuleId(3), index: 8 }: (1, 6247, 6247), SemanticDefinitionId { module: ModuleId(4), index: 4 }: (1, 11147, 11147), SemanticDefinitionId { module: ModuleId(4), index: 5 }: (1, 9076, 9076), SemanticDefinitionId { module: ModuleId(4), index: 6 }: (1, 35065, 35065), SemanticDefinitionId { module: ModuleId(4), index: 7 }: (1, 5386, 5386), SemanticDefinitionId { module: ModuleId(4), index: 8 }: (1, 26254, 26254), SemanticDefinitionId { module: ModuleId(4), index: 9 }: (1, 25276, 25276), SemanticDefinitionId { module: ModuleId(4), index: 10 }: (1, 92535, 92535), SemanticDefinitionId { module: ModuleId(4), index: 11 }: (1, 57572, 57572), SemanticDefinitionId { module: ModuleId(4), index: 12 }: (1, 25053, 25053), SemanticDefinitionId { module: ModuleId(4), index: 13 }: (2, 466, 466), SemanticDefinitionId { module: ModuleId(5), index: 0 }: (1, 572, 572), SemanticDefinitionId { module: ModuleId(5), index: 1 }: (1, 997, 997), SemanticDefinitionId { module: ModuleId(5), index: 2 }: (1, 1452, 1452), SemanticDefinitionId { module: ModuleId(5), index: 3 }: (1, 10547, 10547), SemanticDefinitionId { module: ModuleId(5), index: 4 }: (1, 1110, 1110), SemanticDefinitionId { module: ModuleId(5), index: 5 }: (1, 758, 758), SemanticDefinitionId { module: ModuleId(5), index: 6 }: (1, 768, 768), SemanticDefinitionId { module: ModuleId(5), index: 7 }: (1, 2670, 2670), SemanticDefinitionId { module: ModuleId(5), index: 8 }: (2, 16805, 16805), SemanticDefinitionId { module: ModuleId(5), index: 9 }: (2, 18701, 14171), SemanticDefinitionId { module: ModuleId(5), index: 10 }: (1, 3849, 3849), SemanticDefinitionId { module: ModuleId(5), index: 11 }: (2, 4530, 4530)}, original_stages: {\"all_functions_and_carriers\": 1674620, \"associated_inventory\": 118203, \"associated_obligations\": 4006, \"closed_opaque_finalize\": 72, \"finish_effects\": 8532, \"protocol: foreign edges\": 12268, \"protocol: function traversal\": 1721850, \"protocol: relevance\": 233, \"protocol_cleanup\": 1734875}, protocol_bodies: {SemanticDefinitionId { module: ModuleId(0), index: 8 }: (5, 6688, 6688), SemanticDefinitionId { module: ModuleId(0), index: 9 }: (4, 6739, 6739), SemanticDefinitionId { module: ModuleId(0), index: 10 }: (2, 41, 41), SemanticDefinitionId { module: ModuleId(0), index: 11 }: (1, 869230, 141230), SemanticDefinitionId { module: ModuleId(0), index: 16 }: (1, 2591, 2591), SemanticDefinitionId { module: ModuleId(0), index: 17 }: (1, 1346, 1346), SemanticDefinitionId { module: ModuleId(1), index: 7 }: (3, 29238, 29238), SemanticDefinitionId { module: ModuleId(1), index: 8 }: (3, 6355, 6355), SemanticDefinitionId { module: ModuleId(1), index: 9 }: (4, 5131, 5131), SemanticDefinitionId { module: ModuleId(1), index: 10 }: (9, 58521, 58477), SemanticDefinitionId { module: ModuleId(1), index: 11 }: (2, 22940, 22919), SemanticDefinitionId { module: ModuleId(1), index: 12 }: (2, 37050, 37034), SemanticDefinitionId { module: ModuleId(1), index: 13 }: (2, 25017, 25017), SemanticDefinitionId { module: ModuleId(1), index: 14 }: (5, 87124, 87111), SemanticDefinitionId { module: ModuleId(1), index: 15 }: (3, 14841, 14841), SemanticDefinitionId { module: ModuleId(1), index: 16 }: (3, 86785, 86734), SemanticDefinitionId { module: ModuleId(1), index: 17 }: (6, 494719, 291822), SemanticDefinitionId { module: ModuleId(1), index: 18 }: (3, 68944, 68944), SemanticDefinitionId { module: ModuleId(1), index: 19 }: (2, 42290, 42290), SemanticDefinitionId { module: ModuleId(1), index: 20 }: (3, 52, 52), SemanticDefinitionId { module: ModuleId(2), index: 4 }: (1, 43345, 43321), SemanticDefinitionId { module: ModuleId(2), index: 5 }: (1, 6222, 6197), SemanticDefinitionId { module: ModuleId(2), index: 6 }: (1, 6224, 6198), SemanticDefinitionId { module: ModuleId(2), index: 7 }: (1, 17615, 17588), SemanticDefinitionId { module: ModuleId(2), index: 8 }: (1, 7317, 7289), SemanticDefinitionId { module: ModuleId(2), index: 9 }: (1, 15390, 15361), SemanticDefinitionId { module: ModuleId(2), index: 10 }: (1, 80139, 80109), SemanticDefinitionId { module: ModuleId(2), index: 11 }: (1, 73085, 73054), SemanticDefinitionId { module: ModuleId(2), index: 12 }: (1, 6234, 6202), SemanticDefinitionId { module: ModuleId(2), index: 13 }: (1, 59053, 59020), SemanticDefinitionId { module: ModuleId(3), index: 3 }: (1, 5908, 5908), SemanticDefinitionId { module: ModuleId(3), index: 4 }: (1, 3000, 3000), SemanticDefinitionId { module: ModuleId(3), index: 5 }: (1, 3682, 3682), SemanticDefinitionId { module: ModuleId(3), index: 6 }: (1, 13762, 13762), SemanticDefinitionId { module: ModuleId(3), index: 7 }: (1, 49840, 21689), SemanticDefinitionId { module: ModuleId(3), index: 8 }: (1, 10604, 10563), SemanticDefinitionId { module: ModuleId(4), index: 4 }: (1, 12124, 12124), SemanticDefinitionId { module: ModuleId(4), index: 5 }: (1, 4739, 4739), SemanticDefinitionId { module: ModuleId(4), index: 6 }: (7, 14185, 14141), SemanticDefinitionId { module: ModuleId(4), index: 7 }: (1, 7999, 7954), SemanticDefinitionId { module: ModuleId(4), index: 8 }: (1, 21316, 21270), SemanticDefinitionId { module: ModuleId(4), index: 9 }: (1, 19105, 19058), SemanticDefinitionId { module: ModuleId(4), index: 10 }: (1, 97138, 97042), SemanticDefinitionId { module: ModuleId(4), index: 11 }: (1, 85924, 85826), SemanticDefinitionId { module: ModuleId(4), index: 12 }: (1, 33677, 33577), SemanticDefinitionId { module: ModuleId(4), index: 13 }: (4, 122, 122), SemanticDefinitionId { module: ModuleId(5), index: 0 }: (1, 1206, 1206), SemanticDefinitionId { module: ModuleId(5), index: 1 }: (1, 2530, 2530), SemanticDefinitionId { module: ModuleId(5), index: 2 }: (1, 4440, 4440), SemanticDefinitionId { module: ModuleId(5), index: 3 }: (1, 17980, 17980), SemanticDefinitionId { module: ModuleId(5), index: 4 }: (1, 3691, 3691), SemanticDefinitionId { module: ModuleId(5), index: 5 }: (1, 1890, 1890), SemanticDefinitionId { module: ModuleId(5), index: 6 }: (1, 1901, 1901), SemanticDefinitionId { module: ModuleId(5), index: 7 }: (1, 6027, 6027), SemanticDefinitionId { module: ModuleId(5), index: 8 }: (7, 42836, 42836), SemanticDefinitionId { module: ModuleId(5), index: 9 }: (2, 28209, 17474), SemanticDefinitionId { module: ModuleId(5), index: 10 }: (1, 7685, 7685), SemanticDefinitionId { module: ModuleId(5), index: 11 }: (3, 10794, 10794)}, protocol_methods: {\"async_head\": (365, 459, 365), \"block\": (187, 3373892, 1063), \"call\": (194, 1060838, 23250), \"can_drop\": (101, 80011, 80011), \"capture_type\": (0, 0, 0), \"category\": (2488, 702103, 702103), \"change\": (0, 0, 0), \"charge_state\": (327, 2299, 0), \"charge_value\": (3913, 5444, 3913), \"choice\": (75, 1321, 874), \"cleanup\": (340, 38420, 0), \"cleanup_value\": (0, 0, 0), \"closure_child\": (0, 0, 0), \"closure_creator\": (0, 0, 0), \"condition\": (194, 246, 246), \"copy\": (214, 11931, 10411), \"definition\": (781, 5467, 5467), \"drop_value\": (926, 199254, 1945), \"expr\": (1133, 2817498, 41394), \"expr_inner\": (1133, 1676980, 26334), \"function\": (120, 2692580, 43305), \"function_inputs\": (55, 206100, 14445), \"hide_for_defer\": (0, 0, 0), \"items\": (201, 188551, 277), \"iteration\": (0, 0, 0), \"leave\": (443, 70966, 27660), \"loop_body\": (16, 191792, 19), \"matches\": (74, 712, 712), \"merge\": (13, 2192, 1926), \"move_place\": (70, 1847, 0), \"nominal_value\": (322, 4350, 4258), \"observe\": (553, 26286, 4064), \"offer\": (50, 4208, 3695), \"output\": (141, 3787, 3787), \"ownership\": (0, 0, 0), \"pattern\": (83, 1999, 869), \"pattern_query\": (0, 0, 0), \"place_path\": (338, 2515, 2470), \"present\": (0, 0, 0), \"query_async\": (271, 90059, 0), \"query_ownership\": (0, 0, 0), \"query_type\": (1588, 252739, 252739), \"replace_place\": (130, 2686, 1858), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (0, 0, 0), \"scope\": (227, 5164, 5164), \"selected\": (106, 11273, 1298), \"site\": (632, 28411, 23987), \"statement\": (398, 3330286, 8181), \"typed\": (1465, 1088152, 418513), \"unknown_call\": (186, 1026213, 770), \"unselected\": (0, 0, 0), \"value_copy\": (706, 3787, 2620), \"view\": (1325, 1982, 1857)}, phases: {\"nominal_catalog\": PhaseStats { contexts: 1, zero_calls: 1, index_builds: 1, hashed_types: 7, complete_comparisons: 1, work: 1533, first_allowance: 5089948 }, \"world\": PhaseStats { contexts: 1, zero_calls: 145, index_builds: 1, hashed_types: 7, complete_comparisons: 152, work: 80432, first_allowance: 2906512 }} }"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "buffered-io",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: actual call input differs from its complete original role",
+          "span": null,
+          "notes": [
+            "actual semantic instance 0:1 original definition 0:3 function 1 recipe 6 at block 4 instruction 22 After"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "iteration",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "semantic program: original receiver trait application has no complete matching provider",
+          "span": null,
+          "notes": [
+            "original definition module 0 index 10, expression 44"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "project-workflow",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "borrow SSA has no complete original occurrence value",
+          "span": null,
+          "notes": [
+            "world 0:0 function 0 SSA 4 block 0 instruction 10: BorrowLocal { local: LocalId(0) }"
+          ]
+        }
+      ]
+    }
+  ],
+  "workflow_correction": "Root own personal audit initially suspected Source compound assignment event omission; exact implementation inspection instead found Analyze original_index missing navigation classification for CompoundAssign target. Fixed the consumer, preserving original producer inventory.",
+  "cost_evidence": {
+    "candidate": "160f9e876",
+    "owning_collections_world_allowance": 2934005,
+    "world_consumed_before_new_class_equation": 2219731,
+    "world_remaining": 714274,
+    "state_comparisons": 8,
+    "previous_state_comparisons": 3663,
+    "history_entries_retired": 37,
+    "meaning": "Removed unreachable correspondence history and exact-hash-bucket comparisons; full live domains, directed roles and actual memory roots remain. New semantic failure is not an acceptance."
+  }
+}

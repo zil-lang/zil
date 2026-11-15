@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-15T14:56:48.508428+00:00",
+  "updated_at_utc": "2026-11-15T15:28:06.829627+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,21 +9,22 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "361e584cc6839db4e6fb22cbf29b2829828bf929",
-    "record": "records/language-alpha-validation/361e584cc.json",
+    "candidate": "9e58f60c045c4d19d8f64c8aa8e90cd258651747",
+    "record": "records/language-alpha-validation/9e58f60c0.json",
     "acceptance": "NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "fbbc395c595881b3aaf06d59780d44b5c3a74af5",
-  "current_candidate_under_validation": "b014a37bc",
+  "latest_ready_source": "d99df07e0",
+  "current_candidate_under_validation": "d99df07e0",
   "wip_backup": {
-    "archive_commit": "90d7881baf28e97375cb2caec1e48d6b9bd1c1a9",
-    "source_base": "fd028ceb3807b986eb3600664f32266a837c8139",
-    "prefix": "language/20261114T162343Z-active-wip",
-    "changed_files": 10,
-    "artifacts": 12,
+    "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
+    "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
+    "source_base": "9e58f60c045c4d19d8f64c8aa8e90cd258651747",
+    "prefix": "language/20261115T152121Z-active-wip",
+    "changed_files": 0,
+    "artifacts": 8,
     "remote_manifest_and_patch_readback_equal": true,
-    "state": "HALTED source/WIP recovery snapshot; not functional acceptance"
+    "state": "WIP, not functional acceptance"
   },
   "critical_groups": [
     "Complete Source-to-actual emission, constructor roles and retained template instance graph",
@@ -38,7 +39,7 @@
     "Capture TypeUse Expression representation must be consumed independently by A/V original lexical Name and actual capture checks",
     "All-exit cleanup and actual call-world requester receipts are still active WIP"
   ],
-  "last_full_component_regression": "5aad47abb Source153/0; e7643fc96 workspace alltargets0; b37d74743 Verify semantic22/0. Each scope exact candidate, not Alpha acceptance.",
+  "last_full_component_regression": "b014a37bc workspace alltargets compile0; 9e58f60c0 Types semantic14/0 and Verify semantic29/0. Each exact version and narrow stated scope.",
   "task_stage_review": [
     "Private inference PendingTask keeps exact worker/call/input Terms until actual closure/worker domain formed; cannot become Typed/Wire/runtime pending",
     "Task domain identity is original scope/Life formal/whole Type-domain class index; actual worker header is a bridge, not authority to merge caller images. Preserve F.N2 and outer versus intrinsic pointee classes.",
@@ -76,7 +77,7 @@
       "c_abi_companion": "Fail in Analyze original call scheme def0,12 Expr69/67/66; Types original CCallback consumer now passed. Original source/C provider retained."
     }
   },
-  "latest_runtime_acceptance_summary": "NOT ACCEPTED: foundation source/check remains1/13 and intended SyncDrop negatives4/4. Actual C ABI passed Types and Analyze, now Verify original external ABI specialization guard. Small native12/16, phantom now actual source Fixed origin. Source153 and full alltargets have passed separately versioned regressions. Protocol cleanup8.516M/10M root cost identified; immutable CleanupType interning1345fc6e7 under new candidate test. No Alpha PR, merge or release.",
+  "latest_runtime_acceptance_summary": "NOT ACCEPTED: 9e58f60c0 CLI builds; foundation1/13, intended negatives4/4, genuine small-source dual backend O0/O2 native16/16, Types semantic14/0 and Verify semantic29/0. Complete language engineers still blocked. Two larger source projects passed prior Types budget failures without raising10M; owning collections now exact borrow role equation, ownership now Analyze projected abstract callable. No Alpha PR/merge/release.",
   "remaining_alpha_claims": "No complete Alpha, no new PR/merge/release; keep original uninstantiated definitions, independent kernels, default budgets, full native/C/CT/project and restoration acceptance.",
   "active_open_work": [
     "Source private FunctionDraft for truly deferred Task closure return plus full Poll/Task results",
