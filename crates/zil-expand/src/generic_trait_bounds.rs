@@ -1296,9 +1296,22 @@ impl<'a> Index<'a> {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<usize> {
-        for (ordinal, item) in self.items.iter().enumerate() {
-            budget.node(item.span, 0)?;
-            if std::ptr::eq(item, owner) {
+        // The immutable slice already is an ordinal directory. Derive a
+        // candidate from its storage coordinates, then check exact identity;
+        // same-shaped cloned items and references outside this slice fail.
+        // No pointer is dereferenced or subtracted using unsafe arithmetic.
+        budget.identity_work(8, span)?;
+        let width = std::mem::size_of::<Item>();
+        let offset = (owner as *const Item as usize).checked_sub(self.items.as_ptr() as usize);
+        if let Some(offset) = offset
+            && offset % width == 0
+        {
+            let ordinal = offset / width;
+            if self
+                .items
+                .get(ordinal)
+                .is_some_and(|item| std::ptr::eq(item, owner))
+            {
                 return Ok(ordinal);
             }
         }
@@ -1730,5 +1743,63 @@ impl<'a> Index<'a> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod ordinal_tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId, SourceUnit};
+
+    #[test]
+    fn immutable_ordinals_require_the_actual_declaration_allocation() {
+        let input = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "ordinals.zil",
+            "fn first() {}\nfn last() {}\n",
+        );
+        let module = zil_syntax::parse(&input).into_result().unwrap();
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let index = Index::declarations_only(&module, &mut budget).unwrap();
+        for (ordinal, item) in module.items.iter().enumerate() {
+            assert_eq!(
+                index
+                    .declaration_ordinal(item, &mut budget, item.span)
+                    .unwrap(),
+                ordinal
+            );
+            let same_syntax = item.clone();
+            assert!(
+                index
+                    .declaration_ordinal(&same_syntax, &mut budget, item.span)
+                    .is_err()
+            );
+        }
+        let other = module.clone();
+        assert!(
+            index
+                .declaration_ordinal(&other.items[0], &mut budget, other.span)
+                .is_err()
+        );
+        let exact = Limits {
+            max_analysis_steps: 8,
+            ..limits.clone()
+        };
+        assert!(
+            index
+                .declaration_ordinal(&module.items[1], &mut Budget::new(&exact), module.span)
+                .is_ok()
+        );
+        let short = Limits {
+            max_analysis_steps: 7,
+            ..limits
+        };
+        assert!(
+            index
+                .declaration_ordinal(&module.items[1], &mut Budget::new(&short), module.span)
+                .is_err()
+        );
     }
 }

@@ -430,7 +430,9 @@ impl<'a> Budget<'a> {
         self.work -= 1;
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn numeric_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.profile_cost(amount);
         self.temporary(amount, span)?;
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
             Diagnostic::limit(
@@ -493,11 +495,12 @@ impl<'a> Budget<'a> {
         };
         let at = std::panic::Location::caller();
         let key = (at.file(), at.line());
-        if profile.len() < 256 || profile.contains_key(&key) {
-            let entry = profile.entry(key).or_default();
-            entry.0 = entry.0.saturating_add(work);
-            entry.1 = entry.1.saturating_add(1);
-        }
+        // These are static Rust caller coordinates, never input-controlled
+        // names. Keep every site: truncating insertion order hid expensive
+        // late phases while presenting the remaining rows as a full ledger.
+        let entry = profile.entry(key).or_default();
+        entry.0 = entry.0.saturating_add(work);
+        entry.1 = entry.1.saturating_add(1);
     }
     fn profile_limit(&self, phase: Phase, message: &str, span: Option<Span>) -> Diagnostic {
         let mut diagnostic = Diagnostic::limit(phase, message, span);
@@ -505,6 +508,13 @@ impl<'a> Budget<'a> {
             diagnostic.notes.push(format!(
                 "Expand work allowance {}; remaining {}",
                 self.limits.max_analysis_steps, self.work
+            ));
+            diagnostic.notes.push(format!(
+                "Expand profiled attempted work {}; caller sites {}",
+                profile
+                    .values()
+                    .fold(0usize, |total, (work, _)| total.saturating_add(*work)),
+                profile.len()
             ));
             let mut rows = profile.iter().collect::<Vec<_>>();
             rows.sort_unstable_by_key(|(key, (work, _))| (std::cmp::Reverse(*work), **key));
@@ -516,7 +526,9 @@ impl<'a> Budget<'a> {
         }
         diagnostic
     }
+    #[track_caller]
     pub(crate) fn wide_units(&mut self, units: &[u16], span: Span) -> R<()> {
+        self.profile_cost(units.len());
         self.work = self.work.checked_sub(units.len()).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,
@@ -1635,6 +1647,27 @@ impl<'a> Budget<'a> {
 #[cfg(test)]
 mod allocation_tests {
     use super::*;
+
+    #[test]
+    fn cost_profile_keeps_late_callers_and_all_direct_work_debits() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        budget.cost_profile = Some(
+            (0..256)
+                .map(|line| (("earlier.rs", line), (1, 1)))
+                .collect(),
+        );
+        budget.identity_work(37, Span::default()).unwrap();
+        budget.numeric_work(19, Span::default()).unwrap();
+        budget.wide_units(&[1, 2, 3], Span::default()).unwrap();
+        let profile = budget.cost_profile.as_ref().unwrap();
+        assert_eq!(profile.len(), 259);
+        assert_eq!(
+            profile.values().map(|(work, _)| work).sum::<usize>(),
+            256 + 37 + 19 + 3
+        );
+        assert_eq!(limits.max_analysis_steps - budget.work, 37 + 19 + 3);
+    }
 
     #[test]
     fn borrowed_visits_release_scratch_and_preserve_retained_bytes_at_exact_limit() {
