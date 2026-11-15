@@ -269,7 +269,7 @@ fn query_anchor<'a>(
         ));
     };
     core_function(source, module, function, b)?;
-    let index = original_index::index(definition, b)?;
+    let index = inventory.original_index(definition.id, b)?;
     let SemanticOriginalNode::Expression(original) = binding.query.original else {
         return Err(fail("frozen query does not select an original expression"));
     };
@@ -373,7 +373,7 @@ fn selected_bridge(
         return Err(fail("selected CT query wrapper has another execution role"));
     }
     let original_definition = inventory.definition(owner.definition, b)?;
-    let index = original_index::index(original_definition, b)?;
+    let index = inventory.original_index(original_definition.id, b)?;
     let SemanticOriginalNode::Expression(node) = binding.query.original else {
         return Err(fail("query wrapper has no original expression anchor"));
     };

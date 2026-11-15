@@ -595,7 +595,7 @@ impl Check<'_, '_> {
                 let observed = self.original_subject_value(instance, function, node, b)?;
                 if observed != Some(actual) {
                     let definition = self.inventory.definition(instance.definition, b)?;
-                    let original = super::super::original_index::index(definition, b)?;
+                    let original = self.inventory.original_index(definition.id, b)?;
                     let expression = original.get_expr(node, b)?;
                     let (_, _, operation) = self.defining(function, actual, b)?;
                     // A folded integer literal need not have a separate

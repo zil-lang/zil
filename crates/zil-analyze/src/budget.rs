@@ -33,6 +33,7 @@ pub(super) struct Budget {
     remaining: usize,
     // Request-local immutable function CFG/initialization successes only.
     pub(super) initialization: Option<super::InitializationCache>,
+    pub(super) product_store_definitions: Option<crate::dynamic_store::CanonicalDefinitions>,
     pub(super) geometry_types: BTreeMap<usize, crate::semantic::geometry::TypeEntry>,
     // Pure complete Type/domain identity only. Each raw-limit/module partition
     // retains its real immutable owners; no class, where or live loan enters.
@@ -244,6 +245,7 @@ impl Budget {
         Self {
             remaining: limits.max_analysis_steps,
             initialization: None,
+            product_store_definitions: None,
             geometry_types: BTreeMap::new(),
             geometry_epoch: std::sync::Arc::new(()),
             geometry_module: None,

@@ -264,7 +264,7 @@ pub(super) struct Checked {
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
     program: &'i SemanticModule,
-    indexes: BTreeMap<SemanticDefinitionId, original_index::Index<'a>>,
+    indexes: BTreeMap<SemanticDefinitionId, std::sync::Arc<original_index::Index<'a>>>,
     state: Checked,
     active: BTreeSet<SemanticDefinitionId>,
     creators: BTreeMap<SemanticDefinitionId, (SemanticDefinitionId, NodeId)>,
@@ -3853,7 +3853,7 @@ pub(super) fn check(
             definition.body,
             SemanticDefinitionBody::FunctionWithBody { .. }
         ) {
-            let index = original_index::index(definition, b)?;
+            let index = inventory.original_index(definition.id, b)?;
             b.lookup(indexes.len(), WORK)?;
             indexes.insert(definition.id, index);
         }
@@ -4053,6 +4053,27 @@ pub(super) fn check(
                     "original actual does not establish its declared sealed capability"
                 }
             });
+            if matches!(need.predicate, Predicate::Copy) {
+                let root = solver.type_root(need.term, b)?;
+                let detail = match &solver.state.arena[root] {
+                    Kind::Rigid(owner, ordinal) => format!("rigid {}:{} mixed {}", owner.module.0, owner.index, ordinal),
+                    Kind::Nominal { definition, .. } | Kind::Closure { definition, .. } => format!("definition {}:{}", definition.module.0, definition.index),
+                    kind => format!("kind {:?}", std::mem::discriminant(kind)),
+                };
+                errors[0].notes.push(format!("original Copy subject {}", detail));
+                let mut shown = 0usize;
+                'frames: for frame in solver.state.frames.values() {
+                    for (node, term) in &frame.expressions {
+                        b.spend(1, WORK)?;
+                        if *term == need.term || solver.type_root(*term, b)? == root {
+                            b.spend(64, WORK)?;
+                            errors[0].notes.push(format!("original Copy value definition {}:{} expression {}", frame.definition.module.0, frame.definition.index, node.0));
+                            shown += 1;
+                            if shown == 16 { break 'frames; }
+                        }
+                    }
+                }
+            }
             if matches!(need.predicate, Predicate::SyncDrop) {
                 let root = solver.type_root(need.term, b)?;
                 let detail = match &solver.state.arena[root] {

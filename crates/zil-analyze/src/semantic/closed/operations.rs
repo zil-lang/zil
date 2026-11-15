@@ -1524,7 +1524,7 @@ impl Check<'_, '_> {
                     return Err(errors);
                 }
             }
-            let original_nodes = super::super::original_index::index(definition, b)?;
+            let original_nodes = self.inventory.original_index(definition.id, b)?;
             for recipe in recipes {
                 b.spend(self.program.sites.len(), WORK)?;
                 if !self

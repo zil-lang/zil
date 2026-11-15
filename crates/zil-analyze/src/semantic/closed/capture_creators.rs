@@ -196,7 +196,7 @@ impl Check<'_, '_> {
         };
         let function = self.inventory.function(target, b)?;
         let parent_definition = self.inventory.definition(parent.definition, b)?;
-        let source_index = super::super::original_index::index(parent_definition, b)?;
+        let source_index = self.inventory.original_index(parent_definition.id, b)?;
         let SemanticDefinitionBody::FunctionWithBody {
             sites, site_nodes, ..
         } = &parent_definition.body

@@ -189,7 +189,7 @@ impl Check<'_, '_> {
                 }
             }
         }
-        let index = super::super::original_index::index(declaration, b)?;
+        let index = self.inventory.original_index(declaration.id, b)?;
         let expression = index.get_expr(
             original.ok_or_else(|| fail("thread operation has no original source call"))?,
             b,

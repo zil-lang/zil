@@ -29,6 +29,9 @@ struct Inventory<'a> {
     source: Option<&'a CoreProgram>,
     frozen_wrapper: Option<SemanticDefinitionId>,
     definitions: BTreeMap<SemanticDefinitionId, &'a SemanticDefinition>,
+    // Immutable validated source structure; Arc preserves covariance of the
+    // borrowed original nodes and grants no original or actual value fact.
+    original_indexes: BTreeMap<SemanticDefinitionId, std::sync::Arc<original_index::Index<'a>>>,
     instances: BTreeMap<SemanticInstanceId, &'a SemanticInstance>,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
     // Successful immutable source-directory queries only. A frozen source
@@ -60,6 +63,7 @@ impl<'a> Inventory<'a> {
             source: None,
             frozen_wrapper: None,
             definitions: BTreeMap::new(),
+            original_indexes: BTreeMap::new(),
             instances: BTreeMap::new(),
             functions: BTreeMap::new(),
             dyn_definitions: std::cell::RefCell::new(BTreeMap::new()),
@@ -121,7 +125,24 @@ impl<'a> Inventory<'a> {
                 return Err(fail("actual function identity is ambiguous"));
             }
         }
+        for definition in inventory.definitions.values() {
+            if matches!(definition.body, SemanticDefinitionBody::FunctionWithBody { .. }) {
+                let index = original_index::index(definition, b)?;
+                b.lookup(inventory.original_indexes.len(), WORK)?;
+                inventory.original_indexes.insert(definition.id, std::sync::Arc::new(index));
+            }
+        }
         Ok(inventory)
+    }
+    fn original_index(
+        &self,
+        owner: SemanticDefinitionId,
+        b: &mut Budget,
+    ) -> CompileResult<std::sync::Arc<original_index::Index<'a>>> {
+        b.lookup(self.original_indexes.len(), WORK)?;
+        b.spend(1, WORK)?;
+        self.original_indexes.get(&owner).cloned()
+            .ok_or_else(|| fail("original function has no complete structural directory"))
     }
     fn source_key(&self) -> usize {
         self.source

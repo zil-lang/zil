@@ -93,46 +93,15 @@ impl Check<'_, '_> {
                 })
             }
             original::LocalAnchor::Binding(statement) => {
-                let definition = self.inventory.definition(instance.definition, b)?;
-                let SemanticDefinitionBody::FunctionWithBody {
-                    site_nodes, sites, ..
-                } = &definition.body
-                else {
-                    return Err(fail("original local anchor has no complete body"));
+                let index = self.inventory.original_index(instance.definition, b)?;
+                let recipe = index.declaration_site(statement, b)?;
+                let site = self.inventory.emitted_site(self.program, instance.id, recipe, b)?;
+                let SemanticSiteAction::DeclareLocal {
+                    local: SemanticLocalTarget::Typed(local), ..
+                } = site.action else {
+                    return Err(fail("original local anchor changes its actual declaration operation"));
                 };
-                let mut selected = None;
-                for link in site_nodes {
-                    b.spend(1, WORK)?;
-                    if link.node != SemanticOriginalNode::Statement(statement) {
-                        continue;
-                    }
-                    b.spend(sites.len(), WORK)?;
-                    if !sites.iter().any(|site| {
-                        site.id == link.site
-                            && matches!(site.kind, SemanticSiteRecipeKind::DeclareLocal { .. })
-                    }) {
-                        continue;
-                    }
-                    for site in &self.program.sites {
-                        b.spend(1, WORK)?;
-                        if site.instance != instance.id || site.recipe != link.site {
-                            continue;
-                        }
-                        let SemanticSiteAction::DeclareLocal {
-                            local: SemanticLocalTarget::Typed(local),
-                            ..
-                        } = site.action
-                        else {
-                            return Err(fail(
-                                "original local anchor changes its actual declaration operation",
-                            ));
-                        };
-                        if selected.replace(local).is_some() {
-                            return Err(fail("original local anchor has competing actual slots"));
-                        }
-                    }
-                }
-                selected.ok_or_else(|| fail("original local anchor has no actual declared slot"))
+                Ok(local)
             }
         }
     }

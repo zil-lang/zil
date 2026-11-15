@@ -3,6 +3,119 @@ use zil_ir::{InstructionKind, Type, ValueId};
 
 use super::{Budget, CompileResult, Diagnostic, Phase, TypedModule, callable_fields};
 
+/// Successful immutable canonical declaration checks in one analysis request.
+/// The input still needs complete payload equality and current type preflight;
+/// no occupant, loan, permission or cleanup state is retained here.
+pub(super) struct CanonicalDefinitions {
+    module: usize,
+    limits: (usize, usize),
+    proofs: std::collections::BTreeMap<u8, std::collections::BTreeMap<String, usize>>,
+}
+fn canonical_context(module: &TypedModule, b: &Budget) -> bool {
+    let owner = module as *const TypedModule as usize;
+    b.initialization
+        .as_ref()
+        .is_some_and(|input| input.module == owner)
+}
+fn canonical_cached(
+    module: &TypedModule,
+    name: &str,
+    payload: &Type,
+    kind: u8,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !canonical_context(module, b) {
+        return Ok(false);
+    }
+    let owner = module as *const TypedModule as usize;
+    let limits = (b.partial_depth, b.helper_nodes);
+    let width = b
+        .product_store_definitions
+        .as_ref()
+        .filter(|cache| cache.module == owner && cache.limits == limits)
+        .and_then(|cache| cache.proofs.get(&kind))
+        .map_or(0, |items| items.len());
+    b.lookup(width, "canonical Store declaration query")?;
+    // Each balanced-tree comparison can inspect the complete lookup string.
+    let comparisons = usize::BITS as usize - width.saturating_add(1).leading_zeros() as usize;
+    b.spend(
+        name.len().saturating_mul(comparisons.saturating_add(1)),
+        "canonical Store declaration key",
+    )?;
+    let found = b
+        .product_store_definitions
+        .as_ref()
+        .filter(|cache| cache.module == owner && cache.limits == limits)
+        .and_then(|cache| cache.proofs.get(&kind))
+        .and_then(|items| items.get(name))
+        .copied();
+    let Some(index) = found else {
+        return Ok(false);
+    };
+    let definition = module
+        .resources
+        .get(index)
+        .ok_or_else(|| super::bad("canonical Store declaration index leaves its exact module"))?;
+    // Full preflight precedes both comparison and reuse. A newly supplied Type
+    // is never trusted because its name happens to hit a successful directory.
+    crate::dyn_metadata::ty(payload, b)?;
+    b.type_work(payload, false, "canonical Store input equality")?;
+    b.type_work(
+        &definition.payload,
+        false,
+        "canonical Store declaration equality",
+    )?;
+    Ok(&definition.payload == payload)
+}
+fn remember_canonical(
+    module: &TypedModule,
+    name: &str,
+    kind: u8,
+    index: usize,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !canonical_context(module, b) {
+        return Ok(());
+    }
+    let owner = module as *const TypedModule as usize;
+    let limits = (b.partial_depth, b.helper_nodes);
+    if !b
+        .product_store_definitions
+        .as_ref()
+        .is_some_and(|cache| cache.module == owner && cache.limits == limits)
+    {
+        b.spend(1, "canonical Store declaration directory")?;
+        b.product_store_definitions = Some(CanonicalDefinitions {
+            module: owner,
+            limits,
+            proofs: std::collections::BTreeMap::new(),
+        });
+    }
+    let width = b
+        .product_store_definitions
+        .as_ref()
+        .and_then(|cache| cache.proofs.get(&kind))
+        .map_or(0, |items| items.len());
+    b.lookup(width, "canonical Store declaration publication")?;
+    let comparisons = usize::BITS as usize - width.saturating_add(1).leading_zeros() as usize;
+    b.spend(
+        name.len()
+            .saturating_mul(comparisons.saturating_add(2))
+            .saturating_add(1),
+        "canonical Store declaration publication key",
+    )?;
+    let cache = b
+        .product_store_definitions
+        .as_mut()
+        .ok_or_else(|| super::bad("canonical Store declaration directory is absent"))?;
+    cache
+        .proofs
+        .entry(kind)
+        .or_default()
+        .insert(name.to_owned(), index);
+    Ok(())
+}
+
 /// The caller completes bounded raw type preflight before invoking this
 /// producer-only admission. No Types result is used as a proof here.
 pub(super) fn product_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
@@ -190,12 +303,15 @@ pub(super) fn ordinary_owned(
     if super::nested_store::selected(element) {
         return super::nested_store::carrier(module, element, budget);
     }
-    budget.type_work(element, true, WORK)?;
     let Type::Package { name, fields } = element.as_ref() else {
         return Err(super::bad(
             "ordinary Product Store requires an actual Package element",
         ));
     };
+    if canonical_cached(module, name, payload, 0, budget)? {
+        return Ok(());
+    }
+    budget.type_work(element, true, WORK)?;
     if fields
         .iter()
         .any(|(_, field)| matches!(field, Type::Closure(_)))
@@ -208,7 +324,8 @@ pub(super) fn ordinary_owned(
     let canonical = format!("@builtin:OwnedStore<{name}>");
     budget.spend(module.resources.len(), WORK)?;
     let mut found = 0usize;
-    for resource in &module.resources {
+    let mut selected = None;
+    for (index, resource) in module.resources.iter().enumerate() {
         budget.spend(resource.name.len().saturating_add(canonical.len()), WORK)?;
         let related = if let Type::OwnedStore { element: actual } = &resource.payload
             && let Type::Package { name: actual, .. } = actual.as_ref()
@@ -231,12 +348,20 @@ pub(super) fn ordinary_owned(
             ));
         }
         found += 1;
+        selected = Some(index);
     }
     if found != 1 {
         return Err(super::bad(
             "ordinary Product Store requires exactly one canonical definition",
         ));
     }
+    remember_canonical(
+        module,
+        name,
+        0,
+        selected.ok_or_else(|| super::bad("canonical Store resource is absent"))?,
+        budget,
+    )?;
     Ok(())
 }
 
@@ -452,15 +577,19 @@ pub(super) fn owned_capture(
     if !matches!(element.as_ref(), Type::Package { .. }) {
         return super::ownership_store::ordinary_owned(module, ty, budget);
     }
-    capture_element(element, budget)?;
     let Type::Package { name, .. } = element.as_ref() else {
-        unreachable!("qualified leaf")
+        unreachable!("Package capture branch")
     };
+    if canonical_cached(module, name, payload, 1, budget)? {
+        return Ok(());
+    }
+    capture_element(element, budget)?;
     budget.spend(name.len().saturating_add(32), WORK)?;
     let canonical = format!("@builtin:OwnedStore<{name}>");
     budget.spend(module.resources.len(), WORK)?;
     let mut found = 0;
-    for resource in &module.resources {
+    let mut selected = None;
+    for (index, resource) in module.resources.iter().enumerate() {
         budget.spend(resource.name.len().saturating_add(canonical.len()), WORK)?;
         let related_payload = if let Type::OwnedStore { element: actual } = &resource.payload
             && let Type::Package {
@@ -491,12 +620,20 @@ pub(super) fn owned_capture(
             ));
         }
         found += 1;
+        selected = Some(index);
     }
     if found != 1 {
         return Err(super::bad(
             "owned Store capture requires exactly one canonical resource definition",
         ));
     }
+    remember_canonical(
+        module,
+        name,
+        1,
+        selected.ok_or_else(|| super::bad("canonical capture Store resource is absent"))?,
+        budget,
+    )?;
     Ok(())
 }
 
