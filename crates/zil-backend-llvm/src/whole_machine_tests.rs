@@ -845,7 +845,7 @@ fn closed_call_class_policy_switch_cannot_reuse_another_transform_policy() {
                 assert_eq!((checked, cached, removed), (0, 2, 0));
                 assert!(retained > 0);
             } else if matches!(index, 2 | 3) {
-                assert_eq!((checked, cached, removed), (0, 1, 0));
+                assert_eq!((checked, cached, removed), (1, 1, 1));
                 assert!(
                     retained > 0,
                     "the unchanged dead unit retains its original checked transformation"

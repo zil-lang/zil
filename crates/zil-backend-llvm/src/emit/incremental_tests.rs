@@ -130,7 +130,29 @@ fn lower(verified: &VerifiedModule, session: &mut Session) -> m::Module {
         functions: module.functions.clone(),
         closures: module.closures.clone(),
         resources: module.resources.clone(),
-        layouts: vec![],
+        layouts: [
+            (Type::Unit, 0, 1),
+            (Type::Bool, 1, 1),
+            (Type::I32, 4, 4),
+            (Type::I64, 8, 8),
+            (Type::F32, 4, 4),
+            (Type::F64, 8, 8),
+            (Type::U8, 1, 1),
+            (Type::U16, 2, 2),
+            (Type::U32, 4, 4),
+            (Type::I8, 1, 1),
+            (Type::I16, 2, 2),
+            (Type::Isize, 8, 8),
+            (Type::ForeignHandle, 8, 8),
+            (Type::CWideString, 8, 8),
+        ]
+        .into_iter()
+        .map(|(ty, size, alignment)| ScalarLayout {
+            ty,
+            size,
+            alignment,
+        })
+        .collect(),
     };
     super::super::lower_view_with_session(
         verified,
