@@ -2406,7 +2406,7 @@ pub(super) fn plain_pointer_type(ty:&Type,b:&mut Budget)->Check<bool>{
         if depth>b.limits.max_call_depth.min(128){return Err(limit("plain code signature depth exceeded"));}
         match ty{
             Type::FunctionPointer{parameters,result}=>{b.spend(parameters.len())?;pending.extend(parameters.iter().map(|ty|(ty,depth+1)));pending.push((result,depth+1));},
-            Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;super::native_values::callback_signature(parameters,result,None)?;b.spend(parameters.len())?;pending.extend(parameters.iter().map(|ty|(ty,depth+1)));pending.push((result,depth+1));},
+            Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;super::native_values::callback_signature(parameters,result,None)?;},
             Type::BorrowedStorage{storage,life}=>{
                 if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Ok(false);}
                 pending.push((storage,depth+1));
@@ -2432,10 +2432,18 @@ fn plain_pointer_operation(module:&TypedModule,f:&TypedFunction,i:&Instruction,b
     let Some(pointer)=pointer else{return Ok(false);};
     if !plain_pointer_type(pointer,b)?{return Ok(false);}
     let Type::FunctionPointer{parameters,result}=pointer else{unreachable!()};
-    let expected=super::check_instruction(module,f,i,b)?;
+    // The raw kernel checks the operation and its result presence/full Type;
+    // its return is a checked receipt (), not an optional result Type.
+    super::check_instruction(module,f,i,b)?;
+    let expected=match i.kind{
+        InstructionKind::FunctionRef{..}=>Some(pointer),
+        InstructionKind::CallIndirect{..}if result.as_ref()==&Type::Unit=>None,
+        InstructionKind::CallIndirect{..}=>Some(result.as_ref()),
+        _=>unreachable!(),
+    };
     match(i.result,expected){
         (None,None)=>{},
-        (Some(result),Some(expected))if f.values.get(result.0 as usize)==Some(&expected)=>{},
+        (Some(actual),Some(expected))if f.values.get(actual.0 as usize)==Some(expected)=>{},
         _=>return Err(bad("plain code operation changes its complete actual result")),
     }
     if let InstructionKind::FunctionRef{function}=i.kind{
