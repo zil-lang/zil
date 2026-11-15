@@ -51,7 +51,7 @@ pub(super) fn relative(
                         .get(index.variant as usize)
                         .and_then(|(_, fields)| fields.get(index.index as usize)),
                     (Type::ErrorUnion { error, result }, PlaceProjection::ErrorArm(failed)) => {
-                        Some(if *failed { error } else { result })
+                        Some(if *failed { error.as_ref() } else { result.as_ref() })
                     }
                     _ => None,
                 }
