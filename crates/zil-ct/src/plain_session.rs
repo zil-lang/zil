@@ -23,7 +23,9 @@ struct Epoch {
     target: TargetProfile,
     limits: Limits,
     modules: Vec<ModuleReceipt>,
+    headers: HintHeaders,
 }
+type HintHeaders = BTreeMap<zil_base::ModuleId, BTreeMap<String, Option<Arc<CoreFunction>>>>;
 #[derive(Clone)]
 struct ModuleReceipt {
     functions: PersistentVec<FunctionReceipt>,
@@ -82,10 +84,13 @@ impl BodyCost {
         Some(())
     }
 }
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct FunctionReceipt {
     shape_cost: usize,
     body_cost: BodyCost,
+    // Complete lookup keys, including misses and ambiguous declarations.
+    // Imports remain globally exact; lexical shadowing is collected below.
+    hints: Arc<[(zil_base::ModuleId, String)]>,
 }
 
 impl PlainSourceSession {
@@ -196,6 +201,7 @@ impl PlainSourceSession {
                 &remaining,
                 context,
                 prior,
+                old.map(|old| &old.headers),
                 &mut self.stats,
             )?;
             // Exactly the driver's project allowance transitions, without
@@ -212,22 +218,39 @@ impl PlainSourceSession {
         // Publish only after the whole plain program and all ordered project
         // charges succeed. Persistent function rows and Core owners are shared;
         // this retains one raw epoch, never an unbounded body/history map.
+        let mut headers: HintHeaders = BTreeMap::new();
+        for module in &program.modules {
+            for (index, function) in module.core.functions.iter().enumerate() {
+                // Every successful plain function has scalar, usable hints.
+                // Match SourceProgramContext's ambiguity rule, including a
+                // duplicate whose body is never otherwise referenced.
+                headers
+                    .entry(module.core.module_id)
+                    .or_default()
+                    .entry(function.name.clone())
+                    .and_modify(|entry| *entry = None)
+                    .or_insert_with(|| module.core.functions.owner(index).cloned());
+            }
+        }
         self.current = Some(Arc::new(Epoch {
             program: program.clone(),
             target: target.clone(),
             limits: user_limits.clone(),
             modules,
+            headers,
         }));
         Some(usages)
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_module(
     core: &CoreModule,
     target: &TargetProfile,
     limits: &Limits,
     context: &SourceProgramContext<'_>,
     prior: Option<(&CoreModule, &ModuleReceipt)>,
+    headers: Option<&HintHeaders>,
     stats: &mut PlainSourceStats,
 ) -> Option<(ModuleReceipt, SourceEvaluationUsage)> {
     unchanged_inventory(core)?;
@@ -276,7 +299,30 @@ fn validate_module(
         let before = Ledger::of(&walker);
         // Local hint scopes must not escape a function; this is the complete
         // mutable Walker state and every other input is independently bound.
-        if reusable[index] {
+        let hints = if reusable[index] {
+            rows[index].hints.clone()
+        } else {
+            plain_hint_reads(function, core.module_id, context)?.into()
+        };
+        let same_hints = headers.is_some_and(|headers| {
+            hints.iter().all(|(module, name)| {
+                let previous = headers
+                    .get(module)
+                    .and_then(|headers| headers.get(name))
+                    .and_then(Option::as_deref);
+                let current = context
+                    .functions
+                    .get(&(*module, name.as_str()))
+                    .copied()
+                    .flatten();
+                match (previous, current) {
+                    (Some(previous), Some(current)) => same_header(previous, current),
+                    (None, None) => true,
+                    _ => false,
+                }
+            })
+        });
+        if reusable[index] && same_hints {
             rows[index].body_cost.replay(&mut walker)?;
             stats.body_reuses += 1;
         } else {
@@ -289,6 +335,7 @@ fn validate_module(
         let row = FunctionReceipt {
             shape_cost: shapes[index],
             body_cost: before.cost_to(Ledger::of(&walker))?,
+            hints,
         };
         if rows[index] != row {
             rows.replace(index, row);
@@ -301,7 +348,148 @@ fn validate_module(
     Some((ModuleReceipt { functions: rows }, usage))
 }
 
-// This is only equality of inputs consumed by successful plain body hints.
+// All external reads in unchanged_function/block/expr are call_hints and
+// hint(Call), both through Walker::function -> SourceProgramContext::function.
+// Every Call executes call_hints, so collecting its lexical lookup covers
+// hint(Call)'s repeated reads as well. No branch is evaluated/selected here.
+// The preceding shape admission bounds recursion to 128 and excludes every
+// other hint consumer (nominals, templates, closures, CT and rewritten nodes).
+// Unexpected extensions decline the optimization instead of omitting an edge.
+fn plain_hint_reads(
+    function: &CoreFunction,
+    module: zil_base::ModuleId,
+    context: &SourceProgramContext<'_>,
+) -> Option<Vec<(zil_base::ModuleId, String)>> {
+    struct Reads<'a, 'p> {
+        module: zil_base::ModuleId,
+        context: &'a SourceProgramContext<'p>,
+        scopes: Vec<BTreeSet<String>>,
+        keys: Vec<(zil_base::ModuleId, String)>,
+    }
+    impl Reads<'_, '_> {
+        fn expr(&mut self, e: &CoreExpr) -> Option<()> {
+            match &e.kind {
+                CoreExprKind::Literal(_)
+                | CoreExprKind::Integer(_)
+                | CoreExprKind::Float(_)
+                | CoreExprKind::Bool(_)
+                | CoreExprKind::Unit
+                | CoreExprKind::Name(_) => {}
+                CoreExprKind::Unary { operand, .. } => self.expr(operand)?,
+                CoreExprKind::IntegerConvert { value, .. }
+                | CoreExprKind::NumericConvert { value, .. } => self.expr(value)?,
+                CoreExprKind::Binary { left, right, .. } => {
+                    self.expr(left)?;
+                    self.expr(right)?;
+                }
+                CoreExprKind::Call { callee, arguments } => {
+                    let lookup = match &callee.kind {
+                        CoreExprKind::Name(name) => Some((name, None, name)),
+                        CoreExprKind::Member {
+                            object,
+                            member,
+                            owner: None,
+                        } => match &object.kind {
+                            CoreExprKind::Name(alias) => Some((alias, Some(alias), member)),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    if let Some((first, alias, name)) = lookup
+                        && !self.scopes.iter().rev().any(|scope| scope.contains(first))
+                    {
+                        let owner = if let Some(alias) = alias {
+                            self.context
+                                .imports
+                                .get(&(self.module, alias.as_str()))
+                                .copied()
+                                .flatten()
+                        } else {
+                            Some(self.module)
+                        };
+                        // An absent/ambiguous alias stays bound by complete
+                        // import equality. A missing function needs a key too.
+                        if let Some(owner) = owner {
+                            self.keys.push((owner, name.clone()));
+                        }
+                    }
+                    for argument in arguments {
+                        self.expr(argument)?;
+                    }
+                    self.expr(callee)?;
+                }
+                CoreExprKind::Member { object, .. } => self.expr(object)?,
+                CoreExprKind::If {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    self.expr(condition)?;
+                    self.expr(then_value)?;
+                    self.expr(else_value)?;
+                }
+                _ => return None,
+            }
+            Some(())
+        }
+        fn block(&mut self, block: &CoreBlock) -> Option<()> {
+            self.scopes.push(BTreeSet::new());
+            for statement in &block.statements {
+                match &statement.kind {
+                    CoreStatementKind::Binding {
+                        name, initializer, ..
+                    } => {
+                        if let Some(e) = initializer {
+                            self.expr(e)?;
+                        }
+                        self.scopes.last_mut()?.insert(name.clone());
+                    }
+                    CoreStatementKind::Assign { target, value } => {
+                        self.expr(target)?;
+                        self.expr(value)?;
+                    }
+                    CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
+                        self.expr(e)?
+                    }
+                    CoreStatementKind::If {
+                        condition,
+                        then_body,
+                        else_body,
+                    } => {
+                        self.expr(condition)?;
+                        self.block(then_body)?;
+                        if let Some(block) = else_body {
+                            self.block(block)?;
+                        }
+                    }
+                    CoreStatementKind::While { condition, body } => {
+                        self.expr(condition)?;
+                        self.block(body)?;
+                    }
+                    CoreStatementKind::Block(block)
+                    | CoreStatementKind::Defer(block)
+                    | CoreStatementKind::Unsafe(block) => self.block(block)?,
+                    CoreStatementKind::Return(None)
+                    | CoreStatementKind::Break
+                    | CoreStatementKind::Continue => {}
+                    _ => return None,
+                }
+            }
+            self.scopes.pop();
+            Some(())
+        }
+    }
+    let mut reads = Reads {
+        module,
+        context,
+        scopes: vec![function.parameters.iter().map(|p| p.name.clone()).collect()],
+        keys: Vec::new(),
+    };
+    reads.block(&function.body)?;
+    Some(reads.keys)
+}
+
+// This is only equality of the non-function inputs consumed by plain hints.
 // SourceProgramContext::function resolves (module, name) and current imports;
 // its index and unchanged_function/unchanged_expr never read export NodeIds.
 // A raw function ID is copied by the full rebuilding evaluator, but it is not
@@ -327,7 +515,9 @@ fn same_plain_hint_environment(previous: &CoreProgram, current: &CoreProgram) ->
         })
 }
 fn same_plain_hint_module(previous: &CoreModule, current: &CoreModule) -> bool {
-    // Retain all inventories and actual hint/header dependencies. Body owners,
+    // Retain all inventories; actual hint/header dependencies live in each
+    // successful function receipt and are checked against the live index.
+    // Body owners,
     // raw declaration IDs and absolute positions are bound separately; they do
     // not select a different callee hint under the same (module, name) table.
     let CoreModule {
@@ -340,7 +530,7 @@ fn same_plain_hint_module(previous: &CoreModule, current: &CoreModule) -> bool {
         schema_version,
         module_id,
         source_fingerprint: _,
-        functions,
+        functions: _,
         aggregates,
         aggregate_templates,
         aggregate_applications,
@@ -360,14 +550,6 @@ fn same_plain_hint_module(previous: &CoreModule, current: &CoreModule) -> bool {
         && previous.aggregate_applications == *aggregate_applications
         && previous.enums == *enums
         && previous.unsupported == *unsupported
-        && previous.functions.len() == functions.len()
-        && functions
-            .changed_indices(&previous.functions)
-            .into_iter()
-            .all(|index| {
-                matches!((previous.functions.get(index), functions.get(index)),
-                (Some(old), Some(current)) if same_header(old, current))
-            })
 }
 // Function/parameter locations are read only for declaration diagnostics (run
 // fresh) and the function's own body admission (still exact-owner bound).
@@ -376,6 +558,9 @@ fn same_plain_hint_module(previous: &CoreModule, current: &CoreModule) -> bool {
 // A changed ID still changes that function's immutable owner and requires its
 // actual current admission; it only stops invalidating unrelated callers.
 fn same_header(previous: &CoreFunction, current: &CoreFunction) -> bool {
+    if std::ptr::eq(previous, current) {
+        return true;
+    }
     let CoreFunction {
         storage_life,
         call_kind,

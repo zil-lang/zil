@@ -3,6 +3,8 @@
 use crate::{EntryPoint, FunctionMerging};
 
 pub(crate) mod layout;
+mod materialization;
+pub(crate) use materialization::Materialization;
 mod recipe;
 pub(crate) use recipe::Recipe;
 mod resource_helpers;
@@ -175,7 +177,7 @@ pub(crate) fn partition_view_cached(
     imports: CallImportPolicy,
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>) {
-    let (plan, pending, _) = partition_view_cached_impl(
+    let (plan, pending, _, _) = partition_view_cached_impl(
         module,
         lir,
         CachedPartitionOptions {
@@ -185,6 +187,8 @@ pub(crate) fn partition_view_cached(
             imports,
             cache_root,
             record_recipe: false,
+            capture_materialization: false,
+            previous: None,
         },
     );
     (plan, pending)
@@ -198,7 +202,7 @@ pub(crate) fn partition_view_cached_with_recipe(
     imports: CallImportPolicy,
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>, Option<Recipe>) {
-    partition_view_cached_impl(
+    let (plan, pending, recipe, _) = partition_view_cached_impl(
         module,
         lir,
         CachedPartitionOptions {
@@ -208,8 +212,40 @@ pub(crate) fn partition_view_cached_with_recipe(
             imports,
             cache_root,
             record_recipe: true,
+            capture_materialization: false,
+            previous: None,
         },
-    )
+    );
+    (plan, pending, recipe)
+}
+/// The planner still decides the complete current graph. Only already equal
+/// source values and the actual current import bindings reuse materialization.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn partition_view_cached_reusing(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    imports: CallImportPolicy,
+    cache_root: Option<&std::path::Path>,
+    previous: Option<&Materialization>,
+) -> (Plan, Option<layout::Pending>, Option<Materialization>) {
+    let (plan, pending, _, materialization) = partition_view_cached_impl(
+        module,
+        lir,
+        CachedPartitionOptions {
+            entry,
+            count,
+            split_large_files,
+            imports,
+            cache_root,
+            record_recipe: false,
+            capture_materialization: true,
+            previous,
+        },
+    );
+    (plan, pending, materialization)
 }
 struct CachedPartitionOptions<'a> {
     entry: EntryPoint,
@@ -218,12 +254,19 @@ struct CachedPartitionOptions<'a> {
     imports: CallImportPolicy,
     cache_root: Option<&'a std::path::Path>,
     record_recipe: bool,
+    capture_materialization: bool,
+    previous: Option<&'a Materialization>,
 }
 fn partition_view_cached_impl(
     module: Module,
     lir: &LirView<'_>,
     options: CachedPartitionOptions<'_>,
-) -> (Plan, Option<layout::Pending>, Option<Recipe>) {
+) -> (
+    Plan,
+    Option<layout::Pending>,
+    Option<Recipe>,
+    Option<Materialization>,
+) {
     let CachedPartitionOptions {
         entry,
         count,
@@ -231,7 +274,10 @@ fn partition_view_cached_impl(
         imports,
         cache_root,
         record_recipe,
+        capture_materialization,
+        previous,
     } = options;
+    let materialization_source = capture_materialization.then(|| module.clone());
     let recipe_source =
         (record_recipe && imports == CallImportPolicy::Disabled).then(|| module.clone());
 
@@ -241,7 +287,7 @@ fn partition_view_cached_impl(
     if imports == CallImportPolicy::ResourceHelpers
         && let Some(recipe) = resource_helpers::prepare(&module, lir, entry, count)
     {
-        return (recipe.replay(module), None, None);
+        return (recipe.replay(module), None, None, None);
     }
     let cache = cache_root.and_then(|root| {
         layout::Cache::new(root, &module, lir, entry, count, split_large_files, imports)
@@ -252,17 +298,22 @@ fn partition_view_cached_impl(
         && valid_declaration_prelude(&module)
     {
         let recipe = recipe_source.and_then(|source| Recipe::new(source, cached.clone()));
+        let (units, reused_items) = cached.replay_reusing_counted(module, previous);
+        let materialization = materialization_source
+            .map(|source| Materialization::new(source, &cached, &units, reused_items));
         return (
             Plan {
-                units: cached.replay(module),
+                units,
                 fallback: None,
             },
             None,
             recipe,
+            materialization,
         );
     }
     let mut recorded = None;
-    let plan = partition_view_recorded(
+    let mut reused_items = 0;
+    let plan = partition_view_recorded_reusing(
         module,
         lir,
         entry,
@@ -270,14 +321,19 @@ fn partition_view_cached_impl(
         split_large_files,
         imports != CallImportPolicy::Disabled,
         &mut recorded,
+        previous,
+        &mut reused_items,
     );
     let recipe = recipe_source
         .zip(recorded.as_ref())
         .and_then(|(source, layout)| Recipe::new(source, layout.clone()));
+    let materialization = materialization_source
+        .zip(recorded.as_ref())
+        .map(|(source, layout)| Materialization::new(source, layout, &plan.units, reused_items));
     let pending = cache
         .zip(recorded)
         .and_then(|(cache, layout)| cache.pending(&layout));
-    (plan, pending, recipe)
+    (plan, pending, recipe, materialization)
 }
 
 // Complete implementation import is an optional optimization. A rejected copy
@@ -285,6 +341,7 @@ fn partition_view_cached_impl(
 // expensive object. Reuse the original ordinary planner, without partial imports:
 // canonical calls, local-state components and current preflight stay intact.
 // Runtime quality is a separate acceptance gate for this experimental policy.
+#[cfg(test)]
 fn partition_view_recorded(
     module: Module,
     lir: &LirView<'_>,
@@ -294,6 +351,30 @@ fn partition_view_recorded(
     import_complete_call_closures: bool,
     recorded: &mut Option<layout::Layout>,
 ) -> Plan {
+    partition_view_recorded_reusing(
+        module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        import_complete_call_closures,
+        recorded,
+        None,
+        &mut 0,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn partition_view_recorded_reusing(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    import_complete_call_closures: bool,
+    recorded: &mut Option<layout::Layout>,
+    previous: Option<&Materialization>,
+    reused_items: &mut usize,
+) -> Plan {
     let plan = partition_view_once(
         module,
         lir,
@@ -302,6 +383,8 @@ fn partition_view_recorded(
         split_large_files,
         import_complete_call_closures,
         recorded,
+        previous,
+        reused_items,
     );
     if plan.fallback != Some("complete O2 call closure exceeds total copy cost") {
         return plan;
@@ -323,9 +406,12 @@ fn partition_view_recorded(
         split_large_files,
         false,
         recorded,
+        previous,
+        reused_items,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn partition_view_once(
     module: Module,
     lir: &LirView<'_>,
@@ -334,6 +420,8 @@ fn partition_view_once(
     split_large_files: bool,
     import_complete_call_closures: bool,
     recorded: &mut Option<layout::Layout>,
+    previous: Option<&Materialization>,
+    reused_items: &mut usize,
 ) -> Plan {
     let fallback = |module, reason| Plan {
         units: vec![module],
@@ -637,7 +725,8 @@ fn partition_view_once(
             definitions: definitions.iter().map(|&id| defs[id].index).collect(),
         });
     }
-    let units = layout.replay(module);
+    let (units, reused) = layout.replay_reusing_counted(module, previous);
+    *reused_items = reused;
     *recorded = Some(layout);
     Plan {
         units,
@@ -1285,6 +1374,8 @@ mod tests {
             true,
             true,
             &mut recorded,
+            None,
+            &mut 0,
         );
         assert_eq!(
             rejected.fallback,

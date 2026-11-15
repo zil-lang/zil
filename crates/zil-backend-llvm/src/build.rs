@@ -529,7 +529,10 @@ pub fn build_view_with_cancellation_and_session(
         .filter(|cached| {
             std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).is_none()
                 && cached.closed_prune_removed.is_some() == call_classes_enabled
-                && Some(&cached.input) == partition_input.as_ref()
+                && partition_input.as_ref().is_some_and(|input| {
+                    cached.input == *input
+                        || (call_classes_enabled && cached.input.same_completed_output(input))
+                })
         })
         .cloned();
     let mut closed_prune = None;
@@ -622,6 +625,17 @@ pub fn build_view_with_cancellation_and_session(
         };
         timings.diagnostic_ns += crate::object_cache::elapsed_ns(diagnostic_started);
         let mut pending_layout = None;
+        let mut materialization = None;
+        let previous_partition = session
+            .as_ref()
+            .and_then(|session| session.partition.as_ref())
+            .filter(|old| {
+                partition_input
+                    .as_ref()
+                    .is_some_and(|input| old.input.same_build_options(input))
+                    && old.closed_prune_removed.is_some() == call_classes_enabled
+            })
+            .cloned();
         let (mut plan, stable_candidates, stable_diagnostic, recipe) =
             if let Some((plan, recipe, rebuilt)) = recipe_replay {
                 if let Some(session) = session.as_deref_mut() {
@@ -665,6 +679,30 @@ pub fn build_view_with_cancellation_and_session(
                 }
                 pending_layout = pending;
                 (plan, None, None, recipe)
+            } else if call_classes_enabled {
+                let previous = previous_partition
+                    .as_ref()
+                    .and_then(|old| old.materialization.as_ref());
+                let (plan, pending, current) = crate::machine_cgu::partition_view_cached_reusing(
+                    machine.to_module(),
+                    lir,
+                    options.emit.entry,
+                    options.codegen.units,
+                    true,
+                    crate::machine_cgu::CallImportPolicy::for_incremental_o2(
+                        true,
+                        options.function_merging,
+                    ),
+                    options.object_cache.as_deref(),
+                    previous,
+                );
+                if let (Some(current), Some(session)) = (current.as_ref(), session.as_deref_mut()) {
+                    session.summary.reused_partition_items = current.reused_items;
+                    session.summary.rebuilt_partition_items = current.constructed_items;
+                }
+                materialization = current;
+                pending_layout = pending;
+                (plan, None, None, None)
             } else {
                 let (plan, pending) = crate::machine_cgu::partition_view_cached(
                     machine.to_module(),
@@ -686,7 +724,10 @@ pub fn build_view_with_cancellation_and_session(
         if let Some(session) = session.as_deref_mut()
             && !session.summary.reused_partition_recipe
         {
-            session.summary.rebuilt_partition_units = plan.units.len();
+            session.summary.rebuilt_partition_units = plan
+                .units
+                .len()
+                .saturating_sub(session.summary.reused_partition_units);
         }
         if options.closed_executable {
             // A replay replaces changed bodies from the original external
@@ -705,10 +746,36 @@ pub fn build_view_with_cancellation_and_session(
         // partition so a cross-unit caller/address retains its canonical symbol.
         let private_closures =
             crate::machine_closure_linkage::internalize(&mut plan.units, lir.closures);
+        let mut prune = None;
         if call_classes_enabled {
             let mut checked = 0;
             let mut removed = 0;
-            for unit in &mut plan.units {
+            let mut reused = 0;
+            let mut retained_removed = 0;
+            let mut inputs = Vec::with_capacity(plan.units.len());
+            let mut removals = Vec::with_capacity(plan.units.len());
+            for (index, unit) in plan.units.iter_mut().enumerate() {
+                check_cancelled(cancelled)?;
+                inputs.push(unit.clone());
+                let previous = previous_partition.as_ref().and_then(|old| {
+                    let input = old.prune.as_ref()?.inputs.get(index)?;
+                    if unit.triple != input.triple || unit.items != input.items {
+                        return None;
+                    }
+                    Some((
+                        old.units.get(index)?,
+                        *old.prune.as_ref()?.removed.get(index)?,
+                    ))
+                });
+                if let Some((previous, count)) = previous {
+                    let fingerprint = unit.fingerprint.clone();
+                    *unit = previous.clone();
+                    unit.fingerprint = fingerprint;
+                    reused += 1;
+                    retained_removed += count;
+                    removals.push(count);
+                    continue;
+                }
                 // prune() validates this COMPLETE original unpruned unit before
                 // any nonempty deletion. Its resulting unit still goes through
                 // current API preflight/Builder/full O2/LLVM verification below.
@@ -725,9 +792,14 @@ pub fn build_view_with_cancellation_and_session(
                 };
                 checked += usize::from(stats.removed_count != 0);
                 removed += stats.removed_count;
+                removals.push(stats.removed_count);
             }
             check_cancelled(cancelled)?;
-            closed_prune = Some((checked, 0, removed, 0));
+            closed_prune = Some((checked, reused, removed, retained_removed));
+            prune = Some(crate::incremental::PruneProduct {
+                inputs,
+                removed: removals,
+            });
         }
         if let (Some(session), Some(input)) = (session.as_deref_mut(), partition_input) {
             session.partition = Some(std::sync::Arc::new(crate::incremental::PartitionProduct {
@@ -736,8 +808,11 @@ pub fn build_view_with_cancellation_and_session(
                 fallback: plan.fallback,
                 diagnostic: llvm.clone(),
                 private_closures,
-                closed_prune_removed: closed_prune.map(|(_, _, removed, _)| removed),
+                closed_prune_removed: closed_prune
+                    .map(|(_, _, removed, retained)| removed + retained),
                 recipe,
+                materialization,
+                prune,
             }));
         }
         (

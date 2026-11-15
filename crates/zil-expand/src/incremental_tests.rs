@@ -129,6 +129,76 @@ fn producer_shares_complete_core_and_maps_across_unchanged_modules() {
 }
 
 #[test]
+fn scalar_interface_edits_keep_unrelated_products_but_bind_public_context() {
+    let limits = Limits::default();
+    let mut session = ExpandSession::default();
+    let mut input = [
+        parsed(0, "fn first(x:i32)->i32=>x;fn sibling()->i32=>2;"),
+        parsed(1, "fn other()->i32=>3;"),
+    ];
+    let initial = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    input[0] = parsed(0, "fn first(x:i64)->i64=>x;fn sibling()->i32=>2;");
+    let current = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert!(Arc::ptr_eq(
+        &initial.program().modules[1].core,
+        &current.program().modules[1].core
+    ));
+    assert!(Arc::ptr_eq(
+        initial.program().modules[0]
+            .core
+            .functions
+            .owner(1)
+            .unwrap(),
+        current.program().modules[0]
+            .core
+            .functions
+            .owner(1)
+            .unwrap(),
+    ));
+    assert_ne!(
+        initial.change_batch().context(),
+        current.change_batch().context()
+    );
+    assert_eq!(
+        initial.change_batch().namespace_context(),
+        current.change_batch().namespace_context()
+    );
+    assert_eq!(current.change_batch().changed_modules(), [0]);
+    assert_eq!(current.change_batch().changes().len(), 1);
+    assert!(current.change_batch().changes()[0].interface_changed());
+    assert_eq!(session.last_stats().lower_modules, 1);
+    assert_eq!(session.last_stats().reused_lower_items, 1);
+    assert_eq!(session.last_stats().executed_lower_items, 1);
+    assert_eq!(session.last_stats().plain_header_items, 1);
+}
+
+#[test]
+fn scalar_namespace_add_delete_reorder_and_negative_lookup_stay_bound() {
+    let limits = Limits::default();
+    let original = "fn alpha()->i32=>missing();fn beta()->i32=>2;";
+    for text in [
+        "fn alpha()->i32=>missing();fn beta()->i32=>2;fn missing()->i32=>3;",
+        "fn alpha()->i32=>missing();",
+        "fn beta()->i32=>2;fn alpha()->i32=>missing();",
+        "pub fn alpha()->i32=>missing();fn beta()->i32=>2;",
+    ] {
+        let mut session = ExpandSession::default();
+        let mut input = [parsed(0, original), parsed(1, "fn other()->i32=>3;")];
+        let initial = checked(&mut session, &input, &limits);
+        input[0] = parsed(0, text);
+        let current = checked(&mut session, &input, &limits);
+        assert!(!Arc::ptr_eq(
+            &initial.modules[1].0.core,
+            &current.modules[1].0.core
+        ));
+    }
+}
+
+#[test]
 fn producer_wide_private_edit_skips_unchanged_modules_and_preserves_local_spans() {
     let limits = Limits::default();
     let input = [

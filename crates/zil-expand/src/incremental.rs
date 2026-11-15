@@ -397,6 +397,19 @@ fn same_limit_domain(left: &Limits, right: &Limits) -> bool {
         && left.max_call_depth == right.max_call_depth
 }
 impl Environment {
+    // Closed scalar consumers: declaration_inventory/Normalize read the full
+    // ordered namespace (including absent/private names and import conflicts),
+    // Restore reads owner/name, and Lower has no external signature lookup.
+    // Prepare/Lifetimes/Headers read only the exact local declaration. Its
+    // parser owner, or transferred item's complete bytes/slot/spans, still bind
+    // those reads. Thus a remote signature is not a dependency of these raw
+    // products. Keep the public InputContext's complete comparison below.
+    // This predicate is reached only after every module's scalar admission;
+    // unknown domains never receive these receipts.
+    fn scalar_products_compatible(&self, current: &Self) -> bool {
+        self.compatible(current)
+            || (self.imports == current.imports && self.namespace_compatible(current))
+    }
     fn compatible(&self, current: &Self) -> bool {
         self.sources == current.sources
             && self.headers == current.headers
@@ -921,8 +934,8 @@ impl ExpandSession {
             context: context_key,
             fused_distribution,
         };
-        // Detailed invalidation diagnostics are opt-in: normal requests keep
-        // the original single Environment equality check and no second header walk.
+        // Detailed invalidation diagnostics remain opt-in. Product reuse below
+        // separately compares the closed visitors' actual namespace inputs.
         if self.profiling {
             self.stats
                 .environment_change(self.environment.as_ref(), &environment);
@@ -930,7 +943,7 @@ impl ExpandSession {
         if self
             .environment
             .as_ref()
-            .is_none_or(|previous| !previous.compatible(&environment))
+            .is_none_or(|previous| !previous.scalar_products_compatible(&environment))
         {
             let preserve_function_inputs = self
                 .environment
@@ -955,7 +968,7 @@ impl ExpandSession {
         if self
             .environment
             .as_ref()
-            .is_some_and(|old| old.compatible(&environment))
+            .is_some_and(|old| old.scalar_products_compatible(&environment))
         {
             for (module_id, entry) in &mut entries {
                 let Some(old) = self.entries.get(module_id) else {
@@ -1035,7 +1048,7 @@ impl ExpandSession {
         let mut scalar_inventory = self
             .environment
             .as_ref()
-            .filter(|old| old.compatible(&environment))
+            .filter(|old| old.scalar_products_compatible(&environment))
             .and(self.scalar_inventory.as_ref())
             .cloned();
         // Share the exact immutable complete environment binding across warm
@@ -1052,7 +1065,7 @@ impl ExpandSession {
         if self
             .environment
             .as_ref()
-            .is_some_and(|old| old.function_inputs_compatible(&environment))
+            .is_some_and(|old| old.scalar_products_compatible(&environment))
         {
             for (module, placement) in placements {
                 let Some(old) = self.entries.get(&module) else {
@@ -1121,7 +1134,7 @@ impl ExpandSession {
             item_reuse: self
                 .environment
                 .as_ref()
-                .is_some_and(|old| old.function_inputs_compatible(&environment)),
+                .is_some_and(|old| old.scalar_products_compatible(&environment)),
             entries: &mut entries,
             files,
             stats: &mut self.stats,
@@ -1494,8 +1507,9 @@ fn module_headers(module: &s::Module) -> Vec<s::Item> {
 // kind and Restore's Functions stores only owner/name. Neither stores definition
 // spans. Lower's declaration_index contains only aggregates (absent here), and
 // collect_static_traits returns before project lookup when traits/impls are absent.
-// All emitted spans therefore come from the current module. Keep semantic headers
-// global while the ParsedSource revision protects that module's local positions.
+// All emitted spans therefore come from the current module. Complete semantic
+// headers still bind the public InputContext; scalar product reuse projects the
+// namespace while the local parser owner/bytes bind each consumed signature.
 fn header(function: &s::Function) -> s::Function {
     fn ty(value: &mut s::TypeRef) {
         value.span = Span::default();
@@ -1757,7 +1771,8 @@ impl Reuse<'_> {
     }
     /// Rebind a transferred recipe to this request's actual parser owner,
     /// exact slot/span/text/attributes and complete normalization environment.
-    /// Namespace/function-input compatibility alone never reaches this path.
+    /// The closed scalar namespace binds every Normalize lookup; local header
+    /// and body inputs remain exact parser-owned bytes below.
     pub(crate) fn scalar_normalized(
         &mut self,
         span: Span,
@@ -1776,7 +1791,7 @@ impl Reuse<'_> {
                     || recipe.module != entry.parsed.source().module_id
                     || span.file != entry.parsed.source().file_id
                     || (!Arc::ptr_eq(&recipe.environment, &environment)
-                        && !recipe.environment.compatible(&environment))
+                        && !recipe.environment.scalar_products_compatible(&environment))
                     || (!recipe.parsed.same_revision(&entry.parsed)
                         && (!recipe.parsed.same_attribute_context(&entry.parsed)
                             || recipe

@@ -189,9 +189,9 @@ fn changed_callee_header_and_duplicate_resolution_invalidate_body_fees() {
     checked(&mut session, &changed, &target, &limits);
     assert_eq!(
         (session.stats.context_reuses, session.stats.body_reuses),
-        (0, 0)
+        (1, 1)
     );
-    assert_eq!(session.stats.body_checks, 3);
+    assert_eq!(session.stats.body_checks, 2);
     let mut duplicate = initial.clone();
     Arc::make_mut(&mut duplicate.modules[0].core).functions[2].name = "callee".into();
     let ordinary = fresh(&initial, &target, &limits).unwrap().1;
@@ -201,8 +201,145 @@ fn changed_callee_header_and_duplicate_resolution_invalidate_body_fees() {
         "the real call-hint consumer observes ambiguity"
     );
     checked(&mut session, &duplicate, &target, &limits);
-    assert_eq!(session.stats.context_reuses, 0);
+    assert_eq!(session.stats.context_reuses, 1);
     assert_eq!(session.stats.body_reuses, 0);
+}
+
+#[test]
+fn negative_hint_reads_follow_add_ambiguity_delete_and_reorder() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut input = program();
+    replace_return(
+        &mut input,
+        0,
+        CoreExprKind::Call {
+            callee: Box::new(expr(CoreExprKind::Name("future".into()))),
+            arguments: vec![expr(CoreExprKind::Integer("7".into()))],
+        },
+    );
+    let mut session = PlainSourceSession::default();
+    checked(&mut session, &input, &target, &limits);
+    let mut future = input.modules[0].core.functions[1].clone();
+    future.name = "future".into();
+    future.id = NodeId(3);
+    Arc::make_mut(&mut input.modules[0].core)
+        .functions
+        .push(future.clone());
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        (session.stats.body_checks, session.stats.body_reuses),
+        (2, 2)
+    );
+    future.id = NodeId(4);
+    Arc::make_mut(&mut input.modules[0].core)
+        .functions
+        .push(future);
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        (session.stats.body_checks, session.stats.body_reuses),
+        (2, 3)
+    );
+    Arc::make_mut(&mut input.modules[0].core)
+        .functions
+        .truncate(4);
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        (session.stats.body_checks, session.stats.body_reuses),
+        (1, 3)
+    );
+    Arc::make_mut(&mut input.modules[0].core)
+        .functions
+        .truncate(3);
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        (session.stats.body_checks, session.stats.body_reuses),
+        (1, 2)
+    );
+    Arc::make_mut(&mut input.modules[0].core)
+        .functions
+        .reverse();
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        (session.stats.body_checks, session.stats.body_reuses),
+        (3, 0)
+    );
+}
+
+#[test]
+fn lexical_shadowing_excludes_unread_headers_and_imported_hints_stay_current() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    for parameter in [false, true] {
+        let mut input = program();
+        let caller = &mut Arc::make_mut(&mut input.modules[0].core).functions[0];
+        if parameter {
+            caller.parameters.push(CoreParameter {
+                name: "callee".into(),
+                ty: Type::I32,
+                mode: PassingMode::Infer,
+                span: caller.span,
+            });
+        } else {
+            caller.body.statements.insert(
+                0,
+                CoreStatement {
+                    id: NodeId(900),
+                    span: caller.span,
+                    kind: CoreStatementKind::Binding {
+                        name: "callee".into(),
+                        mutable: false,
+                        ty: Some(Type::I32),
+                        initializer: Some(expr(CoreExprKind::Integer("1".into()))),
+                    },
+                },
+            );
+        }
+        let mut session = PlainSourceSession::default();
+        checked(&mut session, &input, &target, &limits);
+        Arc::make_mut(&mut input.modules[0].core).functions[1].parameters[0].ty = Type::I64;
+        checked(&mut session, &input, &target, &limits);
+        assert_eq!(
+            (session.stats.body_checks, session.stats.body_reuses),
+            (1, 2)
+        );
+    }
+
+    let mut input = program();
+    let mut dependency = input.modules[0].clone();
+    Arc::make_mut(&mut dependency.core).module_id = ModuleId(1);
+    input.modules.push(dependency);
+    input.modules[0].imports.push(CoreImport {
+        alias: "dep".into(),
+        module: ModuleId(1),
+        span: Span::default(),
+    });
+    replace_return(
+        &mut input,
+        0,
+        CoreExprKind::Call {
+            callee: Box::new(expr(CoreExprKind::Member {
+                object: Box::new(expr(CoreExprKind::Name("dep".into()))),
+                member: "callee".into(),
+                owner: None,
+            })),
+            arguments: vec![expr(CoreExprKind::Integer("7".into()))],
+        },
+    );
+    let mut session = PlainSourceSession::default();
+    checked(&mut session, &input, &target, &limits);
+    Arc::make_mut(&mut input.modules[1].core).functions[1].parameters[0].ty = Type::I64;
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        (session.stats.body_checks, session.stats.body_reuses),
+        (3, 3)
+    );
+    input.modules[0].imports[0].alias = "missing".into();
+    checked(&mut session, &input, &target, &limits);
+    assert_eq!(
+        session.stats.body_reuses, 0,
+        "current imports remain a full binding"
+    );
 }
 
 #[test]
@@ -389,8 +526,9 @@ fn callee_diagnostic_positions_do_not_invalidate_unchanged_callers() {
     // Names still affect the callee's local scope and declaration charges.
     Arc::make_mut(&mut moved.modules[0].core).functions[1].parameters[0].name = "changed".into();
     checked(&mut session, &moved, &target, &limits);
-    assert_eq!(session.stats.context_reuses, 0);
-    assert_eq!(session.stats.body_checks, 3);
+    assert_eq!(session.stats.context_reuses, 1);
+    assert_eq!(session.stats.body_checks, 2);
+    assert_eq!(session.stats.body_reuses, 1);
 }
 
 #[test]
@@ -506,8 +644,9 @@ fn renumbering_does_not_hide_changed_foreign_or_real_hint_headers() {
     callee.foreign.as_mut().unwrap().symbol = "a_different_external_symbol".into();
     changed.modules[0].exports = vec![NodeId(100)];
     checked(&mut session, &changed, &target, &limits);
-    assert_eq!(session.stats.context_reuses, 0);
-    assert_eq!(session.stats.body_checks, 3);
+    assert_eq!(session.stats.context_reuses, 1);
+    assert_eq!(session.stats.body_checks, 2);
+    assert_eq!(session.stats.body_reuses, 1);
     assert_eq!(session.stats.declaration_modules, 1);
     assert!(previous.checkpoint_for(&changed).is_none());
     let callee = &mut Arc::make_mut(&mut changed.modules[0].core).functions[1];
@@ -515,8 +654,8 @@ fn renumbering_does_not_hide_changed_foreign_or_real_hint_headers() {
     callee.parameters[0].ty = Type::I64;
     changed.modules[0].exports = vec![NodeId(101)];
     checked(&mut session, &changed, &target, &limits);
-    assert_eq!(session.stats.context_reuses, 0);
-    assert_eq!(session.stats.body_reuses, 0);
+    assert_eq!(session.stats.context_reuses, 1);
+    assert_eq!(session.stats.body_reuses, 1);
 }
 
 #[test]

@@ -39,6 +39,8 @@ pub struct BackendSessionSummary {
     pub reused_partition_recipe: bool,
     pub reused_partition_units: usize,
     pub rebuilt_partition_units: usize,
+    pub reused_partition_items: usize,
+    pub rebuilt_partition_items: usize,
     pub reused_machine_transforms: bool,
     pub reused_object_keys: usize,
     pub reused_link: bool,
@@ -279,6 +281,7 @@ pub(crate) struct PartitionInput {
     raw: Option<RawInput>,
     machine: Option<Module>,
     scalar: Option<ScalarIdentity>,
+    output: crate::machine_output::MachineOutput,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RawInput {
@@ -317,6 +320,7 @@ impl PartitionInput {
         let mut options = options.clone();
         options.output.clear();
         options.published_paths = None;
+        let output = machine.clone();
         let machine = scalar.is_none().then(|| {
             let mut machine = machine.to_module();
             machine.fingerprint.clear(); // diagnostic only, never native Builder input
@@ -339,10 +343,21 @@ impl PartitionInput {
             }),
             machine,
             scalar,
+            output,
         }
     }
 }
 impl PartitionInput {
+    pub(crate) fn same_completed_output(&self, other: &Self) -> bool {
+        self.same_recipe_environment(other)
+            && matches!((&self.scalar, &other.scalar), (Some((_, left)), Some((_, right)))
+                if left.len() == right.len() && left.changed_indices(right).into_iter()
+                    .all(|index| Arc::ptr_eq(&left[index].1, &right[index].1)))
+            && self.output.same_values(&other.output)
+    }
+    pub(crate) fn same_build_options(&self, other: &Self) -> bool {
+        self.options == other.options
+    }
     pub(crate) fn same_recipe_environment(&self, other: &Self) -> bool {
         self.options == other.options
             && self.names == other.names
@@ -381,6 +396,15 @@ pub(crate) struct PartitionProduct {
     /// before these already-checked units can be reused. Never a current proof.
     pub(crate) closed_prune_removed: Option<usize>,
     pub(crate) recipe: Option<crate::machine_cgu::Recipe>,
+    pub(crate) materialization: Option<crate::machine_cgu::Materialization>,
+    pub(crate) prune: Option<PruneProduct>,
+}
+/// Original complete unit values and their checked transformation result are
+/// kept together in one process-owned epoch. Never serialized as permission.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PruneProduct {
+    pub(crate) inputs: Vec<Module>,
+    pub(crate) removed: Vec<usize>,
 }
 impl PartitionProduct {
     pub(crate) fn diagnostic(&self, fingerprint: &str) -> DiagnosticText {

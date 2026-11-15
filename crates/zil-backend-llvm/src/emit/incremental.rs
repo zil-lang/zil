@@ -3,6 +3,9 @@
 //! original emitter, including its budget and diagnostic behavior.
 use super::*;
 use std::sync::Arc;
+#[cfg(test)]
+#[path = "incremental_tests.rs"]
+mod header_tests;
 mod metadata_budget;
 mod representation;
 mod whole;
@@ -37,8 +40,8 @@ pub(crate) struct Session {
     pub(crate) reused_machine_module: bool,
     pub(crate) whole_machine_input_functions_compared: usize,
 }
-/// Sparse immutable entry leaves. Context changes rebuild the ID inventory;
-/// body edits replace only their tree paths. Publishing or checkpointing an
+/// Sparse immutable entry leaves. Global changes rebuild the ID inventory;
+/// function edits replace only their tree paths. Publishing or checkpointing an
 /// epoch clones roots, never the complete entry map or body products.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct EntryTable {
@@ -81,8 +84,25 @@ struct Context {
     limits: zil_base::Limits,
     entry: EntryPoint,
     scalar_policy: bool,
-    headers: Vec<Header>,
+    headers: BTreeMap<FunctionId, Header>,
     globals: Globals,
+}
+impl Context {
+    fn same_environment(&self, current: &Self) -> bool {
+        let Self {
+            target,
+            limits,
+            entry,
+            scalar_policy,
+            headers: _,
+            globals,
+        } = current;
+        self.target == *target
+            && self.limits == *limits
+            && self.entry == *entry
+            && self.scalar_policy == *scalar_policy
+            && self.globals == *globals
+    }
 }
 /// Complete conservative inventory for mixed modules. Only the current checked
 /// snapshot supplies roles; these raw values never authorize an emitter branch.
@@ -122,6 +142,7 @@ struct Header {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Entry {
     input: TypedFunction,
+    headers: Vec<Header>,
     facts: Vec<(FunctionId, Option<Constant>)>,
     collected: bool,
     output: Arc<FunctionBatch>,
@@ -306,25 +327,30 @@ impl Session {
             headers: lir
                 .functions
                 .iter()
-                .map(|f| Header {
-                    id: f.id,
-                    name: f.name.clone(),
-                    foreign: f.foreign.clone(),
-                    parameters: f
-                        .parameters
-                        .iter()
-                        .map(|id| (*id, f.locals[id.0 as usize].ty.clone()))
-                        .collect(),
-                    result: f.return_type.clone(),
-                    result_mode: f.result_mode,
-                    file: f.span.file,
-                    storage_life: f.storage_life.clone(),
-                    call_kind: f.call_kind,
-                    reference_return_bound: f.reference_return_bound.clone(),
-                    callable_return_contract: f.callable_return_contract.clone(),
-                    callable_contract: f.callable_contract.clone(),
-                    protocol_contract: f.protocol_contract.clone(),
-                    environment: f.environment,
+                .map(|f| {
+                    (
+                        f.id,
+                        Header {
+                            id: f.id,
+                            name: f.name.clone(),
+                            foreign: f.foreign.clone(),
+                            parameters: f
+                                .parameters
+                                .iter()
+                                .map(|id| (*id, f.locals[id.0 as usize].ty.clone()))
+                                .collect(),
+                            result: f.return_type.clone(),
+                            result_mode: f.result_mode,
+                            file: f.span.file,
+                            storage_life: f.storage_life.clone(),
+                            call_kind: f.call_kind,
+                            reference_return_bound: f.reference_return_bound.clone(),
+                            callable_return_contract: f.callable_return_contract.clone(),
+                            callable_contract: f.callable_contract.clone(),
+                            protocol_contract: f.protocol_contract.clone(),
+                            environment: f.environment,
+                        },
+                    )
                 })
                 .collect(),
             globals: Globals {
@@ -360,9 +386,19 @@ impl Session {
             },
         };
         if self.context.as_deref() != Some(&context) {
-            self.products.clear();
-            self.output_bodies.clear();
-            self.entries = EntryTable::for_functions(lir.functions);
+            // Rust 58cf8f9 rustc_middle/src/dep_graph/graph.rs with_task and
+            // alloc_and_color_node bind actual reads and stop propagation at
+            // equal results. Here complete raw headers replace result hashes;
+            // all non-header domains retain their conservative full binding.
+            if !self
+                .context
+                .as_ref()
+                .is_some_and(|previous| previous.same_environment(&context))
+            {
+                self.products.clear();
+                self.output_bodies.clear();
+                self.entries = EntryTable::for_functions(lir.functions);
+            }
             self.context = Some(Arc::new(context));
             self.context_identity = Arc::new(());
         }
@@ -531,6 +567,12 @@ impl Session {
         let collected = collected.is_none_or(|needed| needed.contains(&function.id));
         if let Some(entry) = self.entries.get(&function.id)
             && same_input(&entry.input, function)
+            && entry.headers.iter().all(|header| {
+                self.context
+                    .as_ref()
+                    .and_then(|context| context.headers.get(&header.id))
+                    == Some(header)
+            })
             && entry.facts == facts
             && entry.collected == collected
         {
@@ -574,6 +616,13 @@ impl Session {
             function.id,
             Arc::new(Entry {
                 input: function.clone(),
+                // Admission has checked every current direct callee's scalar,
+                // unversioned ABI. Bind self as well, including its file and
+                // foreign declaration, even when its body/signature is equal.
+                headers: std::iter::once(function.id)
+                    .chain(self.admitted[&function.id].iter().copied())
+                    .map(|id| self.context.as_ref().unwrap().headers[&id].clone())
+                    .collect(),
                 facts,
                 collected,
                 output: output.clone(),

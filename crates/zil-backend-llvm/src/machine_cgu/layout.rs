@@ -37,7 +37,25 @@ pub(super) struct Layout {
 
 impl Layout {
     /// Both the original planner and a checked receipt use this exact emitter.
+    #[cfg(test)]
     pub(super) fn replay(&self, module: Module) -> Vec<Module> {
+        self.replay_reusing(module, None)
+    }
+    #[cfg(test)]
+    pub(super) fn replay_reusing(
+        &self,
+        module: Module,
+        previous: Option<&super::Materialization>,
+    ) -> Vec<Module> {
+        self.replay_reusing_counted(module, previous).0
+    }
+    pub(super) fn replay_reusing_counted(
+        &self,
+        module: Module,
+        previous: Option<&super::Materialization>,
+    ) -> (Vec<Module>, usize) {
+        use super::materialization::{DEFINITION, IMPORT_BODY};
+        let reuse = previous.and_then(|previous| previous.bind(&module, self));
         let mut remaining = vec![0usize; module.items.len()];
         let mut prototypes = BTreeMap::new();
         for unit in &self.units {
@@ -56,7 +74,7 @@ impl Layout {
         }
         let mut original = module.items.into_iter().map(Some).collect::<Vec<_>>();
         let mut units = Vec::with_capacity(self.units.len());
-        for unit in &self.units {
+        for (unit_index, unit) in self.units.iter().enumerate() {
             let clone_names = unit
                 .imports
                 .iter()
@@ -88,9 +106,15 @@ impl Layout {
                 // Canonical address operands keep this prototype. Only direct
                 // calls are rewritten to the private implementation.
                 items.push(prototypes[&index].clone());
-                let Item::Function(mut function) =
-                    distribute_item(&mut original[index], &mut remaining[index])
-                else {
+                let reused = reuse
+                    .as_ref()
+                    .and_then(|reuse| reuse.item(unit_index, unit.owner, index, IMPORT_BODY));
+                let original = distribute_item(&mut original[index], &mut remaining[index]);
+                if let Some(item) = reused {
+                    items.push(item);
+                    continue;
+                }
+                let Item::Function(mut function) = original else {
                     unreachable!("an imported definition is a function")
                 };
                 function.linkage = Linkage::Internal;
@@ -99,7 +123,14 @@ impl Layout {
                 items.push(Item::Function(function));
             }
             for &index in &unit.definitions {
+                let reused = reuse
+                    .as_ref()
+                    .and_then(|reuse| reuse.item(unit_index, unit.owner, index, DEFINITION));
                 let mut item = distribute_item(&mut original[index], &mut remaining[index]);
+                if let Some(previous) = reused {
+                    items.push(previous);
+                    continue;
+                }
                 if let Item::Function(function) = &mut item {
                     rewrite_direct_calls(function, &clone_names);
                 }
@@ -111,7 +142,10 @@ impl Layout {
                 items: items.into(),
             });
         }
-        units
+        (
+            units,
+            reuse.as_ref().map_or(0, |reuse| reuse.reused_items()),
+        )
     }
 
     fn encode(&self) -> Option<Vec<u8>> {

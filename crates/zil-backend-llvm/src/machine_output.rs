@@ -55,6 +55,16 @@ impl PartialEq for MachineOutput {
 }
 impl Eq for MachineOutput {}
 impl MachineOutput {
+    /// Diagnostic fingerprints are not native values. Compare every actual item
+    /// (or its immutable shared owner) before result equality stops propagation.
+    pub(crate) fn same_values(&self, other: &Self) -> bool {
+        self.triple == other.triple
+            && self.len() == other.len()
+            && self.changed_items(other).map_or_else(
+                || (0..self.len()).all(|index| self.item(index) == other.item(index)),
+                |changed| changed.is_empty(),
+            )
+    }
     pub(crate) fn from_pieces(
         triple: String,
         fingerprint: String,

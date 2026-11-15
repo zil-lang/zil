@@ -844,6 +844,12 @@ fn closed_call_class_policy_switch_cannot_reuse_another_transform_policy() {
             if index == 1 {
                 assert_eq!((checked, cached, removed), (0, 2, 0));
                 assert!(retained > 0);
+            } else if matches!(index, 2 | 3) {
+                assert_eq!((checked, cached, removed), (0, 1, 0));
+                assert!(
+                    retained > 0,
+                    "the unchanged dead unit retains its original checked transformation"
+                );
             } else {
                 assert!(checked > 0 && removed > 0);
                 assert_eq!((cached, retained), (0, 0));
@@ -1139,4 +1145,64 @@ fn output_pieces_native_quality(closed: bool) {
         assert_eq!(actual_ir, fs::read(reference.llvm_ir).unwrap());
         assert_eq!(actual_elf, fs::read(reference.executable).unwrap());
     }
+}
+
+#[test]
+fn completed_machine_equality_still_binds_actual_source_call_projection() {
+    let limits = Limits::default();
+    let direct = history_fixture(42, 42);
+    let mut module = direct.module().clone();
+    module.functions[0].blocks[0].instructions[0].kind = InstructionKind::Call {
+        function: FunctionId(1),
+        arguments: vec![],
+    };
+    let caller = recheck(module, &limits);
+    let mut session = crate::emit::incremental::Session::default();
+    let raw = lir(&caller);
+    let machine = lower(
+        &caller,
+        &raw,
+        EntryPoint::None,
+        true,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap()
+    .0;
+    let old_identity = session.identity().unwrap();
+    let mut options = BuildOptions::new(std::path::PathBuf::from("source-projection-cutoff"));
+    options.closed_executable = true;
+    options.incremental_o2 = true;
+    let previous = crate::incremental::PartitionInput::new(
+        &options,
+        None,
+        false,
+        &raw.as_view(),
+        &machine,
+        Some(old_identity),
+    );
+    let current = lir(&direct);
+    lower(
+        &direct,
+        &current,
+        EntryPoint::None,
+        true,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap();
+    // Deliberately present identical native values: the grouping consumer must
+    // still distinguish a source call from an equal scalar result without it.
+    let changed = crate::incremental::PartitionInput::new(
+        &options,
+        None,
+        false,
+        &current.as_view(),
+        &machine,
+        session.identity(),
+    );
+    assert!(previous.same_recipe_environment(&changed));
+    assert!(!previous.same_completed_output(&changed));
 }
