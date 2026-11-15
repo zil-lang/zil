@@ -3679,7 +3679,9 @@ fn bind(pattern: &Pattern, ty: Option<TypeRef>, env: &mut Env) {
     }
 }
 fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
-    budget.ty(ty)?;
+    // Key formation borrows the existing syntax. It copies output bytes, but
+    // does not clone an Item/Expr/TypeRef tree at every preflight node.
+    budget.metadata_scope(ty.span, false, |budget| budget.ty(ty))?;
     type_key_bounded(ty, budget)
 }
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
