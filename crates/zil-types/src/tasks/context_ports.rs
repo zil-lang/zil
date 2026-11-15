@@ -196,7 +196,8 @@ impl<C: Catalog> Project<'_, C> {
         ports.sort_by(|a, b| a.path.cmp(&b.path));
         // Canonical ports follow the actual type tree, including an opaque
         // directory at its declaration position. Metadata paths are not byte
-        // GEPs and never open an address pointee or a Type argument.
+        // GEPs. Borrowed opaque directories retain their own Pointee class
+        // embedding without treating that metadata as a physical dereference.
         let maximum = ports.iter().map(|port| port.path.len()).max().unwrap_or(0);
         self.fee(
             ports
@@ -260,8 +261,36 @@ impl<C: Catalog> Project<'_, C> {
     ) -> R<()> {
         self.depth(depth)?;
         match ty {
-            // A physical outer occurrence never authorizes a pointee walk.
-            Type::Address { .. } | Type::Desc(_) => {}
+            Type::Address { inner, .. } | Type::Desc(inner) => {
+                // whole() already emitted the outer head leaf. Only an actual
+                // opaque child adds metadata ports; no ordinary pointee field
+                // can become a physical GEP through this route.
+                let mut child = inner.as_ref();
+                let mut nesting = depth + 1;
+                loop {
+                    self.depth(nesting)?;
+                    match child {
+                        Type::BorrowedStorage { storage, .. } | Type::Managed(storage) => {
+                            child = storage
+                        }
+                        _ => break,
+                    }
+                    nesting += 1;
+                }
+                if matches!(
+                    child,
+                    Type::Task { .. }
+                        | Type::MutexGuard { .. }
+                        | Type::Dyn { .. }
+                        | Type::OwnedDyn { .. }
+                        | Type::Closure(_)
+                ) {
+                    self.fee(1)?;
+                    semantic.push(LifeTypeProjection::Pointee);
+                    self.opaque(inner, whole, physical, semantic, ports, depth + 1)?;
+                    semantic.pop();
+                }
+            }
             Type::BorrowedStorage { storage, .. } => {
                 self.opaque(storage, whole, physical, semantic, ports, depth + 1)?
             }
@@ -334,6 +363,7 @@ impl<C: Catalog> Project<'_, C> {
                         "Task closure input awaits its complete actual environment header",
                     )
                 })?;
+                self.complete_domain(header.fixed_binder_count, whole, semantic)?;
                 for row in &header.bindings {
                     let StorageBase::Capture(capture) = row.position.base else {
                         continue;
@@ -445,6 +475,7 @@ impl<C: Catalog> Project<'_, C> {
         semantic: &[LifeTypeProjection],
         ports: &mut Vec<Port>,
     ) -> R<()> {
+        self.complete_domain(child.binder_count, whole, semantic)?;
         self.fee(child.ports.len())?;
         for (ordinal, port) in child.ports.iter().enumerate() {
             if port.binder >= child.binder_count {
@@ -485,6 +516,30 @@ impl<C: Catalog> Project<'_, C> {
         }
         Ok(())
     }
+    fn complete_domain(
+        &mut self,
+        count: u32,
+        whole: &StorageLifeShape,
+        semantic: &[LifeTypeProjection],
+    ) -> R<()> {
+        self.fee(count as usize)?;
+        // Even a child with no physical ports may have phantom classes. Each
+        // original child index must have its existing canonical whole-domain
+        // embedding; an empty port list never proves a known empty domain.
+        for class in 0..count {
+            let binder = if semantic.is_empty() {
+                class
+            } else {
+                self.remap(whole, semantic, class)?
+            };
+            if binder >= whole.binder_count {
+                return Err(bad(
+                    "Task opaque input loses its complete intrinsic child domain",
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 pub(crate) fn from_type(
@@ -500,4 +555,90 @@ pub(crate) fn from_type(
         left,
     }
     .whole(ty, life, 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    struct Empty;
+    impl Catalog for Empty {
+        fn lookup_work(&self) -> usize {
+            0
+        }
+        fn closure(&self, _: ClosureId) -> Option<&ClosureDefinition> {
+            None
+        }
+        fn interface(&self, _: DynInterfaceId) -> Option<&DynInterface> {
+            None
+        }
+    }
+    fn borrowed_task(description: bool, phantom: bool) -> (Type, StorageLifeShape) {
+        let leaf = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let task = Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: RetainedLifeShape {
+                binder_count: if phantom { 2 } else { 1 },
+                ports: vec![RetainedBorrowPort {
+                    leaf,
+                    mode: StoredBorrowMode::SharedAddress,
+                    binder: 0,
+                }],
+                retained: Vec::new(),
+                nominal_arguments: Vec::new(),
+            },
+        };
+        let ty = if description {
+            Type::Desc(Box::new(task))
+        } else {
+            Type::Address {
+                mutable: true,
+                inner: Box::new(task),
+            }
+        };
+        (
+            ty,
+            StorageLifeShape {
+                binder_count: 2,
+                slots: vec![StorageLifeSlot {
+                    path: Vec::new(),
+                    binder: 0,
+                    mode: if description {
+                        StoredBorrowMode::WritableDescription
+                    } else {
+                        StoredBorrowMode::ExclusiveAddress
+                    },
+                }],
+                retained: vec![StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Pointee],
+                    class: 0,
+                    binder: 1,
+                }],
+                nominal_arguments: Vec::new(),
+            },
+        )
+    }
+    #[test]
+    fn borrowed_opaque_head_and_data_keep_distinct_occurrences() {
+        for description in [false, true] {
+            let (ty, life) = borrowed_task(description, false);
+            let mut left = 10_000;
+            let ports = from_type(&Empty, &ty, &life, &Limits::default(), &mut left).unwrap();
+            assert_eq!(ports.len(), 2);
+            assert!(ports[0].path.is_empty());
+            assert_eq!(ports[0].port.leaf, ty);
+            assert_eq!(ports[0].port.binder, 0);
+            assert_eq!(ports[1].path, [ContractProjection::RetainedPort(0)]);
+            assert_eq!(ports[1].port.binder, 1);
+            assert_eq!(ports[1].port.mode, StoredBorrowMode::SharedAddress);
+        }
+    }
+    #[test]
+    fn physical_ports_do_not_complete_a_missing_phantom_child_class() {
+        let (ty, life) = borrowed_task(false, true);
+        let mut left = 10_000;
+        assert!(from_type(&Empty, &ty, &life, &Limits::default(), &mut left).is_err());
+    }
 }
