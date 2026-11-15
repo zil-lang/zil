@@ -311,6 +311,7 @@ impl<'a> Engine<'a> {
             }
         }
     }
+    #[track_caller]
     pub(super) fn stored_lookup_fee(&mut self, entries: usize, bytes: usize, span: Span) -> R<()> {
         self.budget.identity_work(
             entries
@@ -323,8 +324,7 @@ impl<'a> Engine<'a> {
     }
 
     pub(super) fn stored_declaration(&mut self, name: &str, span: Span) -> R<bool> {
-        self.stored_lookup_fee(self.templates.len(), name.len(), span)?;
-        let Some(item) = self.templates.get(name) else {
+        let Some(item) = self.template_directory.get(name, &mut self.budget, span)? else {
             return Ok(false);
         };
         if let ItemKind::Aggregate(_) | ItemKind::Enum(_) = &item.kind {
@@ -342,10 +342,7 @@ impl<'a> Engine<'a> {
         name: &str,
         span: Span,
     ) -> R<Option<(&'a Item, bool)>> {
-        if self.stored_nominals {
-            self.stored_lookup_fee(self.templates.len(), name.len(), span)?;
-        }
-        let Some(item) = self.templates.get(name).copied() else {
+        let Some(item) = self.template_directory.get(name, &mut self.budget, span)? else {
             return Ok(None);
         };
         let ItemKind::Aggregate(aggregate) = &item.kind else {
@@ -1263,11 +1260,9 @@ impl<'a> Engine<'a> {
     ) -> R<(String, Vec<LexicalLife>)> {
         self.budget.node(span, depth)?;
         self.budget.text(template, span)?;
-        self.stored_lookup_fee(self.templates.len(), template.len(), span)?;
         let item = self
-            .templates
-            .get(template)
-            .copied()
+            .template_directory
+            .get(template, &mut self.budget, span)?
             .ok_or_else(|| error(span, "stored nominal declaration is absent"))?;
         let formals = match &item.kind {
             ItemKind::Aggregate(a) => a.generics.as_slice(),
@@ -1481,18 +1476,7 @@ impl<'a> Engine<'a> {
         // Reconstructing classes on every use is deliberate: the cached shape
         // does not bind a new caller's lexical lifetime numbers.
         let key = (template.to_owned(), keys);
-        let key_bytes = key.1.iter().try_fold(template.len(), |size, part| {
-            size.checked_add(part.len().saturating_add(1))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Expand,
-                        "stored instance key size overflow",
-                        Some(span),
-                    )
-                })
-        })?;
-        self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
-        let existing = self.instances.get(&key);
+        let existing = self.instances.get(&key, &mut self.budget, span)?;
         if let Some(name) = existing {
             self.budget.text(name, span)?;
         }
@@ -1793,9 +1777,9 @@ impl<'a> Engine<'a> {
             }
             self.traits
                 .register_copy_shape(&instance, &mut self.budget)?;
-            self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
             self.budget.text(&generated, span)?;
-            self.instances.insert(key, generated.clone());
+            self.instances
+                .insert(key, generated.clone(), &mut self.budget, span)?;
             self.products
                 .storage
                 .instances

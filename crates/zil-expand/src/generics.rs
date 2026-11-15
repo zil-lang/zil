@@ -88,6 +88,8 @@ impl Env {
 }
 #[path = "generic_budget.rs"]
 mod budget;
+#[path = "generic_instance_index.rs"]
+mod instance_index;
 pub(super) use budget::Budget;
 #[path = "generic_alias.rs"]
 mod aliases;
@@ -594,6 +596,7 @@ struct Engine<'a> {
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
+    template_directory: instance_index::Templates<'a>,
     enums: BTreeMap<String, &'a EnumDecl>,
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
@@ -623,7 +626,7 @@ struct Engine<'a> {
     nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
-    instances: BTreeMap<(String, Vec<String>), String>,
+    instances: instance_index::Instances,
     realized_impls: BTreeSet<(trait_instances::Key, String)>,
     semantic_impl_scopes: BTreeMap<(trait_instances::Key, String), zil_ir::SemanticInstanceId>,
     semantic_selected_scope: Option<(usize, zil_ir::SemanticInstanceId)>,
@@ -722,6 +725,7 @@ impl<'a> Engine<'a> {
             resolved_method_calls: trait_instances::Calls::new(),
             method_calls: trait_instances::CallTargets::new(),
             templates: BTreeMap::new(),
+            template_directory: instance_index::Templates::default(),
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
@@ -743,7 +747,7 @@ impl<'a> Engine<'a> {
             nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
-            instances: BTreeMap::new(),
+            instances: instance_index::Instances::default(),
             realized_impls: BTreeSet::new(),
             semantic_impl_scopes: BTreeMap::new(),
             semantic_selected_scope: None,
@@ -821,6 +825,8 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.template_directory =
+            instance_index::Templates::new(&engine.templates, &mut engine.budget, module.span)?;
         engine.validate_impl_recipes()?;
         engine.validate_trait_defaults(module)?;
         engine.validate_trait_constants(module)?;
@@ -1560,7 +1566,7 @@ impl<'a> Engine<'a> {
             self.budget.lineage_bytes(context.len(), span)?;
             self.budget.lineage_push(&mut key.1, context, span)?;
         }
-        if let Some(existing) = self.instances.get(&key) {
+        if let Some(existing) = self.instances.get(&key, &mut self.budget, span)? {
             self.budget.drop_lineage_vec(nominal_dependencies, span)?;
             return Ok(store_templates::Instantiation::Eager(existing.clone()));
         }
@@ -1582,7 +1588,8 @@ impl<'a> Engine<'a> {
             Some(family) => format!("$generic_{template}_$data{family}_{}", self.instances.len()),
             None => format!("$generic_{}_{}", template, self.instances.len()),
         };
-        self.instances.insert(key, generated.clone());
+        self.instances
+            .insert(key, generated.clone(), &mut self.budget, span)?;
         if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
             self.instance_types.insert(
                 generated.clone(),

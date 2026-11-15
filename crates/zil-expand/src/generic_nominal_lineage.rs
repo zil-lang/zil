@@ -8,12 +8,42 @@ use zil_ir::{
     SemanticOriginalNameValue, SemanticOriginalNamespace, SemanticTypeRecipe,
 };
 
+fn formal_names<'a>(
+    names: &'a [SemanticOriginalNameBinding],
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<Vec<&'a SemanticOriginalNameBinding>> {
+    // Only original formal recipes can contribute dependencies. Project
+    // this immutable name view once for all actuals; retain every matching
+    // row, namespace and exact formal identity (including duplicates).
+    let mut formals = Vec::new();
+    for binding in names {
+        budget.identity_work(1, span)?;
+        if binding.path.len() == 1
+            && matches!(
+                &binding.value,
+                SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
+                    SemanticTypeRecipe::Formal(_)
+                )) | SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Const {
+                    value: SemanticConstRecipe::Formal(_),
+                    ..
+                }) | SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Life(
+                    SemanticLifeRecipe::Formal(_)
+                ))
+            )
+        {
+            budget.lineage_push(&mut formals, binding, span)?;
+        }
+    }
+    Ok(formals)
+}
+
 struct Life<'a> {
     name: &'a str,
     parent: Option<&'a Life<'a>>,
 }
 struct Scan<'a, 'b, 'l> {
-    names: &'a [SemanticOriginalNameBinding],
+    names: &'a [&'a SemanticOriginalNameBinding],
     bound: Option<&'a Life<'a>>,
     output: &'b mut Vec<Dependency>,
     argument: u32,
@@ -196,21 +226,26 @@ impl Engine<'_> {
             return Ok(Vec::new());
         };
         let names = program.nominal_owner_names(owner, &mut self.budget, span)?;
-        let mut output = Vec::new();
-        for (index, argument) in arguments.iter().enumerate() {
-            let ordinal = u32::try_from(index)
-                .map_err(|_| error(span, "nominal actual ordinal exhausted"))?;
-            let mut scan = Scan {
-                names,
-                bound: None,
-                output: &mut output,
-                argument: ordinal,
-                budget: &mut self.budget,
-            };
-            scan.ty(argument, 0)
-                .map_err(|mut errors| errors.remove(0))?;
-        }
-        Ok(output)
+        let formals = formal_names(names, &mut self.budget, span)?;
+        let result = (|| {
+            let mut output = Vec::new();
+            for (index, argument) in arguments.iter().enumerate() {
+                let ordinal = u32::try_from(index)
+                    .map_err(|_| error(span, "nominal actual ordinal exhausted"))?;
+                let mut scan = Scan {
+                    names: &formals,
+                    bound: None,
+                    output: &mut output,
+                    argument: ordinal,
+                    budget: &mut self.budget,
+                };
+                scan.ty(argument, 0)
+                    .map_err(|mut errors| errors.remove(0))?;
+            }
+            Ok(output)
+        })();
+        self.budget.drop_lineage_vec(formals, span)?;
+        result
     }
 }
 
@@ -348,6 +383,8 @@ mod tests {
         let names = program
             .nominal_owner_names(function.semantic, &mut budget, function.span)
             .unwrap();
+        let formals = formal_names(names, &mut budget, function.span).unwrap();
+        let names = formals.as_slice();
         let mut output = Vec::new();
         for (argument, parameter) in function.params.iter().enumerate() {
             Scan {
