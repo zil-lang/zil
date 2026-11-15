@@ -1,6 +1,6 @@
 //! Rebuildable Wire34 loan-revival mutation, preserving the historical Wire30/31/32 bytes.
-#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
-mod schema40_fixture;
+#[path = "../../zil-ir/test-support/current_raw_fixtures.rs"]
+mod current_raw_fixtures;
 
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::InstructionKind;
@@ -54,9 +54,10 @@ fn control_and_minimal_transfer_mutation() {
         assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
     }
     let frozen = include_bytes!("../../../tests/borrowed-callable-arguments/v40/loan_revival.wire");
-    let migrated = schema40_fixture::migrate(frozen, &limits);
+    let migrated = current_raw_fixtures::rebuild(frozen, &limits);
     let errors = zil_verify::verify_module_bytes(&migrated, &target, &limits).unwrap_err();
     assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
-    // Only the test transport migration changes; historical bytes stay immutable.
+    // The archived bytes stay immutable; the current reconstructed mutation
+    // must still equal the actual producer mutation byte for byte.
     assert_eq!(migrated, bytes);
 }
