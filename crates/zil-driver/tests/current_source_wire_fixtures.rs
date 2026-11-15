@@ -73,6 +73,10 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
             "returned-environment-sources/loop-sources",
             include_str!("../../../tests/returned-environment-sources/loop-sources.zil"),
         ),
+        (
+            "loan_control",
+            include_str!("../../../tests/borrowed-callable-arguments/loan_control.zil"),
+        ),
     ];
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
@@ -141,6 +145,69 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
                 return Err("complete candidate fixture round trip changed untrusted input".into());
             }
             fs::write(path.with_extension("candidate.wire"), &candidate).unwrap();
+            if label == "loan_control" {
+                // Preserve the exact actual operand mutation independently
+                // exercised by forwarded_callback_verification_wire. Keep
+                // the complete original Source program and every plan claim.
+                let mut changed = module.clone();
+                let mut changed_plan = plan.clone();
+                let main = changed
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.name == "main")
+                    .ok_or("loan control has no actual main")?;
+                let owner = main
+                    .locals
+                    .iter()
+                    .find(|local| local.name == "e")
+                    .ok_or("loan control has no actual owner")?
+                    .id;
+                let sibling = main
+                    .locals
+                    .iter()
+                    .find(|local| local.name == "other")
+                    .ok_or("loan control has no actual sibling")?
+                    .id;
+                if owner == sibling
+                    || main.locals[owner.0 as usize].ty != main.locals[sibling.0 as usize].ty
+                {
+                    return Err("loan control actual owner/sibling types differ".into());
+                }
+                let mut mutations = 0;
+                for instruction in main
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                {
+                    if let zil_ir::InstructionKind::TakeLocal { local } = &mut instruction.kind
+                        && *local == sibling
+                    {
+                        *local = owner;
+                        mutations += 1;
+                    }
+                }
+                if mutations != 1 {
+                    return Err(format!(
+                        "loan control requires one actual mutation, got {mutations}"
+                    ));
+                }
+                changed_plan.module_fingerprint = changed.fingerprint();
+                let revival =
+                    zil_ir::wire::encode_module_candidate(&changed, &changed_plan, &limits)
+                        .map_err(|e| format!("loan revival wire: {e:#?}"))?;
+                let (decoded, decoded_plan) =
+                    zil_ir::wire::decode_module_candidate(&revival, &limits)
+                        .map_err(|e| format!("loan revival decode: {e:#?}"))?;
+                if decoded != changed || decoded_plan != changed_plan {
+                    return Err("loan revival round trip changed its exact actual mutation".into());
+                }
+                fs::write(path.with_extension("revival.candidate.wire"), &revival).unwrap();
+                fs::write(
+                    path.with_extension("revival.typed.txt"),
+                    format!("{changed:#?}"),
+                )
+                .unwrap();
+            }
             records.push(format!("{{\"source\":\"{label}.zil\",\"source_sha256\":\"{}\",\"typed_sha256\":\"{}\",\"candidate_sha256\":\"{}\",\"module_fingerprint\":\"{}\",\"semantic_definitions\":{},\"functions\":{},\"closures\":{}}}",Fingerprint::of(text.as_bytes()).to_hex(),Fingerprint::of(&typed).to_hex(),Fingerprint::of(&candidate).to_hex(),module.fingerprint().to_hex(),module.semantic.as_ref().unwrap().definitions.len(),module.functions.len(),module.closures.len()));
             Ok(())
         })();
@@ -156,6 +223,6 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
         failures.join("\n"),
         output.display()
     );
-    assert_eq!(records.len(), 11);
+    assert_eq!(records.len(), 12);
     eprintln!("current complete Source fixtures: {}", output.display());
 }
