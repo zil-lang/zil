@@ -17,6 +17,7 @@ mod dyn_values;
 mod effects;
 mod enums;
 mod function_values;
+mod frozen_calls;
 mod intrinsic_actuals;
 mod invocations;
 mod loops;
