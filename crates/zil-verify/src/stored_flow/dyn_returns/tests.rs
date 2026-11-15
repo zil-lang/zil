@@ -553,6 +553,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
         &Vec::new(),
         &mut dyn_leases::Sites::default(),
         &mut loans,
+        false,
         &mut b,
     )
     .unwrap();

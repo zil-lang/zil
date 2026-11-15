@@ -2961,6 +2961,70 @@ fn clear_local_holes(state: &mut Frame, local: LocalId, b: &mut Budget) -> Check
         .retain(|slot| slot.base != HoldRoot::Local(local));
     Ok(())
 }
+
+/// Only exact SSA loads whose *every* use observes a projection's address
+/// head can defer the whole-pointee reborrow. The projection itself creates
+/// and checks its real narrower loan. A stored, passed, returned or otherwise
+/// consumed head retains the ordinary whole reborrow, even if it also has a
+/// projection use. Unreachable uses participate in this classification too.
+fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> {
+    b.spend(f.values.len().saturating_mul(2).saturating_add(f.blocks.len()))?;
+    let mut marks = vec![0u8; f.values.len()];
+    for block in &f.blocks {
+        for i in &block.instructions {
+            b.spend(1)?;
+            if let InstructionKind::Load(local) = i.kind
+                && let Some(result) = i.result
+                && matches!(vt(f, result)?, Type::Address { mutable: true, .. })
+            {
+                let actual = f.locals.get(local.0 as usize)
+                    .ok_or_else(|| err("projected head load has no actual local"))?;
+                type_work(&actual.ty, &b.limits.clone(), b)?;
+                type_work(vt(f, result)?, &b.limits.clone(), b)?;
+                if actual.ty != *vt(f, result)? {
+                    return Err(err("projected head load changes its complete local type"));
+                }
+                marks[result.0 as usize] = 1;
+            }
+        }
+    }
+    for block in &f.blocks {
+        for i in &block.instructions {
+            b.spend(1)?;
+            let head = match i.kind {
+                InstructionKind::AddressField { address, .. }
+                | InstructionKind::AddressIndex { address, .. }
+                | InstructionKind::AddressSlice { address, .. } => Some(address),
+                _ => None,
+            };
+            for operand in instruction_operands(&i.kind) {
+                b.spend(1)?;
+                let mark = marks.get_mut(operand.0 as usize)
+                    .ok_or_else(|| err("projected head use has no actual SSA value"))?;
+                if *mark & 1 != 0 {
+                    *mark |= if head == Some(operand) { 2 } else { 4 };
+                }
+            }
+        }
+        b.spend(1)?;
+        let value = match block.terminator {
+            Terminator::Return(value) => value,
+            Terminator::Branch { condition, .. } => Some(condition),
+            _ => None,
+        };
+        if let Some(value) = value {
+            let mark = marks.get_mut(value.0 as usize)
+                .ok_or_else(|| err("projected head escapes through an absent actual value"))?;
+            if *mark & 1 != 0 { *mark |= 4; }
+        }
+    }
+    Ok(marks.into_iter().map(|mark| mark == 3).collect())
+}
+
+fn is_projection_head_load(i: &Instruction, heads: &[bool]) -> bool {
+    i.result.and_then(|id| heads.get(id.0 as usize)).copied().unwrap_or(false)
+}
+
 fn projection_only_load(
     f: &TypedFunction,
     instruction: &Instruction,
@@ -3233,6 +3297,7 @@ fn step(
     sites: &WriteSites,
     dyn_sites: &mut dyn_leases::Sites,
     loans: &mut Vec<Loan>,
+    projection_head_load: bool,
     b: &mut Budget,
 ) -> Check<Payload> {
     b.spend(1)?;
@@ -4457,6 +4522,7 @@ static_dependency: StaticProvenance::NotStatic,
     if let Some(id) = i.result
         && matches!(i.kind, InstructionKind::Load(_))
         && matches!(vt(f, id)?, Type::Address { mutable: true, .. })
+        && !projection_head_load
     {
         let row = &mut loans[id.0 as usize];
         add_sources(&mut row.sources, &out.address.sources, b)?;
@@ -4564,6 +4630,7 @@ fn solve(
     b: &mut Budget,
 ) -> Check<Solution> {
     replacements::prepare(module, f, g, b)?;
+    let projection_heads = projection_head_loads(f, b)?;
     // Each reverse-batch solve creates a new function-local loan arena.
     // Its paid seed/site/step writes record every possible exclusive loan,
     // including constructor sites that are not currently active.
@@ -4632,6 +4699,7 @@ fn solve(
                     &sites,
                     &mut dyn_sites,
                     &mut loans,
+                    is_projection_head_load(instruction, &projection_heads),
                     b,
                 )?;
                 if let Some(value) = instruction.result {
@@ -4682,6 +4750,7 @@ fn solve(
                     &sites,
                     &mut dyn_sites,
                     &mut loans,
+                    is_projection_head_load(i, &projection_heads),
                     b,
                 )?;
                 if let Some(v) = i.result {
@@ -5316,6 +5385,7 @@ fn windows(
     dyn_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
+    let projection_heads = projection_head_loads(f, b)?;
     // A module marker only schedules this actual per-function inventory.
     let mut ordinary_error_places = false;
     if b.ordinary_error_places {
@@ -5706,13 +5776,29 @@ fn windows(
                         if matches!(
                             f.locals[local.0 as usize].ty,
                             Type::Address { mutable: true, .. }
-                        ) {
+                        ) && !is_projection_head_load(i, &projection_heads) {
                             checks.check(
                                 &state.locals[local.0 as usize].address,
                                 true,
                                 requirements,
                                 b,
                             )?;
+                        }
+                        if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+                            // Loading the pointer local reads its storage,
+                            // not the pointee. A loan of the pointer storage
+                            // itself still prevents even this head observation.
+                            b.spend(1)?;
+                            let head = Permission {
+                                sources: vec![Source {
+                                    static_dependency: StaticProvenance::NotStatic,
+                                    retained_port: None,
+                                    base: HoldRoot::Local(*local),
+                                    leaf: vec![], inline: vec![], heap_parents: vec![], heap_element: None,
+                                }],
+                                loans: vec![],
+                            };
+                            checks.check(&head, false, requirements, b)?;
                         }
                     }
                     InstructionKind::BorrowCapture { index, mutable } => {
@@ -5794,7 +5880,7 @@ fn windows(
                         address,
                         mutable: false,
                     } => checks.check(pointer(*address)?, false, requirements, b)?,
-                    InstructionKind::AddressField { address, .. } if b.dyn_contexts => {
+                    InstructionKind::AddressField { address, .. } => {
                         let result = i
                             .result
                             .ok_or_else(|| err("field view lacks its actual result"))?;
@@ -5812,8 +5898,7 @@ fn windows(
                         let write = matches!(vt(f, result)?, Type::Address { mutable: true, .. });
                         checks.check(&actual, write, requirements, b)?;
                     }
-                    InstructionKind::AddressField { address, .. }
-                    | InstructionKind::AddressIndex { address, .. }
+                    InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
                         let write = i.result.is_some_and(|v| {
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
@@ -6257,6 +6342,7 @@ fn windows(
                 &solution.sites,
                 &mut solution.dyn_sites,
                 &mut solution.loans,
+                is_projection_head_load(i, &projection_heads),
                 b,
             )?;
             if let Some(flow) = &byte_flow {
@@ -7668,6 +7754,122 @@ mod tests {
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
+
+    #[test]
+    fn projected_head_reads_do_not_delegate_a_live_child_to_parent_accesses() {
+        // Two disjoint fields may coexist. Selecting the same field, reading
+        // or writing the whole parent, reborrowing it, passing it, or copying its mutable
+        // capability to another local must still conflict with the live child.
+        for case in 0..7 {
+            let mut module = fixture::module();
+            let pair = Type::Record {
+                name: "Pair".into(),
+                fields: vec![("left".into(), Type::I64), ("right".into(), Type::I64)],
+            };
+            let whole = fixture::address(pair.clone(), true);
+            let field = fixture::address(Type::I64, true);
+            let mut function = module.functions[0].clone();
+            function.id = FunctionId(0);
+            function.environment = None;
+            function.parameters = vec![LocalId(0)];
+            function.locals.truncate(1);
+            function.locals[0].ty = whole.clone();
+            function.locals[0].mutable = false;
+            let mut alias = function.locals[0].clone();
+            alias.id = LocalId(1);
+            alias.mutable = true;
+            function.locals.push(alias);
+            function.return_type = Type::I64;
+            function.values = vec![whole.clone(), field.clone(), whole.clone(), field, Type::I64];
+            let mut instructions = vec![
+                fixture::instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+            ];
+            match case {
+                0 | 1 => instructions.extend([
+                    fixture::instruction(Some(2), InstructionKind::Load(LocalId(0))),
+                    fixture::instruction(Some(3), InstructionKind::AddressField { address: ValueId(2), index: if case == 0 { 1 } else { 0 } }),
+                ]),
+                2 => {
+                    function.values[2] = pair;
+                    instructions.push(fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(0) }));
+                }
+                3 => instructions.push(fixture::instruction(Some(2), InstructionKind::ReborrowAddress { address: ValueId(0), mutable: true })),
+                4 => {
+                    let mut callee = function.clone();
+                    callee.id = FunctionId(1);
+                    callee.locals.truncate(1);
+                    callee.return_type = Type::Unit;
+                    callee.values.clear();
+                    callee.blocks.truncate(1);
+                    callee.blocks[0].instructions.clear();
+                    callee.blocks[0].terminator = Terminator::Return(None);
+                    module.functions[1] = callee;
+                    instructions.push(fixture::instruction(None, InstructionKind::Call { function: FunctionId(1), arguments: vec![ValueId(0)] }));
+                }
+                5 => instructions.extend([
+                    fixture::instruction(Some(2), InstructionKind::Load(LocalId(0))),
+                    fixture::instruction(None, InstructionKind::Store { local: LocalId(1), value: ValueId(2) }),
+                ]),
+                _ => {
+                    function.values[2] = pair;
+                    instructions.insert(1, fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(0) }));
+                    instructions.push(fixture::instruction(None, InstructionKind::WriteAddress { address: ValueId(0), value: ValueId(2) }));
+                }
+            }
+            instructions.push(fixture::instruction(Some(4), InstructionKind::ReadAddress { address: ValueId(1) }));
+            if case <= 1 {
+                instructions.push(fixture::instruction(None, InstructionKind::WriteAddress { address: ValueId(3), value: ValueId(4) }));
+            }
+            function.blocks.truncate(1);
+            function.blocks[0].instructions = instructions;
+            function.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+            let graph = FunctionGraph {
+                successors: vec![vec![]], predecessors: vec![vec![]], reachable: vec![true],
+                package_views: packages::CaptureViews::default(), role_data_uses: vec![],
+            };
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            let heads = projection_head_loads(&function, &mut budget).unwrap();
+            assert_eq!(heads[0], case <= 1 || case == 5);
+            if case <= 1 { assert!(heads[2]); }
+            if case == 5 { assert!(!heads[2]); }
+            let summaries = vec![Summary::default(); module.functions.len()];
+            let mut solution = solve(&module, &function, &graph, &summaries, &mut budget).unwrap();
+            let result = windows(&module, &function, &graph, &mut solution, &summaries,
+                &mut vec![], &mut vec![], &mut vec![], &mut vec![], &mut budget);
+            if case == 0 { result.unwrap(); }
+            else { assert!(result.unwrap_err().message.contains("loan"), "case {case}"); }
+        }
+    }
+
+    #[test]
+    fn projected_head_load_requires_all_uses_including_unreachable_and_return() {
+        let module = fixture::module();
+        let mut function = module.functions[0].clone();
+        function.parameters = vec![LocalId(0)];
+        function.locals.truncate(1);
+        let pair = Type::Record { name: "Pair".into(), fields: vec![("id".into(), Type::I64)] };
+        function.locals[0].ty = fixture::address(pair, true);
+        function.values = vec![function.locals[0].ty.clone(), fixture::address(Type::I64, true)];
+        function.blocks.truncate(1);
+        function.blocks[0].instructions = vec![
+            fixture::instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+        ];
+        function.blocks[0].terminator = Terminator::Return(None);
+        let limits = Limits::default();
+        assert!(projection_head_loads(&function, &mut Budget::new(&limits)).unwrap()[0]);
+        let mut escaped = function.clone();
+        escaped.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+        assert!(!projection_head_loads(&escaped, &mut Budget::new(&limits)).unwrap()[0]);
+        let mut unreachable = function.blocks[0].clone();
+        unreachable.id = BlockId(1);
+        unreachable.instructions = vec![fixture::instruction(None, InstructionKind::Store { local: LocalId(0), value: ValueId(0) })];
+        function.blocks.push(unreachable);
+        assert!(!projection_head_loads(&function, &mut Budget::new(&limits)).unwrap()[0]);
+    }
+
     #[test]
     fn affine_pointee_and_option_actual_keep_their_distinct_domains() {
         let module = fixture::module();
@@ -7851,6 +8053,7 @@ mod tests {
                     &sites,
                     &mut dyn_leases::Sites::default(),
                     &mut Vec::new(),
+                    false,
                     &mut budget,
                 );
                 if byte {
@@ -7891,6 +8094,7 @@ mod tests {
             &sites,
             &mut dyn_leases::Sites::default(),
             &mut Vec::new(),
+            false,
             &mut Budget::new(&limits),
         )
         .unwrap_err();
