@@ -159,3 +159,22 @@ impl CheckedOriginal {
     pub(super) fn condition_original(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {let ty=self.expression(module,context,expression,env,bindings,Some(&Ty::Atom(Type::Bool)),active,b)?;self.unify(&ty,&Ty::Atom(Type::Bool),b)}
     pub(super) fn numeric_binary_original(&mut self,op:BinaryOp,left:&Ty,right:&Ty,b:&mut Budget)->Check<Ty>{self.unify(left,right,b)?;let ty=self.resolved(left,b)?;let Ty::Atom(ref atom)=ty else{return Err(unsupported("original arithmetic needs a proved scalar operator contract",None));};let valid=match op{BinaryOp::And|BinaryOp::Or=>*atom==Type::Bool,BinaryOp::Equal|BinaryOp::NotEqual=>atom.is_integer()||atom.is_float()||*atom==Type::Bool,BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual=>atom.is_integer()||atom.is_float(),BinaryOp::Add|BinaryOp::Subtract|BinaryOp::Multiply|BinaryOp::Divide|BinaryOp::Remainder=>atom.is_integer()||atom.is_float(),_=>atom.is_integer()};if !valid{return Err(bad("original binary operator is invalid for its complete scalar carrier"));}Ok(if matches!(op,BinaryOp::And|BinaryOp::Or|BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual){Ty::Atom(Type::Bool)}else{ty})}
 }
+
+impl CheckedOriginal {
+    pub(super) fn contextual_numeric_literal(expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
+        let mut pending=vec![expression];
+        while let Some(expression)=pending.pop(){
+            b.spend(1)?;
+            match &expression.kind{
+                CoreExprKind::Integer(text)|CoreExprKind::Float(text)=>{
+                    b.spend(text.len().saturating_add(12))?;
+                    if ["isize","usize","i64","i32","i16","i8","u64","u32","u16","u8","f64","f32"].iter().any(|suffix|text.ends_with(*suffix)){return Ok(false);}
+                },
+                CoreExprKind::Group(inner)|CoreExprKind::Unary{op:UnaryOp::Negate|UnaryOp::BitNot,operand:inner}=>pending.push(inner),
+                CoreExprKind::Binary{op:BinaryOp::Add|BinaryOp::Subtract|BinaryOp::Multiply|BinaryOp::Divide|BinaryOp::Remainder|BinaryOp::AddWrapping|BinaryOp::SubtractWrapping|BinaryOp::MultiplyWrapping|BinaryOp::BitAnd|BinaryOp::BitOr|BinaryOp::BitXor|BinaryOp::ShiftLeft|BinaryOp::ShiftRight,left,right}=>{pending.push(left);pending.push(right);},
+                _=>return Ok(false),
+            }
+        }
+        Ok(true)
+    }
+}

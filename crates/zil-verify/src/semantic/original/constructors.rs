@@ -171,3 +171,19 @@ impl CheckedOriginal {
         Ok(Some(intrinsics::BufferSource::Place{definition,node:*node}))
     }
 }
+
+impl CheckedOriginal {
+    /// A contextual error injection has two actual operations: construct the
+    /// payload, then select its sum arm. Their original expression is shared,
+    /// but the constructor never receives the enclosing sum's storage role.
+    pub(in crate::semantic) fn construction_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
+        let value=match source{
+            SemanticOriginalTypeSource::Expression(node)=>match self.injections.get(&(definition,*node)){
+                Some((_,payload))=>self.resolved(payload,b)?,
+                None=>self.original_type(definition,source,b)?,
+            },
+            _=>self.original_type(definition,source,b)?,
+        };
+        self.reify_type(module,&value,env,b)
+    }
+}

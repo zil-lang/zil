@@ -56,7 +56,20 @@ impl CheckedOriginal {
                         _=>unreachable!(),
                     }
                 },
-                CoreExprKind::Binary{op,left,right}=>{let operand_expected=if matches!(op,BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual|BinaryOp::And|BinaryOp::Or){None}else{expected};let left=self.expression(module,context,left,env,bindings,operand_expected,active,b)?;let right=self.expression(module,context,right,env,bindings,Some(&left),active,b)?;self.numeric_binary_original(*op,&left,&right,b)?},
+                CoreExprKind::Binary{op,left,right}=>{
+                    let operand_expected=if matches!(op,BinaryOp::Equal|BinaryOp::NotEqual|BinaryOp::Less|BinaryOp::LessEqual|BinaryOp::Greater|BinaryOp::GreaterEqual|BinaryOp::And|BinaryOp::Or){None}else{expected};
+                    let(left,right)=if Self::contextual_numeric_literal(left,b)?{
+                        // A pure untyped literal has no move, observation or
+                        // effect to order. Obtain the other operand's carrier
+                        // before applying the language's default literal type.
+                        let right=self.expression(module,context,right,env,bindings,operand_expected,active,b)?;
+                        let left=self.expression(module,context,left,env,bindings,Some(&right),active,b)?;(left,right)
+                    }else{
+                        let left=self.expression(module,context,left,env,bindings,operand_expected,active,b)?;
+                        let right=self.expression(module,context,right,env,bindings,Some(&left),active,b)?;(left,right)
+                    };
+                    self.numeric_binary_original(*op,&left,&right,b)?
+                },
                 CoreExprKind::Call{callee,arguments}=>self.call(module,context,expression,callee,arguments,env,bindings,expected,active,b)?,
                 CoreExprKind::Tuple(fields)=>{let expected=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut actuals=Vec::new();for(index,field)in fields.iter().enumerate(){let field_expected=match &expected{Some(Ty::Tuple(fields))=>fields.get(index),_=>None};actuals.push(self.expression(module,context,field,env,bindings,field_expected,active,b)?);}if actuals.is_empty(){Ty::Atom(Type::Unit)}else{Ty::Tuple(actuals)}},
                 CoreExprKind::Array(fields)=>{let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut child=match contextual{Some(Ty::Array(child,_))=>*child,_=>self.fresh(b)?};for field in fields{let actual=self.expression(module,context,field,env,bindings,Some(&child),active,b)?;self.unify(&actual,&child,b)?;child=self.resolved(&child,b)?;}Ty::Array(Box::new(child),Box::new(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Value(Constant::Usize(fields.len() as u64))}))},

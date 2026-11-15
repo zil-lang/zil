@@ -17,7 +17,7 @@ impl CheckedContext{
                 for(actual,recipe)in actuals.into_iter().flatten().zip(&recipes){let expected=self.evaluate_actual(module,recipe,environment,external,active,b)?;self.actual_claim(module,actual,&expected,environment,b)?;}
                 let definition=self.definition(module,instance.definition,b)?;let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("enum constructor caller has no original body"));};b.spend(site_nodes.len())?;
                 let source=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("enum constructor has no original node link"))?;let SemanticOriginalNode::Expression(node)=source.node else{return Err(bad("enum constructor source is not a Call expression"));};
-                let recipe=original.type_recipe(module,instance.definition,&SemanticOriginalTypeSource::Expression(node),environment,b)?;
+                let recipe=original.construction_recipe(module,instance.definition,&SemanticOriginalTypeSource::Expression(node),environment,b)?;
                 let value=self.evaluate_type(module,&recipe,environment,external,active,b)?;
                 let storage=match &value.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};let Type::Enum{variants,..}=storage else{return Err(bad("original enum constructor has another complete nominal result"));};
                 let(_,expected)=variants.get(*variant as usize).ok_or_else(||bad("original enum variant is outside its complete declaration"))?;
