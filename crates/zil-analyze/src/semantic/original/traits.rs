@@ -124,6 +124,33 @@ impl<'a> Inventory<'a> {
 }
 
 impl Solver<'_, '_> {
+    /// A rigid declaration premise is available in its original quantified
+    /// domain before any executable body has completed. Keep this read-only
+    /// header separate from the completed-body frame memo: installing it
+    /// there could incorrectly skip a later mandatory function body check.
+    fn premise_frame(
+        &mut self,
+        current: &Frame,
+        owner: SemanticDefinitionId,
+        b: &mut Budget,
+    ) -> CompileResult<Frame> {
+        if owner == current.definition {
+            b.spend(current.formals.len(), WORK)?;
+            return Ok(trait_frame(owner, current.formals.clone()));
+        }
+        b.lookup(self.state.frames.len(), WORK)?;
+        if let Some(context) = self.state.frames.get(&owner) {
+            b.spend(context.formals.len(), WORK)?;
+            return Ok(trait_frame(owner, context.formals.clone()));
+        }
+        let original = self.inventory.definition(owner, b)?;
+        let mut formals = Vec::new();
+        for (ordinal, formal) in original.parameters.iter().enumerate() {
+            let value = self.rigid_formal(owner, ordinal, formal, &formals, b)?;
+            Self::push(&mut formals, value, b)?;
+        }
+        Ok(trait_frame(owner, formals))
+    }
     pub(super) fn original_trait_facts(
         &mut self,
         frame: &Frame,
@@ -715,14 +742,7 @@ impl Solver<'_, '_> {
                 let source = self.inventory.definition(owner, b)?;
                 if matches!(source.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration: id }) if id == declaration)
                 {
-                    let context = if frame.definition == owner {
-                        frame
-                    } else {
-                        self.state
-                            .frames
-                            .get(&owner)
-                            .ok_or_else(|| fail("original trait Self has no lexical frame"))?
-                    };
+                    let context = self.premise_frame(frame, owner, b)?;
                     if self.same_original_rows(&context.formals, arguments, b, depth + 1)? {
                         return Ok(true);
                     }
@@ -754,18 +774,7 @@ impl Solver<'_, '_> {
             if application.declaration != declaration {
                 continue;
             }
-            let context = if owner == frame.definition {
-                frame
-            } else {
-                self.state
-                    .frames
-                    .get(&owner)
-                    .ok_or_else(|| fail("original trait premise has no checked lexical frame"))?
-            };
-            // Copy only bounded arena indices. The original frame remains
-            // immutable while its declared subject/application are evaluated.
-            b.spend(context.formals.len(), WORK)?;
-            let context = trait_frame(owner, context.formals.clone());
+            let context = self.premise_frame(frame, owner, b)?;
             let subject = self.recipe(&context, ty, b, depth + 1)?;
             let actuals = self.trait_arguments(&context, application, b, depth + 1)?;
             if self.same_original(receiver, subject, b, depth + 1)?
