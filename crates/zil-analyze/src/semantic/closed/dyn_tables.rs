@@ -118,7 +118,7 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::Tuple(fields)=>{
                 let mut result=Vec::new(); for field in fields { self.push_value(&mut result,self.dyn_zero_recipe(field,method,self_type,b,depth+1)?,b)?; } Type::Tuple(result)
             },
-            SemanticTypeRecipe::Nominal { definition,arguments } if arguments.is_empty()=>original::nominal::actual(*definition,&[],self.inventory,b,depth+1)?,
+            SemanticTypeRecipe::Nominal { definition,arguments } if arguments.is_empty()=>self.nominal_actual(*definition,&[],b,depth+1)?,
             SemanticTypeRecipe::SelfType { scope:SemanticScopeRef::Ancestor(1) }=>{
                 let declaration=self.inventory.definition(method,b)?;
                 if declaration.kind!=SemanticDefinitionKind::Method || declaration.parent.is_none() { return Err(fail("dynamic original Self has no exact method owner")); }

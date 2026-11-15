@@ -220,6 +220,36 @@ pub(super) fn protocol(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compi
     Ok(())
 }
 
+/// The sealed element premise does not require an allocation or an enclosing
+/// Store specialization. Reuse the producer's exact finite layout and element
+/// families; nested owned managers still require their actual definitions.
+pub(super) fn semantic_element(
+    module: &TypedModule,
+    element: &Type,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    b.type_work(element, true, WORK)?;
+    if !module.target.is_supported_x64_llvm() {
+        return Err(unsupported(
+            "recursive Store needs a checked x64 LLVM target",
+        ));
+    }
+    if !selected(element) {
+        if matches!(element, Type::Package { .. }) {
+            super::dynamic_store::product_element(element, b)?;
+        } else {
+            return super::pod_store::semantic_element(module, element, b);
+        }
+    }
+    let (bytes, _) = value(element, module, b)?;
+    if bytes == 0 {
+        return Err(unsupported(
+            "recursive Store needs nonzero actual element storage",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn carrier(module: &TypedModule, element: &Type, b: &mut Budget) -> CompileResult<()> {
     b.type_work(element, true, WORK)?;
     if !module.target.is_supported_x64_llvm() {
@@ -239,12 +269,7 @@ pub(super) fn carrier(module: &TypedModule, element: &Type, b: &mut Budget) -> C
         }
         return super::pod_store::carrier(module, element, b);
     }
-    let (bytes, _) = value(element, module, b)?;
-    if bytes == 0 {
-        return Err(unsupported(
-            "recursive Store needs nonzero actual element storage",
-        ));
-    }
+    semantic_element(module, element, b)?;
     b.spend(96, WORK)?;
     let name = match element {
         Type::Managed(_) => format!("@builtin:OwnedStore<owner:{}>", element.fingerprint()),

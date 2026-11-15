@@ -418,7 +418,7 @@ impl Check<'_, '_> {
                         .map_err(|_| fail("original nominal actual allocation failed"))?;
                     actuals.push(ty);
                 }
-                original::nominal::actual(*definition, &actuals, self.inventory, b, depth + 1)
+                self.nominal_actual(*definition, &actuals, b, depth + 1)
             }
             SemanticTypeRecipe::Tuple(fields) => {
                 if fields.is_empty() {
@@ -729,7 +729,7 @@ impl Check<'_, '_> {
                     actuals.push(ty);
                 }
                 self.requirements(instance, &definition.requirements, b)?;
-                original::nominal::actual(definition.id, &actuals, self.inventory, b, 0)?;
+                self.nominal_actual(definition.id, &actuals, b, 0)?;
                 continue;
             }
             let SemanticInstanceTarget::Function(target) = &instance.target else {

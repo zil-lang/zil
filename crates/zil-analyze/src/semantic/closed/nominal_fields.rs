@@ -108,6 +108,88 @@ impl Check<'_, '_> {
         Ok(value)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn nominal_mixed_actuals(
+        &self,
+        owner: SemanticDefinitionId,
+        args: &[Argument],
+        definition: SemanticDefinitionId,
+        arguments: &[SemanticActualRecipe],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Vec<Argument>> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown("nominal mixed actuals exceed their finite depth"));
+        }
+        let declaration = self.inventory.definition(definition, b)?;
+        if declaration.parameters.len() != arguments.len() {
+            return Err(fail("nested nominal omits original mixed arguments"));
+        }
+        let mut actuals = Vec::new();
+        for (formal, argument) in declaration.parameters.iter().zip(arguments) {
+            let actual = match (formal, argument) {
+                (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(ty)) => {
+                    Argument::Type(self.nominal_field_value(owner, args, ty, b, depth + 1)?)
+                }
+                (SemanticFormal::Lifetime, SemanticActualRecipe::Life(life)) => {
+                    Argument::Life(self.nominal_life(owner, args, life, b)?)
+                }
+                (
+                    SemanticFormal::Const { carrier: expected },
+                    SemanticActualRecipe::Const { carrier, value },
+                ) => {
+                    let carrier = self.nominal_field_value(owner, args, carrier, b, depth + 1)?;
+                    if !empty(&carrier.life) || !carrier.classes.is_empty() {
+                        return Err(fail(
+                            "nested nominal constant carrier has persistent classes",
+                        ));
+                    }
+                    let expected =
+                        self.nominal_field_value(definition, &actuals, expected, b, depth + 1)?;
+                    if expected != carrier {
+                        return Err(fail(
+                            "nested nominal constant differs from its original dependent carrier",
+                        ));
+                    }
+                    let constant =
+                        self.nominal_constant(owner, args, value, &carrier.ty, b, depth + 1)?;
+                    Argument::Const {
+                        carrier: carrier.ty,
+                        value: constant,
+                    }
+                }
+                _ => {
+                    return Err(fail("nested nominal changes original mixed argument kind"));
+                }
+            };
+            self.push_value(&mut actuals, actual, b)?;
+        }
+        Ok(actuals)
+    }
+
+    pub(super) fn nominal_trait_actuals(
+        &self,
+        owner: SemanticDefinitionId,
+        args: &[Argument],
+        application: &SemanticTraitRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Vec<Argument>> {
+        let scope =
+            original::declaration_scope(self.program, application.declaration, self.inventory, b)?;
+        let declaration = self.inventory.definition(scope, b)?;
+        if !matches!(
+            declaration.body,
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
+        ) {
+            return Err(fail(
+                "nominal trait premise changes its original declaration kind",
+            ));
+        }
+        self.nominal_mixed_actuals(owner, args, scope, &application.arguments, b, depth + 1)
+    }
+
     pub(super) fn nominal_field_value(
         &self,
         owner: SemanticDefinitionId,
@@ -155,71 +237,29 @@ impl Check<'_, '_> {
                 b.spend(value.classes.len(), WORK)?;
                 Ok(value.clone())
             }
+            SemanticTypeRecipe::AssociatedType {
+                receiver,
+                application,
+                member,
+            } => {
+                let receiver = self.nominal_field_value(owner, args, receiver, b, depth + 1)?;
+                let arguments =
+                    self.nominal_trait_actuals(owner, args, application, b, depth + 1)?;
+                self.associated_actual(
+                    &receiver,
+                    application.declaration,
+                    &arguments,
+                    *member,
+                    b,
+                    depth + 1,
+                )
+            }
             SemanticTypeRecipe::Nominal {
                 definition,
                 arguments,
             } => {
-                let declaration = self.inventory.definition(*definition, b)?;
-                if declaration.parameters.len() != arguments.len() {
-                    return Err(fail("nested nominal omits original mixed arguments"));
-                }
-                let mut actuals = Vec::new();
-                for (formal, argument) in declaration.parameters.iter().zip(arguments) {
-                    let actual = match (formal, argument) {
-                        (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(ty)) => {
-                            Argument::Type(self.nominal_field_value(
-                                owner,
-                                args,
-                                ty,
-                                b,
-                                depth + 1,
-                            )?)
-                        }
-                        (SemanticFormal::Lifetime, SemanticActualRecipe::Life(life)) => {
-                            Argument::Life(self.nominal_life(owner, args, life, b)?)
-                        }
-                        (
-                            SemanticFormal::Const { carrier: expected },
-                            SemanticActualRecipe::Const { carrier, value },
-                        ) => {
-                            let carrier =
-                                self.nominal_field_value(owner, args, carrier, b, depth + 1)?;
-                            if !empty(&carrier.life) || !carrier.classes.is_empty() {
-                                return Err(fail(
-                                    "nested nominal constant carrier has persistent classes",
-                                ));
-                            }
-                            let expected = self.nominal_field_value(
-                                *definition,
-                                &actuals,
-                                expected,
-                                b,
-                                depth + 1,
-                            )?;
-                            if expected != carrier {
-                                return Err(fail(
-                                    "nested nominal constant differs from its original dependent carrier",
-                                ));
-                            }
-                            let constant = self.nominal_constant(
-                                owner,
-                                args,
-                                value,
-                                &carrier.ty,
-                                b,
-                                depth + 1,
-                            )?;
-                            Argument::Const {
-                                carrier: carrier.ty,
-                                value: constant,
-                            }
-                        }
-                        _ => {
-                            return Err(fail("nested nominal changes original mixed argument kind"));
-                        }
-                    };
-                    self.push_value(&mut actuals, actual, b)?;
-                }
+                let actuals =
+                    self.nominal_mixed_actuals(owner, args, *definition, arguments, b, depth + 1)?;
                 self.nominal_value(*definition, &actuals, b, depth + 1)
             }
             SemanticTypeRecipe::Address {

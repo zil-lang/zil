@@ -251,7 +251,7 @@ impl Check<'_, '_> {
                 self.push_value(&mut arguments, ty.clone(), b)?;
             }
             let expected =
-                original::nominal::actual(definition, &arguments, self.inventory, b, depth + 1)?;
+                self.nominal_actual(definition, &arguments, b, depth + 1)?;
             crate::dyn_metadata::ty(&expected, b)?;
             crate::dyn_metadata::ty(payload, b)?;
             if expected != *payload {

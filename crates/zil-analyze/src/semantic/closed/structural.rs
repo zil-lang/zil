@@ -1,9 +1,126 @@
 //! Concrete structural premises keep layout separate from synchronous cleanup.
 //! A closure's body kind is irrelevant to dropping its stored environment.
 use super::*;
+use crate::semantic::value::{self, Argument};
 use original::Predicate;
 
 impl Check<'_, '_> {
+    /// Adapt the old zero-domain nominal entry to the complete original field
+    /// interpreter. Zero is proved from every actual, never from a port count.
+    pub(super) fn nominal_actual(
+        &self,
+        definition: SemanticDefinitionId,
+        actuals: &[Type],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Type> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual nominal exceeds its complete substitution depth",
+            ));
+        }
+        original::nominal::actual_qualified(
+            definition,
+            actuals,
+            self.inventory,
+            b,
+            depth,
+            &|owner, actuals, requirements, b, depth| {
+                b.spend(1, WORK)?;
+                if requirements.is_empty() {
+                    return Ok(());
+                }
+                let mut arguments = Vec::new();
+                for ty in actuals {
+                    // actual_qualified has checked the complete nominal zero
+                    // domain; also inspect actual closure/resource children.
+                    self.zero_data(ty, b, depth + 1)?;
+                    self.push_value(&mut arguments, Argument::Type(value::scalar(ty.clone())), b)?;
+                }
+                self.nominal_requirements(owner, &arguments, requirements, b, depth + 1)
+            },
+        )
+    }
+
+    /// Consume the complete original requirement slice in this nominal's
+    /// actual argument domain. Candidate provider identity reconstruction is
+    /// separate, so an unselected Self never supplies its own premises.
+    fn nominal_requirements(
+        &self,
+        owner: SemanticDefinitionId,
+        arguments: &[Argument],
+        requirements: &[SemanticRequirementRecipe],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual nominal premises exceed their complete depth",
+            ));
+        }
+        for requirement in requirements {
+            b.spend(1, WORK)?;
+            let (recipe, predicate) = match requirement {
+                SemanticRequirementRecipe::Trait { ty, application } => {
+                    let receiver = self.nominal_field_value(owner, arguments, ty, b, depth + 1)?;
+                    let actuals =
+                        self.nominal_trait_actuals(owner, arguments, application, b, depth + 1)?;
+                    self.actual_provider(
+                        &receiver,
+                        application.declaration,
+                        &actuals,
+                        b,
+                        depth + 1,
+                    )?;
+                    continue;
+                }
+                SemanticRequirementRecipe::TypeEqual { left, right } => {
+                    if self.nominal_field_value(owner, arguments, left, b, depth + 1)?
+                        != self.nominal_field_value(owner, arguments, right, b, depth + 1)?
+                    {
+                        return Err(fail("actual nominal fails its original type equality"));
+                    }
+                    continue;
+                }
+                SemanticRequirementRecipe::Structural { ty, bound } => (
+                    ty,
+                    match bound {
+                        DynStructuralBound::Copy => Predicate::Copy,
+                        DynStructuralBound::Value => Predicate::Value,
+                        DynStructuralBound::SyncDrop => Predicate::SyncDrop,
+                        DynStructuralBound::StoreElement => Predicate::StoreElement,
+                    },
+                ),
+                SemanticRequirementRecipe::Builtin { ty, trait_kind } => (
+                    ty,
+                    match trait_kind {
+                        SemanticBuiltinTrait::Copy => Predicate::Copy,
+                        SemanticBuiltinTrait::Value => Predicate::Value,
+                        SemanticBuiltinTrait::SyncDrop => Predicate::SyncDrop,
+                        SemanticBuiltinTrait::StoreElement => Predicate::StoreElement,
+                        _ => {
+                            return Err(unknown(
+                                "actual nominal needs its complete builtin premise proof",
+                            ));
+                        }
+                    },
+                ),
+                _ => {
+                    return Err(unknown(
+                        "actual nominal needs its complete nonstructural premise proof",
+                    ));
+                }
+            };
+            let value = self.nominal_field_value(owner, arguments, recipe, b, depth + 1)?;
+            if !self.structural_actual(&value.ty, predicate, b, depth + 1)? {
+                return Err(fail("actual nominal fails an original structural premise"));
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn structural_actual(
         &self,
         ty: &Type,
@@ -16,6 +133,17 @@ impl Check<'_, '_> {
             return Err(unknown(
                 "actual structural environment exceeds its finite inventory depth",
             ));
+        }
+        if matches!(predicate, Predicate::StoreElement) {
+            // The sealed element contract includes ordinary formation and
+            // synchronous cleanup. Layout alone cannot supply either theorem.
+            if !self.structural_actual(ty, Predicate::Value, b, depth + 1)?
+                || !self.structural_actual(ty, Predicate::SyncDrop, b, depth + 1)?
+            {
+                return Ok(false);
+            }
+            crate::nested_store::semantic_element(self.module, ty, b)?;
+            return Ok(true);
         }
         if !matches!(predicate, Predicate::Value | Predicate::SyncDrop) {
             return original::nominal::predicate_actual(ty, predicate, self.inventory, b, depth);

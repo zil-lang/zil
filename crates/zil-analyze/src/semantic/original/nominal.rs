@@ -611,6 +611,35 @@ pub(in crate::semantic) fn actual(
     b: &mut Budget,
     depth: usize,
 ) -> CompileResult<Type> {
+    actual_qualified(
+        definition,
+        arguments,
+        inventory,
+        b,
+        depth,
+        &|owner, args, requirements, b, depth| {
+            requirements_actual(owner, args, requirements, inventory, b, depth)
+        },
+    )
+}
+
+/// Concrete consumers supply their complete original premise interpreter;
+/// every nested nominal application retains the same interpretation.
+#[allow(clippy::type_complexity)]
+pub(in crate::semantic) fn actual_qualified(
+    definition: SemanticDefinitionId,
+    arguments: &[Type],
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+    depth: usize,
+    qualify: &dyn Fn(
+        SemanticDefinitionId,
+        &[Type],
+        &[SemanticRequirementRecipe],
+        &mut Budget,
+        usize,
+    ) -> CompileResult<()>,
+) -> CompileResult<Type> {
     b.spend(1, WORK)?;
     if depth > b.partial_depth {
         return Err(resource(
@@ -635,7 +664,7 @@ pub(in crate::semantic) fn actual(
         return Err(fail("nominal actual omits full original mixed formals"));
     }
     for (formal, argument) in declaration.parameters.iter().zip(arguments) {
-        let SemanticFormal::Type { requirements } = formal else {
+        let SemanticFormal::Type { .. } = formal else {
             return Err(unknown(
                 "nominal actual needs scoped constant and lifetime substitution",
             ));
@@ -646,13 +675,17 @@ pub(in crate::semantic) fn actual(
             inventory.limits,
             b,
         )?;
-        requirements_actual(definition, arguments, requirements, inventory, b, depth + 1)?;
     }
-    requirements_actual(
+    for formal in &declaration.parameters {
+        let SemanticFormal::Type { requirements } = formal else {
+            return Err(fail("validated nominal formal changed its kind"));
+        };
+        qualify(definition, arguments, requirements, b, depth + 1)?;
+    }
+    qualify(
         definition,
         arguments,
         &declaration.requirements,
-        inventory,
         b,
         depth + 1,
     )?;
@@ -660,14 +693,30 @@ pub(in crate::semantic) fn actual(
     match body {
         SemanticNominalBody::Product { fields } => {
             for field in fields {
-                let ty = substitute(definition, arguments, &field.ty, inventory, b, depth + 1)?;
+                let ty = substitute(
+                    definition,
+                    arguments,
+                    &field.ty,
+                    inventory,
+                    b,
+                    depth + 1,
+                    qualify,
+                )?;
                 Solver::push(&mut physical, ty, b)?;
             }
         }
         SemanticNominalBody::Enum { variants } => {
             for variant in variants {
                 for field in &variant.fields {
-                    let ty = substitute(definition, arguments, field, inventory, b, depth + 1)?;
+                    let ty = substitute(
+                        definition,
+                        arguments,
+                        field,
+                        inventory,
+                        b,
+                        depth + 1,
+                        qualify,
+                    )?;
                     Solver::push(&mut physical, ty, b)?;
                 }
             }
@@ -676,6 +725,7 @@ pub(in crate::semantic) fn actual(
     materialize(definition, arguments, &physical, inventory, b, depth + 1)
 }
 
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn substitute(
     owner: SemanticDefinitionId,
     arguments: &[Type],
@@ -683,6 +733,13 @@ fn substitute(
     inventory: &Inventory<'_>,
     b: &mut Budget,
     depth: usize,
+    qualify: &dyn Fn(
+        SemanticDefinitionId,
+        &[Type],
+        &[SemanticRequirementRecipe],
+        &mut Budget,
+        usize,
+    ) -> CompileResult<()>,
 ) -> CompileResult<Type> {
     b.spend(1, WORK)?;
     if depth > b.partial_depth {
@@ -709,13 +766,69 @@ fn substitute(
             crate::dyn_metadata::ty(ty, b)?;
             Ok(ty.clone())
         }
+        SemanticTypeRecipe::Managed(inner) => Ok(Type::Managed(Box::new(substitute(
+            owner,
+            arguments,
+            inner,
+            inventory,
+            b,
+            depth + 1,
+            qualify,
+        )?))),
+        SemanticTypeRecipe::OwnedStore(element_recipe) => {
+            let element = substitute(
+                owner,
+                arguments,
+                element_recipe,
+                inventory,
+                b,
+                depth + 1,
+                qualify,
+            )?;
+            // Store formation has its own sealed premise, even when no formal
+            // declaration spells StoreElement on the enclosing nominal.
+            crate::dyn_metadata::recipe(element_recipe, b)?;
+            qualify(
+                owner,
+                arguments,
+                &[SemanticRequirementRecipe::Structural {
+                    ty: element_recipe.as_ref().clone(),
+                    bound: DynStructuralBound::StoreElement,
+                }],
+                b,
+                depth + 1,
+            )?;
+            Ok(Type::OwnedStore {
+                element: Box::new(element),
+            })
+        }
+        SemanticTypeRecipe::ErrorUnion { error, result } => Ok(Type::ErrorUnion {
+            error: Box::new(substitute(
+                owner,
+                arguments,
+                error,
+                inventory,
+                b,
+                depth + 1,
+                qualify,
+            )?),
+            result: Box::new(substitute(
+                owner,
+                arguments,
+                result,
+                inventory,
+                b,
+                depth + 1,
+                qualify,
+            )?),
+        }),
         SemanticTypeRecipe::Tuple(fields) => {
             if fields.is_empty() {
                 return Ok(Type::Unit);
             }
             let mut actuals = Vec::new();
             for field in fields {
-                let ty = substitute(owner, arguments, field, inventory, b, depth + 1)?;
+                let ty = substitute(owner, arguments, field, inventory, b, depth + 1, qualify)?;
                 Solver::push(&mut actuals, ty, b)?;
             }
             Ok(Type::Tuple(actuals))
@@ -731,10 +844,10 @@ fn substitute(
                         "nested nominal field needs complete mixed substitution",
                     ));
                 };
-                let ty = substitute(owner, arguments, recipe, inventory, b, depth + 1)?;
+                let ty = substitute(owner, arguments, recipe, inventory, b, depth + 1, qualify)?;
                 Solver::push(&mut actuals, ty, b)?;
             }
-            actual(*definition, &actuals, inventory, b, depth + 1)
+            actual_qualified(*definition, &actuals, inventory, b, depth + 1, qualify)
         }
         SemanticTypeRecipe::Exact(value)
             if value.ty.is_b0_scalar()
@@ -792,7 +905,17 @@ fn requirements_actual(
                 ));
             }
         };
-        let ty = substitute(owner, arguments, recipe, inventory, b, depth + 1)?;
+        let ty = substitute(
+            owner,
+            arguments,
+            recipe,
+            inventory,
+            b,
+            depth + 1,
+            &|owner, args, requirements, b, depth| {
+                requirements_actual(owner, args, requirements, inventory, b, depth)
+            },
+        )?;
         if !predicate_actual(&ty, predicate, inventory, b, depth + 1)? {
             return Err(fail("nominal actual fails an original structural premise"));
         }

@@ -61,10 +61,9 @@ impl Check<'_, '_> {
             // payload and phantom class, not reconstruct N from leaf layout.
             self.nominal_inventory(ty, b)?;
         } else {
-            let expected = original::nominal::actual(
+            let expected = self.nominal_actual(
                 definition,
                 std::slice::from_ref(payload),
-                self.inventory,
                 b,
                 depth + 1,
             )?;
