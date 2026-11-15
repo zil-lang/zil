@@ -341,12 +341,13 @@
     "every_future_direction": "Actual Rust implementation, exact ZIL consumer/input/cost difference, facts vs hypotheses, preserve stronger current checks, one whole-chain acceptance."
   },
   "recovery": {
-    "current_formal": "evidence/native-dependency-formal-20261116/RESTORE.json (packing/fresh verification pending)",
+    "current_formal": "evidence/native-dependency-formal-20261116/RESTORE.json",
     "prior027_formal": "https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
     "prior027_core_negative_capacity": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
     "prior_rust_source_audit": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json",
     "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
-    "historical98fa": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c formal59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628; never relabelled"
+    "historical98fa": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c formal59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628; never relabelled",
+    "current_formal_fresh_verified": true
   },
   "local_retirements": [
     "closed-project-window-05 original raw retired only after immutable committed archive/parts/fresh receipt and every local file hash match; full restore from05f270 above.",

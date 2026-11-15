@@ -1,0 +1,49 @@
+{
+  "schema": "zil.native-dependency-formal-recovery.v1",
+  "compiled_source": "f19fc847c5774a2472bd3af85019b5c937546010",
+  "compiled_tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
+  "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
+  "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "57de22434919ff61afb67638d97b8919b57093c9b951ca02154e894fcf5eb9f6",
+  "archive_sha256": "83f5fe4931c5fe59408b69d38a0a7d1d44554737352351cd381fe14711f1a634",
+  "archive_bytes": 870498170,
+  "parts": 35,
+  "regular_files": 236872,
+  "logical_bytes": 4007054729,
+  "scope": "Exact f19 full original 102-file 1000/2500/5105 complete-import workflow:324 original requests108 functional cells51 source-bound sustained runtime cases; all finite Rust runtime gates pass, main5105 ResourceLimit leaves main regression unknown. O2/CGU16/jobs1 original budgets/current Verify. Includes raw positive/negative responses, caches, binaries, captured tool/native profile/runtime/oracles. Payload paths are relative to this window root, not repository root. No cache-cleanup/industrial/universal superiority claim.",
+  "payload_root_mapping": {
+    "archive_relative_paths": "contents of out/runs/native-dependency-full-window-01, NOT repository relative",
+    "original_window": "out/runs/native-dependency-full-window-01"
+  },
+  "fresh_restore_verified": true,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "fresh_verify_receipt_sha256": "a03a5f7bf00393478d73385606f9b465557bff85a9a9ba695810e05dfeebbd9a",
+  "fresh_scratch_retired": true,
+  "original_raw_status": "Retained at publication; subsequent local retirement requires immutable pushed archive and complete per-file verification ledger in latest checkpoint. Full original bytes remain in this archive.",
+  "quality": {
+    "original_requests": 324,
+    "functional_cells": 108,
+    "source_bound_runtime_cases": 51,
+    "candidate_rust_accepted": true,
+    "accepted": false,
+    "main_regression_accepted": null,
+    "reason": "actual main5105 ResourceLimit; main1000/2500 runtime pass. All Rust runtime gates pass."
+  },
+  "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+  "prior_audit": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json",
+  "LLVM_rebuilt": false,
+  "research_defaults_enabled": false,
+  "main_merge": false,
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/native-dependency-formal-20261116",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "limits": "Evidence/frozen compiler copies, not an installation. Restore SDK18/native-link/Rust separately, clone exact source, rebind absolute paths/recheck hashes. Original hardlink topology is not reproduced; do not recalculate user disk savings after restore. Cache lifecycle/checks/gates companion forthcoming, no universal/industrial/debug/test/large-capacity success claim."
+}

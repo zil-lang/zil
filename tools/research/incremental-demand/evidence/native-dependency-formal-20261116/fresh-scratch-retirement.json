@@ -1,0 +1,8 @@
+{
+  "status": "retired-after-full-fresh-verification",
+  "scope": "Only the exact verifier-created scratch; all archive files hash verified before retirement. Original source/raw, parts, binaries retained. Not product cache savings.",
+  "path": "/workspace/zil-recovery/native-dependency-formal-fresh-01",
+  "archive_sha256": "83f5fe4931c5fe59408b69d38a0a7d1d44554737352351cd381fe14711f1a634",
+  "fresh_receipt_sha256": "a03a5f7bf00393478d73385606f9b465557bff85a9a9ba695810e05dfeebbd9a",
+  "unix_ns": 1794781623362229573
+}
