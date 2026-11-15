@@ -9,6 +9,11 @@ pub(in crate::semantics) struct NominalRequest {
 pub(in crate::semantics) struct NominalWhere<'a> {
     program: &'a SemanticModule,
     proof: &'a Proof,
+    // Bound to this immutable original proof and its declaration forest.
+    proved: std::cell::RefCell<
+        BTreeMap<(SemanticDefinitionId, zil_base::Fingerprint), Vec<SemanticTypeRecipe>>,
+    >,
+    proved_count: std::cell::Cell<usize>,
 }
 pub(super) fn borrowed_check<'a, 'b>(
     program: &'a SemanticModule,
@@ -42,7 +47,12 @@ pub(super) fn borrowed_check<'a, 'b>(
 }
 impl<'a> NominalWhere<'a> {
     pub(in crate::semantics) fn new(program: &'a SemanticModule, proof: &'a Proof) -> Self {
-        Self { program, proof }
+        Self {
+            program,
+            proof,
+            proved: Default::default(),
+            proved_count: Default::default(),
+        }
     }
     pub(in crate::semantics) fn requests(
         &self,
@@ -103,6 +113,27 @@ impl<'a> NominalWhere<'a> {
         limits: &Limits,
         left: &mut usize,
     ) -> R<()> {
+        // Digests only choose a bucket. A theorem belongs to the exact caller
+        // Gamma and complete mixed nominal application, including phantom args.
+        let digest = protocol::recipe_key(recipe, limits, left)?;
+        let key = (caller, digest);
+        {
+            let proved = self.proved.borrow();
+            *left = left
+                .checked_sub(proved.len().saturating_add(1).ilog2() as usize + 1)
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Types, "nominal where cache lookup exceeded", None)
+                })?;
+            if let Some(bucket) = proved.get(&key) {
+                for previous in bucket {
+                    crate::dyn_metadata::semantic_operand_snapshot(previous, limits, left, 1)?;
+                    crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+                    if previous == recipe {
+                        return Ok(());
+                    }
+                }
+            }
+        }
         let SemanticTypeRecipe::Nominal {
             definition,
             arguments,
@@ -156,7 +187,25 @@ impl<'a> NominalWhere<'a> {
                 "read-only original where unexpectedly changed its proof context",
             ));
         }
-        result
+        result?;
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+        let mut proved = self.proved.borrow_mut();
+        let entries = self.proved_count.get();
+        if entries >= limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "nominal where cache entry limit exceeded",
+                None,
+            ));
+        }
+        *left = left
+            .checked_sub(proved.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| {
+                Diagnostic::limit(Phase::Types, "nominal where cache insertion exceeded", None)
+            })?;
+        proved.entry(key).or_default().push(recipe.clone());
+        self.proved_count.set(entries + 1);
+        Ok(())
     }
 }
 

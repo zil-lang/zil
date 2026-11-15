@@ -92,7 +92,7 @@ pub(super) fn reference(
         _ => {
             return Err(bad(
                 "function address changes its declared language or C ABI kind",
-            ))
+            ));
         }
     }
     methods::sealed_worker(
@@ -128,7 +128,7 @@ pub(super) fn indirect(
     callee: ValueId,
     arguments: &[ValueId],
     ty: &Type,
-    values: &[Option<SemanticTypeValue>],
+    values: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<SemanticTypeValue> {
     let callee_value = world.get(values, callee)?;

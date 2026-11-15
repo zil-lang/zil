@@ -138,7 +138,7 @@ pub(super) fn tag_type(
 }
 pub(super) fn local_tag(
     world: &mut World<'_, '_>,
-    locals: &[Option<SemanticTypeValue>],
+    locals: &[Option<SharedType>],
     local: LocalId,
     path: &[PlaceProjection],
     enum_only: bool,

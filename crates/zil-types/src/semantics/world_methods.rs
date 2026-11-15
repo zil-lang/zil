@@ -188,8 +188,8 @@ pub(super) fn evaluate(
     block: BlockId,
     index: usize,
     arguments: &[ValueId],
-    values: &[Option<SemanticTypeValue>],
-    locals: &[Option<SemanticTypeValue>],
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
     implicit: &mut BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let mut selected = None;
@@ -710,8 +710,8 @@ pub(super) fn callable(
     requested: CallableKind,
     actuals: &[SemanticActual],
     arguments: &[ValueId],
-    values: &[Option<SemanticTypeValue>],
-    locals: &[Option<SemanticTypeValue>],
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let scheme = {
@@ -901,8 +901,8 @@ pub(super) fn direct(
     block: BlockId,
     index: usize,
     arguments: &[ValueId],
-    values: &[Option<SemanticTypeValue>],
-    locals: &[Option<SemanticTypeValue>],
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let mut selected = None;

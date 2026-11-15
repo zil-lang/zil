@@ -12,8 +12,8 @@ pub(super) fn evaluate(
     index: usize,
     instruction: &InstructionKind,
     ty: Option<&Type>,
-    values: &[Option<SemanticTypeValue>],
-    locals: &[Option<SemanticTypeValue>],
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SemanticTypeValue>> {
     let mut selected: Option<(IntrinsicCall, &SemanticSite)> = None;

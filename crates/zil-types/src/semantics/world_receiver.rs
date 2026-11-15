@@ -44,8 +44,8 @@ pub(super) fn seal(
     site: &SemanticSite,
     method: &MethodCall,
     arguments: &[ValueId],
-    values: &[Option<SemanticTypeValue>],
-    locals: &[Option<SemanticTypeValue>],
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
     implicit: &mut BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     let Some(borrow) = &method.receiver_borrow else {

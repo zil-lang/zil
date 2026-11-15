@@ -10,9 +10,9 @@ pub(super) struct State {
     // against that immutable Typed directory before it can populate a cell.
     pub schema: FunctionId,
     pub instance: SemanticInstanceId,
-    pub locals: Vec<Option<SemanticTypeValue>>,
-    pub values: Vec<Option<SemanticTypeValue>>,
-    pub declared: BTreeMap<LocalId, SemanticTypeValue>,
+    pub locals: Vec<Option<SharedType>>,
+    pub values: Vec<Option<SharedType>>,
+    pub declared: BTreeMap<LocalId, SharedType>,
     pub implicit: BTreeMap<u32, SemanticClassExpr>,
     pub vacant_captures: BTreeSet<(SemanticInstanceId, u32)>,
     pub stale_values: BTreeSet<ValueId>,
@@ -55,15 +55,15 @@ impl State {
         }
         let mut locals = Vec::with_capacity(self.locals.len());
         for value in &self.locals {
-            locals.push(value.as_ref().map(|v| world.copy(v)).transpose()?);
+            locals.push(value.clone());
         }
         let mut values = Vec::with_capacity(self.values.len());
         for value in &self.values {
-            values.push(value.as_ref().map(|v| world.copy(v)).transpose()?);
+            values.push(value.clone());
         }
         let mut declared = BTreeMap::new();
         for (local, value) in &self.declared {
-            declared.insert(*local, world.copy(value)?);
+            declared.insert(*local, value.clone());
         }
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
@@ -143,15 +143,6 @@ impl State {
         for (_, path) in &self.vacant {
             world.pay(path.len())?;
         }
-        for value in self
-            .locals
-            .iter()
-            .chain(&self.values)
-            .flatten()
-            .chain(self.declared.values())
-        {
-            charge_value_domain(world, value)?;
-        }
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
         }
@@ -211,13 +202,40 @@ impl State {
         {
             match (left, right) {
                 (None, None) => {}
-                (Some(left), Some(right)) if same_value_domain(left, right)? => {}
+                (Some(left), Some(right)) => {
+                    world.pay(1)?;
+                    if !matches!(left.as_ref(), SemanticTypeValue::Resolved { .. })
+                        || !matches!(right.as_ref(), SemanticTypeValue::Resolved { .. })
+                    {
+                        return Err(bad("class-flow comparison has an unresolved whole type"));
+                    }
+                    if !Rc::ptr_eq(left, right) {
+                        charge_value_domain(world, left)?;
+                        charge_value_domain(world, right)?;
+                        if !same_value_domain(left, right)? {
+                            return Ok(false);
+                        }
+                    }
+                }
                 _ => return Ok(false),
             }
         }
         for ((left_key, left), (right_key, right)) in self.declared.iter().zip(&other.declared) {
-            if left_key != right_key || !same_value_domain(left, right)? {
+            if left_key != right_key {
                 return Ok(false);
+            }
+            world.pay(1)?;
+            if !matches!(left.as_ref(), SemanticTypeValue::Resolved { .. })
+                || !matches!(right.as_ref(), SemanticTypeValue::Resolved { .. })
+            {
+                return Err(bad("class-flow comparison has an unresolved whole type"));
+            }
+            if !Rc::ptr_eq(left, right) {
+                charge_value_domain(world, left)?;
+                charge_value_domain(world, right)?;
+                if !same_value_domain(left, right)? {
+                    return Ok(false);
+                }
             }
         }
         Ok(true)
@@ -558,10 +576,10 @@ impl Cfg {
         &self,
         world: &mut World<'_, '_>,
         entry: usize,
-        value: Option<&SemanticTypeValue>,
+        value: Option<&SharedType>,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<bool> {
-        let Some(SemanticTypeValue::Resolved { classes, .. }) = value else {
+        let Some(SemanticTypeValue::Resolved { classes, .. }) = value.map(Rc::as_ref) else {
             return Ok(false);
         };
         world.pay(classes.len())?;

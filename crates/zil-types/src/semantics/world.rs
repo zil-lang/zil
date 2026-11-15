@@ -4,6 +4,9 @@
 use super::emission::Ledger;
 use crate::*;
 use std::collections::BTreeMap;
+use std::rc::Rc;
+// State cells are immutable complete values; live flow facts remain per state.
+type SharedType = Rc<SemanticTypeValue>;
 #[path = "world_arguments.rs"]
 mod arguments;
 #[path = "world_calls.rs"]
@@ -404,7 +407,7 @@ impl<'a> World<'a, '_> {
             _ => Err(bad("Core type survives world materialization")),
         }
     }
-    fn get(&mut self, values: &[Option<SemanticTypeValue>], id: ValueId) -> R<SemanticTypeValue> {
+    fn get(&mut self, values: &[Option<SharedType>], id: ValueId) -> R<SemanticTypeValue> {
         if self.stale_values.contains(&id) {
             return Err(bad(
                 "loop-carried whole value requires a distinct live occurrence correspondence",
@@ -416,7 +419,7 @@ impl<'a> World<'a, '_> {
             .ok_or_else(|| bad("SSA has no reaching whole-type equation"))?;
         self.copy(value)
     }
-    fn local(&mut self, locals: &[Option<SemanticTypeValue>], id: LocalId) -> R<SemanticTypeValue> {
+    fn local(&mut self, locals: &[Option<SharedType>], id: LocalId) -> R<SemanticTypeValue> {
         self.pay(self.vacant.len())?;
         if self.vacant.iter().any(|(local, _)| *local == id) {
             return Err(bad("whole local reads an uninitialized projected occupant"));
@@ -439,7 +442,7 @@ impl<'a> World<'a, '_> {
     }
     fn projected_local(
         &mut self,
-        locals: &[Option<SemanticTypeValue>],
+        locals: &[Option<SharedType>],
         local: LocalId,
         path: &[PlaceProjection],
     ) -> R<SemanticTypeValue> {
@@ -1005,9 +1008,9 @@ impl World<'_, '_> {
         block: BlockId,
         instruction: usize,
         edge: SemanticSiteEdge,
-        values: &[Option<SemanticTypeValue>],
-        locals: &[Option<SemanticTypeValue>],
-        declared: &mut BTreeMap<LocalId, SemanticTypeValue>,
+        values: &[Option<SharedType>],
+        locals: &[Option<SharedType>],
+        declared: &mut BTreeMap<LocalId, SharedType>,
         implicit: &mut BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
         for site in self.point_sites(sites, block, instruction)? {
@@ -1031,7 +1034,7 @@ impl World<'_, '_> {
                         .ty;
                     let actual = self.ty(instance.id, recipe, ty)?;
                     self.same(instance.id, expected, &actual, implicit)?;
-                    if let Some(old) = declared.insert(*local, actual) {
+                    if let Some(old) = declared.insert(*local, Rc::new(actual)) {
                         self.same(instance.id, &old, expected, implicit)?;
                     }
                 }
@@ -1205,7 +1208,7 @@ impl World<'_, '_> {
         result: ValueId,
         variant: Option<u32>,
         fields: &[ValueId],
-        values: &[Option<SemanticTypeValue>],
+        values: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SemanticTypeValue> {
         let mut selected = None;
@@ -1685,8 +1688,8 @@ impl World<'_, '_> {
         value: &SemanticTypeValue,
         requested: CallableKind,
         arguments: &[ValueId],
-        values: &[Option<SemanticTypeValue>],
-        locals: &[Option<SemanticTypeValue>],
+        values: &[Option<SharedType>],
+        locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SemanticTypeValue> {
         let raw_value = self.copy(value)?;
@@ -1845,7 +1848,9 @@ impl World<'_, '_> {
                 .ok_or_else(|| bad("parameter is absent"))?
                 .ty;
             let value = self.parameter_value(instance.id, ordinal, ty)?;
-            locals[parameter.0 as usize] = Some(self.copy(&value)?);
+            self.pay(2)?;
+            let value = Rc::new(value);
+            locals[parameter.0 as usize] = Some(value.clone());
             declared.insert(*parameter, value);
         }
         let expected_result = self.result_value(instance.id, &f.return_type)?;
@@ -2215,7 +2220,8 @@ impl World<'_, '_> {
                             }
                             *locals
                                 .get_mut(local.0 as usize)
-                                .ok_or_else(|| bad("store local is absent"))? = Some(value);
+                                .ok_or_else(|| bad("store local is absent"))? =
+                                Some(Rc::new(value));
                             None
                         }
                         InstructionKind::StorageLive(local)
@@ -3455,7 +3461,7 @@ impl World<'_, '_> {
                                 }
                                 self.clear_vacant(*target)?;
                                 self.stale_locals.remove(target);
-                                locals[target.0 as usize] = Some(field);
+                                locals[target.0 as usize] = Some(Rc::new(field));
                             }
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
@@ -3689,7 +3695,7 @@ impl World<'_, '_> {
                             {
                                 return Err(bad("capture view changes its complete actual type"));
                             }
-                            locals[local.0 as usize] = Some(value);
+                            locals[local.0 as usize] = Some(Rc::new(value));
                             None
                         }
                         InstructionKind::EndPackageCapture { local, .. } => {
@@ -3898,7 +3904,7 @@ impl World<'_, '_> {
                     }
                     *values
                         .get_mut(result.0 as usize)
-                        .ok_or_else(|| bad("SSA class result is absent"))? = Some(value);
+                        .ok_or_else(|| bad("SSA class result is absent"))? = Some(Rc::new(value));
                 } else if let Some(value) = produced {
                     if Self::type_of(&value)? != &Type::Unit {
                         return Err(bad("class-producing operation has no actual SSA result"));
@@ -3981,8 +3987,9 @@ impl World<'_, '_> {
                 local_roots: std::mem::take(&mut self.local_roots),
             };
             // The final outgoing edge owns this complete state. Only real
-            // sibling edges need a deep independent copy; no consumer uses
-            // the original after the last transfer. Each offer still applies
+            // sibling edges need an independent live state with shared immutable
+            // value trees; no consumer uses the original after the last transfer.
+            // Each offer still applies
             // its own dominance, loop epoch and full dynamic state checks.
             let outgoing_count = successors.len();
             let mut outgoing_state = Some(state);

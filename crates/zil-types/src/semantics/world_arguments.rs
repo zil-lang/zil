@@ -87,7 +87,7 @@ pub(super) fn satisfy(
     operand: ValueId,
     actual: &SemanticTypeValue,
     expected: &SemanticTypeValue,
-    locals: &[Option<SemanticTypeValue>],
+    locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
     let actual = world.normalize(caller.id, actual, implicit)?;
