@@ -14,6 +14,23 @@ impl<T: Copy> Table<T> {
             entries: 0,
         }
     }
+    /// Intern a borrowed immutable recipe without first deep-copying a query
+    /// result. Only a genuinely new entry owns a charged recipe snapshot.
+    pub(super) fn intern(
+        &mut self,
+        owner: SemanticDefinitionId,
+        recipe: &SemanticTypeRecipe,
+        next: T,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<(T, Option<std::rc::Rc<SemanticTypeRecipe>>)> {
+        let (key, found) = self.lookup(owner, recipe, limits, left)?;
+        if let Some(index) = found {
+            Ok((index, None))
+        } else {
+            Ok((next, Some(self.insert(key, recipe, next, limits, left)?)))
+        }
+    }
     pub(super) fn lookup(
         &self,
         owner: SemanticDefinitionId,
