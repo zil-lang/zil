@@ -205,7 +205,7 @@ pub(super) fn complete(
                 "Dyn impl table Self differs from its independently materialized original scope",
             ));
         }
-        let mut domain = domain_for(program, instance.id, false, limits, left)?;
+        let mut domain = domain_for(program, instance.id, limits, left)?;
         let SemanticTypeValue::Resolved { classes, .. } = &value else {
             unreachable!()
         };

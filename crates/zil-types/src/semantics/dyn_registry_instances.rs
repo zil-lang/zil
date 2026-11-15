@@ -245,7 +245,6 @@ fn exact_definition<'a>(
 fn domain_for(
     program: &SemanticModule,
     instance: SemanticInstanceId,
-    invocation: bool,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Domain> {
@@ -306,17 +305,6 @@ fn domain_for(
                     ));
                 }
             }
-        }
-        for implicit in &owner.implicit_lifetimes {
-            domain.bind(
-                SemanticClassExpr::Implicit {
-                    scope: SemanticScopeRef::Ancestor(hops),
-                    ordinal: implicit.ordinal,
-                },
-                invocation && hops == 0,
-                limits,
-                left,
-            )?;
         }
     }
     Ok(domain)
@@ -429,7 +417,7 @@ pub(super) fn complete(
                         "Dyn method Self differs from its independently materialized original scope",
                     ));
                 }
-                let mut domain = domain_for(program, instance.id, true, limits, left)?;
+                let mut domain = domain_for(program, instance.id, limits, left)?;
                 let SemanticTypeValue::Resolved { classes, .. } = &value else {
                     unreachable!()
                 };
@@ -462,7 +450,17 @@ pub(super) fn complete(
                         if rows.next().is_some() {
                             return Err(bad("Dyn header repeats an original binder image"));
                         }
-                        let image = domain.get(&row.actual, limits, left)?;
+                        // The definition's implicit directory also contains
+                        // body-local borrow/observation occurrences. Its call
+                        // domain is instead the actual complete header map;
+                        // full lexical actuals (including phantom N) remain
+                        // in the Fixed domain above.
+                        let image = domain.bind(
+                            shifted(&row.actual, 0, limits, left)?,
+                            !fixed,
+                            limits,
+                            left,
+                        )?;
                         push(
                             &mut embedding,
                             DynLifeEmbedding {
