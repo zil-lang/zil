@@ -83,11 +83,11 @@ fn walk(
         for actual in &instance.arguments {
             if let LifeNominalActual::Type(ty) = actual {
                 shape_work(ty, limits, b)?;
-                b.type_work(ty, true, "builtin Option actual equality")?;
+                crate::dyn_metadata::ty(ty, b)?;
             }
         }
         shape_work(storage, limits, b)?;
-        b.type_work(storage, true, "builtin Option physical equality")?;
+        crate::dyn_metadata::ty(storage, b)?;
         if !option_address::shape(&instance.ty, b)?
             || !matches!((instance.arguments.as_slice(), storage.as_ref()),
                 ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
@@ -146,7 +146,7 @@ fn walk(
             continue;
         };
         shape_work(ty, limits, b)?;
-        b.type_work(ty, true, "nominal metadata identity")?;
+        crate::dyn_metadata::ty(ty, b)?;
         if enum_address::candidate(&instance.ty)
             && matches!(ty, Type::Address { mutable: false, .. })
         {
@@ -160,9 +160,9 @@ fn walk(
         let mut selected = None;
         for child in &module.life_instances {
             shape_work(&child.ty, limits, b)?;
-            b.type_work(&child.ty, true, "nominal metadata identity")?;
+            crate::dyn_metadata::ty(&child.ty, b)?;
             shape_work(ty, limits, b)?;
-            b.type_work(ty, true, "nominal metadata identity")?;
+            crate::dyn_metadata::ty(ty, b)?;
             if child.ty == *ty && selected.replace(child).is_some() {
                 return Err(failure(
                     "Type actual has ambiguous complete nominal instances",
@@ -276,9 +276,9 @@ fn physical_instances(
                 let mut count = 0usize;
                 for child in &module.life_instances {
                     shape_work(ty, limits, b)?;
-                    b.type_work(ty, true, "nominal metadata identity")?;
+                    crate::dyn_metadata::ty(ty, b)?;
                     shape_work(&child.ty, limits, b)?;
-                    b.type_work(&child.ty, true, "nominal metadata identity")?;
+                    crate::dyn_metadata::ty(&child.ty, b)?;
                     if child.ty == *ty {
                         count += 1;
                     }
@@ -330,7 +330,12 @@ pub(super) fn same_key(
         match actual {
             LifeNominalActual::Type(ty) => {
                 shape_work(ty, limits, b)?;
-                b.type_work(ty, true, "nominal actual vector identity")?;
+                crate::dyn_metadata::ty(ty, b)?;
+            }
+            LifeNominalActual::QualifiedType { ty, life } => {
+                shape_work(ty, limits, b)?;
+                crate::dyn_metadata::ty(ty, b)?;
+                crate::dyn_metadata::shape(life, b)?;
             }
             LifeNominalActual::Const(Constant::WideString(data)) => {
                 fee(b, data.len())?;
@@ -338,13 +343,22 @@ pub(super) fn same_key(
             _ => {}
         }
     }
+    let arguments_equal = a.arguments.len() == c.arguments.len()
+        && a.arguments.iter().zip(&c.arguments).all(|(a, c)| match (a, c) {
+            (LifeNominalActual::Type(ty), LifeNominalActual::QualifiedType { ty: other, life })
+            | (LifeNominalActual::QualifiedType { ty: other, life }, LifeNominalActual::Type(ty)) => {
+                ty == other && life.binder_count == 0 && life.slots.is_empty()
+                    && life.retained.is_empty() && life.nominal_arguments.is_empty()
+            }
+            _ => a == c,
+        });
     let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
         (&a.ty, &c.ty)
     else {
         return Ok(!matches!(a.ty, Type::BorrowedStorage { .. })
             && !matches!(c.ty, Type::BorrowedStorage { .. })
             && a.declaration == c.declaration
-            && a.arguments == c.arguments);
+            && arguments_equal);
     };
     fee(
         b,
@@ -358,6 +372,6 @@ pub(super) fn same_key(
     // The Type actual's local scope alone omits the enclosing occurrence's
     // class relation. Include the independently checked nominal relation.
     Ok(a.declaration == c.declaration
-        && a.arguments == c.arguments
+        && arguments_equal
         && al.nominal_arguments == cl.nominal_arguments)
 }

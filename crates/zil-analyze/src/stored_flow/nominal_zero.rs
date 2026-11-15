@@ -304,7 +304,9 @@ fn type_zero(
     // Prepay complete recursive identity work, including opaque/retained data,
     // before any structural comparison or directory lookup.
     crate::dyn_metadata::ty(ty, b)?;
-    b.type_work(ty, false, "complete zero nominal dependency")?;
+    // This is intrinsic-domain formation, before runtime interface/permission
+    // qualification. The bounded visitor above pays the full type identity;
+    // type_work would incorrectly require already published Dyn interfaces.
     if crate::dyn_dispatch::is_create_error(ty) {
         return Ok(());
     }
@@ -394,20 +396,82 @@ fn type_zero(
             if b.semantic_zero_closures.contains(id) {
                 Ok(())
             } else {
-                Err(failure(
-                    "plain nominal closure dependency lacks its completed zero-domain proof",
-                ))
+                // Original formation can precede publication of the completed
+                // closure directory. Reconstruct every stored child instead;
+                // Some(0) alone is never enough. Original environment binding,
+                // actual captures and callable access remain separate gates.
+                fee(b, module.closures.len())?;
+                let closure = module.closures.get(id.0 as usize)
+                    .filter(|closure| closure.id == *id)
+                    .ok_or_else(|| failure("zero closure has no exact actual environment"))?;
+                if !closure.storage_life.as_ref().is_some_and(|life| life.fixed_binder_count == 0)
+                    || !closure.lending_captures.is_empty()
+                {
+                    return Err(failure("zero closure retains an unknown or nonzero complete domain"));
+                }
+                fee(b, closure.captures.len())?;
+                for capture in &closure.captures {
+                    type_zero(module, capture, limits, b, active, depth + 1)?;
+                }
+                Ok(())
             }
+        }
+        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+            // Only the intrinsic domain is reconstructed here. This neither
+            // publishes an admitted interface nor proves provider, access,
+            // ownership or cleanup; all runtime consumers still require those.
+            fee(b, module.dyn_interfaces.len())?;
+            let mut selected = None;
+            for candidate in &module.dyn_interfaces {
+                if candidate.id == *interface && selected.replace(candidate).is_some() {
+                    return Err(failure("zero Dyn has ambiguous actual interfaces"));
+                }
+            }
+            let interface = selected.ok_or_else(|| failure("zero Dyn has no actual interface"))?;
+            crate::dyn_metadata::recipe(&interface.application, b)?;
+            crate::dyn_metadata::retained_shape(&interface.retained_life, b)?;
+            if interface.context.is_some()
+                || interface.retained_life.binder_count != 0
+                || !interface.retained_life.ports.is_empty()
+                || !interface.retained_life.retained.is_empty()
+                || !interface.retained_life.nominal_arguments.is_empty()
+                || !interface.application.actuals.is_empty()
+                || !interface.inherited.is_empty()
+                || !interface.associated_types.is_empty()
+                || !interface.associated_constants.is_empty()
+            {
+                return Err(failure("zero Dyn requires its complete original Context and mixed domain"));
+            }
+            fee(b, module.dyn_declarations.len())?;
+            let mut declaration = None;
+            for candidate in &module.dyn_declarations {
+                if candidate.id == interface.application.declaration
+                    && declaration.replace(candidate).is_some()
+                {
+                    return Err(failure("zero Dyn has ambiguous original declarations"));
+                }
+            }
+            let declaration = declaration.ok_or_else(|| failure("zero Dyn has no original declaration"))?;
+            crate::dyn_metadata::recipe_declaration(declaration, b)?;
+            if declaration.kind != DynDeclarationKind::Trait || !declaration.parameters.is_empty() {
+                return Err(failure("zero Dyn changes its original trait kind or complete arity"));
+            }
+            Ok(())
+        }
+        Type::Registration { environment } | Type::AsyncRegistration { environment } => {
+            // The environment determines the intrinsic domain. The provider,
+            // live protocol phase and synchronous/asynchronous teardown are
+            // independently reconstructed by registration's actual consumer.
+            if !matches!(environment.as_ref(), Type::Closure(_)) {
+                return Err(failure("zero registration has no concrete callback environment"));
+            }
+            type_zero(module, environment, limits, b, active, depth + 1)
         }
         // Their hidden class domains need the completed original/opaque
         // consumer. Neither an empty port list nor Some(0) proves this case.
         Type::Opaque { .. }
-        | Type::Dyn { .. }
-        | Type::OwnedDyn { .. }
         | Type::TaskI32
         | Type::MutexGuard { .. }
-        | Type::Registration { .. }
-        | Type::AsyncRegistration { .. }
         | Type::BorrowedFunctionPointer { .. }
         | Type::Named(_)
         | Type::Unsupported(_) => Err(failure(

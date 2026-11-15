@@ -542,7 +542,21 @@ pub(super) fn nominal(
                 LifeNominalActual::Lifetime(_) => b.spend(1, WORK)?,
             }
         }
-        if instance.declaration != *declaration || instance.arguments != expected {
+        // A complete zero Type domain has two explicit inventory spellings:
+        // Type(T) and QualifiedType(T, empty).  Neither spelling changes T or
+        // supplies a class.  Nonzero domains still require the exact shape.
+        let arguments_equal = instance.arguments.len() == expected.len()
+            && instance.arguments.iter().zip(&expected).all(|(actual, expected)| {
+                match (actual, expected) {
+                    (LifeNominalActual::QualifiedType { ty, life }, LifeNominalActual::Type(other))
+                    | (LifeNominalActual::Type(other), LifeNominalActual::QualifiedType { ty, life }) => {
+                        ty == other && life.binder_count == 0 && life.slots.is_empty()
+                            && life.retained.is_empty() && life.nominal_arguments.is_empty()
+                    }
+                    _ => actual == expected,
+                }
+            });
+        if instance.declaration != *declaration || !arguments_equal {
             continue;
         }
         crate::dyn_metadata::ty(&instance.ty, b)?;
