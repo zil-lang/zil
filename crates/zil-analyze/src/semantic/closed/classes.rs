@@ -1279,9 +1279,13 @@ impl Check<'_, '_> {
                     || parent.life.slots.len() != 1
                     || !parent.life.slots[0].path.is_empty()
                 {
-                    return Err(fail(
-                        "actual reborrow changes its whole pointee or outer occurrence",
+                    let mut errors =
+                        fail("actual reborrow changes its whole pointee or outer occurrence");
+                    errors[0].notes.push(format!(
+                        "function {} SSA {} parent {}: {:?}; required {:?}",
+                        function.id.0, id.0, address.0, parent, ty
                     ));
+                    return Err(errors);
                 }
                 let child = self.pointee(&parent, b)?;
                 let result = value::address(*mutable, Class::Reborrow(function.id, id), child, b)?;
@@ -1413,7 +1417,19 @@ impl Check<'_, '_> {
                     }
                 }
                 let expected = selected.ok_or_else(|| {
-                    unknown("borrow SSA has no complete original occurrence value")
+                    let mut errors =
+                        unknown("borrow SSA has no complete original occurrence value");
+                    errors[0].notes.push(format!(
+                        "world {}:{} function {} SSA {} block {} instruction {}: {:?}",
+                        instance.id.module.0,
+                        instance.id.index,
+                        function.id.0,
+                        id.0,
+                        block.0,
+                        index,
+                        instruction.kind
+                    ));
+                    errors
                 })?;
                 if expected.ty != *ty {
                     return Err(fail("borrow SSA loses its complete original type"));
