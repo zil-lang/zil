@@ -481,45 +481,67 @@ impl State {
     }
     fn key(&self, world: &mut World<'_, '_>) -> R<zil_base::Fingerprint> {
         let mut digest = zil_base::FingerprintBuilder::new();
-        hash_debug(
+        hash_binary(
             &mut digest,
             world.left,
             &(
                 self.schema,
                 self.instance,
-                &self.implicit,
                 &self.vacant_captures,
                 &self.stale_values,
                 &self.stale_locals,
                 &self.scopes,
                 &self.unsafe_regions,
-            ),
-        )?;
-        hash_debug(
-            &mut digest,
-            world.left,
-            &(
                 &self.owners,
                 &self.vacant,
-                &self.role_sources,
-                &self.value_role_sources,
-                &self.reborrows,
-                &self.value_roots,
-                &self.local_roots,
             ),
         )?;
-        world.pay(self.reservations.len())?;
+        hash_binary(&mut digest, world.left, &self.implicit.len())?;
+        for (ordinal, image) in &self.implicit {
+            hash_binary(&mut digest, world.left, ordinal)?;
+            hash_image(&mut digest, world.left, image)?;
+        }
+        hash_binary(&mut digest, world.left, &self.role_sources.len())?;
+        for (local, source) in &self.role_sources {
+            hash_binary(&mut digest, world.left, local)?;
+            hash_source(&mut digest, world.left, source)?;
+        }
+        hash_binary(&mut digest, world.left, &self.value_role_sources.len())?;
+        for (value, source) in &self.value_role_sources {
+            hash_binary(&mut digest, world.left, value)?;
+            hash_source(&mut digest, world.left, source)?;
+        }
+        hash_binary(&mut digest, world.left, &self.reborrows.len())?;
+        for (value, edge) in &self.reborrows {
+            hash_binary(&mut digest, world.left, &(value, edge.parent))?;
+            hash_source(&mut digest, world.left, &edge.source)?;
+        }
+        hash_binary(&mut digest, world.left, &self.value_roots.len())?;
+        for (value, roots) in &self.value_roots {
+            hash_binary(&mut digest, world.left, value)?;
+            hash_roots(&mut digest, world.left, roots)?;
+        }
+        hash_binary(&mut digest, world.left, &self.local_roots.len())?;
+        for (local, roots) in &self.local_roots {
+            hash_binary(&mut digest, world.left, local)?;
+            hash_roots(&mut digest, world.left, roots)?;
+        }
+        hash_binary(&mut digest, world.left, &self.reservations.len())?;
         for (id, reservation) in &self.reservations {
-            hash_debug(
+            hash_binary(&mut digest, world.left, id)?;
+            hash_binary(
                 &mut digest,
                 world.left,
-                &(
-                    id,
-                    &reservation.target,
-                    &reservation.path,
-                    &reservation.roots,
-                ),
+                &std::mem::discriminant(&reservation.target),
             )?;
+            match reservation.target {
+                reservations::Target::Local(local) => hash_binary(&mut digest, world.left, &local)?,
+                reservations::Target::Address(value) => {
+                    hash_binary(&mut digest, world.left, &value)?
+                }
+            }
+            hash_binary(&mut digest, world.left, &reservation.path)?;
+            hash_roots(&mut digest, world.left, &reservation.roots)?;
             hash_domain(&mut digest, world, &reservation.parent)?;
             hash_domain(&mut digest, world, &reservation.expected)?;
         }
@@ -544,30 +566,134 @@ impl State {
         Ok(digest.digest())
     }
 }
+// The key is private to this request. Encode the actual structure directly:
+// Debug field names and punctuation have no role in exact state identity.
+// Every byte supplied by Hash is paid, including collection lengths and tags.
 struct StateDigest<'a> {
     digest: &'a mut zil_base::FingerprintBuilder,
     left: &'a mut usize,
+    exhausted: bool,
 }
-impl std::fmt::Write for StateDigest<'_> {
-    fn write_str(&mut self, value: &str) -> std::fmt::Result {
-        *self.left = self.left.checked_sub(value.len()).ok_or(std::fmt::Error)?;
-        self.digest.update(value.as_bytes());
-        Ok(())
+impl std::hash::Hasher for StateDigest<'_> {
+    fn finish(&self) -> u64 {
+        // This adapter feeds the complete FingerprintBuilder; no caller uses
+        // the lossy standard Hasher finish value.
+        0
+    }
+    fn write(&mut self, value: &[u8]) {
+        if self.exhausted {
+            return;
+        }
+        if let Some(left) = self.left.checked_sub(value.len()) {
+            *self.left = left;
+            self.digest.update(value);
+        } else {
+            self.exhausted = true;
+        }
     }
 }
-fn hash_debug(
+fn hash_binary(
     digest: &mut zil_base::FingerprintBuilder,
     left: &mut usize,
-    value: &impl std::fmt::Debug,
+    value: &impl std::hash::Hash,
 ) -> R<()> {
-    use std::fmt::Write;
-    write!(&mut StateDigest { digest, left }, "{value:?}").map_err(|_| {
-        Diagnostic::limit(
+    let mut sink = StateDigest {
+        digest,
+        left,
+        exhausted: false,
+    };
+    std::hash::Hash::hash(value, &mut sink);
+    if sink.exhausted {
+        return Err(Diagnostic::limit(
             Phase::Types,
             "canonical CFG state digest work exceeded",
             None,
-        )
-    })
+        ));
+    }
+    Ok(())
+}
+fn hash_operand(
+    digest: &mut zil_base::FingerprintBuilder,
+    left: &mut usize,
+    operand: &SemanticOperand,
+) -> R<()> {
+    hash_binary(digest, left, &std::mem::discriminant(operand))?;
+    match operand {
+        SemanticOperand::Parameter(n)
+        | SemanticOperand::Capture(n)
+        | SemanticOperand::Environment(n) => hash_binary(digest, left, n),
+        SemanticOperand::Receiver => Ok(()),
+        SemanticOperand::Value(value) => hash_binary(digest, left, value),
+        SemanticOperand::Local(local) => hash_binary(digest, left, local),
+        SemanticOperand::TypeArgument {
+            scope: SemanticScopeRef::Ancestor(depth),
+            ordinal,
+        } => hash_binary(digest, left, &(depth, ordinal)),
+        SemanticOperand::CoreExpression {
+            expression,
+            occurrence,
+        } => hash_binary(digest, left, &(expression, occurrence)),
+    }
+}
+fn hash_image(
+    digest: &mut zil_base::FingerprintBuilder,
+    left: &mut usize,
+    image: &SemanticClassExpr,
+) -> R<()> {
+    hash_binary(digest, left, &std::mem::discriminant(image))?;
+    match image {
+        SemanticClassExpr::Formal {
+            scope: SemanticScopeRef::Ancestor(depth),
+            ordinal,
+        }
+        | SemanticClassExpr::Implicit {
+            scope: SemanticScopeRef::Ancestor(depth),
+            ordinal,
+        }
+        | SemanticClassExpr::Environment {
+            scope: SemanticScopeRef::Ancestor(depth),
+            ordinal,
+        } => hash_binary(digest, left, &(depth, ordinal)),
+        SemanticClassExpr::Bound { depth, index } => hash_binary(digest, left, &(depth, index)),
+        SemanticClassExpr::OuterOccurrence {
+            operand,
+            path,
+            mode,
+        } => {
+            hash_operand(digest, left, operand)?;
+            hash_binary(digest, left, &(path, mode))
+        }
+        SemanticClassExpr::IntrinsicClass {
+            operand,
+            path,
+            class,
+        } => {
+            hash_operand(digest, left, operand)?;
+            hash_binary(digest, left, &(path, class))
+        }
+    }
+}
+fn hash_source(
+    digest: &mut zil_base::FingerprintBuilder,
+    left: &mut usize,
+    source: &roles::Source,
+) -> R<()> {
+    hash_binary(digest, left, &std::mem::discriminant(source))?;
+    match source {
+        roles::Source::Static => Ok(()),
+        roles::Source::Class(image) => hash_image(digest, left, image),
+    }
+}
+fn hash_roots(
+    digest: &mut zil_base::FingerprintBuilder,
+    left: &mut usize,
+    roots: &BTreeSet<arguments::Root>,
+) -> R<()> {
+    hash_binary(digest, left, &roots.len())?;
+    for root in roots {
+        hash_binary(digest, left, &(root.local, &root.path))?;
+    }
+    Ok(())
 }
 fn hash_domain(
     digest: &mut zil_base::FingerprintBuilder,
@@ -588,7 +714,11 @@ fn hash_domain(
     } else {
         digest.update(&[1]);
         charge_value_domain(world, value)?;
-        hash_debug(digest, world.left, &(life, classes))?;
+        hash_binary(digest, world.left, life)?;
+        hash_binary(digest, world.left, &classes.len())?;
+        for image in classes {
+            hash_image(digest, world.left, image)?;
+        }
     }
     Ok(())
 }
