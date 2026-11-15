@@ -1,0 +1,37 @@
+{
+  "schema": "zil.call-classes-recovery.v1",
+  "compiled_source": "027695318436fcb1f8994d0dc9802a0b2349c362",
+  "compiled_tree": "83fd7b71aadb6f5c1000a70590bd8707114d667f",
+  "binary_sha256": "5b3a309a7860dca3a1d3f15e7c930ec7d3f3a3fa59286e6d91c67e0067c0743f",
+  "tool_source": "05d4b276f8983b176951c7163c52edcf3208ab38",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "2744c3f53473b78c6fef75387039cf9b633ee827f8b9ff4c94b1a1e8c8ca6336",
+  "archive_sha256": "6e7ff2799c17fa4b79b56d489100f0280e86af1f2dfe3cb957957f4c900799a1",
+  "archive_bytes": 867164161,
+  "parts": 35,
+  "regular_files": 236551,
+  "logical_bytes": 3985638723,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "fresh_verify_receipt_sha256": "dc0a98e3d43a8fd254f05aff24d8a05857b8ee1cbbf5203b6fb09467a5a0b582",
+  "fresh_scratch_retired": true,
+  "original_raw_retained": true,
+  "scope": "Exact027 finite original1000/2500/5105 full324workflow/108functional/51sustained quality evidence. Same CGU16/O2/jobs1/defaultbudgets; current Verify/full O2 retained; all Rust runtime quality gates pass, actual main5105ResourceLimit leaves main regression unknown. Complete original/wrapper source identities/raw/executions/disk boundaries; all negatives remain. Core source gates/065diagnostic/failed04/capacity and binaries in sibling call-classes recovery; SDK18 fixedV32. No universal Rust claim/main merge.",
+  "LLVM_rebuilt": false,
+  "main_merge": false,
+  "research_defaults_enabled": false,
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/call-classes-formal-20261115",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "dependencies": {
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json"
+  },
+  "recovery_limit": "Evidence and frozen binaries, not an installation. Clone exact compiled source; restore SDK18/native-link/Rust separately, rebind absolute paths and recheck hashes. Verify each companion archive into a separate fresh directory. No LLVM rebuild needed. Original user-disk hardlink topology is not recreated; never recompute product savings from restored evidence.",
+  "companion_receipts_and_binaries": "../call-classes-20261115/RESTORE.json"
+}

@@ -1,0 +1,10 @@
+{
+  "scope": "Only fresh verification scratch created by the current verify command. Every archived file was extracted/hash checked by the completed verifier immediately before retirement. Original raw evidence, immutable binaries, parts and manifests retained. Not product disk savings.",
+  "status": "retired-after-current-full-fresh-verification",
+  "scratch": "/workspace/zil-recovery/call-classes-formal-fresh-01",
+  "archive_sha256": "6e7ff2799c17fa4b79b56d489100f0280e86af1f2dfe3cb957957f4c900799a1",
+  "manifest_sha256": "2744c3f53473b78c6fef75387039cf9b633ee827f8b9ff4c94b1a1e8c8ca6336",
+  "fresh_receipt_sha256": "dc0a98e3d43a8fd254f05aff24d8a05857b8ee1cbbf5203b6fb09467a5a0b582",
+  "before_unix_ns": 1794770554875936844,
+  "after_unix_ns": 1794770560725729552
+}
