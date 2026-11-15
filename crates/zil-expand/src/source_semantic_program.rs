@@ -817,7 +817,17 @@ impl Program {
             .flat_map(|(_, module)| &module.definitions)
             .find(|row| row.id == definition)
             .ok_or_else(|| error(span, "actual lexical scope original declaration is absent"))?;
-        if !original.parameters.is_empty() || !original.environment.is_empty() {
+        // A retained life-only method is already a real rigid program: its
+        // enclosing impl/nominal keeps every original Life formal, even when
+        // the runtime syntax erased those binders. Type/Const scopes instead
+        // require their actual specialization and receiver-call request.
+        budget.identity_work(original.parameters.len(), span)?;
+        if original
+            .parameters
+            .iter()
+            .any(|formal| !matches!(formal, SemanticFormal::Lifetime))
+            || !original.environment.is_empty()
+        {
             return Err(unsupported(
                 span,
                 &format!(
@@ -827,6 +837,7 @@ impl Program {
             ));
         }
         let parent = original.parent;
+        let parameters = original.parameters.len();
         let self_type = match &original.body {
             SemanticDefinitionBody::Scope(
                 SemanticScopeRecipe::InherentImpl { self_type, .. }
@@ -836,10 +847,26 @@ impl Program {
                 prepay_recipe(self_type, budget, span, 0)?;
                 self_type.clone()
             }
-            SemanticDefinitionBody::Nominal { .. } => SemanticTypeRecipe::Nominal {
-                definition,
-                arguments: Vec::new(),
-            },
+            SemanticDefinitionBody::Nominal { .. } => {
+                let mut arguments = Vec::new();
+                for ordinal in 0..parameters {
+                    budget.node(span, depth)?;
+                    let ordinal = u32::try_from(ordinal)
+                        .map_err(|_| error(span, "nominal scope formal ordinal exhausted"))?;
+                    budget.lineage_push(
+                        &mut arguments,
+                        SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal,
+                        })),
+                        span,
+                    )?;
+                }
+                SemanticTypeRecipe::Nominal {
+                    definition,
+                    arguments,
+                }
+            }
             _ => {
                 return Err(unsupported(
                     span,
@@ -858,6 +885,26 @@ impl Program {
             .next_instance
             .checked_add(1)
             .ok_or_else(|| error(span, "lexical scope instance namespace exhausted"))?;
+        let mut actuals = Vec::new();
+        for ordinal in 0..parameters {
+            budget.node(span, depth)?;
+            let ordinal = u32::try_from(ordinal)
+                .map_err(|_| error(span, "lexical scope formal ordinal exhausted"))?;
+            budget.lineage_bytes(std::mem::size_of::<SemanticActualRecipe>(), span)?;
+            budget.lineage_push(
+                &mut actuals,
+                SemanticActual::CoreRecipe {
+                    scope: id,
+                    recipe: Box::new(SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(
+                        SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal,
+                        },
+                    ))),
+                },
+                span,
+            )?;
+        }
         budget.lineage_bytes(
             std::mem::size_of::<SemanticInstance>()
                 + 12 * std::mem::size_of::<(SemanticDefinitionId, SemanticInstanceId)>(),
@@ -869,7 +916,7 @@ impl Program {
             target: SemanticInstanceTarget::Scope,
             lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
             parent,
-            actuals: Vec::new(),
+            actuals,
             header_embedding: Vec::new(),
             environment: None,
             self_type: Some(SemanticTypeValue::Core {
@@ -892,9 +939,9 @@ impl Program {
         budget: &mut Budget<'_>,
     ) -> R<()> {
         self.ledger.finish(budget, Span::default())?;
-        // Complete non-generic lexical scopes are data derived from their
-        // actual original declarations. Generic scopes need actual caller
-        // substitutions and are never silently represented by empty actuals.
+        // Closed and rigid Life lexical scopes come from their complete
+        // originals. Type/Const scopes need actual caller substitutions and
+        // are never silently represented by empty actuals.
         let mut parents = BTreeMap::new();
         for instance in &self.instances {
             let definition = self.templates[instance.template].definition;
