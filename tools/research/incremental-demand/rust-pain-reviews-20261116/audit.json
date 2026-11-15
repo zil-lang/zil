@@ -1,0 +1,482 @@
+{
+  "schema": "zil.rust-pain-coverage-audit.v1",
+  "audit_date_Asia_Shanghai": "2026-11-16",
+  "new_compiler_or_benchmark_execution": false,
+  "compiled_source": "027695318436fcb1f8994d0dc9802a0b2349c362",
+  "measured_tool_source": "05d4b276f8983b176951c7163c52edcf3208ab38",
+  "prior_delivery": "53c077e723fbd3aa43e96962260d4834d33ce96b",
+  "window": "out/runs/closed-project-window-05",
+  "rows_jsonl_sha256": "700b81227464b924ed9815b53a85a2fef4aebaafb5bcee9a7fa5b0c6121b3596",
+  "protocol": "18-request O2/CGU16/jobs1, two balanced blocks, incremental explicitly on for Rust; ZIL resident original workflow and one disk-retained restart; no thirdparty dependencies, one crate, no debug info in native profile. Cold means fresh project artifact/cache roots, not flushed OS cache or rebuilding toolchain/SDK.",
+  "sizes": {
+    "1000": {
+      "candidate": {
+        "source_identity_sha256": "dcb7d753d49cee5f38c4c9cee739b5df5e6e8f05304bb0e0049cc5dc824a8a58",
+        "cold_ms": 762.7044185,
+        "restart_ms": 456.760585,
+        "cold_allocated_MiB": 3.099609375,
+        "restart_allocated_MiB": 9.060546875,
+        "peak_allocated_MiB": 9.060546875,
+        "restart_receipts": [
+          {
+            "block": 0,
+            "raw": {
+              "sha256": "e3575619dd5695624670819ab9f2659fa431b6d401fb14fe141b8b6d82986657",
+              "bytes": 412639,
+              "archive": "blobs/e3575619dd5695624670819ab9f2659fa431b6d401fb14fe141b8b6d82986657.row.json"
+            },
+            "directory": "workflow/1000/block-00/requests/017-warm-restart/candidate",
+            "verification_runs": 1,
+            "phase_timings_ns": {
+              "analyze": 4707,
+              "codegen": 251147582,
+              "lower": 439756,
+              "types": 8944,
+              "verify": 12876678
+            },
+            "backend_timings_ns": {
+              "diagnostic_ns": 10970231,
+              "link_execution_ns": 20323137,
+              "link_key_ns": 26320793,
+              "machine_ns": 127659347,
+              "object_ns": 9102807,
+              "other_ns": 825911,
+              "partition_ns": 55852126,
+              "total_ns": 251054352
+            },
+            "object_hits": 16,
+            "lowered_functions": 1005
+          },
+          {
+            "block": 1,
+            "raw": {
+              "sha256": "8b66493246263b9a3620cbce2906020e04da827006fbf6657938599d1c925abb",
+              "bytes": 412387,
+              "archive": "blobs/8b66493246263b9a3620cbce2906020e04da827006fbf6657938599d1c925abb.row.json"
+            },
+            "directory": "workflow/1000/block-01/requests/017-warm-restart/candidate",
+            "verification_runs": 1,
+            "phase_timings_ns": {
+              "analyze": 4257,
+              "codegen": 237341009,
+              "lower": 487718,
+              "types": 8793,
+              "verify": 12888883
+            },
+            "backend_timings_ns": {
+              "diagnostic_ns": 7479809,
+              "link_execution_ns": 17085290,
+              "link_key_ns": 25062335,
+              "machine_ns": 127968797,
+              "object_ns": 4379602,
+              "other_ns": 511875,
+              "partition_ns": 54841393,
+              "total_ns": 237329101
+            },
+            "object_hits": 16,
+            "lowered_functions": 1005
+          }
+        ]
+      },
+      "rust": {
+        "source_identity_sha256": "dcb7d753d49cee5f38c4c9cee739b5df5e6e8f05304bb0e0049cc5dc824a8a58",
+        "cold_ms": 1042.2204215000002,
+        "restart_ms": 31.036938,
+        "cold_allocated_MiB": 5.9375,
+        "restart_allocated_MiB": 19.17578125,
+        "peak_allocated_MiB": 19.17578125,
+        "restart_receipts": [
+          {
+            "block": 0,
+            "raw": {
+              "sha256": "f9167575b4b218db0f7ed94e8025b5026c5c315869792e7dc40c93c1a8900970",
+              "bytes": 353454,
+              "archive": "blobs/f9167575b4b218db0f7ed94e8025b5026c5c315869792e7dc40c93c1a8900970.row.json"
+            },
+            "directory": "workflow/1000/block-00/requests/017-warm-restart/rust",
+            "stderr_sha256": "3c48a4f863da956c90d16702c9b432dc1bfffff8ef063ca94aeee1c4a909767d",
+            "cargo_fresh": true,
+            "running_rustc": false
+          },
+          {
+            "block": 1,
+            "raw": {
+              "sha256": "93304136959f12df32069f1af4b080ff96241bf3f200c62d745905ac3bcac62c",
+              "bytes": 353741,
+              "archive": "blobs/93304136959f12df32069f1af4b080ff96241bf3f200c62d745905ac3bcac62c.row.json"
+            },
+            "directory": "workflow/1000/block-01/requests/017-warm-restart/rust",
+            "stderr_sha256": "9c921f9b324ad057c3e61f97d8df8c729a5c7fdc01c8d427087202ecd0386382",
+            "cargo_fresh": true,
+            "running_rustc": false
+          }
+        ]
+      },
+      "restart_candidate_over_rust": 14.716676786866024
+    },
+    "2500": {
+      "candidate": {
+        "source_identity_sha256": "01ad1fb5f38147ef90d866ad7eb067591b18c83482c826f5aac8a7ccde5b8e9b",
+        "cold_ms": 802.2809115,
+        "restart_ms": 379.3268155,
+        "cold_allocated_MiB": 4.458984375,
+        "restart_allocated_MiB": 12.845703125,
+        "peak_allocated_MiB": 12.845703125,
+        "restart_receipts": [
+          {
+            "block": 0,
+            "raw": {
+              "sha256": "171e5e8846d8c55b69ce3c12a431f2653ff189a8a4aac37b477c38298c4120b1",
+              "bytes": 493069,
+              "archive": "blobs/171e5e8846d8c55b69ce3c12a431f2653ff189a8a4aac37b477c38298c4120b1.row.json"
+            },
+            "directory": "workflow/2500/block-00/requests/017-warm-restart/candidate",
+            "verification_runs": 1,
+            "phase_timings_ns": {
+              "analyze": 4306,
+              "codegen": 257546448,
+              "lower": 820191,
+              "types": 8272,
+              "verify": 18403209
+            },
+            "backend_timings_ns": {
+              "diagnostic_ns": 10258463,
+              "link_execution_ns": 17647434,
+              "link_key_ns": 30037653,
+              "machine_ns": 144510908,
+              "object_ns": 3960094,
+              "other_ns": 779391,
+              "partition_ns": 50339135,
+              "total_ns": 257533078
+            },
+            "object_hits": 16,
+            "lowered_functions": 2505
+          },
+          {
+            "block": 1,
+            "raw": {
+              "sha256": "7adb7f4046b87dfba030e16dbd8f2b3d60c89a04eb21f73f79b305071a7c8306",
+              "bytes": 493976,
+              "archive": "blobs/7adb7f4046b87dfba030e16dbd8f2b3d60c89a04eb21f73f79b305071a7c8306.row.json"
+            },
+            "directory": "workflow/2500/block-01/requests/017-warm-restart/candidate",
+            "verification_runs": 1,
+            "phase_timings_ns": {
+              "analyze": 4497,
+              "codegen": 285077493,
+              "lower": 955245,
+              "types": 8283,
+              "verify": 19648643
+            },
+            "backend_timings_ns": {
+              "diagnostic_ns": 17168579,
+              "link_execution_ns": 18346513,
+              "link_key_ns": 25605658,
+              "machine_ns": 158230051,
+              "object_ns": 8497659,
+              "other_ns": 840553,
+              "partition_ns": 56375600,
+              "total_ns": 285064613
+            },
+            "object_hits": 16,
+            "lowered_functions": 2505
+          }
+        ]
+      },
+      "rust": {
+        "source_identity_sha256": "01ad1fb5f38147ef90d866ad7eb067591b18c83482c826f5aac8a7ccde5b8e9b",
+        "cold_ms": 1331.5824834999999,
+        "restart_ms": 38.397565,
+        "cold_allocated_MiB": 12.3984375,
+        "restart_allocated_MiB": 33.310546875,
+        "peak_allocated_MiB": 36.669921875,
+        "restart_receipts": [
+          {
+            "block": 0,
+            "raw": {
+              "sha256": "2cb5ff93590a177c526bfa4304c7150147a5d4ddcb25086399beabb4e96aa760",
+              "bytes": 353432,
+              "archive": "blobs/2cb5ff93590a177c526bfa4304c7150147a5d4ddcb25086399beabb4e96aa760.row.json"
+            },
+            "directory": "workflow/2500/block-00/requests/017-warm-restart/rust",
+            "stderr_sha256": "0c75afafe6cebec823505036b51c0700d3f66ad4cf1cb3ea7e9b7d693e7b1111",
+            "cargo_fresh": true,
+            "running_rustc": false
+          },
+          {
+            "block": 1,
+            "raw": {
+              "sha256": "5c648fb2bba8f1f9f07a853404ef1baaa549229509295a7ed9da552c9412a834",
+              "bytes": 336397,
+              "archive": "blobs/5c648fb2bba8f1f9f07a853404ef1baaa549229509295a7ed9da552c9412a834.row.json"
+            },
+            "directory": "workflow/2500/block-01/requests/017-warm-restart/rust",
+            "stderr_sha256": "07ea60f7a369d4f82b36b85ac86bd652dcdf9f12307674b950cada14578a22f0",
+            "cargo_fresh": true,
+            "running_rustc": false
+          }
+        ]
+      },
+      "restart_candidate_over_rust": 9.878928924269026
+    },
+    "5105": {
+      "candidate": {
+        "source_identity_sha256": "892fbc295a4cd51abec61c1cd600079126b1d473e1a85671f506353dfe333627",
+        "cold_ms": 3834.68284,
+        "restart_ms": 2232.3640405,
+        "cold_allocated_MiB": 17.421875,
+        "restart_allocated_MiB": 46.8203125,
+        "peak_allocated_MiB": 46.8203125,
+        "restart_receipts": [
+          {
+            "block": 0,
+            "raw": {
+              "sha256": "0673d23726805dac9747cb867803831e9cb4426fcf2d628c76e9cb11cb54dc64",
+              "bytes": 657620,
+              "archive": "blobs/0673d23726805dac9747cb867803831e9cb4426fcf2d628c76e9cb11cb54dc64.row.json"
+            },
+            "directory": "workflow/5105/block-00/requests/017-warm-restart/candidate",
+            "verification_runs": 1,
+            "phase_timings_ns": {
+              "analyze": 5128,
+              "codegen": 2023852424,
+              "lower": 11731101,
+              "types": 12489,
+              "verify": 134504193
+            },
+            "backend_timings_ns": {
+              "diagnostic_ns": 57664609,
+              "link_execution_ns": 23297864,
+              "link_key_ns": 29927176,
+              "machine_ns": 1612162269,
+              "object_ns": 16144375,
+              "other_ns": 6624084,
+              "partition_ns": 278008682,
+              "total_ns": 2023829059
+            },
+            "object_hits": 16,
+            "lowered_functions": 5105
+          },
+          {
+            "block": 1,
+            "raw": {
+              "sha256": "a1e8b6343ba0a2bc2d1fa61f9d53ca5c4d8aed607ad6dbe9c30c414db755db1f",
+              "bytes": 657742,
+              "archive": "blobs/a1e8b6343ba0a2bc2d1fa61f9d53ca5c4d8aed607ad6dbe9c30c414db755db1f.row.json"
+            },
+            "directory": "workflow/5105/block-01/requests/017-warm-restart/candidate",
+            "verification_runs": 1,
+            "phase_timings_ns": {
+              "analyze": 5017,
+              "codegen": 1038766291,
+              "lower": 5323907,
+              "types": 314717,
+              "verify": 394734107
+            },
+            "backend_timings_ns": {
+              "diagnostic_ns": 42925782,
+              "link_execution_ns": 21375639,
+              "link_key_ns": 25464116,
+              "machine_ns": 698258842,
+              "object_ns": 14339501,
+              "other_ns": 1580181,
+              "partition_ns": 234702458,
+              "total_ns": 1038646519
+            },
+            "object_hits": 16,
+            "lowered_functions": 5105
+          }
+        ]
+      },
+      "rust": {
+        "source_identity_sha256": "892fbc295a4cd51abec61c1cd600079126b1d473e1a85671f506353dfe333627",
+        "cold_ms": 6719.3082405000005,
+        "restart_ms": 21.663687000000003,
+        "cold_allocated_MiB": 29.85546875,
+        "restart_allocated_MiB": 58.69140625,
+        "peak_allocated_MiB": 72.85546875,
+        "restart_receipts": [
+          {
+            "block": 0,
+            "raw": {
+              "sha256": "db8dc4527c2d058a2a84207fb2f8ff20e9b605c4005b9ba63714e1f586869683",
+              "bytes": 262596,
+              "archive": "blobs/db8dc4527c2d058a2a84207fb2f8ff20e9b605c4005b9ba63714e1f586869683.row.json"
+            },
+            "directory": "workflow/5105/block-00/requests/017-warm-restart/rust",
+            "stderr_sha256": "1b56a8a950666d7376b4717a65e06be1b13cd094b21bb52de48b5ac05d48d9b5",
+            "cargo_fresh": true,
+            "running_rustc": false
+          },
+          {
+            "block": 1,
+            "raw": {
+              "sha256": "1761c717a2e51f921823d420d6e202e0021045240e3afecb719660a8ecd68b5a",
+              "bytes": 262600,
+              "archive": "blobs/1761c717a2e51f921823d420d6e202e0021045240e3afecb719660a8ecd68b5a.row.json"
+            },
+            "directory": "workflow/5105/block-01/requests/017-warm-restart/rust",
+            "stderr_sha256": "bcd118a6a7199dc635e80839240e7478b0d260ba1b4a630852e8096e8a6e6cc7",
+            "cargo_fresh": true,
+            "running_rustc": false
+          }
+        ]
+      },
+      "restart_candidate_over_rust": 103.04635773679705
+    }
+  },
+  "source_receipts": [
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-build-cache.md",
+      "sha256": "8866bcb97bdd2abf2f8177a010a2cea29a73743f4ab39306ca036a30bd5e00ad",
+      "bytes": 6333
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-build-scripts.md",
+      "sha256": "703f7547c5d4c28fff8d7769d5bd80dd6cd20475b7725baa902dd1cbc4449396",
+      "bytes": 26099
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-cargo-clean.md",
+      "sha256": "95e7ac076bb176ea78c60ae6f76bd16d80f5999f2038ac7ff7b41db3f00a1710",
+      "bytes": 11216
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-config.md",
+      "sha256": "2554219f342fb579173f9068d5fac87bcc957ab7a0aa0bd938101b1541fd3e2c",
+      "bytes": 57718
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-profiles.md",
+      "sha256": "27772f9eb10e4096cb95f6e3df42421c4879ca2955e54f5efa5133de157a7f5d",
+      "bytes": 18465
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-timings.md",
+      "sha256": "ec084d23659e6c7e1c40c3020c9f4bb4f46f9798b74ebd03953ebaf9b833c85e",
+      "bytes": 2959
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/perf-build-configuration.md",
+      "sha256": "fde14fab2ec5189e2bd68bba90b490cf87290179dacc486f82dd140a8b10afa5",
+      "bytes": 20230
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/perf-compile.md",
+      "sha256": "4a249d4aee2da6a458a67bb7cf54d7c85b42db8764876d55e8b601bb58ee94ba",
+      "bytes": 5297
+    },
+    {
+      "path": "out/runs/rust-pain-audit-20261116-01/sources/rustc-incremental-guide.md",
+      "sha256": "9ac187328582e67dea40611c6437de899c9793e2f1ccf0286e4317a5bda3a7a8",
+      "bytes": 7529
+    }
+  ],
+  "coverage_verdict": {
+    "cold_scalar_O2": "Finite improvement proven, no industry/minute-scale or C++ superiority claim",
+    "resident_private_edit": "Finite1000/2500 improvement;5105 eight-private total slower than Rust",
+    "persistent_restart": "Not solved; retained semantic/object cache still rebuilds all machine functions and partitions",
+    "product_disk": "Finite short-history O2 allocated blocks reduced, not total deployment footprint, debug/test/workspace or stable long-run bound",
+    "cleaned_cache_tradeoff": "Not measured as a cleanup/partial-eviction experiment; fresh cold and retained restart are two observed points only",
+    "multi_crate_generics_macros_async_debug_test": "Not covered",
+    "default_capacity": "Both lex1M token and whole-project10k function limits apply. True10105/25105 function projects cannot fit unchanged limits; no evidence of duplicate charging causing this result."
+  },
+  "primary_cargo_commit": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+  "primary_sources": [
+    {
+      "path": "doc/book/src/reference/profiles.md",
+      "local": "cargo-pinned-profiles.md",
+      "url": "https://github.com/rust-lang/cargo/blob/5f94df4789f005f9a352888e8355ffc645b7ed0e/doc/book/src/reference/profiles.md",
+      "sha256": "27772f9eb10e4096cb95f6e3df42421c4879ca2955e54f5efa5133de157a7f5d",
+      "bytes": 18465
+    },
+    {
+      "path": "doc/book/src/reference/build-cache.md",
+      "local": "cargo-pinned-build-cache.md",
+      "url": "https://github.com/rust-lang/cargo/blob/5f94df4789f005f9a352888e8355ffc645b7ed0e/doc/book/src/reference/build-cache.md",
+      "sha256": "8866bcb97bdd2abf2f8177a010a2cea29a73743f4ab39306ca036a30bd5e00ad",
+      "bytes": 6333
+    },
+    {
+      "path": "doc/book/src/commands/cargo-clean.md",
+      "local": "cargo-pinned-cargo-clean.md",
+      "url": "https://github.com/rust-lang/cargo/blob/5f94df4789f005f9a352888e8355ffc645b7ed0e/doc/book/src/commands/cargo-clean.md",
+      "sha256": "95e7ac076bb176ea78c60ae6f76bd16d80f5999f2038ac7ff7b41db3f00a1710",
+      "bytes": 11216
+    },
+    {
+      "path": "doc/book/src/reference/config.md",
+      "local": "cargo-pinned-config.md",
+      "url": "https://github.com/rust-lang/cargo/blob/5f94df4789f005f9a352888e8355ffc645b7ed0e/doc/book/src/reference/config.md",
+      "sha256": "2554219f342fb579173f9068d5fac87bcc957ab7a0aa0bd938101b1541fd3e2c",
+      "bytes": 57718
+    },
+    {
+      "path": "doc/book/src/reference/timings.md",
+      "local": "cargo-pinned-timings.md",
+      "url": "https://github.com/rust-lang/cargo/blob/5f94df4789f005f9a352888e8355ffc645b7ed0e/doc/book/src/reference/timings.md",
+      "sha256": "ec084d23659e6c7e1c40c3020c9f4bb4f46f9798b74ebd03953ebaf9b833c85e",
+      "bytes": 2959
+    },
+    {
+      "path": "doc/book/src/reference/build-scripts.md",
+      "local": "cargo-pinned-build-scripts.md",
+      "url": "https://github.com/rust-lang/cargo/blob/5f94df4789f005f9a352888e8355ffc645b7ed0e/doc/book/src/reference/build-scripts.md",
+      "sha256": "703f7547c5d4c28fff8d7769d5bd80dd6cd20475b7725baa902dd1cbc4449396",
+      "bytes": 26099
+    }
+  ],
+  "upstream_implementation_policy": {
+    "scope": "Every current or proposed compile-time/cache-space optimization must compare actual Rust source, including proactive designs. Evidence of absence must be bounded, not assumed.",
+    "rustc_source": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "cargo_source": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+    "required_fields": [
+      "Pinned Rust file/function and relevant flags",
+      "Current ZIL consumer and measured absolute cost",
+      "Actual mechanism difference, measured facts vs hypotheses",
+      "What is borrowed and what stronger ZIL safety obligations remain",
+      "One complete implementation chain and unified source/runtime/time-space acceptance"
+    ],
+    "current_covered_mechanisms": [
+      "Cargo fingerprint/Fresh",
+      "Ordered actual-query dependency tracking and result-green cutoff",
+      "Early CGU work-product decision before LLVM construction",
+      "On-demand disk query loading/cache promotion and stable IDs",
+      "Incremental session hardlink/copy/current/live lock-safe GC",
+      "MonoItem dedup, CGU inline-item partition, O2 LLVM MergeFunctions",
+      "Default ThinLocal/pre-LTO stage identity vs final-object reuse"
+    ],
+    "not_claimed": "Entire Rust compiler audited; universal superiority; new compiler optimization; new benchmark; same current Verify guarantee from Cargo Fresh."
+  },
+  "expert_sources": [
+    {
+      "repository": "nnethercote/perf-book",
+      "commit": "bc7cb0d1bca9561dda9effd0f3d86112eab3e948",
+      "path": "src/compile-times.md",
+      "local": "perf-compile.md",
+      "url": "https://github.com/nnethercote/perf-book/blob/bc7cb0d1bca9561dda9effd0f3d86112eab3e948/src/compile-times.md",
+      "sha256": "4a249d4aee2da6a458a67bb7cf54d7c85b42db8764876d55e8b601bb58ee94ba"
+    },
+    {
+      "repository": "nnethercote/perf-book",
+      "commit": "bc7cb0d1bca9561dda9effd0f3d86112eab3e948",
+      "path": "src/build-configuration.md",
+      "local": "perf-build-configuration.md",
+      "url": "https://github.com/nnethercote/perf-book/blob/bc7cb0d1bca9561dda9effd0f3d86112eab3e948/src/build-configuration.md",
+      "sha256": "fde14fab2ec5189e2bd68bba90b490cf87290179dacc486f82dd140a8b10afa5"
+    },
+    {
+      "repository": "rust-lang/rustc-dev-guide",
+      "commit": "e08e2649ba0a7a2a8fbaa9fe2e69037b69e9aefd",
+      "path": "src/queries/incremental-compilation.md",
+      "local": "rustc-incremental-guide.md",
+      "url": "https://github.com/rust-lang/rustc-dev-guide/blob/e08e2649ba0a7a2a8fbaa9fe2e69037b69e9aefd/src/queries/incremental-compilation.md",
+      "sha256": "9ac187328582e67dea40611c6437de899c9793e2f1ccf0286e4317a5bda3a7a8"
+    }
+  ],
+  "implementation_source_manifests": [
+    "implementation/cargo/manifest.json",
+    "implementation/rust/manifest.json"
+  ],
+  "joint_space_causality_limit": "Observed disk quantities are not minimum necessary for latency. Cargo Fresh and edited incremental rustc are separate. No actual cache cleanup or fixed-space Pareto experiment executed."
+}

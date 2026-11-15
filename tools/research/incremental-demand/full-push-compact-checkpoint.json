@@ -341,7 +341,8 @@
     "Window04 tool-failed/incomplete at historical stale layout;05d scans strictly validated envelopes for a unique complete current physical layout. Stale-only still rejected; failed04/replay/tool19 tests preserved.",
     "027 current full workflow leads at finite1000/2500/5105 but interface and process restart lose at every size; private8 at5105 loses10.754vs9.859s. All negatives retained.",
     "10105/25105: both actual main and027 reject all original snapshots at default lex token limit; Rust check/native observed. Verify0 on lex failure is not a successful semantic rejection. No invalid-build timing or disk ratios. Firstcheck validator failure preserved with56 saved-response replays; native84requests complete/0infrastructurefailures/capacity false.",
-    "Synthetic102-file scalar families do not establish industrial workspace/generic/proc-macro/async coverage or minute-scale ZIL capacity success. Capacity timings excluded due host evidence maintenance; no sustained capacity runtime qualification."
+    "Synthetic102-file scalar families do not establish industrial workspace/generic/proc-macro/async coverage or minute-scale ZIL capacity success. Capacity timings excluded due host evidence maintenance; no sustained capacity runtime qualification.",
+    "20261116 actual Rust implementation audit: default10000 function hard cap also precludes original10105/25105 projects, beyond observed lex cap. Current lower disk does not prove cleanup preserves hot edits; Rust has GC and optional LLVM merging already. O2 single-crate native/no-debug results do not establish debug/test/multicrate/longhistory or current successful check superiority."
   ],
   "stock_main_candidate": {
     "source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
@@ -353,7 +354,7 @@
     "Fresh lowering/current transformations/partition construction jointly dominate restart/interface/private5105; implement as one source-to-cache construction chain and run one frozen acceptance batch.",
     "Extend diverse real multi-package/generic/resource workloads as language capability admits; Rust-only workloads are references, not matched ZIL wins."
   ],
-  "next": "Continue the large-project capacity plus fresh construction/restart/interface chain; actual5105 private003 backend machine331.9ms+partition240.0ms+object614.7ms,2500 restart machine144.5ms+partition50.3ms dominate while objects are cache hits. Do not chase millisecond no-op ratios ahead of these waits. No main merge before a separately reviewed minimal default-off scope and required main gates.",
+  "next": "One chain based on actual Rust58cf/Cargo5f94: tracked header/body/ABI/name dependencies and equal-result cutoff -> class/call/import updates -> current unit authorization and cached-product choice before MachineOutput expansion -> red-unit full checks/O2 -> referenced cache publication and bounded history cleanup. Preserve independent current Verify and all stronger integrity checks. Joint cold/resident/real compiler restart/edit and space-budget/cleanup-history tests, no CargoFresh guarantee relabel. Actual >10000-function project cannot fit unchanged whole-project limit; capacity contract/independent package boundary is separate explicit design, not a repeated-charge optimization.",
   "recovery": {
     "archive": "evidence/call-classes-20261115/RESTORE.json",
     "prior_complete_imports": "https://github.com/zil-lang/zil/blob/5af2f7a981cd04d48535cf049d4a8f41a192baff/tools/research/incremental-demand/evidence/closed-import-20261115/RESTORE.json",
@@ -391,5 +392,50 @@
     "source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
     "delivery": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
     "numbers_relabelled_to_021997_or_current": false
+  },
+  "pain_audit": {
+    "date_Asia_Shanghai": "2026-11-16",
+    "report": "rust-pain-reviews-20261116/review.md",
+    "data": "rust-pain-reviews-20261116/audit.json",
+    "rust_implementation_review": "rust-pain-reviews-20261116/rust-implementation-review.md",
+    "rust_reference_policy": "rust-pain-reviews-20261116/rust-reference-policy.json",
+    "new_benchmark": false,
+    "verdict": "Finite O2 scalar cold/disk gains true; persistent restart, fixed-space cleanup tradeoff, longhistory/debug/test/workspace not solved. Rust already has session GC/sharing and O2 merging; compare actual implementation before every direction.",
+    "capacity_hard_limits": {
+      "whole_project_tokens": 1000000,
+      "whole_project_functions": 10000,
+      "unchanged_contract_cannot_admit_actual_10105_or_25105_functions": true
+    },
+    "recovery": "evidence/rust-pain-audit-20261116/RESTORE.json",
+    "recovery_verified": {
+      "archive_sha256": "3c0f9588efb6cdb7bb6dbe29746b92d5f2d2877498c99d9c0b94c1c2b245cee0",
+      "archive_bytes": 372435,
+      "parts": 1,
+      "regular_files": 53,
+      "logical_bytes": 1498530,
+      "fresh_restore_verified": true
+    }
+  },
+  "rust_reference_policy": {
+    "scope": "Every current or proposed compile-time/cache-space optimization must compare actual Rust source, including proactive designs. Evidence of absence must be bounded, not assumed.",
+    "rustc_source": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "cargo_source": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+    "required_fields": [
+      "Pinned Rust file/function and relevant flags",
+      "Current ZIL consumer and measured absolute cost",
+      "Actual mechanism difference, measured facts vs hypotheses",
+      "What is borrowed and what stronger ZIL safety obligations remain",
+      "One complete implementation chain and unified source/runtime/time-space acceptance"
+    ],
+    "current_covered_mechanisms": [
+      "Cargo fingerprint/Fresh",
+      "Ordered actual-query dependency tracking and result-green cutoff",
+      "Early CGU work-product decision before LLVM construction",
+      "On-demand disk query loading/cache promotion and stable IDs",
+      "Incremental session hardlink/copy/current/live lock-safe GC",
+      "MonoItem dedup, CGU inline-item partition, O2 LLVM MergeFunctions",
+      "Default ThinLocal/pre-LTO stage identity vs final-object reuse"
+    ],
+    "not_claimed": "Entire Rust compiler audited; universal superiority; new compiler optimization; new benchmark; same current Verify guarantee from Cargo Fresh."
   }
 }

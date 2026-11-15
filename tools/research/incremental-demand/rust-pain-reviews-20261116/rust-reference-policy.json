@@ -1,0 +1,22 @@
+{
+  "scope": "Every current or proposed compile-time/cache-space optimization must compare actual Rust source, including proactive designs. Evidence of absence must be bounded, not assumed.",
+  "rustc_source": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+  "cargo_source": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+  "required_fields": [
+    "Pinned Rust file/function and relevant flags",
+    "Current ZIL consumer and measured absolute cost",
+    "Actual mechanism difference, measured facts vs hypotheses",
+    "What is borrowed and what stronger ZIL safety obligations remain",
+    "One complete implementation chain and unified source/runtime/time-space acceptance"
+  ],
+  "current_covered_mechanisms": [
+    "Cargo fingerprint/Fresh",
+    "Ordered actual-query dependency tracking and result-green cutoff",
+    "Early CGU work-product decision before LLVM construction",
+    "On-demand disk query loading/cache promotion and stable IDs",
+    "Incremental session hardlink/copy/current/live lock-safe GC",
+    "MonoItem dedup, CGU inline-item partition, O2 LLVM MergeFunctions",
+    "Default ThinLocal/pre-LTO stage identity vs final-object reuse"
+  ],
+  "not_claimed": "Entire Rust compiler audited; universal superiority; new compiler optimization; new benchmark; same current Verify guarantee from Cargo Fresh."
+}

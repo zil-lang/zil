@@ -1,0 +1,353 @@
+{
+  "archive": {
+    "bytes": 372435,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 372435,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "3c0f9588efb6cdb7bb6dbe29746b92d5f2d2877498c99d9c0b94c1c2b245cee0"
+      }
+    ],
+    "sha256": "3c0f9588efb6cdb7bb6dbe29746b92d5f2d2877498c99d9c0b94c1c2b245cee0",
+    "tar_bytes": 1587200
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 11539,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/astra-review.md",
+        "sha256": "2668466caa3539630c89e601e07aa40838bf4d8f177a0e179a9af8691f29c3ad"
+      },
+      {
+        "bytes": 5247,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/audit-controller.py",
+        "sha256": "44ba08c45584f378aaa68d07d8db685b6e34aa3506ace7fd86fadfd73536aea9"
+      },
+      {
+        "bytes": 21168,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/audit.json",
+        "sha256": "ec85c74ccd0211bb355638c0aaa712c496a5634cbd7503ce779940da5fe10b91"
+      },
+      {
+        "bytes": 1882,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/cargo/manifest.json",
+        "sha256": "a6b0d5e1e9ef9cb88b1e0d85afa30032611528aff04fde5128b3f76dea3531bb"
+      },
+      {
+        "bytes": 34385,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/cargo/src/compiler/build_runner/mod.rs",
+        "sha256": "c16822f3a09cfc769a4e1543a18a7b57712dc0c23a8a975867f85d15acccf05e"
+      },
+      {
+        "bytes": 28090,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/cargo/src/compiler/fingerprint/dep_info.rs",
+        "sha256": "c0cec5e57d00c63d7e22fc71abc719fe0e6515d9724edd1af51fe3c07bb29466"
+      },
+      {
+        "bytes": 93849,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/cargo/src/compiler/fingerprint/mod.rs",
+        "sha256": "1d38986fa39dd821ff58a9812f69c614278564079cda04fc3fa29d79b9f84979"
+      },
+      {
+        "bytes": 53836,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/cargo/src/compiler/job_queue/mod.rs",
+        "sha256": "7bfaffdc00768e7241eba6d26166a86ef414c66c8b94465f9ee37d319152d672"
+      },
+      {
+        "bytes": 17742,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/cargo/src/workspace/gc.rs",
+        "sha256": "4e41669bbb782416a9b930a2914f87d788c94967e56e3749405887b73f72988a"
+      },
+      {
+        "bytes": 9723,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "bytes": 1068,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/LICENSE-MIT",
+        "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1"
+      },
+      {
+        "bytes": 56339,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_codegen_llvm/src/back/write.rs",
+        "sha256": "efdfc5ea70f7ad84abeacb8cf56236a3f752e1edf1cae8f9d23d6b45f59c313b"
+      },
+      {
+        "bytes": 10538,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_codegen_llvm/src/base.rs",
+        "sha256": "dab41e44a640308e5aa04602025064ccd05564b02258fab0fbc786131e1257e5"
+      },
+      {
+        "bytes": 96095,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_codegen_ssa/src/back/write.rs",
+        "sha256": "19de7ce74f7fe88267afbcc568815e8dbb924f2593cf7ddd145d92551fcf9631"
+      },
+      {
+        "bytes": 55444,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_codegen_ssa/src/base.rs",
+        "sha256": "37e5e27dfd9fea79909f4b16b8e73dfcb95bcc6e84fbfd0a848190dda1cafe18"
+      },
+      {
+        "bytes": 7421,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_incremental/src/persist/file_format.rs",
+        "sha256": "8a1b82607d27b73f42880daad329cc30fea409dff241716e028b7e68cff4c60a"
+      },
+      {
+        "bytes": 36973,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_incremental/src/persist/fs.rs",
+        "sha256": "822c49f50c06d4db005407e823e5c8ec1e1bfe0b2055fd8fe39329504982f8a4"
+      },
+      {
+        "bytes": 9677,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_incremental/src/persist/load.rs",
+        "sha256": "7ed2be6680348dcb3d9c97cda2717c36ee53aa67f9315825912fc82d7aba9dc3"
+      },
+      {
+        "bytes": 6197,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_incremental/src/persist/save.rs",
+        "sha256": "8098ae96038e448e95721bc4473229cc5f52a7a66d5a606b02d9ccfa6c3a4618"
+      },
+      {
+        "bytes": 58343,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp",
+        "sha256": "7af1e74418311929571988ef9af28af5429d7012c3d6e845545b783c09916433"
+      },
+      {
+        "bytes": 4866,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_middle/src/dep_graph/edges.rs",
+        "sha256": "a71741c9c1f9c0e05112c3a4852724617d8d8442d3b0e1d257eca205fab431e4"
+      },
+      {
+        "bytes": 59687,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_middle/src/dep_graph/graph.rs",
+        "sha256": "f66eda9a9dec72aece77c0660a0672b48b30fe45dc1bdc4bca18a666a07f5495"
+      },
+      {
+        "bytes": 30830,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_middle/src/mono.rs",
+        "sha256": "21c5d10e5309f898f552b83ff920dfd84ca99692ec7e7660ce3d7544e888ec04"
+      },
+      {
+        "bytes": 38536,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_middle/src/query/on_disk_cache.rs",
+        "sha256": "1057af59ff38d53c8444c073325fb57c9b90999fb5becc53f7b94a0a2e865564"
+      },
+      {
+        "bytes": 84315,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_monomorphize/src/collector.rs",
+        "sha256": "6d3f00c995c488743415179bcd60f19aae3784b6fb1e13b389c40f12cb6f66f5"
+      },
+      {
+        "bytes": 58726,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_monomorphize/src/partitioning.rs",
+        "sha256": "e7c5bbba84fc3531c7a9cb861778a028544a56fb211318d925c05b24d1ad30e4"
+      },
+      {
+        "bytes": 22530,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_query_impl/src/execution.rs",
+        "sha256": "83f3fa077f3c92eddafb065d1e93af706810742687069c52694b58f196b0f759"
+      },
+      {
+        "bytes": 6331,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_query_impl/src/incremental.rs",
+        "sha256": "7855be59b195ee2fa0902962cd6a72f8cfe5186f54f4e9d0ff27b15d2b3e0034"
+      },
+      {
+        "bytes": 138051,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_session/src/options.rs",
+        "sha256": "53b133198f6dc23757fda2a6fa767ad63eab8450e401be7d4074cded2dc519a3"
+      },
+      {
+        "bytes": 72350,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_session/src/session.rs",
+        "sha256": "d42833798b5115626b5cf38d6be46879c4df2d6b3f14d745d22397d1f460979a"
+      },
+      {
+        "bytes": 788,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_target/src/spec/base/linux.rs",
+        "sha256": "a57b355ba7ac63be11e4698aede7ac9c9852b419e726974d44753bd222fbeb96"
+      },
+      {
+        "bytes": 663,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_target/src/spec/base/linux_gnu.rs",
+        "sha256": "307e3a042a21aaae4a359d39ce4721b8f7a28edcd46aa8bd220f692704794489"
+      },
+      {
+        "bytes": 164231,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_target/src/spec/mod.rs",
+        "sha256": "2210a435f8dfacac209082d89ef3fbdd2f61bdcdb1b62dde2c2a572827e03b85"
+      },
+      {
+        "bytes": 1287,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/compiler/rustc_target/src/spec/targets/x86_64_unknown_linux_gnu.rs",
+        "sha256": "e39a2d7a6385b70b4beda09534c8a15b3cda68f8f89e3bb4dbbe5d86159bccba"
+      },
+      {
+        "bytes": 8013,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/implementation/rust/manifest.json",
+        "sha256": "59cee7aaf27f9741f20757de05a47d0ae27bd61736e91a7031aefa6c021295fd"
+      },
+      {
+        "bytes": 11355,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/review.md",
+        "sha256": "a70d8c533be10ac27e1f4ba84442b00610a1ae9003e1f94ece5fcc895703540f"
+      },
+      {
+        "bytes": 14510,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/rust-implementation-review.md",
+        "sha256": "b2187b63f6073abad3cc12833fb7193206c8a1387795d7b2f9bc7cfe27d312a1"
+      },
+      {
+        "bytes": 731,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/rust-incremental-file-types.json",
+        "sha256": "8ed779efa352e68666833e774382b85f72117848b6196430cfbd9871d74d2236"
+      },
+      {
+        "bytes": 1323,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/rust-reference-policy.json",
+        "sha256": "84123816bea3be5dfdd331a1e21342204eacbce944f4709e3ca5bd43963aba33"
+      },
+      {
+        "bytes": 2270,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/source-fetch.py",
+        "sha256": "a6a35dee5e762789146914fd9c85bca2cb68be84a590e421ad7146b345c7f349"
+      },
+      {
+        "bytes": 712,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/additional-manifest.json",
+        "sha256": "ed1b43908aa9b6c4267ba127d1223d37ab483ab051ebe2ca9683d7943cabdcfc"
+      },
+      {
+        "bytes": 6333,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-build-cache.md",
+        "sha256": "8866bcb97bdd2abf2f8177a010a2cea29a73743f4ab39306ca036a30bd5e00ad"
+      },
+      {
+        "bytes": 26099,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-build-scripts.md",
+        "sha256": "703f7547c5d4c28fff8d7769d5bd80dd6cd20475b7725baa902dd1cbc4449396"
+      },
+      {
+        "bytes": 11216,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-cargo-clean.md",
+        "sha256": "95e7ac076bb176ea78c60ae6f76bd16d80f5999f2038ac7ff7b41db3f00a1710"
+      },
+      {
+        "bytes": 57718,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-config.md",
+        "sha256": "2554219f342fb579173f9068d5fac87bcc957ab7a0aa0bd938101b1541fd3e2c"
+      },
+      {
+        "bytes": 2168,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-manifest.json",
+        "sha256": "56f968bec752bd6e8c23f03aa61fdd86b6cbb50642b1230810a96f473de73d66"
+      },
+      {
+        "bytes": 18465,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-profiles.md",
+        "sha256": "27772f9eb10e4096cb95f6e3df42421c4879ca2955e54f5efa5133de157a7f5d"
+      },
+      {
+        "bytes": 2959,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/cargo-pinned-timings.md",
+        "sha256": "ec084d23659e6c7e1c40c3020c9f4bb4f46f9798b74ebd03953ebaf9b833c85e"
+      },
+      {
+        "bytes": 1225,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/expert-pinned-manifest.json",
+        "sha256": "2cda21dc2d3661e7bef26f6089ea21d9839fa053de890122d731778e7402900a"
+      },
+      {
+        "bytes": 1630,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/manifest.json",
+        "sha256": "a86451d41c3cbb9518991cac0f94b758f42949fb51f38358e60ff0021b3dc3cb"
+      },
+      {
+        "bytes": 20230,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/perf-build-configuration.md",
+        "sha256": "fde14fab2ec5189e2bd68bba90b490cf87290179dacc486f82dd140a8b10afa5"
+      },
+      {
+        "bytes": 5297,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/perf-compile.md",
+        "sha256": "4a249d4aee2da6a458a67bb7cf54d7c85b42db8764876d55e8b601bb58ee94ba"
+      },
+      {
+        "bytes": 7529,
+        "mode": 384,
+        "path": "out/runs/rust-pain-audit-20261116-01/sources/rustc-incremental-guide.md",
+        "sha256": "9ac187328582e67dea40611c6437de899c9793e2f1ccf0286e4317a5bda3a7a8"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "Read-only pain and actual upstream-source audit of existing027/window05, no new compiler or benchmark execution. Pinned same-version rustc58cf/Cargo5f94 source and docs, orderedquery/earlyCGU/diskquery/sessionGC/MergeFunctions/ThinLocal comparison, derived time-space point/CargoFresh proof, capacity1Mtokens+10kfunctions contradiction, two Astra source reviews. All facts vs future implementation explicitly separated; no globalRust/C++/cleanup success claim.",
+    "source_commits": {
+      "actual-cargo": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+      "actual-rustc": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+      "compiled-observations": "027695318436fcb1f8994d0dc9802a0b2349c362",
+      "prior-delivery": "53c077e723fbd3aa43e96962260d4834d33ce96b"
+    }
+  },
+  "inventory_sha256": "ee04c936774b006aa58f0adf9fb2b27ea5b745823c86d01f5372fedfe9f5a933",
+  "schema": 1,
+  "selectors": [
+    "out/runs/rust-pain-audit-20261116-01/**"
+  ],
+  "source_root": "/workspace/zil-push-main"
+}

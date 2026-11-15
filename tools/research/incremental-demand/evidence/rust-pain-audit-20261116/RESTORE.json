@@ -1,0 +1,33 @@
+{
+  "schema": "zil.rust-pain-implementation-audit-recovery.v1",
+  "compiled_observations": "027695318436fcb1f8994d0dc9802a0b2349c362",
+  "prior_delivery": "53c077e723fbd3aa43e96962260d4834d33ce96b",
+  "actual_rustc_source": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+  "actual_cargo_source": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+  "new_compilation_or_performance_run": false,
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "6db45e035ecb824f93a184223f95d8749aa5a6d9e401ec9188e352e171c60c8c",
+  "archive_sha256": "3c0f9588efb6cdb7bb6dbe29746b92d5f2d2877498c99d9c0b94c1c2b245cee0",
+  "archive_bytes": 372435,
+  "parts": 1,
+  "regular_files": 53,
+  "logical_bytes": 1498530,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "fresh_restore_verified": true,
+  "fresh_scratch_retained": true,
+  "scope": "Read-only pain and actual upstream-source audit of existing027/window05, no new compiler or benchmark execution. Pinned same-version rustc58cf/Cargo5f94 source and docs, orderedquery/earlyCGU/diskquery/sessionGC/MergeFunctions/ThinLocal comparison, derived time-space point/CargoFresh proof, capacity1Mtokens+10kfunctions contradiction, two Astra source reviews. All facts vs future implementation explicitly separated; no globalRust/C++/cleanup success claim.",
+  "dependencies": {
+    "observed027_raw": "https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
+    "prior_full_core_and_negative": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json"
+  },
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/rust-pain-audit-20261116",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "limits": "Read-only audit snapshots and source references, not new benchmark outcomes or a compiler installation; independent Verify/default budgets/fullO2 unchanged. No compiler or LLVM build required to inspect."
+}
