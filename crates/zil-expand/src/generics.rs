@@ -3692,6 +3692,9 @@ fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
         || budget.has_borrowed_keys()
         || budget.has_type_member_patterns()
     {
+        if let Some(key) = type_keys::streamed(ty, budget)? {
+            return Ok(key);
+        }
         type_keys::prepay(ty, budget)?;
     }
     render_type_key(ty)

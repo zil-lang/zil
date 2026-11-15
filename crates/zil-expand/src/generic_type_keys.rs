@@ -468,3 +468,277 @@ mod tests {
         println!("344 complete nested key exact work N={exact}; pre-render N-1 and fresh checked");
     }
 }
+
+// A single reserved output replaces the per-child temporary strings of the
+// recursive renderer. Sorted sums and quantified keys retain their canonical
+// renderer and its complete comparison/remapping prepayment.
+pub(super) fn streamed(ty: &TypeRef, budget: &mut Budget<'_>) -> R<Option<String>> {
+    if !streamable(ty, budget, 0)? {
+        return Ok(None);
+    }
+    let planned = shape(ty, budget, 0)?;
+    let work = add(
+        mul(planned.bytes, 2, ty.span)?,
+        std::mem::size_of::<String>(),
+        ty.span,
+    )?;
+    budget.identity_work(work, ty.span)?;
+    let mut text = String::new();
+    text.try_reserve_exact(planned.bytes)
+        .map_err(|_| exhausted(ty.span))?;
+    let mut out = KeyOutput {
+        text,
+        limit: planned.bytes,
+        span: ty.span,
+    };
+    stream_type(ty, &mut out)?;
+    Ok(Some(out.text))
+}
+fn streamable(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<bool> {
+    budget.identity_node(depth, ty.span)?;
+    Ok(match &ty.kind {
+        TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+            if matches!(&ty.kind, TypeKind::Dyn { bindings, .. } if !bindings.is_empty()) {
+                return Ok(false);
+            }
+            for argument in args {
+                match argument {
+                    GenericArg::Type(ty) if !streamable(ty, budget, depth + 1)? => {
+                        return Ok(false);
+                    }
+                    GenericArg::Type(_) | GenericArg::Const(_) => {}
+                    _ => return Ok(false),
+                }
+            }
+            true
+        }
+        TypeKind::Group(inner)
+        | TypeKind::Reference { inner, .. }
+        | TypeKind::Optional(inner)
+        | TypeKind::Array { element: inner, .. } => streamable(inner, budget, depth + 1)?,
+        TypeKind::Tuple(fields) => {
+            for ty in fields {
+                if !streamable(ty, budget, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            true
+        }
+        TypeKind::Error { error, result } => {
+            streamable(error, budget, depth + 1)? && streamable(result, budget, depth + 1)?
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            for ty in params {
+                if !streamable(ty, budget, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            streamable(result, budget, depth + 1)?
+        }
+        TypeKind::MetaEval(_) => true,
+        _ => false,
+    })
+}
+struct KeyOutput {
+    text: String,
+    limit: usize,
+    span: Span,
+}
+impl std::fmt::Write for KeyOutput {
+    fn write_str(&mut self, value: &str) -> std::fmt::Result {
+        if value.len() > self.limit.saturating_sub(self.text.len()) {
+            return Err(std::fmt::Error);
+        }
+        self.text.push_str(value);
+        Ok(())
+    }
+}
+impl KeyOutput {
+    fn put(&mut self, value: &str) -> R<()> {
+        std::fmt::Write::write_str(self, value).map_err(|_| exhausted(self.span))
+    }
+    fn format(&mut self, value: std::fmt::Arguments<'_>) -> R<()> {
+        std::fmt::Write::write_fmt(self, value).map_err(|_| exhausted(self.span))
+    }
+}
+fn stream_scalar(value: &Expr, typed: bool, out: &mut KeyOutput) -> R<()> {
+    match &value.kind {
+        ExprKind::Group(value) => stream_scalar(value, typed, out),
+        ExprKind::Literal(Literal::Integer(text)) => {
+            let (value, suffix) = integer_value(text, value.span)?;
+            if typed {
+                out.format(format_args!("{}:", suffix.unwrap_or("integer")))?
+            }
+            out.format(format_args!("{value}"))
+        }
+        ExprKind::Literal(Literal::Bool(value)) if typed => {
+            out.format(format_args!("bool:{value}"))
+        }
+        ExprKind::Name(name) => out.format(format_args!("binder:{}:{name}", name.len())),
+        _ => Err(unsupported(
+            value.span,
+            "const expression requires verified CT evaluation",
+        )),
+    }
+}
+fn stream_type(ty: &TypeRef, out: &mut KeyOutput) -> R<()> {
+    match &ty.kind {
+        TypeKind::Group(inner) => stream_type(inner, out),
+        TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
+            out.put("()")
+        }
+        TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
+            let mut length = path.len().saturating_sub(1);
+            for part in path {
+                length = add(length, part.len(), ty.span)?
+            }
+            let tag = if matches!(ty.kind, TypeKind::Dyn { .. }) {
+                'D'
+            } else {
+                'N'
+            };
+            out.format(format_args!("{tag}{length}:"))?;
+            for (i, part) in path.iter().enumerate() {
+                if i != 0 {
+                    out.put(".")?
+                }
+                out.put(part)?
+            }
+            for argument in args {
+                out.put("<")?;
+                match argument {
+                    GenericArg::Type(ty) => stream_type(ty, out)?,
+                    GenericArg::Const(value) => {
+                        out.put("#")?;
+                        stream_scalar(value, true, out)?
+                    }
+                    _ => {
+                        return Err(error(
+                            ty.span,
+                            "streamed key lost its prepaid argument kind",
+                        ));
+                    }
+                }
+                out.put(">")?;
+            }
+            Ok(())
+        }
+        TypeKind::Reference { mutable, inner, .. } => {
+            out.format(format_args!("R{mutable}<"))?;
+            stream_type(inner, out)?;
+            out.put(">")
+        }
+        TypeKind::Tuple(fields) => {
+            out.put("(")?;
+            stream_fields(fields, out)?;
+            out.put(")")
+        }
+        TypeKind::Array { element, length } => {
+            if let Some(length) = length {
+                out.put("A")?;
+                stream_scalar(length, false, out)?;
+                out.put("<")?
+            } else {
+                out.put("S<")?
+            }
+            stream_type(element, out)?;
+            out.put(">")
+        }
+        TypeKind::MetaEval(value) => {
+            out.put("#")?;
+            stream_scalar(value, true, out)
+        }
+        TypeKind::Optional(inner) => {
+            out.put("?")?;
+            stream_type(inner, out)
+        }
+        TypeKind::Error { error, result } => {
+            out.put("E<")?;
+            stream_type(error, out)?;
+            out.put("><")?;
+            stream_type(result, out)?;
+            out.put(">")
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
+                out.format(format_args!("C{}:{abi}(", abi.len()))?
+            } else {
+                out.put("F(")?
+            }
+            stream_fields(params, out)?;
+            out.put(")->")?;
+            stream_type(result, out)
+        }
+        _ => Err(error(
+            ty.span,
+            "streamed key lost its prepaid type constructor",
+        )),
+    }
+}
+fn stream_fields(fields: &[TypeRef], out: &mut KeyOutput) -> R<()> {
+    for (i, field) in fields.iter().enumerate() {
+        if i != 0 {
+            out.put(",")?
+        }
+        stream_type(field, out)?
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod streamed_tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+
+    #[test]
+    fn streamed_keys_preserve_complete_identity_and_exact_work_boundary() {
+        for text in [
+            "Map<ByteBuffer,(u64,[i32;0x10])>",
+            "&mut [i64]",
+            "extern \"C\" fn(i32,bool)->i64",
+            "Phantom<18446744073709551615u64,true,usize>",
+            "(void,fn(i32)->bool)",
+            "i32|bool",
+            "for<life a>fn(&'a i32)->&'a i32",
+        ] {
+            let source = SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "type-key.zil",
+                format!("type Key={text};"),
+            );
+            let syntax = zil_syntax::parse(&source).into_result().unwrap();
+            let ItemKind::TypeAlias(alias) = &syntax.items[0].kind else {
+                unreachable!()
+            };
+            let ty = alias.value.as_ref().unwrap();
+            let expected = render_type_key(ty).unwrap();
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            let Some(actual) = streamed(ty, &mut budget).unwrap() else {
+                assert!(text.contains('|') || text.starts_with("for<"));
+                continue;
+            };
+            assert_eq!(actual, expected, "{text}");
+            let paid = limits.max_analysis_steps - budget.remaining_limits().max_analysis_steps;
+            let exact = Limits {
+                max_analysis_steps: paid,
+                ..limits.clone()
+            };
+            assert_eq!(
+                streamed(ty, &mut Budget::new(&exact)).unwrap(),
+                Some(expected)
+            );
+            let low = Limits {
+                max_analysis_steps: paid - 1,
+                ..limits
+            };
+            assert_eq!(
+                streamed(ty, &mut Budget::new(&low)).unwrap_err().category,
+                ResultCategory::ResourceLimit
+            );
+        }
+    }
+}
