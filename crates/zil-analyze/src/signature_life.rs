@@ -959,6 +959,12 @@ fn relation_inner(
             } else if !(target.is_copy_value()
                 || class_free_owned_tree(target)
                 || pure_array_value(target)
+                // A closed weak parameter head is an input view, not an
+                // owning value or a persistent Address class. Its exact
+                // source, epoch, nominal identity and actual operations are
+                // still checked by the original and resource consumers.
+                || self.inputs.is_none() && matches!(base, StorageBase::Parameter(_))
+                    && matches!(ty, Type::Desc(payload) if class_free_owned_tree(payload))
                 // A proved query's exact weak input has no semantic class.
                 // It creates/grounds no row and is not an owning consumer.
                 || self.allow_byte_input && self.inputs.is_none()
@@ -979,7 +985,9 @@ fn relation_inner(
                     && self.inputs.is_none()
                     && matches!(target, Type::Closure(_)))
             {
-                return Err(bad("signature value needs its ownership consumer"));
+                return Err(bad(format!(
+                    "signature value needs its ownership consumer: {ty:?} at {base:?}"
+                )));
             }
             Ok(())
         }

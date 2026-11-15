@@ -4288,25 +4288,10 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
             definition.captures.iter().try_fold(1, |maximum, field| {
                 // Verify checked the complete inline environment DAG and depth
                 // before this recursive machine-alignment calculation.
-                if !field.is_copy_value()
-                    && !matches!(field, Type::Closure(_) | Type::OwnedDyn { .. })
-                    && !field.is_shared_sync_cell_address()
-                    && !qualified_capture_address(field)
-                    && !sum_capture_address(field)
-                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value()
-                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
-                        || matches!(inner.as_ref(), Type::Closure(_)))
-                    && !field.is_package_address()
-                    && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
-                    && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
-                    && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(),Type::Task { .. } | Type::TaskI32))
-                    && !matches!(field,Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
-                    && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-                    && packages::physical_package(field).is_none()
-                    && !drop_plan::owned_sum(field)
-                {
-                    return unsupported("unsupported closure field alignment", None);
-                }
+                // Use the same complete physical admission as environment
+                // field emission. Lifetime metadata does not change layout,
+                // and this never derives a language Copy/ownership premise.
+                capture_type(field)?;
                 let field_alignment = alignment(field, closures)?;
                 Ok(maximum.max(field_alignment))
             })
