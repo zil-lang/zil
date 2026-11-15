@@ -787,7 +787,7 @@ fn substitute(
             )?;
             // Store formation has its own sealed premise, even when no formal
             // declaration spells StoreElement on the enclosing nominal.
-            crate::dyn_metadata::recipe(element_recipe, b)?;
+            crate::dyn_metadata::recipe(element_recipe.as_ref(), b)?;
             qualify(
                 owner,
                 arguments,
