@@ -420,6 +420,93 @@ impl Check<'_, '_> {
             ) => {
                 let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let actual_operand = self.operand(instance, subject, point, b)?;
+                if actual_operand != expected_type
+                    && let Some((whole, error)) = self.original.return_injection(
+                        instance,
+                        site.recipe,
+                        self.program,
+                        self.inventory,
+                        b,
+                    )?
+                {
+                    let SemanticOperand::Value(output) = subject else {
+                        return Err(fail("implicit return injection has no actual result SSA"));
+                    };
+                    let (block, index, producer) = self.defining(point.function, *output, b)?;
+                    let InstructionKind::MakeErrorUnion { is_error, value } = producer.kind else {
+                        return Err(fail(
+                            "implicit return injection is replaced by another actual opcode",
+                        ));
+                    };
+                    if is_error != error
+                        || actual_operand != whole.ty
+                        || self.resolved(instance, expected, b, 0)? != whole
+                        || point.function.values.get(value.0 as usize) != Some(&original_value.ty)
+                    {
+                        return Err(fail(
+                            "implicit return injection changes its original union, arm or complete payload",
+                        ));
+                    }
+                    operations::available_before(
+                        point.function,
+                        (block, index, SemanticSiteEdge::Before),
+                        value,
+                        b,
+                    )?;
+                    if self.uses_full_value(&original_value.ty, b)?
+                        && self.ssa_value(instance, point.function, value, b, 0)? != original_value
+                    {
+                        return Err(fail(
+                            "implicit return injection changes its original payload classes",
+                        ));
+                    }
+                    self.image_operands(instance, expected, point, None, b)?;
+                    self.function_reference(
+                        instance,
+                        site.recipe,
+                        point.function,
+                        &SemanticOperand::Value(value),
+                        &original_value.ty,
+                        b,
+                    )?;
+                    if let Some(bytes) =
+                        self.original
+                            .string_literal_at(instance, site.recipe, self.inventory, b)?
+                    {
+                        let (_, _, inner) = self.defining(point.function, value, b)?;
+                        let InstructionKind::StaticUtf8 { bytes: actual } = &inner.kind else {
+                            return Err(fail(
+                                "implicit return injection replaces its original literal payload",
+                            ));
+                        };
+                        b.spend(bytes.len().saturating_add(actual.len()), WORK)?;
+                        if actual.as_slice() != bytes {
+                            return Err(fail(
+                                "implicit return injection changes original literal bytes",
+                            ));
+                        }
+                    }
+                    if let Some(constructor) = self.original.enum_constructor(
+                        instance,
+                        site.recipe,
+                        self.program,
+                        self.inventory,
+                        b,
+                    )? && constructor.value_member
+                    {
+                        let (_, _, inner) = self.defining(point.function, value, b)?;
+                        if !constructor.payload.is_empty()
+                            || constructor.result.ty != original_value.ty
+                            || !matches!(&inner.kind, InstructionKind::MakeVariant { variant, fields } if *variant == constructor.variant && fields.is_empty())
+                        {
+                            return Err(fail(
+                                "implicit return injection replaces its original variant payload",
+                            ));
+                        }
+                    }
+                    return Ok(());
+                }
                 if self.uses_full_value(&original_value.ty, b)? {
                     self.original_claim(instance, expected, &original_value, b)?;
                 }
@@ -483,7 +570,6 @@ impl Check<'_, '_> {
                     false,
                     b,
                 )?;
-                let actual_operand = self.operand(instance, subject, point, b)?;
                 if expected_type != captured || actual_operand != expected_type {
                     crate::dyn_metadata::ty(&actual_operand, b)?;
                     crate::dyn_metadata::ty(&captured, b)?;

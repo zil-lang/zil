@@ -149,7 +149,7 @@ impl Solver<'_, '_> {
                 "original function value requires its complete specialization, environment and fixed code ABI",
             ));
         }
-        let (_, parameters, result) = self.scheme(frame, target, &[], b, depth + 1)?;
+        let (_, parameters, result) = self.scheme(frame, target, &[], None, b, depth + 1)?;
         let mut modes = Vec::new();
         for (term, parameter) in parameters.iter().zip(&signature.parameters) {
             if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy) {

@@ -446,7 +446,7 @@ impl Solver<'_, '_> {
         match resume_bound {
             TaskResumeBound::Local | TaskResumeBound::Transfer => {}
         }
-        let (_, parameters, result) = self.scheme(frame, target, written, b, depth + 1)?;
+        let (_, parameters, result) = self.scheme(frame, target, written, None, b, depth + 1)?;
         Ok((target, parameters, result, modes, result_mode, call_kind))
     }
 

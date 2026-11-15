@@ -241,6 +241,7 @@ pub(super) struct Checked {
     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
     string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
+    return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
 }
 struct Solver<'a, 'i> {
@@ -264,7 +265,7 @@ struct Solver<'a, 'i> {
     capture_state: captures::CaptureState,
     receiving: Vec<Term>,
     field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
-    enum_declaration: Option<SemanticDefinitionId>,
+    nominal_declaration: Option<SemanticDefinitionId>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -1245,11 +1246,57 @@ impl Solver<'_, '_> {
         }
         found.ok_or_else(|| fail("original call or closure has no exact resolution site"))
     }
+    fn input_hint(
+        &mut self,
+        expected: Term,
+        actual: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let expected = self.type_root(expected, b)?;
+        let actual = self.type_root(actual, b)?;
+        match (
+            self.state.arena[expected].clone(),
+            self.state.arena[actual].clone(),
+        ) {
+            (Kind::Infer(None), _) => self.unify(expected, actual, depth + 1, b),
+            (
+                Kind::Nominal {
+                    definition: a,
+                    arguments: aa,
+                    ..
+                },
+                Kind::Nominal {
+                    definition: z,
+                    arguments: za,
+                    ..
+                },
+            ) if a == z && aa.len() == za.len() => {
+                for (a, z) in aa.into_iter().zip(za) {
+                    self.input_hint(a, z, b, depth + 1)?;
+                }
+                Ok(())
+            }
+            (Kind::Wrapped(a, ai), Kind::Wrapped(z, zi)) if a == z => {
+                self.input_hint(ai, zi, b, depth + 1)
+            }
+            (Kind::Address { inner: a, .. }, Kind::Address { inner: z, .. })
+            | (Kind::Desc { inner: a, .. }, Kind::Desc { inner: z, .. }) => {
+                self.input_hint(a, z, b, depth + 1)
+            }
+            // Contextual ownership and outer invocation equations belong to
+            // call_argument, after these ordinary Type variables are solved.
+            _ => Ok(()),
+        }
+    }
+
     fn scheme(
         &mut self,
         caller: &Frame,
         target: SemanticDefinitionId,
         written: &[CoreGenericArgument<SemanticTypeRecipe>],
+        input_hints: Option<&[Option<Term>]>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<(Vec<Term>, Vec<Term>, Term)> {
@@ -1360,8 +1407,11 @@ impl Solver<'_, '_> {
             b,
         )?;
         let answer: CompileResult<Term> = (|| {
-            for parameter in &signature.parameters {
+            for (ordinal, parameter) in signature.parameters.iter().enumerate() {
                 let term = self.recipe(&frame, &parameter.ty, b, depth + 1)?;
+                if let Some(Some(actual)) = input_hints.and_then(|hints| hints.get(ordinal)) {
+                    self.input_hint(term, *actual, b, depth + 1)?;
+                }
                 Self::push(&mut frame.parameters, term, b)?;
             }
             for formal in &definition.parameters {
@@ -2160,8 +2210,27 @@ impl Solver<'_, '_> {
                                 ));
                             }
                             sealed::Resolution::Definition(target) => {
-                                let (actuals, parameters, result) =
-                                    self.scheme(frame, target, written, b, depth + 1)?;
+                                // Reading a lexical type for inference does
+                                // not evaluate or consume the argument. Apply
+                                // it before querying dependent result types;
+                                // the ordinary call below still evaluates and
+                                // checks each actual exactly once in order.
+                                let mut hints = Vec::new();
+                                for argument in arguments {
+                                    let hint = match &argument.kind {
+                                        CoreExprKind::Name(name) => self.local(frame, name, b)?,
+                                        _ => None,
+                                    };
+                                    Self::push(&mut hints, hint, b)?;
+                                }
+                                let (actuals, parameters, result) = self.scheme(
+                                    frame,
+                                    target,
+                                    written,
+                                    Some(&hints),
+                                    b,
+                                    depth + 1,
+                                )?;
                                 b.spend(
                                     self.state
                                         .calls
@@ -2654,6 +2723,7 @@ impl Solver<'_, '_> {
                     }
                 }
                 CoreStatementKind::Return(value) => {
+                    let returned_node = value.as_ref().map(|value| value.id);
                     let receiving = frame.result;
                     let value = match value {
                         Some(value) => {
@@ -2677,6 +2747,19 @@ impl Solver<'_, '_> {
                             result
                         };
                         self.unify(value, arm, depth + 1, b)?;
+                        if let Some(node) = returned_node {
+                            b.lookup(self.state.return_injections.len(), WORK)?;
+                            if self
+                                .state
+                                .return_injections
+                                .insert((frame.definition, node), (frame.result, arm == error))
+                                .is_some()
+                            {
+                                return Err(fail(
+                                    "original return has competing implicit union injections",
+                                ));
+                            }
+                        }
                     } else {
                         self.unify(value, frame.result, depth + 1, b)?;
                     }
@@ -3641,6 +3724,7 @@ pub(super) fn check(
             function_values: BTreeMap::new(),
             code_calls: BTreeMap::new(),
             string_literals: BTreeMap::new(),
+            return_injections: BTreeMap::new(),
             dyn_creations: BTreeMap::new(),
         },
         active: BTreeSet::new(),
@@ -3659,7 +3743,7 @@ pub(super) fn check(
         capture_state: captures::CaptureState::default(),
         receiving: Vec::new(),
         field_needs: Vec::new(),
-        enum_declaration: None,
+        nominal_declaration: None,
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {
@@ -3682,19 +3766,9 @@ pub(super) fn check(
                 let term = solver.rigid_formal(definition.id, ordinal, formal, &arguments, b)?;
                 Solver::push(&mut arguments, term, b)?;
             }
-            solver.enum_declaration = if matches!(
-                definition.body,
-                SemanticDefinitionBody::Nominal {
-                    kind: LifeNominalKind::Enum,
-                    ..
-                }
-            ) {
-                Some(definition.id)
-            } else {
-                None
-            };
+            solver.nominal_declaration = Some(definition.id);
             let formed = solver.application(definition.id, arguments, b, 0);
-            solver.enum_declaration = None;
+            solver.nominal_declaration = None;
             formed?;
         }
     }
@@ -4205,6 +4279,21 @@ impl Solver<'_, '_> {
     ) -> CompileResult<bool> {
         for requirement in requirements {
             b.spend(1, WORK)?;
+            if let SemanticRequirementRecipe::Callable {
+                ty: SemanticTypeRecipe::Formal(reference),
+                ..
+            } = requirement
+            {
+                if matches!(wanted, Predicate::Value)
+                    && self.original_scope(owner, &reference.scope, b)? == owner
+                    && reference.ordinal == ordinal
+                {
+                    // A callable premise describes an ordinary environment
+                    // value. It supplies neither Copy nor synchronous cleanup.
+                    return Ok(true);
+                }
+                continue;
+            }
             if matches!(
                 requirement,
                 SemanticRequirementRecipe::Callable { .. }
@@ -4635,6 +4724,38 @@ impl Checked {
         }
         Ok((call.target, values))
     }
+    pub(super) fn return_injection(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(crate::semantic::value::Value, bool)>> {
+        let definition = inventory.definition(context.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("return injection has no complete original body"));
+        };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site {
+                continue;
+            }
+            let SemanticOriginalNode::Expression(node) = link.node else {
+                continue;
+            };
+            b.lookup(self.return_injections.len(), WORK)?;
+            if let Some((whole, error)) = self.return_injections.get(&(context.definition, node)) {
+                let value = self.value(*whole, context, program, inventory, b, 0)?;
+                if selected.replace((value, *error)).is_some() {
+                    return Err(fail("return injection has competing original occurrences"));
+                }
+            }
+        }
+        Ok(selected)
+    }
+
     pub(super) fn borrowed_source(
         &self,
         context: &SemanticInstance,

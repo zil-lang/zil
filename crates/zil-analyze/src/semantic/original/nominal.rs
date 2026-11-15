@@ -161,16 +161,15 @@ impl Solver<'_, '_> {
             false
         };
         for (index, field) in fields.iter().enumerate() {
-            // An ordinary Enum's direct formal payload is a conditional
-            // formation requirement, not an assertion that the formal has
-            // Value in every context. Only the original declaration walk can
-            // defer it; every real application below recreates the Need with
-            // the caller's own complete actual, including generic callers.
-            let direct_enum_formal = self.enum_declaration == Some(definition)
-                && *kind == LifeNominalKind::Enum
-                && matches!(self.state.arena[self.root(*field,b)?],Kind::Rigid(owner,ordinal)
-                    if owner==definition && matches!(declaration.parameters.get(ordinal as usize),Some(SemanticFormal::Type{..})));
-            if canonical_template || direct_enum_formal {
+            // A declaration preserves conditional inline formation. Its
+            // fields are checked under every real application in the caller's
+            // original Gamma; the scheme does not grant Value to its formals.
+            let conditional = if let Some(owner) = self.nominal_declaration {
+                self.conditional_field(*field, owner, b, depth + 1)?
+            } else {
+                false
+            };
+            if canonical_template || conditional {
                 continue;
             }
             Self::push(
@@ -200,6 +199,40 @@ impl Solver<'_, '_> {
             },
             b,
         )
+    }
+
+    fn conditional_field(
+        &self,
+        term: Term,
+        owner: SemanticDefinitionId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        match &self.state.arena[self.type_root(term, b)?] {
+            Kind::Rigid(scope, _) | Kind::SelfType(scope) => Ok(*scope == owner),
+            Kind::Wrapped(_, inner)
+            | Kind::Slice(inner)
+            | Kind::Address { inner, .. }
+            | Kind::Desc { inner, .. } => self.conditional_field(*inner, owner, b, depth + 1),
+            Kind::Array { element, .. } => self.conditional_field(*element, owner, b, depth + 1),
+            Kind::ErrorUnion { error, result } => {
+                Ok(self.conditional_field(*error, owner, b, depth + 1)?
+                    || self.conditional_field(*result, owner, b, depth + 1)?)
+            }
+            Kind::Tuple(fields) | Kind::Nominal { fields, .. } => {
+                for field in fields {
+                    if self.conditional_field(*field, owner, b, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Kind::Associated { receiver, .. } => {
+                self.conditional_field(*receiver, owner, b, depth + 1)
+            }
+            _ => Ok(false),
+        }
     }
 
     pub(super) fn record_fields(
