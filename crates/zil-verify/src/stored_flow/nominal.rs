@@ -78,21 +78,7 @@ fn walk(
         return Ok(Vec::new());
     }
     if decl.id.compiler {
-        for actual in &instance.arguments {
-            if let LifeNominalActual::Type(ty) = actual {
-                type_work(ty, limits, b)?;
-            }
-        }
-        type_work(storage, limits, b)?;
-        if !option_address::shape(&instance.ty, limits, b)?
-            || !matches!((instance.arguments.as_slice(), storage.as_ref()),
-                ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
-                if actual == &variants[1].1[0])
-        {
-            return Err(err(
-                "builtin Option actual, source-class map or physical payload differs",
-            ));
-        }
+        option_address::instance(module, instance, limits, b)?;
         active.pop();
         return Ok(Vec::new());
     }
@@ -354,6 +340,14 @@ pub(super) fn same_key(
         match actual {
             LifeNominalActual::Type(ty) => {
                 type_work(ty, limits, b)?;
+            }
+            LifeNominalActual::QualifiedType { ty, life } => {
+                type_work(ty, limits, b)?;
+                b.spend(life.slots.len().saturating_add(life.retained.len())
+                    .saturating_add(life.nominal_arguments.len()).saturating_add(1))?;
+                for slot in &life.slots { b.spend(slot.path.len())?; }
+                for row in &life.retained { b.spend(row.path.len())?; }
+                for row in &life.nominal_arguments { b.spend(row.path.len())?; }
             }
             LifeNominalActual::Const(Constant::WideString(data)) => {
                 b.spend(data.len())?;

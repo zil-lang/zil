@@ -1634,6 +1634,27 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
     Ok(true)
 }
 
+/// An ordinary owner has no stored data targets, but its borrowed head still
+/// has the real Address origin and loan. This predicate concerns only the
+/// pointee: it never makes the owner Copy or discharges its cleanup debt.
+fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let Type::Address { inner, .. } = ty else {
+        return Ok(false);
+    };
+    if !(matches!(inner.as_ref(), Type::Package { .. })
+        && pure_copy::ordinary_owned_value(inner, b)?
+        || super::stored_owned::owner(inner))
+    {
+        return Ok(false);
+    }
+    let (classes, pending) = crate::dynamic_witness::intrinsic_domain(module, inner, b)?;
+    if classes != 0 || pending {
+        return Ok(false);
+    }
+    crate::dynamic_witness::structural_actual(module, inner, DynStructuralBound::Value, b)?;
+    Ok(true)
+}
+
 pub(super) fn qualifications(
     module: &TypedModule,
     limits: &Limits,
@@ -5715,6 +5736,8 @@ fn windows(
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::DropClosure { local }
+                    | InstructionKind::DropManaged { local }
+                    | InstructionKind::DropPackage { local }
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
@@ -6927,7 +6950,10 @@ fn check_with_mask(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
-            let ordinary_value=super::stored_owned::ordinary_store_value(ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?||pure_copy::ordinary_owned_value(ty,b)?;
+            let ordinary_value = super::stored_owned::ordinary_store_value(ty, b)?
+                || super::stored_owned::ordinary_byte_value(ty, b)?
+                || pure_copy::ordinary_owned_value(ty, b)?
+                || ordinary_owner_address(module, ty, b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
@@ -7641,6 +7667,113 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+    #[test]
+    fn affine_pointee_and_option_actual_keep_their_distinct_domains() {
+        let module = fixture::module();
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let owner = Type::Package {
+            name: "Item".into(),
+            fields: vec![("id".into(), Type::I64)],
+        };
+        let address = fixture::address(owner.clone(), false);
+        assert!(!owner.is_copy_value());
+        assert!(ordinary_owner_address(&module, &address, &mut budget).unwrap());
+        let mut hidden = owner;
+        let Type::Package { fields, .. } = &mut hidden else { unreachable!() };
+        fields.push(("borrow".into(), fixture::address(Type::I64, false)));
+        assert!(!ordinary_owner_address(&module, &fixture::address(hidden, false), &mut budget).unwrap());
+        let mut instance = LifeNominalInstance {
+            declaration: zil_ir::builtin_life::OPTION,
+            ty: Type::BorrowedStorage {
+                storage: Box::new(Type::Enum {
+                    name: "OptionItem".into(),
+                    variants: vec![("None".into(), vec![]), ("Some".into(), vec![address.clone()])],
+                }),
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![zil_ir::StorageLifeSlot {
+                        path: vec![PlaceProjection::Variant(zil_ir::VariantProjection { variant: 1, index: 0 })],
+                        binder: 0,
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                    retained: vec![zil_ir::StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::TypeArgument(0)], class: 0, binder: 0,
+                    }],
+                    nominal_arguments: vec![],
+                },
+            },
+            arguments: vec![LifeNominalActual::QualifiedType {
+                ty: address,
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![zil_ir::StorageLifeSlot {
+                        path: vec![], binder: 0, mode: StoredBorrowMode::SharedAddress,
+                    }],
+                    retained: vec![], nominal_arguments: vec![],
+                },
+            }],
+        };
+        option_address::instance(&module, &instance, &limits, &mut budget).unwrap();
+        for wrong in 0..5 {
+            let mut forged = instance.clone();
+            let LifeNominalActual::QualifiedType { ty, life } = &mut forged.arguments[0] else { unreachable!() };
+            match wrong {
+                0 => { life.binder_count = 0; life.slots.clear(); }
+                1 => life.slots[0].binder = 1,
+                2 => life.slots[0].mode = StoredBorrowMode::ExclusiveAddress,
+                3 => life.slots[0].path.push(PlaceProjection::Field(0)),
+                _ => *ty = fixture::address(Type::I64, false),
+            }
+            assert!(option_address::instance(&module, &forged, &limits, &mut budget).is_err());
+        }
+        let Type::BorrowedStorage { life, .. } = &mut instance.ty else { unreachable!() };
+        life.retained[0].path = vec![LifeTypeProjection::TypeArgument(1)];
+        assert!(option_address::instance(&module, &instance, &limits, &mut budget).is_err());
+    }
+
+    #[test]
+    fn owning_package_cleanup_conflicts_with_its_live_field_borrow() {
+        let module = fixture::module();
+        for premature in [false, true] {
+            let mut function = module.functions[0].clone();
+            function.environment = None;
+            function.parameters.clear();
+            function.locals.truncate(1);
+            function.locals[0].ty = Type::Package {
+                name: "Item".into(), fields: vec![("id".into(), Type::I64)],
+            };
+            function.return_type = Type::I64;
+            function.values = vec![
+                fixture::address(function.locals[0].ty.clone(), false),
+                fixture::address(Type::I64, false), Type::I64,
+            ];
+            let mut instructions = vec![
+                fixture::instruction(Some(0), InstructionKind::BorrowLocal { local: LocalId(0) }),
+                fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+                fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(1) }),
+            ];
+            instructions.insert(if premature { 2 } else { 3 },
+                fixture::instruction(None, InstructionKind::DropPackage { local: LocalId(0) }));
+            function.blocks.truncate(1);
+            function.blocks[0].instructions = instructions;
+            function.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+            let graph = FunctionGraph {
+                successors: vec![vec![]], predecessors: vec![vec![]], reachable: vec![true],
+                package_views: packages::CaptureViews::default(), role_data_uses: vec![],
+            };
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            let mut solution = solve(&module, &function, &graph, &[], &mut budget).unwrap();
+            let result = windows(&module, &function, &graph, &mut solution, &[],
+                &mut vec![], &mut vec![], &mut vec![], &mut vec![], &mut budget);
+            if premature {
+                assert!(result.unwrap_err().message.contains("loan"));
+            } else {
+                result.unwrap();
+            }
+        }
     }
     #[test]
     fn optional_byte_addresses_reject_relocation_in_actual_transfer() {

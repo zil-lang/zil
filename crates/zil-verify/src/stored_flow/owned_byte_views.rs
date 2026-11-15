@@ -550,6 +550,12 @@ impl Sites {
         if self.values.is_empty() {
             return Ok(());
         }
+        // The ordinary C proof checks the complete ABI, exact noescape vector
+        // and scalar result. Its access consumer separately checks each actual
+        // pointer, loan ancestry and simultaneous mutable argument. A live byte
+        // view may cross precisely that call without becoming an escaping root.
+        let noescape_call = matches!(i.kind, InstructionKind::ForeignCall { .. })
+            && foreign_calls::operation(module, f, i, b)?;
         if matches!(
             i.kind,
             InstructionKind::Call { .. }
@@ -565,7 +571,7 @@ impl Sites {
                 | InstructionKind::WithForeignCallback { .. }
                 | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
-        ) && self.active(live, b)?
+        ) && !noescape_call && self.active(live, b)?
         {
             return Err(unavailable(i.span));
         }
@@ -637,6 +643,7 @@ impl Sites {
                 false
             };
             if !ordinary_local
+                && !noescape_call
                 && !matches!(
                     i.kind,
                     InstructionKind::AddressIndex { .. }
