@@ -2,6 +2,7 @@
 //! storage initialization, parent loans, effects or physical access rights.
 use super::*;
 mod array_outer;
+mod task_equations;
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-CLASS-EQUATION", None, message)
 }
@@ -1198,8 +1199,13 @@ fn check_with(
                 }
                 let out = i.result.map(|v| &values[v.0 as usize]);
                 if phase == 0
-                    && let (Some(result), Some(ports), Some(vars)) = (i.result, out, header.as_ref())
-                    && matches!(i.kind, InstructionKind::MakeAggregate { .. } | InstructionKind::MakeOwnedTuple { .. })
+                    && let (Some(result), Some(ports), Some(vars)) =
+                        (i.result, out, header.as_ref())
+                    && matches!(
+                        i.kind,
+                        InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::MakeOwnedTuple { .. }
+                    )
                 {
                     let key = semantic::constructor_classes::Key {
                         function: f.id,
@@ -1213,20 +1219,28 @@ fn check_with(
                     // it never grounds an output-only class or an address.
                     if b.semantic_constructor_classes.contains_key(&key) {
                         dynamic_metadata::ty(&f.values[result.0 as usize], b)?;
-                        if let Some(contract) = assumptions { signature_life::charge(contract, b)?; }
+                        if let Some(contract) = assumptions {
+                            signature_life::charge(contract, b)?;
+                        }
                     }
                     let image = if let Some(source) = b.semantic_constructor_classes.get(&key) {
                         if assumptions != Some(&source.header)
                             || f.values.get(result.0 as usize) != Some(&source.ty)
                             || ports.keys.len() != source.classes.len()
-                            || ports.keys.iter().enumerate().any(|(class, (path, index))| !path.is_empty() || *index != class as u32)
+                            || ports.keys.iter().enumerate().any(|(class, (path, index))| {
+                                !path.is_empty() || *index != class as u32
+                            })
                         {
-                            return Err(bad("constructor logical source differs from its exact actual type/header occurrence"));
+                            return Err(bad(
+                                "constructor logical source differs from its exact actual type/header occurrence",
+                            ));
                         }
                         let count = source.classes.len();
                         b.spend(count)?;
                         Some(b.semantic_constructor_classes[&key].classes.clone())
-                    } else { None };
+                    } else {
+                        None
+                    };
                     if let Some(image) = image {
                         for (class, binder) in ports.classes.iter().zip(image) {
                             e.equal(*class, select(vars, binder)?, b)?;
@@ -1383,115 +1397,25 @@ fn check_with(
                             )?;
                         }
                     }
-                    InstructionKind::TaskCreate {
-                        arguments,
-                        port_bindings,
-                        ..
-                    }
-                    | InstructionKind::TaskCreateOwned {
-                        arguments,
-                        port_bindings,
-                        ..
-                    } if b.task_sources() => {
+                    InstructionKind::TaskCreate { arguments, .. }
+                    | InstructionKind::TaskCreateOwned { arguments, .. }
+                        if b.task_sources() =>
+                    {
                         if let Some(out) = out {
-                            if matches!(i.kind, InstructionKind::TaskCreateOwned { .. })
-                                && b.task_failure_carriers
-                                && let Some(Type::ErrorUnion { error, .. }) =
-                                    i.result.and_then(|id| f.values.get(id.0 as usize))
-                                && let Some(error_shape) = shape(error)
-                            {
-                                for slot in &error_shape.slots {
-                                    let [
-                                        PlaceProjection::Field(1),
-                                        PlaceProjection::Field(argument),
-                                    ] = slot.path.as_slice()
-                                    else {
-                                        return Err(bad(
-                                            "failure class source has no actual input position",
-                                        ));
-                                    };
-                                    let path = [LifeTypeProjection::Place(
-                                        PlaceProjection::ErrorArm(true),
-                                    )];
-                                    let class = out
-                                        .keys
-                                        .iter()
-                                        .position(|(p, c)| {
-                                            p.as_slice() == path && *c == slot.binder
-                                        })
-                                        .ok_or_else(|| bad("failure actual class is absent"))?;
-                                    let input = *arguments
-                                        .get(*argument as usize)
-                                        .ok_or_else(|| bad("failure actual input is absent"))?;
-                                    let source =
-                                        values[input.0 as usize].outer.ok_or_else(|| {
-                                            bad("failure actual input Address class is absent")
-                                        })?;
-                                    e.equal(out.classes[class], source, b)?;
-                                }
-                            }
-                            for row in port_bindings {
-                                b.spend(out.task_ports.len())?;
-                                let path = vec![
-                                    zil_ir::ContractProjection::Place(PlaceProjection::ErrorArm(
-                                        false,
-                                    )),
-                                    zil_ir::ContractProjection::RetainedPort(row.port),
-                                ];
-                                let index = out
-                                    .task_ports
-                                    .iter()
-                                    .find(|(p, _)| p == &path)
-                                    .map(|(_, i)| *i)
-                                    .ok_or_else(|| {
-                                        bad("Task constructor class omits actual port")
-                                    })?;
-                                let StorageBase::Parameter(input) = row.source.base else {
-                                    return Err(bad("Task port class has no actual input"));
-                                };
-                                let arg = arguments
-                                    .get(input as usize)
-                                    .ok_or_else(|| bad("Task class input is absent"))?;
-                                e.equal(
-                                    out.classes[index],
-                                    values[arg.0 as usize].outer.ok_or_else(|| {
-                                        bad("Task input has no outer Address class")
-                                    })?,
-                                    b,
-                                )?;
-                            }
+                            task_equations::create(
+                                module, f, i, arguments, &values, out, &mut e, b,
+                            )?;
                         }
                     }
                     InstructionKind::TaskPoll { task }
                         if b.task_sources()
-                            && matches!(super::tasks::task_payload(&f.values[task.0 as usize]),
-                            Some(Type::Task { result, .. })
-                                if matches!(result.as_ref(), Type::Address { mutable: false, .. })) =>
+                            && matches!(
+                                super::tasks::task_payload(&f.values[task.0 as usize]),
+                                Some(Type::Task { .. })
+                            ) =>
                     {
-                        if let Some(out) = out
-                            && !values[task.0 as usize].task_ports.is_empty()
-                        {
-                            let input = &values[task.0 as usize];
-                            super::tasks::charge_result_selection(&f.values[task.0 as usize], b)?;
-                            let port = input
-                                .task_ports
-                                .iter()
-                                .find(|(p, _)| {
-                                    matches!(p.as_slice(), [zil_ir::ContractProjection::RetainedPort(port)]
-                                        if super::tasks::result_port(&f.values[task.0 as usize], *port))
-                                })
-                                .ok_or_else(|| bad("TaskPoll has no actual retained class"))?
-                                .1;
-                            let result = out
-                                .keys
-                                .iter()
-                                .position(|(p, c)| {
-                                    p == &vec![LifeTypeProjection::Place(
-                                        PlaceProjection::ErrorArm(false),
-                                    )] && *c == 0
-                                })
-                                .ok_or_else(|| bad("TaskPoll has no actual Ready class"))?;
-                            e.equal(out.classes[result], input.classes[port], b)?;
+                        if let Some(out) = out {
+                            task_equations::poll(f, i, *task, &values, out, &mut e, b)?;
                         }
                     }
                     InstructionKind::BorrowCapture { index, .. } if !captures.is_empty() => {
@@ -1511,7 +1435,9 @@ fn check_with(
                         }
                     }
                     InstructionKind::ReadCapture { index }
-                    | InstructionKind::TakeCapture { index } if !captures.is_empty() => {
+                    | InstructionKind::TakeCapture { index }
+                        if !captures.is_empty() =>
+                    {
                         let source = captures
                             .get(*index as usize)
                             .ok_or_else(|| bad("capture class index absent"))?;

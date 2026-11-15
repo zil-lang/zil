@@ -223,6 +223,33 @@ pub(crate) fn life(
     b: &mut Budget,
     depth: usize,
 ) -> Check<StorageLifeShape> {
+    let static_outer = depth == 0
+        && f.storage_life.as_ref().is_some_and(|header| {
+            header
+                .static_bindings
+                .contains(&StoragePosition { base, path: vec![] })
+        });
+    type_life(module, ty, static_outer, Some(f.span), b, depth)
+}
+
+/// Complete type domain at a declared Task result boundary. No missing
+/// Result mapping is interpreted as a static source declaration.
+pub(crate) fn declared_life(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<StorageLifeShape> {
+    type_life(module, ty, false, None, b, 0)
+}
+
+fn type_life(
+    module: &TypedModule,
+    ty: &Type,
+    static_outer: bool,
+    span: Option<Span>,
+    b: &mut Budget,
+    depth: usize,
+) -> Check<StorageLifeShape> {
     dynamic_metadata::ty(ty, b)?;
     if depth > b.limits.max_call_depth.min(128) {
         return Err(limit("raw Task complete child domain depth exceeded"));
@@ -278,15 +305,8 @@ pub(crate) fn life(
             }
         }
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
-            let child = life(module, inner, f, base, b, depth + 1)?;
+            let child = type_life(module, inner, false, span, b, depth + 1)?;
             let outer = matches!(ty, Type::Address { .. } | Type::Desc(_));
-            let static_outer = outer
-                && depth == 0
-                && f.storage_life.as_ref().is_some_and(|header| {
-                    header
-                        .static_bindings
-                        .contains(&StoragePosition { base, path: vec![] })
-                });
             let offset = u32::from(outer && !static_outer);
             let mut parent = StorageLifeShape {
                 binder_count: child
@@ -335,7 +355,7 @@ pub(crate) fn life(
             _ => {
                 return Err(unsupported(
                     "raw Task child requires its complete qualified domain",
-                    Some(f.span),
+                    span,
                 ));
             }
         },

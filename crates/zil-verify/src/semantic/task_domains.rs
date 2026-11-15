@@ -1,6 +1,8 @@
 //! Request-local Task frame metadata and outstanding constructor obligations.
 //! Metadata is not WF, a worker entry, a root, a loan, or a Closed fact.
 use super::*;
+#[path = "task_domains/ports.rs"]
+mod ports;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct FrameKey {
@@ -802,156 +804,12 @@ pub(crate) fn raw_input_ports(
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
-    let mut result = Vec::new();
-    for slot in &life.slots {
-        b.spend(slot.path.len().saturating_add(1))?;
-        let path = slot
-            .path
-            .iter()
-            .copied()
-            .map(LifeTypeProjection::Place)
-            .collect::<Vec<_>>();
-        let leaf = lifetimes::select(ty, &path, b)?;
-        dynamic_metadata::ty(leaf, b)?;
-        result.push((
-            leaf.clone(),
-            slot.mode,
-            slot.binder,
-            slot.path
-                .iter()
-                .copied()
-                .map(ContractProjection::Place)
-                .collect(),
-        ));
-    }
-    let mut payload = ty;
-    let mut prefix = Vec::new();
-    loop {
-        match payload {
-            Type::BorrowedStorage { storage, .. } => payload = storage,
-            Type::Managed(inner) => {
-                payload = inner;
-                prefix.push(LifeTypeProjection::Pointee);
-            }
-            _ => break,
-        }
-    }
-    let opaque = match payload {
-        Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
-            Some(retained_life)
-        }
-        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
-            b.spend(module.dyn_interfaces.len())?;
-            Some(
-                &module
-                    .dyn_interfaces
-                    .iter()
-                    .find(|row| row.id == *interface)
-                    .ok_or_else(|| bad("Task input opaque interface is absent"))?
-                    .retained_life,
-            )
-        }
-        _ => None,
-    };
-    if let Some(shape) = opaque {
-        dynamic_metadata::retained_shape(shape, b)?;
-        for (index, port) in shape.ports.iter().enumerate() {
-            let class = if prefix.is_empty() {
-                port.binder
-            } else {
-                let mut rows = life
-                    .retained
-                    .iter()
-                    .filter(|row| row.path == prefix && row.class == port.binder);
-                let row = rows
-                    .next()
-                    .ok_or_else(|| bad("Task opaque input loses its complete child map"))?;
-                if rows.next().is_some() {
-                    return Err(bad("Task opaque child class mapping duplicated"));
-                }
-                row.binder
-            };
-            result.push((
-                port.leaf.clone(),
-                port.mode,
-                class,
-                vec![ContractProjection::RetainedPort(index as u32)],
-            ));
-        }
-    }
-    if let Type::Closure(id) = payload {
-        b.spend(module.closures.len())?;
-        let mut definitions = module.closures.iter().filter(|row| row.id == *id);
-        let closure = definitions
-            .next()
-            .ok_or_else(|| bad("Task closure input has no exact capture inventory"))?;
-        if definitions.next().is_some() {
-            return Err(bad("Task closure input has duplicate original identity"));
-        }
-        let header = closure
-            .storage_life
-            .as_ref()
-            .ok_or_else(|| bad("Task closure complete capture domain is Unknown"))?;
-        signature_life::charge(header, b)?;
-        for binding in &header.bindings {
-            let StorageBase::Capture(ordinal) = binding.position.base else {
-                continue;
-            };
-            let StorageBinder::Fixed(class) = binding.binder else {
-                return Err(bad(
-                    "Task closure capture port escapes its persistent domain",
-                ));
-            };
-            if class >= header.fixed_binder_count {
-                return Err(bad(
-                    "Task closure capture port exceeds its full fixed domain",
-                ));
-            }
-            let capture = closure
-                .captures
-                .get(ordinal as usize)
-                .ok_or_else(|| bad("Task closure port selects a missing actual capture"))?;
-            let leaf = contract_leaf(module, capture, &binding.position.path, b)?;
-            let mode = match &leaf {
-                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
-                Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
-                Type::Desc(_) => StoredBorrowMode::ReadOnlyDescription,
-                _ => {
-                    return Err(bad(
-                        "Task closure port does not select a complete borrowed leaf",
-                    ));
-                }
-            };
-            let class = if prefix.is_empty() {
-                class
-            } else {
-                let mut rows = life
-                    .retained
-                    .iter()
-                    .filter(|row| row.path == prefix && row.class == class);
-                let row = rows.next().ok_or_else(|| {
-                    bad("Task closure input loses its exact complete child-domain map")
-                })?;
-                if rows.next().is_some() {
-                    return Err(bad("Task closure child domain map is duplicated"));
-                }
-                row.binder
-            };
-            b.spend(binding.position.path.len().saturating_add(1))?;
-            if result.len() >= b.limits.max_nodes {
-                return Err(limit("Task complete capture-port inventory exceeded"));
-            }
-            let mut path = vec![ContractProjection::Capture(ordinal)];
-            path.extend_from_slice(&binding.position.path);
-            result.push((leaf, mode, class, path));
-        }
-    }
-    Ok(result)
+    ports::expand(module, ty, life, b)
 }
 
 /// Select only a declared logical/physical borrow occurrence. This never
 /// computes a GEP or proves that the selected actual root remains live.
-fn contract_leaf(
+pub(crate) fn contract_leaf(
     module: &TypedModule,
     root: &Type,
     path: &[ContractProjection],
@@ -965,7 +823,14 @@ fn contract_leaf(
         }
         match projection {
             ContractProjection::Place(field) => {
-                current = lifetimes::select(current, &[LifeTypeProjection::Place(*field)], b)?
+                current = match (current, field) {
+                    (Type::Array { element, length }, PlaceProjection::Field(index))
+                        if index < length =>
+                    {
+                        element
+                    }
+                    _ => lifetimes::select(current, &[LifeTypeProjection::Place(*field)], b)?,
+                }
             }
             ContractProjection::Capture(ordinal) => {
                 let Type::Closure(id) = current else {
@@ -1369,8 +1234,9 @@ pub(crate) fn metadata_zero_type(
     Ok(if found { Some(true) } else { None })
 }
 
-/// Type WF uses a complete frame cursor and queues every constructor; it must
-/// not recursively execute the constructor kernel from inside checked_value.
+/// A declared carrier is interpreted without choosing a local worker. Every
+/// actual constructor retains its separate exact-site full-frame obligation;
+/// interpreting a type must never execute that constructor recursively.
 pub(crate) fn task_metadata_domain(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<u32> {
     let Type::Task {
         result,
@@ -1380,43 +1246,120 @@ pub(crate) fn task_metadata_domain(module: &TypedModule, ty: &Type, b: &mut Budg
         return Err(bad("Task domain cursor selects another type"));
     };
     dynamic_metadata::retained_shape(retained_life, b)?;
-    if retained_life.binder_count == 0
-        && retained_life.ports.is_empty()
-        && retained_life.retained.is_empty()
-        && retained_life.nominal_arguments.is_empty()
-    {
-        let (count, _) = dynamic_witness::intrinsic_domain(module, result, b)?;
-        if count == 0 {
-            return Ok(0);
-        }
-        return Err(bad(
-            "zero Task context omits a nonzero complete result domain",
-        ));
-    }
-    let mut found = false;
-    let workers = workers(module, b)?;
-    for worker in workers {
-        for frame in metadata_candidates(worker, b)? {
-            if frame.result_type == **result && frame.shape == *retained_life {
-                found = true;
+    crate::tasks::require_closed_context(ty, None)?;
+    // An incoming Task carries an untrusted joint-domain declaration. Do not
+    // select a local worker by result type: complete actual constructors and
+    // original source worlds are checked at their own exact sites.
+    let mut inputs = BTreeMap::<u32, Vec<u32>>::new();
+    let mut grounded = BTreeSet::new();
+    for row in &retained_life.retained {
+        b.spend(
+            inputs
+                .len()
+                .saturating_add(grounded.len())
+                .saturating_add(1),
+        )?;
+        if let [LifeTypeProjection::Parameter(parameter)] = row.path.as_slice() {
+            let map = inputs.entry(*parameter).or_default();
+            b.spend(map.len().saturating_add(1))?;
+            if row.class as usize != map.len() || map.contains(&row.binder) {
+                return Err(bad(
+                    "Task input full-class map is incomplete or noninjective",
+                ));
             }
-            if **result == Type::Unit {
-                let mut context = frame.shape.clone();
-                context
-                    .retained
-                    .retain(|row| row.path != [LifeTypeProjection::Result]);
-                if context == *retained_life {
-                    found = true;
-                }
-            }
+            map.push(row.binder);
+            grounded.insert(row.binder);
         }
     }
-    if !found {
-        return Err(bad(
-            "Task type has no complete source frame metadata; WF remains pending",
-        ));
+    if grounded.len() != retained_life.binder_count as usize {
+        return Err(bad("Task joint domain contains an ungrounded input class"));
     }
+    for row in &retained_life.nominal_arguments {
+        let Some(LifeTypeProjection::Parameter(parameter)) = row.path.first() else {
+            return Err(bad(
+                "Task phantom occurrence has no original parameter selector",
+            ));
+        };
+        b.spend(inputs.len().saturating_add(row.path.len()))?;
+        if !inputs
+            .get(parameter)
+            .is_some_and(|map| map.contains(&row.binder))
+        {
+            return Err(bad(
+                "Task phantom occurrence escapes its complete input map",
+            ));
+        }
+    }
+    result_life(module, ty, b)?;
     Ok(retained_life.binder_count)
+}
+
+/// The result domain is interpreted from the whole R constructor, independently
+/// of every local worker and outside header image. The claimed child map must
+/// preserve all intrinsic classes, including phantom classes.
+pub(crate) fn result_life(
+    module: &TypedModule,
+    task: &Type,
+    b: &mut Budget,
+) -> Check<StorageLifeShape> {
+    let Type::Task {
+        result,
+        retained_life,
+    } = task
+    else {
+        return Err(bad("Task result domain selects another type"));
+    };
+    let life = crate::tasks::frame_shape::declared_life(module, result, b)?;
+    charge_life(&life, b)?;
+    b.spend(retained_life.retained.len())?;
+    let mut next = 0u32;
+    let mut injective = BTreeSet::new();
+    for row in &retained_life.retained {
+        if row.path != [LifeTypeProjection::Result] {
+            continue;
+        }
+        b.spend(injective.len().saturating_add(1))?;
+        if row.class != next
+            || row.binder >= retained_life.binder_count
+            || !injective.insert(row.binder)
+        {
+            return Err(bad(
+                "Task result full-class map is incomplete or noninjective",
+            ));
+        }
+        next = next
+            .checked_add(1)
+            .ok_or_else(|| limit("Task result class count overflow"))?;
+    }
+    if next != life.binder_count {
+        return Err(bad("Task result map omits or invents a complete R class"));
+    }
+    for (leaf, mode, class, _) in raw_input_ports(module, result, &life, b)? {
+        b.spend(
+            retained_life
+                .retained
+                .len()
+                .saturating_add(retained_life.ports.len()),
+        )?;
+        let parent = retained_life
+            .retained
+            .iter()
+            .find(|row| row.path == [LifeTypeProjection::Result] && row.class == class)
+            .ok_or_else(|| bad("Task result borrow omits its complete class map"))?
+            .binder;
+        let mut present = false;
+        for port in &retained_life.ports {
+            dynamic_metadata::ty(&port.leaf, b)?;
+            dynamic_metadata::ty(&leaf, b)?;
+            present |= port.binder == parent && port.mode == mode && port.leaf == leaf;
+        }
+        if !present {
+            return Err(bad(
+                "Task result borrow has no matching complete retained input-port upper",
+            ));
+        }
+    }
+    Ok(life)
 }
 
 pub(crate) fn record_raw_constructor(

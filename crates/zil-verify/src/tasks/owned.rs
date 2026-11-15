@@ -156,6 +156,10 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> Check<bool> {
                 dynamic_metadata::ty(t, budget)?;
                 work.push(storage);
             }
+            Type::Address {
+                mutable: false,
+                inner,
+            } if retained_pointee(inner) => {}
             t if scalar(t) => {}
             Type::Managed(payload) => {
                 if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
@@ -369,25 +373,26 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                         _ => {}
                     }
                 }
-                if let Type::Address {
-                    mutable: false,
-                    inner,
-                } = capture
-                {
+                if let Type::Address { mutable, inner } = capture {
                     let Some(life) = &c.storage_life else {
                         return Ok(false);
                     };
-                    budget.spend(life.static_bindings.len())?;
+                    budget.spend(
+                        life.static_bindings
+                            .len()
+                            .saturating_add(life.bindings.len()),
+                    )?;
                     let position = StoragePosition {
                         base: StorageBase::Capture(index as u32),
                         path: vec![],
                     };
-                    if !life.static_bindings.contains(&position) || !retained_pointee(inner) {
+                    let variable=life.bindings.iter().any(|row|row.position==position&&matches!(row.binder,StorageBinder::Fixed(class)if class<life.fixed_binder_count));
+                    let literal = !*mutable && life.static_bindings.contains(&position);
+                    if !(variable || literal) || !retained_pointee(inner) {
                         return Ok(false);
                     }
-                    // Conditional shape only. The independent global SSA
-                    // Static proof must discharge every ctor/write and all
-                    // actual parent loans before this module can be accepted.
+                    // Eligibility only: actual capture sources, all parent
+                    // loans and every static dependency remain ordinary WF.
                     continue;
                 }
                 let complete = if matches!(capture, Type::Closure(_)) {

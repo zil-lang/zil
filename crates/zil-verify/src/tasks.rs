@@ -545,6 +545,108 @@ fn task_poll_result(result: &Type) -> Type {
     }
 }
 
+fn complete_poll_result(module: &TypedModule, result: &Type, budget: &mut Budget) -> Check<Type> {
+    dynamic_metadata::ty(result, budget)?;
+    let child = frame_shape::declared_life(module, result, budget)?;
+    crate::semantic::task_domains::charge_life(&child, budget)?;
+    let field = PlaceProjection::Variant(VariantProjection {
+        variant: 1,
+        index: 0,
+    });
+    let storage = Type::Enum {
+        name: format!("@std.task:v1:Poll:{}", result.fingerprint()),
+        variants: vec![
+            ("Pending".into(), vec![]),
+            ("Ready".into(), vec![result.clone()]),
+        ],
+    };
+    let poll = if child.binder_count == 0 {
+        storage
+    } else {
+        let mut life = StorageLifeShape {
+            binder_count: child.binder_count,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: vec![],
+        };
+        budget.spend((child.binder_count as usize).saturating_mul(2))?;
+        for class in 0..child.binder_count {
+            life.retained.push(StorageRetainedBinding {
+                path: vec![LifeTypeProjection::TypeArgument(0)],
+                class,
+                binder: class,
+            });
+        }
+        for row in &child.slots {
+            budget.spend(row.path.len().saturating_add(1))?;
+            let mut row = row.clone();
+            row.path.insert(0, field);
+            life.slots.push(row);
+        }
+        if matches!(
+            result,
+            Type::BorrowedStorage { .. }
+                | Type::Closure(_)
+                | Type::Task { .. }
+                | Type::Dyn { .. }
+                | Type::OwnedDyn { .. }
+        ) {
+            for class in 0..child.binder_count {
+                life.retained.push(StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Place(field)],
+                    class,
+                    binder: class,
+                });
+            }
+        } else {
+            for row in &child.retained {
+                budget.spend(row.path.len().saturating_add(1))?;
+                let mut row = row.clone();
+                row.path.insert(0, LifeTypeProjection::Place(field));
+                life.retained.push(row);
+            }
+        }
+        for row in &child.nominal_arguments {
+            budget.spend(row.path.len().saturating_add(1))?;
+            let mut row = row.clone();
+            row.path.insert(0, LifeTypeProjection::Place(field));
+            life.nominal_arguments.push(row);
+        }
+        budget.spend(
+            life.retained.len().saturating_mul(
+                life.retained
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 1),
+            ),
+        )?;
+        life.retained.sort();
+        budget.spend(
+            life.nominal_arguments.len().saturating_mul(
+                life.nominal_arguments
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 1),
+            ),
+        )?;
+        life.nominal_arguments.sort();
+        Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life,
+        }
+    };
+    Ok(Type::ErrorUnion {
+        error: Box::new(Type::Enum {
+            name: "@std.task:v1:TaskPollState".into(),
+            variants: ["Complete", "Cancelled", "Invalid"]
+                .into_iter()
+                .map(|name| (name.into(), vec![]))
+                .collect(),
+        }),
+        result: Box::new(poll),
+    })
+}
+
 pub(super) fn carrier(
     module: &TypedModule,
     ty: &Type,
@@ -787,7 +889,7 @@ pub(super) fn instruction(
                         for _ in 0..4 {
                             resources::charge_payload(result, budget)?;
                         }
-                        task_poll_result(result)
+                        complete_poll_result(module, result, budget)?
                     }
                     _ => Type::Tuple(vec![Type::I32, Type::I32]),
                 },

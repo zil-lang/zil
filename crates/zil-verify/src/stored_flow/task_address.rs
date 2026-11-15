@@ -1,6 +1,8 @@
 //! Independent external Task-result permission reconstruction.
 use super::*;
 mod carriers;
+mod inputs;
+mod results;
 
 pub(super) fn port_relation(
     module: &TypedModule,
@@ -701,65 +703,40 @@ pub(super) fn transfer(
                 let StorageBase::Parameter(index) = row.source.base else {
                     return Err(err("Task port source is not a parameter"));
                 };
-                if row.port != ordinal as u32 || !row.source.path.is_empty() {
-                    return Err(err("Task input has noncanonical port selector"));
+                if row.port != ordinal as u32 {
+                    return Err(err("Task input has a noncanonical retained port ordinal"));
                 }
                 let input = *arguments
                     .get(index as usize)
                     .ok_or_else(|| err("Task input is absent"))?;
-                let actual = vt(f, input)?;
-                type_work(actual, &b.limits.clone(), b)?;
+                let actual = inputs::leaf(module, vt(f, input)?, &row.source.path, b)?;
+                type_work(&actual, &b.limits.clone(), b)?;
                 type_work(&port.leaf, &b.limits.clone(), b)?;
-                if actual != &port.leaf {
-                    return Err(err("Task port differs from actual complete argument type"));
+                if actual != port.leaf {
+                    return Err(err(
+                        "Task retained port differs from its exact complete input occurrence",
+                    ));
                 }
-                let permission = &get(input)?.address;
-                all_inputs &= !permission.sources.is_empty();
+                let permission =
+                    inputs::permission(module, f, input, &row.source.path, values, state, b)?;
+                all_inputs &= !permission.sources.is_empty()
+                    || inputs::inactive(f, input, &row.source.path, values, b)?;
                 insert(
                     &mut out,
                     &port_path(&[PlaceProjection::ErrorArm(false)], ordinal as u32),
-                    permission,
+                    &permission,
                     b,
                 )?;
             }
-            out.creation_complete = Some(all_inputs);
-            if matches!(target.return_type, Type::Address { mutable: false, .. }) {
-                super::super::tasks::charge_result_selection(vt(f, produced)?, b)?;
-                b.spend(port_bindings.len())?;
-                let mut allowed = Vec::new();
-                for row in port_bindings {
-                    if super::super::tasks::result_port(vt(f, produced)?, row.port) {
-                        allowed.push(row.source.base);
-                    }
-                }
-                let summary = &summaries[target.id.0 as usize];
-                let mut present = false;
-                for (path, sources) in &summary.result {
-                    if path.is_empty() {
-                        present |= !sources.is_empty();
-                        for source in sources {
-                            b.spend(
-                                source
-                                    .leaf
-                                    .len()
-                                    .saturating_add(allowed.len())
-                                    .saturating_add(source.inline.len())
-                                    .saturating_add(1),
-                            )?;
-                            if !allowed.iter().any(|base| matches!(base, StorageBase::Parameter(index) if source.base == HoldRoot::Parameter(*index)))
-                                || source.retained_port.is_some()
-                                || !source.leaf.is_empty()
-                                || !source.inline.is_empty()
-                            {
-                                return Err(err(
-                                    "Task Ready source differs from its actual retained input",
-                                ));
-                            }
-                        }
-                    }
-                }
-                out.creation_complete = Some(all_inputs && present && summary.complete);
-            }
+            let returns = results::check_worker(
+                module,
+                target,
+                vt(f, produced)?,
+                port_bindings,
+                &summaries[target.id.0 as usize],
+                b,
+            )?;
+            out.creation_complete = Some(all_inputs && returns);
         }
         InstructionKind::PlaceTagLocal { local, path }
             if shape(&f.locals[local.0 as usize].ty) && path.is_empty() => {}
@@ -796,32 +773,7 @@ pub(super) fn transfer(
             state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::TaskPoll { task } if shape(vt(f, *task)?) => {
-            if task_type(vt(f, *task)?)
-                .is_some_and(|(result, _)| matches!(result, Type::Address { mutable: false, .. }))
-            {
-                let (_, context) = task_type(vt(f, *task)?).unwrap();
-                super::super::tasks::charge_result_selection(vt(f, *task)?, b)?;
-                b.spend(context.ports.len())?;
-                let mut p = Permission::default();
-                for port in 0..context.ports.len() {
-                    if super::super::tasks::result_port(vt(f, *task)?, port as u32) {
-                        join_permission(&mut p, &select(get(*task)?, &[], port as u32, b)?, b)?;
-                    }
-                }
-                add_leaf(
-                    &mut out,
-                    &[
-                        PlaceProjection::ErrorArm(false),
-                        PlaceProjection::Variant(zil_ir::VariantProjection {
-                            variant: 1,
-                            index: 0,
-                        }),
-                    ],
-                    &p,
-                    b,
-                )?;
-                out.enum_variants = enum_address::Variants::runtime_poll(b)?;
-            }
+            results::poll(module, vt(f, *task)?, get(*task)?, &mut out, b)?;
         }
         InstructionKind::MakeErrorUnion { value, is_error }
             if shape(vt(
