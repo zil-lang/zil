@@ -735,12 +735,15 @@ pub(super) fn recipe_table(value: &DynVtable, b: &mut Budget) -> Check<()> {
 /// cleanup is independently checked against the original sealed Drop body.
 pub(crate) fn sealed_drop_metadata(module:&TypedModule,declaration:&DynDeclaration,b:&mut Budget)->Check<bool>{
     let Some(program)=&module.semantic else{return Ok(false);};
+    program_sealed_drop_metadata(program,&module.dyn_declarations,declaration,b)
+}
+pub(in crate) fn program_sealed_drop_metadata(program:&SemanticModule,declarations:&[DynDeclaration],declaration:&DynDeclaration,b:&mut Budget)->Check<bool>{
     b.spend(program.dyn_scopes.len().saturating_add(program.definitions.len()))?;
     let mut bindings=program.dyn_scopes.iter().filter(|row|row.owner==SemanticDynOwner::Declaration(declaration.id));
     let Some(binding)=bindings.next() else{return Ok(false);};if bindings.next().is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is duplicated"));}
     let Some(owner)=program.definitions.iter().find(|row|row.id==binding.scope) else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is absent"));};
     if !matches!(owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})){return Ok(false);}
-    let owner=crate::dynamic_witness::semantic_external::original_scope(module,declaration.id,b)?;
+    let owner=crate::dynamic_witness::semantic_external::original_program_scope(program,declarations,declaration.id,b)?;
     declaration_in_scope(declaration,owner,b)?;
     if declaration.implemented_trait.is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop metadata cannot implement an open dynamic trait"));}
     let [member]=declaration.members.as_slice() else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original member inventory differs"));};

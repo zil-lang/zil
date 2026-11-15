@@ -39,13 +39,44 @@ impl CheckedContext{
             BufferRoot::Local{node}=>if self.buffer_source_local(module,caller,f,BufferSource::Local{definition:caller.definition,node},b)?!=local{return Err(bad("field observation selects another original local"));},
             BufferRoot::Parameter{ordinal}=>if self.buffer_source_local(module,caller,f,BufferSource::Parameter{definition:caller.definition,ordinal},b)?!=local{return Err(bad("field observation selects another original parameter"));},
             BufferRoot::Capture=>{
-                let mut binding=None;
-                for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){if let InstructionKind::BindPackageCapture{local:actual,index:capture}=instruction.kind{if actual==local&&binding.replace((block.id,index as u32,capture,instruction)).is_some(){return Err(bad("package capture view has several actual bindings"));}}}}
-                let(block,index,capture,instruction)=binding.ok_or_else(||bad("captured package observation has no actual environment view"))?;
-                crate::packages::check_instruction(module,f,instruction,b)?;
-                self.buffer_capture_use(module,caller,f,capture,node,block,index,instruction,b)?;
+                self.captured_local_alias(module,caller,f,local,node,b)?;
             },
         }Ok(())
+    }
+    fn captured_local_alias(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,local:LocalId,node:NodeId,b:&mut Budget)->Check<()>{
+        // Every real store contributes to the source upper. A convenient last
+        // store, matching Type or untrusted same-numbered capture is not proof.
+        let mut work=vec![(true,local.0,false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();let mut rooted=false;
+        while let Some((local,index,exit))=work.pop(){
+            b.spend(1)?;
+            if exit{active.remove(&(local,index));proven.insert((local,index));continue;}
+            if proven.contains(&(local,index)){continue;}
+            if !active.insert((local,index)){return Err(bad("captured observation local/SSA alias has a cyclic source"));}
+            work.push((local,index,true));
+            if local{
+                let local=LocalId(index);let mut binding=None;let mut stores=Vec::new();
+                for block in &f.blocks{b.spend(block.instructions.len())?;for(at,instruction)in block.instructions.iter().enumerate(){match instruction.kind{
+                    InstructionKind::BindPackageCapture{local:actual,index:capture}if actual==local=>{if binding.replace((block.id,at as u32,capture,instruction)).is_some(){return Err(bad("package capture view has several actual bindings"));}},
+                    InstructionKind::Store{local:actual,value}if actual==local=>stores.push(value),_=>{},
+                }}}
+                if let Some((block,at,capture,instruction))=binding{
+                    if !stores.is_empty(){return Err(bad("captured package view mixes environment binding with value replacement"));}
+                    crate::packages::check_instruction(module,f,instruction,b)?;self.buffer_capture_use(module,caller,f,capture,node,block,at,instruction,b)?;rooted=true;
+                }else{
+                    if stores.is_empty(){return Err(bad("captured observation local has no complete actual environment source"));}
+                    b.spend(stores.len())?;work.extend(stores.into_iter().map(|value|(false,value.0,false)));
+                }
+            }else{
+                let(block,at,instruction)=producer(f,ValueId(index),b)?;
+                match instruction.kind{
+                    InstructionKind::ReadCapture{index:capture}|InstructionKind::TakeCapture{index:capture}|InstructionKind::DescribeCapture{index:capture}|InstructionKind::BorrowCapture{index:capture,..}=>{self.buffer_capture_use(module,caller,f,capture,node,block,at,instruction,b)?;rooted=true;},
+                    InstructionKind::Load(local)|InstructionKind::TakeLocal{local}|InstructionKind::DescribeLocal{local}|InstructionKind::BorrowLocal{local}|InstructionKind::BorrowLocalMut{local}=>work.push((true,local.0,false)),
+                    InstructionKind::ReborrowAddress{address,..}|InstructionKind::DescribeAddress{address}=>work.push((false,address.0,false)),
+                    _=>return Err(unsupported("captured observation alias does not select a complete actual environment root",Some(instruction.span))),
+                }
+            }
+        }
+        if !rooted{return Err(bad("captured observation alias has no actual creator root"));}Ok(())
     }
     fn buffer_capture_use(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,capture:u32,node:NodeId,_block:BlockId,_index:u32,instruction:&Instruction,b:&mut Budget)->Check<()>{
         let environment=f.environment.ok_or_else(||bad("buffer capture observation has no actual closure environment"))?;

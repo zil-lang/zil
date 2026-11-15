@@ -1053,7 +1053,7 @@ fn check_with(
         b.spend(f.parameters.len())?;
         if f.parameters
             .iter()
-            .any(|l| locals[l.0 as usize].environment)
+            .any(|l| {let ports=&locals[l.0 as usize];ports.environment&&(ports.outer.is_some()||!ports.classes.is_empty())})
         {
             return Err(bad(
                 "captured Fixed parameter needs a complete enclosing relation",

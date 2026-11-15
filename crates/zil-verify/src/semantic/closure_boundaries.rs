@@ -26,34 +26,10 @@ impl CheckedContext {
         Ok(selected)
     }
     pub(super) fn capture_local_source(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,ordinal:u32,capture:ValueId,b:&mut Budget)->Check<()> {
-        let (definition,node)=self.original.borrow().as_ref().ok_or_else(||bad("actual capture has no original body proof"))?.implicit_capture_binding(module,child.definition,ordinal,b)?;
-        if definition!=creator.definition{return Err(bad("actual capture belongs to another original creator scope"));}
-        let original=self.definition(module,definition,b)?;
-        let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&original.body else{return Err(bad("actual capture parent has no original binding ledger"));};
-        let program=module.semantic.as_ref().ok_or_else(||bad("actual capture program is absent"))?;
-        let mut local=None;
-        for source in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Statement(node)) {
-            for site in program.sites.iter().filter(|site|site.instance==creator.id&&site.recipe==source.site) {
-                b.spend(1)?;
-                if let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(value),..}=&site.action {
-                    if local.replace(*value).is_some(){return Err(bad("original captured binding has several actual local identities"));}
-                }
-            }
-        }
-        let local=local.ok_or_else(||bad("original captured binding lacks its actual local declaration"))?;
-        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("capture creator is not an executable scope"));};
+        let source=self.original.borrow().as_ref().ok_or_else(||bad("actual capture has no original body proof"))?.implicit_capture_binding(module,child.definition,ordinal,b)?;
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("capture creator is not executable"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("capture creator function is absent"))?;
-        let mut current=capture;let mut visited=std::collections::BTreeSet::new();
-        loop {
-            b.spend(1)?;if !visited.insert(current){return Err(bad("actual captured head has a producer cycle"));}
-            let mut producer=None;
-            for block in &f.blocks {b.spend(block.instructions.len())?;for instruction in &block.instructions {if instruction.result==Some(current)&&producer.replace(instruction).is_some(){return Err(bad("actual capture has duplicate SSA definitions"));}}}
-            match &producer.ok_or_else(||bad("actual captured head has no SSA definition"))?.kind {
-                InstructionKind::ReborrowAddress{address,..}=>current=*address,
-                InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual} if *actual==local=>return Ok(()),
-                _=>return Err(bad("actual captured head differs from its original free-value binding")),
-            }
-        }
+        if !self.capture_creator_source(module,creator,f,capture,source,b)?{return Err(bad("captured head differs from its exact original creator free-value binder"));}Ok(())
     }
 }
 impl CheckedContext {

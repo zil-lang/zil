@@ -64,4 +64,16 @@ impl CheckedContext{
             if !value.statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{path:actual,..}if actual==&path)){return Err(bad("logical capture Static header has no original pending source occurrence"));}
         }Ok(())
     }
+    pub(super) fn borrowed_capture_header(&self,relation:&StorageLifeContract,child:&SemanticInstance,index:u32,ordinal:usize,pointee:&CheckedType,b:&mut Budget)->Check<()>{
+        for class in 0..pointee.life.binder_count{
+            b.spend(relation.classes.len().saturating_add(child.header_embedding.len()))?;
+            let mut rows=relation.classes.iter().filter(|row|row.position.base==StorageBase::Capture(index)&&row.position.path==[LifeTypeProjection::Pointee]&&row.position.class==class);
+            let row=rows.next().ok_or_else(||bad("borrowed capture loses a complete pointee intrinsic occurrence"))?;
+            if rows.next().is_some(){return Err(bad("borrowed capture repeats a pointee intrinsic occurrence"));}
+            let mut maps=child.header_embedding.iter().filter(|map|map.header==row.binder);
+            let map=maps.next().ok_or_else(||bad("borrowed capture pointee has no original environment embedding"))?;
+            if maps.next().is_some()||!matches!(row.binder,StorageBinder::Fixed(_))||map.actual!=(SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class}){return Err(bad("borrowed capture changes an independent original pointee class or aliases its outer head"));}
+        }Ok(())
+    }
+
 }

@@ -111,16 +111,13 @@ impl CheckedContext {
             if rows.next().is_some(){return Err(bad("outer occurrence has duplicate actual slot maps"));}
             value.classes.get(row.binder as usize).cloned().ok_or_else(||bad("outer slot selects an absent intrinsic class"))
         } else {
-            let count=intrinsic_count(module,selected,b)?;
+            // The complete operand supplies the domain of an outer Address
+            // or Desc. A bare physical Type cannot distinguish its variable
+            // head from a pending static occurrence.
+            let child=if path.is_empty(){value}else{self.child_value(module,&value,path,b)?};
             let class=class.ok_or_else(||bad("intrinsic occurrence lacks its class"))?;
-            if class>=count {return Err(bad("intrinsic occurrence escapes the complete actual child domain"));}
-            let binder=if path.is_empty() {class}else{
-                let mut rows=value.life.retained.iter().filter(|row|row.path==path&&row.class==class);
-                let row=rows.next().ok_or_else(||bad("intrinsic child occurrence has no exact outer map"))?;
-                if rows.next().is_some(){return Err(bad("intrinsic child occurrence has duplicate maps"));}
-                row.binder
-            };
-            value.classes.get(binder as usize).cloned().ok_or_else(||bad("intrinsic occurrence maps outside its actual domain"))
+            if class>=child.life.binder_count{return Err(bad("intrinsic occurrence escapes the complete actual child domain"));}
+            child.classes.get(class as usize).cloned().ok_or_else(||bad("intrinsic occurrence maps outside its actual domain"))
         }
     }
 }

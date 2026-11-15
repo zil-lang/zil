@@ -3,7 +3,11 @@
 //! intrinsic identities survive. This supplies no runtime pointer or loan.
 use super::*;
 impl CheckedContext {
-    pub(super) fn child_value(&self,module:&TypedModule,parent:&CheckedType,path:&[LifeTypeProjection],b:&mut Budget)->Check<CheckedType>{
+    pub(in crate::semantic) fn child_value(&self,module:&TypedModule,parent:&CheckedType,path:&[LifeTypeProjection],b:&mut Budget)->Check<CheckedType>{
+        if path.is_empty(){
+            b.spend(parent.classes.len().saturating_add(parent.origins.len()))?;
+            return Ok(parent.clone());
+        }
         let ty=lifetimes::select(&parent.ty,path,b)?;
         let mut life=crate::tasks::frame_shape::declared_life(module,ty,b)?;
         let physical=path.iter().map(|step|match step{LifeTypeProjection::Place(step)=>Some(*step),_=>None}).collect::<Option<Vec<_>>>();

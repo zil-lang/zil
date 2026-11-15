@@ -291,37 +291,12 @@ impl CheckedContext {
                 }
                 SemanticClassSequencePart::AllClasses { ty, path } => {
                     let value = self.evaluate_type(module, ty, env, external, active, b)?;
-                    let child = lifetimes::select(&value.ty, path, b)?;
-                    let (count, _) = dynamic_witness::intrinsic_domain(module, child, b)?;
-                    for class in 0..count {
-                        b.spend(path.len().saturating_add(1))?;
-                        let binder = if path.is_empty() {
-                            class
-                        } else {
-                            let mut rows = value
-                                .life
-                                .retained
-                                .iter()
-                                .filter(|row| row.path == *path && row.class == class);
-                            let row = rows.next().ok_or_else(|| {
-                                bad("AllClasses child has no exact whole-domain map")
-                            })?;
-                            if rows.next().is_some() {
-                                return Err(bad(
-                                    "AllClasses child has duplicate whole-domain maps",
-                                ));
-                            }
-                            row.binder
-                        };
+                    let child = if path.is_empty() { value } else { self.child_value(module, &value, path, b)? };
+                    for class in 0..child.life.binder_count {
+                        b.spend(1)?;
                         values.push(Term {
-                            key: value
-                                .classes
-                                .get(binder as usize)
-                                .cloned()
-                                .ok_or_else(|| bad("AllClasses child class is absent"))?,
-                            origin: value.origins.get(binder as usize).cloned().ok_or_else(
-                                || bad("AllClasses child intrinsic origin is absent"),
-                            )?,
+                            key: child.classes.get(class as usize).cloned().ok_or_else(||bad("AllClasses child class is absent"))?,
+                            origin: child.origins.get(class as usize).cloned().ok_or_else(||bad("AllClasses child intrinsic origin is absent"))?,
                         });
                     }
                 }

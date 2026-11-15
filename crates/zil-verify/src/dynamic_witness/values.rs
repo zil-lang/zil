@@ -313,9 +313,7 @@ impl Inventory<'_> {
             | Type::CWideString
             | Type::SyncCell(_) => Ok(closed),
             scalar if scalar.is_integer() || scalar.is_float() => Ok(closed),
-            _ => Err(bad(
-                "dynamic actual type has no complete intrinsic domain consumer",
-            )),
+            _ => Err(bad(&format!("dynamic actual type has no complete intrinsic domain consumer: {ty:?}"))),
         }
     }
     fn static_occurrences(

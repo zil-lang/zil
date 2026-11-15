@@ -43,7 +43,7 @@ impl CheckedOriginal {
         loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(value)|CoreExprKind::Ascribed{value,..}=>expression=value, _=>break}}
         let CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=&expression.kind else{return Ok(None);};
         let place=self.value_places.get(&(definition,operand.id)).ok_or_else(||unsupported("original address needs its complete checked source Place",None))?;
-        if !place.fields.is_empty(){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand.id}));}
+        if !place.fields.is_empty()||matches!(place.binder,Binder::Capture{..}){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand.id}));}
         Ok(Some(match &place.binder{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("original address needs its complete captured/indirect Place boundary",None))}))
     }
     pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
@@ -93,22 +93,33 @@ impl CheckedOriginal {
         if !function.closures.contains_key(&initializer.id){return Ok(None);}
         Ok(Some(initializer.id))
     }
-    pub(in crate::semantic) fn implicit_capture_binding(&self,module:&TypedModule,child:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<(SemanticDefinitionId,NodeId)> {
-        let index=index::build(module,b)?;
-        let function=index.definitions.get(&child).ok_or_else(||bad("implicit capture has no original child"))?;
+    pub(in crate::semantic) fn implicit_capture_binding(&self,module:&TypedModule,child:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<intrinsics::BufferSource> {
+        if self.creator_moves.get(&child)!=Some(&false){return Err(bad("implicit captured head does not have its original default-borrow creation mode"));}
+        let index=index::build(module,b)?;let function=index.definitions.get(&child).ok_or_else(||bad("implicit capture has no original child"))?;
         let implicit=function.definition.implicit_lifetimes.iter().find(|row|row.ordinal==ordinal).ok_or_else(||bad("implicit capture has no original lifetime occurrence"))?;
         let mut selected=None;
-        for site in function.sites.iter().filter(|site|site.occurrence_path==implicit.occurrence_path) {
-            b.spend(1)?;
-            let Some(index::Node::Expression(expression))=function.nodes.get(&site.id) else {continue;};
-            let CoreExprKind::Name(name)=&expression.kind else {return Err(unsupported("implicit capture needs its exact original free-value projection",None));};
-            let binding=self.free_values.get(&child).and_then(|bindings|bindings.get(name)).ok_or_else(||bad("implicit capture name is not a sealed original free value"))?;
-            let Binder::Local{definition,node,..}=&binding.identity else {return Err(unsupported("implicit capture parameter/outer capture needs its complete original source bridge",None));};
-            let identity=(*definition,*node);
-            if selected.replace(identity).is_some_and(|old|old!=identity){return Err(bad("implicit capture selects several original value binders"));}
+        for site in function.sites.iter().filter(|site|site.occurrence_path==implicit.occurrence_path){
+            b.spend(1)?;let Some(index::Node::Expression(expression))=function.nodes.get(&site.id)else{continue;};
+            let CoreExprKind::Name(name)=&expression.kind else{return Err(bad("implicit captured head does not select its exact original free Name occurrence"));};
+            let binding=self.free_values.get(&child).and_then(|bindings|bindings.get(name)).ok_or_else(||bad("implicit capture Name is not an original lexical free value"))?;
+            let captured=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};
+            if self.value_bindings.get(&(child,expression.id))!=Some(&captured)||!self.used.get(&child).is_some_and(|used|used.contains(&captured)){return Err(bad("implicit capture occurrence does not name its checked original free binder"));}
+            // occurrence_path is checked against the original AST by index.
+            // Its lexicographic first Name use is a source position, not a
+            // minimum arbitrary NodeId or a selected same-typed capture.
+            let mut first=None;
+            for candidate in function.sites{
+                b.spend(1)?;let Some(index::Node::Expression(read))=function.nodes.get(&candidate.id)else{continue;};
+                if !matches!(read.kind,CoreExprKind::Name(_))||self.value_bindings.get(&(child,read.id))!=Some(&captured){continue;}
+                if first.as_ref().is_none_or(|path:&Vec<u32>|candidate.occurrence_path<*path){first=Some(candidate.occurrence_path.clone());}
+            }
+            if first.as_ref()!=Some(&implicit.occurrence_path){return Err(bad("implicit capture head is not its original first lexical free-value use"));}
+            let source=match &binding.identity{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("nested implicit capture needs its complete original parent capture source",None))};
+            if selected.replace(source).is_some_and(|old|old!=source){return Err(bad("implicit capture selects several original source binders"));}
         }
-        selected.ok_or_else(||bad("implicit capture has no exact original free-value use"))
+        selected.ok_or_else(||bad("implicit captured head has no exact original first free-value use"))
     }
+
 }
 impl CheckedOriginal {
     pub(in crate::semantic) fn static_literal(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Option<Vec<u8>>>{

@@ -121,10 +121,13 @@ pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,declarations:&[DynDe
         SemanticDynOwner::MethodDefinition(id) => {
             let mut selected = None;
             for declaration in declarations {
-                let rows = declaration
-                    .method_definitions
-                    .as_ref()
-                    .ok_or_else(|| bad("semantic bridge original definitions are Unknown"))?;
+                let Some(rows)=declaration.method_definitions.as_ref()else{
+                    // The exact sealed builtin Drop identity is metadata only.
+                    // Its raw None remains Unknown; it cannot donate a method
+                    // definition or obstruct another full user provider owner.
+                    if dynamic_metadata::program_sealed_drop_metadata(semantic,declarations,declaration,b)?{continue;}
+                    return Err(bad("semantic bridge original definitions are Unknown"));
+                };
                 b.spend(rows.len().saturating_add(1))?;
                 for row in rows.iter().filter(|row| row.id == *id) {
                     let Some(DynMemberDeclaration {
