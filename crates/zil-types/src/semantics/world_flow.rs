@@ -318,7 +318,7 @@ fn charge_roots(world: &mut World<'_, '_>, roots: &BTreeSet<arguments::Root>) ->
 // from a real occupant/class, including ancestors of a surviving reborrow.
 #[derive(Default)]
 struct LiveMetadata {
-    values: BTreeSet<ValueId>,
+    values: LiveValues,
     implicit: BTreeSet<u32>,
     pending: VecDeque<LiveNode>,
     track_values: bool,
@@ -326,6 +326,59 @@ struct LiveMetadata {
 enum LiveNode {
     Value(ValueId),
     Implicit(u32),
+}
+// Real SSA ordinals have a dense immutable directory. Out-of-directory
+// historical/foreign heads remain represented exactly in a sparse tail.
+#[derive(Default)]
+struct LiveValues {
+    limit: usize,
+    words: Vec<u64>,
+    overflow: BTreeSet<ValueId>,
+    count: usize,
+}
+impl LiveValues {
+    fn new(world: &mut World<'_, '_>, capacity: usize) -> R<Self> {
+        let words = capacity.saturating_add(63) / 64;
+        world.pay(words)?;
+        Ok(Self {
+            limit: capacity,
+            words: vec![0; words],
+            ..Self::default()
+        })
+    }
+    fn len(&self) -> usize {
+        self.count
+    }
+    fn lookup_work(&self, value: &ValueId) -> usize {
+        if (value.0 as usize) < self.limit {
+            1
+        } else {
+            index::search(self.overflow.len())
+        }
+    }
+    fn contains(&self, value: &ValueId) -> bool {
+        if (value.0 as usize) < self.limit {
+            self.words[value.0 as usize / 64] & (1u64 << (value.0 % 64)) != 0
+        } else {
+            self.overflow.contains(value)
+        }
+    }
+    fn insert(&mut self, world: &mut World<'_, '_>, value: ValueId) -> R<bool> {
+        world.pay(self.lookup_work(&value))?;
+        let new = if (value.0 as usize) < self.limit {
+            let word = &mut self.words[value.0 as usize / 64];
+            let mask = 1u64 << (value.0 % 64);
+            let new = *word & mask == 0;
+            *word |= mask;
+            new
+        } else {
+            self.overflow.insert(value)
+        };
+        if new {
+            self.count += 1;
+        }
+        Ok(new)
+    }
 }
 fn image_value(image: &SemanticClassExpr) -> Option<ValueId> {
     match image {
@@ -342,8 +395,7 @@ fn image_value(image: &SemanticClassExpr) -> Option<ValueId> {
 }
 impl LiveMetadata {
     fn value_id(&mut self, world: &mut World<'_, '_>, value: ValueId) -> R<()> {
-        world.pay(index::search(self.values.len()))?;
-        if self.values.insert(value) && self.track_values {
+        if self.values.insert(world, value)? && self.track_values {
             world.pay(1)?;
             self.pending.push_back(LiveNode::Value(value));
         }
@@ -401,7 +453,10 @@ impl LiveMetadata {
 }
 impl State {
     fn canonicalize(&mut self, world: &mut World<'_, '_>) -> R<()> {
-        let mut live = LiveMetadata::default();
+        let mut live = LiveMetadata {
+            values: LiveValues::new(world, self.values.len())?,
+            ..LiveMetadata::default()
+        };
         world.pay(
             self.values
                 .len()
@@ -454,7 +509,7 @@ impl State {
         live.track_values = true;
         world.pay(heads.len())?;
         for head in heads.keys() {
-            world.pay(index::search(live.values.len()))?;
+            world.pay(live.values.lookup_work(head))?;
             if live.values.contains(head) {
                 world.pay(1)?;
                 live.pending.push_back(LiveNode::Value(*head));
@@ -495,9 +550,11 @@ impl State {
                 .saturating_mul(index::search(live.implicit.len()))
                 .saturating_add(
                     self.reborrows
-                        .len()
-                        .saturating_add(self.value_roots.len())
-                        .saturating_mul(index::search(live.values.len())),
+                        .keys()
+                        .chain(self.value_roots.keys())
+                        .fold(0usize, |work, value| {
+                            work.saturating_add(live.values.lookup_work(value))
+                        }),
                 ),
         )?;
         let before = self
@@ -860,15 +917,25 @@ fn same_value_domain(left: &SemanticTypeValue, right: &SemanticTypeValue) -> R<b
     };
     Ok(left_life == right_life && left_classes == right_classes)
 }
-pub(super) struct Cfg {
+pub(super) struct Shape {
+    source: usize,
     schema: FunctionId,
     blocks: BTreeMap<BlockId, usize>,
     definitions: Vec<usize>,
     dominators: Vec<BTreeSet<usize>>,
     reachable_from: Vec<BTreeSet<usize>>,
+}
+pub(super) struct Cfg {
+    shape: Rc<Shape>,
     instance: SemanticInstanceId,
     seen: Vec<BTreeMap<zil_base::Fingerprint, Vec<usize>>>,
     domains: DomainDigests,
+}
+impl std::ops::Deref for Cfg {
+    type Target = Shape;
+    fn deref(&self) -> &Shape {
+        &self.shape
+    }
 }
 impl Cfg {
     pub fn new(
@@ -881,7 +948,45 @@ impl Cfg {
         {
             return Err(bad("class CFG changes its exact original instance target"));
         }
-        let instance = instance.id;
+        world.pay(index::search(world.cfg_shapes.len()).saturating_add(1))?;
+        let cached = world.cfg_shapes.get(&function.id).cloned();
+        let shape = if let Some(shape) = cached {
+            if shape.source != function as *const TypedFunction as usize {
+                return Err(bad(
+                    "immutable CFG structure changed its actual function owner",
+                ));
+            }
+            shape
+        } else {
+            if world.cfg_shapes.len() >= world.limits.max_functions {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "immutable CFG structure directory exceeded",
+                    None,
+                ));
+            }
+            let shape = Rc::new(Self::build(world, function)?);
+            world.pay(
+                index::search(world.cfg_shapes.len())
+                    .saturating_add(std::mem::size_of::<(FunctionId, Rc<Shape>)>())
+                    .saturating_add(1),
+            )?;
+            world.cfg_shapes.insert(function.id, shape.clone());
+            shape
+        };
+        // These are fresh for each actual instance: no seen state, live root,
+        // ticket, domain equation or protocol outcome crosses this boundary.
+        world.pay(function.blocks.len().saturating_add(2))?;
+        Ok(Self {
+            shape,
+            instance: instance.id,
+            seen: (0..function.blocks.len())
+                .map(|_| BTreeMap::new())
+                .collect(),
+            domains: DomainDigests::default(),
+        })
+    }
+    fn build(world: &mut World<'_, '_>, function: &TypedFunction) -> R<Shape> {
         let schema = function.id;
         let count = function.blocks.len();
         world.pay(
@@ -992,15 +1097,13 @@ impl Cfg {
             }
             reachable_from.push(reached);
         }
-        Ok(Self {
+        Ok(Shape {
+            source: function as *const TypedFunction as usize,
             schema,
             blocks,
             definitions,
             dominators,
             reachable_from,
-            instance,
-            seen: (0..count).map(|_| BTreeMap::new()).collect(),
-            domains: DomainDigests::default(),
         })
     }
     pub fn index(&self, block: BlockId) -> R<usize> {

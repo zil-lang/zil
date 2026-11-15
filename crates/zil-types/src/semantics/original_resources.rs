@@ -20,9 +20,9 @@ impl Check<'_, '_> {
         {
             return Ok(());
         }
-        for premise in self.original_requirements(owner, depth + 1)? {
+        for premise in self.original_requirements(owner, depth + 1)?.iter() {
             self.pay(1, depth)?;
-            let ty = match &premise {
+            let ty = match premise {
                 SemanticRequirementRecipe::Structural {
                     ty,
                     bound:

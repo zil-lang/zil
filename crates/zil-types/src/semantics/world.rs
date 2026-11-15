@@ -92,6 +92,7 @@ struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     types: types::Table,
+    cfg_shapes: BTreeMap<FunctionId, Rc<flow::Shape>>,
     view: super::materialize::ActualDirectory<'a>,
     snapshots: usize,
     snapshot_work: usize,
@@ -4381,6 +4382,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
+        cfg_shapes: BTreeMap::new(),
         view,
         snapshots: 0,
         snapshot_work: 0,
@@ -4583,6 +4585,16 @@ fn program_at(
             let before = *world.left;
             if let Err(mut diagnostic) = world.run(instance) {
                 diagnostic.notes.push(world.work_note());
+                diagnostic.notes.push(format!(
+                    "actual instance directory position {:?} of {}; immutable CFG structures {}",
+                    world
+                        .index
+                        .instances
+                        .get(&instance.id)
+                        .map(|offset| offset + 1),
+                    program.instances.len(),
+                    world.cfg_shapes.len()
+                ));
                 diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}; canonical work {}, digest work {}, immutable where work {}; live normalized equations {} work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata, world.canonical_work, world.key_work, world.where_work, world.same_calls, world.same_work));
                 return Err(diagnostic);
             }

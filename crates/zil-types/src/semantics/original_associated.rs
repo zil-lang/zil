@@ -980,12 +980,12 @@ impl Check<'_, '_> {
         let declared = self.associated_member(&input, member, depth + 1)?;
         // An explicit caller equation remains an original premise; concrete
         // equality of a later instance supplies no such equation.
-        for requirement in self.original_requirements(owner, depth + 1)? {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
             if let SemanticRequirementRecipe::TypeEqual { left, right } = requirement {
-                if &left == projection {
+                if left == projection {
                     return self.resolve(owner, &right, depth + 1);
                 }
-                if &right == projection {
+                if right == projection {
                     return self.resolve(owner, &left, depth + 1);
                 }
             }

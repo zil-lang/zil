@@ -323,9 +323,9 @@ impl Check<'_, '_> {
         if self.copy_type(owner, &ty, depth + 1)? {
             return Ok(true);
         }
-        for requirement in self.original_requirements(owner, depth + 1)? {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
             self.pay(1, depth)?;
-            let premise = match &requirement {
+            let premise = match requirement {
                 SemanticRequirementRecipe::Structural {
                     ty,
                     bound:

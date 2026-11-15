@@ -319,7 +319,7 @@ impl Check<'_, '_> {
                 continue;
             }
             seen.push(current);
-            for requirement in &requirements {
+            for requirement in requirements.iter() {
                 if let SemanticRequirementRecipe::Outlives { longer, shorter } = requirement {
                     if self.same_life(current, longer)? {
                         self.pay(1, depth)?;

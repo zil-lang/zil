@@ -367,7 +367,11 @@ impl Check<'_, '_> {
         &mut self,
         owner: SemanticDefinitionId,
         depth: usize,
-    ) -> R<Vec<SemanticRequirementRecipe>> {
+    ) -> R<std::rc::Rc<Vec<SemanticRequirementRecipe>>> {
+        self.pay(1, depth)?;
+        if let Some(premises) = self.proof.premises.lookup(owner, self.left)? {
+            return Ok(premises);
+        }
         let mut target = Some(owner);
         let mut hops = 0u32;
         let mut requirements = Vec::new();
@@ -431,6 +435,11 @@ impl Check<'_, '_> {
                 .ok_or_else(|| bad("original premise ancestry overflows"))?;
         }
         self.extend_associated_requirements(owner, &mut requirements, depth + 1)?;
+        self.pay(1, depth)?;
+        let requirements = std::rc::Rc::new(requirements);
+        self.proof
+            .premises
+            .remember(owner, &requirements, self.limits, self.left)?;
         Ok(requirements)
     }
     fn trait_application(
@@ -441,16 +450,22 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<SemanticTraitRecipe> {
         let requirements = self.original_requirements(owner, depth + 1)?;
-        let mut selected = None;
-        for requirement in requirements {
+        let mut selected: Option<SemanticTraitRecipe> = None;
+        for requirement in requirements.iter() {
             if let SemanticRequirementRecipe::Trait { ty, application } = requirement {
-                if &ty == self_type && application.declaration == declaration {
-                    if selected.as_ref().is_some_and(|old| old != &application) {
+                if ty == self_type && application.declaration == declaration {
+                    if selected.as_ref().is_some_and(|old| old != application) {
                         return Err(pending(
                             "original method has several distinct trait applications and needs an explicit qualification",
                         ));
                     }
-                    selected = Some(application);
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        application,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    selected = Some(application.clone());
                 }
             }
         }
@@ -1046,14 +1061,14 @@ impl Check<'_, '_> {
             }
             return Ok(());
         }
-        for requirement in self.original_requirements(owner, depth + 1)? {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
             if let SemanticRequirementRecipe::Callable {
                 ty: premise,
                 kind,
                 signature,
             } = requirement
             {
-                if premise == value && compatible(kind, required) {
+                if premise == &value && compatible(*kind, required) {
                     self.compare_callable(&signature, wanted, depth + 1)?;
                     if required == CallableKind::FnOnce
                         && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
@@ -1112,7 +1127,7 @@ impl Check<'_, '_> {
         let value = self.observation_type(owner, value, depth + 1)?;
         let mut selected = self.concrete_callable(&value, depth + 1)?;
         if selected.is_none() {
-            for requirement in self.original_requirements(owner, depth + 1)? {
+            for requirement in self.original_requirements(owner, depth + 1)?.iter() {
                 let candidates = match requirement {
                     SemanticRequirementRecipe::Callable {
                         ty,
@@ -1120,7 +1135,13 @@ impl Check<'_, '_> {
                         signature,
                     } => {
                         self.pay(1, depth)?;
-                        vec![(ty, kind, *signature)]
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            signature.as_ref(),
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                        vec![(ty, *kind, signature.as_ref().clone())]
                     }
                     SemanticRequirementRecipe::ForAll {
                         lifetimes,
@@ -1128,21 +1149,21 @@ impl Check<'_, '_> {
                     } => {
                         self.pay(requirements.len(), depth)?;
                         let mut candidates = Vec::new();
-                        for requirement in requirements {
+                        for requirement in requirements.iter() {
                             if let SemanticRequirementRecipe::Callable {
                                 ty,
                                 kind,
                                 signature,
                             } = requirement
                             {
-                                if ty == value {
+                                if ty == &value {
                                     let signature = substitute::universal_callable(
                                         &signature,
-                                        lifetimes,
+                                        *lifetimes,
                                         self.limits,
                                         self.left,
                                     )?;
-                                    candidates.push((ty, kind, signature));
+                                    candidates.push((ty, *kind, signature));
                                 }
                             }
                         }
@@ -1151,7 +1172,7 @@ impl Check<'_, '_> {
                     _ => Vec::new(),
                 };
                 for (ty, kind, signature) in candidates {
-                    if ty == value {
+                    if ty == &value {
                         if selected.is_some() {
                             return Err(pending(
                                 "original callable has several complete roles and needs an explicit selection",
@@ -1229,7 +1250,7 @@ impl Check<'_, '_> {
     ) -> R<()> {
         let ty = self.resolve(owner, ty, depth + 1)?;
         let application = self.resolve_application(owner, application, depth + 1)?;
-        for requirement in self.original_requirements(owner, depth + 1)? {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
             if matches!(&requirement, SemanticRequirementRecipe::Trait { ty: premise, application: assumed } if premise == &ty && assumed == &application)
             {
                 return Ok(());
@@ -1398,8 +1419,8 @@ impl Check<'_, '_> {
     ) -> R<bool> {
         self.pay(1, depth)?;
         let ty = self.observation_type(owner, ty, depth + 1)?;
-        for requirement in self.original_requirements(owner, depth + 1)? {
-            let premise = match &requirement {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
+            let premise = match requirement {
                 SemanticRequirementRecipe::Structural {
                     ty,
                     bound: DynStructuralBound::StoreElement,
@@ -1443,7 +1464,7 @@ impl Check<'_, '_> {
                     scope: SemanticScopeRef::Ancestor(0),
                     ordinal: reference.ordinal,
                 });
-                for requirement in self.original_requirements(target, depth + 1)? {
+                for requirement in self.original_requirements(target, depth + 1)?.iter() {
                     if matches!(&requirement, SemanticRequirementRecipe::Structural { ty, bound: DynStructuralBound::StoreElement } | SemanticRequirementRecipe::Builtin { ty, trait_kind: SemanticBuiltinTrait::StoreElement } if ty == &original)
                     {
                         return Ok(true);
@@ -1541,7 +1562,7 @@ impl Check<'_, '_> {
                 continue;
             }
             seen.push(current);
-            for requirement in &requirements {
+            for requirement in requirements.iter() {
                 if let SemanticRequirementRecipe::TypeEqual { left, right } = requirement {
                     crate::dyn_metadata::semantic_operand_snapshot(
                         current,
@@ -1624,7 +1645,7 @@ impl Check<'_, '_> {
                 continue;
             }
             seen.push(current);
-            for requirement in &requirements {
+            for requirement in requirements.iter() {
                 if let SemanticRequirementRecipe::LifeEqual { left, right } = requirement {
                     crate::dyn_metadata::semantic_operand_snapshot(
                         left,
@@ -1681,7 +1702,7 @@ impl Check<'_, '_> {
                 continue;
             }
             seen.push(current);
-            for requirement in &requirements {
+            for requirement in requirements.iter() {
                 if let SemanticRequirementRecipe::ConstEqual {
                     carrier: required,
                     left,

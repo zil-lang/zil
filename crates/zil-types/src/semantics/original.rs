@@ -216,6 +216,7 @@ pub(super) struct Proof {
     closed_opaque_domains: BTreeMap<SemanticDefinitionId, bool>,
     pure_queries_ready: bool,
     pure_queries: source_cache::Cache,
+    premises: source_cache::Premises,
     compile_time_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     cleanup_calls: BTreeSet<(SemanticDefinitionId, SemanticSiteId)>,
     pub local_roles: BTreeMap<(SemanticDefinitionId, NodeId), LocalRole>,
@@ -855,8 +856,8 @@ impl<'a> Check<'a, '_> {
         // A declared Copy obligation is about a complete original type. It is
         // equally meaningful for an associated projection or a nominal type;
         // it is not restricted to a bare Type formal's syntax.
-        for requirement in self.original_requirements(owner, depth + 1)? {
-            let premise = match &requirement {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
+            let premise = match requirement {
                 SemanticRequirementRecipe::Structural {
                     ty,
                     bound: DynStructuralBound::Copy,
@@ -5754,6 +5755,7 @@ fn check_requested(
         phase_start.saturating_sub(*check.left),
     );
     let phase_start = *check.left;
+    check.proof.premises.enable(check.left)?;
     protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
     check
         .proof

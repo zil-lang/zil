@@ -94,8 +94,8 @@ impl Check<'_, '_> {
             | SemanticTypeRecipe::AssociatedType { .. }
             | SemanticTypeRecipe::SelfType { .. } => {
                 let mut found = false;
-                for requirement in self.original_requirements(owner, depth + 1)? {
-                    let premise = match &requirement {
+                for requirement in self.original_requirements(owner, depth + 1)?.iter() {
+                    let premise = match requirement {
                         SemanticRequirementRecipe::Structural {
                             ty,
                             bound:
@@ -263,7 +263,7 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::UnresolvedNamed(_) | SemanticTypeRecipe::Unsupported(_) => {
                 return Err(pending(
                     "Value needs its complete original carrier declaration",
-                ))
+                ));
             }
         })
     }
