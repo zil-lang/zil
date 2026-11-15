@@ -30,9 +30,8 @@ impl FrozenContext<'_> {
     }
 }
 fn depth(depth:usize,b:&mut Budget)->Check<()> {b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("frozen query/wrapper structural depth exceeded"));}Ok(())}
-fn expression_pair<'a>(mut source:&'a CoreExpr,actual:&'a SemanticOriginalExpr,annotations:&mut Vec<(&'a Type,&'a SemanticTypeRecipe)>,level:usize,b:&mut Budget)->Check<()> {
+fn expression_pair<'a>(source:&'a CoreExpr,actual:&'a SemanticOriginalExpr,annotations:&mut Vec<(&'a Type,&'a SemanticTypeRecipe)>,level:usize,b:&mut Budget)->Check<()> {
     depth(level,b)?;
-    while let CoreExprKind::CompileTime(value)=&source.kind{b.spend(1)?;source=value;}
     if source.id!=actual.id{return Err(bad("CT wrapper expression identity differs from the actual frozen query payload"));}
     use CoreExprKind as K;
     match (&source.kind,&actual.kind) {
@@ -42,6 +41,10 @@ fn expression_pair<'a>(mut source:&'a CoreExpr,actual:&'a SemanticOriginalExpr,a
         (K::Integer(a),K::Integer(c))|(K::Float(a),K::Float(c))|(K::String(a),K::String(c))|(K::Name(a),K::Name(c))|(K::Character(a),K::Character(c)) if a==c=>b.spend(a.len())?,
         (K::Unary{op:a,operand:x},K::Unary{op:c,operand:y}) if a==c=>expression_pair(x,y,annotations,level+1,b)?,
         (K::Binary{op:a,left:x,right:y},K::Binary{op:c,left:z,right:w}) if a==c=>{expression_pair(x,z,annotations,level+1,b)?;expression_pair(y,w,annotations,level+1,b)?;},
+        // FrozenContext has already selected the one actual outer query's
+        // payload. Nested stage markers retain their own original occurrence
+        // identity and complete subtree; they are not stripped a second time.
+        (K::CompileTime(x),K::CompileTime(y))=>expression_pair(x,y,annotations,level+1,b)?,
         (K::Group(x),K::Group(y))|(K::Try(x),K::Try(y))|(K::Spread(x),K::Spread(y))=>expression_pair(x,y,annotations,level+1,b)?,
         (K::Ascribed{ty:a,value:x},K::Ascribed{ty:c,value:y})|(K::NumericConvert{target:a,value:x},K::NumericConvert{target:c,value:y})|(K::IntegerConvert{target:a,value:x},K::IntegerConvert{target:c,value:y})=>{annotations.push((a,c));expression_pair(x,y,annotations,level+1,b)?;},
         (K::Call{callee:a,arguments:x},K::Call{callee:c,arguments:y})=>{expression_pair(a,c,annotations,level+1,b)?;expressions_pair(x,y,annotations,level+1,b)?;},

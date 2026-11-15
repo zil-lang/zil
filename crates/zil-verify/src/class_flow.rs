@@ -2395,16 +2395,67 @@ fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+/// Thin code has a complete monomorphic data-only signature. It is not an
+/// address, captured environment, borrowed code scheme or a target identity.
+pub(super) fn plain_pointer_type(ty:&Type,b:&mut Budget)->Check<bool>{
+    if !matches!(ty,Type::FunctionPointer{..}){return Ok(false);}
+    resources::charge_payload(ty,b)?;
+    let mut pending=vec![(ty,0usize)];
+    while let Some((ty,depth))=pending.pop(){
+        b.spend(1)?;
+        if depth>b.limits.max_call_depth.min(128){return Err(limit("plain code signature depth exceeded"));}
+        match ty{
+            Type::FunctionPointer{parameters,result}=>{b.spend(parameters.len())?;pending.extend(parameters.iter().map(|ty|(ty,depth+1)));pending.push((result,depth+1));},
+            Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;super::native_values::callback_signature(parameters,result,None)?;b.spend(parameters.len())?;pending.extend(parameters.iter().map(|ty|(ty,depth+1)));pending.push((result,depth+1));},
+            Type::BorrowedStorage{storage,life}=>{
+                if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Ok(false);}
+                pending.push((storage,depth+1));
+            },
+            Type::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));},
+            Type::Record{fields,..}=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|(_,ty)|(ty,depth+1)));},
+            Type::Enum{variants,..}=>{b.spend(variants.len())?;for(_,fields)in variants{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));}},
+            Type::ErrorUnion{error,result}=>pending.extend([(error.as_ref(),depth+1),(result.as_ref(),depth+1)]),
+            Type::Array{element,..}=>pending.push((element,depth+1)),
+            Type::Unit|Type::Bool=>{},
+            ty if ty.is_integer()||ty.is_float()=>{},
+            _=>return Ok(false),
+        }
+    }
+    Ok(true)
+}
+fn plain_pointer_operation(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+    let pointer=match i.kind{
+        InstructionKind::FunctionRef{..}=>i.result.and_then(|result|f.values.get(result.0 as usize)),
+        InstructionKind::CallIndirect{callee,..}=>f.values.get(callee.0 as usize),
+        _=>None,
+    };
+    let Some(pointer)=pointer else{return Ok(false);};
+    if !plain_pointer_type(pointer,b)?{return Ok(false);}
+    let Type::FunctionPointer{parameters,result}=pointer else{unreachable!()};
+    let expected=super::check_instruction(module,f,i,b)?;
+    match(i.result,expected){
+        (None,None)=>{},
+        (Some(result),Some(expected))if f.values.get(result.0 as usize)==Some(&expected)=>{},
+        _=>return Err(bad("plain code operation changes its complete actual result")),
+    }
+    if let InstructionKind::FunctionRef{function}=i.kind{
+        let target=module.functions.get(function.0 as usize).filter(|target|target.id==function).ok_or_else(||bad("plain code exact target is absent"))?;
+        if target.call_kind!=CallKind::Direct||target.environment.is_some()||target.foreign.is_some()||target.callable_contract.is_some()||target.callable_return_contract.is_some()||target.reference_return_bound.is_some()||target.result_mode!=PassingMode::Infer||target.parameters.len()!=parameters.len()||target.return_type!=**result{return Err(bad("plain code changes its exact target's complete Direct signature/role"));}
+        for(local,expected)in target.parameters.iter().zip(parameters){b.spend(1)?;if target.locals.get(local.0 as usize).map(|local|&local.ty)!=Some(expected){return Err(bad("plain code changes an exact target parameter type"));}}
+        if let Some(header)=&target.storage_life{super::signature_life::charge(header,b)?;if !super::tasks::input_scope::empty_relation(header){return Err(bad("plain code erases a target Fixed/Invocation class relation"));}}
+    }
+    Ok(true)
+}
 pub(super) fn pointer_instruction(f: &TypedFunction, i: &Instruction) -> bool {
     match &i.kind {
         InstructionKind::FunctionRef { .. } => i
             .result
             .and_then(|v| f.values.get(v.0 as usize))
-            .is_some_and(|t| matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
+            .is_some_and(|t| matches!(t,Type::FunctionPointer{..})||matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
         InstructionKind::CallIndirect { callee, .. } => f
             .values
             .get(callee.0 as usize)
-            .is_some_and(|t| matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
+            .is_some_and(|t| matches!(t,Type::FunctionPointer{..})||matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
         _ => false,
     }
 }
@@ -2415,6 +2466,7 @@ pub(super) fn pointer_types(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<()> {
+    if plain_pointer_operation(module,f,i,b)?{return Ok(());}
     match &i.kind {
         InstructionKind::FunctionRef { function } => {
             let ty = i

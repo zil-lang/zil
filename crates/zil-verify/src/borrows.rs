@@ -914,9 +914,20 @@ fn reconstruct(
                             {
                                 row.push(Root::Capture(*index));
                             }
-                            InstructionKind::ByteBufferBorrow { buffer, .. }
-                            | InstructionKind::MutexValue { guard: buffer } => {
+                            InstructionKind::ByteBufferBorrow { buffer, .. } => {
                                 roots_join(&mut row, &values[buffer.0 as usize], budget)?;
+                            }
+                            InstructionKind::MutexValue { guard } => {
+                                crate::generic_mutex::instruction(module,f,instruction,budget)?;
+                                // The payload is in the retained manager, not
+                                // in the activation's guard handle. Guard-local
+                                // lifetime/authority remains in the independent
+                                // loan ancestry carried through this projection.
+                                for root in &values[guard.0 as usize]{
+                                    budget.spend(1)?;
+                                    if matches!(root,Root::Local(local)if f.locals.get(local.0 as usize).is_some_and(|local|matches!(local.ty,Type::MutexGuard{..}))){continue;}
+                                    roots_join(&mut row,std::slice::from_ref(root),budget)?;
+                                }
                             }
                             InstructionKind::OwnedStoreBorrow { store, .. }
                             | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
