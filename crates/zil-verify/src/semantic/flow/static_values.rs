@@ -10,7 +10,7 @@ impl CheckedContext {
         let mut matched=false;
         for site in &programme.sites{
             b.spend(1)?;if site.instance!=instance.id{continue;}
-            let SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(mut value),..}=&site.action else{continue;};
+            let &SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(mut value),..}=&site.action else{continue;};
             let mut seen=std::collections::BTreeSet::new();loop{
                 if value==result{break;}b.spend(1)?;if !seen.insert(value){return Err(bad("static literal role contains an actual SSA cycle"));}
                 let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&producer.replace(operation).is_some(){return Err(bad("static literal role has duplicate actual SSA definitions"));}}}
