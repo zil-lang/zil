@@ -5066,3 +5066,6 @@ fn encode_callable_exit(b: &mut impl FingerprintSink, exit: CallableExit) {
         CallableExit::Trap => 1,
     });
 }
+
+#[cfg(test)]
+mod dynamic_recipe_stack;

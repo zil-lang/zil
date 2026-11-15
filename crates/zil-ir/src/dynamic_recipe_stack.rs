@@ -45,7 +45,7 @@ fn raw_metadata_walker_uses_a_bounded_frame_on_a_small_host_stack() {
         .stack_size(256 * 1024)
         .spawn(|| {
             let mut count = Count::default();
-            SemanticTypeRecipe::I32
+            SemanticTypeRecipe::Atom(Type::I32)
                 .visit_dyn_metadata(&mut count, 0)
                 .unwrap();
             count
@@ -53,6 +53,6 @@ fn raw_metadata_walker_uses_a_bounded_frame_on_a_small_host_stack() {
         .unwrap()
         .join()
         .unwrap();
-    assert_eq!(counts.nodes, 1);
+    assert_eq!(counts.nodes, 2);
     assert_eq!(counts.scratch, 96);
 }
