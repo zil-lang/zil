@@ -81,6 +81,7 @@ mod closures;
 mod ct_artifact;
 mod ct_program;
 mod ct_frozen_context;
+mod ct_original;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
@@ -143,6 +144,7 @@ pub use ct_artifact::{
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 pub use ct_frozen_context::verify_ct_program_in_context;
+pub use ct_original::{CtOriginalImport, CtOriginalImportTarget, CtOriginalModule, verify_ct_original_definitions};
 
 /// A checked, immutable scalar/readonly-closure CFG, including independently
 /// reconstructed local shared-address provenance and lifetime constraints.
