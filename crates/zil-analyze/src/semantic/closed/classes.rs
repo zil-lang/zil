@@ -1270,6 +1270,17 @@ impl Check<'_, '_> {
                 if *mutable && !*parent_mutable {
                     return Err(fail("actual reborrow strengthens a shared parent value"));
                 }
+                // The empty domain here is obtained from the actual literal
+                // or its exact transport above. An immutable byte literal
+                // remains immortal when the emitter inserts a shared reborrow.
+                if !*mutable
+                    && original::strings::is_byte_type(&parent.ty)
+                    && parent.ty == *ty
+                    && empty(&parent.life)
+                    && parent.classes.is_empty()
+                {
+                    return Ok(parent);
+                }
                 crate::dyn_metadata::ty(inner, b)?;
                 let output = Type::Address {
                     mutable: *mutable,

@@ -9,6 +9,7 @@ pub(in crate::semantic) struct TraitCall {
     pub(in crate::semantic) method: SemanticDefinitionId,
     pub(in crate::semantic) receiver: Term,
     pub(in crate::semantic) receiver_anchor: Option<LocalAnchor>,
+    receiver_place: Option<Borrow>,
     pub(in crate::semantic) dynamic: Option<bool>,
     pub(in crate::semantic) arguments: Vec<Term>,
     pub(in crate::semantic) method_actuals: Vec<Term>,
@@ -23,6 +24,7 @@ pub(in crate::semantic) struct TraitBoundary {
     pub(in crate::semantic) method: SemanticDefinitionId,
     pub(in crate::semantic) receiver: crate::semantic::value::Value,
     pub(in crate::semantic) receiver_anchor: Option<LocalAnchor>,
+    pub(in crate::semantic) receiver_place: Option<borrow_places::Source>,
     pub(in crate::semantic) dynamic: Option<bool>,
     pub(in crate::semantic) arguments: Vec<crate::semantic::value::Argument>,
     pub(in crate::semantic) method_actuals: Vec<crate::semantic::value::Argument>,
@@ -100,6 +102,23 @@ impl Checked {
             method: call.method,
             receiver: self.value(call.receiver, context, program, inventory, b, 0)?,
             receiver_anchor: call.receiver_anchor,
+            receiver_place: call
+                .receiver_place
+                .as_ref()
+                .map(|source| -> CompileResult<borrow_places::Source> {
+                    b.spend(source.path.len(), WORK)?;
+                    Ok(borrow_places::Source {
+                        anchor: source.anchor,
+                        expression: source.expression,
+                        index: source.index,
+                        root: self.value(source.root, context, program, inventory, b, 0)?,
+                        path: source.path.clone(),
+                        inner: self.value(source.inner, context, program, inventory, b, 0)?,
+                        indirect: source.indirect,
+                        slice: source.slice,
+                    })
+                })
+                .transpose()?,
             dynamic: call.dynamic,
             arguments,
             method_actuals,
@@ -380,11 +399,6 @@ impl Solver<'_, '_> {
         };
         let place = self.place(frame, object, false, b, depth + 1)?;
         let (receiver, actual_receiver, anchor, dynamic) = if let Some(place) = &place {
-            if !place.path.is_empty() {
-                return Err(unknown(
-                    "projected original trait receiver needs its complete physical head relation",
-                ));
-            }
             let actual = self.type_root(place.selected, b)?;
             let (inner, address, dynamic) = match &self.state.arena[actual] {
                 Kind::Address { inner, .. } => {
@@ -405,6 +419,7 @@ impl Solver<'_, '_> {
                     borrowed.owned = false;
                     (self.term(Kind::Dyn(borrowed), b)?, None, Some(true))
                 }
+                _ if !place.path.is_empty() => (actual, None, None),
                 _ => return Ok(None),
             };
             let anchor = place.anchor.ok_or_else(|| {
@@ -443,9 +458,15 @@ impl Solver<'_, '_> {
         let Some((declaration, trait_actuals, member)) = selected else {
             return Ok(None);
         };
-        if place.is_some() {
-            self.place(frame, object, true, b, depth + 1)?;
-        }
+        let receiver_place = if place.as_ref().is_some_and(|place| !place.path.is_empty()) {
+            let place = self.borrow_place(frame, object, b, depth + 1)?;
+            Some(place)
+        } else {
+            if place.is_some() {
+                self.place(frame, object, true, b, depth + 1)?;
+            }
+            None
+        };
         let method =
             trait_members::member_scope(self.program, declaration, member, self.inventory, b)?;
         let (method_actuals, parameters, result) = self.original_method_scheme(
@@ -476,6 +497,38 @@ impl Solver<'_, '_> {
             return Err(fail(
                 "original method argument count differs from its complete signature",
             ));
+        }
+        if let Some(place) = &receiver_place {
+            let Kind::Address {
+                mutable,
+                life,
+                inner,
+            } = self.state.arena[self.type_root(parameters[0], b)?]
+            else {
+                return Err(fail(
+                    "projected original method requires a borrowed receiver",
+                ));
+            };
+            if mutable && !place.mutable {
+                return Err(fail(
+                    "projected original method strengthens its parent place mode",
+                ));
+            }
+            self.unify(inner, place.inner, depth + 1, b)?;
+            // A projected receiver borrows the exact live parent place. Only
+            // the fresh call's outer role is related to that parent head;
+            // its complete selected child type remains an ordinary equation.
+            let head = if place.indirect {
+                let Kind::Address { life, .. } = self.state.arena[self.type_root(place.root, b)?]
+                else {
+                    return Err(fail("projected original receiver loses its parent address"));
+                };
+                life
+            } else {
+                let ordinal = self.borrow_occurrence(frame.definition, object.id, b)?;
+                self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?
+            };
+            self.unify(life, head, depth + 1, b)?;
         }
         if dynamic.is_some() {
             let Kind::Address {
@@ -545,6 +598,16 @@ impl Solver<'_, '_> {
                     method,
                     receiver,
                     receiver_anchor: anchor,
+                    receiver_place: receiver_place.map(|place| Borrow {
+                        anchor: place.anchor,
+                        expression: place.expression,
+                        index: place.index,
+                        root: place.root,
+                        path: place.path,
+                        indirect: place.indirect,
+                        inner: place.inner,
+                        slice: None,
+                    }),
                     dynamic,
                     arguments: trait_actuals,
                     method_actuals,

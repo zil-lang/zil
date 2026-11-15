@@ -352,16 +352,19 @@ impl Check<'_, '_> {
                 .first()
                 .ok_or_else(|| fail("actual trait call omits its receiver"))?;
             let anchored = self.anchored_local(instance, function, anchor, b)?;
-            if self.receiver_local(function, head, b, 0)? != anchored {
+            if let Some(source) = &boundary.receiver_place {
+                self.checked_borrow_place(instance, function, head, source, false, false, b, 0)?;
+            } else if self.receiver_local(function, head, b, 0)? != anchored {
                 return Err(fail(
                     "actual trait invocation takes another original receiver head",
                 ));
             }
         }
-        for ((argument, expected), parameter) in arguments
+        for (ordinal, ((argument, expected), parameter)) in arguments
             .iter()
             .zip(&boundary.parameters)
             .zip(&callee.parameters)
+            .enumerate()
         {
             operations::available_before(
                 function,
@@ -382,7 +385,19 @@ impl Check<'_, '_> {
                     "actual trait invocation changes a complete original argument type",
                 ));
             }
-            if self.uses_full_value(actual, b)? {
+            if ordinal == 0
+                && let Some(source) = &boundary.receiver_place
+            {
+                let required = self.pointee(expected, b)?;
+                if required != source.inner {
+                    return Err(fail(
+                        "projected trait receiver changes its complete child domain",
+                    ));
+                }
+                // checked_borrow_place above proves this precise root/path,
+                // including the whole root classes and real pointer boundary.
+                // The ordinary memory checker independently proves the loan.
+            } else if self.uses_full_value(actual, b)? {
                 let actual = self.ssa_value(instance, function, *argument, b, 0)?;
                 let valid = if matches!(expected.ty, Type::Address { .. }) {
                     self.outer_role(instance, function, &actual, expected, b, 0)?
