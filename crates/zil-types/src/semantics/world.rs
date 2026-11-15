@@ -92,6 +92,7 @@ struct World<'a, 'b> {
     snapshot_work: usize,
     comparisons: usize,
     compare_work: usize,
+    retired_metadata: usize,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -1936,7 +1937,7 @@ impl World<'_, '_> {
                 "defined original body was replaced by an external declaration",
             ));
         }
-        let cfg = flow::Cfg::new(self, instance, f)?;
+        let mut cfg = flow::Cfg::new(self, instance, f)?;
         cfg.check_sites(self, f, &sites)?;
         let mut incoming_roots = BTreeMap::new();
         self.pay(f.parameters.len().saturating_mul(2))?;
@@ -4124,6 +4125,7 @@ fn program_at(
         snapshot_work: 0,
         comparisons: 0,
         compare_work: 0,
+        retired_metadata: 0,
         current_point: None,
     };
     world.pay(
@@ -4312,7 +4314,7 @@ fn program_at(
             );
             let before = *world.left;
             if let Err(mut diagnostic) = world.run(instance) {
-                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work));
+                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata));
                 return Err(diagnostic);
             }
         }

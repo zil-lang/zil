@@ -300,6 +300,262 @@ fn charge_roots(world: &mut World<'_, '_>, roots: &BTreeSet<arguments::Root>) ->
     }
     Ok(())
 }
+// The directory is immutable, but a reaching world must not remember a dead
+// branch's correspondence as live state. Keep every metadata edge reachable
+// from a real occupant/class, including ancestors of a surviving reborrow.
+#[derive(Default)]
+struct LiveMetadata {
+    values: BTreeSet<ValueId>,
+    implicit: BTreeSet<u32>,
+}
+fn image_value(image: &SemanticClassExpr) -> Option<ValueId> {
+    match image {
+        SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Value(value),
+            ..
+        }
+        | SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Value(value),
+            ..
+        } => Some(*value),
+        _ => None,
+    }
+}
+impl LiveMetadata {
+    fn value_id(&mut self, world: &mut World<'_, '_>, value: ValueId) -> R<()> {
+        world.pay(index::search(self.values.len()))?;
+        self.values.insert(value);
+        Ok(())
+    }
+    fn implicit_id(&mut self, world: &mut World<'_, '_>, ordinal: u32) -> R<()> {
+        world.pay(index::search(self.implicit.len()))?;
+        self.implicit.insert(ordinal);
+        Ok(())
+    }
+    fn image(&mut self, world: &mut World<'_, '_>, image: &SemanticClassExpr) -> R<()> {
+        crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+        if let Some(value) = image_value(image) {
+            self.value_id(world, value)?;
+        }
+        if let SemanticClassExpr::Implicit {
+            scope: SemanticScopeRef::Ancestor(0),
+            ordinal,
+        } = image
+        {
+            self.implicit_id(world, *ordinal)?;
+        }
+        Ok(())
+    }
+    fn value(&mut self, world: &mut World<'_, '_>, value: &SemanticTypeValue) -> R<()> {
+        let SemanticTypeValue::Resolved { classes, .. } = value else {
+            return Err(bad("live CFG metadata has an unresolved whole type"));
+        };
+        world.pay(classes.len().saturating_add(1))?;
+        for image in classes {
+            self.image(world, image)?;
+        }
+        Ok(())
+    }
+    fn source(&mut self, world: &mut World<'_, '_>, source: &roles::Source) -> R<()> {
+        world.pay(1)?;
+        if let roles::Source::Class(image) = source {
+            self.image(world, image)?;
+        }
+        Ok(())
+    }
+}
+impl State {
+    fn canonicalize(&mut self, world: &mut World<'_, '_>) -> R<()> {
+        let mut live = LiveMetadata::default();
+        world.pay(
+            self.values
+                .len()
+                .saturating_add(self.locals.len())
+                .saturating_add(self.declared.len()),
+        )?;
+        for (ordinal, value) in self.values.iter().enumerate() {
+            if let Some(value) = value {
+                live.value_id(world, ValueId(ordinal as u32))?;
+                live.value(world, value)?;
+            }
+        }
+        for value in self.locals.iter().flatten().chain(self.declared.values()) {
+            live.value(world, value)?;
+        }
+        for source in self
+            .role_sources
+            .values()
+            .chain(self.value_role_sources.values())
+        {
+            live.source(world, source)?;
+        }
+        loop {
+            let before = live.values.len().saturating_add(live.implicit.len());
+            world.pay(self.implicit.len().saturating_add(self.reborrows.len()))?;
+            for (ordinal, image) in &self.implicit {
+                // Non-SSA formal/environment images are kept conservatively.
+                // Matching an SSA head keeps a correspondence; it never merges
+                // two original ordinals or establishes a class equality.
+                world.pay(
+                    index::search(live.implicit.len())
+                        .saturating_add(index::search(live.values.len())),
+                )?;
+                if live.implicit.contains(ordinal)
+                    || image_value(image).is_none_or(|head| live.values.contains(&head))
+                {
+                    live.implicit_id(world, *ordinal)?;
+                    live.image(world, image)?;
+                }
+            }
+            for (value, edge) in &self.reborrows {
+                world.pay(index::search(live.values.len()))?;
+                if live.values.contains(value) {
+                    live.value_id(world, edge.parent)?;
+                    live.source(world, &edge.source)?;
+                }
+            }
+            let after = live.values.len().saturating_add(live.implicit.len());
+            if after > world.limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "live CFG metadata closure exceeds node limit",
+                    None,
+                ));
+            }
+            if before == after {
+                break;
+            }
+        }
+        world.pay(
+            self.implicit
+                .len()
+                .saturating_mul(index::search(live.implicit.len()))
+                .saturating_add(
+                    self.reborrows
+                        .len()
+                        .saturating_add(self.value_roots.len())
+                        .saturating_mul(index::search(live.values.len())),
+                ),
+        )?;
+        let before = self
+            .implicit
+            .len()
+            .saturating_add(self.reborrows.len())
+            .saturating_add(self.value_roots.len());
+        self.implicit
+            .retain(|ordinal, _| live.implicit.contains(ordinal));
+        self.reborrows
+            .retain(|value, _| live.values.contains(value));
+        self.value_roots
+            .retain(|value, _| live.values.contains(value));
+        let after = self
+            .implicit
+            .len()
+            .saturating_add(self.reborrows.len())
+            .saturating_add(self.value_roots.len());
+        world.retired_metadata = world
+            .retired_metadata
+            .saturating_add(before.saturating_sub(after));
+        Ok(())
+    }
+    fn key(&self, world: &mut World<'_, '_>) -> R<zil_base::Fingerprint> {
+        let mut digest = zil_base::FingerprintBuilder::new();
+        hash_debug(
+            &mut digest,
+            world.left,
+            &(
+                self.schema,
+                self.instance,
+                &self.implicit,
+                &self.vacant_captures,
+                &self.stale_values,
+                &self.stale_locals,
+                &self.scopes,
+                &self.unsafe_regions,
+            ),
+        )?;
+        hash_debug(
+            &mut digest,
+            world.left,
+            &(
+                &self.owners,
+                &self.vacant,
+                &self.role_sources,
+                &self.value_role_sources,
+                &self.reborrows,
+                &self.value_roots,
+                &self.local_roots,
+            ),
+        )?;
+        for cells in [&self.locals, &self.values] {
+            world.pay(cells.len().saturating_add(8))?;
+            digest.update(&cells.len().to_le_bytes());
+            for (ordinal, value) in cells.iter().enumerate() {
+                if let Some(value) = value {
+                    world.pay(8)?;
+                    digest.update(&ordinal.to_le_bytes());
+                    hash_domain(&mut digest, world, value)?;
+                }
+            }
+        }
+        world.pay(self.declared.len().saturating_add(8))?;
+        digest.update(&self.declared.len().to_le_bytes());
+        for (local, value) in &self.declared {
+            world.pay(4)?;
+            digest.update(&local.0.to_le_bytes());
+            hash_domain(&mut digest, world, value)?;
+        }
+        Ok(digest.digest())
+    }
+}
+struct StateDigest<'a> {
+    digest: &'a mut zil_base::FingerprintBuilder,
+    left: &'a mut usize,
+}
+impl std::fmt::Write for StateDigest<'_> {
+    fn write_str(&mut self, value: &str) -> std::fmt::Result {
+        *self.left = self.left.checked_sub(value.len()).ok_or(std::fmt::Error)?;
+        self.digest.update(value.as_bytes());
+        Ok(())
+    }
+}
+fn hash_debug(
+    digest: &mut zil_base::FingerprintBuilder,
+    left: &mut usize,
+    value: &impl std::fmt::Debug,
+) -> R<()> {
+    use std::fmt::Write;
+    write!(&mut StateDigest { digest, left }, "{value:?}").map_err(|_| {
+        Diagnostic::limit(
+            Phase::Types,
+            "canonical CFG state digest work exceeded",
+            None,
+        )
+    })
+}
+fn hash_domain(
+    digest: &mut zil_base::FingerprintBuilder,
+    world: &mut World<'_, '_>,
+    value: &SemanticTypeValue,
+) -> R<()> {
+    let SemanticTypeValue::Resolved { life, classes, .. } = value else {
+        return Err(bad("canonical CFG key has an unresolved whole type"));
+    };
+    world.pay(1)?;
+    if life.binder_count == 0
+        && life.slots.is_empty()
+        && life.retained.is_empty()
+        && life.nominal_arguments.is_empty()
+        && classes.is_empty()
+    {
+        digest.update(&[0]);
+    } else {
+        digest.update(&[1]);
+        charge_value_domain(world, value)?;
+        hash_debug(digest, world.left, &(life, classes))?;
+    }
+    Ok(())
+}
 fn charge_value_domain(world: &mut World<'_, '_>, value: &SemanticTypeValue) -> R<()> {
     let SemanticTypeValue::Resolved { life, classes, .. } = value else {
         return Err(bad("class-flow state retains an unresolved whole type"));
@@ -358,6 +614,7 @@ pub(super) struct Cfg {
     dominators: Vec<BTreeSet<usize>>,
     reachable_from: Vec<BTreeSet<usize>>,
     instance: SemanticInstanceId,
+    seen: Vec<BTreeMap<zil_base::Fingerprint, Vec<usize>>>,
 }
 impl Cfg {
     pub fn new(
@@ -488,6 +745,7 @@ impl Cfg {
             dominators,
             reachable_from,
             instance,
+            seen: (0..count).map(|_| BTreeMap::new()).collect(),
         })
     }
     pub fn index(&self, block: BlockId) -> R<usize> {
@@ -694,7 +952,7 @@ impl Cfg {
         Ok(false)
     }
     pub fn offer(
-        &self,
+        &mut self,
         world: &mut World<'_, '_>,
         source: Option<usize>,
         target: BlockId,
@@ -764,20 +1022,27 @@ impl Cfg {
         state
             .value_role_sources
             .retain(|id, _| state.values[id.0 as usize].is_some());
-        for old in &reaching[index] {
-            world.comparisons = world.comparisons.saturating_add(1);
-            let before = *world.left;
-            let checked = state.same(old, world);
-            world.compare_work = world
-                .compare_work
-                .saturating_add(before.saturating_sub(*world.left));
-            if checked? {
-                return Ok(());
+        state.canonicalize(world)?;
+        let key = state.key(world)?;
+        world.pay(index::search(self.seen[index].len()))?;
+        if let Some(candidates) = self.seen[index].get(&key) {
+            world.pay(candidates.len())?;
+            for ordinal in candidates {
+                world.comparisons = world.comparisons.saturating_add(1);
+                let before = *world.left;
+                let checked = state.same(&reaching[index][*ordinal], world);
+                world.compare_work = world
+                    .compare_work
+                    .saturating_add(before.saturating_sub(*world.left));
+                if checked? {
+                    return Ok(());
+                }
             }
         }
-        world.pay(1)?;
+        world.pay(index::search(self.seen[index].len()).saturating_add(2))?;
         let ordinal = reaching[index].len();
         reaching[index].push(state);
+        self.seen[index].entry(key).or_default().push(ordinal);
         work.push_back((index, ordinal));
         Ok(())
     }
