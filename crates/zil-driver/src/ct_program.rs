@@ -412,7 +412,7 @@ impl Compiler<'_> {
         })
     }
 }
-fn ct_errors(mut errors: Vec<Diagnostic>) -> Vec<Diagnostic> {
+pub(super) fn ct_errors(mut errors: Vec<Diagnostic>) -> Vec<Diagnostic> {
     for d in &mut errors {
         d.phase = Phase::Ct;
         if !d
