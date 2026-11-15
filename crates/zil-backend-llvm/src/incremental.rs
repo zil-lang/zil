@@ -371,9 +371,6 @@ impl Eq for PartitionInput {}
 pub(crate) struct PartitionProduct {
     pub(crate) input: PartitionInput,
     pub(crate) units: Vec<Module>,
-    /// Current validated layout roles, in exactly the same order as units.
-    /// Capture cost selection only; not a preflight or native reuse proof.
-    pub(crate) imported_definitions: Vec<usize>,
     pub(crate) fallback: Option<&'static str>,
     pub(crate) diagnostic: DiagnosticText,
     pub(crate) private_closures: usize,

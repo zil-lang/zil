@@ -21,28 +21,6 @@ use zil_syntax::ParseResult;
 // require at least this much current LIR work per defined function before
 // automatically requesting products. Explicit backend/API requests are separate.
 const MIN_NATIVE_PRODUCT_AVERAGE_LIR_INSTRUCTIONS: usize = 64;
-const IMPORT_NATIVE_PRODUCT_SELECTION: &str = "closed-incremental-import-units-only";
-
-fn finish_native_product_selection(
-    selection: &mut NativeProductSelection,
-    options: &CompileOptions,
-) {
-    finish_native_product_cost_selection(selection);
-    // This selects only the cost domain. Actual import roles are determined
-    // later by the current machine planner, never guessed from LIR names.
-    if selection.reason == "below-minimum-average-lir-work"
-        && options.push_reuse
-        && options.closed_executable
-        && options.incremental_o2
-        && !options.late_closed_executable
-        && options.function_merging == FunctionMerging::Disabled
-        && options.backend == NativeBackend::LlvmApi
-        && options.optimization == Optimization::O2
-    {
-        selection.enabled = true;
-        selection.reason = IMPORT_NATIVE_PRODUCT_SELECTION;
-    }
-}
 
 fn add_native_selection_count(total: &mut usize, amount: usize) -> bool {
     if let Some(next) = total.checked_add(amount) {
@@ -115,7 +93,7 @@ fn select_native_products(
             );
         }
     }
-    finish_native_product_selection(&mut selection, options);
+    finish_native_product_cost_selection(&mut selection);
     selection
 }
 
@@ -1386,8 +1364,6 @@ impl CompilationSession {
         build.incremental_o2 = options.incremental_o2;
         let native_selection = select_native_products(lir.functions, options);
         build.native_products = native_selection.enabled;
-        build.native_products_imports_only =
-            native_selection.reason == IMPORT_NATIVE_PRODUCT_SELECTION;
         build.emission_reuse = options.push_reuse
             && options.backend == NativeBackend::LlvmApi
             && options.optimization == Optimization::O2
