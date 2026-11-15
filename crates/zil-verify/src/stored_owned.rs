@@ -235,6 +235,9 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
     b.spend(module.resources.len())?;
     for resource in &module.resources {
         stored_flow::type_work(&resource.payload, &b.limits.clone(), b)?;
+        // Canonical builtin heap definitions keep their own complete resource
+        // proof. They are not required to be scalar Record Fixed captures.
+        if ordinary_store_value(&resource.payload,b)?||resource.payload==Type::ByteBuffer{continue;}
         if !payload(&resource.payload) {
             return Err(unsupported(
                 "unrelated resource shape is outside owning Fixed integration",
@@ -365,4 +368,27 @@ pub(super) fn ordinary_store_instruction(module:&TypedModule,f:&TypedFunction,i:
     if !ordinary_store_value(candidate,b)?{return Ok(false);}
     crate::check_instruction(module,f,i,b)?;
     Ok(true)
+}
+
+// Canonical ByteBuffer has no stored child domain. This routes its existing
+// ordinary primitive operations without weakening the scalar capture premise.
+pub(super) fn ordinary_byte_value(ty:&Type,b:&mut Budget)->Check<bool>{
+    stored_flow::type_work(ty,&b.limits.clone(),b)?;
+    Ok(matches!(ty,Type::ByteBuffer)||matches!(ty,Type::Managed(inner)|Type::Desc(inner)if inner.as_ref()==&Type::ByteBuffer))
+}
+pub(super) fn ordinary_byte_instruction(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+    let candidate=match &i.kind{
+        InstructionKind::ByteBufferNew=>result(f,i)?,
+        InstructionKind::ByteBufferReserve{buffer,..}|InstructionKind::ByteBufferPush{buffer,..}|InstructionKind::ByteBufferTruncate{buffer,..}|InstructionKind::ByteBufferLen{buffer}|InstructionKind::ByteBufferCapacity{buffer}=>actual(f,*buffer,i.span)?,
+        InstructionKind::DescribeLocal{local:id}|InstructionKind::TakeLocal{local:id}|InstructionKind::DropManaged{local:id}=>local(f,*id,i.span)?,
+        InstructionKind::DescribeCapture{index}|InstructionKind::TakeCapture{index}=>{
+            let closure=f.environment.and_then(|id|module.closures.get(id.0 as usize)).ok_or_else(||bad(i.span,"ordinary byte capture has no actual environment"))?;
+            if Some(closure.id)!=f.environment||closure.function!=f.id{return Err(bad(i.span,"ordinary byte capture selects another entry"));}
+            closure.captures.get(*index as usize).ok_or_else(||bad(i.span,"ordinary byte capture ordinal is absent"))?
+        },
+        InstructionKind::DescribeAddress{..}|InstructionKind::DescribePackageField{..}=>result(f,i)?,
+        _=>return Ok(false),
+    };
+    if !ordinary_byte_value(candidate,b)?{return Ok(false);}
+    crate::check_instruction(module,f,i,b)?;Ok(true)
 }

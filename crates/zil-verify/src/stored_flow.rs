@@ -1670,7 +1670,7 @@ pub(super) fn qualifications(
                     }),
                     _ => false,
                 };
-                let ordinary_store_operation=super::stored_owned::ordinary_store_instruction(module,f,i,b)?;
+                let ordinary_store_operation=super::stored_owned::ordinary_store_instruction(module,f,i,b)?||super::stored_owned::ordinary_byte_instruction(module,f,i,b)?;
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
                 let task_capture_operation = task_address::capture_instruction(module, f, i, b)?;
                 let owned_operation = !ordinary_store_operation && !task_capture_operation
@@ -2711,7 +2711,7 @@ fn seed_payload(
                 heap_element: None,
             });
         }
-        if (replacements::heads(b)||super::stored_owned::ordinary_store_value(ty,b)?)
+        if (replacements::heads(b)||super::stored_owned::ordinary_store_value(ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?)
             && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
         {
             b.spend(1)?;
@@ -3451,7 +3451,7 @@ static_dependency: StaticProvenance::NotStatic,
                     heap_element: None,
                 });
             }
-            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(&f.locals[local.0 as usize].ty,b)?)
+            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(&f.locals[local.0 as usize].ty,b)?||super::stored_owned::ordinary_byte_value(&f.locals[local.0 as usize].ty,b)?)
                 && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
             {
                 b.spend(1)?;
@@ -3467,7 +3467,7 @@ static_dependency: StaticProvenance::NotStatic,
             }
         }
         InstructionKind::DescribePackageField { local, index }
-            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store field description has no result"))?)?,b)?) && i.result.is_some_and(|id|
+            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store field description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte field description has no result"))?)?,b)?) && i.result.is_some_and(|id|
                 matches!(&f.values[id.0 as usize], Type::Desc(payload)
                     if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
@@ -3482,7 +3482,7 @@ static_dependency: StaticProvenance::NotStatic,
             });
         }
         InstructionKind::DescribeCapture { index } => {
-            if super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store capture description has no result"))?)?,b)?{
+            if super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store capture description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte capture description has no result"))?)?,b)?{
                 b.spend(1)?;out.store_description.sources.push(Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Capture(*index),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None});
             }
             b.spend(1)?;
@@ -3522,7 +3522,7 @@ static_dependency: StaticProvenance::NotStatic,
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.replacements || super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store address description has no result"))?)?,b)? || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if b.masked_stored_tasks() || b.replacements || super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store address description has no result"))?)?,b)? || super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte address description has no result"))?)?,b)? || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
@@ -4231,6 +4231,7 @@ static_dependency: StaticProvenance::NotStatic,
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
         }
+        InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}if pure_copy::ordinary_owned_union(f,i,b)?=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
         InstructionKind::BorrowPackageField { local, index, .. }
             if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
@@ -6948,6 +6949,7 @@ fn check_with_mask(
                 false
             };
             if !(super::stored_owned::ordinary_store_value(ty,b)?
+                || super::stored_owned::ordinary_byte_value(ty,b)?
                 || pure_copy::ordinary_owned_value(ty,b)?
                 || byte_value
                 || closed_dyn_value

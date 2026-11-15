@@ -49,6 +49,7 @@ pub(super) fn ordinary_owned_union(
                 .ok_or_else(|| err("ordinary union local absent"))?
                 .ty
         }
+        InstructionKind::DropErrorUnion{local}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning sum cleanup local is absent"))?.ty,
         InstructionKind::ErrorTag { value } => vt(f, *value)?,
         InstructionKind::TakeErrorUnion { value, .. } => vt(f, *value)?,
         InstructionKind::ReadErrorUnion { value, .. } if b.task_failure_carriers => vt(f, *value)?,
@@ -68,6 +69,7 @@ pub(super) fn ordinary_owned_union(
     if !ordinary_union_shape(union, b)? {
         return Ok(false);
     }
+    if matches!(i.kind,InstructionKind::DropErrorUnion{..})&&i.result.is_some(){return Err(err("ordinary owning sum cleanup has a value result"));}
     if let InstructionKind::MakeErrorUnion { is_error, value } = i.kind {
         let arm = if is_error {
             error.as_ref()
@@ -1003,11 +1005,13 @@ fn ordinary_owned_enum(f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<boo
         InstructionKind::MakeVariant{..}=>vt(f,i.result.ok_or_else(||err("ordinary owning enum constructor has no result"))?)?,
         InstructionKind::VariantTag{value}|InstructionKind::ReadVariant{value,..}=>vt(f,*value)?,
         InstructionKind::PlaceTagLocal{local,path}if path.is_empty()=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning enum tag has no local"))?.ty,
+        InstructionKind::DropEnum{local}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning enum cleanup local is absent"))?.ty,
         _=>return Ok(false),
     };
     let Type::Enum{variants,..}=ty else{return Ok(false);};
     type_work(ty,&b.limits.clone(),b)?;
     if ty.is_copy_value()||!ordinary_owned_fields(vec![(ty,0)],b)?{return Ok(false);}
+    if matches!(i.kind,InstructionKind::DropEnum{..}){if i.result.is_some(){return Err(err("ordinary owning enum cleanup has a value result"));}return Ok(true);}
     let output=vt(f,i.result.ok_or_else(||err("ordinary owning enum operation has no result"))?)?;
     match &i.kind{
         InstructionKind::MakeVariant{variant,fields}=>{

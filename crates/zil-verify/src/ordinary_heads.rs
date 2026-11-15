@@ -222,7 +222,7 @@ pub(super) fn body(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> C
         return Ok(false);
     }
     for ty in f.values.iter().chain(f.locals.iter().map(|l| &l.ty)) {
-        if super::stored_owned::ordinary_store_value(ty,b)?{return Ok(false);}
+        if super::stored_owned::ordinary_store_value(ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?{return Ok(false);}
         if !head_type(module, ty, b)? {
             return Ok(false);
         }
