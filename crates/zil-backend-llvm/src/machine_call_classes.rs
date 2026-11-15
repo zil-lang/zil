@@ -191,9 +191,7 @@ fn dependencies(
                     args,
                     vararg,
                 } => {
-                    let Some(&callee) = names.get(name.as_str()) else {
-                        return None;
-                    };
+                    let &callee = names.get(name.as_str())?;
                     let target = functions[callee];
                     if vararg.is_some() || !call_abi(result, result_attrs, args, target) {
                         return None;
