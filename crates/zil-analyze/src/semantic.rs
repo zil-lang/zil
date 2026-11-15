@@ -45,14 +45,8 @@ impl<'a> Inventory<'a> {
         };
         let mut identities = BTreeSet::new();
         for definition in &program.definitions {
-            b.spend(
-                inventory
-                    .definitions
-                    .len()
-                    .saturating_add(identities.len())
-                    .saturating_add(1),
-                WORK,
-            )?;
+            b.lookup(inventory.definitions.len(), WORK)?;
+            b.spend(identities.len().saturating_add(1), WORK)?;
             let identity = &definition.identity;
             b.spend(
                 identity
@@ -88,41 +82,44 @@ impl<'a> Inventory<'a> {
             }
         }
         for instance in &program.instances {
-            b.spend(inventory.instances.len().saturating_add(1), WORK)?;
+            b.lookup(inventory.instances.len(), WORK)?;
             if inventory.instances.insert(instance.id, instance).is_some() {
                 return Err(fail("lexical instance identity is ambiguous"));
             }
         }
         for function in &module.functions {
-            b.spend(inventory.functions.len().saturating_add(1), WORK)?;
+            b.lookup(inventory.functions.len(), WORK)?;
             if inventory.functions.insert(function.id, function).is_some() {
                 return Err(fail("actual function identity is ambiguous"));
             }
         }
         Ok(inventory)
     }
+    #[track_caller]
     fn definition(
         &self,
         id: SemanticDefinitionId,
         b: &mut Budget,
     ) -> CompileResult<&'a SemanticDefinition> {
-        b.spend(self.definitions.len().saturating_add(1), WORK)?;
+        b.lookup(self.definitions.len(), WORK)?;
         self.definitions
             .get(&id)
             .copied()
             .ok_or_else(|| fail("original lexical definition is absent"))
     }
+    #[track_caller]
     fn instance(
         &self,
         id: SemanticInstanceId,
         b: &mut Budget,
     ) -> CompileResult<&'a SemanticInstance> {
-        b.spend(self.instances.len().saturating_add(1), WORK)?;
+        b.lookup(self.instances.len(), WORK)?;
         self.instances
             .get(&id)
             .copied()
             .ok_or_else(|| fail("actual lexical instance is absent"))
     }
+    #[track_caller]
     fn function(
         &self,
         target: &SemanticFunctionTarget,
@@ -131,7 +128,7 @@ impl<'a> Inventory<'a> {
         let SemanticFunctionTarget::Typed(id) = target else {
             return Err(fail("executable program retains a Core function target"));
         };
-        b.spend(self.functions.len().saturating_add(1), WORK)?;
+        b.lookup(self.functions.len(), WORK)?;
         self.functions
             .get(id)
             .copied()

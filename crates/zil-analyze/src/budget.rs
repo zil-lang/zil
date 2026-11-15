@@ -33,6 +33,7 @@ pub(super) struct Budget {
     remaining: usize,
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
+    semantic_cost_sites: BTreeMap<(&'static str, u32), (usize, usize)>,
     // Complete immutable request-local Type lookup only; no domain or runtime
     // qualification is retained here. Hash collisions still compare full IR.
     pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<usize>>)>,
@@ -225,6 +226,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             costs: BTreeMap::new(),
             metadata_costs: BTreeMap::new(),
+            semantic_cost_sites: BTreeMap::new(),
             nominal_zero_instances: None,
             nominal_zero_formed: None,
             physical_slot_paths: BTreeMap::new(),
@@ -439,7 +441,22 @@ impl Budget {
         Ok(copy)
     }
 
+    #[track_caller]
     pub(super) fn spend(&mut self, amount: usize, context: &str) -> CompileResult<()> {
+        if context == "original semantic program inventory" {
+            let caller = std::panic::Location::caller();
+            let key = (caller.file(), caller.line());
+            let key = if self.semantic_cost_sites.contains_key(&key)
+                || self.semantic_cost_sites.len() < 511
+            {
+                key
+            } else {
+                ("", 0)
+            };
+            let row = self.semantic_cost_sites.entry(key).or_default();
+            row.0 = row.0.saturating_add(1);
+            row.1 = row.1.saturating_add(amount);
+        }
         let category =
             if self.costs.contains_key(context) || self.costs.len() < 255 && context.len() <= 128 {
                 context
@@ -476,6 +493,20 @@ impl Budget {
                 ));
             }
             errors[0].notes.extend(self.metadata_cost_notes());
+            let mut sites = self.semantic_cost_sites.iter().collect::<Vec<_>>();
+            sites.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
+            let omitted = sites
+                .iter()
+                .skip(32)
+                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+            errors[0]
+                .notes
+                .push(format!("semantic caller omitted work {omitted}"));
+            for ((file, line), (calls, work)) in sites.into_iter().take(32) {
+                errors[0].notes.push(format!(
+                    "semantic charge caller {file}:{line}: {work} work in {calls} calls"
+                ));
+            }
             return Err(errors);
         };
         self.remaining = remaining;
@@ -509,6 +540,7 @@ impl Budget {
             .collect()
     }
 
+    #[track_caller]
     pub(super) fn product(
         &mut self,
         left: usize,
@@ -533,6 +565,7 @@ impl Budget {
         self.spend(right.len(), context)
     }
 
+    #[track_caller]
     pub(super) fn lookup(&mut self, size: usize, context: &str) -> CompileResult<()> {
         // A bounded tree lookup/insertion visits logarithmically many levels.
         self.spend(size.checked_ilog2().map_or(1, |n| n as usize + 2), context)
