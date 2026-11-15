@@ -78,6 +78,9 @@ fn metadata_cost(
     before: usize,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if !b.cost_profiling() {
+        return result;
+    }
     b.metadata_cost(kind, caller, before);
     result.map_err(|mut errors| {
         for error in &mut errors {

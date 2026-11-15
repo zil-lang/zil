@@ -31,6 +31,7 @@ pub(super) type TaskRetainedSources =
     std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<TaskPortSource>>;
 pub(super) struct Budget {
     remaining: usize,
+    cost_profiling: bool,
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
     semantic_cost_sites: BTreeMap<(&'static str, u32), (usize, usize)>,
@@ -224,6 +225,10 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            cost_profiling: matches!(
+                std::env::var("ZIL_ANALYZE_PROFILE_COSTS").as_deref(),
+                Ok("1")
+            ),
             costs: BTreeMap::new(),
             metadata_costs: BTreeMap::new(),
             semantic_cost_sites: BTreeMap::new(),
@@ -443,69 +448,78 @@ impl Budget {
 
     #[track_caller]
     pub(super) fn spend(&mut self, amount: usize, context: &str) -> CompileResult<()> {
-        if context == "original semantic program inventory" {
-            let caller = std::panic::Location::caller();
-            let key = (caller.file(), caller.line());
-            let key = if self.semantic_cost_sites.contains_key(&key)
-                || self.semantic_cost_sites.len() < 511
+        if self.cost_profiling {
+            if context == "original semantic program inventory" {
+                let caller = std::panic::Location::caller();
+                let key = (caller.file(), caller.line());
+                let key = if self.semantic_cost_sites.contains_key(&key)
+                    || self.semantic_cost_sites.len() < 511
+                {
+                    key
+                } else {
+                    ("", 0)
+                };
+                let row = self.semantic_cost_sites.entry(key).or_default();
+                row.0 = row.0.saturating_add(1);
+                row.1 = row.1.saturating_add(amount);
+            }
+            let category = if self.costs.contains_key(context)
+                || self.costs.len() < 255 && context.len() <= 128
             {
-                key
-            } else {
-                ("", 0)
-            };
-            let row = self.semantic_cost_sites.entry(key).or_default();
-            row.0 = row.0.saturating_add(1);
-            row.1 = row.1.saturating_add(amount);
-        }
-        let category =
-            if self.costs.contains_key(context) || self.costs.len() < 255 && context.len() <= 128 {
                 context
             } else {
                 "other analysis charges"
             };
-        if let Some((calls, work)) = self.costs.get_mut(category) {
-            *calls = calls.saturating_add(1);
-            *work = work.saturating_add(amount);
-        } else {
-            self.costs.insert(category.to_owned(), (1, amount));
+            if let Some((calls, work)) = self.costs.get_mut(category) {
+                *calls = calls.saturating_add(1);
+                *work = work.saturating_add(amount);
+            } else {
+                self.costs.insert(category.to_owned(), (1, amount));
+            }
         }
         let Some(remaining) = self.remaining.checked_sub(amount) else {
             let mut errors = exhausted(context);
-            errors[0].notes.push(format!(
-                "remaining {}; attempted charge {}",
-                self.remaining, amount
-            ));
-            let mut costs = self.costs.iter().collect::<Vec<_>>();
-            costs.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
-            let total = costs
-                .iter()
-                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
-            let omitted = costs
-                .iter()
-                .skip(24)
-                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
-            errors[0].notes.push(format!(
-                "analysis requested work {total}; omitted category work {omitted}"
-            ));
-            for (name, (calls, work)) in costs.into_iter().take(24) {
+            if self.cost_profiling {
                 errors[0].notes.push(format!(
-                    "analysis charge {name}: {work} work in {calls} calls"
+                    "remaining {}; attempted charge {}",
+                    self.remaining, amount
                 ));
-            }
-            errors[0].notes.extend(self.metadata_cost_notes());
-            let mut sites = self.semantic_cost_sites.iter().collect::<Vec<_>>();
-            sites.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
-            let omitted = sites
-                .iter()
-                .skip(32)
-                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
-            errors[0]
-                .notes
-                .push(format!("semantic caller omitted work {omitted}"));
-            for ((file, line), (calls, work)) in sites.into_iter().take(32) {
+                let mut costs = self.costs.iter().collect::<Vec<_>>();
+                costs.sort_by(|left, right| {
+                    right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0))
+                });
+                let total = costs
+                    .iter()
+                    .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+                let omitted = costs
+                    .iter()
+                    .skip(24)
+                    .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
                 errors[0].notes.push(format!(
-                    "semantic charge caller {file}:{line}: {work} work in {calls} calls"
+                    "analysis requested work {total}; omitted category work {omitted}"
                 ));
+                for (name, (calls, work)) in costs.into_iter().take(24) {
+                    errors[0].notes.push(format!(
+                        "analysis charge {name}: {work} work in {calls} calls"
+                    ));
+                }
+                errors[0].notes.extend(self.metadata_cost_notes());
+                let mut sites = self.semantic_cost_sites.iter().collect::<Vec<_>>();
+                sites.sort_by(|left, right| {
+                    right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0))
+                });
+                let omitted = sites
+                    .iter()
+                    .skip(32)
+                    .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+                errors[0]
+                    .notes
+                    .push(format!("semantic caller omitted work {omitted}"));
+                for ((file, line), (calls, work)) in sites.into_iter().take(32) {
+                    errors[0].notes.push(format!(
+                        "semantic charge caller {file}:{line}: {work} work in {calls} calls"
+                    ));
+                }
             }
             return Err(errors);
         };
@@ -519,6 +533,9 @@ impl Budget {
         caller: &'static std::panic::Location<'static>,
         before: usize,
     ) {
+        if !self.cost_profiling {
+            return;
+        }
         let key = (kind, caller.file(), caller.line());
         let key = if self.metadata_costs.contains_key(&key) || self.metadata_costs.len() < 511 {
             key
@@ -530,6 +547,9 @@ impl Budget {
         row.1 = row.1.saturating_add(before.saturating_sub(self.remaining));
     }
     pub(super) fn metadata_cost_notes(&self) -> Vec<String> {
+        if !self.cost_profiling {
+            return Vec::new();
+        }
         let mut rows = self.metadata_costs.iter().collect::<Vec<_>>();
         rows.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
         rows.into_iter()
@@ -538,6 +558,9 @@ impl Budget {
                 format!("metadata caller {kind} {file}:{line}: {work} work in {calls} calls")
             })
             .collect()
+    }
+    pub(super) fn cost_profiling(&self) -> bool {
+        self.cost_profiling
     }
 
     #[track_caller]
