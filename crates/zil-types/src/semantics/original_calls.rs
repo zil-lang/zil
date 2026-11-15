@@ -427,6 +427,55 @@ impl Check<'_, '_> {
             // Closure free semantic operands cross their explicit environment
             // boundary, never a guessed implicit ancestor substitution.
             if definition.kind == SemanticDefinitionKind::Closure {
+                if let Some(parent) = definition.parent {
+                    let empty = BTreeMap::new();
+                    let shift = substitute::Substitution {
+                        frames: &[],
+                        selves: &[],
+                        environments: &[],
+                        implicit: &empty,
+                        invocation: &empty,
+                        shift: 1,
+                    };
+                    let mut equations = Vec::new();
+                    for slot in 0..definition.environment.len() {
+                        self.pay(1, depth)?;
+                        let Some((source_owner, source)) =
+                            self.proof.environments.get(&(id, slot as u32))
+                        else {
+                            continue;
+                        };
+                        if *source_owner != parent {
+                            return Err(bad("original capture premise changes its source owner"));
+                        }
+                        let source = copy_recipe(source, self.limits, self.left)?;
+                        let source = substitute::ty(&source, &shift, self.limits, self.left)?;
+                        equations.push((
+                            source,
+                            SemanticTypeRecipe::Environment {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                ordinal: slot as u32,
+                            },
+                        ));
+                    }
+                    for premise in self.original_requirements(parent, depth + 1)?.iter() {
+                        let premise =
+                            substitute::requirement(premise, &shift, self.limits, self.left)?;
+                        if let Some(premise) =
+                            self.capture_premise(&premise, &equations, depth + 1)?
+                        {
+                            requirements.push(substitute::requirement(
+                                &premise,
+                                &substitute::Substitution {
+                                    shift: hops,
+                                    ..shift
+                                },
+                                self.limits,
+                                self.left,
+                            )?);
+                        }
+                    }
+                }
                 break;
             }
             target = definition.parent;
@@ -441,6 +490,52 @@ impl Check<'_, '_> {
             .premises
             .remember(owner, &requirements, self.limits, self.left)?;
         Ok(requirements)
+    }
+    fn capture_premise(
+        &mut self,
+        premise: &SemanticRequirementRecipe,
+        equations: &[(SemanticTypeRecipe, SemanticTypeRecipe)],
+        depth: usize,
+    ) -> R<Option<SemanticRequirementRecipe>> {
+        self.pay(equations.len().saturating_add(1), depth)?;
+        if let SemanticRequirementRecipe::ForAll {
+            lifetimes,
+            requirements,
+        } = premise
+        {
+            let mut selected = Vec::new();
+            for requirement in requirements {
+                if let Some(requirement) =
+                    self.capture_premise(requirement, equations, depth + 1)?
+                {
+                    selected.push(requirement);
+                }
+            }
+            return Ok(
+                (!selected.is_empty()).then_some(SemanticRequirementRecipe::ForAll {
+                    lifetimes: *lifetimes,
+                    requirements: selected,
+                }),
+            );
+        }
+        let subject = match premise {
+            SemanticRequirementRecipe::Callable { ty, .. }
+            | SemanticRequirementRecipe::Structural { ty, .. }
+            | SemanticRequirementRecipe::Builtin { ty, .. }
+            | SemanticRequirementRecipe::Trait { ty, .. } => ty,
+            _ => return Ok(None),
+        };
+        if !equations.iter().any(|(source, _)| source == subject) {
+            return Ok(None);
+        }
+        // These equations come from the original symbolic creator binding,
+        // never the concrete captured Type or its inferred capabilities.
+        Ok(Some(substitute::requirement_replacing(
+            premise,
+            equations,
+            self.limits,
+            self.left,
+        )?))
     }
     fn trait_application(
         &mut self,
@@ -1062,6 +1157,44 @@ impl Check<'_, '_> {
             return Ok(());
         }
         for requirement in self.original_requirements(owner, depth + 1)?.iter() {
+            if let SemanticRequirementRecipe::ForAll {
+                lifetimes,
+                requirements,
+            } = requirement
+            {
+                self.pay(requirements.len(), depth)?;
+                for requirement in requirements {
+                    let SemanticRequirementRecipe::Callable {
+                        ty: premise,
+                        kind,
+                        signature,
+                    } = requirement
+                    else {
+                        continue;
+                    };
+                    if premise == &value && compatible(*kind, required) {
+                        // Elimination of an independently declared premise is
+                        // separate from rigid introduction of a caller goal.
+                        let signature = substitute::universal_callable(
+                            signature,
+                            *lifetimes,
+                            self.limits,
+                            self.left,
+                        )?;
+                        self.compare_callable(&signature, wanted, depth + 1)?;
+                        if required == CallableKind::FnOnce
+                            && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                            && wanted.call_kind == CallKind::Direct
+                            && !self.cleanup_capability(owner, &value, depth + 1)?
+                        {
+                            return Err(bad(
+                                "original Direct FnOnce universal adaptation lacks synchronous environment teardown",
+                            ));
+                        }
+                        return Ok(());
+                    }
+                }
+            }
             if let SemanticRequirementRecipe::Callable {
                 ty: premise,
                 kind,

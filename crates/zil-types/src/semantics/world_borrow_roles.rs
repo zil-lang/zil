@@ -2,7 +2,7 @@
 //! outlives theorem selects a role; every actual input/projection/alias/Store
 //! operation is authenticated before that role can be observed by consumers.
 use super::*;
-use crate::semantics::original::{BorrowRole, ViewBorrowStepKind};
+use crate::semantics::original::{BorrowRole, ViewBorrowRoot, ViewBorrowStepKind};
 use zil_base::NodeId;
 
 #[derive(Clone, Copy)]
@@ -231,9 +231,12 @@ fn trace(
                 );
             }
             ViewBorrowStepKind::Parameter => {
+                let ViewBorrowRoot::Parameter(parameter) = role.root else {
+                    return Err(bad("projected loan changes its original root kind"));
+                };
                 let local = *function
                     .parameters
-                    .get(role.parameter as usize)
+                    .get(parameter as usize)
                     .ok_or_else(|| bad("projected loan original input is absent"))?;
                 match cursor {
                     Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(actual) if *actual == local) =>
@@ -248,7 +251,36 @@ fn trace(
                 let actual = world.local(locals, local)?;
                 let expected = world.parameter_value(
                     instance.id,
-                    role.parameter as usize,
+                    parameter as usize,
+                    World::type_of(&actual)?,
+                )?;
+                world.same(instance.id, &actual, &expected, implicit)?;
+                reached_input = true;
+            }
+            ViewBorrowStepKind::Local { binding } => {
+                if role.root != ViewBorrowRoot::Local(*binding) {
+                    return Err(bad("projected loan changes its original local root"));
+                }
+                let local = binding_local(world, instance, original, *binding)?;
+                let actual = world.local(locals, local)?;
+                match cursor {
+                    Cursor::Local(found) if found == local => {}
+                    Cursor::Value(value)
+                        if matches!(producer(world, function, value)?.0,
+                        InstructionKind::BorrowLocal { local: found } | InstructionKind::BorrowLocalMut { local: found }
+                        if *found == local) => {}
+                    _ => {
+                        return Err(bad(
+                            "projected local loan lacks its exact actual storage root",
+                        ));
+                    }
+                }
+                let expected = world.ty(
+                    instance.id,
+                    &SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Binding(*binding),
+                    },
                     World::type_of(&actual)?,
                 )?;
                 world.same(instance.id, &actual, &expected, implicit)?;

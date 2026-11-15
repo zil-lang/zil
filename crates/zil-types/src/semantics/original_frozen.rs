@@ -393,7 +393,9 @@ fn clone_proof(
             0,
             limits,
         )?;
-        crate::dyn_metadata::semantic_operand_snapshot(&bound.lifetime, limits, left, 1)?;
+        if let Some(lifetime) = &bound.lifetime {
+            crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
+        }
     }
     for role in source.borrow_roles.values() {
         spend(left, role.steps.len(), 0, limits)?;

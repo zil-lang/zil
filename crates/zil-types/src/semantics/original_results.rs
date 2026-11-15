@@ -8,6 +8,9 @@ pub(crate) struct CalleeResultBoundary {
     pub call: SemanticSiteId,
     pub callee: SemanticDefinitionId,
     pub actuals: Vec<SemanticActualRecipe>,
+    /// Fully solved operands in the original caller domain. These transport
+    /// only the exact call's original parameter occurrences.
+    pub parameters: Vec<SemanticParameterRecipe>,
     /// Complete all-return result in the original callee definition domain.
     pub result: SemanticTypeRecipe,
 }
@@ -423,11 +426,13 @@ impl Proof {
             mapped_actuals.push(self.call_actual(caller, call, ordinal as u32, limits, left)?);
         }
         crate::dyn_metadata::semantic_operand_snapshot(result, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(signature, limits, left, 1)?;
         Ok(Some(CalleeResultBoundary {
             caller,
             call,
             callee,
             actuals: mapped_actuals,
+            parameters: signature.parameters.clone(),
             result: result.clone(),
         }))
     }

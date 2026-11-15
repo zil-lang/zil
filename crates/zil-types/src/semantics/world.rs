@@ -2269,7 +2269,7 @@ impl World<'_, '_> {
                     }
                     _ => None,
                 };
-                let propagated_role = propagated_role
+                let mut propagated_role = propagated_role
                     .map(|source| roles::snapshot_source(source, self.limits, self.left))
                     .transpose()?;
                 let mut propagated_roots = std::collections::BTreeSet::new();
@@ -4089,6 +4089,149 @@ impl World<'_, '_> {
                         InstructionKind::ExtractField { aggregate, index } => {
                             let value = self.get(&values, *aggregate)?;
                             Some(self.field_value(&value, *index)?)
+                        }
+                        InstructionKind::LoadStoredBorrow {
+                            storage: source_storage,
+                            path,
+                            mode,
+                        } => {
+                            let storage = self.get(&values, *source_storage)?;
+                            if !matches!(Self::type_of(&storage)?, Type::Address { .. }) {
+                                return Err(bad("stored leaf read has no actual storage address"));
+                            }
+                            let mut selected = self.pointee(&storage)?;
+                            for step in path {
+                                selected = projection::place(self, &selected, *step)?;
+                            }
+                            let mut leaf_roots = std::collections::BTreeSet::new();
+                            for mut root in arguments::roots(self, *source_storage, &storage)? {
+                                self.pay(root.path.len().saturating_add(path.len()))?;
+                                root.path.extend_from_slice(path);
+                                if root.path.len() > self.limits.max_call_depth
+                                    || self.stale_locals.contains(&root.local)
+                                    || locals
+                                        .get(root.local.0 as usize)
+                                        .and_then(Option::as_ref)
+                                        .is_none()
+                                {
+                                    return Err(bad(
+                                        "stored leaf read has an inactive or excessive actual root",
+                                    ));
+                                }
+                                self.pay(
+                                    self.vacant
+                                        .len()
+                                        .saturating_mul(root.path.len().saturating_add(1)),
+                                )?;
+                                if self.vacant.iter().any(|(local, vacant)| {
+                                    *local == root.local
+                                        && (root.path.starts_with(vacant)
+                                            || vacant.starts_with(&root.path))
+                                }) {
+                                    return Err(bad(
+                                        "stored leaf read uses a vacant actual projection",
+                                    ));
+                                }
+                                leaf_roots.insert(root);
+                            }
+                            match (mode, Self::type_of(&selected)?) {
+                                (
+                                    StoredBorrowLoad::CopyShared,
+                                    Type::Address { mutable: false, .. },
+                                )
+                                | (StoredBorrowLoad::CopyDescription, Type::Desc(_))
+                                | (StoredBorrowLoad::Take, Type::Address { .. } | Type::Desc(_)) => {
+                                }
+                                (
+                                    StoredBorrowLoad::Reborrow { mutable },
+                                    Type::Address {
+                                        mutable: available, ..
+                                    },
+                                ) if !*mutable || *available => {
+                                    let inner = self.pointee(&selected)?;
+                                    propagated_role = Some(roles::outer(self, &selected)?);
+                                    places::borrow_mode(ty, *mutable)?;
+                                    let result = instruction.result.ok_or_else(|| {
+                                        bad("stored reborrow has no actual result")
+                                    })?;
+                                    let image = self.occurrence(f, result)?;
+                                    selected = self.address(
+                                        ty.ok_or_else(|| {
+                                            bad("stored reborrow has no actual type")
+                                        })?,
+                                        image,
+                                        &inner,
+                                    )?;
+                                    propagated_roots = leaf_roots.clone();
+                                }
+                                _ => {
+                                    return Err(bad(
+                                        "stored leaf read changes its exact access mode",
+                                    ));
+                                }
+                            }
+                            if *mode == StoredBorrowLoad::Take {
+                                for root in leaf_roots {
+                                    self.vacant.insert((root.local, root.path));
+                                }
+                            }
+                            // The complete selected leaf carries the retained
+                            // input class, independently of the storage loan.
+                            Some(selected)
+                        }
+                        InstructionKind::StoreStoredBorrow {
+                            storage,
+                            path,
+                            value,
+                        } => {
+                            let parent = self.get(&values, *storage)?;
+                            places::address_mutable(self, &parent, true)?;
+                            let mut selected = self.pointee(&parent)?;
+                            for step in path {
+                                selected = projection::place(self, &selected, *step)?;
+                            }
+                            if !matches!(
+                                Self::type_of(&selected)?,
+                                Type::Address { .. } | Type::Desc(_)
+                            ) {
+                                return Err(bad(
+                                    "stored leaf write does not select an actual borrowed leaf",
+                                ));
+                            }
+                            let actual = self.get(&values, *value)?;
+                            self.same(instance.id, &actual, &selected, &implicit)?;
+                            for mut root in arguments::roots(self, *storage, &parent)? {
+                                self.pay(root.path.len().saturating_add(path.len()))?;
+                                root.path.extend_from_slice(path);
+                                if root.path.len() > self.limits.max_call_depth
+                                    || self.stale_locals.contains(&root.local)
+                                    || locals
+                                        .get(root.local.0 as usize)
+                                        .and_then(Option::as_ref)
+                                        .is_none()
+                                {
+                                    return Err(bad(
+                                        "stored leaf write has an inactive or excessive actual root",
+                                    ));
+                                }
+                                self.pay(
+                                    self.vacant
+                                        .len()
+                                        .saturating_mul(root.path.len().saturating_add(1)),
+                                )?;
+                                if self.vacant.iter().any(|(local, vacant)| {
+                                    *local == root.local
+                                        && vacant != &root.path
+                                        && (root.path.starts_with(vacant)
+                                            || vacant.starts_with(&root.path))
+                                }) {
+                                    return Err(bad(
+                                        "stored leaf write changes a different vacant parent projection",
+                                    ));
+                                }
+                                self.vacant.remove(&(root.local, root.path));
+                            }
+                            None
                         }
                         InstructionKind::ReadPackageField { local, index } => {
                             Some(self.projected_local(

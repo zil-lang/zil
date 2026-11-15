@@ -62,7 +62,7 @@ mod views;
 pub(super) use calls::{CallableCall, MethodCall};
 pub(super) use places::FieldReborrow;
 pub(super) use values::FunctionValue;
-pub(super) use views::{BorrowRole, ViewBorrowStep, ViewBorrowStepKind};
+pub(super) use views::{BorrowRole, ViewBorrowRoot, ViewBorrowStep, ViewBorrowStepKind};
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
 }
@@ -1274,7 +1274,11 @@ impl<'a> Check<'a, '_> {
             let mut replacement = None;
             for (slot, environment) in child.environment.iter().enumerate() {
                 self.pay(1, depth)?;
-                if environment.source == source {
+                let captured_formal = matches!((&source, &environment.source),
+                    (SemanticActualRecipe::Type(formal), SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType { .. }))
+                    if self.proof.environments.get(&(child.id, slot as u32))
+                        .is_some_and(|(owner, original)| *owner == parent && original == formal));
+                if environment.source == source || captured_formal {
                     replacement = Some(match formal {
                         SemanticFormal::Lifetime => {
                             SemanticActualRecipe::Life(SemanticLifeRecipe::Environment {
@@ -2517,6 +2521,15 @@ impl<'a> Check<'a, '_> {
                 kind,
                 signature,
             } => self.callable_requirement(owner, ty, *kind, signature, depth + 1)?,
+            SemanticRequirementRecipe::ForAll { requirements, .. } => {
+                // Introduce this frame rigidly. In particular, do not use the
+                // invocation-instantiation operation here: each Bound role is
+                // arbitrary, and only the candidate's fresh invocation roles
+                // may be solved against it. No goal is installed as a premise.
+                for requirement in requirements {
+                    self.satisfy_requirement(owner, requirement, depth + 1)?;
+                }
+            }
             _ => {
                 // Exact caller premises are assumptions of this original Gamma,
                 // never requirements imported from the callee being checked.
@@ -3464,6 +3477,9 @@ impl<'a> Check<'a, '_> {
                     value.capture = true;
                     value.borrowed = !move_capture;
                     value.observed = false;
+                    // Writes before creation belong to the creator. The child
+                    // independently records writes performed by its own body.
+                    value.written = false;
                     let mut sealed = None;
                     for (slot, formal) in child.environment.iter().enumerate() {
                         if let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {

@@ -1179,7 +1179,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
     if !active && !context_returns {
         return Ok(());
     }
-    receiver_contracts::prepare_creators(module, left)?;
+    receiver_contracts::prepare_creators(module, left, limits)?;
     spend(left, module.functions.len(), Span::default())?;
     let mut summaries = (0..module.functions.len())
         .map(|_| Summary::default())

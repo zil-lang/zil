@@ -303,7 +303,10 @@ impl Check<'_, '_> {
                 else {
                     return Ok(None);
                 };
-                let parameter = bound.parameter;
+                let views::ViewBorrowRoot::Parameter(parameter) = bound.root else {
+                    // A local loan is not a retained caller-input source.
+                    return Ok(None);
+                };
                 let result = self
                     .proof
                     .injections

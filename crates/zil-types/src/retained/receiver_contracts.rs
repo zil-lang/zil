@@ -14,22 +14,73 @@ fn candidate(d: &ClosureDefinition) -> bool {
             .any(|ty| matches!(ty, Type::Address { .. }))
 }
 
-pub(super) fn prepare_creators(module: &mut TypedModule, left: &mut usize) -> R<()> {
+pub(super) fn prepare_creators(
+    module: &mut TypedModule,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<()> {
+    fn captures_data(
+        module: &TypedModule,
+        id: ClosureId,
+        active: &mut BTreeSet<ClosureId>,
+        left: &mut usize,
+        limit: usize,
+    ) -> R<bool> {
+        let d = module.closures.get(id.0 as usize).ok_or_else(|| {
+            unsupported(Span::default(), "creator capture selects an absent closure")
+        })?;
+        spend(left, d.captures.len().saturating_add(1), Span::default())?;
+        if active.len() >= limit || !active.insert(id) {
+            return Err(unsupported(
+                Span::default(),
+                "creator capture graph is cyclic",
+            ));
+        }
+        let mut data = false;
+        for ty in &d.captures {
+            data |= match ty {
+                Type::Address { .. } | Type::BorrowedStorage { .. } => true,
+                Type::Closure(child) => captures_data(module, *child, active, left, limit)?,
+                Type::Managed(payload) => {
+                    matches!(payload.as_ref(), Type::Task { retained_life, .. } if retained_life.binder_count != 0)
+                }
+                _ => false,
+            };
+        }
+        active.remove(&id);
+        Ok(data)
+    }
+    let mut data_captures = BTreeMap::new();
+    for f in &module.functions {
+        if let Some(returned) = &f.callable_return_contract {
+            data_captures.insert(
+                f.id,
+                captures_data(
+                    module,
+                    returned.closure,
+                    &mut BTreeSet::new(),
+                    left,
+                    limits.max_call_depth,
+                )?,
+            );
+        }
+    }
     for f in &mut module.functions {
         let Some(returned) = &f.callable_return_contract else {
             continue;
         };
         let d = &module.closures[returned.closure.0 as usize];
-        let unique_input = f.parameters.iter().filter(|local|
-            matches!(f.locals[local.0 as usize].ty,Type::Address{..})).count()==1;
-        let data_capture = d.captures.iter().any(|ty|matches!(ty,Type::Address{..}));
-        if f.storage_life.is_some() || !(candidate(d) || unique_input && data_capture) {
+        let data_capture = data_captures.get(&f.id).copied().unwrap_or(false);
+        if f.storage_life.is_some() || !(candidate(d) || data_capture) {
             continue;
         }
         // No creator input can ground a data class here. Only the later
         // actual StaticUtf8/capture proof may publish a constant result.
-        if !f.parameters.iter().any(|local|matches!(f.locals[local.0 as usize].ty,Type::Address{..}))
-            && matches!(&d.result,Type::Address{mutable:false,inner}if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8)) {
+        if !f
+            .parameters
+            .iter()
+            .any(|local| matches!(f.locals[local.0 as usize].ty, Type::Address { .. }))
+        {
             continue;
         }
         spend(left, f.parameters.len(), f.span)?;
@@ -95,12 +146,27 @@ pub(super) fn finish(
             ));
         };
         spend(left, origin.inputs.len(), f.span)?;
-        if let Some(life)=&d.storage_life
-            && life.static_bindings.iter().any(|row|row.base==StorageBase::Result) {
-            if origin.local || origin.unknown || origin.receiver || !origin.places.is_empty()
+        if let Some(life) = &d.storage_life
+            && life
+                .static_bindings
+                .iter()
+                .any(|row| row.base == StorageBase::Result)
+        {
+            if origin.local
+                || origin.unknown
+                || origin.receiver
+                || !origin.places.is_empty()
                 || !origin.static_utf8 && origin.inputs.is_empty()
-                || origin.inputs.iter().any(|source|!life.static_bindings.contains(source)) {
-                return Err(error("E-LENDING-ORIGIN",f.span,"constant result retains a nonconstant capture or activation"));
+                || origin
+                    .inputs
+                    .iter()
+                    .any(|source| !life.static_bindings.contains(source))
+            {
+                return Err(error(
+                    "E-LENDING-ORIGIN",
+                    f.span,
+                    "constant result retains a nonconstant capture or activation",
+                ));
             }
             continue;
         }

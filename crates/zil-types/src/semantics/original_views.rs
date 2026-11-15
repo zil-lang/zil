@@ -5,6 +5,9 @@ use super::*;
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum ViewBorrowStepKind {
     Parameter,
+    Local {
+        binding: NodeId,
+    },
     Alias {
         binding: NodeId,
     },
@@ -18,6 +21,11 @@ pub(crate) enum ViewBorrowStepKind {
     },
     Borrow,
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ViewBorrowRoot {
+    Parameter(u32),
+    Local(NodeId),
+}
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ViewBorrowStep {
     pub node: NodeId,
@@ -25,13 +33,13 @@ pub(crate) struct ViewBorrowStep {
 }
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct ViewBorrowBound {
-    pub parameter: u32,
-    pub lifetime: SemanticOuterLifeRecipe,
+    pub root: ViewBorrowRoot,
+    pub lifetime: Option<SemanticOuterLifeRecipe>,
     pub steps: Vec<ViewBorrowStep>,
 }
 #[derive(Clone)]
 pub(crate) struct BorrowRole {
-    pub parameter: u32,
+    pub root: ViewBorrowRoot,
     pub source_lifetime: SemanticOuterLifeRecipe,
     pub target_lifetime: SemanticOuterLifeRecipe,
     pub occurrence_lifetime: SemanticOuterLifeRecipe,
@@ -56,7 +64,9 @@ pub(super) fn snapshot_bound(
         .ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "projected loan source work exceeded", None)
         })?;
-    crate::dyn_metadata::semantic_operand_snapshot(&value.lifetime, limits, left, 1)?;
+    if let Some(lifetime) = &value.lifetime {
+        crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
+    }
     Ok(value.clone())
 }
 impl Check<'_, '_> {
@@ -117,10 +127,13 @@ impl Check<'_, '_> {
                 let Some(binding) = variables.get(name) else {
                     return Ok(());
                 };
-                if binding.origin_owner != owner || binding.mutable || binding.written {
+                if binding.origin_owner != owner {
                     return Ok(());
                 }
                 if let Query::Parameter(parameter) = binding.origin {
+                    if binding.mutable || binding.written {
+                        return Ok(());
+                    }
                     let Some(ty) = self.proof.types.get(&(owner, Query::Parameter(parameter)))
                     else {
                         return Ok(());
@@ -142,8 +155,8 @@ impl Check<'_, '_> {
                         owner,
                         Query::Expression(expression.id),
                         ViewBorrowBound {
-                            parameter,
-                            lifetime,
+                            root: ViewBorrowRoot::Parameter(parameter),
+                            lifetime: Some(lifetime),
                             steps: vec![ViewBorrowStep {
                                 node: expression.id,
                                 kind: ViewBorrowStepKind::Parameter,
@@ -155,6 +168,32 @@ impl Check<'_, '_> {
                 let Query::Binding(binding_node) = binding.origin else {
                     return Ok(());
                 };
+                if !matches!(
+                    binding.ty,
+                    SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+                ) {
+                    // A real local storage root has no caller lifetime theorem.
+                    // Its loan may be shortened within this body, never promoted
+                    // to an arbitrary formal or ancestor lifetime.
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        ViewBorrowBound {
+                            root: ViewBorrowRoot::Local(binding_node),
+                            lifetime: None,
+                            steps: vec![ViewBorrowStep {
+                                node: expression.id,
+                                kind: ViewBorrowStepKind::Local {
+                                    binding: binding_node,
+                                },
+                            }],
+                        },
+                        depth + 1,
+                    );
+                }
+                if binding.mutable || binding.written {
+                    return Ok(());
+                }
                 step = Some(ViewBorrowStepKind::Alias {
                     binding: binding_node,
                 });
@@ -268,10 +307,18 @@ impl Check<'_, '_> {
         };
         let bound = snapshot_bound(bound, self.limits, self.left, depth + 1)?;
         let allowed = match (&bound.lifetime, wanted) {
-            (SemanticOuterLifeRecipe::Static, _) => true,
-            (SemanticOuterLifeRecipe::Class(source), SemanticOuterLifeRecipe::Class(target)) => {
-                self.life_outlives(owner, source, target, depth + 1)?
-            }
+            (
+                None,
+                SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ..
+                }),
+            ) if matches!(bound.root, ViewBorrowRoot::Local(_)) => true,
+            (Some(SemanticOuterLifeRecipe::Static), _) => true,
+            (
+                Some(SemanticOuterLifeRecipe::Class(source)),
+                SemanticOuterLifeRecipe::Class(target),
+            ) => self.life_outlives(owner, source, target, depth + 1)?,
             _ => false,
         };
         if !allowed {
@@ -286,8 +333,8 @@ impl Check<'_, '_> {
         self.proof.proof_mut()?.borrow_roles.insert(
             (owner, expression.id),
             BorrowRole {
-                parameter: bound.parameter,
-                source_lifetime: bound.lifetime,
+                root: bound.root,
+                source_lifetime: bound.lifetime.unwrap_or_else(|| occurrence.clone()),
                 target_lifetime: wanted.clone(),
                 occurrence_lifetime: occurrence.clone(),
                 inner,
