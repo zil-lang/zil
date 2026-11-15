@@ -14,7 +14,7 @@
   "logical_bytes": 4525324818,
   "fresh_verify_receipt": "fresh-restore-receipt.json",
   "fresh_scratch_retired": true,
-  "original_raw_retained": true,
+  "original_raw_retained": false,
   "first_fresh_failure": "fresh-restore-first-failure.json",
   "source_gates": "backend274/driver219/Source9/publication1/strict/fmt/release passed at e677; no LLVM rebuild",
   "performance_status": "Closed-only workflow all108functional cells passed; all51 Rust sustained runtime gates failed. No qualified compile comparison or main adoption. Promising complete-import probe remains diagnostic.",
@@ -34,5 +34,9 @@
   "scope": "Closed-only e677 complete324-request108-cell three-size workflow and all51 source-bound sustained runtime cases, all Rust runtime gates fail; native-source implementation gates/release, original5105 diagnostic policies, first tool false rejection and exact artifact replay, raw failures/probes and bounded full-import diagnostic alternative. No runtime-qualified compile comparisons or main adoption. Full O2/CGU16/jobs1/currentVerify/defaultbudgets retained; LLVM not rebuilt. SDK18/native-link dependency fixed separately.",
   "LLVM_rebuilt": false,
   "main_merge": false,
-  "recovery_limit": "Evidence/binaries; not complete installation. Rebind host paths and restore pinned SDK/native-link/Rust toolchain separately. Host debug/release cleanup and archived historical duplicate retirement are not product disk savings."
+  "recovery_limit": "Evidence/binaries; not complete installation. Rebind host paths and restore pinned SDK/native-link/Rust toolchain separately. Host debug/release cleanup and archived historical duplicate retirement are not product disk savings.",
+  "retired_original_payload_prefixes": [
+    "out/runs/closed-project-window-02/"
+  ],
+  "retirement": "Exact local files rehashed against committed manifest after full fresh verification; complete compressed payload remains at immutable94816f8a3; retirement ledger retained in subsequent full-import recovery."
 }

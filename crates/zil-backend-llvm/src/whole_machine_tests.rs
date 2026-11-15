@@ -807,17 +807,23 @@ fn closed_call_class_policy_switch_cannot_reuse_another_transform_policy() {
     options.object_cache = Some(directory.0.join("call-class-objects"));
     options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
     let mut session = BackendSession::default();
-    for (index, merging) in [
-        FunctionMerging::Disabled,
-        FunctionMerging::Disabled,
-        FunctionMerging::AfterOptimization,
-        FunctionMerging::Disabled,
+    for (index, (value, merging)) in [
+        (42, FunctionMerging::Disabled),
+        (42, FunctionMerging::Disabled),
+        (43, FunctionMerging::Disabled),
+        (42, FunctionMerging::Disabled),
+        (42, FunctionMerging::AfterOptimization),
+        (42, FunctionMerging::Disabled),
     ]
     .into_iter()
     .enumerate()
     {
         options.function_merging = merging;
-        let current = history_fixture(42, 99);
+        let original = history_fixture(value, 99);
+        let mut module = original.module().clone();
+        module.functions[0].span.file = zil_base::FileId(0);
+        module.functions[1].span.file = zil_base::FileId(1);
+        let current = recheck(module, &Limits::default());
         let raw = lir(&current);
         let mut actual = build_view_with_cancellation_and_session(
             &current,
@@ -829,6 +835,30 @@ fn closed_call_class_policy_switch_cannot_reuse_another_transform_policy() {
         )
         .unwrap();
         actual.commit_object_cache();
+        assert_eq!(
+            actual.codegen.actual_units, 2,
+            "pruning retains real empty units"
+        );
+        if merging == FunctionMerging::Disabled {
+            let (checked, cached, removed, retained) = actual.codegen.closed_prune.unwrap();
+            if index == 1 {
+                assert_eq!((checked, cached, removed), (0, 2, 0));
+                assert!(retained > 0);
+            } else {
+                assert!(checked > 0 && removed > 0);
+                assert_eq!((cached, retained), (0, 0));
+            }
+        } else {
+            assert!(actual.codegen.closed_prune.is_none());
+            assert!(
+                session
+                    .partition
+                    .as_ref()
+                    .unwrap()
+                    .closed_prune_removed
+                    .is_none()
+            );
+        }
         assert_eq!(
             session.transformed.as_ref().unwrap().call_classes_enabled,
             merging == FunctionMerging::Disabled

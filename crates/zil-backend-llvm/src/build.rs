@@ -121,11 +121,14 @@ pub struct CodegenSummary {
     /// Completed transformed graph: eligible functions, classes, rewritten calls.
     /// Retained producer properties when backend_work reuses this transform.
     pub call_classes: Option<(usize, usize, usize)>,
+    /// Fresh original-unit checks, exact-input cached units, fresh removals,
+    /// retained producer removals. These are separate from current API preflight.
+    pub closed_prune: Option<(usize, usize, usize, usize)>,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{},\"closed_prune\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.final_artifact
@@ -147,6 +150,9 @@ impl CodegenSummary {
             self.link_tool_identities.to_json(),
             self.call_classes.map_or_else(|| "null".into(), |(functions, classes, calls)| format!(
                 "{{\"eligible_functions\":{functions},\"equivalence_classes\":{classes},\"rewritten_calls\":{calls},\"scope\":\"completed transformed graph; retained on transform reuse\"}}"
+            )),
+            self.closed_prune.map_or_else(|| "null".into(), |(checked, reused, removed, retained)| format!(
+                "{{\"fresh_original_units_checked\":{checked},\"full_input_cached_units\":{reused},\"fresh_removed_definitions\":{removed},\"retained_removed_definitions\":{retained},\"scope\":\"post-internalization local pruning; current API preflight remains separate\"}}"
             ))
         )
     }
@@ -522,12 +528,17 @@ pub fn build_view_with_cancellation_and_session(
         .and_then(|session| session.partition.as_ref())
         .filter(|cached| {
             std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).is_none()
+                && cached.closed_prune_removed.is_some() == call_classes_enabled
                 && Some(&cached.input) == partition_input.as_ref()
         })
         .cloned();
+    let mut closed_prune = None;
     let (plan, llvm, pending_layout, stable_diagnostic, private_closures) = if let Some(cached) =
         cached_partition
     {
+        if let Some(removed) = cached.closed_prune_removed {
+            closed_prune = Some((0, cached.units.len(), 0, removed));
+        }
         if let Some(session) = session.as_deref_mut() {
             session.summary.reused_partition = true;
             session.summary.reused_partition_units = cached.units.len();
@@ -694,6 +705,30 @@ pub fn build_view_with_cancellation_and_session(
         // partition so a cross-unit caller/address retains its canonical symbol.
         let private_closures =
             crate::machine_closure_linkage::internalize(&mut plan.units, lir.closures);
+        if call_classes_enabled {
+            let mut checked = 0;
+            let mut removed = 0;
+            for unit in &mut plan.units {
+                // prune() validates this COMPLETE original unpruned unit before
+                // any nonempty deletion. Its resulting unit still goes through
+                // current API preflight/Builder/full O2/LLVM verification below.
+                let Some(stats) =
+                    crate::machine_closed_prune::prune(unit, cancelled).map_err(api_error)?
+                else {
+                    return Err(vec![Diagnostic::new(
+                        Phase::Link,
+                        ResultCategory::Cancelled,
+                        "E-LLVM-API-CANCELLED",
+                        "native build cancelled during closed-unit pruning",
+                        None,
+                    )]);
+                };
+                checked += usize::from(stats.removed_count != 0);
+                removed += stats.removed_count;
+            }
+            check_cancelled(cancelled)?;
+            closed_prune = Some((checked, 0, removed, 0));
+        }
         if let (Some(session), Some(input)) = (session.as_deref_mut(), partition_input) {
             session.partition = Some(std::sync::Arc::new(crate::incremental::PartitionProduct {
                 input,
@@ -701,6 +736,7 @@ pub fn build_view_with_cancellation_and_session(
                 fallback: plan.fallback,
                 diagnostic: llvm.clone(),
                 private_closures,
+                closed_prune_removed: closed_prune.map(|(_, _, removed, _)| removed),
                 recipe,
             }));
         }
@@ -777,6 +813,7 @@ pub fn build_view_with_cancellation_and_session(
                 stats.rewritten_calls,
             )
         }),
+        closed_prune,
     };
     timings.object_ns += crate::object_cache::elapsed_ns(object_setup_started);
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";

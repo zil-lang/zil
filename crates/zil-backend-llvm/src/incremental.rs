@@ -377,6 +377,9 @@ pub(crate) struct PartitionProduct {
     pub(crate) fallback: Option<&'static str>,
     pub(crate) diagnostic: DiagnosticText,
     pub(crate) private_closures: usize,
+    /// Completed prune result; full PartitionInput/options equality is required
+    /// before these already-checked units can be reused. Never a current proof.
+    pub(crate) closed_prune_removed: Option<usize>,
     pub(crate) recipe: Option<crate::machine_cgu::Recipe>,
 }
 impl PartitionProduct {

@@ -1,0 +1,17 @@
+{
+  "archive_bytes": 894103684,
+  "files": 237708,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 36,
+  "raw_bytes": 4283239606,
+  "restore_dir": "/workspace/zil-recovery/closed-import-fresh-01",
+  "scope": "Complete imports e677 original1000/2500/5105:324workflow requests108functional cells/all51 source-bound sustained Rust gates pass, but compile waiting9.018/11.810/49.025s vsRust8.224/8.917/33.004s; disk boundaries/growth and main5105Expand failure retained. Explicitimports/allCGU16/O2/jobs1/defaultbudgets/currentVerify; unmeasuredfunctionaloraclesjobs8 formalruntime serial. Rejected selective native140 release+24diagnostic requests exactELF pass but no net benefit, reverted a124 with compiler source exactlye677; no broadgate/pairedRust claim for140. All raw negatives/provenance/cleanup retained. SDK18 dependency separate, noLLVMrebuild or main merge.",
+  "sha256": "3dc93f85450c91ba78d33be365da73ae7978109b326a2407074b8a622ed49fce",
+  "source_commits": {
+    "candidate": "e6771892dad0e756f2541364f89dcb30a4ba5cfb",
+    "rejected": "140b00c5ab67b08bbb6cc5dc8e0c734b15a64da8",
+    "rollback": "a124d72f59101a0257e881be7d5f9c19e80520e9",
+    "tools": "94816f8a3efa03ac6011b270f1c87e3d29f361d4"
+  },
+  "status": "verified"
+}

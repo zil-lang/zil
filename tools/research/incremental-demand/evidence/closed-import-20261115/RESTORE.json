@@ -1,0 +1,36 @@
+{
+  "schema": "zil.closed-import-recovery.v1",
+  "compiled_source": "e6771892dad0e756f2541364f89dcb30a4ba5cfb",
+  "binary_sha256": "36d7fd8b667a8db11c59a2e0ff5fc15030b35a5316be0dc9647f6e9055994820",
+  "tool_source": "94816f8a3efa03ac6011b270f1c87e3d29f361d4",
+  "rejected_capture_source": "140b00c5ab67b08bbb6cc5dc8e0c734b15a64da8",
+  "rejected_binary_sha256": "f56b371380744b1a72b99cfa59a5a94cde3884175b2de5347ee39a3b3fc9c3a8",
+  "rollback_source": "a124d72f59101a0257e881be7d5f9c19e80520e9",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "632130554754bb383d7d0d74cb12b43b72e44a9612428242aca94037556b3c2e",
+  "archive_sha256": "3dc93f85450c91ba78d33be365da73ae7978109b326a2407074b8a622ed49fce",
+  "archive_bytes": 894103684,
+  "parts": 36,
+  "regular_files": 237708,
+  "logical_bytes": 4283239606,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "fresh_scratch_retired": true,
+  "original_raw_retained": true,
+  "scope": "Complete imports e677 original1000/2500/5105:324workflow requests108functional cells/all51 source-bound sustained Rust gates pass, but compile waiting9.018/11.810/49.025s vsRust8.224/8.917/33.004s; disk boundaries/growth and main5105Expand failure retained. Explicitimports/allCGU16/O2/jobs1/defaultbudgets/currentVerify; unmeasuredfunctionaloraclesjobs8 formalruntime serial. Rejected selective native140 release+24diagnostic requests exactELF pass but no net benefit, reverted a124 with compiler source exactlye677; no broadgate/pairedRust claim for140. All raw negatives/provenance/cleanup retained. SDK18 dependency separate, noLLVMrebuild or main merge.",
+  "main_merge": false,
+  "LLVM_rebuilt": false,
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/closed-import-20261115",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "dependencies": {
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "closed_only_all_raw_failures": "https://github.com/zil-lang/zil/blob/94816f8a3efa03ac6011b270f1c87e3d29f361d4/tools/research/incremental-demand/evidence/closed-project-negative-20261115/RESTORE.json"
+  },
+  "recovery_limit": "Evidence and immutable compiler binaries, not an installation. Restore SDK18/native-link/Rust separately and rebind absolute paths. Archived historical duplicates/host Cargo artifacts retired only with complete file hashes; never count this as product disk savings."
+}
