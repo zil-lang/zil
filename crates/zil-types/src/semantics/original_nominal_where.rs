@@ -609,7 +609,7 @@ mod request_tests {
     use super::*;
     fn id(index: u32) -> SemanticDefinitionId {
         SemanticDefinitionId {
-            module: ModuleId(0),
+            module: zil_base::ModuleId(0),
             index,
         }
     }
