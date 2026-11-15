@@ -105,7 +105,7 @@ impl CheckedOriginal {
         let definition=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&definition.body else{return Err(bad("slice length has no complete original body"));};
         b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;let mut uses=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|row|matches!(row.kind,SemanticSiteRecipeKind::OriginalCall));let site=uses.next().ok_or_else(||bad("slice length has no exact original Call occurrence"))?;if uses.next().is_some(){return Err(bad("slice length original Call occurrence is ambiguous"));}
         let mut source=object.as_ref();while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&source.kind{source=inner;}
-        let buffer=if self.value_places.contains_key(&(env.current()?,source.id)){Some(self.operation_source(source,env,bindings,b)?)}else{None};
+        let buffer=if self.value_places.contains_key(&(env.current()?,source.id)){Some(self.operation_source(module,source,env,bindings,b)?)}else{None};
         self.intrinsic_type_sources.insert((env.current()?,site.id,0),source.id);
         self.intrinsic_calls.insert((env.current()?,site.id),Use{kind:Intrinsic::SliceLen,buffer,worker:None,providers:None});
         self.execute_effect(env,CallKind::Direct,b)?;Ok(Some(Ty::Atom(Type::I64)))

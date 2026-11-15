@@ -317,7 +317,7 @@ impl CheckedOriginal {
                     return Err(bad("guard operation has another complete guard type"));
                 };
                 mixed.push(Arg::Type(*child.clone()));
-                use_.buffer = Some(self.operation_source(&arguments[0], env, bindings, b)?);
+                use_.buffer = Some(self.operation_source(module,&arguments[0], env, bindings, b)?);
                 if kind == Intrinsic::MutexValue {
                     Ty::Address {
                         mutable: true,
@@ -541,6 +541,7 @@ impl CheckedOriginal {
     }
     pub(super) fn operation_source(
         &self,
+        module:&TypedModule,
         expression: &SemanticOriginalExpr,
         env: &Env,
         bindings: &BTreeMap<String, Binding>,
@@ -593,10 +594,12 @@ impl CheckedOriginal {
                     });
                 }
                 _ => {
-                    return Err(unsupported(
-                        "operation projected owner needs its complete original typed path bridge",
-                        None,
-                    ));
+                    // A resource field reached through a borrowed product
+                    // has a complete observation path, but no movable Place.
+                    // Its actual descriptor must separately prove that exact
+                    // address/field chain and its original lexical root.
+                    self.address_place(module,env.current()?,node.id,b)?;
+                    return Ok(BufferSource::Address{definition:env.current()?,node:node.id});
                 }
             }
         }
@@ -616,7 +619,7 @@ impl CheckedOriginal {
         if let Some(place) = place {
             self.read_original(module, context, &place, &value, env, false, active, b)?;
         }
-        let source=self.operation_source(expression, env, bindings, b)?;
+        let source=self.operation_source(module,expression, env, bindings, b)?;
         let effective=self.observed_argument(expression,&value,env,b)?;
         Ok((effective,source))
     }

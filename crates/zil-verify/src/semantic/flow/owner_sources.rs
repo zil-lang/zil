@@ -7,7 +7,12 @@ use zil_base::NodeId;
 
 impl CheckedContext{
     pub(super) fn address_place_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
-        self.original_projection_source(module,caller,f,value,definition,node,false,b)
+        // A borrowed product field may be observed as a descriptor either by
+        // DescribeAddress of its Managed head, or by reading a stored Desc.
+        // The raw producers and exact original ordered path below prove each
+        // of these roles; no descriptor is promoted to an owning position.
+        let observed=matches!(f.values.get(value.0 as usize),Some(Type::Desc(_)));
+        self.original_projection_source(module,caller,f,value,definition,node,observed,b)
     }
     #[allow(clippy::too_many_arguments)]
     fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
@@ -21,6 +26,7 @@ impl CheckedContext{
                 let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
                 if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
                 if read_value&&let InstructionKind::ReadAddress{address}=instruction.kind{value=address;continue;}
+                if read_value&&let InstructionKind::DescribeAddress{address}=instruction.kind{value=address;continue;}
                 match (projection,&instruction.kind){
                     (AddressProjection::Field(name),InstructionKind::AddressField{address,index})=>{
                         let ty=f.values.get(address.0 as usize).ok_or_else(||bad("indirect field parent has no actual type"))?;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;value=*address;

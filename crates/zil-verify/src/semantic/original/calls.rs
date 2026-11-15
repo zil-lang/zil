@@ -226,17 +226,118 @@ impl CheckedOriginal {
         match requirement {
             SemanticRequirementRecipe::TypeEqual{left,right}=>{let left=self.ty(module,context,left,target,active,b)?;let right=self.ty(module,context,right,target,active,b)?;if !self.same(&left,&right,b)?{return Err(bad("original caller does not prove target TypeEqual requirement"));}Ok(())},
             SemanticRequirementRecipe::LifeEqual{left,right}=>{let left=self.life(module,context,left,target,active,b)?;let right=self.life(module,context,right,target,active,b)?;if self.same_life(&left,&right,b)?{Ok(())}else{Err(bad("original caller does not prove the target lifetime equality"))}},
-            SemanticRequirementRecipe::Callable{ty,signature,kind}=>{
-                let receiver=self.ty(module,context,ty,target,active,b)?;let receiver=self.resolved(&receiver,b)?;let wanted=self.signature(module,context,signature,target,active,b)?;
-                let actual=match &receiver{Ty::Closure(id,..)=>self.prototypes.get(id).cloned(),Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>Some(Prototype{parameters:parameters.clone(),result:*result.clone(),environment:caller.clone(),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes,premise_bounds:vec![],callable_kind:None}),_=>self.callable_premise(module,context,&receiver,caller,active,b)?}.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?;
-                if !callable_accepts(actual.callable_kind,*kind){return Err(unsupported("original Callable source capability is not independently established",None));}
-                if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}let(parameters,result)=self.callable_signature_types(&actual,&wanted,b)?;for(actual,wanted)in parameters.iter().zip(&wanted.parameters){if !self.same(actual,wanted,b)?{return Err(bad("original Callable requirement parameters lack their original relation"));}}if !self.same(&result,&wanted.result,b)?{return Err(bad("original Callable requirement result lacks its original relation"));}Ok(())
+            SemanticRequirementRecipe::Callable{ty,signature,kind}=>self.callable_goal(module,context,ty,signature,*kind,target,caller,active,b),
+            SemanticRequirementRecipe::ForAll{lifetimes,requirements}=>{
+                let mut selected=self.copy_environment(target,b)?;
+                let mut evidence=self.copy_environment(caller,b)?;
+                if *lifetimes!=0{
+                    let token=active.fresh(b)?;b.spend((*lifetimes as usize).saturating_mul(2).saturating_add(2))?;
+                    let rigid=(0..*lifetimes).map(|index|Life::Bound(token,index)).collect::<Vec<_>>();
+                    selected.bounds.insert(0,rigid.clone());evidence.bounds.insert(0,rigid);
+                }
+                // Universal introduction adds only fresh rigid names, never
+                // the target's unproved requirements as caller assumptions.
+                let proof=self.copy_environment(&evidence,b)?;
+                let previous=self.premise_environment.replace(proof);
+                let result=(||{for requirement in requirements{self.obligation(module,context,requirement,&selected,&evidence,active,b)?;}Ok(())})();
+                self.premise_environment=previous;result
             },
             SemanticRequirementRecipe::Trait{ty,application}=>{let receiver=self.ty(module,context,ty,target,active,b)?;let mut arguments=Vec::new();for argument in &application.arguments{arguments.push(self.actual(module,context,argument,target,active,b)?);}self.original_trait_obligation(module,context,&receiver,application.declaration,&arguments,caller,active,b)},
             SemanticRequirementRecipe::Structural{ty,bound}=>{let ty=self.ty(module,context,ty,target,active,b)?;self.structural_obligation(module,context,&ty,*bound,caller,active,b)},
             SemanticRequirementRecipe::Builtin{ty,trait_kind}=>{let ty=self.ty(module,context,ty,target,active,b)?;let bound=match trait_kind{SemanticBuiltinTrait::Copy=>DynStructuralBound::Copy,SemanticBuiltinTrait::Value=>DynStructuralBound::Value,SemanticBuiltinTrait::SyncDrop=>DynStructuralBound::SyncDrop,SemanticBuiltinTrait::StoreElement=>DynStructuralBound::StoreElement,_=>return self.builtin_obligation(module,context,&ty,*trait_kind,caller,active,b)};self.structural_obligation(module,context,&ty,bound,caller,active,b)},
             _=>Err(unsupported("original requirement has no complete symbolic caller proof",None)),
         }
+    }
+}
+
+#[cfg(test)]
+mod quantified_goal_tests{
+    use super::*;
+    fn address(life:Life,inner:Ty)->Ty{Ty::Address{mutable:false,life,inner:Box::new(inner)}}
+    #[test]
+    fn universal_callable_goal_solves_only_explicit_private_call_roles(){
+        let mut checked=CheckedOriginal::default();let mut budget=Budget::new(&Limits::default());
+        let private=checked.fresh_life(&mut budget).unwrap();
+        let flexible=BTreeSet::from([private.clone()]);
+        let goal=Life::Bound(FrameToken(900),0);
+        let other_goal=Life::Bound(FrameToken(900),1);
+        let retained=Life::Formal(SemanticDefinitionId{module:zil_base::ModuleId(0),index:4},0);
+        let scalar=Ty::Atom(Type::I32);
+        checked.callable_goal_type(&address(private.clone(),scalar.clone()),&address(goal.clone(),scalar.clone()),&flexible,&mut budget).unwrap();
+        assert_eq!(checked.resolved_life(&private,&mut budget).unwrap(),goal);
+        // One private variable cannot satisfy two independent goal roles.
+        assert!(checked.callable_goal_type(&address(private,scalar.clone()),&address(other_goal.clone(),scalar.clone()),&flexible,&mut budget).is_err());
+        for fixed in [Life::Static,retained.clone(),Life::Bound(FrameToken(901),0)]{
+            assert!(checked.callable_goal_type(&address(fixed,scalar.clone()),&address(other_goal.clone(),scalar.clone()),&flexible,&mut budget).is_err());
+        }
+        assert_eq!(checked.resolved_life(&retained,&mut budget).unwrap(),retained);
+        let a=SemanticDefinitionId{module:zil_base::ModuleId(0),index:7};
+        let z=SemanticDefinitionId{module:zil_base::ModuleId(1),index:7};
+        assert!(checked.callable_goal_type(&Ty::Variable(a,0),&Ty::Variable(z,0),&flexible,&mut budget).is_err());
+        let constant=|owner|Ty::Nominal(a,vec![Arg::Const(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Variable(owner,0)})]);
+        assert!(checked.callable_goal_type(&constant(a),&constant(z),&flexible,&mut budget).is_err());
+        assert!(checked.substitutions.is_empty());
+    }
+}
+
+impl CheckedOriginal{
+    #[allow(clippy::too_many_arguments)]
+    fn callable_goal(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&SemanticTypeRecipe,signature:&SemanticSignatureRecipe,kind:CallableKind,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+        let receiver=self.ty(module,context,receiver,target,active,b)?;let receiver=self.resolved(&receiver,b)?;
+        let wanted=self.signature(module,context,signature,target,active,b)?;
+        let (actual,owner)=match &receiver{
+            Ty::Closure(id,actuals,sealed)=>{
+                if !self.checked.contains(id){return Err(bad("original Callable source body is not independently complete"));}
+                let prototype=self.prototypes.get(id).cloned().ok_or_else(||bad("original Callable source lacks its complete prototype"))?;
+                let mut selected=self.environment(module,context,*id,active,b)?;
+                selected.lexical[0].actuals=self.resolve_arguments(actuals,0,b)?;
+                selected.lexical[0].environment=self.resolve_arguments(sealed,0,b)?;
+                (self.specialize_code_prototype(&prototype,&selected,b)?,Some(*id))
+            },
+            Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{
+                let capability=match kind{SemanticCodeKind::FunctionPointer|SemanticCodeKind::BorrowedFunctionPointer=>Some(CallableKind::FunctionPointer),SemanticCodeKind::ForeignCallback=>None};
+                (Prototype{parameters:parameters.clone(),result:*result.clone(),environment:self.copy_environment(caller,b)?,modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes,premise_bounds:vec![],callable_kind:capability},None)
+            },
+            _=>(self.callable_premise(module,context,&receiver,caller,active,b)?.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?,None),
+        };
+        if !callable_accepts(actual.callable_kind,kind){return Err(unsupported("original Callable source capability is not independently established",None));}
+        if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}
+        // Universal elimination instantiates only this source code scheme's
+        // private roles. All caller and retained identities stay rigid.
+        let (actual,roles)=self.instantiate_prototype_roles(&actual,owner,&actual.environment,b)?;
+        b.spend(roles.len())?;let flexible=roles.values().cloned().collect::<BTreeSet<_>>();
+        // Explicit code coordinates keep their kinds and ordinals. They
+        // cannot trade places with one another merely because unification of
+        // their physical argument occurrences would otherwise be possible.
+        for(source,goal)in actual.environment.invocation.iter().zip(&wanted.environment.invocation){self.unify_life(source,goal,b)?;}
+        if actual.bound_lifetimes!=0{
+            let source=actual.environment.bounds.first().ok_or_else(||bad("Callable goal source loses its own Bound frame"))?;
+            let goal=wanted.environment.bounds.first().ok_or_else(||bad("Callable goal target loses its own Bound frame"))?;
+            if source.len()!=actual.bound_lifetimes as usize||goal.len()!=wanted.bound_lifetimes as usize{return Err(bad("Callable goal has an incomplete own Bound coordinate directory"));}
+            for(source,goal)in source.iter().zip(goal){self.unify_life(source,goal,b)?;}
+        }
+        for(actual,wanted)in actual.parameters.iter().zip(&wanted.parameters){
+            let actual=self.normalize_original_type(module,context,actual,caller,active,b)?;
+            let wanted=self.normalize_original_type(module,context,wanted,caller,active,b)?;
+            self.callable_goal_type(&actual,&wanted,&flexible,b)?;
+        }
+        let actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
+        let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
+        self.callable_goal_type(&actual,&wanted,&flexible,b)
+    }
+    fn callable_goal_type(&mut self,actual:&Ty,wanted:&Ty,flexible:&BTreeSet<Life>,b:&mut Budget)->Check<()>{
+        let mut sources=Vec::new();let mut goals=Vec::new();
+        // Compare complete non-life structure, then discharge every original
+        // life occurrence in order. Erasing the scaffold grants no equality.
+        let source_shape=self.map_invocation_type(actual,&mut |life,b|{b.spend(1)?;sources.push(life.clone());Ok(Life::Static)},0,b)?;
+        let goal_shape=self.map_invocation_type(wanted,&mut |life,b|{b.spend(1)?;goals.push(life.clone());Ok(Life::Static)},0,b)?;
+        if sources.len()!=goals.len()||!self.same(&source_shape,&goal_shape,b)?{return Err(bad("original Callable requirement changes its complete rigid Type/Const structure"));}
+        for(source,goal)in sources.iter().zip(&goals){
+            b.spend(flexible.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
+            if flexible.contains(source){self.unify_life(source,goal,b)?;}
+            else if !self.same_life(source,goal,b)?{return Err(bad("original Callable requirement changes a rigid caller or retained lifetime"));}
+        }
+        Ok(())
     }
 }
 

@@ -9,6 +9,9 @@ impl CheckedOriginal {
         self.instantiate_prototype(&prototype,Some(target),selected,b)
     }
     pub(super) fn instantiate_prototype(&mut self,prototype:&Prototype,owner:Option<SemanticDefinitionId>,selected:&Env,b:&mut Budget)->Check<Prototype>{
+        self.instantiate_prototype_roles(prototype,owner,selected,b).map(|(prototype,_)|prototype)
+    }
+    pub(super) fn instantiate_prototype_roles(&mut self,prototype:&Prototype,owner:Option<SemanticDefinitionId>,selected:&Env,b:&mut Budget)->Check<(Prototype,BTreeMap<Life,Life>)>{
         let mut candidates=BTreeSet::new();
         self.private_prototype_frames(prototype,b)?;
         b.spend(prototype.environment.invocation.len().saturating_add(1))?;
@@ -29,7 +32,7 @@ impl CheckedOriginal {
         let mut premise_bounds=Vec::new();for frame in &prototype.premise_bounds{let mut values=Vec::new();for life in frame{values.push(rewrite(life,b)?);}premise_bounds.push(values);}
         let mut parameters=Vec::new();for ty in &prototype.parameters{let ty=self.map_invocation_type(ty,&mut rewrite,0,b)?;parameters.push(self.apply_type(&ty,selected,b)?);}
         let result=self.map_invocation_type(&prototype.result,&mut rewrite,0,b)?;
-        Ok(Prototype{parameters,result:self.apply_type(&result,selected,b)?,environment,modes:prototype.modes.clone(),result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:prototype.bound_lifetimes,invocation_lifetimes:prototype.invocation_lifetimes,premise_bounds,callable_kind:prototype.callable_kind})
+        Ok((Prototype{parameters,result:self.apply_type(&result,selected,b)?,environment,modes:prototype.modes.clone(),result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:prototype.bound_lifetimes,invocation_lifetimes:prototype.invocation_lifetimes,premise_bounds,callable_kind:prototype.callable_kind},map))
     }
     fn private_prototype_frames<'a>(&self,prototype:&'a Prototype,b:&mut Budget)->Check<Vec<&'a [Life]>>{
         if prototype.environment.invocation.len()!=prototype.invocation_lifetimes as usize{return Err(bad("original prototype lacks its complete Invocation directory"));}
