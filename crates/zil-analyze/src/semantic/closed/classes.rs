@@ -1003,51 +1003,87 @@ impl Check<'_, '_> {
         Ok(result)
     }
 
-    pub(super) fn capture_class_header(
+    pub(super) fn capture_class_headers(
         &self,
         contract: &StorageLifeContract,
         capture: u32,
         value: &Value,
         class: u32,
         b: &mut Budget,
-    ) -> CompileResult<(usize, bool, StorageBinder)> {
+    ) -> CompileResult<Vec<(usize, bool, StorageBinder)>> {
         let outer = matches!(value.ty, Type::Address { .. } | Type::Desc(_));
-        let mut path: &[LifeTypeProjection] = &[];
-        let mut child = class;
+        let mut selected = Vec::new();
+        let mut children = Vec::new();
         if outer {
             let [slot] = value.life.slots.as_slice() else {
                 return Err(fail("captured head loses its complete outer occurrence"));
             };
-            if !slot.path.is_empty() { return Err(fail("captured head has a projected outer occurrence")); }
+            if !slot.path.is_empty() {
+                return Err(fail("captured head has a projected outer occurrence"));
+            }
             if slot.binder == class {
-                let mut selected = None;
+                let mut head = None;
                 for (index, row) in contract.bindings.iter().enumerate() {
                     b.spend(row.position.path.len().saturating_add(1), WORK)?;
-                    if row.position.base == StorageBase::Capture(capture) && row.position.path.is_empty()
-                        && selected.replace((index, true, row.binder)).is_some()
-                    { return Err(fail("captured outer head repeats its actual header occurrence")); }
+                    if row.position.base == StorageBase::Capture(capture)
+                        && row.position.path.is_empty()
+                        && head.replace((index, true, row.binder)).is_some()
+                    {
+                        return Err(fail(
+                            "captured outer head repeats its actual header occurrence",
+                        ));
+                    }
                 }
-                return selected.ok_or_else(|| fail("captured outer head omits its actual header occurrence"));
+                self.push_value(
+                    &mut selected,
+                    head.ok_or_else(|| {
+                        fail("captured outer head omits its actual header occurrence")
+                    })?,
+                    b,
+                )?;
             }
-            let mut selected = None;
             for row in &value.life.retained {
                 b.spend(row.path.len().saturating_add(1), WORK)?;
-                if row.binder == class && selected.replace(row).is_some() {
-                    return Err(unknown("captured head class needs its complete repeated child relation"));
+                if row.binder == class {
+                    self.push_value(&mut children, (row.path.as_slice(), row.class), b)?;
                 }
             }
-            let row = selected.ok_or_else(|| fail("captured head omits its complete intrinsic child embedding"))?;
-            path = &row.path;
-            child = row.class;
+        } else {
+            self.push_value(&mut children, (&[][..], class), b)?;
         }
-        let mut selected = None;
-        for (index, row) in contract.classes.iter().enumerate() {
-            b.spend(row.position.path.len().saturating_add(path.len() + 1), WORK)?;
-            if row.position.base == StorageBase::Capture(capture) && row.position.path == path
-                && row.position.class == child && selected.replace((index, false, row.binder)).is_some()
-            { return Err(fail("captured intrinsic child repeats its actual header occurrence")); }
+        // Keep every explicit child-kappa selector even when several images
+        // coincide. Header/domain indices are never interned by their image.
+        for (path, child) in children {
+            let mut row = None;
+            for (index, candidate) in contract.classes.iter().enumerate() {
+                b.spend(
+                    candidate.position.path.len().saturating_add(path.len() + 1),
+                    WORK,
+                )?;
+                if candidate.position.base == StorageBase::Capture(capture)
+                    && candidate.position.path == path
+                    && candidate.position.class == child
+                    && row.replace((index, false, candidate.binder)).is_some()
+                {
+                    return Err(fail(
+                        "captured intrinsic child repeats its actual header occurrence",
+                    ));
+                }
+            }
+            self.push_value(
+                &mut selected,
+                row.ok_or_else(|| {
+                    fail("captured head omits a complete original child class occurrence")
+                })?,
+                b,
+            )?;
         }
-        selected.ok_or_else(|| fail("captured head omits a complete original child class occurrence"))
+        if selected.is_empty() {
+            return Err(fail(
+                "captured head omits its complete intrinsic child embedding",
+            ));
+        }
+        Ok(selected)
     }
     #[allow(clippy::too_many_arguments)]
     fn ghost_capture_rows(
@@ -1072,39 +1108,42 @@ impl Check<'_, '_> {
         }
         b.lookup(mapped.len(), WORK)?;
         mapped.insert(capture);
-        let mut fixed = BTreeSet::new();
+        let mut fixed = BTreeMap::new();
         for (child, class) in expected.classes.iter().enumerate() {
-            let (row, physical, binder) = self.capture_class_header(contract, capture, expected, child as u32, b)?;
-            let StorageBinder::Fixed(index) = binder else {
-                return Err(fail("capture persistent class is not Fixed"));
-            };
-            b.lookup(fixed.len(), WORK)?;
-            if !fixed.insert(index) {
-                return Err(fail(
-                    "capture collapses two intrinsic child classes into one Fixed class",
-                ));
-            }
-            let header = self.header_class(instance, binder, b)?;
-            if header != *class {
-                return Err(fail(
-                    "captured class differs from the sealed original environment",
-                ));
-            }
-            let slot = directory
-                .get_mut(index as usize)
-                .ok_or_else(|| fail("capture Fixed class is out of range"))?;
-            if slot.is_some_and(|old| old != capture) {
-                return Err(unknown(
-                    "several captures need their complete original intrinsic equality proof",
-                ));
-            }
-            *slot = Some(capture);
-            if physical {
-                b.lookup(used_slots.len(), WORK)?;
-                used_slots.insert(row);
-            } else {
-                b.lookup(used_rows.len(), WORK)?;
-                used_rows.insert(row);
+            for (row, physical, binder) in
+                self.capture_class_headers(contract, capture, expected, child as u32, b)?
+            {
+                let StorageBinder::Fixed(index) = binder else {
+                    return Err(fail("capture persistent class is not Fixed"));
+                };
+                b.lookup(fixed.len(), WORK)?;
+                if fixed.insert(index, child).is_some_and(|old| old != child) {
+                    return Err(fail(
+                        "capture collapses two intrinsic child classes into one Fixed class",
+                    ));
+                }
+                let header = self.header_class(instance, binder, b)?;
+                if header != *class {
+                    return Err(fail(
+                        "captured class differs from the sealed original environment",
+                    ));
+                }
+                let slot = directory
+                    .get_mut(index as usize)
+                    .ok_or_else(|| fail("capture Fixed class is out of range"))?;
+                if slot.is_some_and(|old| old != capture) {
+                    return Err(unknown(
+                        "several captures need their complete original intrinsic equality proof",
+                    ));
+                }
+                *slot = Some(capture);
+                if physical {
+                    b.lookup(used_slots.len(), WORK)?;
+                    used_slots.insert(row);
+                } else {
+                    b.lookup(used_rows.len(), WORK)?;
+                    used_rows.insert(row);
+                }
             }
         }
         Ok(())
@@ -1352,52 +1391,8 @@ impl Check<'_, '_> {
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 self.local_value(instance, function, *local, (block, index), b, depth + 1)
             }
-            InstructionKind::ReadCapture { index: capture } => {
-                if matches!(ty, Type::Address { .. } | Type::Desc(_))
-                {
-                    return self.capture_whole_value(instance, function, *capture, b, depth + 1);
-                }
-                let closure = function
-                    .environment
-                    .and_then(|id| self.module.closures.get(id.0 as usize))
-                    .ok_or_else(|| fail("capture transport has no real environment"))?;
-                let contract = closure
-                    .storage_life
-                    .as_ref()
-                    .ok_or_else(|| unknown("capture transport has no complete class relation"))?;
-                let shape = match ty {
-                    Type::BorrowedStorage { life, .. } => life.clone(),
-                    _ => {
-                        return Err(unknown(
-                            "capture transport requires its whole intrinsic type value",
-                        ));
-                    }
-                };
-                let mut classes = Vec::new();
-                for child in 0..shape.binder_count {
-                    let mut selected = None;
-                    for row in &contract.classes {
-                        b.spend(row.position.path.len() + 1, WORK)?;
-                        if row.position.base == StorageBase::Capture(*capture)
-                            && row.position.path.is_empty()
-                            && row.position.class == child
-                            && selected.replace(row.binder).is_some()
-                        {
-                            return Err(fail("actual capture repeats a class occurrence"));
-                        }
-                    }
-                    let class = self.header_class(
-                        instance,
-                        selected.ok_or_else(|| fail("actual capture omits an intrinsic class"))?,
-                        b,
-                    )?;
-                    self.push_value(&mut classes, class, b)?;
-                }
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: shape,
-                    classes,
-                })
+            InstructionKind::ReadCapture { index: capture } | InstructionKind::TakeCapture { index: capture } => {
+                self.capture_whole_value(instance, function, *capture, b, depth + 1)
             }
             InstructionKind::MakeAggregate { .. } => {
                 let definition = self.inventory.definition(instance.definition, b)?;
@@ -1512,39 +1507,35 @@ impl Check<'_, '_> {
                     .ok_or_else(|| fail("actual closure constructor has no complete scope"))?;
                 b.spend(contract.fixed_binder_count as usize, WORK)?;
                 let mut classes = vec![None; contract.fixed_binder_count as usize];
-                for row in &contract.classes {
-                    let (StorageBase::Capture(capture), StorageBinder::Fixed(fixed)) =
-                        (row.position.base, row.binder)
-                    else {
-                        return Err(unknown(
-                            "closure constructor needs its complete parameter/result class relation",
-                        ));
-                    };
-                    if !row.position.path.is_empty() {
-                        return Err(unknown(
-                            "closure constructor needs its complete projected captured class relation",
-                        ));
+                // Physical heads live in bindings; intrinsic and Pointee
+                // classes live in classes. Use the same complete occurrence
+                // projector as the independent creator/header checks.
+                for (capture, source) in captures.iter().enumerate() {
+                    let source = self.ssa_value(instance, function, *source, b, depth + 1)?;
+                    for (child, class) in source.classes.iter().enumerate() {
+                        for (_, _, binder) in self.capture_class_headers(
+                            contract,
+                            capture as u32,
+                            &source,
+                            child as u32,
+                            b,
+                        )? {
+                            let StorageBinder::Fixed(fixed) = binder else {
+                                return Err(fail(
+                                    "closure constructor capture has a non-Fixed class",
+                                ));
+                            };
+                            let slot = classes.get_mut(fixed as usize).ok_or_else(|| {
+                                fail("closure constructor Fixed class is out of range")
+                            })?;
+                            if slot.as_ref().is_some_and(|old| old != class) {
+                                return Err(unknown(
+                                    "closure constructor requires its complete original equality relation",
+                                ));
+                            }
+                            *slot = Some(class.clone());
+                        }
                     }
-                    let source = *captures
-                        .get(capture as usize)
-                        .ok_or_else(|| fail("closure constructor omits a captured operand"))?;
-                    let source = self.ssa_value(instance, function, source, b, depth + 1)?;
-                    let class = source
-                        .classes
-                        .get(row.position.class as usize)
-                        .cloned()
-                        .ok_or_else(|| {
-                            fail("closure constructor omits an intrinsic captured class")
-                        })?;
-                    let slot = classes
-                        .get_mut(fixed as usize)
-                        .ok_or_else(|| fail("closure constructor Fixed class is out of range"))?;
-                    if slot.as_ref().is_some_and(|old| old != &class) {
-                        return Err(unknown(
-                            "closure constructor requires its complete original equality relation",
-                        ));
-                    }
-                    *slot = Some(class);
                 }
                 let mut complete = Vec::new();
                 for class in classes {
@@ -1683,18 +1674,26 @@ impl Check<'_, '_> {
                             let StorageBase::Parameter(parameter) = row.position.base else {
                                 continue;
                             };
-                            if !row.position.path.is_empty() {
-                                return Err(unknown(
-                                    "call result child requires its full projected input relation",
-                                ));
-                            }
                             let actual = *arguments.get(parameter as usize).ok_or_else(|| {
                                 fail("callee class input omits an actual argument")
                             })?;
-                            let input = self.ssa_value(instance, function, actual, b, depth + 1)?;
+                            let mut input = self.ssa_value(instance, function, actual, b, depth + 1)?;
                             let expected = expected_parameters
                                 .get(parameter as usize)
                                 .ok_or_else(|| fail("callee class role omits an original input"))?;
+                            let child;
+                            let expected = if row.position.path.is_empty() {
+                                expected
+                            } else if row.position.path.as_slice() == [LifeTypeProjection::Pointee] {
+                                if !self.outer_role(instance, function, &input, expected, b, depth + 1)? {
+                                    return Err(fail("callee child class input changes its independently proved outer call role"));
+                                }
+                                input = self.pointee(&input, b)?;
+                                child = self.pointee(expected, b)?;
+                                &child
+                            } else {
+                                return Err(unknown("call result child requires its full projected input relation"));
+                            };
                             if input != *expected {
                                 return Err(fail(
                                     "actual intrinsic input changes its complete original class domain",
@@ -2223,9 +2222,10 @@ impl Check<'_, '_> {
                 ));
             }
             for (class, actual_class) in actual.classes.iter().enumerate() {
-                let (_, _, binder) = self.capture_class_header(contract, index as u32, &actual, class as u32, b)?;
+                for (_, _, binder) in self.capture_class_headers(contract, index as u32, &actual, class as u32, b)? {
                 if self.header_class(child, binder, b)? != *actual_class {
                     return Err(fail("ghost creator capture comes from another actual head or complete child class source"));
+                }
                 }
             }
         }

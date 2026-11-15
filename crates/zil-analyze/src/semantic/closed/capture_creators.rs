@@ -155,9 +155,13 @@ impl Check<'_, '_> {
             .storage_life
             .as_ref()
             .ok_or_else(|| fail("capture head has no actual header"))?;
-        let (_, physical, selected) =
-            self.capture_class_header(contract, binding.capture, &binding.stored, slot.binder, b)?;
-        if !physical || selected != binder {
+        let rows =
+            self.capture_class_headers(contract, binding.capture, &binding.stored, slot.binder, b)?;
+        let physical = rows
+            .iter()
+            .find(|(_, physical, _)| *physical)
+            .map(|(_, _, binder)| *binder);
+        if physical != Some(binder) {
             return Err(fail(
                 "original capture head is attached to another physical header occurrence",
             ));

@@ -64,8 +64,30 @@ fn retained(
     }
     Ok(())
 }
+#[track_caller]
 pub(super) fn ty(root: &Type, b: &mut Budget) -> CompileResult<()> {
-    ty_at(root, 0, b)
+    let caller = std::panic::Location::caller();
+    let before = b.remaining();
+    let result = ty_at(root, 0, b);
+    metadata_cost(result, "type", caller, before, b)
+}
+fn metadata_cost(
+    result: CompileResult<()>,
+    kind: &'static str,
+    caller: &'static std::panic::Location<'static>,
+    before: usize,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    b.metadata_cost(kind, caller, before);
+    result.map_err(|mut errors| {
+        for error in &mut errors {
+            error
+                .notes
+                .retain(|note| !note.starts_with("metadata caller "));
+            error.notes.extend(b.metadata_cost_notes());
+        }
+        errors
+    })
 }
 fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> CompileResult<()> {
     let cap = b.helper_nodes;
@@ -325,11 +347,19 @@ impl DynRecipeVisitor for RecipeWork<'_> {
         self.rows(value.len(), depth)
     }
 }
+#[track_caller]
 pub(super) fn shape(value: &StorageLifeShape, b: &mut Budget) -> CompileResult<()> {
-    RecipeWork { b, nodes: 0 }.life(value, 0)
+    let caller = std::panic::Location::caller();
+    let before = b.remaining();
+    let result = RecipeWork { b, nodes: 0 }.life(value, 0);
+    metadata_cost(result, "shape", caller, before, b)
 }
+#[track_caller]
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> CompileResult<()> {
-    value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
+    let caller = std::panic::Location::caller();
+    let before = b.remaining();
+    let result = value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0);
+    metadata_cost(result, "recipe", caller, before, b)
 }
 fn recipe_rows<T: DynRecipeMetadata>(
     values: &Option<Vec<T>>,

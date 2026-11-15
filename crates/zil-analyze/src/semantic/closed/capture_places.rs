@@ -118,7 +118,10 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("actual whole capture ordinal is absent"))?;
         self.actual_type(ty, b)?;
         self.capture_directory(closure.id, b)?;
-        if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+        if matches!(
+            ty,
+            Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. } | Type::Closure(_)
+        ) {
             let creators = self.capture_creator_bindings(instance, closure, b)?;
             let mut selected = None;
             for binding in creators.values() {
@@ -141,15 +144,17 @@ impl Check<'_, '_> {
                 .ok_or_else(|| unknown("actual captured head has no complete header domain"))?;
             let mut classes = Vec::new();
             for (class, source) in stored.classes.iter().enumerate() {
-                let (_, _, binder) =
-                    self.capture_class_header(contract, index, stored, class as u32, b)?;
-                let actual = self.header_class(instance, binder, b)?;
-                if actual != *source {
-                    return Err(fail(
-                        "actual captured head changes its original outer or intrinsic child class",
-                    ));
+                for (_, _, binder) in
+                    self.capture_class_headers(contract, index, stored, class as u32, b)?
+                {
+                    let actual = self.header_class(instance, binder, b)?;
+                    if actual != *source {
+                        return Err(fail(
+                            "actual captured head changes its original outer or intrinsic child class",
+                        ));
+                    }
                 }
-                self.push_value(&mut classes, actual, b)?;
+                self.push_value(&mut classes, source.clone(), b)?;
             }
             crate::dyn_metadata::ty(&stored.ty, b)?;
             crate::dyn_metadata::shape(&stored.life, b)?;
@@ -159,76 +164,8 @@ impl Check<'_, '_> {
                 classes,
             });
         }
-        let weak_mutex = matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32));
-        let life = match ty {
-            Type::BorrowedStorage { life, .. } => {
-                crate::dyn_metadata::shape(life, b)?;
-                life.clone()
-            }
-            _ if weak_mutex => {
-                b.spend(2, WORK)?;
-                StorageLifeShape {
-                    binder_count: 1,
-                    slots: vec![StorageLifeSlot {
-                        path: Vec::new(),
-                        mode: StoredBorrowMode::WritableDescription,
-                        binder: 0,
-                    }],
-                    retained: Vec::new(),
-                    nominal_arguments: Vec::new(),
-                }
-            }
-            _ => {
-                self.zero_data(ty, b, depth + 1)?;
-                value::empty()
-            }
-        };
-        let contract = closure
-            .storage_life
-            .as_ref()
-            .ok_or_else(|| unknown("actual whole capture has an unknown persistent domain"))?;
-        let mut classes = Vec::new();
-        for child in 0..life.binder_count {
-            let mut selected = None;
-            if weak_mutex {
-                for row in &contract.bindings {
-                    b.spend(row.position.path.len() + 1, WORK)?;
-                    if row.position.base == StorageBase::Capture(index)
-                        && row.position.path.is_empty()
-                        && selected.replace(row.binder).is_some()
-                    {
-                        return Err(fail(
-                            "actual weak capture repeats its whole outer occurrence",
-                        ));
-                    }
-                }
-            }
-            for row in &contract.classes {
-                b.spend(row.position.path.len() + 1, WORK)?;
-                if row.position.base == StorageBase::Capture(index)
-                    && row.position.path.is_empty()
-                    && row.position.class == child
-                    && (weak_mutex || selected.replace(row.binder).is_some())
-                {
-                    return Err(fail(
-                        "actual whole capture repeats an intrinsic class occurrence",
-                    ));
-                }
-            }
-            let class = self.header_class(
-                instance,
-                selected.ok_or_else(|| {
-                    fail("actual whole capture omits an intrinsic class occurrence")
-                })?,
-                b,
-            )?;
-            self.push_value(&mut classes, class, b)?;
-        }
+        self.zero_data(ty, b, depth + 1)?;
         crate::dyn_metadata::ty(ty, b)?;
-        Ok(Value {
-            ty: ty.clone(),
-            life,
-            classes,
-        })
+        Ok(value::scalar(ty.clone()))
     }
 }

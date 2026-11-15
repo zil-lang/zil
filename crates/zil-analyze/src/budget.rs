@@ -31,6 +31,8 @@ pub(super) type TaskRetainedSources =
     std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<TaskPortSource>>;
 pub(super) struct Budget {
     remaining: usize,
+    costs: BTreeMap<String, (usize, usize)>,
+    metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
     // Only shape nodes borrowed from this request's immutable module enter.
     // The result indexes raw slots; no qualification or semantic flow is cached.
     physical_slot_paths: BTreeMap<usize, BTreeMap<Vec<zil_ir::PlaceProjection>, (u32, bool)>>,
@@ -212,6 +214,8 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            costs: BTreeMap::new(),
+            metadata_costs: BTreeMap::new(),
             physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
             large_tag_layout: false,
@@ -424,11 +428,73 @@ impl Budget {
     }
 
     pub(super) fn spend(&mut self, amount: usize, context: &str) -> CompileResult<()> {
-        self.remaining = self
-            .remaining
-            .checked_sub(amount)
-            .ok_or_else(|| exhausted(context))?;
+        let category =
+            if self.costs.contains_key(context) || self.costs.len() < 255 && context.len() <= 128 {
+                context
+            } else {
+                "other analysis charges"
+            };
+        if let Some((calls, work)) = self.costs.get_mut(category) {
+            *calls = calls.saturating_add(1);
+            *work = work.saturating_add(amount);
+        } else {
+            self.costs.insert(category.to_owned(), (1, amount));
+        }
+        let Some(remaining) = self.remaining.checked_sub(amount) else {
+            let mut errors = exhausted(context);
+            errors[0].notes.push(format!(
+                "remaining {}; attempted charge {}",
+                self.remaining, amount
+            ));
+            let mut costs = self.costs.iter().collect::<Vec<_>>();
+            costs.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
+            let total = costs
+                .iter()
+                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+            let omitted = costs
+                .iter()
+                .skip(24)
+                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+            errors[0].notes.push(format!(
+                "analysis requested work {total}; omitted category work {omitted}"
+            ));
+            for (name, (calls, work)) in costs.into_iter().take(24) {
+                errors[0].notes.push(format!(
+                    "analysis charge {name}: {work} work in {calls} calls"
+                ));
+            }
+            errors[0].notes.extend(self.metadata_cost_notes());
+            return Err(errors);
+        };
+        self.remaining = remaining;
         Ok(())
+    }
+
+    pub(super) fn metadata_cost(
+        &mut self,
+        kind: &'static str,
+        caller: &'static std::panic::Location<'static>,
+        before: usize,
+    ) {
+        let key = (kind, caller.file(), caller.line());
+        let key = if self.metadata_costs.contains_key(&key) || self.metadata_costs.len() < 511 {
+            key
+        } else {
+            ("other", "", 0)
+        };
+        let row = self.metadata_costs.entry(key).or_default();
+        row.0 = row.0.saturating_add(1);
+        row.1 = row.1.saturating_add(before.saturating_sub(self.remaining));
+    }
+    pub(super) fn metadata_cost_notes(&self) -> Vec<String> {
+        let mut rows = self.metadata_costs.iter().collect::<Vec<_>>();
+        rows.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
+        rows.into_iter()
+            .take(24)
+            .map(|((kind, file, line), (calls, work))| {
+                format!("metadata caller {kind} {file}:{line}: {work} work in {calls} calls")
+            })
+            .collect()
     }
 
     pub(super) fn product(
