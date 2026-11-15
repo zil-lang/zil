@@ -320,7 +320,9 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn adopt_remaining(&mut self, remaining: &Limits) {
+        self.profile_cost(self.work.saturating_sub(remaining.max_analysis_steps));
         self.nodes = self.nodes.min(remaining.max_nodes);
         self.work = self.work.min(remaining.max_analysis_steps);
         if let Some(bytes) = &mut self.temporary_bytes {
@@ -343,7 +345,9 @@ impl<'a> Budget<'a> {
     /// when the older AST planner uses only its node/work ledger. Keep that
     /// marginal allocation quota separate instead of enabling unrelated AST
     /// temporary charges for every old node visit.
+    #[track_caller]
     pub(crate) fn lineage_bytes(&mut self, bytes: usize, span: Span) -> R<()> {
+        self.profile_cost(bytes.max(1));
         self.work = self.work.checked_sub(bytes.max(1)).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,
@@ -498,6 +502,10 @@ impl<'a> Budget<'a> {
     fn profile_limit(&self, phase: Phase, message: &str, span: Option<Span>) -> Diagnostic {
         let mut diagnostic = Diagnostic::limit(phase, message, span);
         if let Some(profile) = &self.cost_profile {
+            diagnostic.notes.push(format!(
+                "Expand work allowance {}; remaining {}",
+                self.limits.max_analysis_steps, self.work
+            ));
             let mut rows = profile.iter().collect::<Vec<_>>();
             rows.sort_unstable_by_key(|(key, (work, _))| (std::cmp::Reverse(*work), **key));
             for ((file, line), (work, calls)) in rows.into_iter().take(24) {
