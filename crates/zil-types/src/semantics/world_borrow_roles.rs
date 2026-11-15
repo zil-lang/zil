@@ -260,8 +260,9 @@ fn trace(
                 let Cursor::Value(value) = cursor else {
                     return Err(bad("nested projected borrow has no actual address"));
                 };
+                let actual = world.get(values, value)?;
                 if !matches!(
-                    World::type_of(&world.get(values, value)?)?,
+                    World::type_of(actual.as_ref())?,
                     Type::Address { .. } | Type::Desc(_)
                 ) {
                     return Err(bad("nested projected borrow changes its actual carrier"));
