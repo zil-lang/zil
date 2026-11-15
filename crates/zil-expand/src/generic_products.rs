@@ -26,6 +26,7 @@ pub(crate) struct Products {
     templates: Vec<(Aggregate, Span)>,
     applications: Vec<Application>,
     pub(crate) allowance: Option<Limits>,
+    pub(crate) cost_profile: Option<budget::CostProfile>,
     pub(crate) trait_signatures: trait_instances::Signatures,
     pub(crate) trait_instances: bool,
     pub(crate) record_variants: bool,

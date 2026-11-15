@@ -577,7 +577,7 @@ fn normalize(
         Cow::Owned(module) => module,
     };
     if has_trait_instances && let Some(remaining) = &products.allowance {
-        budget.adopt_remaining(remaining);
+        budget.adopt_profiled_remaining(remaining, products.cost_profile.take());
     }
     let mut output = modules
         .iter()
@@ -808,6 +808,7 @@ fn normalize(
         .restore_functions(&functions, &mut budget)?;
     if has_trait_instances {
         products.allowance = Some(budget.remaining_limits());
+        products.cost_profile = budget.take_cost_profile();
     }
     products.restore_owners(&functions)?;
     Ok(output)

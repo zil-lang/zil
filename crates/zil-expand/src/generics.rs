@@ -1341,6 +1341,7 @@ impl<'a> Engine<'a> {
             self.products.origins = Some(output_origins);
         }
         self.products.allowance = Some(self.budget.remaining_limits());
+        self.products.cost_profile = self.budget.take_cost_profile();
         *products = std::mem::take(&mut self.products);
         Ok(result)
     }

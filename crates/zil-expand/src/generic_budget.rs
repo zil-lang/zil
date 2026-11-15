@@ -2,13 +2,15 @@
 //! This is a private bound on work, never a type or capability certificate.
 use super::*;
 
+pub(crate) type CostProfile = BTreeMap<(&'static str, u32), (usize, usize)>;
+
 pub(crate) struct Budget<'a> {
     pub(crate) target_pointer_width: u16,
     pub(crate) context: origins::WalkContext,
     limits: &'a Limits,
     nodes: usize,
     work: usize,
-    cost_profile: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
+    cost_profile: Option<CostProfile>,
     temporary_bytes: Option<usize>,
     lineage_bytes: usize,
     scoped_scratch: usize,
@@ -320,9 +322,38 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    pub(crate) fn take_cost_profile(&mut self) -> Option<CostProfile> {
+        self.cost_profile.take()
+    }
     #[track_caller]
     pub(crate) fn adopt_remaining(&mut self, remaining: &Limits) {
-        self.profile_cost(self.work.saturating_sub(remaining.max_analysis_steps));
+        self.adopt_profiled_remaining(remaining, None);
+    }
+    #[track_caller]
+    pub(crate) fn adopt_profiled_remaining(
+        &mut self,
+        remaining: &Limits,
+        child: Option<CostProfile>,
+    ) {
+        let spent = self.work.saturating_sub(remaining.max_analysis_steps);
+        let mut accounted = 0usize;
+        if let (Some(parent), Some(child)) = (&mut self.cost_profile, child) {
+            // Successful children have no failed attempted debit. Front-end
+            // preparation before their Budget was created remains in the
+            // residual at this caller, so no debit is hidden or counted twice.
+            let measured = child
+                .values()
+                .try_fold(0usize, |sum, (work, _)| sum.checked_add(*work));
+            if let Some(measured) = measured.filter(|measured| *measured <= spent) {
+                for (site, (work, calls)) in child {
+                    let row = parent.entry(site).or_default();
+                    row.0 = row.0.saturating_add(work);
+                    row.1 = row.1.saturating_add(calls);
+                }
+                accounted = measured;
+            }
+        }
+        self.profile_cost(spent - accounted);
         self.nodes = self.nodes.min(remaining.max_nodes);
         self.work = self.work.min(remaining.max_analysis_steps);
         if let Some(bytes) = &mut self.temporary_bytes {
@@ -1647,6 +1678,29 @@ impl<'a> Budget<'a> {
 #[cfg(test)]
 mod allocation_tests {
     use super::*;
+
+    #[test]
+    fn child_profile_preserves_exact_parent_debit_and_unprofiled_preparation() {
+        let limits = Limits::default();
+        let mut parent = Budget::new(&limits);
+        parent.cost_profile = Some(BTreeMap::new());
+        parent.identity_work(11, Span::default()).unwrap();
+        let mut child_limits = parent.remaining_limits();
+        child_limits.max_analysis_steps -= 17; // preparation before child Budget
+        let mut child = Budget::new(&child_limits);
+        child.cost_profile = Some(BTreeMap::new());
+        child.identity_work(29, Span::default()).unwrap();
+        let remaining = child.remaining_limits();
+        parent.adopt_profiled_remaining(&remaining, child.take_cost_profile());
+        let profile = parent.cost_profile.as_ref().unwrap();
+        assert_eq!(
+            profile.values().map(|(work, _)| work).sum::<usize>(),
+            11 + 17 + 29
+        );
+        assert!(profile.values().any(|(work, _)| *work == 29));
+        assert!(profile.values().any(|(work, _)| *work == 17));
+        assert_eq!(limits.max_analysis_steps - parent.work, 11 + 17 + 29);
+    }
 
     #[test]
     fn cost_profile_keeps_late_callers_and_all_direct_work_debits() {
