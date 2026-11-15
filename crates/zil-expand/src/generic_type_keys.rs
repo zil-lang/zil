@@ -22,10 +22,12 @@ fn digits(n: usize) -> usize {
 // removal buffer. This pass only measures identity; const validation remains
 // with generic_const and the verified CT path.
 fn integer_value(text: &str, span: Span) -> R<(u128, Option<&str>)> {
-    let (body, suffix) = ["u16", "u8", "i32", "i64", "u64", "usize"]
-        .into_iter()
-        .find_map(|suffix| text.strip_suffix(suffix).map(|body| (body, Some(suffix))))
-        .unwrap_or((text, None));
+    let (body, suffix) = [
+        "u16", "u8", "u32", "i8", "i16", "i32", "i64", "isize", "u64", "usize",
+    ]
+    .into_iter()
+    .find_map(|suffix| text.strip_suffix(suffix).map(|body| (body, Some(suffix))))
+    .unwrap_or((text, None));
     let mut bytes = body.bytes().filter(|b| *b != b'_').peekable();
     let mut radix = 10u128;
     let mut count = 0usize;
@@ -699,6 +701,7 @@ mod streamed_tests {
             "&mut [i64]",
             "extern \"C\" fn(i32,bool)->i64",
             "Phantom<18446744073709551615u64,true,usize>",
+            "Widths<1u8,2u16,3u32,4u64,5usize,6i8,7i16,8i32,9i64,10isize>",
             "(void,fn(i32)->bool)",
             "i32|bool",
             "for<life a>fn(&'a i32)->&'a i32",
