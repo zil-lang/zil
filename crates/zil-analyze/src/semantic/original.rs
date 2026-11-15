@@ -1383,14 +1383,10 @@ impl Solver<'_, '_> {
                 "original lexical/member call needs its complete declared scope and quantifier instantiation",
             ));
         }
-        if !written.is_empty() && written.len() != definition.parameters.len() {
-            return Err(fail(
-                "original written actual vector has another mixed arity",
-            ));
-        }
+        let written = mixed::written_call_actuals(&definition.parameters, written, b)?;
         let mut formals = Vec::new();
         for (index, formal) in definition.parameters.iter().enumerate() {
-            let term = match (formal, written.get(index)) {
+            let term = match (formal, written[index]) {
                 (
                     SemanticFormal::Type { requirements },
                     Some(CoreGenericArgument::Type(recipe)),

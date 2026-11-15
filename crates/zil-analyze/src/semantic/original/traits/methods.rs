@@ -281,12 +281,10 @@ impl Solver<'_, '_> {
                 "original member needs its complete receiver or quantified invocation relation",
             ));
         }
-        if !written.is_empty() && written.len() != original.parameters.len() {
-            return Err(fail("original method actuals change its full mixed arity"));
-        }
+        let written = mixed::written_call_actuals(&original.parameters, written, b)?;
         let mut actuals = Vec::new();
         for (ordinal, formal) in original.parameters.iter().enumerate() {
-            let actual = match (formal, written.get(ordinal)) {
+            let actual = match (formal, written[ordinal]) {
                 (SemanticFormal::Type { .. }, Some(CoreGenericArgument::Type(ty))) => {
                     self.recipe(caller, ty, b, depth + 1)?
                 }
