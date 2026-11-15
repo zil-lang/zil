@@ -24,6 +24,7 @@ pub(super) struct State {
     pub role_sources: BTreeMap<LocalId, roles::Source>,
     pub value_role_sources: BTreeMap<ValueId, roles::Source>,
     pub reborrows: BTreeMap<ValueId, arguments::Edge>,
+    pub reservations: BTreeMap<ReservationId, reservations::Reservation>,
     pub value_roots: BTreeMap<ValueId, BTreeSet<arguments::Root>>,
     pub local_roots: BTreeMap<LocalId, BTreeSet<arguments::Root>>,
 }
@@ -46,6 +47,7 @@ impl State {
                 .saturating_add(self.role_sources.len())
                 .saturating_add(self.value_role_sources.len())
                 .saturating_add(self.reborrows.len())
+                .saturating_add(self.reservations.len())
                 .saturating_add(self.value_roots.len())
                 .saturating_add(self.local_roots.len())
                 .saturating_add(1),
@@ -86,6 +88,10 @@ impl State {
                 },
             );
         }
+        let mut reservations = BTreeMap::new();
+        for (id, reservation) in &self.reservations {
+            reservations.insert(*id, super::reservations::snapshot(world, reservation)?);
+        }
         let mut value_roots = BTreeMap::new();
         for (value, roots) in &self.value_roots {
             value_roots.insert(*value, arguments::copy_roots(world, roots)?);
@@ -111,6 +117,7 @@ impl State {
             role_sources,
             value_role_sources,
             reborrows,
+            reservations,
             value_roots,
             local_roots,
         };
@@ -182,6 +189,12 @@ impl State {
                 world.pay(1)?;
                 charge_source(world, &edge.source)
             })?
+            || !same_map(
+                world,
+                &self.reservations,
+                &other.reservations,
+                reservations::charge,
+            )?
             || !same_map(world, &self.value_roots, &other.value_roots, charge_roots)?
             || !same_map(world, &self.local_roots, &other.local_roots, charge_roots)?
         {
@@ -389,6 +402,14 @@ impl State {
         {
             live.source(world, source)?;
         }
+        world.pay(self.reservations.len())?;
+        for reservation in self.reservations.values() {
+            if let reservations::Target::Address(address) = reservation.target {
+                live.value_id(world, address)?;
+            }
+            live.value(world, &reservation.parent)?;
+            live.value(world, &reservation.expected)?;
+        }
         loop {
             let before = live.values.len().saturating_add(live.implicit.len());
             world.pay(self.implicit.len().saturating_add(self.reborrows.len()))?;
@@ -487,6 +508,21 @@ impl State {
                 &self.local_roots,
             ),
         )?;
+        world.pay(self.reservations.len())?;
+        for (id, reservation) in &self.reservations {
+            hash_debug(
+                &mut digest,
+                world.left,
+                &(
+                    id,
+                    &reservation.target,
+                    &reservation.path,
+                    &reservation.roots,
+                ),
+            )?;
+            hash_domain(&mut digest, world, &reservation.parent)?;
+            hash_domain(&mut digest, world, &reservation.expected)?;
+        }
         for cells in [&self.locals, &self.values] {
             world.pay(cells.len().saturating_add(8))?;
             digest.update(&cells.len().to_le_bytes());

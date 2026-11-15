@@ -37,6 +37,8 @@ mod protocol;
 mod protocol_flow;
 #[path = "world_receiver.rs"]
 mod receiver;
+#[path = "world_reservations.rs"]
+mod reservations;
 #[path = "world_roles.rs"]
 mod roles;
 #[path = "world_sourcecall.rs"]
@@ -83,6 +85,7 @@ struct World<'a, 'b> {
     role_sources: BTreeMap<LocalId, roles::Source>,
     value_role_sources: BTreeMap<ValueId, roles::Source>,
     reborrows: BTreeMap<ValueId, arguments::Edge>,
+    reservations: BTreeMap<ReservationId, reservations::Reservation>,
     value_roots: BTreeMap<ValueId, std::collections::BTreeSet<arguments::Root>>,
     local_roots: BTreeMap<LocalId, std::collections::BTreeSet<arguments::Root>>,
     argument_witnesses: Vec<arguments::Witness>,
@@ -1996,6 +1999,7 @@ impl World<'_, '_> {
             role_sources: BTreeMap::new(),
             value_role_sources: BTreeMap::new(),
             reborrows: BTreeMap::new(),
+            reservations: BTreeMap::new(),
             value_roots: BTreeMap::new(),
             local_roots: incoming_roots,
         };
@@ -2021,6 +2025,7 @@ impl World<'_, '_> {
                 role_sources,
                 value_role_sources,
                 reborrows,
+                reservations,
                 value_roots,
                 local_roots,
             } = reaching[block_index][state_index].snapshot(self)?;
@@ -2031,6 +2036,7 @@ impl World<'_, '_> {
             self.role_sources = role_sources;
             self.value_role_sources = value_role_sources;
             self.reborrows = reborrows;
+            self.reservations = reservations;
             self.value_roots = value_roots;
             self.local_roots = local_roots;
             let block = &f.blocks[block_index];
@@ -2345,6 +2351,55 @@ impl World<'_, '_> {
                                 image,
                                 &value,
                             )?)
+                        }
+                        InstructionKind::ReservePlaceLocal {
+                            reservation,
+                            local,
+                            path,
+                        } => {
+                            reservations::reserve(
+                                self,
+                                f,
+                                *reservation,
+                                reservations::Target::Local(*local),
+                                path,
+                                &values,
+                                &locals,
+                            )?;
+                            None
+                        }
+                        InstructionKind::ReservePlaceAddress {
+                            reservation,
+                            address,
+                            path,
+                        } => {
+                            reservations::reserve(
+                                self,
+                                f,
+                                *reservation,
+                                reservations::Target::Address(*address),
+                                path,
+                                &values,
+                                &locals,
+                            )?;
+                            None
+                        }
+                        InstructionKind::CommitPlaceReplace { reservation, value } => {
+                            reservations::commit(
+                                self,
+                                instance,
+                                f,
+                                *reservation,
+                                *value,
+                                &values,
+                                &locals,
+                                &implicit,
+                            )?;
+                            None
+                        }
+                        InstructionKind::AbortPlaceReservation { reservation } => {
+                            reservations::abort(self, *reservation)?;
+                            None
                         }
                         InstructionKind::BorrowPlaceLocal {
                             local,
@@ -4016,12 +4071,14 @@ impl World<'_, '_> {
             )?;
             let successors = match block.terminator {
                 Terminator::Return(Some(result)) => {
+                    reservations::exit(self)?;
                     places::capture_exit(self, instance, f)?;
                     let value = self.get(&values, result)?;
                     self.same(instance.id, &value, &expected_result, &implicit)?;
                     Vec::new()
                 }
                 Terminator::Return(None) if f.return_type == Type::Unit => {
+                    reservations::exit(self)?;
                     places::capture_exit(self, instance, f)?;
                     Vec::new()
                 }
@@ -4060,6 +4117,7 @@ impl World<'_, '_> {
                 role_sources: std::mem::take(&mut self.role_sources),
                 value_role_sources: std::mem::take(&mut self.value_role_sources),
                 reborrows: std::mem::take(&mut self.reborrows),
+                reservations: std::mem::take(&mut self.reservations),
                 value_roots: std::mem::take(&mut self.value_roots),
                 local_roots: std::mem::take(&mut self.local_roots),
             };
@@ -4148,6 +4206,7 @@ fn program_at(
         role_sources: BTreeMap::new(),
         value_role_sources: BTreeMap::new(),
         reborrows: BTreeMap::new(),
+        reservations: BTreeMap::new(),
         value_roots: BTreeMap::new(),
         local_roots: BTreeMap::new(),
         argument_witnesses: Vec::new(),
