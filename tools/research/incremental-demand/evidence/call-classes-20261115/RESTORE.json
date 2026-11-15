@@ -1,0 +1,43 @@
+{
+  "schema": "zil.call-classes-recovery.v1",
+  "compiled_source": "027695318436fcb1f8994d0dc9802a0b2349c362",
+  "compiled_tree": "83fd7b71aadb6f5c1000a70590bd8707114d667f",
+  "binary_sha256": "5b3a309a7860dca3a1d3f15e7c930ec7d3f3a3fa59286e6d91c67e0067c0743f",
+  "tool_source": "05d4b276f8983b176951c7163c52edcf3208ab38",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "ea3ad7c634eea4aba255dd2531e029a04c8d7f1525739bbc3ad1c2ba5b70f38c",
+  "archive_sha256": "1fa3ec722b4187b7d082ca967dc31ce43ac5b0e6a4ce79f66e9998dac3e9a626",
+  "archive_bytes": 1655437572,
+  "parts": 66,
+  "regular_files": 33414,
+  "logical_bytes": 5737021115,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "fresh_verify_receipt_sha256": "06f384cf0c0644ef94dee1260319d5d4e72556a3fde748657944e12c17a686af",
+  "fresh_scratch_retired": true,
+  "original_raw_retained": true,
+  "scope": "Exact027 source/gates/release/reused5af2 semantic tests, independent reviews,065positive24-request diagnostic/binary, failed04 and stale-layout replay, tool19tests; formal324/108/51 raw in sibling call-classes-formal archive. Complete84-row10105/25105 native capacity diagnostic actual main/candidate lex ResourceLimit and Rust observations, check legacy-validator failure with56savedreportreplays, no capacity timing/disk qualification; host cleanup overlap capacity only. All new controllers/logs/bindings/retirement evidence preserved; e677 negative/140rejection depend fixed5af2/948 priorarchives,SDK18 fixedV32,LLVM not rebuilt,research off,no main merge.",
+  "LLVM_rebuilt": false,
+  "main_merge": false,
+  "research_defaults_enabled": false,
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/call-classes-20261115",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "dependencies": {
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "formal_window05": "https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
+    "prior_e677_imports_and_rejected140": "https://github.com/zil-lang/zil/blob/5af2f7a981cd04d48535cf049d4a8f41a192baff/tools/research/incremental-demand/evidence/closed-import-20261115/RESTORE.json",
+    "prior_closed_only_quality_failures": "https://github.com/zil-lang/zil/blob/94816f8a3efa03ac6011b270f1c87e3d29f361d4/tools/research/incremental-demand/evidence/closed-project-negative-20261115/RESTORE.json"
+  },
+  "recovery_limit": "Evidence and frozen binaries, not an installation. Clone exact compiled source; restore SDK18/native-link/Rust separately, rebind absolute paths and recheck hashes. Verify each companion archive into a separate fresh directory. No LLVM rebuild needed. Original user-disk hardlink topology is not recreated; never recompute product savings from restored evidence.",
+  "weighted_summary": "out/runs/call-classes-weighted-final-01.json",
+  "capacity_summary": "out/runs/call-classes-capacity-final-01.json",
+  "first_combined_pack_failure": "out/runs/call-classes-final-context-01/archive-pack-first-failure.log:64MiB inventory cap; unchanged packer split finite formal evidence from core/capacity, no safety limit raised.",
+  "formal_remote_verified_commit": "05f270ebe13169ad7a089ad98d6d327bab834bcd"
+}

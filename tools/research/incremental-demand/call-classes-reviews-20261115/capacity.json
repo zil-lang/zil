@@ -1,0 +1,20 @@
+{
+  "compiled_source": "027695318436fcb1f8994d0dc9802a0b2349c362",
+  "scope": "expanded-large-capacity-v1;102 source files,100modules x100/250helpers x1step, original generator no trimming; separate check/native; two balanced blocks/seven-request history; unchanged default budgets",
+  "check01": "Tool-incomplete: legacy response validator rejected empty query log before lex admission; actual56 ResourceLimit/lex responses validated by saved-artifact replay. Check01 remains incomplete and no performance conclusions are admitted.",
+  "check_saved_replay": "out/runs/expanded-large-capacity-check-replay-01/result.json",
+  "native01": {
+    "execution_complete": true,
+    "capacity_valid": false,
+    "accepted": false
+  },
+  "native_rows": 84,
+  "native_infrastructure_failures": 0,
+  "actual_native_resource_limit_reports": 56,
+  "actual_native_rust_valid_rows": 28,
+  "actual_native_rust_successful_executables": 24,
+  "token_limit_gap": "Both actual main and candidate fail all10105/25105 snapshots in lex token limit, Verify0; not correctness rejection or capacity success. Rust native success or intended name rejection observed. No ZIL/Rust speed/disk ratio for an invalid ZIL build.",
+  "performance_qualification": false,
+  "native_timing_excluded": "Host archived duplicate cleanup may overlap this diagnostic capacity run; all native capacity timing/disk comparisons excluded. Completed qualified window05 unaffected.",
+  "sustained_runtime_acceptance": "UNKNOWN: not executed for these failed capacity sizes"
+}

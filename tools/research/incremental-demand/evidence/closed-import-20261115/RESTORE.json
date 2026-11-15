@@ -15,7 +15,7 @@
   "logical_bytes": 4283239606,
   "fresh_verify_receipt": "fresh-restore-receipt.json",
   "fresh_scratch_retired": true,
-  "original_raw_retained": true,
+  "original_raw_retained": false,
   "scope": "Complete imports e677 original1000/2500/5105:324workflow requests108functional cells/all51 source-bound sustained Rust gates pass, but compile waiting9.018/11.810/49.025s vsRust8.224/8.917/33.004s; disk boundaries/growth and main5105Expand failure retained. Explicitimports/allCGU16/O2/jobs1/defaultbudgets/currentVerify; unmeasuredfunctionaloraclesjobs8 formalruntime serial. Rejected selective native140 release+24diagnostic requests exactELF pass but no net benefit, reverted a124 with compiler source exactlye677; no broadgate/pairedRust claim for140. All raw negatives/provenance/cleanup retained. SDK18 dependency separate, noLLVMrebuild or main merge.",
   "main_merge": false,
   "LLVM_rebuilt": false,
@@ -32,5 +32,9 @@
     "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
     "closed_only_all_raw_failures": "https://github.com/zil-lang/zil/blob/94816f8a3efa03ac6011b270f1c87e3d29f361d4/tools/research/incremental-demand/evidence/closed-project-negative-20261115/RESTORE.json"
   },
-  "recovery_limit": "Evidence and immutable compiler binaries, not an installation. Restore SDK18/native-link/Rust separately and rebind absolute paths. Archived historical duplicates/host Cargo artifacts retired only with complete file hashes; never count this as product disk savings."
+  "recovery_limit": "Evidence and immutable compiler binaries, not an installation. Restore SDK18/native-link/Rust separately and rebind absolute paths. Archived historical duplicates/host Cargo artifacts retired only with complete file hashes; never count this as product disk savings.",
+  "original_raw_retired_prefixes": [
+    "out/runs/closed-project-window-03/"
+  ],
+  "original_raw_retirement_receipt": "Current call-classes-20261115 recovery:out/runs/closed-project-retired-import-window03-01.json; complete committed manifest/parts/prior fresh/local file byte verification before retirement; all archived bytes remain recoverable."
 }
