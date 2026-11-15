@@ -139,6 +139,7 @@ fn analyze_budgeted_context(
     mut reuse: Option<&mut incremental::Reuse<'_>>,
     context: Option<(&CoreProgram, &CtFrozenContext)>,
 ) -> CompileResult<CandidatePlan> {
+    bind_initialization(module, budget)?;
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     match context {
@@ -492,6 +493,79 @@ struct Initialization {
     reachable: Vec<bool>,
 }
 
+// All entries borrow identity from this one immutable analysis request. The
+// shared value contains only the complete CFG and its instruction-derived
+// initialization sets; it contains no current class, loan or access state.
+struct InitializationCache {
+    module: usize,
+    functions:
+        std::collections::BTreeMap<usize, (FunctionId, Option<std::sync::Arc<Initialization>>)>,
+}
+
+fn bind_initialization(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+    let owner = module as *const TypedModule as usize;
+    if budget
+        .initialization
+        .as_ref()
+        .is_some_and(|cache| cache.module == owner)
+    {
+        return Ok(());
+    }
+    budget.spend(
+        module.functions.len(),
+        "initialization request function registry",
+    )?;
+    let mut functions = std::collections::BTreeMap::new();
+    for function in &module.functions {
+        budget.lookup(functions.len(), "initialization request function registry")?;
+        functions.insert(
+            function as *const TypedFunction as usize,
+            (function.id, None),
+        );
+    }
+    budget.initialization = Some(InitializationCache {
+        module: owner,
+        functions,
+    });
+    Ok(())
+}
+
+fn shared_initialization(
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<std::sync::Arc<Initialization>> {
+    let key = function as *const TypedFunction as usize;
+    let width = budget
+        .initialization
+        .as_ref()
+        .map_or(0, |cache| cache.functions.len());
+    budget.lookup(width, "initialization request query")?;
+    budget.spend(1, "initialization request shared result")?;
+    if let Some((id, Some(initialization))) = budget
+        .initialization
+        .as_ref()
+        .and_then(|cache| cache.functions.get(&key))
+        && *id == function.id
+    {
+        return Ok(std::sync::Arc::clone(initialization));
+    }
+    // A failed computation publishes nothing. Unregistered temporary functions
+    // can be checked, but their reusable result is never retained by address.
+    let result = initialize(function, budget)?;
+    let result = std::sync::Arc::new(result);
+    budget.lookup(width, "initialization request publication")?;
+    budget.spend(1, "initialization request publication")?;
+    if let Some((id, entry)) = budget
+        .initialization
+        .as_mut()
+        .and_then(|cache| cache.functions.get_mut(&key))
+        && *id == function.id
+    {
+        *entry = Some(std::sync::Arc::clone(&result));
+    }
+    Ok(result)
+}
+
 fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initialization> {
     let n = f.blocks.len();
     if n == 0 || f.entry.0 as usize >= n {
@@ -839,6 +913,73 @@ mod tests {
         let mut m = module(true);
         m.functions[0].blocks[0].terminator = Terminator::Jump(BlockId(200));
         assert!(analyze(&m, &Limits::default()).is_err());
+    }
+
+    #[test]
+    fn initialization_request_shares_registered_function_only() {
+        let m = module(true);
+        let mut budget = Budget::new(&Limits::default());
+        bind_initialization(&m, &mut budget).unwrap();
+        let first = shared_initialization(&m.functions[0], &mut budget).unwrap();
+        let second = shared_initialization(&m.functions[0], &mut budget).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+        let expected = initialize(&m.functions[0], &mut budget).unwrap();
+        assert_eq!(first.blocks, expected.blocks);
+        assert_eq!(first.predecessors, expected.predecessors);
+        assert_eq!(first.reachable, expected.reachable);
+
+        // Same FunctionId and similar contents are no proof of request identity.
+        let changed = module(false);
+        assert_eq!(
+            shared_initialization(&changed.functions[0], &mut budget)
+                .err()
+                .unwrap()[0]
+                .code,
+            "E-UNINITIALIZED"
+        );
+        bind_initialization(&changed, &mut budget).unwrap();
+        assert!(shared_initialization(&changed.functions[0], &mut budget).is_err());
+        assert!(
+            budget
+                .initialization
+                .as_ref()
+                .unwrap()
+                .functions
+                .values()
+                .all(|(_, result)| result.is_none())
+        );
+    }
+
+    #[test]
+    fn initialization_request_cannot_publish_failed_computation() {
+        let m = module(true);
+        let mut budget = Budget::new(&Limits {
+            max_analysis_steps: 20,
+            ..Limits::default()
+        });
+        bind_initialization(&m, &mut budget).unwrap();
+        assert!(shared_initialization(&m.functions[0], &mut budget).is_err());
+        assert!(
+            budget
+                .initialization
+                .as_ref()
+                .unwrap()
+                .functions
+                .values()
+                .all(|(_, result)| result.is_none())
+        );
+        let mut fresh = Budget::new(&Limits::default());
+        bind_initialization(&m, &mut fresh).unwrap();
+        assert!(
+            fresh
+                .initialization
+                .as_ref()
+                .unwrap()
+                .functions
+                .values()
+                .all(|(_, result)| result.is_none())
+        );
+        assert!(shared_initialization(&m.functions[0], &mut fresh).is_ok());
     }
 
     #[test]

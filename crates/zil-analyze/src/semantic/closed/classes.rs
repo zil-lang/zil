@@ -1848,7 +1848,7 @@ impl Check<'_, '_> {
         // Solve the finite set of reaching local definitions. A CFG backedge
         // does not add type depth or mint a new class; every concrete incoming
         // origin must still produce the same complete value in this world.
-        let initialized = crate::initialize(function, b)?;
+        let initialized = crate::shared_initialization(function, b)?;
         let mut pending = vec![(local, at.0, at.1)];
         let mut seen = BTreeSet::new();
         let mut selected = None;

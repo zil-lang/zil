@@ -404,7 +404,7 @@ impl Check<'_, '_> {
                 "actual implicit local-head derivation exceeds its finite bound",
             ));
         }
-        let initialization = crate::initialize(function, b)?;
+        let initialization = crate::shared_initialization(function, b)?;
         let mut out = Heads::new();
         let mut pending = vec![(
             at.0,

@@ -16,7 +16,7 @@ pub(super) fn available_before(
     value: ValueId,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let initialization = crate::initialize(function, b)?;
+    let initialization = crate::shared_initialization(function, b)?;
     let block = function
         .blocks
         .get(at.0.0 as usize)
@@ -1446,7 +1446,7 @@ impl Check<'_, '_> {
                 // have no executable CFG to initialize here.
                 continue;
             }
-            let initialization = crate::initialize(function, b)?;
+            let initialization = crate::shared_initialization(function, b)?;
             let mut declared = BTreeMap::new();
             let mut declared_values = BTreeMap::new();
             for site in &self.program.sites {

@@ -259,7 +259,7 @@ impl Check<'_, '_> {
         // A prologue description may be copied into a lexical slot and used
         // at several distinct original occurrences. Trace its real origins on
         // every reaching edge, while the caller retains this use's own class.
-        let initialized = crate::initialize(function, b)?;
+        let initialized = crate::shared_initialization(function, b)?;
         let mut pending = vec![(local, at.0, at.1)];
         let mut seen = BTreeSet::new();
         let mut origins = 0usize;

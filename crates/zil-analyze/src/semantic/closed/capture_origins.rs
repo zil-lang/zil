@@ -31,7 +31,7 @@ struct Node {
 struct Graph<'c, 'a, 'i, 'f> {
     check: &'c Check<'a, 'i>,
     function: &'f TypedFunction,
-    initialization: crate::Initialization,
+    initialization: std::sync::Arc<crate::Initialization>,
     definitions: Vec<Option<Definition>>,
     indices: BTreeMap<Query, usize>,
     nodes: Vec<Node>,
@@ -45,7 +45,7 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
         // This independent finite pass checks every reachable initialization
         // edge. In particular a missing origin cannot hide behind a loop's
         // optimistic initial local set or behind a dead predecessor.
-        let initialization = crate::initialize(function, b)?;
+        let initialization = crate::shared_initialization(function, b)?;
         if function.values.len() > b.helper_nodes {
             return Err(limit_error(
                 "capture provenance SSA directory exceeds its node budget",
