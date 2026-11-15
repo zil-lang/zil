@@ -18,6 +18,7 @@ impl DefinitionInventory<'_, '_> {
     pub(super) fn classify(&mut self) -> CompileResult<Vec<CtSymbolId>> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
+        self.check_original_definitions(&modules)?;
         let mut limits = self.remaining_limits();
         let before = self.budget.remaining();
         let catalog = (!self.generated_catalog.trees.is_empty()).then_some(self.generated_catalog);
@@ -125,6 +126,89 @@ impl DefinitionInventory<'_, '_> {
         ct_only.extend(classified);
         Ok(ct_only)
     }
+    fn check_original_definitions(
+        &mut self,
+        modules: &[compiler::SourceModule<'_>],
+    ) -> CompileResult<()> {
+        use zil_verify::{CtOriginalImport, CtOriginalImportTarget, CtOriginalModule};
+        // These are borrowed views of the full immutable source trees, before
+        // classification can discard a CT-only declaration from runtime syntax.
+        // Keep every generated tree, including consumed intermediate emitters.
+        let imports_count = modules.iter().try_fold(0usize, |count, module| {
+            count
+                .checked_add(module.imports.len())
+                .ok_or_else(|| error("CT original import view size overflow", Span::default()))
+        })?;
+        let bytes = imports_count
+            .checked_mul(std::mem::size_of::<CtOriginalImport<'_>>())
+            .and_then(|bytes| {
+                bytes.checked_add(modules.len().checked_mul(
+                    std::mem::size_of::<CtOriginalModule<'_>>()
+                        + std::mem::size_of::<Vec<CtOriginalImport<'_>>>(),
+                )?)
+            })
+            .and_then(|bytes| {
+                bytes.checked_add(
+                    self.generated_catalog
+                        .trees
+                        .len()
+                        .checked_mul(std::mem::size_of::<&zil_syntax::ast::Module>())?,
+                )
+            })
+            .ok_or_else(|| error("CT original source view size overflow", Span::default()))?;
+        self.budget.reserve_analysis_work(
+            imports_count
+                .saturating_add(modules.len())
+                .saturating_add(self.generated_catalog.trees.len()) as u64,
+        )?;
+        self.budget.reserve_temporary_bytes(bytes as u64)?;
+        let imports = modules
+            .iter()
+            .map(|module| {
+                module
+                    .imports
+                    .iter()
+                    .map(|import| CtOriginalImport {
+                        alias: &import.alias,
+                        target: match import.target {
+                            compiler::ImportTarget::Module(module) => {
+                                CtOriginalImportTarget::Module(module)
+                            }
+                            compiler::ImportTarget::Meta => CtOriginalImportTarget::Meta,
+                            compiler::ImportTarget::Syntax => CtOriginalImportTarget::Syntax,
+                        },
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let originals = modules
+            .iter()
+            .zip(&imports)
+            .map(|(module, imports)| CtOriginalModule {
+                syntax: module.syntax,
+                imports,
+            })
+            .collect::<Vec<_>>();
+        let generated = self
+            .generated_catalog
+            .trees
+            .iter()
+            .map(|tree| tree.module.as_ref())
+            .collect::<Vec<_>>();
+        let limits = self.remaining_limits();
+        let mut meter =
+            zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
+        let result =
+            zil_verify::verify_ct_original_definitions(&originals, &generated, &limits, &mut meter);
+        let charged = self.budget.reserve_analysis_work(meter.spent());
+        drop(generated);
+        drop(originals);
+        drop(imports);
+        self.budget.release_temporary_bytes(bytes as u64);
+        charged?;
+        result
+    }
+
     fn remaining_limits(&self) -> Limits {
         let remaining = self.budget.remaining();
         let mut limits = self.limits.clone();
