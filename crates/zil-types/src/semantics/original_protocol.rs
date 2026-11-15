@@ -3871,6 +3871,18 @@ impl<'a> Engine<'a, '_> {
                     iterator,
                     body,
                 } => {
+                    if let CoreExprKind::Range { start, end } = &iterator.kind {
+                        self.expr(owner, start, &mut state, depth + 1)?;
+                        self.expr(owner, end, &mut state, depth + 1)?;
+                        return self.iteration(
+                            owner,
+                            statement.id,
+                            pattern,
+                            body,
+                            state,
+                            depth + 1,
+                        );
+                    }
                     let value = self.expr(owner, iterator, &mut state, depth + 1)?;
                     self.drop_value(&value, &state, depth + 1)?;
                     self.pay(1, depth)?;

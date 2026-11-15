@@ -21,6 +21,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         limits: &Limits,
     ) -> CompileResult<CtProgram> {
         self.compile_query(expression, expected, None, limits)
+            .map_err(ct_errors)
     }
     fn compile_in_frozen_context(
         &self,
@@ -30,6 +31,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         limits: &Limits,
     ) -> CompileResult<CtProgram> {
         self.compile_query(expression, expected, Some(frozen), limits)
+            .map_err(ct_errors)
     }
 }
 impl Compiler<'_> {
@@ -413,7 +415,13 @@ impl Compiler<'_> {
 fn ct_errors(mut errors: Vec<Diagnostic>) -> Vec<Diagnostic> {
     for d in &mut errors {
         d.phase = Phase::Ct;
-        d.notes.push("while compiling a pure #(...) query".into());
+        if !d
+            .notes
+            .iter()
+            .any(|note| note == "while compiling a pure #(...) query")
+        {
+            d.notes.push("while compiling a pure #(...) query".into());
+        }
     }
     errors
 }

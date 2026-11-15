@@ -4,6 +4,9 @@ use crate::*;
 pub(super) trait Context {
     fn node(&mut self, depth: usize) -> R<()>;
     fn ty(&mut self, value: &mut SemanticTypeRecipe, depth: usize) -> R<()>;
+    fn rewrite_expression(&mut self, _value: &mut SemanticOriginalExpr, _depth: usize) -> R<()> {
+        Ok(())
+    }
     fn expression_id(&mut self, _id: &mut zil_base::NodeId, _depth: usize) -> R<()> {
         Ok(())
     }
@@ -209,6 +212,7 @@ fn visit_statement(
     Ok(())
 }
 fn expression(value: &mut SemanticOriginalExpr, cx: &mut impl Context, depth: usize) -> R<()> {
+    cx.rewrite_expression(value, depth)?;
     cx.expression_id(&mut value.id, depth)?;
     cx.span(&mut value.span, depth)?;
     cx.expression(value.id, &value.kind, depth)?;

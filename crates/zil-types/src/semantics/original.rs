@@ -2937,12 +2937,12 @@ impl<'a> Check<'a, '_> {
                 result
             }
             CoreExprKind::CompileTime(value) => {
-                self.stage_depth = self
-                    .stage_depth
+                let outer_stage = self.stage_depth;
+                self.stage_depth = outer_stage
                     .checked_add(1)
                     .ok_or_else(|| bad("original stage nesting overflows"))?;
                 let result = self.expr(owner, value, variables, wanted, depth + 1);
-                self.stage_depth -= 1;
+                self.stage_depth = outer_stage;
                 result?
             }
             CoreExprKind::Group(value) => self.expr(owner, value, variables, wanted, depth + 1)?,
@@ -4780,11 +4780,12 @@ impl<'a> Check<'a, '_> {
                     // Check the cleanup at its declaration environment. Reserving
                     // its affine transfers also prevents another transfer before exit.
                     let mut cleanup = self.clone_variables(variables)?;
-                    let outer_loops = std::mem::take(&mut self.loops);
-                    self.cleanup_depth = self
-                        .cleanup_depth
+                    let outer_cleanup = self.cleanup_depth;
+                    let next_cleanup = outer_cleanup
                         .checked_add(1)
                         .ok_or_else(|| bad("original cleanup nesting overflows"))?;
+                    let outer_loops = std::mem::take(&mut self.loops);
+                    self.cleanup_depth = next_cleanup;
                     let cleanup_result = self.block(
                         owner,
                         body,
@@ -4793,7 +4794,7 @@ impl<'a> Check<'a, '_> {
                         depth + 1,
                     );
                     self.loops = outer_loops;
-                    self.cleanup_depth -= 1;
+                    self.cleanup_depth = outer_cleanup;
                     if !cleanup_result? {
                         return Err(bad(
                             "original deferred cleanup escapes its own exit boundary",
@@ -5058,14 +5059,7 @@ impl<'a> Check<'a, '_> {
                     end,
                     body,
                 } => {
-                    let ty = self.expr(owner, start, variables, None, depth + 1)?;
-                    let end = self.expr(owner, end, variables, Some(&ty), depth + 1)?;
-                    self.same(&ty, &end)?;
-                    if !matches!(&ty, SemanticTypeRecipe::Atom(ty) if ty.is_integer()) {
-                        return Err(bad(
-                            "original range loop endpoints must be primitive integers",
-                        ));
-                    }
+                    let ty = self.range_element(owner, start, end, variables, depth + 1)?;
                     let mut iteration = self.clone_variables(variables)?;
                     self.bind_iteration(owner, statement.id, name, ty, &mut iteration, depth + 1)?;
                     self.loop_body(
@@ -5126,32 +5120,36 @@ impl<'a> Check<'a, '_> {
                     iterator,
                     body,
                 } => {
-                    let ty = self.expr(owner, iterator, variables, None, depth + 1)?;
-                    let ty = self.logical(owner, &ty, depth + 1)?;
-                    let element = match ty {
-                        SemanticTypeRecipe::Array { element, .. } => *element,
-                        SemanticTypeRecipe::Address {
-                            mutable,
-                            lifetime,
-                            inner,
-                        } => {
-                            let (SemanticTypeRecipe::Array { element, .. }
-                            | SemanticTypeRecipe::Slice(element)) = *inner
-                            else {
-                                return Err(pending(
-                                    "original iteration requires its complete iterator protocol scheme",
-                                ));
-                            };
+                    let element = if let CoreExprKind::Range { start, end } = &iterator.kind {
+                        self.range_element(owner, start, end, variables, depth + 1)?
+                    } else {
+                        let ty = self.expr(owner, iterator, variables, None, depth + 1)?;
+                        let ty = self.logical(owner, &ty, depth + 1)?;
+                        match ty {
+                            SemanticTypeRecipe::Array { element, .. } => *element,
                             SemanticTypeRecipe::Address {
                                 mutable,
                                 lifetime,
-                                inner: element,
+                                inner,
+                            } => {
+                                let (SemanticTypeRecipe::Array { element, .. }
+                                | SemanticTypeRecipe::Slice(element)) = *inner
+                                else {
+                                    return Err(pending(
+                                        "original iteration requires its complete iterator protocol scheme",
+                                    ));
+                                };
+                                SemanticTypeRecipe::Address {
+                                    mutable,
+                                    lifetime,
+                                    inner: element,
+                                }
                             }
-                        }
-                        _ => {
-                            return Err(pending(
-                                "original iteration requires its complete iterator protocol scheme",
-                            ));
+                            _ => {
+                                return Err(pending(
+                                    "original iteration requires its complete iterator protocol scheme",
+                                ));
+                            }
                         }
                     };
                     let mut iteration = self.clone_variables(variables)?;
@@ -5197,6 +5195,44 @@ impl<'a> Check<'a, '_> {
             }
         }
         Ok(live)
+    }
+    fn range_element(
+        &mut self,
+        owner: SemanticDefinitionId,
+        start: &SemanticOriginalExpr,
+        end: &SemanticOriginalExpr,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(1, depth)?;
+        // As for arithmetic, an unsuffixed literal has no effects and can
+        // receive the independently typed other endpoint's integer context.
+        let (a, b) = if self.contextual_integer(start, depth + 1)?
+            && !self.contextual_integer(end, depth + 1)?
+        {
+            let b = self.expr(owner, end, variables, None, depth + 1)?;
+            let wanted = self.logical(owner, &b, depth + 1)?;
+            (
+                self.expr(owner, start, variables, Some(&wanted), depth + 1)?,
+                b,
+            )
+        } else {
+            let a = self.expr(owner, start, variables, None, depth + 1)?;
+            let wanted = self.logical(owner, &a, depth + 1)?;
+            (
+                a,
+                self.expr(owner, end, variables, Some(&wanted), depth + 1)?,
+            )
+        };
+        let a = self.logical(owner, &a, depth + 1)?;
+        let b = self.logical(owner, &b, depth + 1)?;
+        self.same(&a, &b)?;
+        if !matches!(&a, SemanticTypeRecipe::Atom(ty) if ty.is_integer()) {
+            return Err(bad(
+                "original range loop endpoints must be primitive integers",
+            ));
+        }
+        Ok(a)
     }
     fn bind_iteration(
         &mut self,
@@ -5372,7 +5408,20 @@ impl<'a> Check<'a, '_> {
         }
         let before = *self.left;
         let children = self.proof.body_cost_total;
+        let context_depth = self.contexts.len();
+        let outer_stage = self.stage_depth;
+        let outer_cleanup = self.cleanup_depth;
+        self.pay(self.active.len().saturating_add(1).ilog2() as usize + 1, 0)?;
+        let was_active = self.active.contains(&definition.id);
         let result = self.function_inner(definition, parent);
+        self.stage_depth = outer_stage;
+        self.cleanup_depth = outer_cleanup;
+        if result.is_err() {
+            self.contexts.truncate(context_depth);
+            if !was_active {
+                self.active.remove(&definition.id);
+            }
+        }
         let inclusive = before.saturating_sub(*self.left);
         if let ProofAccess::Owned(proof) = &mut self.proof {
             let exclusive =
@@ -5461,33 +5510,37 @@ impl<'a> Check<'a, '_> {
         let outer_loops = std::mem::take(&mut self.loops);
         let outer_stage = std::mem::replace(&mut self.stage_depth, 0);
         let outer_cleanup = std::mem::replace(&mut self.cleanup_depth, 0);
-        match body {
-            SemanticOriginalFunctionBody::Defined(body) => {
-                if self.block(definition.id, body, &mut variables, &result, 0)? {
-                    self.unit_result(definition.id, &result, 0)?;
-                    self.capture_exit(definition.id, &variables, 0)?;
+        let body_result: R<()> = (|| {
+            match body {
+                SemanticOriginalFunctionBody::Defined(body) => {
+                    if self.block(definition.id, body, &mut variables, &result, 0)? {
+                        self.unit_result(definition.id, &result, 0)?;
+                        self.capture_exit(definition.id, &variables, 0)?;
+                    }
+                }
+                SemanticOriginalFunctionBody::External => {}
+                SemanticOriginalFunctionBody::Declaration => {
+                    let parent = definition
+                        .parent
+                        .ok_or_else(|| bad("abstract original member has no real trait parent"))?;
+                    if definition.kind != SemanticDefinitionKind::Method
+                        || !matches!(
+                            self.definition(parent)?.body,
+                            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
+                        )
+                    {
+                        return Err(bad(
+                            "only a real abstract trait member may omit its operation body",
+                        ));
+                    }
                 }
             }
-            SemanticOriginalFunctionBody::External => {}
-            SemanticOriginalFunctionBody::Declaration => {
-                let parent = definition
-                    .parent
-                    .ok_or_else(|| bad("abstract original member has no real trait parent"))?;
-                if definition.kind != SemanticDefinitionKind::Method
-                    || !matches!(
-                        self.definition(parent)?.body,
-                        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. })
-                    )
-                {
-                    return Err(bad(
-                        "only a real abstract trait member may omit its operation body",
-                    ));
-                }
-            }
-        }
+            Ok(())
+        })();
         self.loops = outer_loops;
         self.stage_depth = outer_stage;
         self.cleanup_depth = outer_cleanup;
+        body_result?;
         self.pay(variables.len(), 0)?;
         let names_work = self
             .proof
