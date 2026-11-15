@@ -3,15 +3,21 @@
 //! reference capability: calls, loans and invalidation remain in the real CFG.
 use super::*;
 
+#[derive(PartialEq, Eq)]
+struct StablePlace {
+    root: LocalId,
+    index_bindings: Vec<LocalId>,
+}
+
 pub(crate) struct PreparedRead {
     target: CoreExpr,
-    root: LocalId,
+    place: StablePlace,
     address: ValueId,
     ty: Type,
 }
 
 impl Builder<'_, '_> {
-    fn stable_assignment_root(&mut self, e: &CoreExpr, depth: usize) -> R<Option<LocalId>> {
+    fn stable_assignment_root(&mut self, e: &CoreExpr, depth: usize) -> R<Option<StablePlace>> {
         if depth > self.limits.max_call_depth {
             return Err(Diagnostic::limit(
                 Phase::Types,
@@ -39,9 +45,30 @@ impl Builder<'_, '_> {
                 if declaration.mutable
                     && matches!(declaration.ty, Type::Address { .. } | Type::Desc(_))
                 {
-                    return Ok(None);
+                    self.closures
+                        .snapshot(self.borrowed_captures.len().saturating_add(1), e.span)?;
+                    let captured_inline = if let Some(captured) = self.borrowed_captures.get(&local)
+                    {
+                        self.closures.snapshot_type(captured, 1, 0, e.span)?;
+                        self.closures.snapshot_type(&declaration.ty, 1, 0, e.span)?;
+                        !matches!(captured, Type::Address { .. } | Type::Desc(_))
+                            && matches!(&declaration.ty, Type::Address { inner, .. } if inner.as_ref() == captured)
+                    } else {
+                        false
+                    };
+                    // A borrowed capture local stores the fixed environment
+                    // address. Its mutable flag describes the inline referent,
+                    // while an assignment writes through that address. A
+                    // captured pointer variable can itself be rebound and is
+                    // deliberately excluded above.
+                    if !captured_inline {
+                        return Ok(None);
+                    }
                 }
-                Ok(Some(local))
+                Ok(Some(StablePlace {
+                    root: local,
+                    index_bindings: Vec::new(),
+                }))
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
@@ -62,21 +89,56 @@ impl Builder<'_, '_> {
                 }
                 Ok(Some(root))
             }
-            CoreExprKind::Index { object, index }
-                if matches!(&index.kind, CoreExprKind::Integer(_))
-                    || matches!(&index.kind, CoreExprKind::Literal(value) if value.ty().is_integer()) =>
-            {
-                let Some(root) = self.stable_assignment_root(object, depth + 1)? else {
+            CoreExprKind::Index { object, index } => {
+                let Some(mut place) = self.stable_assignment_root(object, depth + 1)? else {
                     return Ok(None);
+                };
+                let binding = match &index.kind {
+                    CoreExprKind::Integer(_) => None,
+                    CoreExprKind::Literal(value) if value.ty().is_integer() => None,
+                    CoreExprKind::Name(name) => {
+                        self.closures.snapshot(
+                            self.scopes
+                                .len()
+                                .saturating_mul(self.function.locals.len().saturating_add(1))
+                                .saturating_add(name.len()),
+                            index.span,
+                        )?;
+                        let Some(local) = self.lookup(name) else {
+                            return Ok(None);
+                        };
+                        let declaration = &self.function.locals[local.0 as usize];
+                        if declaration.mutable || !declaration.ty.is_integer() {
+                            return Ok(None);
+                        }
+                        // Expand's compound assignment evaluates an index
+                        // once into an immutable ordinary local. The same
+                        // rule applies to any actual immutable integer value;
+                        // neither a generated name nor equal syntax proves it.
+                        Some(local)
+                    }
+                    _ => return Ok(None),
                 };
                 if !matches!(object.kind, CoreExprKind::Name(_))
                     && self.known_address_checked(object)?
                 {
                     return Ok(None);
                 }
-                Ok(Some(root))
+                if let Some(binding) = binding {
+                    self.closures
+                        .snapshot(place.index_bindings.len().saturating_add(1), index.span)?;
+                    place.index_bindings.try_reserve(1).map_err(|_| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "prepared index binding allocation failed",
+                            Some(index.span),
+                        )
+                    })?;
+                    place.index_bindings.push(binding);
+                }
+                Ok(Some(place))
             }
-            // Calls, mutable/dynamic indices and arbitrary dereferences must
+            // Calls, mutable/effectful indices and arbitrary dereferences must
             // retain their separate actual evaluation and access obligations.
             _ => Ok(None),
         }
@@ -92,7 +154,7 @@ impl Builder<'_, '_> {
         if !ty.is_copy_value() {
             return Ok(());
         }
-        let Some(root) = self.stable_assignment_root(target, 0)? else {
+        let Some(place) = self.stable_assignment_root(target, 0)? else {
             return Ok(());
         };
         let before = self.closures.remaining_work();
@@ -101,7 +163,7 @@ impl Builder<'_, '_> {
         self.closures.snapshot(before - remaining, target.span)?;
         self.prepared_copy_read = Some(PreparedRead {
             target: target.clone(),
-            root,
+            place,
             address,
             ty: ty.clone(),
         });
@@ -117,9 +179,19 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let result = (|| {
-            // The saved LocalId distinguishes a RHS shadow from the target's
-            // original lexical binding even when their names are identical.
-            if self.stable_assignment_root(e, 0)? != Some(prepared.root)
+            // Saved root and index LocalIds distinguish RHS shadows from
+            // the target's bindings even when their names are identical.
+            let place = self.stable_assignment_root(e, 0)?;
+            self.closures.snapshot(
+                prepared
+                    .place
+                    .index_bindings
+                    .len()
+                    .saturating_add(place.as_ref().map_or(0, |place| place.index_bindings.len()))
+                    .saturating_add(1),
+                e.span,
+            )?;
+            if place.as_ref() != Some(&prepared.place)
                 || !self.same_stable_place(&prepared.target, e, 0)?
             {
                 return Ok(None);
@@ -372,6 +444,109 @@ mod tests {
         assert!(
             builder
                 .stable_assignment_root(&name("changing"), 0)
+                .unwrap()
+                .is_none()
+        );
+    }
+    #[test]
+    fn borrowed_inline_capture_and_immutable_index_keep_their_actual_bindings() {
+        let signatures = BTreeMap::new();
+        let limits = Limits::default();
+        let mut state = closures::State::new(1, &limits);
+        let mut builder = builder(&signatures, &limits, &mut state);
+        let local = builder
+            .local("state", address_type(), true, Span::default())
+            .unwrap();
+        let Type::Address { inner, .. } = address_type() else {
+            unreachable!()
+        };
+        builder.borrowed_captures.insert(local, *inner);
+        let rhs = expression(CoreExprKind::Binary {
+            op: BinaryOp::Add,
+            left: Box::new(field()),
+            right: Box::new(expression(CoreExprKind::Integer("1".into()))),
+        });
+        builder.assign_address(&field(), &rhs).unwrap();
+        assert_eq!(
+            builder.function.blocks[0]
+                .instructions
+                .iter()
+                .filter(|i| matches!(i.kind, InstructionKind::AddressField { .. }))
+                .count(),
+            1
+        );
+
+        builder
+            .local(
+                "values",
+                Type::Address {
+                    mutable: true,
+                    inner: Box::new(Type::Slice {
+                        element: Box::new(Type::U8),
+                    }),
+                },
+                false,
+                Span::default(),
+            )
+            .unwrap();
+        builder
+            .local("frozen", Type::I64, false, Span::default())
+            .unwrap();
+        let target = expression(CoreExprKind::Index {
+            object: Box::new(name("values")),
+            index: Box::new(name("frozen")),
+        });
+        let rhs = expression(CoreExprKind::Binary {
+            op: BinaryOp::Add,
+            left: Box::new(target.clone()),
+            right: Box::new(expression(CoreExprKind::Literal(Constant::U8(1)))),
+        });
+        builder.assign_address(&target, &rhs).unwrap();
+        assert_eq!(
+            builder.function.blocks[0]
+                .instructions
+                .iter()
+                .filter(|i| matches!(i.kind, InstructionKind::AddressIndex { .. }))
+                .count(),
+            1
+        );
+        let (address, _) = builder.address_place(&target, true).unwrap();
+        builder
+            .prepare_copy_read(&target, address, &Type::U8)
+            .unwrap();
+        builder.push_scope(Span::default()).unwrap();
+        builder
+            .local("frozen", Type::I64, false, Span::default())
+            .unwrap();
+        assert!(builder.read_prepared_copy(&target, None).unwrap().is_none());
+        builder.pop_scope();
+        assert!(builder.read_prepared_copy(&target, None).unwrap().is_some());
+        builder.prepared_copy_read = None;
+        builder
+            .local("changing_index", Type::I64, true, Span::default())
+            .unwrap();
+        let changing = expression(CoreExprKind::Index {
+            object: Box::new(name("values")),
+            index: Box::new(name("changing_index")),
+        });
+        assert!(
+            builder
+                .stable_assignment_root(&changing, 0)
+                .unwrap()
+                .is_none()
+        );
+
+        let rebindable = Type::Address {
+            mutable: true,
+            inner: Box::new(address_type()),
+        };
+        let local = builder
+            .local("captured_pointer", rebindable, true, Span::default())
+            .unwrap();
+        builder.borrowed_captures.insert(local, address_type());
+        assert!(
+            builder
+                .stable_assignment_root(&name("captured_pointer"), 0)
                 .unwrap()
                 .is_none()
         );
