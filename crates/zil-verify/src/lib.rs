@@ -369,6 +369,7 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 
 struct Budget {
     remaining: usize,
+    diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
@@ -498,6 +499,7 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
             callable_source_functions: Vec::new(),
             pending_callable_sources: Vec::new(),
             returned_environment_sources: false,
@@ -590,11 +592,28 @@ impl Budget {
             stored_context: false,
         }
     }
+    #[track_caller]
     fn spend(&mut self, amount: usize) -> Check<()> {
-        self.remaining = self
-            .remaining
-            .checked_sub(amount)
-            .ok_or_else(|| limit("independent verification work budget exhausted"))?;
+        let location = std::panic::Location::caller();
+        if let Some(costs) = &mut self.diagnostic_costs {
+            let row = costs.entry((location.file(), location.line())).or_default();
+            row.0 = row.0.saturating_add(amount);
+            row.1 = row.1.saturating_add(1);
+        }
+        self.remaining = self.remaining.checked_sub(amount).ok_or_else(|| {
+            let mut message = format!(
+                "independent verification work budget exhausted [requested {amount}, remaining {}, function {:?}, callsite {location}]",
+                self.remaining, self.current_function
+            );
+            if let Some(costs) = &self.diagnostic_costs {
+                let mut rows: Vec<_> = costs.iter().collect();
+                rows.sort_by_key(|(_, (work, calls))| std::cmp::Reverse((*work, *calls)));
+                for ((file, line), (work, calls)) in rows.into_iter().take(20) {
+                    message.push_str(&format!(" [cost {file}:{line}: work {work}, calls {calls}]"));
+                }
+            }
+            limit(message)
+        })?;
         Ok(())
     }
     // Callers pass immutable local Type trees from the checked module; their

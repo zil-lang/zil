@@ -152,12 +152,13 @@ impl CheckedOriginal {
             for requirement in requirements{if let SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=requirement{let receiver=self.ty(module,context,receiver,&lexical,active,b)?;if self.same(&receiver,ty,b)?{let mut prototype=self.signature(module,context,signature,&lexical,active,b)?;prototype.callable_kind=Some(*kind);if let Some(previous)=&result{let previous:&Prototype=previous;if previous.parameters.len()!=prototype.parameters.len()||previous.modes!=prototype.modes||previous.result_mode!=prototype.result_mode||previous.call_kind!=prototype.call_kind||previous.bound_lifetimes!=prototype.bound_lifetimes||previous.invocation_lifetimes!=prototype.invocation_lifetimes{return Err(unsupported("original Callable overloads need exact role selection",None));}let(parameters,result)=self.callable_signature_types(previous,&prototype,b)?;for(a,c)in parameters.iter().zip(&prototype.parameters){if !self.same(a,c,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}if !self.same(&result,&prototype.result,b)?{return Err(unsupported("original Callable overloads need exact role selection",None));}}result=Some(prototype);}}}
         }Ok(result)
     }
+    #[track_caller]
     pub(super) fn obligation(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         // Type recipes keep the target's scope, but every recursively selected
         // provider must discharge its requirements in the actual caller's Γ.
         // In particular a target's pending where clauses are not premises.
         let evidence=self.proof_environment(caller,b)?;
-        if self.current!=Some(evidence.current()?){return Err(bad("original obligation has no exact active caller environment"));}
+        if self.current!=Some(evidence.current()?){return Err(bad(&format!("original obligation has no exact active caller environment [active {:?}, evidence {:?}, input caller {:?}, target {:?}, inherited {}, callsite {}]",self.current,evidence.current()?,caller.current()?,target.current()?,self.premise_environment.is_some(),std::panic::Location::caller())));}
         let previous=self.premise_environment.replace(evidence);
         let result=self.obligation_inner(module,context,requirement,target,previous.as_ref().unwrap_or(caller),active,b);
         self.premise_environment=previous;
