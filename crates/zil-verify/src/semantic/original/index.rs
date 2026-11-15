@@ -41,32 +41,7 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
         if !ids.insert(definition.id) {
             return Err(bad("duplicate original definition identity in body index"));
         }
-        let (signature, sites, parameters, receiver_parameter, site_nodes, body) = match &definition.body {
-            SemanticDefinitionBody::Function { .. } => return Err(bad("original function inventory omits its complete body")),
-            SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body, .. } =>
-                (signature, sites.as_slice(), parameters.as_slice(), *receiver_parameter, site_nodes.as_slice(), body),
-            SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(_) => {
-                if matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
-                    return Err(bad("original callable definition has a nonfunction body"));
-                }
-                continue;
-            }
-        };
-        if !matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
-            return Err(bad("original function body has a noncallable definition kind"));
-        }
-        if receiver_parameter.is_some_and(|ordinal| ordinal as usize >= parameters.len()) {
-            return Err(bad("original receiver selects no actual parameter ordinal"));
-        }
-        b.spend(parameters.len().saturating_add(1))?;
-        let mut function = Function {
-            definition, signature, sites, parameters, receiver_parameter, site_nodes, body,
-            expressions: BTreeMap::new(), statements: BTreeMap::new(), bindings: BTreeMap::new(),
-            nodes: BTreeMap::new(), closures: BTreeMap::new(),
-        };
-        if let SemanticOriginalFunctionBody::Defined(body) = body {
-            function.walk(body, b)?;
-        }
+        let Some(mut function)=function(definition,b)? else {continue;};
         function.bind_sites(b)?;
         result.definitions.insert(definition.id, function);
     }
@@ -96,6 +71,87 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
         }
     }
     Ok(result)
+}
+
+fn function<'a>(definition:&'a SemanticDefinition,b:&mut Budget)->Check<Option<Function<'a>>> {
+    let (signature, sites, parameters, receiver_parameter, site_nodes, body) = match &definition.body {
+        SemanticDefinitionBody::Function { .. } => return Err(bad("original function inventory omits its complete body")),
+        SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body, .. } =>
+            (signature, sites.as_slice(), parameters.as_slice(), *receiver_parameter, site_nodes.as_slice(), body),
+        SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(_) => {
+            if matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
+                return Err(bad("original callable definition has a nonfunction body"));
+            }
+            return Ok(None);
+        }
+    };
+    if !matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
+        return Err(bad("original function body has a noncallable definition kind"));
+    }
+    if receiver_parameter.is_some_and(|ordinal| ordinal as usize >= parameters.len()) {
+        return Err(bad("original receiver selects no actual parameter ordinal"));
+    }
+    b.spend(parameters.len().saturating_add(1))?;
+    let mut function = Function {
+        definition, signature, sites, parameters, receiver_parameter, site_nodes, body,
+        expressions: BTreeMap::new(), statements: BTreeMap::new(), bindings: BTreeMap::new(),
+        nodes: BTreeMap::new(), closures: BTreeMap::new(),
+    };
+    if let SemanticOriginalFunctionBody::Defined(body) = body {
+        function.walk(body, b)?;
+    }
+    Ok(Some(function))
+}
+
+
+/// Immutable structural cursors after the complete build above. This directory
+/// is request-local, not an IR receipt and not a type/source/loan certificate.
+pub(super) struct Directory {
+    definitions:BTreeMap<SemanticDefinitionId,DefinitionCursor>,
+}
+struct DefinitionCursor {
+    ordinal:usize,
+    nodes:BTreeMap<SemanticSiteId,SemanticOriginalNode>,
+    closures:BTreeMap<NodeId,SemanticDefinitionId>,
+}
+pub(super) fn directory(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Check<Directory>{
+    let program=module.semantic.as_ref().ok_or_else(||bad("original index directory has no complete programme"))?;
+    let mut definitions=BTreeMap::new();
+    for(ordinal,definition)in program.definitions.iter().enumerate(){
+        b.spend(index.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        let Some(function)=index.definitions.get(&definition.id)else{continue;};
+        let rows=function.nodes.len().saturating_add(function.closures.len());
+        b.spend(rows.saturating_mul(rows.checked_ilog2().map_or(1,|n|n as usize+2)).saturating_add(index.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2)))?;
+        let nodes=function.nodes.iter().map(|(site,node)|(*site,match node{
+            Node::Expression(expression)=>SemanticOriginalNode::Expression(expression.id),
+            Node::Statement(statement)=>SemanticOriginalNode::Statement(statement.id),
+        })).collect();
+        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone()});
+    }
+    Ok(Directory{definitions})
+}
+pub(super) fn select<'a>(module:&'a TypedModule,directory:&Directory,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
+    let program=module.semantic.as_ref().ok_or_else(||bad("original local cursor has no complete programme"))?;
+    let mut definitions=BTreeMap::new();
+    for id in requested{
+        b.spend(directory.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        if definitions.contains_key(id){continue;}
+        let cursor=directory.definitions.get(id).ok_or_else(||bad("original local cursor selects no fully checked function definition"))?;
+        let definition=program.definitions.get(cursor.ordinal).filter(|definition|definition.id==*id).ok_or_else(||bad("original local cursor changes its immutable definition identity"))?;
+        let mut function=function(definition,b)?.ok_or_else(||bad("original local cursor changes its checked function kind"))?;
+        let rows=function.expressions.len().saturating_add(function.statements.len()).saturating_add(cursor.nodes.len());
+        b.spend(cursor.nodes.len().saturating_mul(rows.checked_ilog2().map_or(1,|n|n as usize+2)).saturating_add(cursor.closures.len()))?;
+        for(site,node)in &cursor.nodes{
+            let node=match node{
+                SemanticOriginalNode::Expression(id)=>Node::Expression(*function.expressions.get(id).ok_or_else(||bad("checked original cursor expression is absent from its exact body"))?),
+                SemanticOriginalNode::Statement(id)=>Node::Statement(*function.statements.get(id).ok_or_else(||bad("checked original cursor statement is absent from its exact body"))?),
+            };
+            function.nodes.insert(*site,node);
+        }
+        function.closures=cursor.closures.clone();
+        definitions.insert(*id,function);
+    }
+    Ok(Index{definitions})
 }
 
 enum Work<'a> {

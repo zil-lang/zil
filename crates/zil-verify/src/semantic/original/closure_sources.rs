@@ -10,7 +10,7 @@ impl CheckedOriginal {
         // These forms already reuse a complete original type argument or have
         // no fresh class construction whose domain could be compressed.
         if matches!(checked,Ty::Atom(_)|Ty::SealedError(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Function(_)){return Ok(None);}
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original Call result has no complete body index"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original Call result has no complete body index"))?;
         let binder=match source{
             SemanticOriginalTypeSource::Binding(node)=>Some(*node),
             SemanticOriginalTypeSource::Expression(node)=>match self.value_bindings.get(&(definition,*node)){Some(Binder::Local{definition:owner,node,..})if *owner==definition=>Some(*node),_=>None},
@@ -38,7 +38,7 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn original_address_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
         let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original address has no complete body index"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("original address has no complete body index"))?;
         let mut expression=*function.expressions.get(node).ok_or_else(||bad("original address expression is absent"))?;
         loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(value)|CoreExprKind::Ascribed{value,..}=>expression=value, _=>break}}
         let CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=&expression.kind else{return Ok(None);};
@@ -54,7 +54,7 @@ impl CheckedOriginal {
         Ok(Some(match &place.binder{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("original address needs its complete captured/indirect Place boundary",None))}))
     }
     pub(in crate::semantic) fn ghost_capture_source(&self,module:&TypedModule,creator:SemanticDefinitionId,child:SemanticDefinitionId,ordinal:usize,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
-        let index=index::build(module,b)?;
+        let index=self.source_index(module,&[creator,child],b)?;
         let parent=index.definitions.get(&creator).ok_or_else(||bad("logical capture has no original creator body"))?;
         let function=index.definitions.get(&child).ok_or_else(||bad("logical capture has no original child body"))?;
         if function.definition.parent!=Some(creator)||parent.closures.get(&node)!=Some(&child){return Err(bad("logical capture environment belongs to another original creation"));}
@@ -82,7 +82,7 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn closure_creation(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>> {
         if !matches!(self.original_type(definition,source,b)?,Ty::Closure(..)){return Ok(None);}
-        let index=index::build(module,b)?;
+        let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("closure source has no original function"))?;
         let binding=match source {
             SemanticOriginalTypeSource::Binding(node)=>Some(*node),
@@ -102,7 +102,7 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn implicit_capture_binding(&self,module:&TypedModule,child:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<intrinsics::BufferSource> {
         if self.creator_moves.get(&child)!=Some(&false){return Err(bad("implicit captured head does not have its original default-borrow creation mode"));}
-        let index=index::build(module,b)?;let function=index.definitions.get(&child).ok_or_else(||bad("implicit capture has no original child"))?;
+        let index=self.source_index(module,&[child],b)?;let function=index.definitions.get(&child).ok_or_else(||bad("implicit capture has no original child"))?;
         let implicit=function.definition.implicit_lifetimes.iter().find(|row|row.ordinal==ordinal).ok_or_else(||bad("implicit capture has no original lifetime occurrence"))?;
         let mut selected=None;
         for site in function.sites.iter().filter(|site|site.occurrence_path==implicit.occurrence_path){
@@ -130,12 +130,12 @@ impl CheckedOriginal {
 }
 impl CheckedOriginal {
     pub(in crate::semantic) fn static_literal(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Option<Vec<u8>>>{
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static literal original body is absent"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static literal original body is absent"))?;
         let expression=match function.nodes.get(&site).copied(){Some(index::Node::Expression(expression))=>expression,Some(index::Node::Statement(statement))=>match &statement.kind{CoreStatementKind::Binding{initializer:Some(expression),..}=>expression,_=>return Ok(None)},None=>return Ok(None)};
         self.checked_static_literal(definition,expression,b)
     }
     pub(in crate::semantic) fn static_call_literals(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,receiver_argument:bool,b:&mut Budget)->Check<Option<(usize,Vec<(usize,Vec<u8>)>)>>{
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static Call literal has no exact original body"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static Call literal has no exact original body"))?;
         let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{return Ok(None);};
         let CoreExprKind::Call{arguments,..}=&call.kind else{return Ok(None);};
         if !self.call_targets.contains_key(&(definition,site))&&!self.trait_calls.contains_key(&(definition,site))&&!self.callable_nodes.contains_key(&(definition,call.id)){return Ok(None);}

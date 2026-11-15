@@ -33,7 +33,7 @@ impl CheckedOriginal {
     pub(in crate::semantic) fn callable_source(&self,_module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<NodeId>{b.spend(1)?;self.callable_nodes.get(&(definition,node)).copied().ok_or_else(||bad("actual callable has no independently checked original callee expression"))}
 
     pub(in crate::semantic) fn indirect_signature_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,environment:&EvalEnv,b:&mut Budget)->Check<SemanticSignatureRecipe>{
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect call has no complete original function"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect call has no complete original function"))?;
         let Some(index::Node::Expression(call))=function.nodes.get(&site)else{return Err(bad("indirect call source is not an original expression"));};
         let source=self.callable_source(module,definition,call.id,b)?;
         let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(source),b)?;

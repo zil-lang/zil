@@ -6,12 +6,12 @@ impl CheckedOriginal {
     pub(in crate::semantic) fn scalar_input<'a>(&self,module:&'a TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(&'a SemanticOriginalExpr,Type)>{
         let Ty::Atom(carrier)=self.original_type(definition,&SemanticOriginalTypeSource::Expression(node),b)? else{return Err(bad("scalar source input lacks its independent original carrier"));};
         if !carrier.is_integer()&&!carrier.is_float()&&!matches!(carrier,Type::Unit|Type::Bool){return Err(bad("source input is not an independently checked scalar expression"));}
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("scalar source input original owner is absent"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("scalar source input original owner is absent"))?;
         let expression=*function.expressions.get(&node).ok_or_else(||bad("scalar source input original expression is absent"))?;
         Ok((expression,carrier))
     }
     pub(in crate::semantic) fn address_place(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(intrinsics::AddressRoot,Vec<intrinsics::AddressProjection>)>{
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect address has no complete original owner body"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect address has no complete original owner body"))?;
         let mut expression=*function.expressions.get(&node).ok_or_else(||bad("indirect address original operand is absent"))?;
         let mut projections=Vec::new();
         loop{

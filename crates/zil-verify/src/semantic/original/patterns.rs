@@ -38,7 +38,7 @@ impl CheckedOriginal {
         let mut selected=None;
         for((scope,statement,path),binder)in &self.pattern_bindings{b.spend(path.len().saturating_add(1))?;if *scope==definition&&binder==&place.binder{if selected.replace((*statement,path.clone())).is_some(){return Err(bad("pattern binder has multiple original binding occurrences"));}}}
         let(statement,path)=selected.ok_or_else(||bad("pattern binder lacks its complete original occurrence"))?;
-        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("pattern owner has no original body"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("pattern owner has no original body"))?;
         let statement=function.statements.get(&statement).ok_or_else(||bad("pattern binding statement is absent"))?;
         let(subject,mut pattern,mut consumed)=match &statement.kind{
             CoreStatementKind::Match{value,arms}=>{let arm=*path.first().ok_or_else(||bad("match binder omits its original arm ordinal"))?;let selected=arms.get(arm as usize).ok_or_else(||bad("match binder arm is absent"))?;(value,&selected.pattern,1usize)},
