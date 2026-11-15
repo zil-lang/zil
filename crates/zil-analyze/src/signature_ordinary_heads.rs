@@ -211,6 +211,9 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
         }
     }
     for function in &module.functions {
+        if let Some(claim) = &function.callable_contract
+            && crate::helpers::requires_stored_capture_cfg(module, function, claim, b)?
+        { return Ok(false); }
         // A returned borrow needs the corresponding result/source kernel;
         // an input-only directory cannot certify it by omitting a result row.
         if matches!(function.return_type, Type::Address { .. } | Type::Desc(_)) {

@@ -630,6 +630,38 @@ fn two_type_state_constructor(
     Ok(true)
 }
 
+/// A captured callback plus a distinct exclusive argument requires real
+/// capture/argument substitution over the whole caller CFG, even at data N=0.
+/// This is scheduling only; the eventual stored proof remains mandatory.
+pub(super) fn requires_stored_capture_cfg(
+    module: &TypedModule,
+    function: &TypedFunction,
+    claim: &zil_ir::CallableParameterContract,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    for role in &claim.roles {
+        budget.spend(1, "exclusive callback CFG role inventory")?;
+        if role.life.is_none() { continue; }
+        let definition = module.closures.get(role.closure.0 as usize)
+            .filter(|definition| definition.id == role.closure)
+            .ok_or_else(|| bad("exclusive callback CFG role has no actual definition"))?;
+        if definition.storage_life.is_none() { continue; }
+        let local = function.parameters.get(role.parameter as usize)
+            .ok_or_else(|| bad("exclusive callback CFG role has no actual parameter"))?;
+        for (position, parameter) in function.parameters.iter().enumerate() {
+            budget.spend(claim.roles.len().saturating_add(1), "exclusive callback actual companions")?;
+            if parameter != local
+                && matches!(function.locals[parameter.0 as usize].ty, Type::Address { mutable: true, .. })
+                && !claim.roles.iter().any(|other| other.parameter as usize == position
+                    && other.kind == CallableKind::FnMut
+                    && matches!(&function.locals[parameter.0 as usize].ty,
+                        Type::Address { mutable: true, inner } if inner.as_ref() == &Type::Closure(other.closure)))
+            { return Ok(true); }
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
     let order = dependency_order(module, budget)?;
     budget.spend(module.functions.len(), "checked helper dependencies")?;
@@ -899,12 +931,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             "actual exclusive callable role exclusion",
                         )?;
                     }
-                    if function.parameters.iter().enumerate().any(|(position,p)| {
-                        p != local
-                            && matches!(function.locals[p.0 as usize].ty,Type::Address { mutable:true,.. })
-                            && !claim.roles.iter().any(|other|other.parameter as usize==position && other.kind==CallableKind::FnMut
-                                && matches!(&function.locals[p.0 as usize].ty,Type::Address {mutable:true,inner} if inner.as_ref()==&Type::Closure(other.closure)))
-                    }) {
+                    if requires_stored_capture_cfg(module, function, claim, budget)? {
                         // Canonical definition and role relations do not prove
                         // an exclusive argument disjoint from
                         // that role's captures. Keep a mandatory CFG obligation.

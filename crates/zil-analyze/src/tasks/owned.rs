@@ -134,6 +134,42 @@ pub(super) fn borrowed_shape(
         nominal_arguments: vec![],
     })
 }
+fn frame_store_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let element = match &instruction.kind {
+        InstructionKind::OwnedStoreNew { element } => element,
+        InstructionKind::OwnedStoreReserve { store, .. }
+        | InstructionKind::OwnedStorePush { store, .. }
+        | InstructionKind::OwnedStorePop { store }
+        | InstructionKind::OwnedStoreLen { store }
+        | InstructionKind::OwnedStoreCapacity { store }
+        | InstructionKind::OwnedStoreBorrow { store, .. }
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+            let Type::Desc(payload) = value_type(f, *store, Some(instruction.span))? else {
+                return Err(fail(
+                    instruction.span,
+                    "frame Store operation has no actual description head",
+                ));
+            };
+            let Type::OwnedStore { element } = payload.as_ref() else {
+                return Err(fail(
+                    instruction.span,
+                    "frame Store operation changes its complete payload family",
+                ));
+            };
+            crate::ownership_store::payload_definition(module, payload, b)?;
+            element
+        }
+        _ => return Ok(false),
+    };
+    crate::pod_store::instruction_types(f, instruction, element, b)?;
+    Ok(true)
+}
+
 fn record(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.type_work(t, false, "actual owned task type")?;
     let mut pending = vec![t];
@@ -163,7 +199,7 @@ fn record(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
 }
 // Complete ordinary products/sums retain their existing canonical debt. This
 // qualification grants neither thread migration nor borrowed environment escape.
-fn complete_aggregate(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
+fn complete_aggregate(module: &TypedModule, t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.type_work(t, false, "complete task aggregate")?;
     let mut work = vec![t];
     while let Some(t) = work.pop() {
@@ -171,7 +207,16 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
         match t {
             t if scalar(t) => {}
             Type::Managed(payload) => {
-                if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
+                if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                    if !pollable_storage(module, t, budget)? {
+                        return Ok(false);
+                    }
+                } else if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
+                    return Ok(false);
+                }
+            }
+            Type::Closure(_) => {
+                if !pollable_storage(module, t, budget)? {
                     return Ok(false);
                 }
             }
@@ -204,13 +249,45 @@ fn complete_aggregate(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(true)
 }
-fn aggregate_resources<'a>(t: &'a Type, budget: &mut Budget) -> CompileResult<Vec<&'a Type>> {
+fn aggregate_resources<'a>(
+    module: &'a TypedModule,
+    t: &'a Type,
+    budget: &mut Budget,
+) -> CompileResult<Vec<&'a Type>> {
     let mut work = vec![t];
     let mut leaves = Vec::new();
+    let mut closures = BTreeSet::new();
     while let Some(t) = work.pop() {
         budget.spend(1, "complete task aggregate")?;
         match t {
             Type::Managed(_) => leaves.push(t),
+            Type::Closure(id) => {
+                budget.lookup(closures.len(), "frame concrete cleanup graph membership")?;
+                if !closures.insert(*id) {
+                    continue;
+                }
+                let definition = module
+                    .closures
+                    .get(id.0 as usize)
+                    .filter(|definition| definition.id == *id)
+                    .ok_or_else(|| {
+                        fail(
+                            zil_base::Span::default(),
+                            "frame cleanup has no actual closure definition",
+                        )
+                    })?;
+                if !super::input_scope::known_zero(module, t, budget)? {
+                    return Err(fail(
+                        zil_base::Span::default(),
+                        "frame cleanup closure has an unknown or nonzero captured class domain",
+                    ));
+                }
+                budget.spend(
+                    definition.captures.len(),
+                    "frame complete captured cleanup fields",
+                )?;
+                work.extend(&definition.captures);
+            }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 budget.spend(fields.len(), "complete task aggregate fields")?;
                 work.extend(fields.iter().map(|(_, field)| field));
@@ -235,7 +312,11 @@ fn aggregate_resources<'a>(t: &'a Type, budget: &mut Budget) -> CompileResult<Ve
     }
     Ok(leaves)
 }
-pub(super) fn result_type(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
+pub(super) fn result_type(
+    module: &TypedModule,
+    t: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
     if *t == Type::I32 {
         return Ok(true);
     }
@@ -247,6 +328,9 @@ pub(super) fn result_type(t: &Type, budget: &mut Budget) -> CompileResult<bool> 
         return Ok(retained_pointee(inner));
     }
     if let Type::Managed(payload) = t {
+        if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+            return pollable_storage(module, t, budget);
+        }
         return if payload.as_ref() == &Type::ByteBuffer {
             Ok(true)
         } else {
@@ -256,7 +340,7 @@ pub(super) fn result_type(t: &Type, budget: &mut Budget) -> CompileResult<bool> 
     if record(t, budget)? {
         return Ok(true);
     }
-    complete_aggregate(t, budget)
+    complete_aggregate(module, t, budget)
 }
 fn package(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     let Type::Package { fields, .. } = t else {
@@ -419,9 +503,14 @@ fn enum_resource<'a>(
     }
     Ok(resource)
 }
-fn storage(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
+fn storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.spend(1, "actual frame storage constructor")?;
     match t {
+        Type::Closure(_) => pollable_storage(module, t, budget),
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }) => {
+            crate::ownership_store::payload_definition(module, p, budget)?;
+            super::input_scope::known_zero(module, p, budget)
+        }
         Type::Managed(p) | Type::Desc(p) => {
             if p.as_ref() == &Type::ByteBuffer {
                 Ok(true)
@@ -433,7 +522,7 @@ fn storage(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
         Type::Package { .. } => package(t, budget),
         Type::Tuple(_) => tuple(t, budget),
         Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
-        Type::Address { inner, .. } => storage(inner, budget),
+        Type::Address { inner, .. } => storage(module, inner, budget),
         t => Ok(scalar(t)),
     }
 }
@@ -477,6 +566,10 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             Ok(pollable_storage(module, error, budget)?
                 && pollable_storage(module, result, budget)?)
         }
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }) => {
+            crate::ownership_store::payload_definition(module, p, budget)?;
+            Ok(super::input_scope::known_zero(module, p, budget)?)
+        }
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
         Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) =>
@@ -495,7 +588,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
         Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
         Type::Address { inner, .. } => pollable_storage(module, inner, budget),
         Type::Closure(id) => {
-            let Some(c) = module.closures.get(id.0 as usize) else {
+            let Some(c) = module.closures.get(id.0 as usize).filter(|c| c.id == *id) else {
                 return Ok(false);
             };
             if !c.lending_captures.is_empty() {
@@ -544,7 +637,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
                 if !complete {
                     return Ok(false);
                 }
-                for leaf in aggregate_resources(capture, budget)? {
+                for leaf in aggregate_resources(module, capture, budget)? {
                     let Type::Managed(payload) = leaf else {
                         unreachable!()
                     };
@@ -556,7 +649,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             }
             Ok(true)
         }
-        _ => storage(t, budget),
+        _ => storage(module, t, budget),
     }
 }
 
@@ -569,6 +662,46 @@ fn frame_resource<'a>(
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> CompileResult<&'a zil_ir::ResourceDefinition> {
+    if let Type::OwnedStore { element } = payload {
+        crate::ownership_store::payload_definition(module, payload, budget)?;
+        if !super::input_scope::known_zero(module, payload, budget)? {
+            return Err(fail(
+                span.unwrap_or_default(),
+                "frame Store omits its complete element class domain",
+            ));
+        }
+        let mut selected = None;
+        for resource in &module.resources {
+            budget.type_work(
+                &resource.payload,
+                false,
+                "frame Store complete resource identity",
+            )?;
+            budget.type_work(payload, false, "frame Store complete requested payload")?;
+            if resource.payload == *payload && selected.replace(resource).is_some() {
+                return Err(fail(
+                    span.unwrap_or_default(),
+                    "frame Store resource identity is ambiguous",
+                ));
+            }
+        }
+        let resource = selected.ok_or_else(|| {
+            fail(
+                span.unwrap_or_default(),
+                "frame Store has no canonical resource",
+            )
+        })?;
+        for leaf in aggregate_resources(module, element, budget)? {
+            let Type::Managed(child) = leaf else {
+                unreachable!()
+            };
+            let nested = frame_resource(module, child, budget, span)?;
+            if let Some(drop) = nested.teardown {
+                cleanup(module, drop, budget, span)?;
+            }
+        }
+        return Ok(resource);
+    }
     let expected = match payload {
         Type::Task { .. } => {
             super::require_closed_context(payload)?;
@@ -751,7 +884,7 @@ fn helper_graph(
             || f.callable_contract.is_some()
             || f.callable_return_contract.is_some() && !handoff
             || !(record(&f.return_type, budget)?
-                || complete_aggregate(&f.return_type, budget)?
+                || complete_aggregate(module, &f.return_type, budget)?
                 || handoff)
         {
             return Err(reject(
@@ -798,9 +931,9 @@ fn helper_graph(
             let supported = if borrowed_driver {
                 pollable_storage(module, t, budget)?
             } else {
-                storage(t, budget)?
+                storage(module, t, budget)?
             };
-            if !supported && !complete_aggregate(t, budget)? {
+            if !supported && !complete_aggregate(module, t, budget)? {
                 return Err(reject(
                     "E-VERIFY-TASK",
                     span,
@@ -809,7 +942,7 @@ fn helper_graph(
             }
         }
         for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-            for leaf in aggregate_resources(t, budget)? {
+            for leaf in aggregate_resources(module, t, budget)? {
                 budget.spend(1, "complete helper cleanup leaves")?;
                 let Type::Managed(payload) = leaf else {
                     unreachable!()
@@ -823,6 +956,9 @@ fn helper_graph(
         for b in &f.blocks {
             for i in &b.instructions {
                 budget.spend(1, "actual owning task profile")?;
+                if frame_store_instruction(module, f, i, budget)? {
+                    continue;
+                }
                 match &i.kind {
                     InstructionKind::MakeClosure { closure, .. } if handoff => {
                         if !pollable_storage(module, &Type::Closure(*closure), budget)? {
@@ -929,14 +1065,14 @@ pub(super) fn profile(
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer
             && (if matches!(f.return_type, Type::Address { mutable: false, .. }) {
-                result_type(&f.return_type, budget)?
+                result_type(module, &f.return_type, budget)?
             } else {
-                record(&f.return_type, budget)? || result_type(&f.return_type, budget)?
+                record(&f.return_type, budget)? || result_type(module, &f.return_type, budget)?
             })
             || matches!(f.result_mode, PassingMode::Give | PassingMode::Create)
                 && (matches!(f.return_type, Type::Managed(_))
                     || matches!(&f.return_type, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(_))))
-                && result_type(&f.return_type, budget)?)
+                && result_type(module, &f.return_type, budget)?)
         || module.resources.iter().any(|r| r.teardown == Some(f.id))
     {
         return Err(reject(
@@ -963,7 +1099,7 @@ pub(super) fn profile(
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
-            && !complete_aggregate(local_type(f, *parameter, span)?, budget)?
+            && !complete_aggregate(module, local_type(f, *parameter, span)?, budget)?
             && !(matches!(local_type(f, *parameter, span)?, Type::Closure(_))
                 && pollable_storage(module, local_type(f, *parameter, span)?, budget)?)
             && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
@@ -978,7 +1114,7 @@ pub(super) fn profile(
     let mut checked = BTreeSet::new();
     for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
         let old_storage = pollable_storage(module, t, budget)?;
-        let enum_storage = !old_storage && complete_aggregate(t, budget)?;
+        let enum_storage = !old_storage && complete_aggregate(module, t, budget)?;
         if !old_storage && !enum_storage {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -986,7 +1122,7 @@ pub(super) fn profile(
                 "task owner needs a complete canonical inline resource frame slot",
             ));
         }
-        let leaves = aggregate_resources(t, budget)?;
+        let leaves = aggregate_resources(module, t, budget)?;
         for leaf in leaves {
             if let Type::Managed(payload) = leaf {
                 let resource = frame_resource(module, payload, budget, span)?;
@@ -999,7 +1135,7 @@ pub(super) fn profile(
         }
     }
     if !f.return_type.is_copy_value() && !matches!(f.return_type, Type::Managed(_)) {
-        for leaf in aggregate_resources(&f.return_type, budget)? {
+        for leaf in aggregate_resources(module, &f.return_type, budget)? {
             let Type::Managed(payload) = leaf else {
                 unreachable!()
             };
@@ -1013,6 +1149,9 @@ pub(super) fn profile(
     for b in &f.blocks {
         for i in &b.instructions {
             budget.spend(1, "actual owning task profile")?;
+            if frame_store_instruction(module, f, i, budget)? {
+                continue;
+            }
             match &i.kind {
                 InstructionKind::PlaceTagLocal { local, path } => {
                     budget.spend(1, "complete Enum frame tag root")?;

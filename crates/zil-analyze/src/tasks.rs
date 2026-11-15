@@ -785,7 +785,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 "canonical general Task definition identity",
             )?;
             if let Type::Task { result, .. } = &r.payload
-                && !owned::result_type(result, budget)?
+                && !owned::result_type(module, result, budget)?
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,

@@ -96,6 +96,157 @@ impl Check<'_, '_> {
         Ok(result)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn projected_shared_value(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        result: ValueId,
+        parent: ValueId,
+        selector: PlaceProjection,
+        at: (BlockId, usize),
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<value::Value> {
+        operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), parent, b)?;
+        let parent = self.ssa_value(instance, function, parent, b, depth + 1)?;
+        let child = Self::pattern_child_type(&parent.ty, selector)
+            .ok_or_else(|| fail("actual shared projection leaves its complete parent layout"))?;
+        let output = function
+            .values
+            .get(result.0 as usize)
+            .ok_or_else(|| fail("actual shared projection omits its complete result type"))?;
+        if !geometry::same_type(child, output, b)? {
+            return Err(fail(
+                "actual shared projection changes its complete child type",
+            ));
+        }
+        let Type::Address {
+            mutable: false,
+            inner,
+        } = child
+        else {
+            return Err(unknown(
+                "actual projection needs its complete child class transport",
+            ));
+        };
+        // Sealed shared projections retain one precise outer occurrence and
+        // independently prove the complete pointee domain is zero. No tag,
+        // access, live loan or initialized prefix is established by this map.
+        self.zero_data(inner, b, depth + 1)?;
+        let mut selected = None;
+        for slot in &parent.life.slots {
+            b.spend(slot.path.len().saturating_add(1), WORK)?;
+            if slot.path.as_slice() == [selector] {
+                if slot.mode != StoredBorrowMode::SharedAddress
+                    || selected.replace(slot.binder).is_some()
+                {
+                    return Err(fail(
+                        "actual shared projection has a competing mode or outer class",
+                    ));
+                }
+            }
+        }
+        let binder = selected.ok_or_else(|| {
+            fail("actual shared projection has no complete parent class occurrence")
+        })?;
+        let class = parent
+            .classes
+            .get(binder as usize)
+            .cloned()
+            .ok_or_else(|| fail("actual shared projection class leaves its parent domain"))?;
+        crate::dyn_metadata::ty(inner, b)?;
+        value::address(false, class, value::scalar(inner.as_ref().clone()), b)
+    }
+
+    fn pattern_ssa_path(
+        &self,
+        function: &TypedFunction,
+        value: ValueId,
+        root: ValueId,
+        path: &[PlaceProjection],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown("actual pattern SSA path exceeds its finite depth"));
+        }
+        let Some((last, prefix)) = path.split_last() else {
+            return Ok(value == root);
+        };
+        let (block, index, producer) = self.defining(function, value, b)?;
+        let source = match (&producer.kind, last) {
+            (
+                InstructionKind::ReadVariant {
+                    value,
+                    variant,
+                    index,
+                },
+                PlaceProjection::Variant(step),
+            ) if *variant == step.variant && *index == step.index => *value,
+            (
+                InstructionKind::ReadErrorUnion { value, is_error }
+                | InstructionKind::TakeErrorUnion { value, is_error },
+                PlaceProjection::ErrorArm(error),
+            ) if is_error == error => *value,
+            (InstructionKind::ExtractField { aggregate, index }, PlaceProjection::Field(field))
+                if index == field =>
+            {
+                *aggregate
+            }
+            _ => return Ok(false),
+        };
+        if !self.pattern_ssa_path(function, source, root, prefix, b, depth + 1)? {
+            return Ok(false);
+        }
+        operations::available_before(
+            function,
+            (block, index, SemanticSiteEdge::Before),
+            source,
+            b,
+        )?;
+        let parent = function
+            .values
+            .get(source.0 as usize)
+            .ok_or_else(|| fail("pattern SSA source has no complete type"))?;
+        let child = Self::pattern_child_type(parent, *last)
+            .ok_or_else(|| fail("pattern SSA path leaves its complete actual layout"))?;
+        let output = function
+            .values
+            .get(value.0 as usize)
+            .ok_or_else(|| fail("pattern SSA destination has no complete type"))?;
+        if !geometry::same_type(child, output, b)? {
+            return Err(fail(
+                "pattern SSA extraction changes its complete child type",
+            ));
+        }
+        Ok(true)
+    }
+    fn pattern_child_type(ty: &Type, selector: PlaceProjection) -> Option<&Type> {
+        let storage = match ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            ty => ty,
+        };
+        match (storage, selector) {
+            (Type::Enum { variants, .. }, PlaceProjection::Variant(step)) => variants
+                .get(step.variant as usize)
+                .and_then(|(_, fields)| fields.get(step.index as usize)),
+            (Type::ErrorUnion { error, result }, PlaceProjection::ErrorArm(is_error)) => {
+                Some(if is_error {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                })
+            }
+            (Type::Tuple(fields), PlaceProjection::Field(index)) => fields.get(index as usize),
+            (
+                Type::Record { fields, .. } | Type::Package { fields, .. },
+                PlaceProjection::Field(index),
+            ) => fields.get(index as usize).map(|(_, ty)| ty),
+            _ => None,
+        }
+    }
     pub(super) fn pattern_local(
         &self,
         instance: &SemanticInstance,
@@ -143,6 +294,10 @@ impl Check<'_, '_> {
                     InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                         origin.subject.path.is_empty() && *local == anchor
                     }
+                    InstructionKind::TakePackageField { local, index }
+                    | InstructionKind::ReadPackageField { local, index } => {
+                        *local == anchor && origin.subject.path.as_slice() == [*index]
+                    }
                     InstructionKind::TakeTupleField {
                         local,
                         path: selected,
@@ -166,6 +321,55 @@ impl Check<'_, '_> {
                         "pattern subject reads another original root or field path",
                     ));
                 }
+            }
+            // A borrowed/Copy pattern can select an SSA subject directly.
+            // Match its exact original emission and complete selector chain;
+            // no whole-subject temporary or same-typed head is invented.
+            let mut direct = None;
+            for block in &function.blocks {
+                for (index, instruction) in block.instructions.iter().enumerate() {
+                    b.spend(1, WORK)?;
+                    let InstructionKind::Store {
+                        local,
+                        value: child,
+                    } = instruction.kind
+                    else {
+                        continue;
+                    };
+                    if self.pattern_ssa_path(function, child, value, &origin.path, b, depth + 1)? {
+                        operations::available_before(
+                            function,
+                            (block.id, index, SemanticSiteEdge::Before),
+                            child,
+                            b,
+                        )?;
+                        let destination = function
+                            .locals
+                            .get(local.0 as usize)
+                            .filter(|item| item.id == local)
+                            .ok_or_else(|| {
+                                fail("pattern SSA store has no exact destination local")
+                            })?;
+                        let source = function
+                            .values
+                            .get(child.0 as usize)
+                            .ok_or_else(|| fail("pattern SSA store has no exact selected value"))?;
+                        if !geometry::same_type(&destination.ty, source, b)? {
+                            return Err(fail(
+                                "pattern SSA store changes its complete binding type",
+                            ));
+                        }
+                        if direct.is_some_and(|old| old != local) {
+                            return Err(unknown(
+                                "original pattern SSA has several distinct destination heads",
+                            ));
+                        }
+                        direct = Some(local);
+                    }
+                }
+            }
+            if let Some(local) = direct {
+                return Ok(local);
             }
             if let Some(local) = self.stored_pattern_value(function, value, b)? {
                 // A stored field-value is a new whole temporary. Its source

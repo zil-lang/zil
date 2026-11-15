@@ -1363,6 +1363,20 @@ impl Check<'_, '_> {
                 .ok_or_else(|| {
                     unknown("borrowed callable result has no complete original invocation role")
                 }),
+            InstructionKind::ReadVariant { value: parent, variant, index: field } => {
+                self.projected_shared_value(instance, function, id, *parent,
+                    PlaceProjection::Variant(zil_ir::VariantProjection { variant: *variant, index: *field }),
+                    (block, index), b, depth + 1)
+            }
+            InstructionKind::ReadErrorUnion { value: parent, is_error }
+            | InstructionKind::TakeErrorUnion { value: parent, is_error } => {
+                self.projected_shared_value(instance, function, id, *parent,
+                    PlaceProjection::ErrorArm(*is_error), (block, index), b, depth + 1)
+            }
+            InstructionKind::ExtractField { aggregate, index: field } => {
+                self.projected_shared_value(instance, function, id, *aggregate,
+                    PlaceProjection::Field(*field), (block, index), b, depth + 1)
+            }
             InstructionKind::ReborrowAddress { address, mutable } => {
                 if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
                     return Ok(value);
