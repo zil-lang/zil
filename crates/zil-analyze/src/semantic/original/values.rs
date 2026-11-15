@@ -719,12 +719,13 @@ impl Checked {
                     .get(block.0 as usize)
                     .and_then(|block| block.instructions.get(instruction as usize))
                     .ok_or_else(|| fail("original call role has no actual instruction"))?;
-                if actual.replace(instruction).is_some() {
+                if actual.replace((instruction, &site.action)).is_some() {
                     return Err(fail("original result role has multiple executable calls"));
                 }
             }
         }
-        let instruction = actual.ok_or_else(|| fail("original result role has no actual call"))?;
+        let (instruction, action) =
+            actual.ok_or_else(|| fail("original result role has no actual call"))?;
         if let InstructionKind::Call {
             function: target, ..
         }
@@ -735,19 +736,71 @@ impl Checked {
             function: target, ..
         } = instruction.kind
         {
-            let mut selected = None;
+            let mut worlds = 0usize;
             for instance in &program.instances {
                 b.spend(1, WORK)?;
-                if matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
-                    && selected.replace(instance).is_some()
+                if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
                 {
-                    return Err(fail(
-                        "original call result has ambiguous actual target instances",
-                    ));
+                    continue;
                 }
+                if instance.definition != call.target {
+                    return Err(fail("original result role selects another actual callee"));
+                }
+                worlds = worlds.saturating_add(1);
             }
-            if selected.is_none_or(|instance| instance.definition != call.target) {
-                return Err(fail("original result role selects another actual callee"));
+            if worlds == 0 {
+                return Err(fail("original result role has no actual callee world"));
+            }
+            if worlds > 1 {
+                let actuals = match action {
+                    SemanticSiteAction::BodyCall { actuals } => actuals,
+                    SemanticSiteAction::Call {
+                        target: SemanticFunctionTarget::Typed(id),
+                        actuals,
+                    } if *id == target => actuals,
+                    _ => return Err(fail("shared result changes its exact actual call receipt")),
+                };
+                if actuals.len() != call.actuals.len() {
+                    return Err(fail("shared result omits its original full mixed vector"));
+                }
+                // The result is instantiated in the caller's checked original
+                // domain below. Do not select a representative callee world:
+                // every world of this code must independently fit this receipt.
+                for world in &program.instances {
+                    b.spend(1, WORK)?;
+                    if !matches!(world.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
+                    {
+                        continue;
+                    }
+                    if world.parent.is_some()
+                        || world.environment.is_some()
+                        || world.self_type.is_some()
+                        || !world.header_embedding.is_empty()
+                        || world.lifetime_instantiation != SemanticLifetimeInstantiation::Rigid
+                    {
+                        return Err(unknown(
+                            "shared call result needs its exact lexical and class-bearing target context",
+                        ));
+                    }
+                    if world.actuals.len() != call.actuals.len() {
+                        return Err(fail("shared result world changes its full mixed arity"));
+                    }
+                    for ((original, proposed), actual) in
+                        call.actuals.iter().zip(actuals).zip(&world.actuals)
+                    {
+                        let expected =
+                            self.argument(*original, context, program, inventory, b, depth + 1)?;
+                        let proposed =
+                            self.result_world_argument(context, proposed, inventory, b, depth + 1)?;
+                        let actual =
+                            self.result_world_argument(world, actual, inventory, b, depth + 1)?;
+                        if proposed != expected || actual != expected {
+                            return Err(fail(
+                                "shared result world differs from its complete original call actual",
+                            ));
+                        }
+                    }
+                }
             }
         } else if !call.closure
             || !matches!(
@@ -778,5 +831,48 @@ impl Checked {
             ));
         }
         Ok(result)
+    }
+
+    /// A shared code result with no contextual selector can use only complete
+    /// class-free actuals. Inspect the whole intrinsic domain, including opaque
+    /// closure N and phantom rows; equal physical layouts do not prove this.
+    fn result_world_argument(
+        &self,
+        context: &SemanticInstance,
+        actual: &SemanticActual,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Argument> {
+        crate::dyn_metadata::recipe(actual, b)?;
+        let (input, constant) = match actual {
+            SemanticActual::Type(input) => (input, None),
+            SemanticActual::Const { ty, value } => (ty, Some(value)),
+            SemanticActual::Life(_) => {
+                return Err(unknown(
+                    "shared call result lifetime actual needs its exact contextual boundary",
+                ));
+            }
+            _ => return Err(fail("shared call result contains an unmaterialized actual")),
+        };
+        let value = value::resolved(context, input, inventory, b, depth)?;
+        if value.life != value::empty() || !value.classes.is_empty() {
+            return Err(unknown(
+                "shared call result preserves distinct intrinsic class worlds",
+            ));
+        }
+        if let Some(constant) = constant {
+            if constant.ty() != value.ty {
+                return Err(fail(
+                    "shared call result changes its complete constant carrier",
+                ));
+            }
+            Ok(Argument::Const {
+                carrier: value.ty,
+                value: constant.clone(),
+            })
+        } else {
+            Ok(Argument::Type(value))
+        }
     }
 }
