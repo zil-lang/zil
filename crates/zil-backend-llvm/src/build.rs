@@ -377,8 +377,7 @@ pub fn build_view_with_cancellation_and_session(
         session.as_deref_mut().map(|session| &mut session.lower),
         options.backend == NativeBackend::LlvmApi
             && options.optimization == Optimization::O2
-            && !options.incremental_o2
-            && !options.closed_executable,
+            && !options.incremental_o2,
     )?;
     if let Some(session) = session.as_deref_mut() {
         session.summary.representation_functions_checked = session.lower.representation_checked;
@@ -499,17 +498,17 @@ pub fn build_view_with_cancellation_and_session(
             cached.private_closures,
         )
     } else {
-        // Only the already admitted scalar ordinary-O2 domain has no imports,
-        // closure internalization, closed linkage or global transform plans.
-        // Other domains retain the complete original partition path.
-        let ordinary_recipe = session
+        // The current complete scalar domain has no implementation imports or
+        // closure transforms. Closed executables use the same raw partition;
+        // their current whole-unit linkage pass still runs BELOW every replay.
+        // Collected/incremental domains keep the complete original planner.
+        let scalar_recipe = session
             .as_ref()
             .is_some_and(|session| session.lower.eligible)
             && options.backend == NativeBackend::LlvmApi
             && options.optimization == Optimization::O2
-            && !options.incremental_o2
-            && !options.closed_executable;
-        let recipe_replay = ordinary_recipe
+            && !options.incremental_o2;
+        let recipe_replay = scalar_recipe
             .then(|| {
                 let old = session.as_ref()?.partition.as_ref()?;
                 let input = partition_input.as_ref()?;
@@ -591,7 +590,7 @@ pub fn build_view_with_cancellation_and_session(
                     None,
                     None,
                 )
-            } else if ordinary_recipe {
+            } else if scalar_recipe {
                 let (plan, pending, mut recipe) =
                     crate::machine_cgu::partition_view_cached_with_recipe(
                         machine.to_module(),
@@ -634,6 +633,9 @@ pub fn build_view_with_cancellation_and_session(
             session.summary.rebuilt_partition_units = plan.units.len();
         }
         if options.closed_executable {
+            // A replay replaces changed bodies from the original external
+            // machine input. Recompute the closed linkage from ALL current
+            // units before validation/codegen; previous linkage is no authority.
             if let Some(candidates) = stable_candidates {
                 crate::machine_cgu::internalize_closed_executable_names(
                     &mut plan.units,

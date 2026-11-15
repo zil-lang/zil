@@ -1,4 +1,4 @@
-//! In-memory ordinary partition recipes, never native validation capabilities.
+//! In-memory scalar partition recipes, never native validation capabilities.
 //! Only complete identical topology/ABI dependencies admit body replacement.
 use super::{Plan, direct_calls, layout};
 use std::collections::BTreeSet;
@@ -35,8 +35,10 @@ impl Recipe {
         })
     }
     /// Caller additionally binds the current independently admitted source
-    /// inventory, ABI/limits/target/options and absence of post-partition edits.
-    /// This method checks every changed native input's complete relevant graph.
+    /// inventory, ABI/limits/target/options. This checks every changed native
+    /// input's complete relevant graph. Explicit closed-executable callers must
+    /// reapply current whole-unit internalization after replay and before use;
+    /// replaced bodies have their ORIGINAL linkage, never prior authorization.
     #[cfg(test)]
     pub(crate) fn replay(
         &self,

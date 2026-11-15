@@ -440,7 +440,7 @@ pub(crate) fn lower_output_with_session(
     };
     let piece_output = retain_pieces
         && !incremental_scalar_policy
-        && !closed_scalar_collection
+        && collected.is_none()
         && session
             .as_ref()
             .is_some_and(|session| session.identity().is_some())

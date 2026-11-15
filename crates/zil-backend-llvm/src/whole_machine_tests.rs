@@ -979,15 +979,27 @@ fn actual_output_pieces_reach_diagnostics_and_cgu_consumers_without_warm_flatten
 #[cfg(all(feature = "llvm-api", target_os = "linux"))]
 #[test]
 fn native_output_pieces_preserve_current_checks_and_full_fresh_object_quality() {
+    output_pieces_native_quality(false);
+}
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[test]
+fn closed_native_output_pieces_preserve_fresh_linkage_after_edit_and_restore() {
+    output_pieces_native_quality(true);
+}
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+fn output_pieces_native_quality(closed: bool) {
     let directory = TestDirectory::new();
     let mut options = BuildOptions::new(directory.0.join("piece-program"));
     options.backend = NativeBackend::LlvmApi;
     options.optimization = Optimization::O2;
+    options.closed_executable = closed;
     options.codegen.units = 2;
     options.object_cache = Some(directory.0.join("piece-objects"));
     options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
     let mut session = BackendSession::default();
-    for value in [42, 43] {
+    for value in [42, 43, 42] {
         let verified = history_fixture(value, 99);
         let mut module = verified.module().clone();
         module.functions[0].span.file = zil_base::FileId(0);
