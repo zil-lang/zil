@@ -1062,11 +1062,10 @@ impl ExpandSession {
         // This is a separate sealed producer proof, not function-input identity
         // authorizing old output. All declaration bytes/order, parser context,
         // complete semantic environment and every emitted position must bind.
-        if self
-            .environment
-            .as_ref()
-            .is_some_and(|old| old.scalar_products_compatible(&environment))
-        {
+        if self.environment.as_ref().is_some_and(|old| {
+            old.function_inputs_compatible(&environment)
+                || old.scalar_products_compatible(&environment)
+        }) {
             for (module, placement) in placements {
                 let Some(old) = self.entries.get(&module) else {
                     continue;
@@ -1131,10 +1130,10 @@ impl ExpandSession {
             normalization_environment: normalization_environment.clone(),
             scalar_inventory: &mut scalar_inventory,
             prior_entries: &self.entries,
-            item_reuse: self
-                .environment
-                .as_ref()
-                .is_some_and(|old| old.scalar_products_compatible(&environment)),
+            item_reuse: self.environment.as_ref().is_some_and(|old| {
+                old.function_inputs_compatible(&environment)
+                    || old.scalar_products_compatible(&environment)
+            }),
             entries: &mut entries,
             files,
             stats: &mut self.stats,
