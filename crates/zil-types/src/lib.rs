@@ -900,6 +900,7 @@ struct Builder<'a, 'c> {
     resource_temp_floor: usize,
     next_replacement: u32,
     prepared_replacements: Vec<owning_place_replace::Prepared>,
+    prepared_copy_read: Option<addresses::PreparedRead>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
     ordinary_managed_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
@@ -1149,6 +1150,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             resource_temp_floor: 0,
             next_replacement: 0,
             prepared_replacements: Vec::new(),
+            prepared_copy_read: None,
             sequenced_values: std::collections::BTreeSet::new(),
             ordinary_managed_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
@@ -2463,6 +2465,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.expr_raw(e, expected)
     }
     fn expr_raw(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(value) = self.read_prepared_copy(e, expected)? {
+            return Ok(value);
+        }
         if let Some(value) = self.take_replacement_input(e, expected)? {
             return Ok(value);
         }
