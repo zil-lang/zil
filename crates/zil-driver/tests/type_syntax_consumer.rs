@@ -324,9 +324,12 @@ fn rejection(entry: &str) -> (Phase, &'static str, &'static [&'static str]) {
         | "neg_type_requires_type_value_main.zil"
         | "neg_type_splice_expr_main.zil"
         | "neg_item_emit_statements_main.zil" => (Phase::Ct, "E-CT-CATEGORY", &[]),
-        "neg_syntax_is_not_automatic_main.zil"
-        | "neg_type_in_runtime_main.zil"
-        | "neg_ident_in_runtime_main.zil" => (Phase::Ct, "E-CT-RUNTIME", &[]),
+        "neg_syntax_is_not_automatic_main.zil" => (Phase::Ct, "E-CT-RUNTIME", &[]),
+        "neg_type_in_runtime_main.zil" | "neg_ident_in_runtime_main.zil" => (
+            Phase::Ct,
+            "E-CT-ORIGINAL",
+            &["compile-time Type/Syntax/Ident cannot cross an external runtime ABI"],
+        ),
         "neg_duplicate_export_main.zil" => (Phase::Expand, "E-NAME-DUPLICATE", &["duplicate"]),
         "neg_private_reflection_main.zil" => (Phase::Ct, "E-CT-VISIBILITY", &[]),
         "neg_nominal_identity_main.zil" => (
@@ -356,6 +359,15 @@ fn rejection(entry: &str) -> (Phase, &'static str, &'static [&'static str]) {
     }
 }
 
+fn exact_rejection_message(entry: &str) -> Option<&'static str> {
+    match entry {
+        "neg_type_in_runtime_main.zil" | "neg_ident_in_runtime_main.zil" => {
+            Some("compile-time Type/Syntax/Ident cannot cross an external runtime ABI")
+        }
+        _ => None,
+    }
+}
+
 #[test]
 fn invalid_generated_sources_reach_their_real_category_stage_or_ownership_reason() {
     let script = "import json,sys;print('\\n'.join(c['entry'] for c in json.load(open(sys.argv[1]))['negative']))";
@@ -377,7 +389,9 @@ fn invalid_generated_sources_reach_their_real_category_stage_or_ownership_reason
         );
         fs::write(out.join("report.json"), report.to_json()).unwrap();
         let (phase, code, fragments) = rejection(entry);
-        fs::write(out.join("expected-diagnostic.json"),format!("{{\"category\":\"SafeReject\",\"phase\":\"{}\",\"code\":\"{code}\",\"message_fragments\":{fragments:?},\"obligation_from\":\"tests/comptime-generated-items/ORACLE.json negative entry {entry}\"}}\n",phase.as_str())).unwrap();
+        let exact_message = exact_rejection_message(entry);
+        let exact_json = exact_message.map_or("null".to_owned(), |message| format!("{message:?}"));
+        fs::write(out.join("expected-diagnostic.json"),format!("{{\"category\":\"SafeReject\",\"phase\":\"{}\",\"code\":\"{code}\",\"message_fragments\":{fragments:?},\"exact_message\":{exact_json},\"obligation_from\":\"tests/comptime-generated-items/ORACLE.json negative entry {entry}\"}}\n",phase.as_str())).unwrap();
         assert!(!report.artifacts.contains_key("executable"));
         assert!(!out.join("program").exists());
         assert!(report.native_codegen.is_none());
@@ -386,6 +400,7 @@ fn invalid_generated_sources_reach_their_real_category_stage_or_ownership_reason
                 diagnostic.category == ResultCategory::SafeReject
                     && diagnostic.phase == phase
                     && diagnostic.code == code
+                    && exact_message.is_none_or(|message| diagnostic.message == message)
                     && fragments
                         .iter()
                         .all(|fragment| diagnostic.message.contains(fragment))
