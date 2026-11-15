@@ -15,11 +15,6 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Type> {
-        if !actuals.is_empty() {
-            return Err(fail(
-                "actual registration installation adds generic role arguments",
-            ));
-        }
         let instruction = function
             .blocks
             .get(block.0 as usize)
@@ -82,6 +77,22 @@ impl Check<'_, '_> {
                 "original registration installation loses its entire consumed callback",
             ));
         };
+        match actuals {
+            [] => {}
+            [actual] => {
+                if !matches!(self.actual_value(instance, actual, b, 0)?, crate::semantic::value::Argument::Type(actual) if actual == *expected)
+                {
+                    return Err(fail(
+                        "registration installation Type actual changes its independently checked complete callback scheme",
+                    ));
+                }
+            }
+            _ => {
+                return Err(fail(
+                    "registration installation changes its complete callback Type actual arity",
+                ));
+            }
+        }
         let anchor = self
             .original
             .intrinsic_anchor(instance, site, self.inventory, b)?;

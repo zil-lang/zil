@@ -1634,7 +1634,10 @@ pub(super) fn preflight(
                 .iter()
                 .any(|row| row.position.base == zil_ir::StorageBase::Receiver);
             budget.stored_borrows |= !empty_scope;
-            budget.capture_relations |= !empty_scope;
+            // Invocation words belong to each call, not the persistent
+            // capture domain. A parameter borrow alone cannot schedule the
+            // legacy Fixed-owner solver for an otherwise closed environment.
+            budget.capture_relations |= !empty_scope && life.fixed_binder_count > 0;
         }
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
@@ -1765,7 +1768,12 @@ pub(super) fn preflight(
             if super::stored_callables::semantic_copy_capture(module, closure, ty, budget)? {
                 continue;
             }
-            if closure.storage_life.is_some() && !empty_scope {
+            if closure
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| life.fixed_binder_count > 0)
+                && !empty_scope
+            {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::exclusive_capture(ty)
