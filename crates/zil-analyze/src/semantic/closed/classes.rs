@@ -160,7 +160,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 Ok(value::scalar(Type::Slice {
-                    element: Box::new(element.ty),
+                    element: Box::new(element.into_type(b)?),
                 }))
             }
             SemanticTypeRecipe::Formal(reference) => {
@@ -216,7 +216,7 @@ impl Check<'_, '_> {
                 let child = self.recipe_value(instance, inner, b, depth + 1)?;
                 if !empty(&child.life)
                     || !child.classes.is_empty()
-                    || !matches!(child.ty,Type::Slice{element} if element.as_ref()==&Type::U8)
+                    || !matches!(&child.ty,Type::Slice{element} if element.as_ref()==&Type::U8)
                 {
                     return Err(unknown(
                         "original static address needs its complete inner occurrence proof",
@@ -262,18 +262,18 @@ impl Check<'_, '_> {
                     ));
                 }
                 let ty = match recipe {
-                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.ty)),
+                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.into_type(b)?)),
                     SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
-                        element: Box::new(child.ty),
+                        element: Box::new(child.into_type(b)?),
                     },
                     SemanticTypeRecipe::Mutex(_) => Type::Mutex {
-                        payload: Box::new(child.ty),
+                        payload: Box::new(child.into_type(b)?),
                     },
                     SemanticTypeRecipe::Registration(_) => Type::Registration {
-                        environment: Box::new(child.ty),
+                        environment: Box::new(child.into_type(b)?),
                     },
                     SemanticTypeRecipe::AsyncRegistration(_) => Type::AsyncRegistration {
-                        environment: Box::new(child.ty),
+                        environment: Box::new(child.into_type(b)?),
                     },
                     _ => {
                         return Err(fail(
@@ -290,11 +290,12 @@ impl Check<'_, '_> {
                 let child = self.recipe_value(instance, inner, b, depth + 1)?;
                 let class = self.life(instance, life, b, depth + 1)?;
                 let mut result = value::address(false, class, child, b)?;
-                let Type::Address { inner, .. } = result.ty else {
+                let geometry = result.geometry_mut(b)?;
+                let Type::Address { inner, .. } = std::mem::replace(&mut geometry.ty, Type::Unit) else {
                     return Err(fail("semantic description loses its exact payload"));
                 };
-                result.ty = Type::Desc(inner);
-                result
+                geometry.ty = Type::Desc(inner);
+                geometry
                     .life
                     .slots
                     .get_mut(0)
@@ -311,8 +312,8 @@ impl Check<'_, '_> {
                     ));
                 }
                 Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.ty),
-                    result: Box::new(result.ty),
+                    error: Box::new(error.into_type(b)?),
+                    result: Box::new(result.into_type(b)?),
                 }))
             }
             SemanticTypeRecipe::Code { kind, signature } => {
@@ -341,7 +342,7 @@ impl Check<'_, '_> {
                             "original Code parameter requires complete scoped class transport",
                         ));
                     }
-                    self.push_value(&mut parameters, parameter.ty, b)?;
+                    self.push_value(&mut parameters, parameter.into_type(b)?, b)?;
                 }
                 let result = self.recipe_value(instance, &signature.result, b, depth + 1)?;
                 if !result.classes.is_empty() {
@@ -352,11 +353,11 @@ impl Check<'_, '_> {
                 Ok(value::scalar(match kind {
                     SemanticCodeKind::FunctionPointer => Type::FunctionPointer {
                         parameters,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::ForeignCallback => Type::ForeignCallback {
                         parameters,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::BorrowedFunctionPointer => {
                         return Err(unknown(
@@ -380,7 +381,7 @@ impl Check<'_, '_> {
                     original::resource("original array length exceeds its physical representation")
                 })?;
                 Ok(value::scalar(Type::Array {
-                    element: Box::new(element.ty),
+                    element: Box::new(element.into_type(b)?),
                     length,
                 }))
             }
@@ -396,7 +397,7 @@ impl Check<'_, '_> {
                             "original tuple requires its complete retained class embedding",
                         ));
                     }
-                    self.push_value(&mut types, field.ty, b)?;
+                    self.push_value(&mut types, field.into_type(b)?, b)?;
                 }
                 Ok(value::scalar(Type::Tuple(types)))
             }
@@ -502,7 +503,7 @@ impl Check<'_, '_> {
                     return Err(fail("semantic constant has another complete carrier"));
                 }
                 Ok(Argument::Const {
-                    carrier: carrier.ty,
+                    carrier: carrier.into_type(b)?,
                     value: constant.clone(),
                 })
             }
@@ -593,7 +594,7 @@ impl Check<'_, '_> {
                     return Err(fail("original constant recipe has another actual carrier"));
                 }
                 Ok(Argument::Const {
-                    carrier: carrier.ty,
+                    carrier: carrier.into_type(b)?,
                     value: constant.clone(),
                 })
             }
@@ -674,8 +675,10 @@ impl Check<'_, '_> {
                 "actual nominal exceeds its complete substitution depth",
             ));
         }
+        let source_life = match ty { Type::BorrowedStorage { life, .. } => Some(life), _ => None };
+        let geometry = self.inventory.geometry.type_value(ty, source_life, b)?;
         let index =
-            crate::stored_flow::nominal_instance_index(self.module, ty, self.inventory.limits, b)?;
+            crate::stored_flow::nominal_instance_index(self.module, &geometry.ty, self.inventory.limits, b)?;
         let instance = &self.module.life_instances[index];
         let index = u32::try_from(index).map_err(|_| fail("nominal inventory ordinal overflow"))?;
         let cached = {
@@ -727,13 +730,12 @@ impl Check<'_, '_> {
                     value: constant.clone(),
                 },
                 LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } => {
-                    let shape = match argument {
-                        LifeNominalActual::QualifiedType { life, .. } => life.clone(),
-                        _ => match ty {
-                            Type::BorrowedStorage { life, .. } => life.clone(),
-                            _ => value::empty(),
-                        },
+                    let source_life = match argument {
+                        LifeNominalActual::QualifiedType { life, .. } => Some(life),
+                        _ => match ty { Type::BorrowedStorage { life, .. } => Some(life), _ => None },
                     };
+                    let geometry = self.inventory.geometry.type_value(ty, source_life, b)?;
+                    let shape = &geometry.life;
                     let mut classes = Vec::new();
                     for child in 0..shape.binder_count {
                         let mut mapped = None;
@@ -756,11 +758,7 @@ impl Check<'_, '_> {
                         }
                         self.push_value(&mut classes, Class::Nominal(index, binder), b)?;
                     }
-                    Argument::Type(Value {
-                        ty: ty.clone(),
-                        life: shape,
-                        classes,
-                    })
+                    Argument::Type(Value::from_geometry(geometry, classes))
                 }
                 _ => return Err(fail("nominal actual has no complete local domain")),
             };
@@ -1588,16 +1586,12 @@ impl Check<'_, '_> {
                         b,
                     )?;
                 }
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: StorageLifeShape {
+                Ok(Value::new(ty.clone(), StorageLifeShape {
                         binder_count: contract.fixed_binder_count,
                         slots: Vec::new(),
                         retained: Vec::new(),
                         nominal_arguments: Vec::new(),
-                    },
-                    classes: complete,
-                })
+                    }, complete))
             }
             InstructionKind::Call {
                 function: callee,
@@ -1769,11 +1763,7 @@ impl Check<'_, '_> {
                         "callee class transport changes its original definition",
                     ));
                 }
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: shape,
-                    classes,
-                })
+                Ok(Value::new(ty.clone(), shape, classes))
             }
             _ => {
                 let mut errors =

@@ -155,7 +155,7 @@ impl Check<'_, '_> {
                     let constant =
                         self.nominal_constant(owner, args, value, &carrier.ty, b, depth + 1)?;
                     Argument::Const {
-                        carrier: carrier.ty,
+                        carrier: carrier.into_type(b)?,
                         value: constant,
                     }
                 }
@@ -232,10 +232,7 @@ impl Check<'_, '_> {
                 let Some(Argument::Type(value)) = args.get(*ordinal as usize) else {
                     return Err(fail("nominal field omits its full original Type actual"));
                 };
-                crate::dyn_metadata::ty(&value.ty, b)?;
-                crate::dyn_metadata::shape(&value.life, b)?;
-                b.spend(value.classes.len(), WORK)?;
-                Ok(value.clone())
+                value.copy(b)
             }
             SemanticTypeRecipe::AssociatedType {
                 receiver,
@@ -279,11 +276,12 @@ impl Check<'_, '_> {
                 };
                 let mut result = value::address(mutable, class, child, b)?;
                 if matches!(recipe, SemanticTypeRecipe::Desc { .. }) {
-                    let Type::Address { inner, .. } = result.ty else {
+                    let geometry = result.geometry_mut(b)?;
+                let Type::Address { inner, .. } = std::mem::replace(&mut geometry.ty, Type::Unit) else {
                         return Err(fail("nominal description loses its child"));
                     };
-                    result.ty = Type::Desc(inner);
-                    result.life.slots[0].mode = StoredBorrowMode::WritableDescription;
+                    geometry.ty = Type::Desc(inner);
+                    geometry.life.slots[0].mode = StoredBorrowMode::WritableDescription;
                 }
                 Ok(result)
             }
@@ -300,21 +298,21 @@ impl Check<'_, '_> {
                     ));
                 }
                 let ty = match recipe {
-                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.ty)),
+                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.into_type(b)?)),
                     SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
-                        element: Box::new(child.ty),
+                        element: Box::new(child.into_type(b)?),
                     },
                     SemanticTypeRecipe::Mutex(_) => Type::Mutex {
-                        payload: Box::new(child.ty),
+                        payload: Box::new(child.into_type(b)?),
                     },
                     SemanticTypeRecipe::Registration(_) => Type::Registration {
-                        environment: Box::new(child.ty),
+                        environment: Box::new(child.into_type(b)?),
                     },
                     SemanticTypeRecipe::AsyncRegistration(_) => Type::AsyncRegistration {
-                        environment: Box::new(child.ty),
+                        environment: Box::new(child.into_type(b)?),
                     },
                     SemanticTypeRecipe::Slice(_) => Type::Slice {
-                        element: Box::new(child.ty),
+                        element: Box::new(child.into_type(b)?),
                     },
                     _ => return Err(fail("nominal field constructor changed family")),
                 };
@@ -329,7 +327,7 @@ impl Check<'_, '_> {
                             "nominal tuple field needs complete nested child class embedding",
                         ));
                     }
-                    self.push_value(&mut types, child.ty, b)?;
+                    self.push_value(&mut types, child.into_type(b)?, b)?;
                 }
                 Ok(value::scalar(if types.is_empty() {
                     Type::Unit
@@ -350,8 +348,8 @@ impl Check<'_, '_> {
                     ));
                 }
                 Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.ty),
-                    result: Box::new(result.ty),
+                    error: Box::new(error.into_type(b)?),
+                    result: Box::new(result.into_type(b)?),
                 }))
             }
             SemanticTypeRecipe::Array { element, length } => {
@@ -370,7 +368,7 @@ impl Check<'_, '_> {
                     original::resource("nominal array extent exceeds its physical representation")
                 })?;
                 Ok(value::scalar(Type::Array {
-                    element: Box::new(element.ty),
+                    element: Box::new(element.into_type(b)?),
                     length,
                 }))
             }

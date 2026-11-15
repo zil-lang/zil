@@ -313,7 +313,7 @@ impl Checked {
                     ));
                 }
                 let class = self.life_value(*life, context, inventory, b)?;
-                let payload = payload.ty;
+                let payload = payload.into_type(b)?;
                 let ty = Type::MutexGuard {
                     payload: Box::new(payload.clone()),
                     retained_life: RetainedLifeShape {
@@ -329,16 +329,12 @@ impl Checked {
                         nominal_arguments: Vec::new(),
                     },
                 };
-                Ok(Value {
-                    ty,
-                    life: StorageLifeShape {
+                Ok(Value::new(ty, StorageLifeShape {
                         binder_count: 1,
                         slots: Vec::new(),
                         retained: Vec::new(),
                         nominal_arguments: Vec::new(),
-                    },
-                    classes: vec![class],
-                })
+                    }, vec![class]))
             }
             Kind::CallResult {
                 caller,
@@ -425,29 +421,27 @@ impl Checked {
             Kind::Wrapped(wrapper, inner) => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
                 if *wrapper == Wrapper::Managed && matches!(inner.ty, Type::Task { .. }) {
-                    return Ok(Value {
-                        ty: Type::Managed(Box::new(inner.ty)),
-                        life: inner.life,
-                        classes: inner.classes,
-                    });
+                    let (ty, life, classes) = inner.into_parts(b)?;
+                    return Ok(Value::new(Type::Managed(Box::new(ty)), life, classes));
                 }
                 if !inner.classes.is_empty() {
                     return Err(unknown(
                         "original opaque resource constructor needs its complete retained and phantom child occurrence transport",
                     ));
                 }
-                Ok(value::scalar(wrapper.ty(inner.ty)))
+                Ok(value::scalar(wrapper.ty(inner.into_type(b)?)))
             }
             Kind::Desc { life, inner } => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
                 let class = self.life_value(*life, context, inventory, b)?;
                 let mut value = value::address(false, class, inner, b)?;
-                let Type::Address { inner, .. } = value.ty else {
+                let geometry = value.geometry_mut(b)?;
+                let Type::Address { inner, .. } = std::mem::replace(&mut geometry.ty, Type::Unit) else {
                     return Err(fail("original description loses its complete payload"));
                 };
-                value.ty = Type::Desc(inner);
+                geometry.ty = Type::Desc(inner);
                 let slot =
-                    value.life.slots.get_mut(0).ok_or_else(|| {
+                    geometry.life.slots.get_mut(0).ok_or_else(|| {
                         fail("original description omits its outer weak occurrence")
                     })?;
                 slot.mode = StoredBorrowMode::WritableDescription;
@@ -462,8 +456,8 @@ impl Checked {
                     ));
                 }
                 Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.ty),
-                    result: Box::new(result.ty),
+                    error: Box::new(error.into_type(b)?),
+                    result: Box::new(result.into_type(b)?),
                 }))
             }
             Kind::Code {
@@ -481,7 +475,7 @@ impl Checked {
                             "original code pointer needs its complete input scope relation",
                         ));
                     }
-                    Solver::push(&mut physical, value.ty, b)?;
+                    Solver::push(&mut physical, value.into_type(b)?, b)?;
                 }
                 let result = self.value(*result, context, program, inventory, b, depth + 1)?;
                 if !result.classes.is_empty() {
@@ -492,11 +486,11 @@ impl Checked {
                 let ty = match kind {
                     SemanticCodeKind::FunctionPointer => Type::FunctionPointer {
                         parameters: physical,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::ForeignCallback => Type::ForeignCallback {
                         parameters: physical,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::BorrowedFunctionPointer => {
                         return Err(unknown(
@@ -526,7 +520,7 @@ impl Checked {
                     fail("original Array length exceeds its represented finite domain")
                 })?;
                 Ok(value::scalar(Type::Array {
-                    element: Box::new(element.ty),
+                    element: Box::new(element.into_type(b)?),
                     length,
                 }))
             }
@@ -538,7 +532,7 @@ impl Checked {
                     ));
                 }
                 Ok(value::scalar(Type::Slice {
-                    element: Box::new(element.ty),
+                    element: Box::new(element.into_type(b)?),
                 }))
             }
             Kind::Tuple(fields) => {
@@ -550,7 +544,7 @@ impl Checked {
                             "original tuple needs its complete child class embedding",
                         ));
                     }
-                    Solver::push(&mut types, field.ty, b)?;
+                    Solver::push(&mut types, field.into_type(b)?, b)?;
                 }
                 Ok(value::scalar(Type::Tuple(types)))
             }
@@ -620,16 +614,12 @@ impl Checked {
                         "actual closure scope omits original environment or phantom classes",
                     ));
                 }
-                Ok(Value {
-                    ty: Type::Closure(id),
-                    life: StorageLifeShape {
+                Ok(Value::new(Type::Closure(id), StorageLifeShape {
                         binder_count: count,
                         slots: Vec::new(),
                         retained: Vec::new(),
                         nominal_arguments: Vec::new(),
-                    },
-                    classes,
-                })
+                    }, classes))
             }
             _ => Err(unknown(
                 "original complete type remains unresolved independently of executable images",
@@ -868,7 +858,7 @@ impl Checked {
                 ));
             }
             Ok(Argument::Const {
-                carrier: value.ty,
+                carrier: value.into_type(b)?,
                 value: constant.clone(),
             })
         } else {

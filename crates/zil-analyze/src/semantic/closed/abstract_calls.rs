@@ -146,18 +146,19 @@ impl Check<'_, '_> {
                 let expected_mutable = *expected_mutable;
                 let mut expected_receiver = boundary.receiver;
                 if !*mutable && expected_mutable {
-                    let Type::Address { inner, .. } = &expected_receiver.ty else {
+                    let geometry = expected_receiver.geometry_mut(b)?;
+            let Type::Address { inner, .. } = &geometry.ty else {
                         unreachable!()
                     };
                     crate::dyn_metadata::ty(inner, b)?;
-                    expected_receiver.ty = Type::Address {
+                    geometry.ty = Type::Address {
                         mutable: false,
                         inner: inner.clone(),
                     };
-                    if expected_receiver.life.slots.len() != 1 {
+                    if geometry.life.slots.len() != 1 {
                         return Err(fail("original receiver omits its outer occurrence"));
                     }
-                    expected_receiver.life.slots[0].mode = StoredBorrowMode::SharedAddress;
+                    geometry.life.slots[0].mode = StoredBorrowMode::SharedAddress;
                 }
                 if !self.outer_role(instance, function, &receiver, &expected_receiver, b, 0)? {
                     return Err(fail(

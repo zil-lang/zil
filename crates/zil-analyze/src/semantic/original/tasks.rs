@@ -1012,7 +1012,7 @@ impl Checked {
                     Solver::push(
                         &mut shape.ports,
                         RetainedBorrowPort {
-                            leaf: leaf.ty,
+                            leaf: leaf.into_type(b)?,
                             mode: *mode,
                             binder,
                         },
@@ -1105,14 +1105,14 @@ impl Checked {
                     if images.len() != value.classes.len() {
                         return Err(fail("Task nominal expansion changes the full child domain"));
                     }
-                    for row in value.life.nominal_arguments {
+                    for row in &value.life.nominal_arguments {
                         let image = images
                             .get(row.binder as usize)
                             .ok_or_else(|| fail("Task nominal child class is absent"))?;
                         let binder = materialize.binder(&classes, image, b)?;
                         b.spend(path.len().saturating_add(row.path.len()), WORK)?;
                         let mut full_path = path.clone();
-                        full_path.extend(row.path);
+                        full_path.extend(row.path.iter().cloned());
                         Solver::push(
                             &mut shape.nominal_arguments,
                             NominalLifeArgument {
@@ -1150,18 +1150,14 @@ impl Checked {
         }
         crate::dyn_metadata::retained_shape(&shape, b)?;
         let ty = Type::Task {
-            result: Box::new(result.ty),
+            result: Box::new(result.into_type(b)?),
             retained_life: shape,
         };
-        Ok(Value {
-            ty,
-            classes,
-            life: StorageLifeShape {
+        Ok(Value::new(ty, StorageLifeShape {
                 binder_count,
                 slots: Vec::new(),
                 retained: Vec::new(),
                 nominal_arguments: Vec::new(),
-            },
-        })
+            }, classes))
     }
 }

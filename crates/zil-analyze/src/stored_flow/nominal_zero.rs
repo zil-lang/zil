@@ -54,12 +54,27 @@ pub(super) fn exact_index(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<usize> {
-    // Bound the entire query before key selection, including unmatched input.
-    shape_work(ty, limits, b)?;
-    let before = b.remaining();
-    crate::dyn_metadata::ty(ty, b)?;
-    let query_work = before - b.remaining();
     let module_key = module as *const TypedModule as usize;
+    let raw_work = crate::semantic::geometry::bounded_work(ty, b)?;
+    let geometry_key = ty as *const Type as usize;
+    if raw_work.is_some()
+        && let Some(entry) = b.geometry_types.get(&geometry_key)
+        && let Some((owner, depth, position)) = entry.nominal
+        && owner == module_key
+        && depth == limits.max_call_depth
+    {
+        return Ok(position);
+    }
+    // Bound the entire query before key selection, including unmatched input.
+    // An exact immutable owned root already has a complete raw certificate.
+    shape_work(ty, limits, b)?;
+    let query_work = if let Some(work) = raw_work {
+        work
+    } else {
+        let before = b.remaining();
+        crate::dyn_metadata::ty(ty, b)?;
+        before - b.remaining()
+    };
     if b.nominal_zero_instances
         .as_ref()
         .is_none_or(|(owner, _)| *owner != module_key)
@@ -118,7 +133,18 @@ pub(super) fn exact_index(
             ));
         }
     }
-    selected.ok_or_else(|| failure("zero nominal type lacks its complete instance"))
+    let position =
+        selected.ok_or_else(|| failure("zero nominal type lacks its complete instance"))?;
+    if raw_work.is_some() {
+        b.lookup(
+            b.geometry_types.len(),
+            "zero nominal immutable query publication",
+        )?;
+        if let Some(entry) = b.geometry_types.get_mut(&geometry_key) {
+            entry.nominal = Some((module_key, limits.max_call_depth, position));
+        }
+    }
+    Ok(position)
 }
 
 fn exact<'a>(
@@ -437,7 +463,9 @@ fn type_zero(
     }
     // Prepay complete recursive identity work, including opaque/retained data,
     // before any structural comparison or directory lookup.
-    crate::dyn_metadata::ty(ty, b)?;
+    if crate::semantic::geometry::bounded_work(ty, b)?.is_none() {
+        crate::dyn_metadata::ty(ty, b)?;
+    }
     // This is intrinsic-domain formation, before runtime interface/permission
     // qualification. The bounded visitor above pays the full type identity;
     // type_work would incorrectly require already published Dyn interfaces.

@@ -212,7 +212,7 @@ impl Check<'_, '_> {
                 "actual slice projection needs its complete element occurrence mapping",
             ));
         }
-        let element = match pointee.ty {
+        let element = match pointee.into_type(b)? {
             Type::Array { element, .. } | Type::Slice { element } => element,
             _ => return Err(fail("actual slice projection has another backing family")),
         };

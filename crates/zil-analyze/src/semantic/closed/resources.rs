@@ -205,9 +205,11 @@ impl Check<'_, '_> {
                 "actual nominal cleanup exceeds its complete inventory depth",
             ));
         }
+        let source_life = match payload { Type::BorrowedStorage { life, .. } => Some(life), _ => None };
+        let geometry = self.inventory.geometry.type_value(payload, source_life, b)?;
         crate::stored_flow::validate_plain_nominal_zero(
             self.module,
-            payload,
+            &geometry.ty,
             self.inventory.limits,
             b,
         )?;
@@ -304,6 +306,9 @@ impl Check<'_, '_> {
                 "actual resource whole value retains Core-only metadata",
             ));
         };
+        let geometry = self.inventory.geometry.resolved(ty, life, b)?;
+        let ty = &geometry.ty;
+        let life = &geometry.life;
         match ty {
             Type::MutexGuard { .. } => {
                 self.ordinary_type_at(ty, b, depth + 1)?;
@@ -319,12 +324,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: vec![class],
-                })
+                Ok(Value::from_geometry(geometry, vec![class]))
             }
             Type::Address { mutable, inner }
                 if matches!(inner.as_ref(), Type::MutexGuard { .. }) =>
@@ -349,16 +349,12 @@ impl Check<'_, '_> {
                 let expected = value::address(
                     *mutable,
                     value::Class::Local(0),
-                    Value {
-                        ty: inner.as_ref().clone(),
-                        life: StorageLifeShape {
+                    Value::new(inner.as_ref().clone(), StorageLifeShape {
                             binder_count: 1,
                             slots: Vec::new(),
                             retained: Vec::new(),
                             nominal_arguments: Vec::new(),
-                        },
-                        classes: vec![value::Class::Local(row.binder)],
-                    },
+                        }, vec![value::Class::Local(row.binder)]),
                     b,
                 )?;
                 if expected.life != *life {
@@ -371,12 +367,7 @@ impl Check<'_, '_> {
                     let image = value::class(context, expression, self.inventory, b, depth + 1)?;
                     self.push_value(&mut images, image, b)?;
                 }
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: images,
-                })
+                Ok(Value::from_geometry(geometry, images))
             }
             Type::Desc(inner) => {
                 crate::dyn_metadata::ty(inner, b)?;
@@ -393,12 +384,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: vec![class],
-                })
+                Ok(Value::from_geometry(geometry, vec![class]))
             }
             Type::Managed(_) => {
                 self.resource_zero(ty, b, depth + 1)?;
@@ -408,8 +394,7 @@ impl Check<'_, '_> {
                         "actual zero resource carries another claimed intrinsic domain",
                     ));
                 }
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(value::scalar(ty.clone()))
+                Ok(Value::from_geometry(geometry, Vec::new()))
             }
             Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) => {
                 self.resource_zero(inner, b, depth + 1)?;
@@ -436,12 +421,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: vec![class],
-                })
+                Ok(Value::from_geometry(geometry, vec![class]))
             }
             _ => value::resolved(context, input, self.inventory, b, depth + 1),
         }

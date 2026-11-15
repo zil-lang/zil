@@ -255,18 +255,19 @@ impl Check<'_, '_> {
         if let (Type::Address { mutable: false, .. }, Type::Address { mutable: true, .. }) =
             (&expected.ty, &parent.ty)
         {
-            let Type::Address { inner, .. } = &parent.ty else {
+            let geometry = parent.geometry_mut(b)?;
+            let Type::Address { inner, .. } = &geometry.ty else {
                 unreachable!()
             };
             crate::dyn_metadata::ty(inner, b)?;
-            parent.ty = Type::Address {
+            geometry.ty = Type::Address {
                 mutable: false,
                 inner: inner.clone(),
             };
-            if parent.life.slots.len() != 1 {
+            if geometry.life.slots.len() != 1 {
                 return Ok(false);
             }
-            parent.life.slots[0].mode = StoredBorrowMode::SharedAddress;
+            geometry.life.slots[0].mode = StoredBorrowMode::SharedAddress;
         }
         self.outer_role(instance, function, &parent, expected, b, depth + 1)
     }

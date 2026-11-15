@@ -1334,11 +1334,12 @@ impl Checked {
                         "original Dyn Context omits part of its intrinsic class domain",
                     ));
                 }
+                crate::dyn_metadata::shape(&value.life, b)?;
                 let mut shape = RetainedLifeShape {
                     binder_count: value.life.binder_count,
                     ports: Vec::new(),
-                    retained: value.life.retained,
-                    nominal_arguments: value.life.nominal_arguments,
+                    retained: value.life.retained.clone(),
+                    nominal_arguments: value.life.nominal_arguments.clone(),
                 };
                 for slot in &value.life.slots {
                     let leaf = physical_leaf(&value.ty, &slot.path, b)?;
@@ -1392,7 +1393,7 @@ impl Checked {
                             push_port(
                                 &mut shape.ports,
                                 RetainedBorrowPort {
-                                    leaf: leaf.ty,
+                                    leaf: leaf.into_type(b)?,
                                     mode: *mode,
                                     binder,
                                 },
@@ -1489,14 +1490,14 @@ impl Checked {
                                     "original Dyn Context nominal expansion changes its complete child domain",
                                 ));
                             }
-                            for row in value.life.nominal_arguments {
+                            for row in &value.life.nominal_arguments {
                                 let image = images.get(row.binder as usize).ok_or_else(|| {
                                     fail("original Dyn Context nominal child class is absent")
                                 })?;
                                 let binder = materialize.binder(&domain, image, b)?;
                                 b.spend(path.len().saturating_add(row.path.len()), WORK)?;
                                 let mut full_path = path.clone();
-                                full_path.extend(row.path);
+                                full_path.extend(row.path.iter().cloned());
                                 Solver::push(
                                     &mut shape.nominal_arguments,
                                     NominalLifeArgument {

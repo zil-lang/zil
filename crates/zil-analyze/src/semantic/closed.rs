@@ -285,16 +285,12 @@ impl Check<'_, '_> {
                 let expected = value::address(
                     *mutable,
                     value::Class::Local(0),
-                    value::Value {
-                        ty: inner.as_ref().clone(),
-                        life: StorageLifeShape {
+                    value::Value::new(inner.as_ref().clone(), StorageLifeShape {
                             binder_count: 1,
                             slots: Vec::new(),
                             retained: Vec::new(),
                             nominal_arguments: Vec::new(),
-                        },
-                        classes: vec![value::Class::Local(row.binder)],
-                    },
+                        }, vec![value::Class::Local(row.binder)]),
                     b,
                 )?;
                 if expected.life != *life {
@@ -373,7 +369,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Type> {
-        Ok(self.recipe_value(instance, recipe, b, depth)?.ty)
+        self.recipe_value(instance, recipe, b, depth)?.into_type(b)
     }
     fn ty_closed(
         &self,

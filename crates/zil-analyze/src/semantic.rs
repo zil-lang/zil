@@ -6,6 +6,7 @@ use zil_base::CompileResult;
 use zil_ir::*;
 mod closed;
 pub(super) mod frozen;
+pub(super) mod geometry;
 mod original;
 mod original_index;
 mod value;
@@ -36,6 +37,7 @@ struct Inventory<'a> {
         std::cell::RefCell<BTreeMap<(usize, usize, LifeDeclarationId), SemanticDefinitionId>>,
     drop_methods: std::cell::RefCell<BTreeMap<SemanticDefinitionId, Option<SemanticDefinitionId>>>,
     ordinary_drop_absence: std::cell::RefCell<BTreeSet<SemanticDefinitionId>>,
+    geometry: geometry::Inputs,
 }
 impl<'a> Inventory<'a> {
     fn new(
@@ -59,6 +61,7 @@ impl<'a> Inventory<'a> {
             declaration_scopes: std::cell::RefCell::new(BTreeMap::new()),
             drop_methods: std::cell::RefCell::new(BTreeMap::new()),
             ordinary_drop_absence: std::cell::RefCell::new(BTreeSet::new()),
+            geometry: geometry::Inputs::new(module, program, b)?,
         };
         let mut identities = BTreeSet::new();
         for definition in &program.definitions {
