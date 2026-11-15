@@ -64,6 +64,22 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
         match recipe {
+            SemanticLifeRecipe::Bound {
+                depth: level,
+                index,
+            } => {
+                b.spend(self.bound_frames.len(), WORK)?;
+                self.bound_frames
+                    .iter()
+                    .rev()
+                    .filter(|bound| bound.owner == frame.definition)
+                    .nth(*level as usize)
+                    .and_then(|bound| bound.lifetimes.get(*index as usize))
+                    .copied()
+                    .ok_or_else(|| {
+                        fail("original Bound lifetime leaves its protected binder frame")
+                    })
+            }
             SemanticLifeRecipe::Formal(reference) => {
                 let owner = self.original_scope(frame.definition, &reference.scope, b)?;
                 if !matches!(

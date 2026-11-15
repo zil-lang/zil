@@ -579,9 +579,28 @@ impl Check<'_, '_> {
         requirements: &[SemanticRequirementRecipe],
         b: &mut Budget,
     ) -> CompileResult<()> {
+        self.quantified_requirements(context, requirements, &mut Vec::new(), b, 0)
+    }
+    fn quantified_requirements(
+        &self,
+        context: &SemanticInstance,
+        requirements: &[SemanticRequirementRecipe],
+        bounds: &mut Vec<u32>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        if depth > b.partial_depth {
+            return Err(unknown("actual quantified premises exceed their finite depth"));
+        }
         b.spend(requirements.len(), WORK)?;
         for requirement in requirements {
             match requirement {
+                SemanticRequirementRecipe::ForAll { lifetimes, requirements } => {
+                    if *lifetimes != 0 { self.push_value(bounds, *lifetimes, b)?; }
+                    let result = self.quantified_requirements(context, requirements, bounds, b, depth + 1);
+                    if *lifetimes != 0 { bounds.pop(); }
+                    result?;
+                }
                 SemanticRequirementRecipe::Structural { ty, bound } => {
                     let ty = self.ty(context, ty, b, 0)?;
                     let predicate = match bound {
@@ -628,7 +647,11 @@ impl Check<'_, '_> {
                     kind,
                     signature,
                 } => {
-                    self.callable_requirement(context, ty, *kind, signature, b)?;
+                    if bounds.is_empty() {
+                        self.callable_requirement(context, ty, *kind, signature, b)?;
+                    } else {
+                        self.quantified_callable_requirement(context, ty, *kind, signature, bounds, b)?;
+                    }
                 }
                 SemanticRequirementRecipe::TypeEqual { left, right } => {
                     if self.recipe_value(context, left, b, 0)?

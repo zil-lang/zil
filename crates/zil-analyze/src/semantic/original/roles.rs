@@ -7,7 +7,101 @@ pub(super) struct RoleFrame {
     pub(super) lifetimes: Vec<Term>,
     pub(super) implicits: BTreeMap<u32, Term>,
 }
+pub(super) struct BoundFrame {
+    pub(super) owner: SemanticDefinitionId,
+    pub(super) lifetimes: Vec<Term>,
+}
+
+pub(super) struct DeclaredRole<'a> {
+    pub(super) ty: &'a SemanticTypeRecipe,
+    pub(super) kind: CallableKind,
+    pub(super) signature: &'a SemanticSignatureRecipe,
+    pub(super) bounds: Vec<u32>,
+}
+
+/// Preserve the nonempty de Bruijn frames surrounding each actual premise.
+/// Zero-quantifier syntax remains in the original inventory but adds no frame.
+pub(super) fn declared_roles<'a>(
+    requirements: &'a [SemanticRequirementRecipe],
+    bounds: &mut Vec<u32>,
+    output: &mut Vec<DeclaredRole<'a>>,
+    b: &mut Budget,
+    depth: usize,
+) -> CompileResult<()> {
+    if depth > b.partial_depth {
+        return Err(unknown(
+            "original callable premises exceed their finite depth",
+        ));
+    }
+    for requirement in requirements {
+        b.spend(1, WORK)?;
+        match requirement {
+            SemanticRequirementRecipe::ForAll {
+                lifetimes,
+                requirements,
+            } => {
+                if *lifetimes != 0 {
+                    Solver::push(bounds, *lifetimes, b)?;
+                }
+                let result = declared_roles(requirements, bounds, output, b, depth + 1);
+                if *lifetimes != 0 {
+                    bounds.pop();
+                }
+                result?;
+            }
+            SemanticRequirementRecipe::Callable {
+                ty,
+                kind,
+                signature,
+            } => {
+                b.spend(bounds.len(), WORK)?;
+                Solver::push(
+                    output,
+                    DeclaredRole {
+                        ty,
+                        kind: *kind,
+                        signature,
+                        bounds: bounds.clone(),
+                    },
+                    b,
+                )?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 impl Solver<'_, '_> {
+    pub(super) fn push_bound_frame(
+        &mut self,
+        owner: SemanticDefinitionId,
+        count: u32,
+        invocation: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if count == 0 {
+            return Ok(());
+        }
+        let serial = self.next_role;
+        self.next_role = serial
+            .checked_add(1)
+            .ok_or_else(|| resource("original quantified role namespace overflow"))?;
+        let mut lifetimes = Vec::new();
+        for index in 0..count {
+            let life = self.term(
+                if invocation {
+                    Kind::LifeVariable(None)
+                } else {
+                    Kind::Life(Life::Role(owner, serial, index))
+                },
+                b,
+            )?;
+            Self::push(&mut lifetimes, life, b)?;
+        }
+        Self::push(&mut self.bound_frames, BoundFrame { owner, lifetimes }, b)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn role_need(
         &mut self,
@@ -19,11 +113,8 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.step(depth, b)?;
-        if signature.bound_lifetimes != 0 {
-            return Err(unknown(
-                "original callable needs its complete quantified role proof",
-            ));
-        }
+        let checkpoint = self.bound_frames.len();
+        self.push_bound_frame(frame.definition, signature.bound_lifetimes, false, b)?;
         let serial = self.next_role;
         self.next_role = serial
             .checked_add(1)
@@ -80,6 +171,7 @@ impl Solver<'_, '_> {
         self.role_frames
             .pop()
             .ok_or_else(|| fail("original callable role lost its lexical frame"))?;
+        self.bound_frames.truncate(checkpoint);
         let need = result?;
         Self::push(&mut self.callable_needs, need, b)
     }
@@ -90,8 +182,30 @@ impl Solver<'_, '_> {
         requirements: &[SemanticRequirementRecipe],
         b: &mut Budget,
     ) -> CompileResult<()> {
+        self.role_premises_wf_at(frame, requirements, b, 0)
+    }
+    fn role_premises_wf_at(
+        &mut self,
+        frame: &Frame,
+        requirements: &[SemanticRequirementRecipe],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
         for requirement in requirements {
             b.spend(1, WORK)?;
+            if let SemanticRequirementRecipe::ForAll {
+                lifetimes,
+                requirements,
+            } = requirement
+            {
+                let checkpoint = self.bound_frames.len();
+                self.push_bound_frame(frame.definition, *lifetimes, false, b)?;
+                let result = self.role_premises_wf_at(frame, requirements, b, depth + 1);
+                self.bound_frames.truncate(checkpoint);
+                result?;
+                continue;
+            }
             if let SemanticRequirementRecipe::Callable {
                 kind, signature, ..
             } = requirement
@@ -407,19 +521,15 @@ impl Solver<'_, '_> {
         })?;
         let checked = (|| {
             let mut selected = None;
-            for requirement in requirements.iter().chain(&declaration.requirements) {
-                let SemanticRequirementRecipe::Callable {
-                    ty,
-                    kind,
-                    signature,
-                } = requirement
-                else {
-                    continue;
-                };
-                let supports = *kind == need.kind
-                    || (*kind == CallableKind::Fn
+            let mut roles = Vec::new();
+            declared_roles(requirements, &mut Vec::new(), &mut roles, b, 0)?;
+            declared_roles(&declaration.requirements, &mut Vec::new(), &mut roles, b, 0)?;
+            for role in &roles {
+                let (ty, kind, signature) = (role.ty, role.kind, role.signature);
+                let supports = kind == need.kind
+                    || (kind == CallableKind::Fn
                         && matches!(need.kind, CallableKind::FnMut | CallableKind::FnOnce))
-                    || (*kind == CallableKind::FnMut && need.kind == CallableKind::FnOnce);
+                    || (kind == CallableKind::FnMut && need.kind == CallableKind::FnOnce);
                 if !supports
                     || signature.call_kind != need.call_kind
                     || signature.parameters.len() != need.parameters.len()
@@ -439,19 +549,25 @@ impl Solver<'_, '_> {
                 {
                     continue;
                 }
-                if selected.replace(signature).is_some() {
+                if selected.replace(role).is_some() {
                     return Err(unknown(
                         "multiple original callable premises require an exact overload selection",
                     ));
                 }
             }
-            let Some(signature) = selected else {
+            let Some(role) = selected else {
                 return Err(unknown(
                     "original rigid callable lacks its complete declared role premise",
                 ));
             };
             let before = self.callable_needs.len();
-            self.role_need(&frame, term, need.kind, signature, b, 0)?;
+            let checkpoint = self.bound_frames.len();
+            for count in &role.bounds {
+                self.push_bound_frame(owner, *count, false, b)?;
+            }
+            let result = self.role_need(&frame, term, need.kind, role.signature, b, 0);
+            self.bound_frames.truncate(checkpoint);
+            result?;
             if self.callable_needs.len() != before + 1 {
                 return Err(fail(
                     "original callable premise creates competing role obligations",

@@ -266,6 +266,7 @@ struct Solver<'a, 'i> {
     callable_needs: Vec<CallableNeed>,
     mutating_closures: BTreeSet<SemanticDefinitionId>,
     role_frames: Vec<roles::RoleFrame>,
+    bound_frames: Vec<roles::BoundFrame>,
     next_role: u32,
     loops: Vec<loops::LoopFrame>,
     trait_state: traits::State,
@@ -3804,6 +3805,7 @@ pub(super) fn check(
         callable_needs: Vec::new(),
         mutating_closures: BTreeSet::new(),
         role_frames: Vec::new(),
+        bound_frames: Vec::new(),
         next_role: 0,
         loops: Vec::new(),
         trait_state: traits::State::default(),
@@ -4262,8 +4264,22 @@ impl Solver<'_, '_> {
         requirements: &[SemanticRequirementRecipe],
         b: &mut Budget,
     ) -> CompileResult<()> {
+        self.premises_well_formed_at(context, requirements, b, 0)
+    }
+    fn premises_well_formed_at(
+        &self,
+        context: SemanticDefinitionId,
+        requirements: &[SemanticRequirementRecipe],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
         for requirement in requirements {
             b.spend(1, WORK)?;
+            if let SemanticRequirementRecipe::ForAll { requirements, .. } = requirement {
+                self.premises_well_formed_at(context, requirements, b, depth + 1)?;
+                continue;
+            }
             if let SemanticRequirementRecipe::Trait { application, .. } = requirement {
                 let raw = self.inventory.original_dyn(application.declaration, b)?;
                 if raw.kind != DynDeclarationKind::Trait
@@ -4275,11 +4291,15 @@ impl Solver<'_, '_> {
                 }
                 continue;
             }
-            if let SemanticRequirementRecipe::Callable { ty, signature, .. } = requirement {
-                if signature.bound_lifetimes != 0 {
-                    return Err(unknown(
-                        "original callable premise needs its complete quantified relation",
-                    ));
+            if let SemanticRequirementRecipe::Callable { ty, .. } = requirement {
+                if let SemanticTypeRecipe::Formal(reference) = ty {
+                    let owner = self.original_scope(context, &reference.scope, b)?;
+                    if !matches!(
+                        self.inventory.definition(owner, b)?.parameters.get(reference.ordinal as usize),
+                        Some(SemanticFormal::Type { .. })
+                    ) {
+                        return Err(fail("original callable subject changes its formal kind"));
+                    }
                 }
                 if !matches!(
                     ty,
@@ -4327,7 +4347,25 @@ impl Solver<'_, '_> {
         requirements: &[SemanticRequirementRecipe],
         b: &mut Budget,
     ) -> CompileResult<()> {
+        self.premise_needs_at(frame, requirements, b, 0)
+    }
+    fn premise_needs_at(
+        &mut self,
+        frame: &Frame,
+        requirements: &[SemanticRequirementRecipe],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
         for requirement in requirements {
+            if let SemanticRequirementRecipe::ForAll { lifetimes, requirements } = requirement {
+                let checkpoint = self.bound_frames.len();
+                self.push_bound_frame(frame.definition, *lifetimes, false, b)?;
+                let result = self.premise_needs_at(frame, requirements, b, depth + 1);
+                self.bound_frames.truncate(checkpoint);
+                result?;
+                continue;
+            }
             if matches!(requirement, SemanticRequirementRecipe::Trait { .. }) {
                 self.original_trait_need(frame, requirement, b)?;
                 continue;
@@ -4363,8 +4401,26 @@ impl Solver<'_, '_> {
         wanted: Predicate,
         b: &mut Budget,
     ) -> CompileResult<bool> {
+        self.assumption_at(owner, ordinal, requirements, wanted, b, 0)
+    }
+    fn assumption_at(
+        &self,
+        owner: SemanticDefinitionId,
+        ordinal: u32,
+        requirements: &[SemanticRequirementRecipe],
+        wanted: Predicate,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
         for requirement in requirements {
             b.spend(1, WORK)?;
+            if let SemanticRequirementRecipe::ForAll { requirements, .. } = requirement {
+                if self.assumption_at(owner, ordinal, requirements, wanted, b, depth + 1)? {
+                    return Ok(true);
+                }
+                continue;
+            }
             if let SemanticRequirementRecipe::Callable {
                 ty: SemanticTypeRecipe::Formal(reference),
                 ..

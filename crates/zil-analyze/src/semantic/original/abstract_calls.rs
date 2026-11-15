@@ -10,6 +10,8 @@ pub(super) struct AbstractCall {
     place: Option<Borrow>,
     signature_owner: SemanticDefinitionId,
     pub(super) signature: SemanticSignatureRecipe,
+    pub(super) bounds: Vec<u32>,
+    protected: Vec<Term>,
     kind: CallableKind,
     parameters: Vec<Term>,
     result: Term,
@@ -21,6 +23,7 @@ pub(in crate::semantic) struct AbstractBoundary {
     pub(in crate::semantic) receiver: crate::semantic::value::Value,
     pub(in crate::semantic) signature_owner: SemanticDefinitionId,
     pub(in crate::semantic) signature: SemanticSignatureRecipe,
+    pub(in crate::semantic) bounds: Vec<u32>,
     pub(in crate::semantic) kind: CallableKind,
     pub(in crate::semantic) parameters: Vec<crate::semantic::value::Value>,
     pub(in crate::semantic) result: crate::semantic::value::Value,
@@ -32,6 +35,21 @@ impl Solver<'_, '_> {
         ordinal: u32,
         b: &mut Budget,
     ) -> CompileResult<(CallableKind, SemanticSignatureRecipe)> {
+        let (kind, signature, bounds) = self.quantified_callable_premise(owner, ordinal, b)?;
+        if !bounds.is_empty() {
+            return Err(unknown(
+                "sealed callable protocol requires its exact unquantified role",
+            ));
+        }
+        Ok((kind, signature))
+    }
+
+    pub(super) fn quantified_callable_premise(
+        &self,
+        owner: SemanticDefinitionId,
+        ordinal: u32,
+        b: &mut Budget,
+    ) -> CompileResult<(CallableKind, SemanticSignatureRecipe, Vec<u32>)> {
         let declaration = self.inventory.definition(owner, b)?;
         let Some(SemanticFormal::Type { requirements }) =
             declaration.parameters.get(ordinal as usize)
@@ -40,53 +58,66 @@ impl Solver<'_, '_> {
                 "abstract callable changes its original Type formal kind",
             ));
         };
-        let mut selected: Option<(CallableKind, &SemanticSignatureRecipe)> = None;
-        for requirement in requirements.iter().chain(&declaration.requirements) {
-            b.spend(1, WORK)?;
-            let SemanticRequirementRecipe::Callable {
-                ty: SemanticTypeRecipe::Formal(reference),
-                kind,
-                signature,
-            } = requirement
-            else {
+        let mut selected: Option<&roles::DeclaredRole<'_>> = None;
+        let mut declared = Vec::new();
+        roles::declared_roles(requirements, &mut Vec::new(), &mut declared, b, 0)?;
+        roles::declared_roles(
+            &declaration.requirements,
+            &mut Vec::new(),
+            &mut declared,
+            b,
+            0,
+        )?;
+        for role in &declared {
+            let SemanticTypeRecipe::Formal(reference) = role.ty else {
                 continue;
             };
+            let (kind, signature) = (role.kind, role.signature);
             if self.original_scope(owner, &reference.scope, b)? != owner
                 || reference.ordinal != ordinal
             {
                 continue;
             }
-            if let Some((old_kind, old)) = selected {
-                crate::dyn_metadata::recipe(old, b)?;
-                crate::dyn_metadata::recipe(signature.as_ref(), b)?;
-                if old_kind != *kind || old != signature.as_ref() {
+            if let Some(old) = selected {
+                crate::dyn_metadata::recipe(old.signature, b)?;
+                crate::dyn_metadata::recipe(signature, b)?;
+                b.spend(old.bounds.len().saturating_add(role.bounds.len()), WORK)?;
+                if old.kind != kind || old.signature != signature || old.bounds != role.bounds {
                     return Err(unknown(
                         "abstract callable has multiple roles requiring its complete result-role selection",
                     ));
                 }
             } else {
-                selected = Some((*kind, signature));
+                selected = Some(role);
             }
         }
-        let (kind, signature) = selected.ok_or_else(|| {
+        let role = selected.ok_or_else(|| {
             fail("abstract call lacks a declared callable premise for its actual subject")
         })?;
-        crate::dyn_metadata::recipe(signature, b)?;
-        Ok((kind, signature.clone()))
+        crate::dyn_metadata::recipe(role.signature, b)?;
+        b.spend(role.bounds.len(), WORK)?;
+        Ok((role.kind, role.signature.clone(), role.bounds.clone()))
     }
 
     fn invocation_scheme(
         &mut self,
         context: &Frame,
         signature: &SemanticSignatureRecipe,
+        bounds: &[u32],
         b: &mut Budget,
         depth: usize,
-    ) -> CompileResult<(Vec<Term>, Term)> {
+    ) -> CompileResult<(Vec<Term>, Term, Vec<Term>)> {
         self.step(depth, b)?;
-        if signature.bound_lifetimes != 0 {
-            return Err(unknown(
-                "abstract call needs its complete quantified invocation proof",
-            ));
+        let checkpoint = self.bound_frames.len();
+        for count in bounds {
+            self.push_bound_frame(context.definition, *count, true, b)?;
+        }
+        self.push_bound_frame(context.definition, signature.bound_lifetimes, true, b)?;
+        let mut protected = Vec::new();
+        for bound in &self.bound_frames[checkpoint..] {
+            for life in &bound.lifetimes {
+                Self::push(&mut protected, *life, b)?;
+            }
         }
         let mut lifetimes = Vec::new();
         b.spend(signature.invocation_lifetimes as usize, WORK)?;
@@ -122,7 +153,8 @@ impl Solver<'_, '_> {
         self.role_frames
             .pop()
             .ok_or_else(|| fail("abstract invocation lost its own lifetime frame"))?;
-        result
+        self.bound_frames.truncate(checkpoint);
+        result.map(|(parameters, result)| (parameters, result, protected))
     }
 
     pub(super) fn finish_abstract_call(
@@ -141,6 +173,13 @@ impl Solver<'_, '_> {
                 self.state.arena[self.root(life, b)?],
                 Kind::LifeVariable(None)
             ) {
+                for protected in &call.protected {
+                    if self.root(*protected, b)? == self.root(life, b)? {
+                        return Err(fail(
+                            "quantified callable result has no input instantiation for its protected lifetime",
+                        ));
+                    }
+                }
                 let Kind::Address { life: head, .. } = self.state.arena[self.root(receiver, b)?]
                 else {
                     return Err(fail(
@@ -168,7 +207,7 @@ impl Solver<'_, '_> {
         self.step(depth, b)?;
         let root = self.type_root(local, b)?;
         if let Kind::Rigid(owner, ordinal) = self.state.arena[root] {
-            let (kind, signature) = self.callable_premise(owner, ordinal, b)?;
+            let (kind, signature, bounds) = self.quantified_callable_premise(owner, ordinal, b)?;
             let place = self.borrow_place(frame, callee, b, depth + 1)?;
             match kind {
                 CallableKind::FnOnce if place.indirect => {
@@ -184,8 +223,8 @@ impl Solver<'_, '_> {
                 self.consume_place(frame, &place, b)?;
             }
             let context = self.premise_frame(frame, owner, b)?;
-            let (parameters, result) =
-                self.invocation_scheme(&context, &signature, b, depth + 1)?;
+            let (parameters, result, protected) =
+                self.invocation_scheme(&context, &signature, &bounds, b, depth + 1)?;
             b.spend(parameters.len().saturating_add(place.path.len() + 1), WORK)?;
             let saved = AbstractCall {
                 parameter: 0,
@@ -203,6 +242,8 @@ impl Solver<'_, '_> {
                 }),
                 signature_owner: owner,
                 signature,
+                bounds,
+                protected,
                 kind,
                 parameters: parameters.clone(),
                 result,
@@ -265,7 +306,7 @@ impl Solver<'_, '_> {
             })?;
         let parameter = u32::try_from(parameter)
             .map_err(|_| fail("abstract receiver parameter ordinal overflow"))?;
-        let (kind, signature) = self.callable_premise(owner, ordinal, b)?;
+        let (kind, signature, bounds) = self.quantified_callable_premise(owner, ordinal, b)?;
         match kind {
             CallableKind::Fn => {}
             CallableKind::FnMut if mutable => {}
@@ -283,14 +324,14 @@ impl Solver<'_, '_> {
                 ));
             }
         }
-        let (parameters, result) = if owner == frame.definition {
-            self.invocation_scheme(frame, &signature, b, depth + 1)?
+        let (parameters, result, protected) = if owner == frame.definition {
+            self.invocation_scheme(frame, &signature, &bounds, b, depth + 1)?
         } else {
             let parent =
                 self.state.frames.remove(&owner).ok_or_else(|| {
                     fail("abstract callable premise has no checked lexical owner")
                 })?;
-            let answer = self.invocation_scheme(&parent, &signature, b, depth + 1);
+            let answer = self.invocation_scheme(&parent, &signature, &bounds, b, depth + 1);
             b.lookup(self.state.frames.len(), WORK)?;
             self.state.frames.insert(owner, parent);
             answer?
@@ -303,6 +344,8 @@ impl Solver<'_, '_> {
             place: None,
             signature_owner: owner,
             signature,
+            bounds,
+            protected,
             kind,
             parameters: parameters.clone(),
             result,
@@ -362,6 +405,7 @@ impl Checked {
             Solver::push(&mut parameters, value, b)?;
         }
         crate::dyn_metadata::recipe(&call.signature, b)?;
+        b.spend(call.bounds.len(), WORK)?;
         Ok(Some(AbstractBoundary {
             parameter: call.parameter,
             place: call
@@ -385,6 +429,7 @@ impl Checked {
             receiver: self.value(call.receiver, context, program, inventory, b, 0)?,
             signature_owner: call.signature_owner,
             signature: call.signature.clone(),
+            bounds: call.bounds.clone(),
             kind: call.kind,
             parameters,
             result: self.value(call.result, context, program, inventory, b, 0)?,

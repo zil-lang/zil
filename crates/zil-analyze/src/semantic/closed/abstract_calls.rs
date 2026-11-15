@@ -200,12 +200,13 @@ impl Check<'_, '_> {
                 ));
             }
             self.capture_directory(id, b)?;
-            self.callable_signature(
+            self.quantified_callable_signature(
                 context,
                 &boundary.subject,
                 definition,
                 &boundary.signature,
                 boundary.kind,
+                &boundary.bounds,
                 b,
             )?;
             if arguments.len() != boundary.parameters.len()

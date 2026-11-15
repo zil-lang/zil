@@ -6,11 +6,13 @@ use crate::semantic::value::{self, Class, Value};
 use std::collections::BTreeMap;
 
 impl Check<'_, '_> {
+    #[allow(clippy::too_many_arguments)]
     fn signature_value(
         &self,
         context: &SemanticInstance,
         recipe: &SemanticTypeRecipe,
         invocations: u32,
+        bounds: &[u32],
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
@@ -31,13 +33,34 @@ impl Check<'_, '_> {
                     SemanticLifeRecipe::Invocation(_) => {
                         return Err(fail("callable role invocation exceeds its own signature"));
                     }
+                    SemanticLifeRecipe::Bound { depth, index } => {
+                        let level =
+                            bounds
+                                .len()
+                                .checked_sub(*depth as usize + 1)
+                                .ok_or_else(|| {
+                                    fail("callable Bound leaves its protected quantifier scope")
+                                })?;
+                        if *index >= bounds[level] {
+                            return Err(fail("callable Bound exceeds its own quantifier arity"));
+                        }
+                        b.spend(bounds.len(), WORK)?;
+                        let base = bounds[..level]
+                            .iter()
+                            .try_fold(invocations, |offset, count| offset.checked_add(*count))
+                            .and_then(|offset| offset.checked_add(*index))
+                            .ok_or_else(|| fail("callable protected role namespace overflow"))?;
+                        Class::Role(context.id, base)
+                    }
                     _ => self.life(context, life, b, depth + 1)?,
                 };
-                let inner = self.signature_value(context, inner, invocations, b, depth + 1)?;
+                let inner =
+                    self.signature_value(context, inner, invocations, bounds, b, depth + 1)?;
                 value::address(*mutable, class, inner, b)
             }
             SemanticTypeRecipe::Slice(element) => {
-                let element = self.signature_value(context, element, invocations, b, depth + 1)?;
+                let element =
+                    self.signature_value(context, element, invocations, bounds, b, depth + 1)?;
                 if !element.classes.is_empty() {
                     return Err(unknown(
                         "callable slice requires its complete element-domain embedding",
@@ -51,7 +74,8 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::Tuple(fields) => {
                 let mut types = Vec::new();
                 for field in fields {
-                    let field = self.signature_value(context, field, invocations, b, depth + 1)?;
+                    let field =
+                        self.signature_value(context, field, invocations, bounds, b, depth + 1)?;
                     if !field.classes.is_empty() {
                         return Err(unknown(
                             "callable tuple requires its complete child occurrence embedding",
@@ -123,10 +147,24 @@ impl Check<'_, '_> {
         kind: CallableKind,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        self.quantified_callable_signature(context, subject, definition, signature, kind, &[], b)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn quantified_callable_signature(
+        &self,
+        context: &SemanticInstance,
+        subject: &Value,
+        definition: &ClosureDefinition,
+        signature: &SemanticSignatureRecipe,
+        kind: CallableKind,
+        enclosing_bounds: &[u32],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        b.spend(enclosing_bounds.len(), WORK)?;
+        let mut bounds = enclosing_bounds.to_vec();
         if signature.bound_lifetimes != 0 {
-            return Err(unknown(
-                "callable role requires its complete quantified skolem proof",
-            ));
+            self.push_value(&mut bounds, signature.bound_lifetimes, b)?;
         }
         let actual = definition.storage_life.as_ref().ok_or_else(|| {
             unknown("callable role has no complete actual invocation and persistent inventory")
@@ -178,8 +216,14 @@ impl Check<'_, '_> {
                     "callable role requires its complete resource passing-mode proof",
                 ));
             }
-            let value =
-                self.signature_value(context, &parameter.ty, signature.invocation_lifetimes, b, 0)?;
+            let value = self.signature_value(
+                context,
+                &parameter.ty,
+                signature.invocation_lifetimes,
+                &bounds,
+                b,
+                0,
+            )?;
             if parameter.mode == PassingMode::Copy
                 && !original::nominal::predicate_actual(
                     &value.ty,
@@ -199,6 +243,7 @@ impl Check<'_, '_> {
             context,
             &signature.result,
             signature.invocation_lifetimes,
+            &bounds,
             b,
             0,
         )?;
@@ -281,7 +326,7 @@ impl Check<'_, '_> {
                 let binding =
                     binding.ok_or_else(|| fail("callable occurrence lost its actual binding"))?;
                 b.spend(actual.bindings.len(), WORK)?;
-                let receiver_input = matches!(class, Class::Role(..))
+                let receiver_input = matches!(class, Class::Role(_, index) if *index < signature.invocation_lifetimes)
                     && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
                     && actual.bindings.iter().any(|row| {
                         row.position.base == StorageBase::Receiver
@@ -394,6 +439,19 @@ impl Check<'_, '_> {
         signature: &SemanticSignatureRecipe,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        self.quantified_callable_requirement(context, ty, kind, signature, &[], b)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn quantified_callable_requirement(
+        &self,
+        context: &SemanticInstance,
+        ty: &SemanticTypeRecipe,
+        kind: CallableKind,
+        signature: &SemanticSignatureRecipe,
+        bounds: &[u32],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
         let subject = self.recipe_value(context, ty, b, 0)?;
         let Type::Closure(id) = subject.ty else {
             return Err(unknown(
@@ -424,6 +482,8 @@ impl Check<'_, '_> {
             ));
         }
         self.capture_directory(id, b)?;
-        self.callable_signature(context, &subject, definition, signature, kind, b)
+        self.quantified_callable_signature(
+            context, &subject, definition, signature, kind, bounds, b,
+        )
     }
 }
