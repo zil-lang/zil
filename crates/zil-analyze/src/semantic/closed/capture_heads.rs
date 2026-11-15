@@ -745,7 +745,7 @@ impl Check<'_, '_> {
         if self.uses_full_value(ty, b)? {
             return Ok(self
                 .full_value_at(instance, value, operand, at, declaration, b)?
-                .ty);
+                .into_type(b)?);
         }
         let SemanticTypeValue::Resolved {
             ty: Type::Closure(id),

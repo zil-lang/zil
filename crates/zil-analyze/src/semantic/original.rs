@@ -4693,7 +4693,7 @@ impl Checked {
             Kind::Atom(ty) => Ok(ty.clone()),
             Kind::CallResult { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
             Kind::Array { .. }
             | Kind::Task(_)
             | Kind::Dyn(_)
@@ -4703,7 +4703,7 @@ impl Checked {
             | Kind::Desc { .. }
             | Kind::Wrapped(_, _) => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
             Kind::Slice(element) => Ok(Type::Slice {
                 element: Box::new(self.materialize(
                     *element,
@@ -4761,7 +4761,7 @@ impl Checked {
             }
             Kind::Nominal { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
             Kind::Closure { definition, .. } => {
                 let mut selected = None;
                 for instance in &program.instances {
@@ -4791,7 +4791,7 @@ impl Checked {
             )),
             Kind::Associated { .. } | Kind::SelfType(_) => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
         }
     }
     pub(super) fn source_type(
@@ -4805,7 +4805,7 @@ impl Checked {
     ) -> CompileResult<Type> {
         Ok(self
             .source_value(context, scope, source, program, inventory, b)?
-            .ty)
+            .into_type(b)?)
     }
     pub(super) fn source_value(
         &self,
