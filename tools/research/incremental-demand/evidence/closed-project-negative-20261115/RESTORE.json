@@ -1,0 +1,38 @@
+{
+  "schema": "zil.closed-project-negative-recovery.v1",
+  "compiler_source": "e6771892dad0e756f2541364f89dcb30a4ba5cfb",
+  "compiler_tree": "bb8c172622a11a57a50ef3a8dcebc1005531ae98",
+  "binary_sha256": "36d7fd8b667a8db11c59a2e0ff5fc15030b35a5316be0dc9647f6e9055994820",
+  "tool_source": "b9ba16ef19705fa2e85c2f3cd9def79eed09c77c",
+  "main_source": "9170bb4210554392e36eb7528596612596ebef80",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "faa3f74cf7cc092d095ae48b0b566b0a446cc8a69d34466ca01136c4e2932838",
+  "archive_sha256": "d770e746a0205fb6e1e6bee9fa667c76a1b1bbf6a122285bf34dc832fbbd81a2",
+  "archive_bytes": 963517012,
+  "parts": 39,
+  "regular_files": 242734,
+  "logical_bytes": 4525324818,
+  "fresh_verify_receipt": "fresh-restore-receipt.json",
+  "fresh_scratch_retired": true,
+  "original_raw_retained": true,
+  "first_fresh_failure": "fresh-restore-first-failure.json",
+  "source_gates": "backend274/driver219/Source9/publication1/strict/fmt/release passed at e677; no LLVM rebuild",
+  "performance_status": "Closed-only workflow all108functional cells passed; all51 Rust sustained runtime gates failed. No qualified compile comparison or main adoption. Promising complete-import probe remains diagnostic.",
+  "verify_command": [
+    "python3",
+    "tools/research/incremental-demand/archive_evidence.py",
+    "verify",
+    "--archive-dir",
+    "tools/research/incremental-demand/evidence/closed-project-negative-20261115",
+    "--restore-dir",
+    "/absolute/new/destination"
+  ],
+  "dependencies": {
+    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+    "prior_compilers_and_results": "https://github.com/zil-lang/zil/blob/dff584ce518dfcf44b97375f86263989392dc937/tools/research/incremental-demand/evidence/critical-path-final-20261114/RESTORE.json"
+  },
+  "scope": "Closed-only e677 complete324-request108-cell three-size workflow and all51 source-bound sustained runtime cases, all Rust runtime gates fail; native-source implementation gates/release, original5105 diagnostic policies, first tool false rejection and exact artifact replay, raw failures/probes and bounded full-import diagnostic alternative. No runtime-qualified compile comparisons or main adoption. Full O2/CGU16/jobs1/currentVerify/defaultbudgets retained; LLVM not rebuilt. SDK18/native-link dependency fixed separately.",
+  "LLVM_rebuilt": false,
+  "main_merge": false,
+  "recovery_limit": "Evidence/binaries; not complete installation. Rebind host paths and restore pinned SDK/native-link/Rust toolchain separately. Host debug/release cleanup and archived historical duplicate retirement are not product disk savings."
+}

@@ -1,0 +1,8 @@
+{
+  "status": "failed",
+  "cause": "No space left on device while extracting fresh copy",
+  "partial_scratch": "/workspace/zil-recovery/closed-project-negative-fresh-01",
+  "partial_scratch_retired": true,
+  "original_raw_and_archive_unchanged": true,
+  "time_unix_ns": 1794761035627553133
+}

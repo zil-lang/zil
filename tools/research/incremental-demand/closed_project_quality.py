@@ -13,6 +13,12 @@ universal ABI, callback, exception or instruction-equivalence claim is made.
 Sustained runtime acceptance is separate from functional quality: six balanced
 samples, one warmup, B/A<=1.10, R/B>=0.90 per case, geomean R/B>=0.95.
 These are existing finite-profile/product gates, not universal performance proof.
+
+complete_imports is an explicit, default-false policy. Its separately named
+closed-import-project-runtime-v1 profile validates complete transitive layout
+imports against the current diagnostic call graph. Imports grant optimization
+visibility, not canonical ownership or new exported definitions. Existing
+closed-only results and negatives retain their original schema and policy.
 """
 import copy
 import json
@@ -25,6 +31,7 @@ import native_link_matched_measure as matched
 import elf_instruction_quality as late
 
 SCHEMA = 'closed-project-runtime-v1'
+IMPORT_SCHEMA = 'closed-import-project-runtime-v1'
 INPUTS = (b'', *(bytes([i]) for i in range(256)))
 RUNTIME_GATES = {'candidate_over_main_max_per_case': 1.10,
                  'rust_over_candidate_min_per_case': 0.90,
@@ -41,6 +48,60 @@ def require(value, message):
 
 def policy(args):
     require(args.candidate_policy == 'closed' and args.function_merging == 'off', 'formal quality requires closed+off')
+    require(type(getattr(args, 'complete_imports', False)) is bool, 'complete_imports must be an explicit boolean')
+
+
+def schema(args):
+    return IMPORT_SCHEMA if getattr(args, 'complete_imports', False) else SCHEMA
+
+
+def policy_identity(args):
+    return 'closed+off+complete-imports' if getattr(args, 'complete_imports', False) else 'closed+off'
+
+
+def layout_roles(units, items, model, complete_imports):
+    """Bind canonical ownership and, when present, the entire current closure."""
+    require(len(units) == 16 and len({u['owner'] for u in units}) == 16
+            and all(0 <= u['owner'] < 16 for u in units), 'sixteen unique physical layout owners')
+    definitions = {i for i, (kind, _) in enumerate(items) if kind == 'define'}
+    owned = [i for u in units for i in u['definitions']]
+    require(sorted(owned) == sorted(definitions), 'each current definition needs exactly one canonical owner')
+    for u in units:
+        groups = [u[g] for g in ('prelude', 'declarations', 'imports', 'definitions')]
+        require(all(len(g) == len(set(g)) and all(type(i) is int and 0 <= i < len(items) for i in g) for g in groups), 'duplicate/out-of-range layout indices')
+        require(not set(u['imports']) & set(u['definitions']) and set(u['imports']) <= definitions,
+                'imports must be nonowned current definitions')
+        require(complete_imports or not u['imports'], 'nonempty imports require explicit complete_imports')
+    expected = [{items[i][1] for i in u['definitions']} for u in units]
+    owners = {name: index for index, names in enumerate(expected) for name in names}
+    imported = [{items[i][1] for i in u['imports']} for u in units]
+    has_imports = any(imported)
+    if has_imports:
+        by_name = {name: i for i, (_, name) in enumerate(items)}
+        for index, unit in enumerate(units):
+            pending = [ref for name in expected[index] for ref in model['calls'].get(name, set())]
+            closure = set()
+            while pending:
+                name = pending.pop()
+                if name not in owners or owners[name] == index or name in closure:
+                    continue
+                require(re.fullmatch(r'zil\.fn\.\d+', name), 'only scalar source definitions may be imported')
+                closure.add(name)
+                pending.extend(model['calls'].get(name, set()))
+            require(imported[index] == closure, 'imports must contain the complete current transitive call closure')
+            references = {ref for name in expected[index] | closure for ref in model['calls'].get(name, set())}
+            prelude = {by_name[n] for n in references if n in by_name and items[by_name[n]][0] == 'declare'}
+            declarations = {by_name[n] for n in references if n in owners and owners[n] != index and n not in closure}
+            require(set(unit['prelude']) == prelude and set(unit['declarations']) == declarations,
+                    'current complete import prelude/declarations must match referenced roles')
+    cross = {ref for caller, refs in model['calls'].items() for ref in refs
+             if caller in owners and ref in owners and owners[caller] != owners[ref]
+             and ref not in imported[owners[caller]]}
+    return expected, cross, has_imports
+
+
+def import_names(units, items):
+    return [{f'zil.import.{u["owner"]}.{items[i][1]}' for i in u['imports']} for u in units]
 
 
 def hit_preflight(receipt):
@@ -61,7 +122,7 @@ def hit_preflight(receipt):
 
 def producer_receipt(args, item):
     archived = json.loads(matched.recheck_archived(args.out, item['producer_native_receipt']))
-    require(archived.get('object_sha256') == item['object']['sha256'] and archived.get('policy') == 'closed+off', 'producer archive object/policy identity')
+    require(archived.get('object_sha256') == item['object']['sha256'] and archived.get('policy') == policy_identity(args), 'producer archive object/policy identity')
     value = archived['receipt']
     require(value.get('backend') == 'llvm-api' and value.get('pipeline') == 'default<O2>'
             and value.get('triple') == 'x86_64-unknown-linux-gnu'
@@ -176,10 +237,12 @@ def defined_functions(table):
     return result
 
 
-def object_abi(data, expected, cross, model):
+def object_abi(data, expected, cross, model, private_imports=()):
     table = elf_table(data)
     funcs = defined_functions(table)
-    require(set(funcs) <= expected, 'object defines foreign/unknown scalar function')
+    require(set(funcs) <= expected | set(private_imports), 'object defines foreign/unknown scalar function')
+    require(all(funcs[n]['bind'] == 0 and funcs[n]['visibility'] == 0 and funcs[n]['size'] > 0
+                for n in set(funcs) & set(private_imports)), 'surviving private import must be LOCAL/default with exact owner-derived name')
     require(not any(s['section'] and s['kind'] in (1, 6, 10) for s in table['symbols']), 'object globals/TLS/IFUNC outside scalar scope')
     protected = cross | ({'main'} & expected)
     require(protected <= funcs.keys() and all(funcs[n]['bind'] == 1 and funcs[n]['visibility'] == 0 and funcs[n]['size'] > 0 for n in protected), 'protected entry/cross-unit symbol lost global default function binding')
@@ -211,12 +274,25 @@ def executable_abi(args, row):
     funcs = defined_functions(image)
     require(all(n in funcs and funcs[n]['bind'] == 1 and funcs[n]['visibility'] == 0 and funcs[n]['size'] > 0 for n in ('main', '_start'))
             and image['header'][4] == funcs['_start']['address'], 'actual ELF C main/start entry binding')
+    items = [(m[1].decode(), m[2].decode()) for m in re.finditer(rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', llvm)]
+    private = [set() for _ in range(16)]
+    for layout in inv.get('partition_layouts', []):
+        if layout.get('key') in inv['current_layout_matches'] or layout.get('sha256') in inv['current_layout_matches']:
+            units = matched.layout_units(matched.recheck_archived(args.out, layout))
+            layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+            private = import_names(units, items)
+            break
     seen, imports, owners = {}, set(), {}
     for obj in inv['objects']:
         data = matched.recheck_archived(args.out, obj['object'])
         table = elf_table(data)
         physical = defined_functions(table)
         require(set(physical) == set(obj['defined_functions']) and not (set(physical) & seen.keys()), 'actual unique CGU function ownership')
+        for name in physical:
+            if name.startswith('zil.import.'):
+                require(getattr(args, 'complete_imports', False) and name in private[obj['unit_index']]
+                        and physical[name]['bind'] == 0 and physical[name]['visibility'] == 0,
+                        'ELF private import clone needs exact current layout owner/name and LOCAL/default binding')
         for name, original in physical.items():
             require(name in funcs and all(funcs[name][k] == original[k] for k in ('kind', 'bind', 'visibility', 'size')),
                     'final ELF lost/rebound a physical CGU function')
@@ -224,16 +300,17 @@ def executable_abi(args, row):
             owners[name] = obj['unit_index']
         imports.update(s['name'] for s in table['symbols'] if s['name'] and not s['section'])
     require({n for n in funcs if n == 'main' or n.startswith('zil.')} == set(seen), 'final ELF generated definitions differ from CGU union')
-    cross = set(inv.get('required_cross_unit_exports', [])) | {
+    cross = set(inv['required_cross_unit_exports']) if 'required_cross_unit_exports' in inv else {
         ref for caller, refs in model['calls'].items() for ref in refs
         if caller in owners and ref in owners and owners[caller] != owners[ref]}
+    cross |= imports & model['definitions']
     require(cross <= seen.keys() and all(funcs[n]['bind'] == 1 and funcs[n]['visibility'] == 0 for n in cross), 'final ELF cross-unit binding')
     crt = {'__libc_start_main', '__cxa_finalize', '_ITM_deregisterTMCloneTable', '_ITM_registerTMCloneTable', '__gmon_start__'}
     undefined = {s['name'] for s in image['symbols'] if s['name'] and not s['section']}
     require(undefined == model['foreign'] | crt and model['foreign'] <= imports, 'final ELF foreign import set')
     require(all(s['kind'] == 2 and s['bind'] == 1 and s['visibility'] == 0 for s in image['symbols'] if s['name'] in model['foreign']), 'final ELF foreign function ABI binding')
     require(model['foreign'] <= {r['symbol']['name'] for r in image['relocations'] if r['kind'] in (6, 7)}, 'final foreign imports need actual dynamic relocations')
-    return {'scope': 'scalar closed+off C main/i32 foreign/direct cross-unit bindings; relocation/unwind envelopes only; callbacks/globals/cleanup ABI not claimed',
+    return {'scope': 'scalar C main/i32 foreign/protected cross-unit bindings; relocation/unwind envelopes only; callbacks/globals/cleanup ABI not claimed',
             'entry': funcs['_start']['address'], 'foreign_imports': sorted(model['foreign']), 'cross_unit_exports': sorted(cross)}
 
 
@@ -330,10 +407,10 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
                 'complete object envelope/key/hash/size')
         item = matched.object_record(args, path, cache, data[80:])
         producers = getattr(args, '_closed_object_producers', {})
-        producer_key = (str(cache.resolve()), action, item['object']['sha256'])
+        producer_key = (str(cache.resolve()), action, item['object']['sha256'], policy_identity(args))
         if access.get('state') == 'miss':
             require(receipt.get('verify_before_after') is True, 'fresh closed object needs actual before/after LLVM Verify')
-            archived = {'receipt': receipt, 'object_sha256': item['object']['sha256'], 'policy': 'closed+off'}
+            archived = {'receipt': receipt, 'object_sha256': item['object']['sha256'], 'policy': policy_identity(args)}
             producers[producer_key] = matched.blob(args.out, json.dumps(archived, sort_keys=True).encode(), '.producer.json')
         else:
             require(access.get('state') == 'hit' and producer_key in producers, 'closed cache hit needs same-arm full-O2 verified producer')
@@ -359,31 +436,34 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         indices = [i for u in units for group in ('prelude', 'declarations', 'imports', 'definitions') for i in u[group]]
         owned = [i for u in units for i in u['definitions']]
         if (not items or any(i >= len(items) for i in indices) or sorted(owned) != sorted(definitions)
-                or any(u['imports'] for u in units)):
+                or (not getattr(args, 'complete_imports', False) and any(u['imports'] for u in units))):
             continue
-        expected = [{items[i][1] for i in u['definitions']} for u in units]
+        expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+        private = import_names(units, items)
         actual = [set(o['defined_functions']) for o in objects]
-        if not all(a <= e for a, e in zip(actual, expected)):
+        if not all(a <= e | p for a, e, p in zip(actual, expected, private)):
             continue
         owners = {name: i for i, names in enumerate(expected) for name in names}
-        cross = set()
-        for body in re.finditer(rb'(?ms)^define [^\n]*?@([^ (]+)\([^\n]*\).*?^}', llvm):
-            name = body[1].decode()
-            for ref in re.findall(rb'@([A-Za-z0-9_.-]+)', body[0]):
-                target = ref.decode()
-                if target in owners and name in owners and owners[target] != owners[name]:
-                    cross.add(target)
-        removed = set.union(*expected)-set.union(*actual)
+        canonical_actual = [a-p for a, p in zip(actual, private)]
+        removed = set.union(*expected)-set.union(*canonical_actual)
         allowed = {name for name in owners if re.fullmatch(r'zil\.fn\.\d+(?:\.lc1)?', name)}-cross
         if not removed <= allowed:
             continue
-        for item, names in zip(objects, expected):
-            item['scalar_abi'] = object_abi(matched.recheck_archived(args.out, item['object']), names, cross & names, model)
+        for item, names, clones in zip(objects, expected, private):
+            item['scalar_abi'] = object_abi(matched.recheck_archived(args.out, item['object']), names, cross & names, model, clones)
         undefined = {n for o in objects for n in o['scalar_abi']['undefined']}
-        require(cross <= undefined, 'required cross-unit calls lack physical object imports')
+        if not has_imports:
+            require(cross <= undefined, 'required cross-unit calls lack physical object imports')
+        cross |= undefined & model['definitions']
+        physical = {n: info for o in objects for n, info in o['scalar_abi']['functions'].items()}
+        require(cross <= physical.keys() and all(physical[n]['bind'] == 1 and physical[n]['visibility'] == 0 for n in cross),
+                'actual canonical cross-unit imports need physical GLOBAL/default targets')
         layouts.append({'units': units, 'key': path.stem, 'payload_sha256': matched.rc.sha(data[72:]),
                         'removed_functions': sorted(removed),
                         'required_cross_unit_exports': sorted(cross),
+                        'complete_imports': getattr(args, 'complete_imports', False),
+                        'actual_import_count': sum(len(u['imports']) for u in units),
+                        'private_import_functions': sorted(set.union(*actual) & set.union(*private)),
                         **matched.preserve(args.out, path, '.layout')})
     require(layouts and len({matched.rc.sha(json.dumps(l['units'], sort_keys=True).encode()) for l in layouts}) == 1,
             'closed objects must uniquely match full current layout and protected export ownership')
@@ -405,6 +485,9 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
               'current_layout_matches': [l['sha256'] for l in layouts], 'compiler_summary': cg,
               'current_object_report_count': 16, 'removed_functions': layouts[0]['removed_functions'],
               'required_cross_unit_exports': layouts[0]['required_cross_unit_exports'],
+              'policy_identity': policy_identity(args),
+              'actual_import_count': layouts[0]['actual_import_count'],
+              'private_import_functions': layouts[0]['private_import_functions'],
               'provenance_kind': 'current-closed-object-reports'}
     histories = getattr(args, '_zil_producer_inventories', {})
     histories[(str(cache.resolve()), matched.pc.llvm_comparison_sha256(llvm), executable_sha256)] = copy.deepcopy(result)
@@ -438,7 +521,8 @@ def quality(rows, args, oracle, allow_main_limit=False):
                 inv = row['inventory']
                 require(inv['object_count'] == len(inv['objects']) == inv['compiler_summary']['actual_units'] == 16
                         and inv['current_layout_matches'], 'physical sixteen-unit quality required')
-                exports[row['arm']] = sorted({n for o in inv['objects'] for n in o['defined_functions']})
+                exports[row['arm']] = sorted({n for o in inv['objects'] for n in o['defined_functions']}
+                                             - set(inv.get('private_import_functions', [])))
                 row['scalar_abi'] = executable_abi(args, row)
             else:
                 require(row['inventory'].get('objects'), 'Rust physical incremental objects required')
@@ -451,12 +535,13 @@ def quality(rows, args, oracle, allow_main_limit=False):
             inv = arms['candidate']['inventory']
             require(not extra and missing == set(inv.get('removed_functions', [])),
                     'aggregate export change must exactly equal declared physical closed removals')
-    return {'schema': SCHEMA, 'valid': True, 'functional_quality_valid': True,
+    return {'schema': schema(args), 'policy_identity': policy_identity(args), 'valid': True, 'functional_quality_valid': True,
             'runtime_acceptance_pending': args.mode == 'o2', 'main_resource_limit': bool(baseline_limit),
             'full_domain_oracle': not getattr(oracle, 'sustained', False),
             'main_success': not baseline_limit, 'complete_ELF_equal': elf_equal,
             'aggregate_exports_equal_observed': aggregate_equal, 'aggregate_exports': exports,
             'candidate_removed_functions': arms['candidate'].get('inventory', {}).get('removed_functions', []),
+            'private_import_functions': arms['candidate'].get('inventory', {}).get('private_import_functions', []),
             'full_ELF_equality_is_acceptance_prerequisite': False,
             'scope': 'source/current Verify/full-domain oracle/physical CGU and declared closed exports; sustained runtime gate is separate'}
 
@@ -477,7 +562,7 @@ def paired_comparison(rows, blocks, arms):
     return result
 
 
-def runtime_decision(cases):
+def runtime_decision(cases, args=None):
     require(cases, 'nonempty sustained runtime profile')
     efficiencies, results = [], []
     complete_main = True
@@ -507,7 +592,7 @@ def runtime_decision(cases):
     rust_pass = all(r['rust_gate_pass'] for r in results) and gm >= RUNTIME_GATES['rust_over_candidate_min_geomean']
     main_pass = (False if any(r['main_gate_pass'] is False for r in results)
                  else True if complete_main else None)
-    return {'schema': SCHEMA, 'cases': results, 'rust_efficiency_geomean': gm,
+    return {'schema': schema(args), 'cases': results, 'rust_efficiency_geomean': gm,
             'candidate_rust_accepted': rust_pass,
             'main_regression_accepted': main_pass,
             'accepted': rust_pass and main_pass is True,

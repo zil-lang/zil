@@ -1,0 +1,15 @@
+{
+  "archive_bytes": 963517012,
+  "files": 242734,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 39,
+  "raw_bytes": 4525324818,
+  "restore_dir": "/workspace/zil-recovery/closed-project-negative-fresh-02",
+  "scope": "Closed-only e677 complete324-request108-cell three-size workflow and all51 source-bound sustained runtime cases, all Rust runtime gates fail; native-source implementation gates/release, original5105 diagnostic policies, first tool false rejection and exact artifact replay, raw failures/probes and bounded full-import diagnostic alternative. No runtime-qualified compile comparisons or main adoption. Full O2/CGU16/jobs1/currentVerify/defaultbudgets retained; LLVM not rebuilt. SDK18/native-link dependency fixed separately.",
+  "sha256": "d770e746a0205fb6e1e6bee9fa667c76a1b1bbf6a122285bf34dc832fbbd81a2",
+  "source_commits": {
+    "candidate": "e6771892dad0e756f2541364f89dcb30a4ba5cfb",
+    "tools": "b9ba16ef19705fa2e85c2f3cd9def79eed09c77c"
+  },
+  "status": "verified"
+}

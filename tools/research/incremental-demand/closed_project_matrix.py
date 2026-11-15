@@ -18,6 +18,12 @@ alone uses push reuse, pinned native linker and the selected closed contract.
 Main receives no research switches. Original large_project_matrix and its ELF
 gate are imported unchanged; old failures never become this protocol's passes.
 
+Explicit --complete-imports selects the distinct closed-import-project-runtime-v1
+profile and adds the existing --incremental-o2 policy to the candidate only.
+Complete transitive imports retain the unchanged compiler budget and ordinary
+fallback; actual CGU16 is still mandatory. Source and runtime gates are identical.
+The closed-only profile's NoGo results remain bound to their original tool SHA.
+
 Original1000 is SHORT; original2500 is SIMPLE (both wide/100 modules).
 Cold/unchanged/restore/restart source identities must match COLD_IDENTITIES,
 including both languages' original formal file counts, byte counts and SHA256.
@@ -49,6 +55,10 @@ remain diagnostic until the separately named runtime profile qualifies them.
 All raw stdout/stderr/commands/results retained, content addressed via existing
 matched blob helpers; oracle temporary directories are packed after execution.
 Functional oracles always execute; there is no memoized execution witness.
+Only the imports profile permits explicit --native-validation-jobs 8: independent
+functional processes run after the compile timer, then join and archive in input
+order. Compiler jobs and formal sustained runtime sampling remain serial. These
+functional durations are not runtime-performance samples.
 One shared blob/runtime store for the entire batch, not an SDK/compiler copy per
 request. Source writes, hashing, native runs, disk scans and archiving are outside
 compile timers. Disk uses frozen lstat/st_blocks snapshots and global inode
@@ -57,6 +67,7 @@ transient peaks. No OS-cache flush or same-process Rust claim. No main merge,
 universal Rust lead, new numeric threshold, or historical-gate override implied.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import math
 from pathlib import Path
@@ -222,17 +233,32 @@ def packed_directory(out, directory):
 
 def native_outcomes(args, oracle, program, label, directory, env):
     require(not program.is_symlink() and program.is_file() and program.read_bytes().startswith(b'\x7fELF'), 'real ELF before native execution')
+    tasks = [(repeat, index, data) for repeat in range(args.native_repetitions)
+             for index, data in enumerate(oracle.inputs('scalar'))]
+    def execute(task):
+        repeat, index, data = task
+        leaf = directory/f'native-{repeat:02d}-{index:03d}'
+        result = rc.run_process([str(program)], directory, leaf, args.native_timeout, args.sample_ms, data, env)
+        expected = oracle.oracle('scalar', data, label)
+        actual = {'exit': result['returncode'], 'stdout_hex': (leaf/'stdout.bin').read_bytes().hex(),
+                  'stderr_hex': (leaf/'stderr.bin').read_bytes().hex()}
+        return leaf, {'stdin_hex': data.hex(), 'expected': expected, 'actual': actual,
+                      'valid': not result['timed_out'] and expected == actual, 'measurement': result}
+    jobs = 1 if getattr(oracle, 'sustained', False) else getattr(args, 'native_validation_jobs', 1)
+    if jobs == 1:
+        results = [execute(task) for task in tasks]
+    else:
+        # Only functional oracles overlap, after the compile timer has stopped.
+        # Every process owns its result directory and wait4 PID. map preserves
+        # the complete declared input order; exit joins all work before another
+        # compile or any formal sustained-runtime sample can start.
+        with ThreadPoolExecutor(max_workers=jobs) as pool:
+            results = list(pool.map(execute, tasks))
     outcomes = []
-    for repeat in range(args.native_repetitions):
-        for index, data in enumerate(oracle.inputs('scalar')):
-            leaf = directory/f'native-{repeat:02d}-{index:03d}'
-            result = rc.run_process([str(program)], directory, leaf, args.native_timeout, args.sample_ms, data, env)
-            expected = oracle.oracle('scalar', data, label)
-            actual = {'exit': result['returncode'], 'stdout_hex': (leaf/'stdout.bin').read_bytes().hex(),
-                      'stderr_hex': (leaf/'stderr.bin').read_bytes().hex()}
-            outcomes.append({'stdin_hex': data.hex(), 'expected': expected, 'actual': actual,
-                             'valid': not result['timed_out'] and expected == actual,
-                             'measurement': result, 'raw': packed_directory(args.out, leaf)})
+    # Hash-addressed archive writes remain serialized, including equal blobs.
+    for leaf, result in results:
+        result['raw'] = packed_directory(args.out, leaf)
+        outcomes.append(result)
     return outcomes
 
 
@@ -244,6 +270,8 @@ def zil_command(args, arm, source, work):
         command += ['--native-link-profile', str(args.native_link_profile),
                     '--closed-executable' if args.candidate_policy == 'closed' else '--late-closed-executable',
                     '--function-merging', args.function_merging]
+        if getattr(args, 'complete_imports', False):
+            command += ['--incremental-o2']
     return command
 
 
@@ -269,6 +297,7 @@ def initialize(args, manifest):
         require(path.read_bytes() == frozen, 'new protocol implementation differs from frozen tool source: '+str(relative))
     manifest['candidate_policy'] = args.candidate_policy
     manifest['function_merging'] = args.function_merging
+    manifest['complete_imports'] = args.complete_imports
     manifest['runtime_gate_authority'] = {
         'product': 'validation/product-gates.json:runtime',
         'regression_and_sampling_precedent': 'goal:records/compiler-multi-edit-continuation.json:482-509',
@@ -456,6 +485,7 @@ def report(args, manifest, rows, pairs, runtime):
         require(originals == {case['original_source']['zil']['identity_sha256']},
                 'runtime case must bind exact original workflow source identity')
     decision = quality.runtime_decision(runtime)
+    decision['schema'] = quality.schema(args)
     comparisons, totals = [], []
     for size in args.sizes:
         relevant = [case for case in decision['cases'] if case['case'].startswith(size+'/')]
@@ -489,7 +519,7 @@ def report(args, manifest, rows, pairs, runtime):
                        'main_role': 'ResourceLimit; excluded from ratios' if main_failed else 'actual main9170',
                        'frequency_policy': 'each request occurs exactly once in the declared sequential workflow; no reweighting',
                        **quality.paired_comparison(summed, args.blocks, arms)})
-    summary = {'schema': quality.SCHEMA, 'execution_complete': True, 'functional_quality_valid': True,
+    summary = {'schema': quality.schema(args), 'execution_complete': True, 'functional_quality_valid': True,
                'accepted': decision['accepted'], 'candidate_rust_accepted': decision['candidate_rust_accepted'],
                'main_regression_accepted': decision['main_regression_accepted'], 'runtime_profile': decision,
                'comparisons': [c for c in comparisons if c['runtime_quality_accepted']],
@@ -538,6 +568,9 @@ def main(argv=None):
     parser.add_argument('--sizes', nargs='+', choices=SIZES, default=list(SIZES))
     parser.add_argument('--candidate-policy', choices=('closed', 'late'))
     parser.add_argument('--function-merging', choices=('off', 'after', 'before-and-after'))
+    parser.add_argument('--complete-imports', action='store_true', help='explicit distinct profile using existing bounded incremental O2 imports')
+    parser.add_argument('--native-validation-jobs', type=int, choices=(1, 8), default=1,
+                        help='functional oracles only; compilation and formal runtime samples remain serial')
     parser.add_argument('--epochs', type=int, choices=(8, 32), default=8)
     parser.add_argument('--blocks', type=int, choices=(2, 6), default=2)
     parser.add_argument('--cargo', default='cargo')
@@ -547,6 +580,8 @@ def main(argv=None):
     parser.add_argument('--native-timeout', type=float, default=120)
     parser.add_argument('--sample-ms', type=float, default=5)
     args = parser.parse_args(argv)
+    require(args.native_validation_jobs == 1 or args.complete_imports,
+            'parallel functional validation is explicit and limited to the distinct imports profile')
     require(len(args.sizes) == len(set(args.sizes)), 'unique declared size cells')
     require(all(math.isfinite(v) and v > 0 for v in (args.timeout, args.native_timeout, args.sample_ms)), 'positive finite timing limits')
     if args.action != 'gen':
@@ -559,7 +594,7 @@ def main(argv=None):
     args.candidate_extra_arg, args.native_repetitions = ['--push-reuse'], 1
     args.out.mkdir(parents=True)
     implementations = implementation_paths(args.repo)
-    manifest = {'schema': quality.SCHEMA, 'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
+    manifest = {'schema': quality.schema(args), 'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
                 'history': history(args.epochs), 'runtime_gates': quality.RUNTIME_GATES,
                 'preset_shapes': SHAPES, 'original_cold_identities': COLD_IDENTITIES,
                 'expected_workflow_rows': len(args.sizes)*args.blocks*len(history(args.epochs))*3,
@@ -577,9 +612,12 @@ def main(argv=None):
             manifest['run_argv'] = [sys.executable, '-B', str(Path(__file__).resolve()), 'measure',
                 '--repo', str(args.repo), '--out', str(args.out.with_name(args.out.name+'-run')),
                 '--pins', str(args.pins.absolute()), '--candidate-policy', args.candidate_policy,
-                '--function-merging', args.function_merging, '--blocks', str(args.blocks), '--epochs', str(args.epochs),
+                '--function-merging', args.function_merging, '--native-validation-jobs', str(args.native_validation_jobs),
+                '--blocks', str(args.blocks), '--epochs', str(args.epochs),
                 '--sizes', *args.sizes, '--cargo', args.cargo, '--rustc', args.rustc, '--nm', args.nm,
                 '--timeout', str(args.timeout), '--native-timeout', str(args.native_timeout), '--sample-ms', str(args.sample_ms)]
+            if args.complete_imports:
+                manifest['run_argv'] += ['--complete-imports']
         generate(args, workloads, manifest)
         print(json.dumps({'prepared_only': True, 'compiler_processes_started': 0, 'manifest': str(args.out/'manifest.json')}))
         return 0
@@ -610,7 +648,7 @@ def main(argv=None):
         manifest.update(execution_complete=False, accepted=False, failure=failure)
         rc.save(args.out/'manifest.json', manifest)
         rc.save(args.out/'failure.json', failure)
-        rc.save(args.out/'summary.json', {'schema': quality.SCHEMA, 'accepted': False, 'execution_complete': False,
+        rc.save(args.out/'summary.json', {'schema': quality.schema(args), 'accepted': False, 'execution_complete': False,
                                         'failure': failure, 'comparisons': [], 'raw_rows': 'rows.jsonl'})
         rc.save(args.out/'completion.json', {'accepted': False, 'execution_complete': False, 'failure': failure})
         return 2

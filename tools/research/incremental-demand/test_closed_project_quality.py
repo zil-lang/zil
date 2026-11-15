@@ -6,6 +6,7 @@ from pathlib import Path
 import struct
 import sys
 import tempfile
+import threading
 import types
 import unittest
 from unittest.mock import patch
@@ -123,6 +124,86 @@ class ClosedProjectTests(unittest.TestCase):
                  patch.object(matrix.matched, 'retained_inventory', return_value={'objects': [item]}), \
                  self.assertRaises(ValueError):
                 quality.inventory(args, report, out/'candidate'/'objects', b'', 'd'*64)
+
+    def test_complete_imports_has_distinct_schema_and_producer_policy(self):
+        args = self.args()
+        self.assertEqual(quality.schema(args), quality.SCHEMA)
+        self.assertEqual(quality.policy_identity(args), 'closed+off')
+        args.complete_imports = True
+        quality.policy(args)
+        self.assertEqual(quality.schema(args), 'closed-import-project-runtime-v1')
+        self.assertNotEqual(quality.policy_identity(args), 'closed+off')
+        self.assertEqual(quality.runtime_decision([self.runtime_case()], args)['schema'], quality.IMPORT_SCHEMA)
+        args.complete_imports = 1
+        with self.assertRaises(ValueError):
+            quality.policy(args)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            args = self.args(out)
+            receipt = {'backend': 'llvm-api', 'pipeline': 'default<O2>', 'triple': 'x86_64-unknown-linux-gnu',
+                       'llvm_version': '23.1.4', 'verify_before_after': True, 'input_kind': 'builder',
+                       'object_bytes': 9, 'cache': {'state': 'miss', 'action_key': 'a'*64, 'corrupt': False}}
+            archived = {'receipt': receipt, 'object_sha256': 'b'*64, 'policy': quality.policy_identity(args)}
+            item = {'action_key': 'a'*64, 'object': {'sha256': 'b'*64, 'bytes': 9},
+                    'producer_native_receipt': matrix.matched.blob(out, json.dumps(archived).encode())}
+            quality.producer_receipt(args, item)
+            args.complete_imports = True
+            with self.assertRaises(ValueError):
+                quality.producer_receipt(args, item)
+            archived['policy'] = quality.policy_identity(args)
+            item['producer_native_receipt'] = matrix.matched.blob(out, json.dumps(archived).encode())
+            quality.producer_receipt(args, item)
+            args.complete_imports = False
+            with self.assertRaises(ValueError):
+                quality.producer_receipt(args, item)
+
+    def import_layout(self):
+        items = [('define', 'main')]+[('define', f'zil.fn.{i}') for i in range(1, 16)]
+        units = [{'owner': i, 'prelude': [], 'declarations': [], 'imports': [], 'definitions': [i]} for i in range(16)]
+        units[0]['imports'] = [1, 2]
+        units[1]['imports'] = [2]
+        calls = {name: set() for _, name in items}
+        calls['main'] = {'zil.fn.1'}
+        calls['zil.fn.1'] = {'zil.fn.2'}
+        return units, items, {'definitions': {n for _, n in items}, 'calls': calls, 'foreign': {'getchar', 'putchar'}}
+
+    def test_complete_import_layout_needs_flag_full_closure_and_unique_ownership(self):
+        units, items, model = self.import_layout()
+        expected, cross, imported = quality.layout_roles(units, items, model, True)
+        self.assertTrue(imported)
+        self.assertEqual(expected[1], {'zil.fn.1'})
+        # Both canonical cross edges can disappear after private-copy inlining.
+        self.assertEqual(cross, set())
+        self.assertEqual(quality.import_names(units, items)[0], {'zil.import.0.zil.fn.1', 'zil.import.0.zil.fn.2'})
+        with self.assertRaises(ValueError):
+            quality.layout_roles(units, items, model, False)
+        for change in ('partial', 'duplicate_import', 'own_import', 'wrong_owner', 'unknown_index', 'wrong_prelude', 'missing_owner'):
+            bad = copy.deepcopy(units)
+            if change == 'partial': bad[0]['imports'] = [1]
+            if change == 'duplicate_import': bad[0]['imports'] = [1, 2, 2]
+            if change == 'own_import': bad[0]['imports'] = [0, 1, 2]
+            if change == 'wrong_owner': bad[0]['owner'] = 1
+            if change == 'unknown_index': bad[0]['imports'] = [1, 99]
+            if change == 'wrong_prelude': bad[0]['prelude'] = [1]
+            if change == 'missing_owner': bad[1]['definitions'] = []
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                quality.layout_roles(bad, items, model, True)
+
+    def test_surviving_import_clone_must_be_derived_owner_local_default(self):
+        name = 'zil.import.0.zil.fn.1'
+        model = {'definitions': {'zil.fn.1', 'zil.fn.2'}, 'foreign': {'getchar', 'putchar'}}
+        data = bytearray(self.object_bytes(name))
+        symbol = 65+len(b'\0'+name.encode()+b'\0')+24
+        with self.assertRaises(ValueError):
+            quality.object_abi(bytes(data), {'zil.fn.2'}, set(), model, {name})
+        data[symbol+4] = 2  # LOCAL STT_FUNC.
+        accepted = quality.object_abi(bytes(data), {'zil.fn.2'}, set(), model, {name})
+        self.assertEqual(accepted['functions'][name]['bind'], 0)
+        with self.assertRaises(ValueError):
+            quality.object_abi(bytes(data), {'zil.fn.2'}, set(), model, {'zil.import.1.zil.fn.1'})
+        data[symbol+5] = 2  # HIDDEN is outside this exact clone convention.
+        with self.assertRaises(ValueError):
+            quality.object_abi(bytes(data), {'zil.fn.2'}, set(), model, {name})
 
     def test_scalar_scope_refuses_globals_callbacks_and_unknown_foreign(self):
         source = ('declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
@@ -285,6 +366,66 @@ class ClosedProjectTests(unittest.TestCase):
             self.assertEqual(matrix.matched.recheck_archived(out, listing['stdout.bin']), b'abc')
             self.assertEqual(matrix.matched.recheck_archived(out, listing['stderr.bin']), b'')
             self.assertFalse(leaf.exists())
+
+    def test_parallel_native_validation_preserves_257_order_failures_and_all_raw(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            args = self.args(out)
+            args.complete_imports = True
+            args.native_validation_jobs = 8
+            args.native_timeout, args.sample_ms = 10, 5
+            program, directory = out/'program', out/'request'
+            program.write_bytes(b'\x7fELFmock-only-never-executed')
+            directory.mkdir()
+            oracle = self.oracle()
+            oracle.inputs = lambda case: quality.INPUTS
+            completed, packed = set(), []
+            lock = threading.Lock()
+            original_pack = matrix.packed_directory
+
+            def run(command, cwd, leaf, timeout, sample_ms, stdin=b'', env=None):
+                leaf.mkdir()
+                expected = oracle.oracle('scalar', stdin, 'cold')
+                stdout = b'wrong' if stdin == b'\xff' else bytes.fromhex(expected['stdout_hex'])
+                stderr = b'timeout-marker' if stdin == b'\x80' else b''
+                result = {'returncode': 0, 'timed_out': stdin == b'\x80', 'wall_ms': 1.0}
+                files = {'stdin.bin': stdin, 'stdout.bin': stdout, 'stderr.bin': stderr,
+                         'command.json': json.dumps({'argv': command, 'cwd': str(cwd)}).encode(),
+                         'result.json': json.dumps(result).encode(), 'memory-samples.json': b'[]'}
+                for name, data in files.items():
+                    (leaf/name).write_bytes(data)
+                with lock:
+                    self.assertNotIn(leaf, completed)
+                    completed.add(leaf)
+                return result
+
+            def pack(root, leaf):
+                # Packing must occur serially, after all native workers joined.
+                self.assertEqual(threading.current_thread(), threading.main_thread())
+                with lock:
+                    self.assertEqual(len(completed), 257)
+                packed.append(leaf)
+                return original_pack(root, leaf)
+
+            with patch.object(matrix.rc, 'run_process', side_effect=run) as runner, \
+                 patch.object(matrix, 'packed_directory', side_effect=pack):
+                outcomes = matrix.native_outcomes(args, oracle, program, 'cold', directory, {'LC_ALL': 'C'})
+            self.assertEqual(runner.call_count, 257)
+            self.assertEqual(len(completed), 257)
+            self.assertEqual(len(packed), 257)
+            self.assertEqual([o['stdin_hex'] for o in outcomes], [data.hex() for data in quality.INPUTS])
+            self.assertEqual([o['stdin_hex'] for o in outcomes if not o['valid']], ['80', 'ff'])
+            for data, outcome in zip(quality.INPUTS, outcomes):
+                listing = json.loads(matrix.matched.recheck_archived(out, outcome['raw']))
+                self.assertEqual(set(listing), {'stdin.bin', 'stdout.bin', 'stderr.bin', 'command.json', 'result.json', 'memory-samples.json'})
+                raw = {name: matrix.matched.recheck_archived(out, reference) for name, reference in listing.items()}
+                self.assertEqual(raw['stdin.bin'], data)
+                self.assertEqual(raw['stdout.bin'].hex(), outcome['actual']['stdout_hex'])
+                self.assertEqual(raw['stderr.bin'].hex(), outcome['actual']['stderr_hex'])
+                self.assertEqual(json.loads(raw['command.json'])['argv'], [str(program)])
+                self.assertEqual(json.loads(raw['result.json'])['timed_out'], data == b'\x80')
+                self.assertEqual(raw['memory-samples.json'], b'[]')
+            self.assertFalse(any(directory.glob('native-*')))
 
     def object_bytes(self, name):
         header = bytearray(64)
