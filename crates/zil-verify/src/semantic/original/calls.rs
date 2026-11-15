@@ -64,6 +64,10 @@ impl CheckedOriginal {
                 for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
                 let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
                 if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+                // Opaque result capabilities refer to the defining body's
+                // actual Result role. Complete every original return before
+                // interpreting those obligations in this call's full actuals.
+                if let Ty::Opaque(owner,actuals)=self.resolved(&result,b)?{self.opaque_hidden(module,context,owner,&actuals,active,b)?;}
                 // A target's requirements are obligations here. They never enter
                 // the caller's equality assumptions merely by selecting target.
                 for requirement in &definition.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
