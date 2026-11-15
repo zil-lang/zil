@@ -577,6 +577,15 @@ impl Solver<'_, '_> {
         }
         for (then, other) in then_locals.iter().zip(&mut frame.locals) {
             b.spend(1, WORK)?;
+            match (then_alive, else_alive) {
+                (true, true) => self.join_vacancies(other, then, b)?,
+                (true, false) => {
+                    other.vacant = self.copy_vacancies(&then.vacant, b)?;
+                    other.maybe_vacant = self.copy_vacancies(&then.maybe_vacant, b)?;
+                    other.live = then.live;
+                }
+                _ => {}
+            }
             other.used = match (then_alive, else_alive) {
                 (true, true) => then.used || other.used,
                 (true, false) => then.used,
@@ -659,6 +668,7 @@ impl Solver<'_, '_> {
                     }
                     for (old, new) in previous.iter_mut().zip(&frame.locals) {
                         b.spend(1, WORK)?;
+                        self.join_vacancies(old, new, b)?;
                         old.used |= new.used;
                         old.initialized &= new.initialized;
                     }

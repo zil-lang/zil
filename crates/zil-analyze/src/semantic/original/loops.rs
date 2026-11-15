@@ -155,6 +155,19 @@ impl Solver<'_, '_> {
             }
             for (old, next) in before.iter().zip(edge) {
                 b.spend(1, WORK)?;
+                self.cleanup_reintroduced(old, next, b)?;
+                for hole in &next.maybe_vacant {
+                    let mut was_missing = false;
+                    for prior in &old.maybe_vacant {
+                        b.spend(hole.len().saturating_add(prior.len() + 1), WORK)?;
+                        was_missing |= hole.starts_with(prior);
+                    }
+                    if !was_missing {
+                        return Err(fail(
+                            "original loop back edge leaves a newly consumed field unrestored",
+                        ));
+                    }
+                }
                 if old.initialized && !next.initialized {
                     return Err(fail(
                         "original loop back edge loses an initialized outer occupant",
@@ -192,6 +205,26 @@ impl Solver<'_, '_> {
                     b.spend(1, WORK)?;
                     tested.used |= condition.used && !old.used;
                     tested.initialized &= condition.initialized;
+                    if condition.used && !old.used {
+                        tested.live = false;
+                    }
+                    for hole in &condition.maybe_vacant {
+                        let mut prior = false;
+                        for previous in &old.maybe_vacant {
+                            b.spend(hole.len().saturating_add(previous.len() + 1), WORK)?;
+                            prior |= hole.starts_with(previous);
+                        }
+                        if !prior {
+                            b.spend(
+                                hole.len().saturating_add(tested.maybe_vacant.len() + 1),
+                                WORK,
+                            )?;
+                            tested.maybe_vacant.insert(hole.clone());
+                            if condition.vacant.contains(hole) {
+                                tested.vacant.insert(hole.clone());
+                            }
+                        }
+                    }
                 }
                 Self::push(&mut exits, tested, b)?;
             }
@@ -211,6 +244,7 @@ impl Solver<'_, '_> {
             }
             for (local, other) in frame.locals.iter_mut().zip(exit) {
                 b.spend(1, WORK)?;
+                self.join_vacancies(local, &other, b)?;
                 local.used |= other.used;
                 local.initialized &= other.initialized;
             }

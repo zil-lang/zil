@@ -32,6 +32,17 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Place> {
+        let place = self.borrow_place_inner(frame, value, b, depth)?;
+        self.place_available(frame, place.anchor, &place.path, place.indirect, b)?;
+        Ok(place)
+    }
+    fn borrow_place_inner(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Place> {
         self.step(depth, b)?;
         let place = match &value.kind {
             CoreExprKind::Name(name) => {
@@ -88,7 +99,7 @@ impl Solver<'_, '_> {
                 }
             }
             CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
-                let place = self.borrow_place(frame, inner, b, depth + 1)?;
+                let place = self.borrow_place_inner(frame, inner, b, depth + 1)?;
                 if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
                     let expected = self.recipe(frame, ty, b, depth + 1)?;
                     self.unify(place.inner, expected, depth + 1, b)?;
@@ -100,7 +111,7 @@ impl Solver<'_, '_> {
                 member,
                 owner,
             } => {
-                let mut place = self.borrow_place(frame, object, b, depth + 1)?;
+                let mut place = self.borrow_place_inner(frame, object, b, depth + 1)?;
                 if place.index.is_some() {
                     return Err(unknown(
                         "original borrowed indexed field requires its complete post-index place mapping",
@@ -124,7 +135,7 @@ impl Solver<'_, '_> {
                         | CoreExprKind::Group(_)
                         | CoreExprKind::Ascribed { .. }
                 ) {
-                    self.borrow_place(frame, object, b, depth + 1)?
+                    self.borrow_place_inner(frame, object, b, depth + 1)?
                 } else {
                     let term = self.expression(frame, object, b, depth + 1)?;
                     let Kind::Address { mutable, inner, .. } =
@@ -175,7 +186,7 @@ impl Solver<'_, '_> {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let mut place = self.borrow_place(frame, operand, b, depth + 1)?;
+                let mut place = self.borrow_place_inner(frame, operand, b, depth + 1)?;
                 let root = self.type_root(place.inner, b)?;
                 if !matches!(self.state.arena[root], Kind::Address { .. }) {
                     return Err(fail(

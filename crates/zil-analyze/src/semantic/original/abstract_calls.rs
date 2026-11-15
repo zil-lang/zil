@@ -180,6 +180,9 @@ impl Solver<'_, '_> {
                 CallableKind::FunctionPointer => return Ok(None),
                 _ => {}
             }
+            if kind == CallableKind::FnOnce {
+                self.consume_place(frame, &place, b)?;
+            }
             let context = self.premise_frame(frame, owner, b)?;
             let (parameters, result) =
                 self.invocation_scheme(&context, &signature, b, depth + 1)?;

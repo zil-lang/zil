@@ -9,8 +9,270 @@ struct WritePlace {
     writable: bool,
     description: bool,
     projected: bool,
+    path: Vec<u32>,
+    indirect: bool,
 }
 impl Solver<'_, '_> {
+    pub(super) fn copy_vacancies(
+        &self,
+        paths: &BTreeSet<Vec<u32>>,
+        b: &mut Budget,
+    ) -> CompileResult<BTreeSet<Vec<u32>>> {
+        let mut output = BTreeSet::new();
+        for path in paths {
+            b.spend(path.len().saturating_add(output.len() + 1), WORK)?;
+            output.insert(path.clone());
+        }
+        Ok(output)
+    }
+    pub(super) fn local_available(
+        &self,
+        local: &Local,
+        path: &[u32],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        for hole in &local.maybe_vacant {
+            b.spend(path.len().saturating_add(hole.len() + 1), WORK)?;
+            if path.starts_with(hole) || hole.starts_with(path) {
+                return Err(fail(
+                    "original selected place overlaps a consumed field that has not been restored",
+                ));
+            }
+        }
+        Ok(())
+    }
+    fn availability_local(
+        &self,
+        frame: &Frame,
+        anchor: Option<LocalAnchor>,
+        b: &mut Budget,
+    ) -> CompileResult<Option<usize>> {
+        let Some(anchor) = anchor else {
+            return Ok(None);
+        };
+        if let LocalAnchor::Environment(ordinal) = anchor {
+            let definition = self.inventory.definition(frame.definition, b)?;
+            let source = definition
+                .environment
+                .get(ordinal as usize)
+                .ok_or_else(|| fail("original availability environment ordinal is absent"))?;
+            let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                source: SemanticOriginalTypeSource::NameAt { name, .. },
+                ..
+            }) = &source.source
+            else {
+                return Err(fail(
+                    "original availability environment has no lexical NameAt source",
+                ));
+            };
+            for (index, local) in frame.locals[..frame.inherited].iter().enumerate().rev() {
+                b.spend(local.name.len().saturating_add(name.len() + 1), WORK)?;
+                if local.name == *name {
+                    return Ok(Some(index));
+                }
+            }
+            return Err(fail(
+                "original availability environment loses its original lexical binding",
+            ));
+        }
+        let mut selected = None;
+        for (index, local) in frame.locals.iter().enumerate() {
+            b.spend(1, WORK)?;
+            let actual = local.anchor;
+            if actual == Some(anchor) && selected.replace(index).is_some() {
+                return Err(fail(
+                    "original place has competing lexical availability roots",
+                ));
+            }
+        }
+        selected
+            .ok_or_else(|| fail("original place loses its lexical availability root"))
+            .map(Some)
+    }
+    pub(super) fn place_available(
+        &self,
+        frame: &Frame,
+        anchor: Option<LocalAnchor>,
+        path: &[u32],
+        indirect: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if !frame.alive {
+            return Ok(());
+        }
+        if let Some(index) = self.availability_local(frame, anchor, b)? {
+            self.local_available(&frame.locals[index], if indirect { &[] } else { path }, b)?;
+        }
+        Ok(())
+    }
+    pub(super) fn consume_place(
+        &mut self,
+        frame: &mut Frame,
+        place: &borrow_places::Place,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        self.place_available(frame, place.anchor, &place.path, place.indirect, b)?;
+        if !frame.alive || self.satisfies(place.inner, Predicate::Copy, b, 0)? {
+            return Ok(());
+        }
+        if place.indirect || place.index.is_some() {
+            return Err(fail(
+                "original consuming entry cannot take through an indirect or indexed place",
+            ));
+        }
+        let index = self
+            .availability_local(frame, place.anchor, b)?
+            .ok_or_else(|| fail("original consuming entry has no exact owning place"))?;
+        if frame.locals[index].borrowed {
+            return Err(fail(
+                "original consuming entry cannot take from a borrowed lexical owner",
+            ));
+        }
+        if place.path.is_empty() {
+            frame.locals[index].used = true;
+            frame.locals[index].live = false;
+        } else {
+            b.spend(
+                place
+                    .path
+                    .len()
+                    .saturating_add(frame.locals[index].maybe_vacant.len() + 1),
+                WORK,
+            )?;
+            frame.locals[index].vacant.insert(place.path.clone());
+            frame.locals[index].maybe_vacant.insert(place.path.clone());
+        }
+        Ok(())
+    }
+    pub(super) fn join_vacancies(
+        &self,
+        to: &mut Local,
+        from: &Local,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let mut certain = BTreeSet::new();
+        if !to.live {
+            certain = self.copy_vacancies(&from.vacant, b)?;
+        } else if !from.live {
+            certain = self.copy_vacancies(&to.vacant, b)?;
+        } else {
+            for left in &to.vacant {
+                for right in &from.vacant {
+                    b.spend(left.len().saturating_add(right.len() + 1), WORK)?;
+                    if left.starts_with(right) {
+                        certain.insert(left.clone());
+                    } else if right.starts_with(left) {
+                        certain.insert(right.clone());
+                    }
+                }
+            }
+        }
+        for path in &from.maybe_vacant {
+            b.spend(path.len().saturating_add(to.maybe_vacant.len() + 1), WORK)?;
+            to.maybe_vacant.insert(path.clone());
+        }
+        to.vacant = certain;
+        to.live |= from.live;
+        Ok(())
+    }
+    pub(super) fn cleanup_partial(
+        &mut self,
+        term: Term,
+        path: &[u32],
+        vacant: &BTreeSet<Vec<u32>>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let mut partial = false;
+        for hole in vacant {
+            b.spend(path.len().saturating_add(hole.len() + 1), WORK)?;
+            if path.starts_with(hole) {
+                return Ok(());
+            }
+            partial |= hole.starts_with(path);
+        }
+        if !partial {
+            return Self::push(
+                &mut self.needs,
+                Need {
+                    term,
+                    predicate: Predicate::SyncDrop,
+                },
+                b,
+            );
+        }
+        let fields = match &self.state.arena[self.type_root(term, b)?] {
+            Kind::Tuple(fields) => {
+                b.spend(fields.len(), WORK)?;
+                fields.clone()
+            }
+            Kind::Nominal {
+                definition, fields, ..
+            } => {
+                let declaration = self.inventory.definition(*definition, b)?;
+                if !matches!(
+                    declaration.body,
+                    SemanticDefinitionBody::Nominal {
+                        kind: LifeNominalKind::Record | LifeNominalKind::Package,
+                        body: SemanticNominalBody::Product { .. },
+                        ..
+                    }
+                ) {
+                    return Err(fail("original partial cleanup has no plain product owner"));
+                }
+                resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                b.spend(fields.len(), WORK)?;
+                fields.clone()
+            }
+            _ => {
+                return Err(fail(
+                    "original partial cleanup loses its complete product owner",
+                ));
+            }
+        };
+        for (ordinal, field) in fields.iter().enumerate() {
+            let mut child = path.to_vec();
+            Self::push(
+                &mut child,
+                u32::try_from(ordinal)
+                    .map_err(|_| resource("original cleanup field ordinal overflow"))?,
+                b,
+            )?;
+            self.cleanup_partial(*field, &child, vacant, b, depth + 1)?;
+        }
+        Ok(())
+    }
+    pub(super) fn cleanup_reintroduced(
+        &mut self,
+        old: &Local,
+        next: &Local,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if !old.live && next.live {
+            return self.cleanup_partial(old.ty, &[], &next.vacant, b, 0);
+        }
+        if !next.live {
+            return Ok(());
+        }
+        // The body was checked assuming these fields empty. If a back edge
+        // makes any live again, their next overwrite must independently drop
+        // them; the first iteration's vacancy cannot waive that obligation.
+        for path in &old.vacant {
+            let mut term = old.ty;
+            for ordinal in path {
+                b.spend(1, WORK)?;
+                term = match &self.state.arena[self.type_root(term, b)?] {
+                    Kind::Tuple(fields) | Kind::Nominal { fields, .. } => *fields
+                        .get(*ordinal as usize)
+                        .ok_or_else(|| fail("original loop vacancy field is absent"))?,
+                    _ => return Err(fail("original loop vacancy has no exact product path")),
+                };
+            }
+            self.cleanup_partial(term, path, &next.vacant, b, 0)?;
+        }
+        Ok(())
+    }
     fn write_record(
         &self,
         frame: &mut Frame,
@@ -76,6 +338,8 @@ impl Solver<'_, '_> {
             writable,
             description: false,
             projected: false,
+            path: Vec::new(),
+            indirect: false,
         }))
     }
     fn write_object(
@@ -96,6 +360,8 @@ impl Solver<'_, '_> {
                 writable: false,
                 description: false,
                 projected: true,
+                path: Vec::new(),
+                indirect: true,
             }),
             _ => Err(unknown(
                 "original projected write needs its complete initialized owning root or returned address role",
@@ -121,6 +387,7 @@ impl Solver<'_, '_> {
                     place.selected = inner;
                     place.writable = true;
                     place.projected = true;
+                    place.indirect = true;
                 }
                 Kind::Desc { inner, .. } => {
                     // Desc supplies writable-description access, never an
@@ -129,12 +396,14 @@ impl Solver<'_, '_> {
                     place.writable = true;
                     place.description = true;
                     place.projected = true;
+                    place.indirect = true;
                 }
                 Kind::Wrapped(Wrapper::Managed, inner) => {
                     // Ownership by itself does not override an immutable
                     // direct binding or an already shared reference edge.
                     place.selected = inner;
                     place.projected = true;
+                    place.indirect = true;
                 }
                 _ => return Ok(()),
             }
@@ -183,7 +452,8 @@ impl Solver<'_, '_> {
                 }
                 // write_payload already checked every implicit wrapper; field
                 // is used only for nominal member identity and substitution.
-                let (_, selected) = self.field(place.selected, member, b, depth + 1)?;
+                let (ordinal, selected) = self.field(place.selected, member, b, depth + 1)?;
+                Self::push(&mut place.path, ordinal, b)?;
                 place.selected = selected;
                 place.projected = true;
                 place
@@ -214,6 +484,8 @@ impl Solver<'_, '_> {
                     writable: true,
                     description,
                     projected: true,
+                    path: Vec::new(),
+                    indirect: true,
                 }
             }
             CoreExprKind::Index { object, index } => {
@@ -232,6 +504,7 @@ impl Solver<'_, '_> {
                 Self::push(&mut self.integers, index, b)?;
                 place.selected = element;
                 place.projected = true;
+                place.indirect = true;
                 place
             }
             _ => return Ok(None),
@@ -270,6 +543,14 @@ impl Solver<'_, '_> {
                 return Err(fail(
                     "original projected write loses its initialized root occupant",
                 ));
+            }
+            if frame.alive {
+                for hole in &local.maybe_vacant {
+                    b.spend(hole.len().saturating_add(place.path.len() + 1), WORK)?;
+                    if place.indirect || (place.path.starts_with(hole) && place.path != *hole) {
+                        return Err(fail("original write traverses a consumed parent place"));
+                    }
+                }
             }
             if index < frame.inherited {
                 b.lookup(self.mutating_closures.len(), WORK)?;
@@ -310,7 +591,24 @@ impl Solver<'_, '_> {
                     b,
                 )?;
             }
+            if !place.indirect {
+                b.spend(
+                    local
+                        .vacant
+                        .len()
+                        .saturating_add(local.maybe_vacant.len())
+                        .saturating_mul(place.path.len().saturating_add(1)),
+                    WORK,
+                )?;
+                frame.locals[index]
+                    .vacant
+                    .retain(|hole| !hole.starts_with(&place.path));
+                frame.locals[index]
+                    .maybe_vacant
+                    .retain(|hole| !hole.starts_with(&place.path));
+            }
             frame.locals[index].used = false;
+            frame.locals[index].live = true;
             if !place.projected {
                 frame.locals[index].initialized = true;
             }
@@ -335,16 +633,15 @@ impl Solver<'_, '_> {
         self.write_access(frame, &place, place.projected, b)?;
         let actual = self.expression_expected(frame, value, place.selected, b, depth + 1)?;
         self.unify(actual, place.selected, depth + 1, b)?;
+        self.write_access(frame, &place, place.projected, b)?;
         if frame.alive {
-            let old_live = if place.projected {
-                true
+            if let Some(index) = place.local.filter(|_| !place.indirect) {
+                let local = &frame.locals[index];
+                if local.live {
+                    let vacant = self.copy_vacancies(&local.vacant, b)?;
+                    self.cleanup_partial(place.selected, &place.path, &vacant, b, depth + 1)?;
+                }
             } else {
-                let local = &frame.locals[place
-                    .local
-                    .ok_or_else(|| fail("original whole assignment has no exact root local"))?];
-                local.initialized && !local.used
-            };
-            if old_live {
                 Self::push(
                     &mut self.needs,
                     Need {
@@ -391,6 +688,13 @@ impl Solver<'_, '_> {
             return Ok(false);
         };
         self.write_access(frame, &place, true, b)?;
+        if let Some(index) = place.local {
+            self.local_available(
+                &frame.locals[index],
+                if place.indirect { &[] } else { &place.path },
+                b,
+            )?;
+        }
         Self::push(
             &mut self.needs,
             Need {

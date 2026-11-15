@@ -324,6 +324,16 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
+        let value = self.resolved_raw(context, input, b, depth)?;
+        self.capture_class_value(value, b)
+    }
+    fn resolved_raw(
+        &self,
+        context: &SemanticInstance,
+        input: &SemanticTypeValue,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth {
             return Err(unknown(

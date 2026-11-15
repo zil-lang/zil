@@ -8,6 +8,58 @@ pub(super) struct CreatorBinding {
     pub(super) stored: Value,
 }
 impl Check<'_, '_> {
+    /// Evaluate only the proved original occurrence equations. The full
+    /// original N, class directory and physical modes remain unchanged.
+    pub(super) fn capture_class_value(
+        &self,
+        mut value: Value,
+        b: &mut Budget,
+    ) -> CompileResult<Value> {
+        b.spend(value.classes.len(), WORK)?;
+        for class in &mut value.classes {
+            *class = self.capture_class_image(class.clone(), b)?;
+        }
+        Ok(value)
+    }
+    pub(super) fn capture_class_image(
+        &self,
+        mut class: Class,
+        b: &mut Budget,
+    ) -> CompileResult<Class> {
+        let mut seen = BTreeSet::new();
+        while let Class::Implicit(owner, ordinal) = class {
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert((owner, ordinal)) {
+                return Err(fail("original captured-head class equations form a cycle"));
+            }
+            let instance = self.inventory.instance(owner, b)?;
+            let mut selected = None;
+            for row in &instance.header_embedding {
+                b.spend(1, WORK)?;
+                if !matches!(row.header, StorageBinder::Fixed(_))
+                    || !matches!(row.actual, SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal: actual } if actual == ordinal)
+                {
+                    continue;
+                }
+                if let Some(actual) =
+                    self.captured_implicit_head(instance, row.header, ordinal, b)?
+                {
+                    if selected.as_ref().is_some_and(|old| old != &actual) {
+                        return Err(fail(
+                            "original captured-head class has competing creator equations",
+                        ));
+                    }
+                    selected = Some(actual);
+                }
+            }
+            let Some(actual) = selected else { break };
+            if actual == class {
+                break;
+            }
+            class = actual;
+        }
+        Ok(class)
+    }
     /// Relate an original free-name borrow occurrence to the physical head
     /// saved by every actual creator. The original lexical value remains the
     /// complete pointee; this equation supplies no data or loan permission.

@@ -53,6 +53,20 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Place>> {
+        let place = self.place_inner(frame, value, record, b, depth)?;
+        if let Some(place) = &place {
+            self.place_available(frame, place.anchor, &place.path, false, b)?;
+        }
+        Ok(place)
+    }
+    fn place_inner(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        record: bool,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Place>> {
         self.step(depth, b)?;
         let place = match &value.kind {
             CoreExprKind::Name(name) => {
@@ -106,7 +120,7 @@ impl Solver<'_, '_> {
                 }
             }
             CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
-                let Some(place) = self.place(frame, inner, record, b, depth + 1)? else {
+                let Some(place) = self.place_inner(frame, inner, record, b, depth + 1)? else {
                     return Ok(None);
                 };
                 if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
@@ -120,7 +134,7 @@ impl Solver<'_, '_> {
                 member,
                 owner,
             } => {
-                let Some(mut place) = self.place(frame, object, record, b, depth + 1)? else {
+                let Some(mut place) = self.place_inner(frame, object, record, b, depth + 1)? else {
                     return Ok(None);
                 };
                 if let Some(owner) = owner {
@@ -151,10 +165,12 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Term>> {
-        let Some(place) = self.place(frame, object, false, b, depth + 1)? else {
+        let Some(mut place) = self.place_inner(frame, object, false, b, depth + 1)? else {
             return Ok(None);
         };
-        let (_, field) = self.field(place.selected, member, b, depth + 1)?;
+        let (ordinal, field) = self.field(place.selected, member, b, depth + 1)?;
+        Self::push(&mut place.path, ordinal, b)?;
+        self.place_available(frame, place.anchor, &place.path, false, b)?;
         if matches!(
             self.state.arena[self.type_root(field, b)?],
             Kind::Infer(None)
@@ -166,7 +182,7 @@ impl Solver<'_, '_> {
             let owner = self.recipe(frame, owner, b, depth + 1)?;
             self.unify(place.selected, owner, depth + 1, b)?;
         }
-        self.place(frame, object, true, b, depth + 1)?;
+        self.place_inner(frame, object, true, b, depth + 1)?;
         Self::push(
             &mut self.needs,
             Need {

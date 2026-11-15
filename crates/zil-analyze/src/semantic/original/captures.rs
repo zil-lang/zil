@@ -5,7 +5,10 @@ use super::*;
 #[derive(Default)]
 pub(super) struct CaptureState {
     reads: BTreeMap<SemanticDefinitionId, BTreeSet<usize>>,
-    exits: BTreeMap<SemanticDefinitionId, Vec<Vec<(bool, bool)>>>,
+    exits: BTreeMap<
+        SemanticDefinitionId,
+        Vec<Vec<(bool, bool, BTreeSet<Vec<u32>>, BTreeSet<Vec<u32>>)>>,
+    >,
 }
 impl Solver<'_, '_> {
     pub(super) fn record_environment_read(
@@ -83,7 +86,9 @@ impl Solver<'_, '_> {
         }
         let mut exit = Vec::new();
         for local in frame.locals.iter().take(frame.inherited) {
-            Self::push(&mut exit, (local.initialized, local.used), b)?;
+            let vacant = self.copy_vacancies(&local.vacant, b)?;
+            let possible = self.copy_vacancies(&local.maybe_vacant, b)?;
+            Self::push(&mut exit, (local.live, local.used, vacant, possible), b)?;
         }
         b.lookup(self.capture_state.exits.len(), WORK)?;
         let exits = self
@@ -108,6 +113,21 @@ impl Solver<'_, '_> {
             .get(&definition)
             .ok_or_else(|| fail("original capture role has no completed body frame"))?;
         if matches!(kind, CallableKind::Fn | CallableKind::FnMut) {
+            if let Some(exits) = self.capture_state.exits.get(&definition) {
+                for exit in exits {
+                    for index in frame.captured.keys() {
+                        let (_, _, _, possible) = exit.get(*index).ok_or_else(|| {
+                            fail("original reusable capture exit omits its full availability state")
+                        })?;
+                        b.spend(possible.len().saturating_add(1), WORK)?;
+                        if !possible.is_empty() {
+                            return Err(fail(
+                                "original reusable callable leaves a consumed captured field unrestored",
+                            ));
+                        }
+                    }
+                }
+            }
             if let Some(reads) = self.capture_state.reads.get(&definition) {
                 for index in reads {
                     b.spend(1, WORK)?;
@@ -125,13 +145,14 @@ impl Solver<'_, '_> {
                 }
             }
         } else if kind == CallableKind::FnOnce {
+            let mut remaining = Vec::new();
             if let Some(exits) = self.capture_state.exits.get(&definition) {
                 for exit in exits {
                     for index in frame.captured.keys() {
-                        let (initialized, used) = *exit.get(*index).ok_or_else(|| {
+                        let (live, _, vacant, _) = exit.get(*index).ok_or_else(|| {
                             fail("original capture exit omits a full live capture occurrence")
                         })?;
-                        if initialized && !used {
+                        if *live {
                             let term = frame
                                 .locals
                                 .get(*index)
@@ -139,17 +160,14 @@ impl Solver<'_, '_> {
                                     fail("original capture exit has no declared whole type")
                                 })?
                                 .ty;
-                            Self::push(
-                                &mut self.needs,
-                                Need {
-                                    term,
-                                    predicate: Predicate::SyncDrop,
-                                },
-                                b,
-                            )?;
+                            let vacant = self.copy_vacancies(vacant, b)?;
+                            Self::push(&mut remaining, (term, vacant), b)?;
                         }
                     }
                 }
+            }
+            for (term, vacant) in remaining {
+                self.cleanup_partial(term, &[], &vacant, b, 0)?;
             }
         }
         Ok(())
@@ -183,6 +201,21 @@ impl Solver<'_, '_> {
                 once |= !self.satisfies(term, Predicate::Copy, b, 0)?;
             }
         }
+        if let Some(exits) = self.capture_state.exits.get(&definition) {
+            let body =
+                self.state.frames.get(&definition).ok_or_else(|| {
+                    fail("original partial callable consumption has no checked body")
+                })?;
+            for exit in exits {
+                for index in body.captured.keys() {
+                    let (_, _, _, possible) = exit.get(*index).ok_or_else(|| {
+                        fail("original partial callable consumption omits its capture exit")
+                    })?;
+                    b.spend(possible.len().saturating_add(1), WORK)?;
+                    once |= !possible.is_empty();
+                }
+            }
+        }
         let local = frame
             .locals
             .iter_mut()
@@ -197,6 +230,7 @@ impl Solver<'_, '_> {
         }
         if once {
             local.used = true;
+            local.live = false;
         }
         self.capture_role(
             definition,

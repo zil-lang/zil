@@ -166,6 +166,13 @@ struct Local {
     used: bool,
     borrowed: bool,
     initialized: bool,
+    // Some incoming live path still owns an occupant; `used` separately
+    // records whether a repeated read needs Copy on any incoming path.
+    live: bool,
+    // Definite and possible holes are separate at control-flow joins: only
+    // a definitely empty field can omit its old-value cleanup obligation.
+    vacant: BTreeSet<Vec<u32>>,
+    maybe_vacant: BTreeSet<Vec<u32>>,
 }
 struct Frame {
     definition: SemanticDefinitionId,
@@ -796,6 +803,9 @@ impl Solver<'_, '_> {
                 used: false,
                 borrowed: false,
                 initialized: true,
+                live: true,
+                vacant: BTreeSet::new(),
+                maybe_vacant: BTreeSet::new(),
             },
             b,
         )
@@ -1142,6 +1152,9 @@ impl Solver<'_, '_> {
                     used: local.used,
                     borrowed: local.borrowed,
                     initialized: local.initialized,
+                    live: local.live,
+                    vacant: self.copy_vacancies(&local.vacant, b)?,
+                    maybe_vacant: self.copy_vacancies(&local.maybe_vacant, b)?,
                 },
                 b,
             )?;
@@ -1549,6 +1562,7 @@ impl Solver<'_, '_> {
                         frame.captured.insert(index, frame.locals[index].ty);
                     }
                     self.capture_read(frame, index, b)?;
+                    if frame.alive { self.local_available(&frame.locals[index], &[], b)?; }
                     let local = &mut frame.locals[index];
                     if frame.alive {
                         if !local.initialized {
@@ -1565,6 +1579,7 @@ impl Solver<'_, '_> {
                             )?;
                         }
                         local.used = true;
+                        local.live = false;
                         if index < frame.inherited {
                             Self::push(
                                 &mut self.needs,
@@ -2507,6 +2522,7 @@ impl Solver<'_, '_> {
                         }
                     }
                     for (index, ty) in captures {
+                        if frame.alive { self.local_available(&frame.locals[index], &[], b)?; }
                         if index < frame.inherited {
                             b.lookup(frame.captured.len(), WORK)?;
                             frame.captured.insert(index, ty);
@@ -2540,6 +2556,7 @@ impl Solver<'_, '_> {
                             )?;
                             if frame.alive {
                                 frame.locals[index].used = true;
+                                frame.locals[index].live = false;
                             }
                         }
                     }
@@ -2724,6 +2741,7 @@ impl Solver<'_, '_> {
                     if initializer.is_none() {
                         if let Some(local) = frame.locals.last_mut() {
                             local.initialized = false;
+                            local.live = false;
                         }
                     }
                 }
@@ -2836,6 +2854,15 @@ impl Solver<'_, '_> {
                     }
                     for (then, other) in then_locals.iter().zip(&mut frame.locals) {
                         b.spend(1, WORK)?;
+                        match (then_alive, else_alive) {
+                            (true, true) => self.join_vacancies(other, then, b)?,
+                            (true, false) => {
+                                other.vacant = self.copy_vacancies(&then.vacant, b)?;
+                                other.maybe_vacant = self.copy_vacancies(&then.maybe_vacant, b)?;
+                                other.live = then.live;
+                            }
+                            _ => {}
+                        }
                         other.used = match (then_alive, else_alive) {
                             (true, true) => then.used || other.used,
                             (true, false) => then.used,
@@ -2980,6 +3007,7 @@ impl Solver<'_, '_> {
                             "original compound assignment needs an initialized mutable binding",
                         ));
                     }
+                    self.local_available(local, &[], b)?;
                     let expected = local.ty;
                     if index < frame.inherited {
                         b.lookup(frame.captured.len(), WORK)?;
@@ -3037,6 +3065,7 @@ impl Solver<'_, '_> {
                     }
                     if frame.alive {
                         frame.locals[index].used = false;
+                        frame.locals[index].live = true;
                     }
                 }
                 CoreStatementKind::Assign { target, value } => {
@@ -3077,18 +3106,14 @@ impl Solver<'_, '_> {
                     }
                     if frame.alive {
                         let old = &frame.locals[index];
-                        if old.initialized && !old.used {
-                            Self::push(
-                                &mut self.needs,
-                                Need {
-                                    term: old.ty,
-                                    predicate: Predicate::SyncDrop,
-                                },
-                                b,
-                            )?;
+                        if old.live {
+                            self.cleanup_partial(old.ty, &[], &old.vacant, b, 0)?;
                         }
                         frame.locals[index].used = false;
                         frame.locals[index].initialized = true;
+                        frame.locals[index].live = true;
+                        frame.locals[index].vacant.clear();
+                        frame.locals[index].maybe_vacant.clear();
                     }
                 }
                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
@@ -4093,6 +4118,9 @@ impl Solver<'_, '_> {
                     used: local.used,
                     borrowed: local.borrowed,
                     initialized: local.initialized,
+                    live: local.live,
+                    vacant: self.copy_vacancies(&local.vacant, b)?,
+                    maybe_vacant: self.copy_vacancies(&local.maybe_vacant, b)?,
                 },
                 b,
             )?;
@@ -4190,15 +4218,8 @@ impl Solver<'_, '_> {
     fn cleanup(&mut self, locals: &[Local], b: &mut Budget) -> CompileResult<()> {
         for local in locals {
             b.spend(1, WORK)?;
-            if local.initialized && !local.used && !local.borrowed {
-                Self::push(
-                    &mut self.needs,
-                    Need {
-                        term: local.ty,
-                        predicate: Predicate::SyncDrop,
-                    },
-                    b,
-                )?;
+            if local.live && !local.borrowed {
+                self.cleanup_partial(local.ty, &[], &local.vacant, b, 0)?;
             }
         }
         Ok(())

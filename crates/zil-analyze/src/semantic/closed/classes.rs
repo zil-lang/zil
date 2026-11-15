@@ -65,9 +65,20 @@ impl Check<'_, '_> {
                 ));
             }
         };
-        value::class(instance, &expression, self.inventory, b, depth + 1)
+        let class = value::class(instance, &expression, self.inventory, b, depth + 1)?;
+        self.capture_class_image(class, b)
     }
     pub(super) fn recipe_value(
+        &self,
+        instance: &SemanticInstance,
+        recipe: &SemanticTypeRecipe,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        let value = self.recipe_value_raw(instance, recipe, b, depth)?;
+        self.capture_class_value(value, b)
+    }
+    fn recipe_value_raw(
         &self,
         instance: &SemanticInstance,
         recipe: &SemanticTypeRecipe,
@@ -1099,6 +1110,15 @@ impl Check<'_, '_> {
         Ok(())
     }
     pub(super) fn header_class(
+        &self,
+        instance: &SemanticInstance,
+        binder: StorageBinder,
+        b: &mut Budget,
+    ) -> CompileResult<Class> {
+        let class = self.header_class_raw(instance, binder, b)?;
+        self.capture_class_image(class, b)
+    }
+    fn header_class_raw(
         &self,
         instance: &SemanticInstance,
         binder: StorageBinder,
