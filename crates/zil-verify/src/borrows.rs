@@ -1725,6 +1725,11 @@ fn check_module_mask(
             }
             continue;
         }
+        // Non-data manager captures keep their full Fixed/Invocation class
+        // proof while this ordinary lane checks their actual roots and loans.
+        if crate::ordinary_heads::resource_body(module,function,budget)?{
+            crate::class_flow::check(module,function,&graph.reachable,budget)?;
+        }
         // Only the new parameter-capture lane adds a whole-invocation
         // obligation. Ordinary local captures retain their existing cost.
         let mut captured_parameters = std::collections::BTreeSet::new();

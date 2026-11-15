@@ -238,6 +238,17 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
         // Canonical builtin heap definitions keep their own complete resource
         // proof. They are not required to be scalar Record Fixed captures.
         if ordinary_store_value(&resource.payload,b)?||resource.payload==Type::ByteBuffer{continue;}
+        if payload(&resource.payload){
+            let owner=Type::Managed(Box::new(resource.payload.clone()));
+            // The complete actual definition has already passed resource
+            // admission. A Known0 ordinary resource declaration need not be
+            // used by a Fixed capture; construction and every cleanup remain
+            // obligations of the actual owner/debt kernel.
+            if crate::dynamic_witness::intrinsic_domain(module,&owner,b)?.0==0{
+                crate::dynamic_witness::structural_actual(module,&owner,DynStructuralBound::Value,b)?;
+                continue;
+            }
+        }
         if !payload(&resource.payload) {
             return Err(unsupported(
                 "unrelated resource shape is outside owning Fixed integration",

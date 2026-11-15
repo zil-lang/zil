@@ -363,7 +363,10 @@ impl CheckedContext {
                 }
                 for site in &sites {
                     if let SemanticSiteAction::TypeUse{subject,expected}=&site.action {
-                        let required=self.site_expected(module,instance,site,&environment,external,active,b)?;
+                        let mut site_environment=environment.clone();
+                        if let Some(at)=&mut site_environment.at{at.after=matches!(instruction.kind,InstructionKind::MakeClosure{..})&&matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::After,..});}
+                        let environment=&site_environment;
+                        let required=self.site_expected(module,instance,site,environment,external,active,b)?;
                         self.claim(module,expected,&required,&environment,b)?;
                         let value=match subject {SemanticOperand::Value(value)=>value_at(&values,*value)?,SemanticOperand::Local(local)=>state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?,_=>return Err(unsupported("semantic TypeUse requires its exact actual operand ledger",None))};
                         self.bind_implicit_use(module,instance,site,subject,value,&required,&environment,b)?;

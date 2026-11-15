@@ -13,6 +13,7 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
                 budget.spend(closures_seen.len().saturating_add(1))?;
                 if !closures_seen.insert(*id) { continue; }
                 let definition = closures::definition(module, *id, None)?;
+                if crate::ordinary_heads::resource_closure(module,*id,budget)?{continue;}
                 // Work selection only. The complete relation, every actual
                 // creator/entry and its memory sources are checked elsewhere.
                 found |= definition.storage_life.is_some();
@@ -154,9 +155,10 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
         }
         mask.push(stored);
     }
-    if !mask.iter().any(|v| *v) || mask.iter().all(|v| *v) {
-        return Ok(None);
-    }
+    // None selects the complete stored ledger; an explicit empty partition
+    // instead proves every actual body with the ordinary borrow/resource lane.
+    if !mask.iter().any(|v| *v){return Ok(Some(mask));}
+    if mask.iter().all(|v| *v) { return Ok(None); }
     for definition in &module.closures {
         budget.spend(1)?;
         let Some(stored) = mask.get(definition.function.0 as usize) else {

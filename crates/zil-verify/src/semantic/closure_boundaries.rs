@@ -7,10 +7,11 @@ impl CheckedContext {
         let node=self.original.borrow().as_ref().ok_or_else(||bad("original closure source has no checked body"))?.closure_creation(module,definition,source,b)?;
         let Some(node)=node else{return Ok(None);};
         let at=environment.at.ok_or_else(||unsupported("original closure value requires its exact actual creation point",None))?;
+        let function=module.functions.get(at.function.0 as usize).filter(|function|function.id==at.function).ok_or_else(||bad("original closure use has no exact actual function"))?;
         let rows=self.closure_boundaries.borrow();b.spend(rows.len())?;
         let mut selected=None;
         for row in rows.iter().filter(|row|row.creator==creator&&row.node==node) {
-            if row.at.function!=at.function||row.at.block!=at.block||row.at.instruction>=at.instruction {continue;}
+            if row.at.function!=at.function||!creation_dominates(function,row.at,at,b)?{continue;}
             if selected.replace(row.value.clone()).is_some(){return Err(unsupported("original closure value has several unresolved actual creation images",None));}
         }
         selected.map(Some).ok_or_else(||unsupported("original closure initializer has no independently sealed actual creation",None))
@@ -67,4 +68,23 @@ impl CheckedContext {
         value.life.binder_count=classes.len() as u32;value.classes=classes;value.origins=mapped_origins;
         Ok(value)
     }
+}
+
+// Every actual path to a later use must pass this exact creator. Class or
+// Type equality never selects an initializer from another branch or loop.
+fn creation_dominates(f:&TypedFunction,creation:SitePoint,use_:SitePoint,b:&mut Budget)->Check<bool>{
+    if creation.block==use_.block{return Ok(creation.instruction<use_.instruction||(creation.instruction==use_.instruction&&use_.after));}
+    let mut pending=vec![f.entry];let mut seen=BTreeSet::new();
+    while let Some(id)=pending.pop(){
+        b.spend(1)?;
+        if id==creation.block||!seen.insert(id){continue;}
+        if id==use_.block{return Ok(false);}
+        let block=f.blocks.get(id.0 as usize).filter(|block|block.id==id).ok_or_else(||bad("closure domination selects an absent actual block"))?;
+        match block.terminator{
+            Terminator::Jump(target)=>pending.push(target),
+            Terminator::Branch{then_block,else_block,..}=>pending.extend([then_block,else_block]),
+            Terminator::Return(_)|Terminator::Trap|Terminator::Unreachable=>{},
+        }
+    }
+    Ok(true)
 }

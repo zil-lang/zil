@@ -2270,11 +2270,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         b.spend(parameters.len())?;
         for ty in &parameters {
             if !fixed_environment(module, ty, b)
-                && !super::stored_callables::shared_input(ty)
+                && !super::stored_callables::borrowed_capture_input(ty)
                 && !super::stored_owned::owner(ty)
+                && !super::stored_owned::ordinary_byte_value(ty,b)?
+                && !super::stored_owned::ordinary_store_value(ty,b)?
             {
                 return Err(unsupported(
-                    "captured Fixed helper requires shared finite data parameters",
+                    "captured Fixed helper requires complete supported input domains",
                     Some(f.span),
                 ));
             }
@@ -7207,7 +7209,7 @@ fn solve_check(
         b.spend(module.functions.len())?;
     }
     let mut checked_option_sources = b
-        .store_option_results
+        .masked_stored_tasks()
         .then(|| Vec::with_capacity(module.functions.len()));
     let mut package_calls = if b.qualified_package_returns {
         b.spend(std::mem::size_of::<BTreeMap<(FunctionId, ValueId), u32>>())?;
