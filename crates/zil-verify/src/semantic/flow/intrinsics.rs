@@ -53,6 +53,7 @@ impl CheckedContext {
                 "actual opcode differs from its independently resolved original intrinsic",
             ));
         }
+        if use_.kind==Intrinsic::SliceLen{return self.actual_slice_length(module,caller,f,instruction,site,use_.buffer,values,environment,b).map(Some);}
         if use_.kind==Intrinsic::OwnedDyn{return self.actual_dyn_owned(module,caller,f,instruction,site,values,environment,external,active,b).map(Some);}
         if use_.kind==Intrinsic::CCallback{
             let target=use_.worker.ok_or_else(||bad("c_callback has no independently resolved original static target"))?;
@@ -329,5 +330,23 @@ impl CheckedContext {
                 ));
             }
         })
+    }
+}
+impl CheckedContext {
+    #[allow(clippy::too_many_arguments)]
+    fn actual_slice_length(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,site:&SemanticSite,source:Option<BufferSource>,values:&[Option<CheckedType>],_env:&EvalEnv,b:&mut Budget)->Check<CheckedType>{
+        let InstructionKind::SliceLength{address}=instruction.kind else{return Err(bad("slice length original scheme selects another actual operation"));};
+        if !matches!(&value_at(values,address)?.ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Slice{..})){return Err(bad("slice length has no actual complete slice address"));}
+        crate::check_instruction(module,f,instruction,b)?;
+        if let Some(source)=source{self.intrinsic_buffer_source(module,caller,f,address,source,b)?;}
+        else{
+            let node=self.original.borrow().as_ref().ok_or_else(||bad("slice receiver has no completed original proof"))?.intrinsic_receiver(caller.definition,site.recipe,b)?;
+            let programme=module.semantic.as_ref().ok_or_else(||bad("slice receiver has no original operation ledger"))?;let definition=self.definition(module,caller.definition,b)?;let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("slice receiver has no original body"));};
+            let mut producers=Vec::new();for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){if instruction.result==Some(address){producers.push((block.id,index as u32));}}}
+            let [(block,index)]=producers.as_slice() else{return Err(bad("slice receiver lacks its one exact actual SSA definition"));};
+            let mut matched=false;for actual in &programme.sites{b.spend(site_nodes.len().saturating_add(1))?;if actual.instance==caller.id&&matches!(actual.at,SemanticSiteAddress::Typed{block:id,instruction:at,..}if id==*block&&at==*index)&&matches!(actual.action,SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..})&&site_nodes.iter().any(|row|row.site==actual.recipe&&row.node==SemanticOriginalNode::Expression(node)){matched=true;}}
+            if !matched{return Err(bad("slice length temporary receiver changes its exact original producer occurrence"));}
+        }
+        atomic(&Type::I64,b)
     }
 }

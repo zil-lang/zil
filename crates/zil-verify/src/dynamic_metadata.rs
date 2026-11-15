@@ -258,6 +258,7 @@ pub(super) fn declaration_in_scope(declaration:&DynDeclaration,owner:&SemanticDe
     let valid=match (&owner.body,declaration.kind) {
         (SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration:id}),DynDeclarationKind::Trait)=>*id==declaration.id,
         (SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl{declaration:id,..}|SemanticScopeRecipe::TraitImpl{declaration:id,..}),DynDeclarationKind::Impl)=>*id==declaration.id,
+        (SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..}),DynDeclarationKind::Impl)=>owner.identity==declaration.identity,
         _=>false,
     };
     if !valid||owner.kind!=SemanticDefinitionKind::Scope{return Err(reject("E-VERIFY-DYN-PATTERN",None,"declaration does not select its exact original owner scope"));}

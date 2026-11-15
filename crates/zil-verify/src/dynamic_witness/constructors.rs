@@ -23,6 +23,7 @@ impl Rows {
             Type::BorrowedStorage { .. }
                 | Type::Closure(_)
                 | Type::Task { .. }
+                | Type::MutexGuard { .. }
                 | Type::Dyn { .. }
                 | Type::OwnedDyn { .. }
         );

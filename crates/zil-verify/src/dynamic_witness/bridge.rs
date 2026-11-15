@@ -52,6 +52,11 @@ pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,declarations:&[DynDe
                 | SemanticScopeRecipe::InherentImpl { declaration, .. }
                 | SemanticScopeRecipe::TraitImpl { declaration, .. },
             ) if declaration == id => {}
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})=>{
+                // The exact Declaration binding above, complete raw identity
+                // and formal checks below select the real builtin impl scope.
+                // This is metadata, not a user-trait or erased-provider proof.
+            },
             _ => {
                 return Err(bad(
                     "semantic bridge declaration binding is not its actual lexical scope",
@@ -144,6 +149,10 @@ pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,declarations:&[DynDe
             selected.ok_or_else(|| bad("semantic bridge original method definition is absent"))?
         }
     };
+    if matches!(expected,SemanticDynOwner::Declaration(_)){
+        let kind=match &definition.body{SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{..})=>DynDeclarationKind::Trait,SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl{..}|SemanticScopeRecipe::TraitImpl{..}|SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})=>DynDeclarationKind::Impl,_=>return Err(bad("original declaration owner has another source kind"))};
+        if declaration.kind!=kind{return Err(bad("original owner scope changes its complete declaration kind"));}
+    }
     if let Some(identity) = original_identity {
         for identity in [identity, &definition.identity] {
             b.spend(

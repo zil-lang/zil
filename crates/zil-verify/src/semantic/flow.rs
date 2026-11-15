@@ -243,6 +243,7 @@ impl CheckedContext {
                         Some(value)
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
+                    InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
@@ -581,7 +582,7 @@ impl CheckedContext {
         // The ordinary signature kernel subsequently checks exact full typed
         // coverage; here every original root class must also remain explicit.
         for (base_kind,value) in signature.parameters.iter().enumerate().map(|(i,(value,_))|(StorageBase::Parameter(i as u32),value)).chain(std::iter::once((StorageBase::Result,&signature.result))) {
-            if matches!(value.ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::Dyn{..}|Type::OwnedDyn{..}) {
+            if matches!(value.ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}) {
                 for class in 0..value.classes.len() as u32 {
                     b.spend(header.classes.len())?;
                     if !header.classes.iter().any(|row|row.position.base==base_kind&&row.position.path.is_empty()&&row.position.class==class) {return Err(bad("actual header omits an original nominal/opaque class occurrence"));}

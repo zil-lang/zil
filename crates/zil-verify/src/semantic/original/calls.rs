@@ -25,6 +25,7 @@ impl CheckedOriginal {
         }
         let static_type=self.static_call_type(module,context,base,env,bindings,b)?;
         if let Some(Ty::Function(target))=&static_type{if let Some(result)=self.static_trait_call(module,context,*target,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
+        if static_type.is_none(){if let Some(result)=self.slice_len_call(module,context,call,base,written_types.is_some()||written_mixed.is_some(),arguments,env,bindings,active,b)?{if let Some(expected)=expected{self.unify(&result,expected,b)?;}return Ok(result);}}
         if static_type.is_none(){if let Some(result)=self.trait_member_call(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
         if static_type.is_none(){if let Some(result)=self.variant_constructor(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
         self.callable_nodes.insert((env.current()?,call.id),base.id);

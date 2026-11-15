@@ -4,7 +4,7 @@
 use super::*;
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub(in crate::semantic) enum Intrinsic {OwnedDyn,Convert(Numeric),CCallback,TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskCreateOwned,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope}
+pub(in crate::semantic) enum Intrinsic {SliceLen,OwnedDyn,Convert(Numeric),CCallback,TaskYield,BytesNew,BytesReserve,BytesPush,BytesTruncate,BytesLen,BytesCapacity,BytesView,BytesViewMut,StoreNew,StoreReserve,StorePush,StorePop,StoreGet,StoreGetMut,StoreLen,StoreCapacity,TaskCreate,TaskCreateOwned,TaskValid,TaskPoll,TaskRequest,TaskPollClose,TaskFinish,MutexCreate,MutexLock,MutexValue,MutexUnlock,AsyncStart,AsyncValid,AsyncRequest,AsyncPoll,AsyncFinish,AsyncFinishChecked,ThreadScope}
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub(in crate::semantic) enum Numeric {I8,I16,I32,I64,Isize,U8,U16,U32,U64,Usize,F32,F64}
 impl Numeric {
@@ -22,6 +22,7 @@ impl Intrinsic {
     pub(in crate::semantic) fn actual(kind:&InstructionKind)->Option<Self>{Some(match kind{
         InstructionKind::ConvertInteger{target,..}|InstructionKind::ConvertNumber{target,..}=>Self::Convert(Numeric::from_type(target)?),
         InstructionKind::ForeignFunctionRef{..}=>Self::CCallback,
+        InstructionKind::SliceLength{..}=>Self::SliceLen,
         InstructionKind::MakeDynOwned{..}=>Self::OwnedDyn,
         InstructionKind::TaskYield=>Self::TaskYield,
         InstructionKind::ByteBufferNew=>Self::BytesNew,
@@ -89,4 +90,22 @@ impl CheckedOriginal {
         Ok(Ty::Atom(if matches!(intrinsic,Intrinsic::BytesLen|Intrinsic::BytesCapacity){Type::I64}else{Type::Bool}))
     }
     pub(in crate::semantic) fn intrinsic(&self,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Use>{b.spend(1)?;self.intrinsic_calls.get(&(definition,site)).copied().ok_or_else(||bad("actual intrinsic lacks its independently checked original closed scheme"))}
+}
+impl CheckedOriginal {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn slice_len_call(&mut self,module:&TypedModule,context:&CheckedContext,call:&SemanticOriginalExpr,callee:&SemanticOriginalExpr,written:bool,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Ty>>{
+        let CoreExprKind::Member{object,member,owner:None}=&callee.kind else{return Ok(None);};if member!="len"{return Ok(None);}
+        let (receiver,place)=self.place(module,context,object,env,bindings,active,b)?;
+        if !matches!(self.resolved(&receiver,b)?,Ty::Address{inner,..}if matches!(*inner,Ty::Slice(_))){return Ok(None);}
+        if written||!arguments.is_empty(){return Err(bad("original slice length has written actuals or value arguments"));}
+        if let Some(place)=place{self.read_original(module,context,&place,&receiver,env,false,active,b)?;}
+        let definition=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&definition.body else{return Err(bad("slice length has no complete original body"));};
+        b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;let mut uses=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|row|matches!(row.kind,SemanticSiteRecipeKind::OriginalCall));let site=uses.next().ok_or_else(||bad("slice length has no exact original Call occurrence"))?;if uses.next().is_some(){return Err(bad("slice length original Call occurrence is ambiguous"));}
+        let mut source=object.as_ref();while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&source.kind{source=inner;}
+        let buffer=if self.value_places.contains_key(&(env.current()?,source.id)){Some(self.operation_source(source,env,bindings,b)?)}else{None};
+        self.intrinsic_type_sources.insert((env.current()?,site.id,0),source.id);
+        self.intrinsic_calls.insert((env.current()?,site.id),Use{kind:Intrinsic::SliceLen,buffer,worker:None,providers:None});
+        self.execute_effect(env,CallKind::Direct,b)?;Ok(Some(Ty::Atom(Type::I64)))
+    }
+    pub(in crate::semantic) fn intrinsic_receiver(&self,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<NodeId>{b.spend(1)?;self.intrinsic_type_sources.get(&(definition,site,0)).copied().ok_or_else(||bad("intrinsic has no independently checked original receiver"))}
 }

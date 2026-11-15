@@ -71,8 +71,10 @@ impl CheckedOriginal {
         if !matches!(&place.binder,Binder::Capture{definition:owner,..}if *owner==definition){return Ok(false);}
         place.binder.charge_clone(b)?;Ok(self.value_bindings.get(&(definition,read))==Some(&place.binder))
     }
-    pub(in crate::semantic) fn capture_read_source(&self,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
-        b.spend(1)?;let Some(Binder::Capture{definition,source})=self.value_bindings.get(&(child,node)) else{return Err(bad("actual capture read has no original sealed free binder"));};
+    pub(in crate::semantic) fn capture_read_source(&self,module:&TypedModule,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
+        let index=index::build(module,b)?;let function=index.definitions.get(&child).ok_or_else(||bad("capture read has no original child body"))?;let mut expression=*function.expressions.get(&node).ok_or_else(||bad("capture read has no exact original expression"))?;
+        loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:inner}=>expression=inner,_=>break}}
+        let Some(Binder::Capture{definition,source})=self.value_bindings.get(&(child,expression.id)) else{return Err(bad("actual capture read has no original sealed free binder"));};
         if *definition!=child{return Err(bad("actual capture read selects another original child"));}
         match source.as_ref(){Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested captured owner needs its complete original parent capture identity",None))}
     }

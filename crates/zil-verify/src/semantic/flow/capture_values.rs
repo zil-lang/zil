@@ -12,16 +12,22 @@ impl CheckedContext {
         for site in program.sites.iter().filter(|site|site.instance==child.id){
             b.spend(1)?;
             let SemanticSiteAddress::Typed{block,instruction,..}=site.at else{return Err(bad("owning capture retains a Core operation"));};
-            let Some(operation)=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize))else{continue;};
-            if !matches!(operation.kind,InstructionKind::ReadCapture{index:actual}|InstructionKind::TakeCapture{index:actual}|InstructionKind::DescribeCapture{index:actual}|InstructionKind::BindPackageCapture{index:actual,..} if actual==index){continue;}
+            let Some(at)=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize))else{continue;};
             let SemanticSiteAction::TypeUse{subject,..}=&site.action else{continue;};
+            // A source role can be emitted at the later use (Store/Call), not
+            // at its SSA definition. Resolve the claimed actual operand's one
+            // producer before selecting the physical capture slot.
+            let operation=if let SemanticOperand::Value(value)=subject{
+                let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for instruction in &block.instructions{if instruction.result==Some(*value)&&producer.replace(instruction).is_some(){return Err(bad("capture operand has multiple actual SSA definitions"));}}}producer.ok_or_else(||bad("capture operand has no actual SSA definition"))?
+            }else{at};
+            if !matches!(operation.kind,InstructionKind::ReadCapture{index:actual}|InstructionKind::TakeCapture{index:actual}|InstructionKind::DescribeCapture{index:actual}|InstructionKind::BorrowCapture{index:actual,..}|InstructionKind::BindPackageCapture{index:actual,..} if actual==index){continue;}
             let exact=match (&operation.kind,subject){(InstructionKind::BindPackageCapture{local,..},SemanticOperand::Local(actual))=>local==actual,(_,SemanticOperand::Value(actual))=>operation.result==Some(*actual),_=>false};
             if !exact{return Err(bad("capture use selects another actual SSA/local definition"));}
             b.spend(site_nodes.len())?;
             let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("capture use has no exact original node"))?;
             let SemanticOriginalNode::Expression(node)=node.node else{return Err(bad("capture use is not an original value expression"));};
             let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("capture use has no independent original binder proof"))?;
-            let current=original.capture_read_source(child.definition,node,b)?;
+            let current=original.capture_read_source(module,child.definition,node,b)?;
             if source.replace(current).is_some_and(|old|old!=current){return Err(bad("one actual capture slot substitutes several original free binders"));}
         }
         let source=source.ok_or_else(||bad("owning capture slot has no checked original free-value use"))?;

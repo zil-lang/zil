@@ -67,7 +67,7 @@ impl Directory {
         }
         let count = match ty {
             Type::BorrowedStorage { life, .. } => Some(life.binder_count),
-            Type::Closure(_) | Type::Task { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+            Type::Closure(_) | Type::Task { .. } | Type::MutexGuard { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
                 Some(values::intrinsic(module, ty, b)?.count)
             }
             _ => None,
