@@ -12,6 +12,14 @@ pub(crate) fn original_scope<'a>(
 ) -> Check<&'a SemanticDefinition> {
     associated::scope(module, id, b)
 }
+pub(crate) fn original_program_scope<'a>(program:&'a SemanticModule,id:LifeDeclarationId,b:&mut Budget)->Check<&'a SemanticDefinition>{
+    b.spend(program.dyn_scopes.len())?;
+    let owner=SemanticDynOwner::Declaration(id);
+    let mut rows=program.dyn_scopes.iter().filter(|row|row.owner==owner);
+    let row=rows.next().ok_or_else(||bad("original declaration has no lexical scope binding"))?;
+    if rows.next().is_some(){return Err(bad("original declaration has duplicate lexical scopes"));}
+    super::bridge::program_owner(program,&owner,row.scope,b)
+}
 pub(crate) fn original_type_recipe(
     module: &TypedModule,
     owner: LifeDeclarationId,

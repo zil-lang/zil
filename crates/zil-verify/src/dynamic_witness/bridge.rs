@@ -12,6 +12,9 @@ pub(super) fn owner<'a>(
         .semantic
         .as_ref()
         .ok_or_else(|| bad("semantic type bridge original program is Unknown"))?;
+    program_owner(semantic,expected,requested,b)
+}
+pub(super) fn program_owner<'a>(semantic:&'a SemanticModule,expected:&SemanticDynOwner,requested:SemanticDefinitionId,b:&mut Budget)->Check<&'a SemanticDefinition>{
     b.spend(
         semantic
             .dyn_scopes
