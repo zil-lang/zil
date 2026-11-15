@@ -196,6 +196,13 @@ pub(super) fn shape(
             | Type::AsyncRegistration { environment: child }
             | Type::Opaque { hidden: child, .. } => {
                 if crate::dynamic_ports::has_context(module, child, b)? {
+                    if matches!(ty,Type::Managed(_)|Type::Desc(_))
+                        && b.task_sources() && crate::tasks::task_payload(child).is_some() {
+                        // The owning/description wrapper exposes the same
+                        // frame protocol. It does not initialize its R value.
+                        pending.push((child,path));
+                        continue;
+                    }
                     return Err(unsupported(
                         "Context carrier requires a complete actual container/heap port ledger",
                         None,
