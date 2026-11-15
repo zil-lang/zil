@@ -3,6 +3,17 @@
 //! runtime iteration count is never a premise for the original body.
 use super::*;
 
+pub(super) enum RangeBinding<'a> {
+    Name(&'a str),
+    Pattern(&'a SemanticOriginalPattern),
+}
+struct RangeInput<'a> {
+    statement: NodeId,
+    binding: RangeBinding<'a>,
+    element: Term,
+    start: NodeId,
+}
+
 pub(super) struct LoopFrame {
     owner: SemanticDefinitionId,
     prefix: usize,
@@ -50,7 +61,7 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
-        self.loop_body(frame, condition, None, body, b, depth)
+        self.loop_body(frame, condition, None, None, body, b, depth)
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn pattern_loop(
@@ -67,22 +78,77 @@ impl Solver<'_, '_> {
             frame,
             Some(value),
             Some((statement, pattern)),
+            None,
             body,
             b,
             depth,
         )
     }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn range_loop(
+        &mut self,
+        frame: &mut Frame,
+        statement: NodeId,
+        binding: RangeBinding<'_>,
+        start: &SemanticOriginalExpr,
+        end: &SemanticOriginalExpr,
+        body: &SemanticOriginalBlock,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        // Bounds are evaluated once, before the induction variable exists.
+        // Their original integer type is inferred together, without consulting
+        // the selected executable count, header or a particular loop body.
+        let element = self.expression(frame, start, b, depth + 1)?;
+        let limit = self.expression(frame, end, b, depth + 1)?;
+        self.unify(element, limit, depth + 1, b)?;
+        Self::push(&mut self.integers, element, b)?;
+        Self::push(&mut self.numeric, element, b)?;
+        self.loop_body(
+            frame,
+            None,
+            None,
+            Some(RangeInput {
+                statement,
+                binding,
+                element,
+                start: start.id,
+            }),
+            body,
+            b,
+            depth + 1,
+        )
+    }
+    pub(super) fn range_parts<'a>(
+        &self,
+        iterator: &'a SemanticOriginalExpr,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<(&'a SemanticOriginalExpr, &'a SemanticOriginalExpr)> {
+        self.step(depth, b)?;
+        match &iterator.kind {
+            CoreExprKind::Range { start, end } => Ok((start, end)),
+            CoreExprKind::Group(inner) => self.range_parts(inner, b, depth + 1),
+            _ => Err(unknown(
+                "original iterator needs its complete protocol body; this loop has no integer Range",
+            )),
+        }
+    }
+    #[allow(clippy::too_many_arguments)]
     fn loop_body(
         &mut self,
         frame: &mut Frame,
         condition: Option<&SemanticOriginalExpr>,
         pattern: Option<(NodeId, &SemanticOriginalPattern)>,
+        range: Option<RangeInput<'_>>,
         body: &SemanticOriginalBlock,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let entered = frame.alive;
+        let is_range = range.is_some();
         let before = self.copy_locals(&frame.locals, b)?;
         let mut subject = None;
         if let Some(condition) = condition {
@@ -124,6 +190,49 @@ impl Solver<'_, '_> {
                 b,
             )?;
         }
+        if let Some(range) = range {
+            match range.binding {
+                RangeBinding::Name(name) => {
+                    b.lookup(frame.bindings.len(), WORK)?;
+                    if frame
+                        .bindings
+                        .insert(range.statement, range.element)
+                        .is_some()
+                    {
+                        return Err(fail("original range induction binding repeats a statement"));
+                    }
+                    self.bind(frame, name, range.element, false, b)?;
+                    frame
+                        .locals
+                        .last_mut()
+                        .ok_or_else(|| fail("range induction binding disappeared"))?
+                        .anchor = Some(LocalAnchor::Binding(range.statement));
+                }
+                RangeBinding::Pattern(pattern) => {
+                    // The real induction slot is initialized from this exact
+                    // start expression. No fictitious integer value is assigned
+                    // to the Range expression as a whole.
+                    let source = pattern_places::PatternSubject {
+                        node: range.start,
+                        anchor: None,
+                        path: Vec::new(),
+                    };
+                    if !self.pattern_bind(
+                        frame,
+                        range.statement,
+                        &mut Vec::new(),
+                        pattern,
+                        range.element,
+                        &source,
+                        &mut Vec::new(),
+                        b,
+                        depth + 1,
+                    )? {
+                        return Err(fail("original range binding pattern is refutable"));
+                    }
+                }
+            }
+        }
         Self::push(
             &mut self.loops,
             LoopFrame {
@@ -134,11 +243,12 @@ impl Solver<'_, '_> {
             },
             b,
         )?;
-        self.block(frame, body, b, depth + 1)?;
+        let checked_body = self.block(frame, body, b, depth + 1);
         let mut flow = self
             .loops
             .pop()
             .ok_or_else(|| fail("original loop loses its control frame"))?;
+        checked_body?;
         if frame.alive {
             self.cleanup(&frame.locals[before.len()..], b)?;
             frame.locals.truncate(before.len());
@@ -189,7 +299,8 @@ impl Solver<'_, '_> {
         // A literal true test has no false edge. Prove the body and every
         // back edge normally; only a real break can leave this loop. This is
         // source control flow, never a selected actual iteration count.
-        let may_test_false = pattern.is_some()
+        let may_test_false = is_range
+            || pattern.is_some()
             || condition
                 .is_some_and(|condition| !matches!(condition.kind, CoreExprKind::Bool(true)));
         if entered && may_test_false {

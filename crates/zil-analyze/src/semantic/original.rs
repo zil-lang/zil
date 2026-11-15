@@ -2648,10 +2648,50 @@ impl Solver<'_, '_> {
                     let condition = self.expression(frame, condition, b, depth + 1)?;
                     let boolean = self.atom(Type::Bool, b)?;
                     self.unify(condition, boolean, depth + 1, b)?;
-                    let left = self.expression(frame, then_value, b, depth + 1)?;
-                    let right = self.expression(frame, else_value, b, depth + 1)?;
-                    self.unify(left, right, depth + 1, b)?;
-                    left
+                    let expected = self.receiving_for(frame, value.id, b)?;
+                    let result = self.var(b)?;
+                    let wanted = expected.unwrap_or(result);
+                    let alive = frame.alive;
+                    let before = self.copy_locals(&frame.locals, b)?;
+                    // Infer both complete branches once. Literal terms remain
+                    // unresolved until their common result is constrained, so
+                    // a known integer peer supplies context without evaluating
+                    // another branch just to discover its type.
+                    let left = self.expression_expected(frame, then_value, wanted, b, depth + 1)?;
+                    self.unify(left, result, depth + 1, b)?;
+                    let left_alive = frame.alive;
+                    let left_locals = std::mem::replace(&mut frame.locals, before);
+                    frame.alive = alive;
+                    let right = self.expression_expected(frame, else_value, wanted, b, depth + 1)?;
+                    self.unify(right, result, depth + 1, b)?;
+                    let right_alive = frame.alive;
+                    if left_locals.len() != frame.locals.len() {
+                        return Err(fail("original value branch changes its lexical binding inventory"));
+                    }
+                    for (left, right) in left_locals.iter().zip(&mut frame.locals) {
+                        b.spend(1, WORK)?;
+                        match (left_alive, right_alive) {
+                            (true, true) => self.join_vacancies(right, left, b)?,
+                            (true, false) => {
+                                right.vacant = self.copy_vacancies(&left.vacant, b)?;
+                                right.maybe_vacant = self.copy_vacancies(&left.maybe_vacant, b)?;
+                                right.live = left.live;
+                            }
+                            _ => {},
+                        }
+                        right.used = match (left_alive, right_alive) {
+                            (true, true) => left.used || right.used,
+                            (true, false) => left.used,
+                            _ => right.used,
+                        };
+                        right.initialized = match (left_alive, right_alive) {
+                            (true, true) => left.initialized && right.initialized,
+                            (true, false) => left.initialized,
+                            _ => right.initialized,
+                        };
+                    }
+                    frame.alive = left_alive || right_alive;
+                    result
                 }
                 _ => {
                     return Err(unknown(
@@ -2912,6 +2952,15 @@ impl Solver<'_, '_> {
                     body,
                 } => {
                     self.pattern_loop(frame, statement.id, pattern, value, body, b, depth + 1)?;
+                }
+                CoreStatementKind::ForRange { name, start, end, body } => {
+                    self.range_loop(frame, statement.id, loops::RangeBinding::Name(name),
+                        start, end, body, b, depth + 1)?;
+                }
+                CoreStatementKind::ForEach { pattern, iterator, body } => {
+                    let (start, end) = self.range_parts(iterator, b, depth + 1)?;
+                    self.range_loop(frame, statement.id, loops::RangeBinding::Pattern(pattern),
+                        start, end, body, b, depth + 1)?;
                 }
                 CoreStatementKind::While { condition, body } => {
                     self.loop_statement(frame, Some(condition), body, b, depth + 1)?;
@@ -3565,6 +3614,16 @@ fn normalize_block(
                 normalize_expr(condition, b, depth + 1)?;
                 normalize_block(body, b, depth + 1)?;
             }
+            CoreStatementKind::ForRange { start, end, body, .. } => {
+                normalize_expr(start, b, depth + 1)?;
+                normalize_expr(end, b, depth + 1)?;
+                normalize_block(body, b, depth + 1)?;
+            }
+            CoreStatementKind::ForEach { pattern, iterator, body } => {
+                normalize_pattern(pattern, b, depth + 1)?;
+                normalize_expr(iterator, b, depth + 1)?;
+                normalize_block(body, b, depth + 1)?;
+            }
             CoreStatementKind::Loop(body) => normalize_block(body, b, depth + 1)?,
             CoreStatementKind::Break | CoreStatementKind::Continue => {}
             CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
@@ -3627,7 +3686,8 @@ pub(super) fn normalize_expr(
         | CoreExprKind::Try(value)
         | CoreExprKind::Unary { operand: value, .. }
         | CoreExprKind::Ascribed { value, .. } => normalize_expr(value, b, depth + 1)?,
-        CoreExprKind::Binary { left, right, .. } => {
+        CoreExprKind::Binary { left, right, .. }
+        | CoreExprKind::Range { start: left, end: right } => {
             normalize_expr(left, b, depth + 1)?;
             normalize_expr(right, b, depth + 1)?;
         }
