@@ -104,6 +104,7 @@ struct World<'a, 'b> {
     same_calls: usize,
     same_work: usize,
     direct_work: BTreeMap<(&'static str, u32), (usize, usize)>,
+    last_point: Option<((SemanticInstanceId, BlockId, usize), Vec<usize>)>,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -253,6 +254,10 @@ impl<'a> World<'a, '_> {
         self.zero_at(ty, 0)
     }
     fn zero_at(&mut self, ty: &Type, depth: usize) -> R<SharedType> {
+        let shape = self.zero_shape_at(ty, depth)?;
+        self.resolved(ty, shape, Vec::new())
+    }
+    fn zero_shape_at(&mut self, ty: &Type, depth: usize) -> R<StorageLifeShape> {
         self.pay(1)?;
         if depth > self.limits.max_call_depth {
             return Err(Diagnostic::limit(
@@ -262,13 +267,13 @@ impl<'a> World<'a, '_> {
             ));
         }
         match ty {
-            ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
+            ty if ty.is_b0_scalar() => Ok(empty()),
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
                 self.view
                     .ordinary_zero(ty, self.limits, self.left, &self.ledger.ordinary_stats)?;
-                self.resolved(ty, empty(), Vec::new())
+                Ok(empty())
             }
-            Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
+            Type::ByteBuffer => Ok(empty()),
             Type::Task { .. } | Type::MutexGuard { .. } => {
                 let shape = projection::type_shape_at(self, ty, depth + 1)?;
                 if shape.binder_count != 0 {
@@ -276,35 +281,35 @@ impl<'a> World<'a, '_> {
                         "actual zero carrier retains a nonzero complete class domain",
                     ));
                 }
-                self.resolved(ty, shape, Vec::new())
+                Ok(shape)
             }
             Type::FunctionPointer { parameters, result } => {
                 for parameter in parameters {
-                    self.zero_at(parameter, depth + 1)?;
+                    self.zero_shape_at(parameter, depth + 1)?;
                 }
-                self.zero_at(result, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(result, depth + 1)?;
+                Ok(empty())
             }
             Type::Managed(inner)
             | Type::Mutex { payload: inner }
             | Type::OwnedStore { element: inner } => {
-                self.zero_at(inner, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(inner, depth + 1)?;
+                Ok(empty())
             }
             Type::ErrorUnion { error, result } => {
-                self.zero_at(error, depth + 1)?;
-                self.zero_at(result, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(error, depth + 1)?;
+                self.zero_shape_at(result, depth + 1)?;
+                Ok(empty())
             }
             Type::Tuple(fields) => {
                 for field in fields {
-                    self.zero_at(field, depth + 1)?;
+                    self.zero_shape_at(field, depth + 1)?;
                 }
-                self.resolved(ty, empty(), Vec::new())
+                Ok(empty())
             }
             Type::Array { element, .. } | Type::Slice { element } => {
-                self.zero_at(element, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(element, depth + 1)?;
+                Ok(empty())
             }
             _ => Err(pending(
                 "actual zero-domain type requires its complete original whole-type equation",
@@ -1167,10 +1172,22 @@ impl World<'_, '_> {
         let Some(first) = sites.first() else {
             return Ok(Vec::new());
         };
-        self.pay(index::search(self.index.points.len()))?;
-        let Some(positions) = self.index.points.get(&(first.instance, block, instruction)) else {
-            return Ok(Vec::new());
-        };
+        let key = (first.instance, block, instruction);
+        self.pay(1)?;
+        if !self
+            .last_point
+            .as_ref()
+            .is_some_and(|(point, _)| *point == key)
+        {
+            self.pay(index::search(self.index.points.len()))?;
+            let positions = self.index.points.get(&key);
+            index::pay(self.left, positions.map_or(0, Vec::len))?;
+            self.last_point = Some((key, positions.cloned().unwrap_or_default()));
+        }
+        let (_, positions) = self
+            .last_point
+            .as_ref()
+            .ok_or_else(|| bad("actual point cache lost its selected directory"))?;
         index::pay(self.left, positions.len())?;
         let mut result = Vec::with_capacity(positions.len());
         for position in positions {
@@ -4359,6 +4376,7 @@ fn program_at(
         same_calls: 0,
         same_work: 0,
         direct_work: BTreeMap::new(),
+        last_point: None,
         current_point: None,
     };
     world.pay(

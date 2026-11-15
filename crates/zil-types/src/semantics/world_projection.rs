@@ -201,13 +201,7 @@ pub(super) fn type_shape_at(
                 nominal_arguments: Vec::new(),
             }
         }
-        _ => {
-            let value = world.zero_at(ty, depth + 1)?;
-            let SemanticTypeValue::Resolved { life, .. } = world.owned(value)? else {
-                unreachable!()
-            };
-            life
-        }
+        _ => world.zero_shape_at(ty, depth + 1)?,
     })
 }
 fn retained_snapshot(world: &mut World<'_, '_>, shape: &RetainedLifeShape) -> R<()> {

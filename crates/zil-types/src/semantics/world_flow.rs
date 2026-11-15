@@ -702,11 +702,15 @@ fn hash_roots(
     }
     Ok(())
 }
-// A retained Rc makes this exact allocation immutable and prevents pointer
-// reuse. This table only abbreviates the same complete life/classes bytes;
-// it contains no reaching-state or class-equation conclusion.
+// Retained allocations cannot change or reuse their address. An ordinal only
+// abbreviates a complete, exactly equal life/classes pair in this CFG's key;
+// it creates no lifetime equality and contains no reaching-state conclusion.
 #[derive(Default)]
-struct DomainDigests(BTreeMap<usize, (SharedType, zil_base::Fingerprint)>);
+struct DomainDigests {
+    allocations: BTreeMap<usize, (SharedType, u32)>,
+    buckets: BTreeMap<zil_base::Fingerprint, Vec<(SharedType, u32)>>,
+    entries: usize,
+}
 fn hash_domain(
     digest: &mut zil_base::FingerprintBuilder,
     world: &mut World<'_, '_>,
@@ -727,17 +731,17 @@ fn hash_domain(
     } else {
         digest.update(&[1]);
         let key = Rc::as_ptr(value) as usize;
-        world.pay(index::search(domains.0.len()))?;
-        let fingerprint = if let Some((retained, fingerprint)) = domains.0.get(&key) {
+        world.pay(index::search(domains.allocations.len()))?;
+        let ordinal = if let Some((retained, ordinal)) = domains.allocations.get(&key) {
             world.pay(1)?;
             if !Rc::ptr_eq(retained, value) {
                 return Err(bad(
                     "immutable CFG domain cache changes its retained allocation",
                 ));
             }
-            *fingerprint
+            *ordinal
         } else {
-            if domains.0.len() >= world.limits.max_nodes {
+            if domains.allocations.len() >= world.limits.max_nodes {
                 return Err(Diagnostic::limit(
                     Phase::Types,
                     "immutable CFG domain cache exceeds node limit",
@@ -752,20 +756,56 @@ fn hash_domain(
                 hash_image(&mut encoded, world.left, image)?;
             }
             let fingerprint = encoded.digest();
+            world.pay(index::search(domains.buckets.len()))?;
+            let mut found = None;
+            if let Some(bucket) = domains.buckets.get(&fingerprint) {
+                world.pay(bucket.len())?;
+                for (candidate, ordinal) in bucket {
+                    charge_value_domain(world, candidate)?;
+                    charge_value_domain(world, value)?;
+                    if same_value_domain(candidate, value)? {
+                        found = Some(*ordinal);
+                        break;
+                    }
+                }
+            }
+            let ordinal = if let Some(ordinal) = found {
+                ordinal
+            } else {
+                if domains.entries >= world.limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "canonical CFG domain entry limit exceeded",
+                        None,
+                    ));
+                }
+                let ordinal = u32::try_from(domains.entries).map_err(|_| {
+                    Diagnostic::limit(Phase::Types, "canonical CFG domain ordinal exceeded", None)
+                })?;
+                world.pay(
+                    index::search(domains.buckets.len())
+                        .saturating_add(
+                            std::mem::size_of::<(zil_base::Fingerprint, SharedType, u32)>(),
+                        )
+                        .saturating_add(1),
+                )?;
+                domains
+                    .buckets
+                    .entry(fingerprint)
+                    .or_default()
+                    .push((value.clone(), ordinal));
+                domains.entries += 1;
+                ordinal
+            };
             world.pay(
-                index::search(domains.0.len())
-                    .saturating_add(std::mem::size_of::<(
-                        usize,
-                        SharedType,
-                        zil_base::Fingerprint,
-                    )>())
+                index::search(domains.allocations.len())
+                    .saturating_add(std::mem::size_of::<(usize, SharedType, u32)>())
                     .saturating_add(1),
             )?;
-            domains.0.insert(key, (value.clone(), fingerprint));
-            fingerprint
+            domains.allocations.insert(key, (value.clone(), ordinal));
+            ordinal
         };
-        world.pay(fingerprint.0.len())?;
-        digest.update(&fingerprint.0);
+        hash_binary(digest, world.left, &ordinal)?;
     }
     Ok(())
 }
