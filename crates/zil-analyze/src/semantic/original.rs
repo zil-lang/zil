@@ -3931,6 +3931,19 @@ pub(super) fn check(
                     "original actual does not establish its declared sealed capability"
                 }
             });
+            if matches!(need.predicate, Predicate::SyncDrop) {
+                let root = solver.type_root(need.term, b)?;
+                let detail = match &solver.state.arena[root] {
+                    Kind::Rigid(owner, ordinal) => format!("rigid {:?} mixed {}", owner, ordinal),
+                    Kind::Nominal { definition, .. } | Kind::Closure { definition, .. } => {
+                        format!("definition {:?}", definition)
+                    }
+                    kind => format!("kind {:?}", std::mem::discriminant(kind)),
+                };
+                errors[0]
+                    .notes
+                    .push(format!("original cleanup subject {}", detail));
+            }
             if matches!(need.predicate, Predicate::StoreElement) {
                 let root = solver.type_root(need.term, b)?;
                 let detail = match &solver.state.arena[root] {
