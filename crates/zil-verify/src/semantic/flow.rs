@@ -19,6 +19,8 @@ mod dyn_values;
 mod static_values;
 mod callbacks;
 mod scoped_threads;
+mod closure_calls;
+mod code_calls;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -254,8 +256,8 @@ impl CheckedContext {
                     }
                     InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
-                    InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
-                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
+                    InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
                         let Type::Address{..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
@@ -332,6 +334,7 @@ impl CheckedContext {
                         // prove every live owner is finalized exactly once.
                         state.locals[local.0 as usize]=None;None
                     },
+                    InstructionKind::FunctionRef{..}=>Some(self.function_pointer(module,instance,f,instruction,&environment,external,active,b)?),
                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
@@ -339,7 +342,7 @@ impl CheckedContext {
                         if declarations.next().is_some() {return Err(bad("actual Closure creation has duplicate semantic claims"));}
                         Some(self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?)
                     }
-                    InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}=>{
+                    InstructionKind::CallIndirect{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::CallableCall{..}|SemanticSiteAction::BodyCall{..}));
                         let site=declarations.next().ok_or_else(||bad("actual CallableCall has no original callee recipe"))?;
                         if declarations.next().is_some(){return Err(bad("actual CallableCall has duplicate original claims"));}
@@ -626,17 +629,19 @@ impl CheckedContext {
         };
         if matches!(&site.action,SemanticSiteAction::BodyCall{actuals}if !actuals.is_empty()){return Err(bad("nongeneric original callable invocation adds actual arguments"));}
         let (actual,arguments)=match opcode {
-            InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
+            InstructionKind::CallIndirect{callee,arguments}|InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
             InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
         };
         if !self.same_type(environment,actual,&expected,b)?{return Err(bad("actual callee occupant differs from its original full callable type"));}
+        if matches!(opcode,InstructionKind::CallIndirect{..}){return self.indirect_call(module,caller,site,actual,arguments,values,environment,external,active,b);}
         let id=match &actual.ty {Type::Closure(id)=>*id,Type::Address{inner,..}=>match inner.as_ref(){Type::Closure(id)=>*id,_=>return Err(bad("borrowed callee does not address a concrete Closure"))},_=>return Err(unsupported("actual callable requires its full code/trait dispatch proof",None))};
         b.spend(module.closures.len())?;
         let mut definitions=module.closures.iter().filter(|row|row.id==id);
         let definition=definitions.next().ok_or_else(||bad("actual callable definition is absent"))?;
         if definitions.next().is_some()||definition.parameters.len()!=arguments.len(){return Err(bad("actual callable identity or arity differs"));}
-        for (argument,expected) in arguments.iter().zip(&definition.parameters){let actual=value_at(values,*argument)?;if actual.ty!=*expected{return Err(bad("actual callable argument has a different complete type"));}if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("actual CallableCall requires complete per-role borrowed/qualified arguments",None));}self.closed_value(module,expected,b)?;}
-        if definition.result==Type::Unit{Ok(None)}else{Ok(Some(self.closed_value(module,&definition.result,b)?))}
+        let receiver=if matches!(actual.ty,Type::Address{..}){self.child_value(module,actual,&[LifeTypeProjection::Pointee],b)?}else{actual.clone()};
+        self.closure_call(module,caller,id,&receiver,arguments,values,environment,external,active,b)
+
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;

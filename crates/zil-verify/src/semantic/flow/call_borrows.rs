@@ -11,7 +11,7 @@ impl CheckedContext {
             for slot in &expected.life.slots{
                 b.spend(1)?;if !slot.path.is_empty(){continue;}
                 let source=expected.classes.get(slot.binder as usize).ok_or_else(||bad("Call parameter head class is absent"))?;
-                let fresh=signature.invocation.contains(source)||matches!(source,ClassKey::Implicit{scope,..}if *scope==key)
+                let fresh=signature.invocation.contains(source)||signature.bound.contains(source)||matches!(source,ClassKey::Implicit{scope,..}if *scope==key)
                     ||matches!(source,ClassKey::Outer{scope,operand:OperandKey::Parameter(ordinal),path,mode}if *scope==key&&*ordinal==index as u32&&path.is_empty()&&*mode==slot.mode);
                 if !fresh{continue;}
                 let mut slots=actual.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==slot.mode);
@@ -35,7 +35,7 @@ impl CheckedContext {
         for source in static_heads{
             for(parameter,_)in &mut signature.parameters{static_call_head(parameter,&source,b)?;}
             static_call_head(&mut signature.result,&source,b)?;
-            signature.invocation.retain(|key|key!=&source);
+            signature.invocation.retain(|key|key!=&source);signature.bound.retain(|key|key!=&source);
         }Ok(())
     }
     #[allow(clippy::too_many_arguments)]

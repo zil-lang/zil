@@ -39,14 +39,25 @@ impl CheckedContext{
                 let parent=value_at(values,*aggregate)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual array index lacks its full integer carrier"));}
                 self.child_value(module,parent,&[LifeTypeProjection::Element],b).map(Some)
             },
+            InstructionKind::UpdateIndex{aggregate,index,value}=>{
+                let parent=value_at(values,*aggregate)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual array update index lacks its complete integer carrier"));}
+                let child=self.child_value(module,parent,&[LifeTypeProjection::Element],b)?;
+                if !self.compatible(environment,value_at(values,*value)?,&child,b)?{return Err(bad("actual array update changes an independent element type/class/source occurrence"));}
+                // Updating a runtime element preserves the whole array's
+                // intrinsic partition and all zero-length/phantom metadata.
+                Ok(Some(parent.clone()))
+            },
             InstructionKind::AddressIndex{address,index}=>{
                 let parent=value_at(values,*address)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual address index lacks an integer carrier"));}
                 let Type::Address{mutable,inner}=&parent.ty else{return Err(bad("actual indexed address has no complete parent head"));};let storage=match inner.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
                 if !matches!(storage,Type::Array{..}|Type::Slice{..}){return Err(bad("actual indexed address has another full child type"));}
                 let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Element],b)?;
-                let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};let mut slots=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);let row=slots.next().ok_or_else(||bad("actual index address has no variable parent head occurrence"))?;if slots.next().is_some(){return Err(bad("actual index parent head is ambiguous"));}
-                let key=parent.classes.get(row.binder as usize).cloned().ok_or_else(||bad("actual index parent class is absent"))?;
-                dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(key)},&[child],active,b).map(Some)
+                let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};let mut slots=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);
+                let outer=if let Some(row)=slots.next(){if slots.next().is_some(){return Err(bad("actual index parent head is ambiguous"));}Some(parent.classes.get(row.binder as usize).cloned().ok_or_else(||bad("actual index parent class is absent"))?)}else{
+                    let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
+                    if *mutable||statics.next().is_none()||statics.next().is_some(){return Err(bad("actual index has neither a bounded head nor one exact shared static source"));}None
+                };
+                dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer},&[child],active,b).map(Some)
             },
             InstructionKind::AddressSlice{address,start,end}=>{
                 let parent=value_at(values,*address)?;

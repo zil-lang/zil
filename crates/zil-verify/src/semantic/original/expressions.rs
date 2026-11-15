@@ -45,7 +45,7 @@ impl CheckedOriginal {
                             self.expressions.insert((id,expression.id),value.clone());return Ok(value);
                         }
                     }
-                    let(ty,place)=self.place(module,context,expression,env,bindings,active,b)?;self.take_place(module,context,&ty,place.as_ref(),env,active,b)?;ty
+                    if let Some(ty)=self.static_call_type(module,context,expression,env,bindings,b)?{ty}else{let(ty,place)=self.place(module,context,expression,env,bindings,active,b)?;self.take_place(module,context,&ty,place.as_ref(),env,active,b)?;ty}
                 },
                 CoreExprKind::Unary{op,operand}=>{
                     let child=self.expression(module,context,operand,env,bindings,expected,active,b)?;
@@ -100,6 +100,7 @@ impl CheckedOriginal {
                 CoreExprKind::Try(value)=>match self.expression(module,context,value,env,bindings,None,active,b)?{Ty::ErrorUnion(_,result)=>*result,_=>return Err(bad("original propagation has no ErrorUnion operand"))},
                 _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
             };
+            let actual=self.code_value(module,context,expression,&actual,expected,false,env,active,b)?;
             if let Some(expected)=expected{self.unify(&actual,expected,b)?;}
             if self.creation(id,expression,bindings,b)?{b.spend(1)?;self.created.insert((id,expression.id));}
             self.expressions.insert((id,expression.id),actual.clone());Ok(actual)

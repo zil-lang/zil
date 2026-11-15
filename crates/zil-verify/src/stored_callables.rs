@@ -538,7 +538,7 @@ pub(super) fn definitions(
                     "captured Fixed definition and actual entry relation differ",
                 ));
             }
-            super::signature_life::closure_relation(
+            super::signature_life::closure_relation_resource_scopes(
                 module,
                 &d.parameters,
                 &d.captures,
@@ -546,6 +546,7 @@ pub(super) fn definitions(
                 life_result(d),
                 c,
                 Some(f.span),
+                b,
             )?;
         }
     }

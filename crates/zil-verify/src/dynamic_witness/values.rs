@@ -154,7 +154,7 @@ impl Inventory<'_> {
                         ));
                     }
                 } else {
-                    signature_life::closure_relation(
+                    signature_life::closure_relation_resource_scopes(
                         self.module,
                         &d.parameters,
                         &d.captures,
@@ -162,6 +162,7 @@ impl Inventory<'_> {
                         &d.result,
                         relation,
                         Some(entry.span),
+                        b,
                     )?;
                 }
                 for child in d

@@ -11,7 +11,7 @@ impl CheckedContext{
         match &instruction.kind{
             InstructionKind::BindPackageCapture{local,index}|InstructionKind::EndPackageCapture{local,index}=>{
                 let occurrences=self.occurrences.borrow();let source=occurrences.get(&(scope,OperandKey::Capture(*index))).ok_or_else(||bad("actual package capture has no completely sealed creator operand"))?;
-                dynamic_witness::intrinsic_domain(module,&source.ty,b)?;
+                ghost_captures::complete_environment(module,source,b)?;
                 if f.locals.get(local.0 as usize).is_none_or(|target|target.ty!=source.ty){return Err(bad("package capture local differs from its full sealed environment type"));}
                 dynamic_metadata::ty(&source.ty,b)?;b.spend(source.origins.len())?;
                 let target=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("package capture local is absent"))?;
@@ -34,7 +34,7 @@ impl CheckedContext{
             },
             InstructionKind::DescribeCapture{index}|InstructionKind::BorrowCapture{index,..}=>{
                 let occurrences=self.occurrences.borrow();let child=occurrences.get(&(scope,OperandKey::Capture(*index))).ok_or_else(||bad("actual captured owner has no sealed creator source"))?;
-                dynamic_witness::intrinsic_domain(module,&child.ty,b)?;
+                ghost_captures::complete_environment(module,child,b)?;
                 match instruction.kind{InstructionKind::DescribeCapture{..}=>self.owner_description(module,child,instruction,scope,environment,active,b).map(Some),InstructionKind::BorrowCapture{mutable,..}=>self.owner_address(child,instruction,scope,mutable,environment,active,b).map(Some),_=>unreachable!()}
             },
             InstructionKind::WriteCapture{index,value}=>{
@@ -44,7 +44,7 @@ impl CheckedContext{
             },
             InstructionKind::DropPackage{local}=>{
                 let target=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("package cleanup local is absent"))?;
-                if let Some(value)=target.as_ref(){dynamic_witness::intrinsic_domain(module,&value.ty,b)?;}
+                if let Some(value)=target.as_ref(){ghost_captures::complete_environment(module,value,b)?;}
                 *target=None;Ok(None)
             },
             InstructionKind::ExtractField{aggregate,index}=>{

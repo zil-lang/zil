@@ -457,7 +457,7 @@ pub(super) fn borrowed_signature(
                 "Task result entry differs from the complete actual environment signature",
             ));
         }
-        super::signature_life::closure_relation(
+        super::signature_life::closure_relation_resource_scopes(
             module,
             &parameters,
             &definition.captures,
@@ -465,6 +465,7 @@ pub(super) fn borrowed_signature(
             &f.return_type,
             contract,
             Some(f.span),
+            budget,
         )?;
         return Ok(true);
     }

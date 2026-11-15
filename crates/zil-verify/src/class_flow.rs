@@ -49,7 +49,8 @@ fn pure_class_keys(
                 path.pop();
             }
         }
-        Type::Array { element, .. } => {
+        Type::Managed(inner)|Type::Desc(inner)|Type::Address{inner,..}=>{path.push(LifeTypeProjection::Pointee);pure_class_keys(inner,path,out,b)?;path.pop();},
+        Type::Array { element, .. } | Type::OwnedStore { element } | Type::Slice { element } => {
             path.push(LifeTypeProjection::Element);
             pure_class_keys(element, path, out, b)?;
             path.pop();
@@ -63,7 +64,7 @@ fn pure_class_keys(
                 path.pop();
             }
         }
-        Type::Record { fields, .. } => {
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
             for (index, (_, field)) in fields.iter().enumerate() {
                 path.push(LifeTypeProjection::Place(PlaceProjection::Field(
                     index as u32,
@@ -301,15 +302,12 @@ impl Equations {
         Ok(())
     }
     fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Ports> {
-        let outer = if matches!(ty, Type::Address { .. })
-            || b.task_sources() && matches!(ty, Type::Desc(_)) {
+        let outer = if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             Some(self.fresh(false, b)?)
         } else {
             None
         };
-        let ty = if let Type::Address { inner, .. } = ty {
-            inner.as_ref()
-        } else if let Type::Desc(inner) = ty && b.task_sources() {
+        let ty = if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
             inner.as_ref()
         } else {
             ty
@@ -371,7 +369,8 @@ impl Equations {
                     class,
                 ));
             }
-        } else if !module.life_instances.is_empty()
+        } else if matches!(ty,Type::Managed(_)|Type::Desc(_)|Type::OwnedStore{..}|Type::Slice{..}|Type::Package{..})
+            || !module.life_instances.is_empty()
             && matches!(
                 ty,
                 Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
@@ -556,7 +555,7 @@ fn failure_view_slot(
     Ok(found)
 }
 fn shape(ty: &Type) -> Option<&StorageLifeShape> {
-    let ty = if let Type::Address { inner, .. } = ty {
+    let ty = if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
         inner.as_ref()
     } else {
         ty
@@ -578,8 +577,8 @@ fn link_projection(
     if child.keys.is_empty() {
         return Ok(());
     }
-    b.spend(usize::from(matches!(parent_ty, Type::Address { .. })))?;
-    let (physical, prefix) = if let Type::Address { inner, .. } = parent_ty {
+    b.spend(usize::from(matches!(parent_ty, Type::Address { .. } | Type::Desc(_))))?;
+    let (physical, prefix) = if let Type::Address { inner, .. } | Type::Desc(inner) = parent_ty {
         (inner.as_ref(), vec![LifeTypeProjection::Pointee])
     } else {
         (parent_ty, Vec::new())
@@ -927,7 +926,7 @@ pub(super) fn check_role(
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
     if d.storage_life.is_some() {
-        super::signature_life::closure_relation(
+        super::signature_life::closure_relation_resource_scopes(
             module,
             &d.parameters,
             &d.captures,
@@ -935,6 +934,7 @@ pub(super) fn check_role(
             super::stored_callables::life_result(d),
             life,
             Some(f.span),
+            b,
         )?;
     } else {
         super::borrowed_fp::relation(&d.parameters, &d.result, life, Some(f.span))?;
@@ -1637,18 +1637,17 @@ fn check_with(
                             )?;
                         }
                     }
-                    InstructionKind::DescribeLocal { local } if b.task_sources() => {
-                        if let Some(out)=out {
-                            e.ground_address(out.outer,b)?;
-                            array_outer::copy(&mut e,out,&locals[local.0 as usize],outer.as_ref(),b)?;
-                        }
+                    InstructionKind::DescribeLocal { local } => {
+                        if let Some(out)=out {e.ground_address(out.outer,b)?;description_classes(&locals[local.0 as usize],out,false,&mut e,b)?;}
                     }
-                    InstructionKind::DescribeCapture { index } if b.task_sources() => {
-                        if let Some(out)=out {
-                            e.ground_address(out.outer,b)?;
-                            let capture=captures.get(*index as usize).ok_or_else(||bad("Task description has no actual capture class domain"))?;
-                            array_outer::copy(&mut e,out,capture,outer.as_ref(),b)?;
-                        }
+                    InstructionKind::DescribeCapture { index } => {
+                        if let Some(out)=out {e.ground_address(out.outer,b)?;let capture=captures.get(*index as usize).ok_or_else(||bad("description has no actual capture class domain"))?;description_classes(capture,out,false,&mut e,b)?;}
+                    }
+                    InstructionKind::DescribeAddress{address}=>{
+                        if let Some(out)=out{e.ground_address(out.outer,b)?;description_classes(&values[address.0 as usize],out,true,&mut e,b)?;}
+                    }
+                    InstructionKind::DescribePackageField{local,index}=>{
+                        if let Some(out)=out{e.ground_address(out.outer,b)?;link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],out,LifeTypeProjection::Place(PlaceProjection::Field(*index)),&mut e,b)?;}
                     }
                     InstructionKind::Store { local, value } => array_outer::copy(
                         &mut e,
@@ -2559,4 +2558,22 @@ mod equation_tests {
         e.freeze(&[y], &mut b).unwrap();
         assert!(e.equal(x, a, &mut b).is_err());
     }
+}
+
+// Describing an actual owner creates a fresh outer occurrence and preserves
+// each complete child κ through its exact physical path/index. No equation is
+// inferred between independent children merely from equal outside images.
+fn description_classes(parent:&Ports,child:&Ports,through_address:bool,e:&mut Equations,b:&mut Budget)->Check<()>{
+    b.spend(parent.classes.len().saturating_add(child.classes.len()).saturating_add(1))?;
+    if parent.classes.len()!=child.classes.len(){return Err(bad("description changes its complete actual child domain"));}
+    let mut selected=std::collections::BTreeSet::new();
+    for(index,(path,class))in child.keys.iter().enumerate(){
+        b.spend(path.len().saturating_add(parent.keys.len()).saturating_add(1))?;
+        let mut full=if through_address{vec![LifeTypeProjection::Pointee]}else{vec![]};full.extend_from_slice(path);
+        let mut rows=parent.keys.iter().enumerate().filter(|(_,row)|row.0==full&&row.1==*class);
+        let(source,_)=rows.next().ok_or_else(||bad("description has no exact actual owner child occurrence"))?;
+        if rows.next().is_some()||!selected.insert(source){return Err(bad("description coalesces complete independent child occurrences"));}
+        e.equal(parent.classes[source],child.classes[index],b)?;
+    }
+    Ok(())
 }

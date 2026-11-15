@@ -33,7 +33,7 @@ impl CheckedOriginal {
         // receipt; all adapted roles retain their own original recipe.
         if !self.same(&checked,result,b)?{return Ok(None);}
         let mut selected=None;
-        for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}
+        for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))||self.callable_nodes.contains_key(&(definition,expression.id))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}
         Ok(selected)
     }
     pub(in crate::semantic) fn original_address_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
@@ -66,17 +66,12 @@ impl CheckedOriginal {
         let root=match &place.binder{Binder::Local{definition:owner,node,..}if *owner==definition=>intrinsics::BufferRoot::Local{node:*node},Binder::Parameter{definition:owner,ordinal}if *owner==definition=>intrinsics::BufferRoot::Parameter{ordinal:*ordinal},Binder::Capture{definition:owner,..}if *owner==definition=>intrinsics::BufferRoot::Capture,_=>return Err(bad("original buffer observation uses another source scope or unsupported pattern root"))};
         Ok((root,place.fields.clone()))
     }
-    pub(in crate::semantic) fn buffer_capture_matches(&self,definition:SemanticDefinitionId,place:NodeId,read:NodeId,b:&mut Budget)->Check<bool>{
-        b.spend(2)?;let place=self.value_places.get(&(definition,place)).ok_or_else(||bad("original buffer source Place is absent"))?;
-        if !matches!(&place.binder,Binder::Capture{definition:owner,..}if *owner==definition){return Ok(false);}
-        place.binder.charge_clone(b)?;Ok(self.value_bindings.get(&(definition,read))==Some(&place.binder))
-    }
-    pub(in crate::semantic) fn capture_read_source(&self,module:&TypedModule,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
-        let index=index::build(module,b)?;let function=index.definitions.get(&child).ok_or_else(||bad("capture read has no original child body"))?;let mut expression=*function.expressions.get(&node).ok_or_else(||bad("capture read has no exact original expression"))?;
-        loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:inner}=>expression=inner,_=>break}}
-        let Some(Binder::Capture{definition,source})=self.value_bindings.get(&(child,expression.id)) else{return Err(bad("actual capture read has no original sealed free binder"));};
-        if *definition!=child{return Err(bad("actual capture read selects another original child"));}
-        match source.as_ref(){Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested captured owner needs its complete original parent capture identity",None))}
+    pub(in crate::semantic) fn buffer_capture_source(&self,child:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<intrinsics::BufferSource>{
+        b.spend(1)?;let place=self.value_places.get(&(child,node)).ok_or_else(||bad("captured buffer has no independently checked original Place"))?;
+        let Binder::Capture{definition,source}=&place.binder else{return Err(bad("captured buffer selects another original root category"));};
+        if *definition!=child||!self.used.get(&child).is_some_and(|used|used.contains(&place.binder)){return Err(bad("captured buffer is not a checked original free-value use"));}
+        source.charge_clone(b)?;
+        match source.as_ref(){Binder::Local{definition,node,..}=>Ok(intrinsics::BufferSource::Local{definition:*definition,node:*node}),Binder::Parameter{definition,ordinal}=>Ok(intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal}),_=>Err(unsupported("nested captured buffer needs its complete original creator source boundary",None))}
     }
     pub(in crate::semantic) fn closure_creation(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>> {
         if !matches!(self.original_type(definition,source,b)?,Ty::Closure(..)){return Ok(None);}

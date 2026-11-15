@@ -1134,7 +1134,7 @@ pub(super) fn check_module(
                 borrowed_fp::signature_work(&definition.parameters, &definition.result, budget)?;
                 if let Some(actual) = &definition.storage_life {
                     crate::signature_life::charge(actual, budget)?;
-                    crate::signature_life::closure_relation(
+                    crate::signature_life::closure_relation_resource_scopes(
                         module,
                         &definition.parameters,
                         &definition.captures,
@@ -1142,6 +1142,7 @@ pub(super) fn check_module(
                         super::stored_callables::life_result(definition),
                         life,
                         Some(f.span),
+                        budget,
                     )?;
                     if life != actual {
                         return Err(unsupported(

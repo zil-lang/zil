@@ -170,7 +170,7 @@ pub(super) fn check_definitions(
         if let Some(life) = &closure.storage_life {
             stored_callables::captured_profile(module, closure, budget)?;
             signature_life::charge(life, budget)?;
-            signature_life::closure_relation(
+            signature_life::closure_relation_resource_scopes(
                 module,
                 &closure.parameters,
                 &closure.captures,
@@ -178,6 +178,7 @@ pub(super) fn check_definitions(
                 stored_callables::life_result(closure),
                 life,
                 None,
+                budget,
             )?;
             let entry = module
                 .functions

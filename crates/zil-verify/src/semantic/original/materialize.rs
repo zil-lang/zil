@@ -32,6 +32,14 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn callable_source(&self,_module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<NodeId>{b.spend(1)?;self.callable_nodes.get(&(definition,node)).copied().ok_or_else(||bad("actual callable has no independently checked original callee expression"))}
 
+    pub(in crate::semantic) fn indirect_signature_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,environment:&EvalEnv,b:&mut Budget)->Check<SemanticSignatureRecipe>{
+        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect call has no complete original function"))?;
+        let Some(index::Node::Expression(call))=function.nodes.get(&site)else{return Err(bad("indirect call source is not an original expression"));};
+        let source=self.callable_source(module,definition,call.id,b)?;
+        let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(source),b)?;
+        let SemanticTypeRecipe::Code{kind,signature}=self.reify_type(module,&ty,environment,b)? else{return Err(bad("indirect call callee lacks its original complete code scheme"));};
+        if kind==SemanticCodeKind::ForeignCallback{return Err(bad("ordinary indirect call cannot select a foreign callback ABI"));}Ok(*signature)
+    }
     pub(in crate::semantic) fn type_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
         let value=self.original_type(definition,source,b)?;
         self.reify_type(module,&value,env,b)
@@ -71,7 +79,12 @@ impl CheckedOriginal {
             Ty::ErrorUnion(error,result)=>SemanticTypeRecipe::ErrorUnion{error:Box::new(self.reify_type_at(module,&error,env,depth+1,b)?),result:Box::new(self.reify_type_at(module,&result,env,depth+1,b)?)},
             Ty::Closure(definition,arguments,environment)=>{let mut checked=Vec::new();let mut sealed=Vec::new();for argument in &arguments{checked.push(self.reify_argument(module,argument,env,b)?);}for argument in &environment{sealed.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Closure{definition,arguments:checked,environment:sealed}},
             Ty::Infer(_)=>return Err(bad("original inferred type remains unsolved at the executable boundary")),
-            Ty::Code{..}|Ty::Function(_)=>return Err(unsupported("original function value requires its complete code-role instantiation",None)),
+            Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{
+                if parameters.len()!=modes.len(){return Err(bad("original code value omits a complete parameter mode"));}
+                let mut values=Vec::new();for(ty,mode)in parameters.iter().zip(modes){values.push(SemanticParameterRecipe{ty:self.reify_type_at(module,ty,env,depth+1,b)?,mode});}
+                SemanticTypeRecipe::Code{kind,signature:Box::new(SemanticSignatureRecipe{bound_lifetimes,invocation_lifetimes,parameters:values,result:self.reify_type_at(module,&result,env,depth+1,b)?,result_mode,call_kind})}
+            },
+            Ty::Function(_)=>return Err(bad("original static function value lacks its explicit complete code coercion")),
         })
     }
     pub(super) fn reify_argument(&self,module:&TypedModule,argument:&Arg,env:&EvalEnv,b:&mut Budget)->Check<SemanticActualRecipe>{match argument{

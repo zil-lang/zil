@@ -17,6 +17,23 @@ impl CheckedContext{
         dynamic_metadata::ty(&result.ty,b)?;
         self.checked_value(module,&Type::ForeignCallback{parameters,result:Box::new(result.ty.clone())},&empty_life(),vec![],b)
     }
+    pub(super) fn ordinary_code(&self,module:&TypedModule,kind:SemanticCodeKind,signature:&CheckedSignature,b:&mut Budget)->Check<CheckedType>{
+        if kind!=SemanticCodeKind::FunctionPointer||signature.call_kind!=CallKind::Direct||signature.result_mode!=PassingMode::Infer||!signature.bound.is_empty()||!signature.invocation.is_empty(){return Err(unsupported("ordinary code requires its exact complete pointer ABI and binder header",None));}
+        let mut parameters=Vec::new();b.spend(signature.parameters.len().saturating_add(1))?;
+        for(value,mode)in &signature.parameters{
+            ghost_code_value(module,value,b)?;
+            if *mode!=PassingMode::Infer{return Err(bad("ordinary code changes an encoded parameter responsibility mode"));}parameters.push(value.ty.clone());
+        }
+        ghost_code_value(module,&signature.result,b)?;
+        self.checked_value(module,&Type::FunctionPointer{parameters,result:Box::new(signature.result.ty.clone())},&empty_life(),vec![],b)
+    }
+
+}
+
+fn ghost_code_value(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<()>{
+    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
+    if value.life!=empty_life()||!value.classes.is_empty()||!value.origins.is_empty()||!value.statics.is_empty(){return Err(unsupported("plain code cannot erase a complete borrowed or intrinsic parameter/result domain",None));}
+    dynamic_witness::check_type_value(module,&DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:vec![]},DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:0},b)
 }
 
 #[cfg(test)]

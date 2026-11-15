@@ -304,41 +304,7 @@ pub(super) fn function_relation_resource_scopes(
                     .map_err(|_| limit("resource occurrence ordinal overflow"))?,
             )
         };
-        let head = match ty {
-            Type::Address { inner, .. } => inner.as_ref(),
-            other => other,
-        };
-        let payload = match head {
-            Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
-            other => other,
-        };
-        match payload {
-            Type::Registration { .. } | Type::AsyncRegistration { .. } => {
-                if b.task_input_scopes.is_none() {
-                    b.task_input_scopes = Some(crate::tasks::input_scope::build(
-                        module,
-                        &b.limits.clone(),
-                        b,
-                    )?);
-                }
-            }
-            Type::Task { retained_life, .. } if retained_life.binder_count == 0 => {
-                crate::tasks::require_closed_context(payload, span)?;
-                if b.task_input_scopes.is_none() {
-                    b.task_input_scopes = Some(crate::tasks::input_scope::build(
-                        module,
-                        &b.limits.clone(),
-                        b,
-                    )?);
-                }
-            }
-            _ => continue,
-        }
-        if crate::tasks::input_scope::domain(payload, b)?
-            != crate::tasks::input_scope::Domain::Known(0)
-        {
-            continue;
-        }
+        if !zero_resource_occurrence(module,ty,span,b)?{continue;}
         crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         roots.push(ZeroResourceRoot {
             base,
@@ -369,6 +335,32 @@ pub(super) fn function_relation_resource_scopes(
         allow_byte_input,
         &roots,
     )
+}
+fn zero_resource_occurrence(module:&TypedModule,ty:&Type,span:Option<Span>,b:&mut Budget)->Check<bool>{
+    let head=if let Type::Address{inner,..}=ty{inner.as_ref()}else{ty};
+    let payload=match head{Type::Managed(inner)|Type::Desc(inner)=>inner.as_ref(),other=>other};
+    match payload{
+        Type::Registration{..}|Type::AsyncRegistration{..}=>{},
+        Type::Task{retained_life,..}if retained_life.binder_count==0=>{
+            crate::tasks::require_closed_context(payload,span)?;
+            if crate::semantic::task_domains::task_metadata_domain(module,payload,b)?!=0{return Ok(false);}
+        },
+        _=>return Ok(false),
+    }
+    if b.task_input_scopes.is_none(){b.task_input_scopes=Some(crate::tasks::input_scope::build(module,&b.limits.clone(),b)?);}
+    Ok(crate::tasks::input_scope::domain(payload,b)?==crate::tasks::input_scope::Domain::Known(0))
+}
+/// A closure's captures have the same complete resource domains as ordinary
+/// inputs. Known0 schedules no class row, and creates no ownership or SyncDrop
+/// permission; actual creator, body/loan, phase and teardown proofs still run.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn closure_relation_resource_scopes(module:&TypedModule,parameters:&[Type],captures:&[Type],kind:CallableKind,result:&Type,c:&StorageLifeContract,span:Option<Span>,b:&mut Budget)->Check<()>{
+    let mut roots=Vec::new();
+    for(ordinal,ty)in parameters.iter().chain(captures).chain(std::iter::once(result)).enumerate(){
+        let base=if ordinal<parameters.len(){StorageBase::Parameter(ordinal as u32)}else if ordinal<parameters.len()+captures.len(){StorageBase::Capture((ordinal-parameters.len())as u32)}else{StorageBase::Result};
+        if zero_resource_occurrence(module,ty,span,b)?{crate::stored_flow::type_work(ty,&b.limits.clone(),b)?;roots.push(ZeroResourceRoot{base,whole_type:ty});}
+    }
+    relation_inner(parameters,result,c,span,true,Some(captures),Some(module),false,Some(kind),&[],&roots)
 }
 fn function_relation_inner(
     module: &TypedModule,
@@ -511,7 +503,7 @@ pub(super) fn role_relation(
     charge(actual, b)?;
     charge(proposed, b)?;
     for relation in [actual, proposed] {
-        closure_relation(
+        closure_relation_resource_scopes(
             module,
             &definition.parameters,
             &definition.captures,
@@ -519,6 +511,7 @@ pub(super) fn role_relation(
             super::stored_callables::life_result(definition),
             relation,
             span,
+            b,
         )?;
     }
     let invalid = || {

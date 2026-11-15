@@ -3,6 +3,10 @@
 use super::*;
 impl CheckedContext {
     pub(crate) fn environment_for_instance(&self,module:&TypedModule,id:SemanticInstanceId,active:&mut ActiveQueries,b:&mut Budget)->Check<EvalEnv> {
+        self.environment_for_instance_with_seal(module,id,None,active,b)
+    }
+    pub(in crate::semantic) fn environment_for_instance_with_seal(&self,module:&TypedModule,id:SemanticInstanceId,provisional:Option<&[CheckedActual]>,active:&mut ActiveQueries,b:&mut Budget)->Check<EvalEnv> {
+        let requested=id;
         let mut chain=Vec::new();let mut current=Some(id);
         while let Some(id)=current {
             b.spend(chain.len().saturating_add(1))?;
@@ -22,7 +26,7 @@ impl CheckedContext {
                 SemanticLifetimeInstantiation::Partition{rigid}=>ScopeKey::Instance(rigid),
             };
             let sealed=if instance.environment.is_some() {
-                self.seals.borrow().get(id).cloned().ok_or_else(||unsupported("semantic closure environment has not been sealed at its real creator site",None))?
+                if *id==requested&&provisional.is_some(){provisional.unwrap().to_vec()}else{self.seals.borrow().get(id).cloned().ok_or_else(||unsupported("semantic closure environment has not been sealed at its real creator site",None))?}
             } else {vec![]};
             let mut actuals=Vec::new();
             for (ordinal,(formal,actual)) in definition.parameters.iter().zip(&instance.actuals).enumerate() {

@@ -70,9 +70,9 @@ impl CheckedContext {
                 self.evaluate_type(module, &recipe, environment, external, active, b)
             }
             SemanticTypeRecipe::Dyn{owned,interface}=>self.evaluate_dyn(module,*owned,interface,environment,external,active,b),
-            SemanticTypeRecipe::Code{kind:SemanticCodeKind::ForeignCallback,signature}=>{
+            SemanticTypeRecipe::Code{kind,signature}=>{
                 let signature=self.evaluate_signature(module,signature,environment,external,active,b)?;
-                self.foreign_callback_code(module,&signature,b)
+                if *kind==SemanticCodeKind::ForeignCallback{self.foreign_callback_code(module,&signature,b)}else{self.ordinary_code(module,*kind,&signature,b)}
             }
             SemanticTypeRecipe::Atom(ty) => {
                 if !(ty.is_b0_scalar()

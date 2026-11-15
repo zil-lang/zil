@@ -10,6 +10,7 @@ mod index;
 mod expressions;
 mod calls;
 mod callbacks;
+mod code_sources;
 mod patterns;
 mod materialize;
 mod usage;
@@ -73,6 +74,7 @@ pub(super) struct CheckedOriginal {
     task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     task_async_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
+    code_sources:BTreeMap<(SemanticDefinitionId,NodeId),SemanticDefinitionId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
     life_substitutions:BTreeMap<u64,Life>,

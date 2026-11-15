@@ -2255,7 +2255,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             return Err(err("captured Fixed entry and definition relation differ"));
         }
         super::stored_callables::captured_profile(module, d, b)?;
-        return super::signature_life::closure_relation(
+        return super::signature_life::closure_relation_resource_scopes(
             module,
             &parameters,
             &d.captures,
@@ -2263,6 +2263,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             super::stored_callables::life_result(d),
             c,
             Some(f.span),
+            b,
         );
     }
     if has_fixed_environment {

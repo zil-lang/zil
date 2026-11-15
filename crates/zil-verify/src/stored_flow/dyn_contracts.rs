@@ -58,7 +58,7 @@ fn callable(module:&TypedModule,request:&CallableRequest,b:&mut Budget)->Check<(
     crate::dynamic_witness::check_type_value(module,&request.receiver,request.contract.scope,b)?;
     let actual=request.contract.actual_header.as_ref().ok_or_else(||bad("callable actual complete header is Unknown"))?;
     if definition.storage_life.as_ref()!=Some(actual)||actual.fixed_binder_count!=request.receiver.life.binder_count||request.receiver.classes.len()!=request.intrinsic_classes.len(){return Err(bad("callable full environment changes its exact fixed intrinsic domain"));}
-    signature_life::closure_relation(module,&definition.parameters,&definition.captures,definition.kind,crate::stored_callables::life_result(definition),actual,None)?;
+    signature_life::closure_relation_resource_scopes(module,&definition.parameters,&definition.captures,definition.kind,crate::stored_callables::life_result(definition),actual,None,b)?;
     // All free classes survive, including ghosts and classes sharing an outside
     // image. Fixed(i) is matched by its actual intrinsic position, never by an
     // inverse image lookup or a same-typed capture.

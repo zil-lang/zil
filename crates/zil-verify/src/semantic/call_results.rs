@@ -14,10 +14,10 @@ impl CheckedContext{
         for row in program.sites.iter().filter(|row|row.instance==instance&&row.recipe==site){
             let SemanticSiteAddress::Typed{block,instruction,..}=row.at else{return Err(bad("Call result retains a Core occurrence"));};
             if block!=at.block||instruction>at.instruction{continue;}
-            if !matches!(row.action,SemanticSiteAction::Call{..}|SemanticSiteAction::BodyCall{..}){return Err(bad("Call result is linked to another actual emission role"));}
+            if !matches!(row.action,SemanticSiteAction::Call{..}|SemanticSiteAction::BodyCall{..}|SemanticSiteAction::CallableCall{..}){return Err(bad("Call result is linked to another actual emission role"));}
             let function=module.functions.get(at.function.0 as usize).ok_or_else(||bad("Call result caller is absent"))?;
             let operation=function.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize)).ok_or_else(||bad("Call result actual operation is absent"))?;
-            if !matches!(operation.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}){return Err(bad("Call result site names another actual opcode"));}
+            if !matches!(operation.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}|InstructionKind::CallIndirect{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}){return Err(bad("Call result site names another actual opcode"));}
             let Some(value)=operation.result else{return Ok(None);};
             // This map is populated only after the exact original Call,
             // complete world signature, actuals and operands were replayed.

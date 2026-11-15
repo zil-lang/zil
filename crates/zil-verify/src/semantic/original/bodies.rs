@@ -99,6 +99,7 @@ impl CheckedOriginal {
                             self.binding_families.insert((env.current()?,root.id),expected.as_ref().unwrap().clone());
                         }
                         let actual=match initializer{Some(value)=>self.expression(module,context,value,env,bindings,if family{None}else{expected.as_ref()},active,b)?,None=>match expected{Some(ref ty)=>ty.clone(),None=>return Err(bad("original uninitialized binding lacks its full type"))}};
+                        let actual=if let Some(initializer)=initializer{self.code_value(module,context,initializer,&actual,expected.as_ref(),true,env,active,b)?}else{actual};
                         if let Some(expected)=expected{if family{self.bind_family_result(&actual,&expected,b)?;}else{self.unify(&actual,&expected,b)?;}}
                         self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};if let Some(initializer)=initializer{if self.creation(env.current()?,initializer,bindings,b)?{b.spend(1)?;self.created_bindings.insert(binding.identity.clone());}}self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
                     },

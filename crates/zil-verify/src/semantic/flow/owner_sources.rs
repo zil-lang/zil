@@ -47,29 +47,33 @@ impl CheckedContext{
             },
         }Ok(())
     }
-    fn buffer_capture_use(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,capture:u32,node:NodeId,block:BlockId,index:u32,instruction:&Instruction,b:&mut Budget)->Check<()>{
+    fn buffer_capture_use(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,capture:u32,node:NodeId,_block:BlockId,_index:u32,instruction:&Instruction,b:&mut Budget)->Check<()>{
         let environment=f.environment.ok_or_else(||bad("buffer capture observation has no actual closure environment"))?;
         let definition=crate::closures::definition(module,environment,Some(instruction.span))?;
         let expected=definition.captures.get(capture as usize).ok_or_else(||bad("buffer capture index is outside the actual environment"))?;
         dynamic_metadata::ty(expected,b)?;
         let occurrences=self.occurrences.borrow();let actual=occurrences.get(&(ScopeKey::Instance(caller.id),OperandKey::Capture(capture))).ok_or_else(||bad("buffer capture has no independently sealed actual creator operand"))?;
         if actual.ty!=*expected{return Err(bad("buffer capture actual type differs from its sealed creator operand"));}
-        dynamic_witness::intrinsic_domain(module,&actual.ty,b)?;dynamic_metadata::life_shape(&actual.life,b)?;
+        ghost_captures::complete_environment(module,actual,b)?;
         b.spend(actual.classes.len().saturating_add(actual.origins.len()).saturating_add(actual.statics.len()))?;
-        let semantic=module.semantic.as_ref().ok_or_else(||bad("buffer capture has no exact original site ledger"))?;
-        let original=self.definition(module,caller.definition,b)?;let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&original.body else{return Err(bad("buffer capture lacks its original body"));};
-        let mut matched=false;
-        for site in &semantic.sites{
-            b.spend(site_nodes.len().saturating_add(1))?;
-            if site.instance!=caller.id||!matches!(site.at,SemanticSiteAddress::Typed{block:actual,instruction:at,..}if actual==block&&at==index){continue;}
-            let SemanticSiteAction::TypeUse{subject,..}=&site.action else{continue;};
-            let selects=match (&instruction.kind,subject){(InstructionKind::BindPackageCapture{local,..},SemanticOperand::Local(actual))=>local==actual,(_,SemanticOperand::Value(actual))=>instruction.result==Some(*actual),_=>false};if !selects{return Err(bad("buffer capture site selects another actual use"));}
-            let source=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("buffer capture use lacks its original node link"))?;
-            let SemanticOriginalNode::Expression(read)=source.node else{return Err(bad("buffer capture use points outside its original value expression"));};
-            if !self.original.borrow().as_ref().ok_or_else(||bad("buffer capture lacks independent original proof"))?.buffer_capture_matches(caller.definition,node,read,b)?{return Err(bad("buffer projection uses another same-typed original capture"));}
+        let source=self.original.borrow().as_ref().ok_or_else(||bad("buffer capture lacks independent original proof"))?.buffer_capture_source(caller.definition,node,b)?;
+        let boundaries=self.closure_boundaries.borrow();let mut matched=false;
+        for boundary in boundaries.iter().filter(|row|row.child==caller.id){
+            b.spend(1)?;
+            let ScopeKey::Instance(creator)=boundary.creator else{return Err(bad("captured buffer creator is not an actual original instance"));};
+            let creator=self.instance(module,creator,b)?;
+            if caller.parent!=Some(creator.id){return Err(bad("captured buffer creation changes its exact original lexical parent"));}
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("captured buffer creator is not executable"));};
+            if function!=boundary.at.function{return Err(bad("captured buffer boundary changes its actual creator function"));}
+            let f=module.functions.get(function.0 as usize).filter(|f|f.id==function).ok_or_else(||bad("captured buffer creator function is absent"))?;
+            let instruction=f.blocks.get(boundary.at.block.0 as usize).and_then(|block|block.instructions.get(boundary.at.instruction as usize)).ok_or_else(||bad("captured buffer creator point is absent"))?;
+            let InstructionKind::MakeClosure{closure,captures}=&instruction.kind else{return Err(bad("captured buffer boundary is not its actual environment constructor"));};
+            if *closure!=environment||boundary.value.ty!=Type::Closure(environment){return Err(bad("captured buffer uses another actual creator environment"));}
+            let operand=*captures.get(capture as usize).ok_or_else(||bad("captured buffer creator omits its physical capture operand"))?;
+            if !self.capture_creator_source(module,creator,f,operand,source,b)?{return Err(bad("buffer projection substitutes another same-typed original free binder"));}
             matched=true;
         }
-        if !matched{return Err(bad("buffer capture projection has no exact original free-binder observation"));}Ok(())
+        if !matched{return Err(bad("buffer capture projection has no exact sealed original creator occurrence"));}Ok(())
     }
 }
 
