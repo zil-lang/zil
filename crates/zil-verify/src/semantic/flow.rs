@@ -197,7 +197,15 @@ impl CheckedContext {
                     }
                 }
                 let produced=match &instruction.kind {
-                    InstructionKind::Constant(constant)=>Some(atomic(&constant.ty(),b)?),
+                    InstructionKind::Constant(constant)=>{
+                        let value=atomic(&constant.ty(),b)?;
+                        for site in sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..})){
+                            let expected=self.site_expected(module,instance,site,&environment,external,active,b)?;
+                            if !self.same_type(&environment,&value,&expected,b)?{return Err(bad("actual constant constructor differs from its original payload role"));}
+                            if let SemanticSiteAction::Construct{value:claim,..}=&site.action{self.claim(module,claim,&expected,&environment,b)?;}
+                        }
+                        Some(value)
+                    },
                     InstructionKind::Load(local)|InstructionKind::TakeLocal{local}=>{
                         let value=state.locals.get(local.0 as usize).and_then(Option::as_ref).cloned().ok_or_else(||bad("semantic local use is not initialized on every incoming edge"))?;
                         self.record(scope,OperandKey::Local{local:*local,at:environment.at.unwrap()},&value,b)?;
@@ -737,7 +745,13 @@ impl CheckedContext {
         let SemanticDefinitionBody::FunctionWithBody{sites,..}=&definition.body else{return Err(bad("semantic site has no original function"));};
         b.spend(sites.len())?;
         let recipe=sites.iter().find(|recipe|recipe.id==site.recipe).ok_or_else(||bad("semantic site has no original recipe"))?;
+        let construction=matches!(recipe.kind,SemanticSiteRecipeKind::Construct{..});
         let recipe=match &recipe.kind {SemanticSiteRecipeKind::Construct{result}|SemanticSiteRecipeKind::DeclareLocal{expected:result}|SemanticSiteRecipeKind::TypeUse{expected:result}=>result,_=>return Err(bad("site role has no direct expected type recipe"))};
+        if construction{if let SemanticTypeRecipe::OriginalType{scope,source}=recipe{
+            let frame=self.frame(environment,*scope,b)?;
+            let recipe=self.original.borrow().as_ref().ok_or_else(||bad("actual construction has no complete original payload proof"))?.construction_recipe(module,frame.definition,source,environment,b)?;
+            return self.evaluate_type(module,&recipe,environment,external,active,b);
+        }}
         self.evaluate_type(module,recipe,environment,external,active,b)
     }
     fn expression_origin(&self,expression:&SemanticClassExpr,environment:&EvalEnv,b:&mut Budget)->Check<Option<IntrinsicOrigin>> {
