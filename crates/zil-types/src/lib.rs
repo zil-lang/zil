@@ -4135,6 +4135,17 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.closures.pending[id.0 as usize].typed = Some(typed);
         Ok(())
     }
+    fn semantic_local_callee(&mut self, expression: &CoreExpr, local: LocalId) -> R<()> {
+        let mut source = expression;
+        loop {
+            self.semantic_local_place(source, local)?;
+            let CoreExprKind::Group(inner) = &source.kind else {
+                break;
+            };
+            source = inner;
+        }
+        Ok(())
+    }
     fn call_closure(
         &mut self,
         callee: &CoreExpr,
@@ -4144,7 +4155,21 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<(ValueId, Type)> {
         // Evaluate the callee once, before any argument, even for a conditional
         // or hygienic Sequence expression that produces a closure value.
-        let mut existing_place = match &callee.kind {
+        let mut local_expression = callee;
+        let mut groups = 0usize;
+        while let CoreExprKind::Group(inner) = &local_expression.kind {
+            if groups >= self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "local callee group depth exceeded",
+                    Some(callee.span),
+                ));
+            }
+            self.closures.snapshot(1, local_expression.span)?;
+            groups += 1;
+            local_expression = inner;
+        }
+        let mut existing_place = match &local_expression.kind {
             CoreExprKind::Name(name) => self.lookup(name),
             _ => None,
         };
@@ -4152,7 +4177,33 @@ impl<'a, 'c> Builder<'a, 'c> {
         let field_callee = self.package_callable_callee(callee)?;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
-        let declared_capture = self.factory_declared_kind(callee)?;
+        let declared_capture = self.factory_declared_kind(local_expression)?;
+        let local_requires_place = if let Some(local) = existing_place
+            && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
+        {
+            let declared = self.declared_state_kind(local_expression, None, id)?;
+            self.closures.snapshot(
+                self.helper_bounds
+                    .len()
+                    .saturating_add(self.closures.pending[id.0 as usize].captures.len())
+                    .saturating_add(1),
+                callee.span,
+            )?;
+            let kind = declared.unwrap_or_else(|| {
+                self.helper_bounds
+                    .iter()
+                    .find(|bound| {
+                        self.function.parameters.get(bound.index as usize).copied() == Some(local)
+                    })
+                    .map_or_else(
+                        || self.closures.pending[id.0 as usize].callable_kind(),
+                        |bound| bound.kind,
+                    )
+            });
+            kind != CallableKind::Fn
+        } else {
+            false
+        };
         let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
             .filter(|(_, ty)| matches!(ty, Type::Closure(id) if declared_capture.unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind()) == CallableKind::FnOnce));
         let (mut callee_value, ty) = if let Some((value, id, kind)) = field_callee {
@@ -4163,7 +4214,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 (None, Type::Closure(id))
             }
         } else if let Some((index, ty)) = captured_once {
-            self.semantic_local_place(callee, existing_place.expect("selected named capture"))?;
+            self.semantic_local_callee(callee, existing_place.expect("selected named capture"))?;
             existing_place = None;
             (
                 Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
@@ -4172,10 +4223,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else if let Some(local) = existing_place
             && let Some(id) = self.closure_slots.get(&local).copied()
         {
-            self.semantic_local_place(callee, local)?;
+            self.semantic_local_callee(callee, local)?;
             existing_place = None;
             let kind = self
-                .declared_state_kind(callee, None, id)?
+                .declared_state_kind(local_expression, None, id)?
                 .unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind());
             if kind == CallableKind::FnOnce {
                 let (value, ty) = self.take_closure_slot(local, span)?;
@@ -4188,7 +4239,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 (None, Type::Closure(id))
             }
         } else if let Some(local) = existing_place
-            && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
+            && (local_requires_place
+                || self.owned_closure(&self.function.locals[local.0 as usize].ty)
                 || self.lending_closure(match self.function.locals[local.0 as usize].ty {
                     Type::Closure(id) => Some(id),
                     _ => None,
@@ -4196,7 +4248,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 || (self.forwarding_modes && declared_capture.is_some())
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
-            self.semantic_local_place(callee, local)?;
+            self.semantic_local_callee(callee, local)?;
             (None, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (value, ty) = self.expr(callee, None)?;
@@ -4227,7 +4279,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "called value is not a function pointer or concrete closure",
             ));
         };
-        let mut declared_kind = self.declared_state_kind(callee, None, id)?;
+        let mut declared_kind = self.declared_state_kind(local_expression, None, id)?;
         if declared_kind.is_none()
             && let Some(value) = callee_value
         {
