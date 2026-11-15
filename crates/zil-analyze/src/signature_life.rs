@@ -590,23 +590,25 @@ fn relation_inner(
             Ok(())
         }
         fn ty(&mut self, ty: &Type, base: StorageBase) -> CompileResult<()> {
-            if matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { payload } if **payload == Type::I32))
+            if matches!(ty, Type::Desc(inner)
+                if class_free_owned_tree(inner)
+                    || matches!(inner.as_ref(), Type::Mutex { payload } if **payload == Type::I32))
             {
-                // The exact sealed scalar Mutex has one weak outer occurrence
-                // and no child class domain. Consuming this header row does
-                // not hold its owner or extend the descriptor's actual epoch.
+                // A complete closed weak head has one outer occurrence and
+                // no child class domain. Consuming its exact header row does
+                // not hold the owner or extend the descriptor's actual epoch.
                 let row = self
                     .c
                     .bindings
                     .get(self.borrow)
-                    .ok_or_else(|| bad("weak Mutex signature omits its outer occurrence"))?;
+                    .ok_or_else(|| bad("weak resource signature omits its outer occurrence"))?;
                 if row.position.base != base
                     || !row.position.path.is_empty()
                     || matches!(base, StorageBase::Capture(_))
                         && !matches!(row.binder, StorageBinder::Fixed(_))
                 {
                     return Err(bad(
-                        "weak Mutex signature changes its exact outer position or persistence",
+                        "weak resource signature changes its exact outer position or persistence",
                     ));
                 }
                 let binder = row.binder;
@@ -959,12 +961,6 @@ fn relation_inner(
             } else if !(target.is_copy_value()
                 || class_free_owned_tree(target)
                 || pure_array_value(target)
-                // A closed weak parameter head is an input view, not an
-                // owning value or a persistent Address class. Its exact
-                // source, epoch, nominal identity and actual operations are
-                // still checked by the original and resource consumers.
-                || self.inputs.is_none() && matches!(base, StorageBase::Parameter(_))
-                    && matches!(ty, Type::Desc(payload) if class_free_owned_tree(payload))
                 // A proved query's exact weak input has no semantic class.
                 // It creates/grounds no row and is not an owning consumer.
                 || self.allow_byte_input && self.inputs.is_none()
