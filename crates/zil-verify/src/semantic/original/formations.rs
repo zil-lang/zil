@@ -2,6 +2,20 @@
 //! are not capabilities of an unconstrained formal or a concrete Typed image.
 use super::*;
 impl CheckedOriginal {
+    pub(super) fn raw_binding_family(&self,module:&TypedModule,context:&CheckedContext,ty:&Ty,b:&mut Budget)->Check<bool>{
+        Ok(match self.resolved(ty,b)? {
+            Ty::Store(_)|Ty::Atom(Type::ByteBuffer)=>true,
+            Ty::Carrier{kind:CarrierKind::Task|CarrierKind::Mutex|CarrierKind::Registration|CarrierKind::AsyncRegistration,..}=>true,
+            Ty::Nominal(id,_)=>matches!(context.definition(module,id,b)?.body,SemanticDefinitionBody::Nominal{kind:LifeNominalKind::Resource,..}),
+            _=>false,
+        })
+    }
+    pub(super) fn bind_family_result(&mut self,actual:&Ty,family:&Ty,b:&mut Budget)->Check<()> {
+        match self.resolved(actual,b)? {
+            Ty::Managed(inner)|Ty::Desc{inner,..}=>self.unify(&inner,family,b),
+            _=>Err(bad("raw resource binding initializer has no complete owning or description category")),
+        }
+    }
     pub(super) fn check_original_applications(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let mut pending=Vec::new();
         b.spend(self.expressions.len().saturating_add(self.bindings.len()).saturating_add(self.prototypes.len()))?;

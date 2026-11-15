@@ -257,7 +257,7 @@ impl CheckedContext {
                         state.locals[local.0 as usize]=Some(value.clone());None
                     }
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{state.locals[local.0 as usize]=None;None},
-                    InstructionKind::MakeAggregate{fields}|InstructionKind::MakePackage{fields}|InstructionKind::MakeManaged{fields}|InstructionKind::MakeOwnedArray{elements:fields}=>{
+                    InstructionKind::MakeAggregate{fields}|InstructionKind::MakePackage{fields}|InstructionKind::MakeManaged{fields}|InstructionKind::MakeOwnedTuple{fields}|InstructionKind::MakeOwnedArray{elements:fields}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..}));
                         let site=declarations.next();
                         if declarations.next().is_some() {return Err(bad("actual aggregate construction has duplicate semantic claims"));}

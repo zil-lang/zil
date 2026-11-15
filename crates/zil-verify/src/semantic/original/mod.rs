@@ -57,6 +57,7 @@ pub(super) struct CheckedOriginal {
     // The selected arm is solved in original Γ before any actual emission.
     injections:BTreeMap<(SemanticDefinitionId,NodeId),(bool,Ty)>,
     bindings:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+    binding_families:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
     parameters:BTreeMap<(SemanticDefinitionId,u32),Ty>,
     results:BTreeMap<SemanticDefinitionId,Ty>,
     calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),Vec<Arg>>,

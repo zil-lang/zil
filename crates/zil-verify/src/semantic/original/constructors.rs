@@ -37,8 +37,10 @@ impl CheckedOriginal{
         for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}}}
         let caller=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{return Err(bad("original enum constructor has no complete caller body"));};
         b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;
-        let mut rows=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall));
-        let site=rows.next().ok_or_else(||bad("original enum constructor lacks its actual source Call occurrence"))?;if rows.next().is_some(){return Err(bad("original enum constructor has several source Call occurrences"));}
+        let eligible=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).collect::<Vec<_>>();
+        let calls=eligible.iter().copied().filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall)).collect::<Vec<_>>();
+        let rows=if calls.is_empty(){eligible.into_iter().filter(|site|matches!(site.kind,SemanticSiteRecipeKind::Construct{..})).collect::<Vec<_>>()}else{calls};
+        if rows.len()!=1{return Err(bad("original enum constructor lacks one exact Call or zero-field formation occurrence"));}let site=rows[0];
         self.constructors.insert((env.current()?,site.id),VariantConstruction{definition:id,variant,actuals:actuals.clone()});
         self.execute_effect(env,CallKind::Direct,b)?;Ok(Some(Ty::Nominal(id,actuals)))
     }

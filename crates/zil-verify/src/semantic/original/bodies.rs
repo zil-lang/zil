@@ -91,8 +91,15 @@ impl CheckedOriginal {
                 let completed=match &statement.kind {
                     CoreStatementKind::Binding{name,mutable,ty,initializer}=>{
                         let expected=match ty{Some(recipe)=>Some(self.ty(module,context,recipe,env,active,b)?),None=>None};
-                        let actual=match initializer{Some(value)=>self.expression(module,context,value,env,bindings,expected.as_ref(),active,b)?,None=>match expected{Some(ref ty)=>ty.clone(),None=>return Err(bad("original uninitialized binding lacks its full type"))}};
-                        if let Some(expected)=expected{self.unify(&actual,&expected,b)?;}
+                        let family=expected.as_ref().map(|ty|self.raw_binding_family(module,context,ty,b)).transpose()?.unwrap_or(false);
+                        if family {
+                            let initializer=initializer.as_ref().ok_or_else(||bad("raw resource binding requires its actual category-determining initializer"))?;
+                            let mut root=initializer;
+                            while let CoreExprKind::Group(inner)=&root.kind {b.spend(1)?;root=inner;}
+                            self.binding_families.insert((env.current()?,root.id),expected.as_ref().unwrap().clone());
+                        }
+                        let actual=match initializer{Some(value)=>self.expression(module,context,value,env,bindings,if family{None}else{expected.as_ref()},active,b)?,None=>match expected{Some(ref ty)=>ty.clone(),None=>return Err(bad("original uninitialized binding lacks its full type"))}};
+                        if let Some(expected)=expected{if family{self.bind_family_result(&actual,&expected,b)?;}else{self.unify(&actual,&expected,b)?;}}
                         self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};if let Some(initializer)=initializer{if self.creation(env.current()?,initializer,bindings,b)?{b.spend(1)?;self.created_bindings.insert(binding.identity.clone());}}self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
                     },
                     CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{let expected=ty.as_ref().map(|recipe|self.ty(module,context,recipe,env,active,b)).transpose()?;let actual=self.expression(module,context,initializer,env,bindings,expected.as_ref(),active,b)?;self.pattern_root(module,context,statement.id,&[],pattern,&actual,*mutable,env,bindings,active,b)?;self.bindings.insert((env.current()?,statement.id),actual);false},

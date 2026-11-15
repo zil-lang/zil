@@ -7,13 +7,14 @@ impl CheckedContext{
         crate::check_instruction(module,f,instruction,b)?;
         match &instruction.kind{
             InstructionKind::MakeVariant{variant,fields}=>{
-                let mut calls=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}));
-                let site=calls.next().ok_or_else(||bad("actual enum constructor has no original exact Call"))?;if calls.next().is_some(){return Err(bad("actual enum constructor has several original Call claims"));}
-                let SemanticSiteAction::BodyCall{actuals}=&site.action else{unreachable!()};
+                let calls=sites.iter().copied().filter(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})).collect::<Vec<_>>();
+                let sites=if calls.is_empty(){sites.iter().copied().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..})).collect::<Vec<_>>()}else{calls};
+                if sites.len()!=1{return Err(bad("actual enum constructor lacks one exact Call or formation claim"));}let site=sites[0];
+                let actuals=match &site.action{SemanticSiteAction::BodyCall{actuals}=>Some(actuals.as_slice()),SemanticSiteAction::Construct{..}=>None,_=>unreachable!()};
                 let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("actual enum constructor lacks universal original proof"))?;
                 let (expected_variant,recipes)=original.variant_call(module,instance.definition,site.recipe,environment,b)?;
-                if *variant!=expected_variant||actuals.len()!=recipes.len(){return Err(bad("actual enum constructor changes its original variant or mixed arity"));}
-                for(actual,recipe)in actuals.iter().zip(&recipes){let expected=self.evaluate_actual(module,recipe,environment,external,active,b)?;self.actual_claim(module,actual,&expected,environment,b)?;}
+                if *variant!=expected_variant||actuals.is_some_and(|actuals|actuals.len()!=recipes.len()){return Err(bad("actual enum constructor changes its original variant or mixed arity"));}
+                for(actual,recipe)in actuals.into_iter().flatten().zip(&recipes){let expected=self.evaluate_actual(module,recipe,environment,external,active,b)?;self.actual_claim(module,actual,&expected,environment,b)?;}
                 let definition=self.definition(module,instance.definition,b)?;let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("enum constructor caller has no original body"));};b.spend(site_nodes.len())?;
                 let source=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("enum constructor has no original node link"))?;let SemanticOriginalNode::Expression(node)=source.node else{return Err(bad("enum constructor source is not a Call expression"));};
                 let recipe=original.type_recipe(module,instance.definition,&SemanticOriginalTypeSource::Expression(node),environment,b)?;
@@ -22,6 +23,7 @@ impl CheckedContext{
                 let(_,expected)=variants.get(*variant as usize).ok_or_else(||bad("original enum variant is outside its complete declaration"))?;
                 if fields.len()!=expected.len(){return Err(bad("actual enum constructor omits original fields"));}
                 for(field,expected)in fields.iter().zip(expected){let actual=value_at(values,*field)?;if actual.ty!=*expected{return Err(bad("actual enum field differs from its original full nominal type"));}if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("enum field needs complete actual child-class/source substitution",Some(instruction.span)));}self.closed_value(module,expected,b)?;}
+                if let SemanticSiteAction::Construct{value:claim,..}=&site.action{self.claim(module,claim,&value,environment,b)?;}
                 Ok(Some(value))
             },
             InstructionKind::VariantTag{value}=>{let parent=value_at(values,*value)?;self.closed_value(module,&parent.ty,b)?;if !parent.classes.is_empty()||!parent.statics.is_empty(){return Err(unsupported("enum tag retains an unresolved complete class domain",Some(instruction.span)));}Ok(Some(atomic(&Type::I32,b)?))},
