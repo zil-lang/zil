@@ -27,9 +27,10 @@ pub(super) fn ordinary_owned_union(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.masked_stored_tasks() {
+    if !b.sums && !b.masked_stored_tasks() {
         return Ok(false);
     }
+    if ordinary_owned_enum(f,i,b)?{return Ok(true);}
     let union = match &i.kind {
         InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
             if vt(f, i.result.ok_or_else(|| err("union tag lacks result"))?)? != &Type::I32 {
@@ -992,4 +993,36 @@ mod copy_field_borrow_tests {
         );
         assert!(ordinary_copy_field_borrow(&f, &i, &mut budget).is_err());
     }
+}
+
+// Ordinary owning enums enter the same no-stored-target lane as owning error
+// unions. This verifies complete physical payloads, not Copy eligibility or
+// the active tag, move state, local initialization or cleanup responsibility.
+fn ordinary_owned_enum(f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+    let ty=match &i.kind{
+        InstructionKind::MakeVariant{..}=>vt(f,i.result.ok_or_else(||err("ordinary owning enum constructor has no result"))?)?,
+        InstructionKind::VariantTag{value}|InstructionKind::ReadVariant{value,..}=>vt(f,*value)?,
+        InstructionKind::PlaceTagLocal{local,path}if path.is_empty()=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning enum tag has no local"))?.ty,
+        _=>return Ok(false),
+    };
+    let Type::Enum{variants,..}=ty else{return Ok(false);};
+    type_work(ty,&b.limits.clone(),b)?;
+    if ty.is_copy_value()||!ordinary_owned_fields(vec![(ty,0)],b)?{return Ok(false);}
+    let output=vt(f,i.result.ok_or_else(||err("ordinary owning enum operation has no result"))?)?;
+    match &i.kind{
+        InstructionKind::MakeVariant{variant,fields}=>{
+            let payload=&variants.get(*variant as usize).ok_or_else(||err("ordinary owning enum selects an absent variant"))?.1;
+            b.spend(payload.len().saturating_add(fields.len()))?;
+            if payload.len()!=fields.len(){return Err(err("ordinary owning enum constructor omits a payload field"));}
+            for(field,expected)in fields.iter().zip(payload){let actual=vt(f,*field)?;type_work(actual,&b.limits.clone(),b)?;if actual!=expected{return Err(err("ordinary owning enum payload changes a complete field type"));}}
+            if output!=ty{return Err(err("ordinary owning enum constructor changes its nominal result"));}
+        },
+        InstructionKind::VariantTag{..}|InstructionKind::PlaceTagLocal{..}=>if output!=&Type::I32{return Err(err("ordinary owning enum discriminator has another result type"));},
+        InstructionKind::ReadVariant{variant,index,..}=>{
+            let expected=variants.get(*variant as usize).and_then(|(_,fields)|fields.get(*index as usize)).ok_or_else(||err("ordinary owning enum read selects an absent complete field"))?;
+            if !expected.is_copy_value()||output!=expected{return Err(err("ordinary owning enum observation cannot move or change a non-Copy payload"));}
+        },
+        _=>unreachable!(),
+    }
+    Ok(true)
 }

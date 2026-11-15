@@ -155,7 +155,7 @@ fn zero(
 }
 
 fn head_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    let inner = if let Type::Address { inner, .. } = ty {
+    let inner = if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
         inner.as_ref()
     } else {
         ty
@@ -163,7 +163,7 @@ fn head_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
     zero(module, inner, &mut Vec::new(), 0, b)
 }
 
-/// The relation remains present and exact: every outer Address input appears
+/// The relation remains present and exact: every outer Address/Desc input appears
 /// once in source order, with canonical invocation binders and no output row.
 pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<bool> {
     let Some(c) = &f.storage_life else {
@@ -192,7 +192,7 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
         if !head_type(module, ty, b)? {
             return Ok(false);
         }
-        if matches!(ty, Type::Address { .. }) {
+        if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             let Some(binding) = c.bindings.get(row) else {
                 return Ok(false);
             };

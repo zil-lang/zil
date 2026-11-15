@@ -149,7 +149,7 @@ impl CheckedOriginal {
                 let(ty,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&ty,env,false,active,b)?;self.written.entry(env.current()?).or_default().insert(place.binder);}
                 if matches!(self.resolved(&ty,b)?,Ty::Address{mutable:true,..}){Ok(())}else{Err(bad("original write/borrow-mut dereferences a nonexclusive Address"))}
             },
-            CoreExprKind::Member{object,..}|CoreExprKind::Index{object,..}=>{
+            CoreExprKind::Member{object,..}|CoreExprKind::Index{object,..}|CoreExprKind::Slice{object,..}=>{
                 let(ty,place)=self.place(module,context,object,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&ty,env,false,active,b)?;self.written.entry(env.current()?).or_default().insert(place.binder);}
                 match self.resolved(&ty,b)?{
                     Ty::Address{mutable:true,..}=>Ok(()),

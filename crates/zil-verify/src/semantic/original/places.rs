@@ -29,6 +29,16 @@ impl CheckedOriginal {
                     if let Some(owner)=owner{let expected=self.ty(module,context,owner,env,active,b)?;self.unify(&storage,&expected,b)?;}
                     let ty=self.field(module,context,&storage,member,env,active,b)?;if let Some(place)=&mut place{place.fields.push(member.clone());}(ty,place)
                 },
+                CoreExprKind::Slice{object,start,end}=>{
+                    let(parent,place)=self.place(module,context,object,env,bindings,active,b)?;
+                    if let Some(place)=&place{self.read_original(module,context,place,&parent,env,false,active,b)?;}
+                    let storage=match self.resolved(&parent,b)?{Ty::Address{inner,..}=>self.resolved(&inner,b)?,ty=>ty};
+                    let element=match storage{Ty::Array(element,_)|Ty::Slice(element)=>element,_=>return Err(bad("original slice projection has no complete Array/Slice parent"))};
+                    for bound in [start.as_deref(),end.as_deref()].into_iter().flatten(){let ty=self.expression(module,context,bound,env,bindings,None,active,b)?;if !matches!(self.resolved(&ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original slice endpoint lacks an actual integer carrier"));}}
+                    // The projection observes the original whole parent root;
+                    // range checks and the actual slice loan remain separate.
+                    (Ty::Slice(element),place)
+                },
                 CoreExprKind::Index{object,index}=>{
                     let (object,mut place)=self.place(module,context,object,env,bindings,active,b)?;let mut storage=self.resolved(&object,b)?;
                     if let Ty::Address{inner,..}=storage{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}storage=*inner;place=None;}
