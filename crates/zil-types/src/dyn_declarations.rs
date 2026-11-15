@@ -106,7 +106,7 @@ pub(super) fn original_declaration(
         (
             SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl { .. }),
             DynDeclarationKind::Impl,
-        ) => binding.is_none(),
+        ) => true,
         _ => false,
     };
     spend(
