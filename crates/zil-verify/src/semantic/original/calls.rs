@@ -109,6 +109,27 @@ impl CheckedOriginal {
                 self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
             },
             Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>self.invoke(module,context,&Prototype{parameters,result:*result,environment:env.clone(),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,callable_kind:None},arguments,env,bindings,active,b),
+            Ty::Address{mutable,inner,..}=>{
+                if written_types.is_some()||written_mixed.is_some(){return Err(bad("original borrowed callable has a written generic application"));}
+                let target=self.resolved(&inner,b)?;
+                let prototype=match &target{
+                    Ty::Closure(definition,actuals,sealed)=>{
+                        let original=context.definition(module,*definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original borrowed Closure omits its body/signature"));};
+                        let mut selected=self.environment(module,context,*definition,active,b)?;selected.lexical[0].actuals=actuals.clone();selected.lexical[0].environment=sealed.clone();
+                        let rigid=if let Some(prototype)=self.prototypes.get(definition){prototype.clone()}else{let rigid=self.environment(module,context,*definition,active,b)?;self.signature(module,context,signature,&rigid,active,b)?};
+                        self.instantiate_prototype(&rigid,Some(*definition),&selected,b)?
+                    },
+                    _=>{let prototype=self.callable_premise(module,context,&target,env,active,b)?.ok_or_else(||bad("original borrowed indirect Call has no complete Callable premise"))?;self.instantiate_prototype(&prototype,None,&prototype.environment,b)?},
+                };
+                match prototype.callable_kind{
+                    Some(CallableKind::Fn|CallableKind::FunctionPointer)=>{},
+                    Some(CallableKind::FnMut)if mutable=>{if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}},
+                    Some(CallableKind::FnMut)=>return Err(bad("original shared callable borrow cannot provide exclusive FnMut invocation")),
+                    Some(CallableKind::FnOnce)=>return Err(bad("original borrowed callable cannot transfer its FnOnce owner")),
+                    None=>return Err(bad("original borrowed callable has no independently proved invocation capability")),
+                }
+                self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
+            },
             variable=>{
                 let prototype=self.callable_premise(module,context,&variable,env,active,b)?.ok_or_else(||bad("original indirect Call has no complete Callable premise"))?;
                 // The premise owns this code signature's quantifiers. Each

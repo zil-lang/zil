@@ -1026,3 +1026,9 @@ fn ordinary_owned_enum(f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<boo
     }
     Ok(true)
 }
+
+pub(super) fn ordinary_owned_value(ty:&Type,b:&mut Budget)->Check<bool>{
+    if !matches!(ty,Type::Package{..}|Type::Enum{..}|Type::ErrorUnion{..}|Type::Tuple(_)|Type::Array{..}){return Ok(false);}
+    type_work(ty,&b.limits.clone(),b)?;
+    ordinary_owned_fields(vec![(ty,0)],b)
+}

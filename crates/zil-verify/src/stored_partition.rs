@@ -25,8 +25,8 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
                 found = true;
                 pending.push(storage);
             }
-            Type::OwnedStore { element }
-            | Type::Registration {
+            Type::OwnedStore{element}=>{found|=super::stored_owned::ordinary_store_value(ty,budget)?;pending.push(element);},
+            Type::Registration {
                 environment: element,
             }
             | Type::AsyncRegistration {
