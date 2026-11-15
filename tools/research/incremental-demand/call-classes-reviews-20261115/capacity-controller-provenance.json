@@ -1,0 +1,20 @@
+{
+  "scope": "Exact byte reconstruction of the external controller that actually produced failed capacity check01. No execution, timing or acceptance relabel. The later native controller749d is already preserved in the verified core archive. Plan01 controller was prepare-only, never a compiler run.",
+  "failed_check_controller": {
+    "path": "capacity-check-controller.py",
+    "sha256": "1338800f3c0ddb14cb20e16347d80b994d6deb0130772c6d561f85f78b81ba11",
+    "bound_freeze": "out/runs/expanded-large-capacity-plan-02/freeze.json",
+    "run": "out/runs/expanded-large-capacity-check-01"
+  },
+  "native_controller": {
+    "sha256": "749d62c48195dc5a625bfb0ec0a6c6549c3edc3798837b7fe3851c6ce192a4e7",
+    "path_in_core_archive": "out/runs/call-classes-final-context-01/expanded-large-capacity-01.py",
+    "bound_freeze": "out/runs/expanded-large-capacity-plan-03/freeze.json"
+  },
+  "preparation_only_controller": {
+    "path": "capacity-preparation-controller.py",
+    "sha256": "43a717b062bb63a3c669ca146e2588d75791c46af3f441ae2f830b3e7ef69c3b",
+    "bound_freeze": "out/runs/expanded-large-capacity-plan-01/freeze.json",
+    "compiler_or_native_execution": false
+  }
+}

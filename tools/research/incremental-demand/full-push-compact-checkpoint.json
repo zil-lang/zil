@@ -380,7 +380,8 @@
       "fresh_verified": true,
       "fresh_scratch_retired": true,
       "original_raw_retained": true
-    }
+    },
+    "external_controller_source_appendix": "call-classes-reviews-20261115/capacity-controller-provenance.json"
   },
   "previous_accepted": {
     "source": "789f879f249c7f45a5c84ce062be30f9c0985740",

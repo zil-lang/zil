@@ -39,5 +39,6 @@
   "weighted_summary": "out/runs/call-classes-weighted-final-01.json",
   "capacity_summary": "out/runs/call-classes-capacity-final-01.json",
   "first_combined_pack_failure": "out/runs/call-classes-final-context-01/archive-pack-first-failure.log:64MiB inventory cap; unchanged packer split finite formal evidence from core/capacity, no safety limit raised.",
-  "formal_remote_verified_commit": "05f270ebe13169ad7a089ad98d6d327bab834bcd"
+  "formal_remote_verified_commit": "05f270ebe13169ad7a089ad98d6d327bab834bcd",
+  "external_controller_source_appendix": "../../call-classes-reviews-20261115/capacity-controller-provenance.json"
 }
