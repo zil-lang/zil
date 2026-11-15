@@ -15,6 +15,12 @@ fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
     bad(format!("semantic program: {message}"))
 }
 
+#[derive(Clone, Copy)]
+enum DynDefinitionLocation {
+    Actual(usize),
+    Source { module: usize, declaration: usize },
+}
+
 struct Inventory<'a> {
     module: &'a TypedModule,
     limits: &'a zil_base::Limits,
@@ -25,7 +31,7 @@ struct Inventory<'a> {
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
     // Successful immutable source-directory queries only. A frozen source
     // view is part of each key; none of these rows carries N/kappa or access.
-    dyn_definitions: std::cell::RefCell<BTreeMap<(usize, LifeDeclarationId), &'a DynDeclaration>>,
+    dyn_definitions: std::cell::RefCell<BTreeMap<(usize, LifeDeclarationId), DynDefinitionLocation>>,
     declaration_scopes:
         std::cell::RefCell<BTreeMap<(usize, usize, LifeDeclarationId), SemanticDefinitionId>>,
     drop_methods: std::cell::RefCell<BTreeMap<SemanticDefinitionId, Option<SemanticDefinitionId>>>,

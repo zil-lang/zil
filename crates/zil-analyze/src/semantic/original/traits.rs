@@ -92,12 +92,32 @@ impl<'a> Inventory<'a> {
     ) -> CompileResult<&'a DynDeclaration> {
         let key = (self.source_key(), id);
         b.lookup(self.dyn_definitions.borrow().len(), WORK)?;
-        if let Some(row) = self.dyn_definitions.borrow().get(&key) {
-            return Ok(*row);
+        if let Some(location) = self.dyn_definitions.borrow().get(&key).copied() {
+            // The cache retains a coordinate, never a borrowed reference in an
+            // invariant cell. Reborrow from the exact immutable source view.
+            let row = match location {
+                DynDefinitionLocation::Actual(position) => {
+                    self.module.dyn_declarations.get(position)
+                }
+                DynDefinitionLocation::Source {
+                    module,
+                    declaration,
+                } => self
+                    .source
+                    .and_then(|source| source.modules.get(module))
+                    .and_then(|module| module.core.dyn_declarations.get(declaration)),
+            };
+            return row.filter(|row| row.id == id).ok_or_else(|| {
+                fail("cached original trait coordinate differs from its exact source view")
+            });
         }
         let mut found = None;
-        let mut scan = |rows: &'a [DynDeclaration], b: &mut Budget| -> CompileResult<()> {
-            for row in rows {
+        let mut location = None;
+        let mut scan = |rows: &'a [DynDeclaration],
+                        source_module: Option<usize>,
+                        b: &mut Budget|
+         -> CompileResult<()> {
+            for (position, row) in rows.iter().enumerate() {
                 b.spend(1, WORK)?;
                 if row.id != id {
                     continue;
@@ -112,21 +132,31 @@ impl<'a> Inventory<'a> {
                     }
                 } else {
                     found = Some(row);
+                    location = Some(match source_module {
+                        None => DynDefinitionLocation::Actual(position),
+                        Some(module) => DynDefinitionLocation::Source {
+                            module,
+                            declaration: position,
+                        },
+                    });
                 }
             }
             Ok(())
         };
-        scan(&self.module.dyn_declarations, b)?;
+        scan(&self.module.dyn_declarations, None, b)?;
         if let Some(source) = self.source {
-            for module in &source.modules {
-                scan(&module.core.dyn_declarations, b)?;
+            for (position, module) in source.modules.iter().enumerate() {
+                scan(&module.core.dyn_declarations, Some(position), b)?;
             }
         }
         let found = found.ok_or_else(|| {
             fail("original trait declaration is absent from the complete source inventory")
         })?;
         b.lookup(self.dyn_definitions.borrow().len(), WORK)?;
-        self.dyn_definitions.borrow_mut().insert(key, found);
+        self.dyn_definitions.borrow_mut().insert(
+            key,
+            location.ok_or_else(|| fail("original trait has no source directory coordinate"))?,
+        );
         Ok(found)
     }
 }
