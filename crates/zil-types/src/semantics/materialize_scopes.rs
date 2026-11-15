@@ -14,7 +14,20 @@ impl<'a> Eval<'a, '_, '_> {
         if let Some(context) = self.ledger.original.context() {
             match context.instance(id, self.left) {
                 Ok(row) => {
-                    let actual = self.instance(id)?;
+                    // Source provenance belongs to the immutable publication
+                    // input, not a preparation view's retargeted actual row.
+                    let actual = if let Some(actual) =
+                        self.module.indexed_instance(self.input, id, self.left)?
+                    {
+                        actual
+                    } else {
+                        self.fee(self.input.instances.len())?;
+                        self.input
+                            .instances
+                            .iter()
+                            .find(|actual| actual.id == id)
+                            .ok_or_else(|| bad("parent source request has no actual instance"))?
+                    };
                     if row.definition != actual.definition || row.parent != actual.parent {
                         return Err(bad(
                             "parent source request changes its original instance identity",
