@@ -124,7 +124,7 @@ impl CtVerificationMeter {
     fn constrain(&mut self, declared: u64) {
         self.remaining = self.remaining.min(declared);
     }
-    fn charge(&mut self, work: usize, span: Option<Span>) -> Check<()> {
+    pub(crate) fn charge(&mut self, work: usize, span: Option<Span>) -> Check<()> {
         let work = u64::try_from(work).map_err(|_| limit(span, "CT analysis work overflow"))?;
         if work > self.remaining {
             return Err(limit(span, "CT verification analysis budget exceeded"));

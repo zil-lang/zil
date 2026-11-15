@@ -8,6 +8,7 @@ pub(crate) struct Budget<'a> {
     limits: &'a Limits,
     nodes: usize,
     work: usize,
+    cost_profile: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
     temporary_bytes: Option<usize>,
     lineage_bytes: usize,
     scoped_scratch: usize,
@@ -35,6 +36,7 @@ impl<'a> Budget<'a> {
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
+            cost_profile: std::env::var_os("ZIL_EXPAND_PROFILE_COSTS").map(|_| BTreeMap::new()),
             temporary_bytes: None,
             lineage_bytes: 0,
             scoped_scratch: 0,
@@ -403,7 +405,9 @@ impl<'a> Budget<'a> {
     pub(super) fn enum_profile(&self, span: Span) -> bool {
         self.enum_profiles.contains(&span)
     }
+    #[track_caller]
     pub(crate) fn node(&mut self, span: Span, depth: usize) -> R<()> {
+        self.profile_cost(1);
         let node_bytes = std::mem::size_of::<Item>()
             .saturating_add(std::mem::size_of::<Expr>())
             .saturating_add(std::mem::size_of::<TypeRef>())
@@ -412,7 +416,7 @@ impl<'a> Budget<'a> {
             self.temporary(node_bytes, span)?;
         }
         if depth > self.limits.max_call_depth || self.nodes == 0 || self.work == 0 {
-            return Err(Diagnostic::limit(
+            return Err(self.profile_limit(
                 Phase::Expand,
                 "generic expansion budget exceeded",
                 Some(span),
@@ -433,6 +437,7 @@ impl<'a> Budget<'a> {
         })?;
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn identity_node(&mut self, depth: usize, span: Span) -> R<()> {
         self.identity_work(1, span)?;
         if depth > self.limits.max_call_depth {
@@ -444,12 +449,14 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn identity_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.profile_cost(amount);
         if !self.metadata_mode {
             self.temporary(amount, span)?;
         }
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
-            Diagnostic::limit(
+            self.profile_limit(
                 Phase::Expand,
                 "structural type identity work exhausted",
                 Some(span),
@@ -457,7 +464,9 @@ impl<'a> Budget<'a> {
         })?;
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn text(&mut self, text: &str, span: Span) -> R<()> {
+        self.profile_cost(text.len());
         if !self.metadata_mode {
             self.temporary(
                 text.len().saturating_add(4 * std::mem::size_of::<String>()),
@@ -465,13 +474,39 @@ impl<'a> Budget<'a> {
             )?;
         }
         self.work = self.work.checked_sub(text.len()).ok_or_else(|| {
-            Diagnostic::limit(
+            self.profile_limit(
                 Phase::Expand,
                 "generic metadata budget exceeded",
                 Some(span),
             )
         })?;
         Ok(())
+    }
+    #[track_caller]
+    fn profile_cost(&mut self, work: usize) {
+        let Some(profile) = &mut self.cost_profile else {
+            return;
+        };
+        let at = std::panic::Location::caller();
+        let key = (at.file(), at.line());
+        if profile.len() < 256 || profile.contains_key(&key) {
+            let entry = profile.entry(key).or_default();
+            entry.0 = entry.0.saturating_add(work);
+            entry.1 = entry.1.saturating_add(1);
+        }
+    }
+    fn profile_limit(&self, phase: Phase, message: &str, span: Option<Span>) -> Diagnostic {
+        let mut diagnostic = Diagnostic::limit(phase, message, span);
+        if let Some(profile) = &self.cost_profile {
+            let mut rows = profile.iter().collect::<Vec<_>>();
+            rows.sort_unstable_by_key(|(key, (work, _))| (std::cmp::Reverse(*work), **key));
+            for ((file, line), (work, calls)) in rows.into_iter().take(24) {
+                diagnostic.notes.push(format!(
+                    "Expand caller {file}:{line}: {work} work in {calls} calls"
+                ));
+            }
+        }
+        diagnostic
     }
     pub(crate) fn wide_units(&mut self, units: &[u16], span: Span) -> R<()> {
         self.work = self.work.checked_sub(units.len()).ok_or_else(|| {
