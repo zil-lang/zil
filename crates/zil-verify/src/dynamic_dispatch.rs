@@ -325,7 +325,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut ids = BTreeSet::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
-        crate::dynamic_metadata::declaration(declaration, budget)?;
+        crate::dynamic_metadata::scoped_declaration(module,declaration,budget)?;
         if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
             || declaration.requirements.is_some()
             || declaration.associated_definitions.is_some()

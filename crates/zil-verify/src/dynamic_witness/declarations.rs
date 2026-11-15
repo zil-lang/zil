@@ -492,7 +492,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
     }
     b.spend(module.dyn_declarations.len())?;
     for declaration in &module.dyn_declarations {
-        dynamic_metadata::declaration(declaration, b)?;
+        dynamic_metadata::scoped_declaration(module,declaration,b)?;
         dynamic_metadata::recipe_declaration(declaration, b)?;
         super::implicit::check(declaration, b)?;
     }

@@ -6,7 +6,7 @@ impl CheckedOriginal {
     pub(super) fn raw_source_schemes(&mut self, module: &TypedModule, context: &CheckedContext, active: &mut ActiveQueries, b: &mut Budget) -> Check<()> {
         let mut identities = BTreeSet::new();
         for declaration in &module.dyn_declarations {
-            dynamic_metadata::declaration(declaration, b)?;
+            dynamic_metadata::scoped_declaration(module,declaration,b)?;
             if !identities.insert(declaration.id) { return Err(bad("original trait/impl inventory repeats a declaration identity")); }
             let scope = dynamic_witness::semantic_external::original_scope(module, declaration.id, b)?;
             self.current = Some(scope.id);

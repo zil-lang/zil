@@ -36,7 +36,7 @@ impl CheckedOriginal {
             let mut sources=module.dyn_declarations.iter().filter(|row|row.id==*implementation);
             let source=sources.next().ok_or_else(||bad("original impl has no complete raw declaration"))?;
             if sources.next().is_some()||source.kind!=DynDeclarationKind::Impl{return Err(bad("original impl raw identity or kind differs"));}
-            dynamic_metadata::declaration(source,b)?;
+            dynamic_metadata::scoped_declaration(module,source,b)?;
             let raw_self=source.self_pattern.as_ref().ok_or_else(||unsupported("original impl Self recipe is Unknown",None))?;
             let raw_trait=source.implemented_trait.as_ref().ok_or_else(||unsupported("original impl full trait application is Unknown",None))?;
             let symbolic=self.environment(module,context,definition.id,active,b)?;

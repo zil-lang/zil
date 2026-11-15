@@ -17,7 +17,7 @@ impl CheckedOriginal {
         let mut declarations=module.dyn_declarations.iter().filter(|row|row.id==declaration);
         let original=declarations.next().ok_or_else(||bad("abstract original trait declaration is absent"))?;
         if declarations.next().is_some()||original.kind!=DynDeclarationKind::Trait{return Err(bad("abstract original trait identity/kind is ambiguous"));}
-        dynamic_metadata::declaration(original,b)?;
+        dynamic_metadata::scoped_declaration(module,original,b)?;
         let Some(DynMemberDeclaration{kind:DynMemberKind::Method(formals),..})=original.members.get(member as usize) else{return Err(bad("abstract original member changes its kind or ordinal"));};
         if formals.len()!=definition.parameters.len(){return Err(bad("abstract original method omits its full mixed parameter list"));}
         for(formal,actual)in definition.parameters.iter().zip(formals){match(formal,actual){

@@ -9,6 +9,8 @@ mod closed_values;
 mod operations;
 mod products;
 mod aggregate_values;
+mod child_values;
+mod sum_values;
 mod call_borrows;
 mod trait_members;
 mod worlds;
@@ -214,10 +216,10 @@ impl CheckedContext {
                     }
                     InstructionKind::DescribeLocal{local}=>{
                         let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual description has no initialized owner"))?;
-                        if !owner.classes.is_empty()||!owner.statics.is_empty(){return Err(unsupported("actual description requires its complete qualified owner domain",Some(instruction.span)));}
-                        let Type::Managed(payload)=&owner.ty else{return Err(bad("actual description has no initialized complete owning carrier"));};
+
+                        let Type::Managed(_payload)=&owner.ty else{return Err(bad("actual description has no initialized complete owning carrier"));};
                         crate::resources::check_type_for(module,&owner.ty,Some(instruction.span),b)?;
-                        let child=self.closed_value(module,payload,b)?;
+                        let child=self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?;
                         let result=instruction.result.ok_or_else(||bad("actual description has no result"))?;
                         let mode=StoredBorrowMode::ReadOnlyDescription;
                         let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
@@ -225,7 +227,7 @@ impl CheckedContext {
                     }
                     InstructionKind::DropManaged{local}=>{
                         if let Some(value)=state.locals.get(local.0 as usize).and_then(Option::as_ref){
-                            if !value.classes.is_empty()||!value.statics.is_empty(){return Err(unsupported("actual owner cleanup requires its complete qualified debt transfer",Some(instruction.span)));}
+
                             crate::resources::check_type_for(module,&value.ty,Some(instruction.span),b)?;
                         }
                         state.locals[local.0 as usize]=None;None
@@ -239,16 +241,19 @@ impl CheckedContext {
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)
                     }
-                    InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
+                    InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
-                        let Type::Address{inner,..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
-                        Some(atomic(inner,b)?)
+                        let Type::Address{..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
+                        Some(self.child_value(module,address,&[LifeTypeProjection::Pointee],b)?)
                     }
                     InstructionKind::WriteAddress{address,value}=>{
                         let address=value_at(&values,*address)?;let value=value_at(&values,*value)?;
-                        if !matches!(&address.ty,Type::Address{mutable:true,inner} if inner.as_ref()==&value.ty&&inner.is_b0_scalar()){return Err(unsupported("actual address write requires its complete qualified child/permission transfer",Some(instruction.span)));}None
+                        if !matches!(&address.ty,Type::Address{mutable:true,..}){return Err(bad("actual address write lacks an exclusive head"));}
+                        let child=self.child_value(module,address,&[LifeTypeProjection::Pointee],b)?;
+                        if !self.compatible(&environment,value,&child,b)?{return Err(bad("actual address write changes its complete child type/domain"));}None
                     }
                     InstructionKind::Store{local,value}=>{
                         let value=value_at(&values,*value)?;
@@ -271,11 +276,14 @@ impl CheckedContext {
                             _=>return Err(bad("actual construction does not match the original complete product storage")),
                         };
                         if fields.len()!=expected_fields.len() {return Err(bad("actual construction omits or duplicates original fields"));}
-                        for (field,expected) in fields.iter().zip(expected_fields) {
+                        for (index,(field,expected)) in fields.iter().zip(expected_fields).enumerate() {
                             let actual=value_at(&values,*field)?;
                             if actual.ty!=*expected {return Err(bad("actual construction field differs from its original complete type"));}
-                            if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("semantic construction requires complete child-class occurrence substitution",Some(instruction.span)));}
-                            self.closed_value(module,expected,b)?;
+                            let mut path=Vec::new();let mut root=&value.ty;
+                            loop{match root{Type::BorrowedStorage{storage,..}=>root=storage,Type::Managed(inner)=>{path.push(LifeTypeProjection::Pointee);root=inner;},_=>break}}
+                            path.push(if matches!(root,Type::Array{..}){LifeTypeProjection::Element}else{LifeTypeProjection::Place(PlaceProjection::Field(index as u32))});
+                            let child=self.child_value(module,&value,&path,b)?;
+                            if !self.compatible(&environment,actual,&child,b)?{return Err(bad("actual construction changes a complete original child domain/source"));}
                         }
                         if let Some(result)=instruction.result {self.record(scope,OperandKey::Value(result),&value,b)?;}
                         if let Some(site)=site{if let SemanticSiteAction::Construct{value:claim,..}=&site.action {self.claim(module,claim,&value,&environment,b)?;}}

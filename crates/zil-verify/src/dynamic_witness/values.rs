@@ -185,6 +185,11 @@ impl Inventory<'_> {
                     pending_sources: true,
                 })
             }
+            Type::MutexGuard{payload,retained_life}=>{
+                crate::generic_mutex::guard_shape(payload,retained_life,b)?;
+                self.zero(payload,b)?;
+                Ok(Domain{count:retained_life.binder_count,pending_sources:true})
+            }
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
                 b.spend(self.module.dyn_interfaces.len())?;
                 let mut rows = self

@@ -192,7 +192,7 @@ impl CheckedContext {
                 raw_value(value,b)?;
                 let SemanticOperand::Value(value)=result else {return Err(bad("actual constructor result is not its SSA definition"));};
                 let actual=actual.ok_or_else(||bad("constructor ghost claim selects a terminator"))?;
-                if actual.result!=Some(*value)||edge!=SemanticSiteEdge::After||!matches!(actual.kind,InstructionKind::MakeAggregate{..}|InstructionKind::MakePackage{..}|InstructionKind::MakeManaged{..}|InstructionKind::MakeOwnedArray{..}|InstructionKind::MakeOwnedTuple{..}|InstructionKind::MakeVariant{..}|InstructionKind::MakeErrorUnion{..}|InstructionKind::MakeDynOwned{..}|InstructionKind::OwnedStoreNew{..}) {return Err(bad("constructor ghost site does not name the actual defining opcode/result"));}
+                if actual.result!=Some(*value)||edge!=SemanticSiteEdge::After||!matches!(actual.kind,InstructionKind::Constant(_)|InstructionKind::MakeAggregate{..}|InstructionKind::MakePackage{..}|InstructionKind::MakeManaged{..}|InstructionKind::MakeOwnedArray{..}|InstructionKind::MakeOwnedTuple{..}|InstructionKind::MakeVariant{..}|InstructionKind::MakeErrorUnion{..}|InstructionKind::MakeDynOwned{..}|InstructionKind::OwnedStoreNew{..}) {return Err(bad("constructor ghost site does not name the actual defining opcode/result"));}
             }
             (SemanticSiteRecipeKind::Call{target,..},SemanticSiteAction::Call{target:actual_target,actuals})=>{
                 let SemanticFunctionTarget::Typed(callee)=actual_target else {return Err(bad("semantic Call retains a Core target"));};

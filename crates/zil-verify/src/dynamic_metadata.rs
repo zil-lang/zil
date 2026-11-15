@@ -244,8 +244,15 @@ fn kinds(kinds: &[LifeParameterKind], b: &mut Budget) -> Check<()> {
     Ok(())
 }
 pub(super) fn declaration(declaration: &DynDeclaration, b: &mut Budget) -> Check<()> {
+    declaration_at(declaration,None,b)
+}
+pub(super) fn scoped_declaration(module:&TypedModule,declaration:&DynDeclaration,b:&mut Budget)->Check<()> {
+    let owner=if module.semantic.is_some(){Some(crate::dynamic_witness::semantic_external::original_scope(module,declaration.id,b)?.id)}else{None};
+    declaration_at(declaration,owner,b)
+}
+fn declaration_at(declaration:&DynDeclaration,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<()> {
     recipe_declaration(declaration, b)?;
-    pattern(declaration, b)?;
+    pattern_at(declaration, owner, b)?;
     kinds(&declaration.parameters, b)?;
     let identity = &declaration.identity;
     b.spend(
@@ -402,6 +409,9 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
 /// Bound declaration recipes before their fingerprints recurse. A pattern is
 /// metadata only; this pass does not instantiate it or establish a class.
 pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()> {
+    pattern_at(declaration,None,b)
+}
+fn pattern_at(declaration:&DynDeclaration,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<()> {
     enum Node<'a> {
         Nominal(&'a DynSelfPattern, usize),
         Actual(&'a DynPatternActual, usize),
@@ -499,8 +509,9 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Ty(pattern, depth) => {
                 match pattern {
-                    DynTypePattern::Semantic { .. } => {
-                        return Err(unsupported("complete semantic recipe needs its independently checked owner context", None));
+                    DynTypePattern::Semantic { scope,ty } => {
+                        if owner!=Some(*scope){return Err(unsupported("complete semantic recipe needs its independently checked owner context", None));}
+                        recipe(ty.as_ref(),b)?;
                     }
                     DynTypePattern::SelfType
                     | DynTypePattern::MethodParameter(_)

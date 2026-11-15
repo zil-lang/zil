@@ -22,25 +22,28 @@ impl CheckedContext{
                 let storage=match &value.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};let Type::Enum{variants,..}=storage else{return Err(bad("original enum constructor has another complete nominal result"));};
                 let(_,expected)=variants.get(*variant as usize).ok_or_else(||bad("original enum variant is outside its complete declaration"))?;
                 if fields.len()!=expected.len(){return Err(bad("actual enum constructor omits original fields"));}
-                for(field,expected)in fields.iter().zip(expected){let actual=value_at(values,*field)?;if actual.ty!=*expected{return Err(bad("actual enum field differs from its original full nominal type"));}if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("enum field needs complete actual child-class/source substitution",Some(instruction.span)));}self.closed_value(module,expected,b)?;}
+                for(index,(field,expected))in fields.iter().zip(expected).enumerate(){
+                    let actual=value_at(values,*field)?;if actual.ty!=*expected{return Err(bad("actual enum field differs from its original full nominal type"));}
+                    let child=self.child_value(module,&value,&[LifeTypeProjection::Place(PlaceProjection::Variant(VariantProjection{variant:*variant,index:index as u32}))],b)?;
+                    if !self.compatible(environment,actual,&child,b)?{return Err(bad("actual enum field changes its complete original class/source occurrence"));}
+                }
                 if let SemanticSiteAction::Construct{value:claim,..}=&site.action{self.claim(module,claim,&value,environment,b)?;}
                 Ok(Some(value))
             },
-            InstructionKind::VariantTag{value}=>{let parent=value_at(values,*value)?;self.closed_value(module,&parent.ty,b)?;if !parent.classes.is_empty()||!parent.statics.is_empty(){return Err(unsupported("enum tag retains an unresolved complete class domain",Some(instruction.span)));}Ok(Some(atomic(&Type::I32,b)?))},
+            InstructionKind::VariantTag{value}=>{value_at(values,*value)?;Ok(Some(atomic(&Type::I32,b)?))},
             InstructionKind::ReadVariant{value,variant,index}=>{
-                let parent=value_at(values,*value)?;if !parent.classes.is_empty()||!parent.statics.is_empty(){return Err(unsupported("enum observation needs its complete selected child occurrence map",Some(instruction.span)));}
-                let storage=match &parent.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};let Type::Enum{variants,..}=storage else{return Err(bad("variant observation has another nominal parent"));};
-                let child=variants.get(*variant as usize).and_then(|(_,fields)|fields.get(*index as usize)).ok_or_else(||bad("variant observation selects no declared field"))?;Ok(Some(self.closed_value(module,child,b)?))
+                let parent=value_at(values,*value)?;
+                self.child_value(module,parent,&[LifeTypeProjection::Place(PlaceProjection::Variant(VariantProjection{variant:*variant,index:*index}))],b).map(Some)
             },
             InstructionKind::ExtractIndex{aggregate,index}=>{
-                let parent=value_at(values,*aggregate)?;let index=value_at(values,*index)?;if !index.ty.is_integer(){return Err(bad("actual array index lacks its full integer carrier"));}
-                if !parent.classes.is_empty()||!parent.statics.is_empty(){return Err(unsupported("array extraction needs its complete element class/source map",Some(instruction.span)));}
-                let storage=match &parent.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};let Type::Array{element,..}=storage else{return Err(bad("actual indexed aggregate is not its original full Array"));};Ok(Some(self.closed_value(module,element,b)?))
+                let parent=value_at(values,*aggregate)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual array index lacks its full integer carrier"));}
+                self.child_value(module,parent,&[LifeTypeProjection::Element],b).map(Some)
             },
             InstructionKind::AddressIndex{address,index}=>{
                 let parent=value_at(values,*address)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual address index lacks an integer carrier"));}
                 let Type::Address{mutable,inner}=&parent.ty else{return Err(bad("actual indexed address has no complete parent head"));};let storage=match inner.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
-                let child=match storage{Type::Array{element,..}|Type::Slice{element}=>self.closed_value(module,element,b)?,_=>return Err(bad("actual indexed address has another full child type"))};
+                if !matches!(storage,Type::Array{..}|Type::Slice{..}){return Err(bad("actual indexed address has another full child type"));}
+                let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Element],b)?;
                 let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};let mut slots=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);let row=slots.next().ok_or_else(||bad("actual index address has no variable parent head occurrence"))?;if slots.next().is_some(){return Err(bad("actual index parent head is ambiguous"));}
                 let key=parent.classes.get(row.binder as usize).cloned().ok_or_else(||bad("actual index parent class is absent"))?;
                 dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(key)},&[child],active,b).map(Some)

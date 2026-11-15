@@ -16,7 +16,7 @@ impl CheckedOriginal {
         if identities.next().is_some()||expected.parent!=Some(trait_scope.id){return Err(bad("universal expected method has an ambiguous member or another parent"));}
         let mut raw=module.dyn_declarations.iter().filter(|row|row.id==trait_id);let trait_decl=raw.next().ok_or_else(||bad("universal method trait declaration is absent"))?;if raw.next().is_some(){return Err(bad("universal method trait declaration is ambiguous"));}
         let mut raw=module.dyn_declarations.iter().filter(|row|row.id==impl_id);let impl_decl=raw.next().ok_or_else(||bad("universal method impl declaration is absent"))?;if raw.next().is_some(){return Err(bad("universal method impl declaration is ambiguous"));}
-        dynamic_metadata::declaration(trait_decl,b)?;dynamic_metadata::declaration(impl_decl,b)?;
+        dynamic_metadata::scoped_declaration(module,trait_decl,b)?;dynamic_metadata::scoped_declaration(module,impl_decl,b)?;
         let original_self=match &impl_scope.body{SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl{self_type,trait_application,..})if trait_application.declaration==trait_id=>Some((self_type,trait_application)),_=>None}.ok_or_else(||bad("universal method request selects another impl/trait application"))?;
         let impl_env=self.environment(module,context,impl_scope.id,active,b)?;
         let receiver=self.ty(module,context,original_self.0,&impl_env,active,b)?;

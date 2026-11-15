@@ -39,7 +39,7 @@ impl<'s> FrozenContext<'s> {
             dynamic_metadata::recipe(semantic,b)?;
             b.spend(module.core.dyn_declarations.len().saturating_add(semantic.dyn_scopes.len()))?;
             for declaration in &module.core.dyn_declarations {
-                dynamic_metadata::declaration(declaration,b)?;
+                dynamic_metadata::scoped_declaration(module,declaration,b)?;
                 if let Some(previous)=dyn_declarations.insert(declaration.id,declaration){if previous!=declaration{return Err(bad("frozen source changes a complete original trait/impl declaration identity"));}}
             }
             for scope in &semantic.dyn_scopes {
@@ -124,7 +124,7 @@ impl<'s> FrozenContext<'s> {
         // full signature, associated RHS, premises or lexical scope.
         let mut seen=BTreeSet::new();
         for declaration in &execution.dyn_declarations {
-            dynamic_metadata::declaration(declaration,b)?;
+            dynamic_metadata::scoped_declaration(module,declaration,b)?;
             if !seen.insert(declaration.id)||!self.dyn_declarations.get(&declaration.id).is_some_and(|source|**source==*declaration){return Err(bad("CT execution replaces or invents a frozen original trait/impl declaration"));}
         }
         let mut scopes=Vec::new();
@@ -163,7 +163,7 @@ impl<'s> FrozenContext<'s> {
         b.spend(module.functions.len())?;
         if !module.closures.is_empty()||!module.resources.is_empty()||!module.dyn_interfaces.is_empty()||!module.dyn_vtables.is_empty(){return Err(bad("CT execution package carries a runtime environment/provider inventory"));}
         if let Some(semantic)=&module.semantic{dynamic_metadata::recipe(semantic,b)?;}
-        for declaration in &module.dyn_declarations{dynamic_metadata::declaration(declaration,b)?;}
+        for declaration in &module.dyn_declarations{dynamic_metadata::scoped_declaration(module,declaration,b)?;}
         if !module.unsupported.is_empty(){return Err(bad("CT executable contains unsupported capability metadata"));}
         b.spend(module.life_declarations.len().saturating_add(module.life_instances.len()))?;
         for declaration in &module.life_declarations {
