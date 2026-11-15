@@ -15,12 +15,14 @@ pub(crate) fn nested(ty: &Type) -> bool {
         if fields.iter().any(|(_, field)| matches!(package_storage(field), Type::Package { .. })))
 }
 
+#[track_caller]
 pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     admit_shape(ty, budget, false, None, false).map(|_| ())
 }
 
 /// A capture borrows the complete owning head, without acquiring its cleanup
 /// debt. The actual source and entry permissions are checked by holds/loans.
+#[track_caller]
 pub(crate) fn admit_capture_head(
     module: &TypedModule,
     ty: &Type,
@@ -77,12 +79,14 @@ pub(crate) fn admit_callback_head(
 /// A borrowed nested Product retains its old finite field profile. A valid
 /// owner outside that profile is unsupported at this boundary; malformed
 /// Product identities still fail the independent structural check.
+#[track_caller]
 pub(crate) fn admit_borrowed(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     admit_shape(ty, budget, false, None, true).map(|_| ())
 }
 
 /// Admission for ordinary complete ownership, independent of element/capture
 /// and shared-head profiles. Actual Store resources are checked by preflight.
+#[track_caller]
 pub(crate) fn admit_owned(
     module: &TypedModule,
     ty: &Type,
@@ -137,6 +141,7 @@ pub(crate) fn admit_owned(
     Ok(has_stores)
 }
 
+#[track_caller]
 fn admit_shape(
     ty: &Type,
     budget: &mut Budget,
@@ -147,6 +152,7 @@ fn admit_shape(
     // Raw preflight has bounded depth already. Pay before any new identity
     // collection, Copy classification or repeated complete-type traversal.
     budget.type_work(ty, true, "ordinary Product admission")?;
+    #[track_caller]
     fn fields(
         ty: &Type,
         budget: &mut Budget,
@@ -239,6 +245,7 @@ fn admit_shape(
                         diagnostic.notes.push(format!(
                             "actual Product {product_name}, field {name}, complete child {ty:?}"
                         ));
+                        diagnostic.notes.push(format!("Product admission requested at {}", std::panic::Location::caller()));
                     }
                     return Err(diagnostics);
                 }
