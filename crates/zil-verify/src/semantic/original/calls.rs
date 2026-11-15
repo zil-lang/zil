@@ -2,6 +2,19 @@ use super::*;
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call(&mut self,module:&TypedModule,context:&CheckedContext,call:&SemanticOriginalExpr,callee:&SemanticOriginalExpr,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        // Capture the actual original call-site Γ before target lookup,
+        // signature elaboration or associated-result normalization can enter
+        // a substituted declaration scope. It supplies premises, never a
+        // conclusion from this pending body or a target's pending where list.
+        if self.current!=Some(env.current()?){return Err(bad("original call does not enter its exact active declaration environment"));}
+        let evidence=self.copy_environment(env,b)?;
+        let previous=self.premise_environment.replace(evidence);
+        let result=self.call_inner(module,context,call,callee,arguments,env,bindings,expected,active,b);
+        self.premise_environment=previous;
+        result
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn call_inner(&mut self,module:&TypedModule,context:&CheckedContext,call:&SemanticOriginalExpr,callee:&SemanticOriginalExpr,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         let (base,written_types,written_mixed)=match &callee.kind{
             CoreExprKind::TypeApply{callee,type_arguments}=>(callee.as_ref(),Some(type_arguments.as_slice()),None),
             CoreExprKind::GenericApply{callee,arguments}=>(callee.as_ref(),None,Some(arguments.as_slice())),

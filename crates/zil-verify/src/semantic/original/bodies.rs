@@ -25,6 +25,10 @@ impl CheckedOriginal {
         if !self.results.contains_key(&id){let value=self.fresh(b)?;self.results.insert(id,value);}
         let env=self.environment(module,context,id,active,b)?;
         let prototype=self.signature(module,context,signature,&env,active,b)?;
+        // Subsequent annotations, constructor schemes and associated types
+        // all prove their obligations in this exact independently formed Γ.
+        // The outer definition wrapper restores its caller even on failure.
+        self.premise_environment=Some(self.copy_environment(&prototype.environment,b)?);
         let mut bindings=self.free_values.get(&id).cloned().unwrap_or_default();
         for binding in bindings.values_mut(){binding.identity=Binder::Capture{definition:id,source:Box::new(binding.identity.clone())};}
         let mut parameter_names=BTreeSet::new();

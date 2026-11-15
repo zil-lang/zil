@@ -6,6 +6,9 @@ use super::*;
 impl CheckedOriginal {
     pub(super) fn proof_environment(&self,fallback:&Env,b:&mut Budget)->Check<Env>{
         let source=self.premise_environment.as_ref().unwrap_or(fallback);
+        self.copy_environment(source,b)
+    }
+    pub(super) fn copy_environment(&self,source:&Env,b:&mut Budget)->Check<Env>{
         b.spend(source.lexical.len().saturating_add(source.bounds.len()).saturating_add(source.invocation.len()))?;
         let empty=Env{lexical:vec![],bounds:vec![],invocation:vec![],self_type:None};
         for frame in &source.lexical{
