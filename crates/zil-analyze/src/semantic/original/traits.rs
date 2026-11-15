@@ -128,7 +128,7 @@ impl Solver<'_, '_> {
     /// domain before any executable body has completed. Keep this read-only
     /// header separate from the completed-body frame memo: installing it
     /// there could incorrectly skip a later mandatory function body check.
-    fn premise_frame(
+    pub(super) fn premise_frame(
         &mut self,
         current: &Frame,
         owner: SemanticDefinitionId,

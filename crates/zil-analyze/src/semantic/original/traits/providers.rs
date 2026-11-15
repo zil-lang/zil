@@ -255,11 +255,11 @@ impl Solver<'_, '_> {
                 ));
             }
         }
+        let receiver_root = self.type_root(receiver, b)?;
         let (owner, actuals) = selected.ok_or_else(|| {
             let mut errors =
                 fail("original receiver trait application has no complete matching provider");
-            let actual = self.type_root(receiver, b).ok();
-            let context = actual.map(|actual| match &self.state.arena[actual] {
+            let context = match &self.state.arena[receiver_root] {
                 Kind::Nominal {
                     definition,
                     arguments,
@@ -276,7 +276,7 @@ impl Solver<'_, '_> {
                     receiver, declaration, member
                 ),
                 kind => format!("kind {:?}", std::mem::discriminant(kind)),
-            });
+            };
             errors[0].notes.push(format!(
                 "receiver {:?}, trait {:?}, arguments {:?}",
                 context, declaration, arguments
