@@ -120,75 +120,75 @@ impl State {
             .saturating_add(before.saturating_sub(*world.left));
         Ok(state)
     }
-    fn charge_compare(&self, world: &mut World<'_, '_>) -> R<()> {
-        world.pay(
-            self.locals
-                .len()
-                .saturating_add(self.values.len())
-                .saturating_add(self.declared.len())
-                .saturating_add(self.implicit.len())
-                .saturating_add(self.stale_locals.len())
-                .saturating_add(self.stale_values.len())
-                .saturating_add(self.vacant_captures.len())
-                .saturating_add(self.scopes.len())
-                .saturating_add(self.unsafe_regions.len())
-                .saturating_add(self.owners.len())
-                .saturating_add(self.vacant.len())
-                .saturating_add(self.role_sources.len())
-                .saturating_add(self.value_role_sources.len())
-                .saturating_add(self.reborrows.len())
-                .saturating_add(self.value_roots.len())
-                .saturating_add(self.local_roots.len()),
-        )?;
-        for (_, path) in &self.vacant {
-            world.pay(path.len())?;
-        }
-        for value in self.implicit.values() {
-            crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
-        }
-        for source in self
-            .role_sources
-            .values()
-            .chain(self.value_role_sources.values())
-        {
-            if let roles::Source::Class(image) = source {
-                crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
-            }
-        }
-        for edge in self.reborrows.values() {
-            if let roles::Source::Class(image) = &edge.source {
-                crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
-            }
-        }
-        for roots in self.value_roots.values().chain(self.local_roots.values()) {
-            world.pay(roots.len())?;
-            for root in roots {
-                world.pay(root.path.len())?;
-            }
-        }
-        Ok(())
-    }
     fn same(&self, other: &Self, world: &mut World<'_, '_>) -> R<bool> {
         world.pay(2)?;
         if self.schema != other.schema || self.instance != other.instance {
             return Ok(false);
         }
-        self.charge_compare(world)?;
-        other.charge_compare(world)?;
-        if self.implicit != other.implicit
-            || self.vacant_captures != other.vacant_captures
-            || self.stale_values != other.stale_values
-            || self.stale_locals != other.stale_locals
-            || self.scopes != other.scopes
-            || self.unsafe_regions != other.unsafe_regions
-            || self.owners != other.owners
-            || self.vacant != other.vacant
-            || self.role_sources != other.role_sources
-            || self.value_role_sources != other.value_role_sources
-            || self.reborrows != other.reborrows
-            || self.value_roots != other.value_roots
-            || self.local_roots != other.local_roots
-            || self.locals.len() != other.locals.len()
+        // Reject different live worlds before visiting their immutable value
+        // cells. Every element actually compared still pays its complete cost;
+        // a different epoch/root/role never needs an unrelated SSA tree walk.
+        if !same_sequence(
+            world,
+            self.scopes.iter(),
+            other.scopes.iter(),
+            |_, _| Ok(()),
+        )? || !same_sequence(
+            world,
+            self.unsafe_regions.iter(),
+            other.unsafe_regions.iter(),
+            |_, _| Ok(()),
+        )? || !same_map(world, &self.owners, &other.owners, |_, _| Ok(()))?
+            || !same_sequence(
+                world,
+                self.vacant_captures.iter(),
+                other.vacant_captures.iter(),
+                |_, _| Ok(()),
+            )?
+            || !same_sequence(
+                world,
+                self.stale_values.iter(),
+                other.stale_values.iter(),
+                |_, _| Ok(()),
+            )?
+            || !same_sequence(
+                world,
+                self.stale_locals.iter(),
+                other.stale_locals.iter(),
+                |_, _| Ok(()),
+            )?
+            || !same_sequence(
+                world,
+                self.vacant.iter(),
+                other.vacant.iter(),
+                |world, (_, path)| world.pay(path.len()),
+            )?
+            || !same_map(world, &self.implicit, &other.implicit, |world, image| {
+                crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)
+            })?
+            || !same_map(
+                world,
+                &self.role_sources,
+                &other.role_sources,
+                charge_source,
+            )?
+            || !same_map(
+                world,
+                &self.value_role_sources,
+                &other.value_role_sources,
+                charge_source,
+            )?
+            || !same_map(world, &self.reborrows, &other.reborrows, |world, edge| {
+                world.pay(1)?;
+                charge_source(world, &edge.source)
+            })?
+            || !same_map(world, &self.value_roots, &other.value_roots, charge_roots)?
+            || !same_map(world, &self.local_roots, &other.local_roots, charge_roots)?
+        {
+            return Ok(false);
+        }
+        world.pay(3)?;
+        if self.locals.len() != other.locals.len()
             || self.values.len() != other.values.len()
             || self.declared.len() != other.declared.len()
         {
@@ -200,10 +200,10 @@ impl State {
             .zip(&other.locals)
             .chain(self.values.iter().zip(&other.values))
         {
+            world.pay(1)?;
             match (left, right) {
                 (None, None) => {}
                 (Some(left), Some(right)) => {
-                    world.pay(1)?;
                     if !matches!(left.as_ref(), SemanticTypeValue::Resolved { .. })
                         || !matches!(right.as_ref(), SemanticTypeValue::Resolved { .. })
                     {
@@ -221,10 +221,10 @@ impl State {
             }
         }
         for ((left_key, left), (right_key, right)) in self.declared.iter().zip(&other.declared) {
+            world.pay(2)?;
             if left_key != right_key {
                 return Ok(false);
             }
-            world.pay(1)?;
             if !matches!(left.as_ref(), SemanticTypeValue::Resolved { .. })
                 || !matches!(right.as_ref(), SemanticTypeValue::Resolved { .. })
             {
@@ -240,6 +240,65 @@ impl State {
         }
         Ok(true)
     }
+}
+// Local equality operations keep their own paid traversal. The caller may
+// short-circuit only after a real unequal component has been established.
+fn same_sequence<'a, T: Eq + 'a>(
+    world: &mut World<'_, '_>,
+    left: impl ExactSizeIterator<Item = &'a T>,
+    right: impl ExactSizeIterator<Item = &'a T>,
+    mut charge: impl FnMut(&mut World<'_, '_>, &T) -> R<()>,
+) -> R<bool> {
+    world.pay(1)?;
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (left, right) in left.zip(right) {
+        world.pay(2)?;
+        charge(world, left)?;
+        charge(world, right)?;
+        if left != right {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+fn same_map<K: Ord, V: Eq>(
+    world: &mut World<'_, '_>,
+    left: &BTreeMap<K, V>,
+    right: &BTreeMap<K, V>,
+    mut charge: impl FnMut(&mut World<'_, '_>, &V) -> R<()>,
+) -> R<bool> {
+    world.pay(1)?;
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for ((left_key, left), (right_key, right)) in left.iter().zip(right) {
+        world.pay(4)?;
+        if left_key != right_key {
+            return Ok(false);
+        }
+        charge(world, left)?;
+        charge(world, right)?;
+        if left != right {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+fn charge_source(world: &mut World<'_, '_>, source: &roles::Source) -> R<()> {
+    world.pay(1)?;
+    if let roles::Source::Class(image) = source {
+        crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)?;
+    }
+    Ok(())
+}
+fn charge_roots(world: &mut World<'_, '_>, roots: &BTreeSet<arguments::Root>) -> R<()> {
+    world.pay(roots.len())?;
+    for root in roots {
+        world.pay(root.path.len())?;
+    }
+    Ok(())
 }
 fn charge_value_domain(world: &mut World<'_, '_>, value: &SemanticTypeValue) -> R<()> {
     let SemanticTypeValue::Resolved { life, classes, .. } = value else {

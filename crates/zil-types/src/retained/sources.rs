@@ -834,6 +834,10 @@ fn solve(
                         InstructionKind::Call {
                             function,
                             arguments,
+                        }
+                        | InstructionKind::SuspendCall {
+                            function,
+                            arguments,
                         } => {
                             let mut r = Row::new();
                             for (path, origins) in &summaries[function.0 as usize].returned {
@@ -1006,6 +1010,10 @@ fn solve(
                         }
                     }
                     InstructionKind::Call {
+                        function,
+                        arguments,
+                    }
+                    | InstructionKind::SuspendCall {
                         function,
                         arguments,
                     } => {
@@ -1932,10 +1940,16 @@ fn captured_parameter(
                     ));
                 }
             }
-            Some(InstructionKind::Call {
-                function,
-                arguments,
-            }) => {
+            Some(
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                }
+                | InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                },
+            ) => {
                 let Some(CallableReturnContract {
                     source: CallableReturnSource::Parameter(index),
                     ..
