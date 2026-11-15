@@ -195,6 +195,12 @@ fn has_infer(ty: &Ty, substitutions: &BTreeMap<u64, Ty>, b: &mut Budget) -> Chec
                     pending.extend(parameters.iter().map(Term::Type));
                     pending.push(Term::Type(result));
                 }
+                Ty::Dyn(value)=>{
+                    b.spend(value.application.arguments.len().saturating_add(value.associated.len()))?;
+                    pending.extend(value.application.arguments.iter().map(Term::Argument));
+                    match &value.context{DynContext::Closed=>{},DynContext::Type(ty)=>pending.push(Term::Type(ty)),DynContext::Shape(shape)=>{let mut types=Vec::new();shape.types(&mut types,b)?;pending.extend(types.into_iter().map(Term::Type));}}
+                    for row in &value.associated{b.spend(row.application.arguments.len())?;pending.extend(row.application.arguments.iter().map(Term::Argument));pending.push(Term::Argument(&row.value));}
+                },
                 Ty::Carrier{child,retained,..}=>{pending.push(Term::Type(child));let mut types=Vec::new();retained.types(&mut types,b)?;pending.extend(types.into_iter().map(Term::Type));},
                 Ty::SealedError(_) | Ty::Atom(_) | Ty::Variable(..) | Ty::SelfType(_) | Ty::Function(_) => {}
             },

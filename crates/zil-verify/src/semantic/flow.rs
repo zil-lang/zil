@@ -114,7 +114,7 @@ impl CheckedContext {
         drop(aliases);
         self.occurrences.borrow_mut().insert((scope,key),value.clone());Ok(())
     }
-    fn compatible(&self,environment:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<bool> {
+    pub(super) fn compatible(&self,environment:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<bool> {
         if self.same_type(environment,actual,expected,b)? {return Ok(true);}
         if actual.ty!=expected.ty||!matches!(actual.ty,Type::Address{..}|Type::Desc(_)) {return Ok(false);}
         b.spend(actual.life.retained.len().saturating_add(expected.life.retained.len()).saturating_add(actual.life.nominal_arguments.len()).saturating_add(expected.life.nominal_arguments.len()))?;
@@ -301,6 +301,7 @@ impl CheckedContext {
                     },
                     InstructionKind::CallDynSlot{..}=>self.actual_dyn_call(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::BorrowDynOwned{..}|InstructionKind::MakeDynBorrow{..}=>Some(self.actual_dyn_borrow(module,f,instruction,&state,&values,scope,&environment,active,b)?),
+                    InstructionKind::DropMutexGuard{..}=>{self.drop_mutex_guard(module,f,instruction,&mut state,b)?;None},
                     InstructionKind::DropDynOwned{local}=>{crate::dynamic_dispatch::instruction(module,f,instruction,b)?;let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased cleanup has no complete initialized owner"))?;if !matches!(owner.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}dynamic_witness::structural_actual(module,&owner.ty,DynStructuralBound::SyncDrop,b)?;state.locals[local.0 as usize]=None;None},
                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{

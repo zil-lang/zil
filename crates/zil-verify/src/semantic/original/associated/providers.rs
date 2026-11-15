@@ -3,7 +3,7 @@
 //! selected impl's premises remain caller obligations.
 use super::*;
 
-pub(super) struct Provider { pub owner:SemanticDefinitionId, pub declaration:LifeDeclarationId, pub environment:Env }
+pub(in crate::semantic::original) struct Provider { pub owner:SemanticDefinitionId, pub declaration:LifeDeclarationId, pub environment:Env }
 impl CheckedOriginal {
     pub(in crate::semantic::original) fn original_receiver_applications(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,name:&str,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<(LifeDeclarationId,Vec<Arg>)>>{
         let programme=module.semantic.as_ref().ok_or_else(||bad("original concrete method lookup lacks its programme"))?;
@@ -24,7 +24,7 @@ impl CheckedOriginal {
         Ok(applications)
     }
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn original_provider(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,declaration:LifeDeclarationId,arguments:&[Arg],caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Provider>> {
+    pub(in crate::semantic::original) fn original_provider(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,declaration:LifeDeclarationId,arguments:&[Arg],caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Provider>> {
         let programme=module.semantic.as_ref().ok_or_else(||bad("original impl selection lacks its programme"))?;
         let mut selected=None;
         for definition in &programme.definitions {

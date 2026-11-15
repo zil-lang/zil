@@ -54,7 +54,8 @@ impl CheckedContext{
         dynamic_metadata::ty(expected,b)?;
         let occurrences=self.occurrences.borrow();let actual=occurrences.get(&(ScopeKey::Instance(caller.id),OperandKey::Capture(capture))).ok_or_else(||bad("buffer capture has no independently sealed actual creator operand"))?;
         if actual.ty!=*expected{return Err(bad("buffer capture actual type differs from its sealed creator operand"));}
-        if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("qualified buffer capture needs its complete retained-port source transport",Some(instruction.span)));}
+        dynamic_witness::intrinsic_domain(module,&actual.ty,b)?;dynamic_metadata::life_shape(&actual.life,b)?;
+        b.spend(actual.classes.len().saturating_add(actual.origins.len()).saturating_add(actual.statics.len()))?;
         let semantic=module.semantic.as_ref().ok_or_else(||bad("buffer capture has no exact original site ledger"))?;
         let original=self.definition(module,caller.definition,b)?;let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&original.body else{return Err(bad("buffer capture lacks its original body"));};
         let mut matched=false;

@@ -104,7 +104,7 @@ impl CheckedContext {
             | InstructionKind::OwnedStoreBorrowMut { store, .. } => Some(store),
             InstructionKind::ByteBufferBorrow { buffer, .. } => Some(buffer),
             InstructionKind::MutexLock { mutex } => Some(mutex),
-            InstructionKind::MutexValue { guard } => Some(guard),
+            InstructionKind::MutexValue { guard } | InstructionKind::MutexUnlock { guard } => Some(guard),
             InstructionKind::TaskValid { task }
             | InstructionKind::TaskPoll { task }
             | InstructionKind::TaskRequestCancel { task }
@@ -118,6 +118,17 @@ impl CheckedContext {
             let head = head.ok_or_else(|| bad("operation loses its original owner argument"))?;
             value_at(values, head)?;
             self.intrinsic_buffer_source(module, caller, f, head, source, b)?;
+        }
+        match instruction.kind {
+            InstructionKind::MutexValue{guard}=>{
+                let borrow=value_at(values,guard)?;
+                let guard=self.child_value(module,borrow,&[LifeTypeProjection::Pointee],b)?;
+                self.mutex_guard_value(module,&guard,b)?;
+                let mut heads=borrow.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==StoredBorrowMode::ExclusiveAddress);
+                if heads.next().is_none()||heads.next().is_some(){return Err(bad("guard payload borrowing lacks its one exact exclusive head occurrence"));}
+            },
+            InstructionKind::MutexUnlock{guard}=>self.mutex_guard_value(module,value_at(values,guard)?,b)?,
+            _=>{},
         }
         if let Type::Address { mutable, inner } = &raw {
             let head = value_at(
@@ -162,12 +173,9 @@ impl CheckedContext {
                 values,
                 head.ok_or_else(|| bad("guard has no exact actual manager description"))?,
             )?;
-            let row = parent
-                .life
-                .slots
-                .iter()
-                .find(|row| row.path.is_empty())
-                .ok_or_else(|| bad("guard manager has no actual lifetime occurrence"))?;
+            let mut heads=parent.life.slots.iter().filter(|row|row.path.is_empty()&&matches!(row.mode,StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription));
+            let row=heads.next().ok_or_else(||bad("guard manager has no exact actual description occurrence"))?;
+            if heads.next().is_some(){return Err(bad("guard manager repeats its actual description occurrence"));}
             let key = parent
                 .classes
                 .get(row.binder as usize)
@@ -188,6 +196,7 @@ impl CheckedContext {
                 b,
             )?;
             value.origins = vec![IntrinsicOrigin::DerivedClass { source: key }];
+            self.mutex_guard_value(module,&value,b)?;
             return Ok(value);
         }
         self.closed_value(module, &raw, b)
@@ -214,5 +223,30 @@ impl CheckedContext {
             ));
         }
         Ok(())
+    }
+}
+impl CheckedContext {
+    pub(super) fn mutex_guard_value(&self,module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<()>{
+        let Type::MutexGuard{payload,retained_life}=&value.ty else{return Err(bad("guard lifecycle selects another complete semantic value kind"));};
+        crate::generic_mutex::guard_shape(payload,retained_life,b)?;
+        let life=StorageLifeShape{binder_count:1,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+        if value.life!=life||value.classes.len()!=1||value.origins.len()!=1||!value.statics.is_empty(){return Err(bad("guard lifecycle loses its complete one-manager domain/occurrence"));}
+        self.closed_value(module,payload,b)?;
+        dynamic_witness::structural_actual(module,payload,DynStructuralBound::Value,b)?;
+        dynamic_witness::structural_actual(module,payload,DynStructuralBound::SyncDrop,b)
+    }
+    pub(super) fn drop_mutex_guard(&self,module:&TypedModule,f:&TypedFunction,instruction:&Instruction,state:&mut State,b:&mut Budget)->Check<()>{
+        let InstructionKind::DropMutexGuard{local}=instruction.kind else{return Err(bad("guard cleanup selects another actual opcode"));};
+        if crate::generic_mutex::instruction(module,f,instruction,b)?.is_some(){return Err(bad("guard cleanup invents a result value"));}
+        let declared=f.locals.get(local.0 as usize).ok_or_else(||bad("guard cleanup local identity is absent"))?;
+        let occupant=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("guard cleanup semantic local identity is absent"))?;
+        if let Some(value)=occupant.as_ref(){
+            if value.ty!=declared.ty{return Err(bad("guard cleanup changes its exact initialized original local type"));}
+            self.mutex_guard_value(module,value,b)?;
+        }
+        // Empty after a real move/unlock is a no-op. The independent ordinary
+        // loan/epoch ledger still checks every actual cleanup edge and rejects
+        // invalid outstanding payload borrows; no shape row supplies a loan.
+        *occupant=None;Ok(())
     }
 }

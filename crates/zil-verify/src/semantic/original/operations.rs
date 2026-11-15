@@ -317,8 +317,8 @@ impl CheckedOriginal {
                     return Err(bad("guard operation has another complete guard type"));
                 };
                 mixed.push(Arg::Type(*child.clone()));
+                use_.buffer = Some(self.operation_source(&arguments[0], env, bindings, b)?);
                 if kind == Intrinsic::MutexValue {
-                    use_.buffer = Some(self.operation_source(&arguments[0], env, bindings, b)?);
                     Ty::Address {
                         mutable: true,
                         life,
