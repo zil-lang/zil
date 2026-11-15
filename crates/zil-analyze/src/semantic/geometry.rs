@@ -312,6 +312,122 @@ pub(crate) fn bounded_work(ty: &Type, budget: &mut Budget) -> CompileResult<Opti
         .map(|entry| entry.raw_work))
 }
 
+/// Exact Type equality only. Cached roots are owned until this request ends;
+/// class vectors, providers and permissions are not part of this catalogue.
+pub(super) fn same_type(left: &Type, right: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let left_work = bounded_work(left, budget)?;
+    let right_work = bounded_work(right, budget)?;
+    let left_key = left as *const Type as usize;
+    let right_key = right as *const Type as usize;
+    let key = (left_key.min(right_key), left_key.max(right_key));
+    let reusable = left_work.is_some() && right_work.is_some();
+    if reusable {
+        budget.lookup(
+            budget.geometry_equalities.len(),
+            "complete Type equality query",
+        )?;
+        if left_key == right_key || budget.geometry_equalities.contains(&key) {
+            return Ok(true);
+        }
+    }
+    let left_work = match left_work {
+        Some(work) => work,
+        None => {
+            let before = budget.remaining();
+            crate::dyn_metadata::ty(left, budget)?;
+            before - budget.remaining()
+        }
+    };
+    let right_work = match right_work {
+        Some(work) => work,
+        None => {
+            let before = budget.remaining();
+            crate::dyn_metadata::ty(right, budget)?;
+            before - budget.remaining()
+        }
+    };
+    budget.spend(
+        left_work.max(right_work),
+        "complete Type equality comparison",
+    )?;
+    let equal = left == right;
+    if equal && reusable {
+        budget.lookup(
+            budget.geometry_equalities.len(),
+            "complete Type equality publication",
+        )?;
+        budget.geometry_equalities.insert(key);
+    }
+    Ok(equal)
+}
+
+/// The coordinate selects a real child of the immutable physical nominal.
+/// A success says only that this complete child Type equals the current Type.
+pub(super) fn field_equal(
+    owner: &Arc<Geometry>,
+    variant: Option<usize>,
+    field: usize,
+    expected: &Arc<Geometry>,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let storage = match &owner.ty {
+        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+        ty => ty,
+    };
+    let actual = match (storage, variant) {
+        (Type::Record { fields, .. } | Type::Package { fields, .. }, None) => {
+            fields.get(field).map(|(_, ty)| ty)
+        }
+        (Type::Enum { variants, .. }, Some(variant)) => variants
+            .get(variant)
+            .and_then(|(_, fields)| fields.get(field)),
+        _ => None,
+    }
+    .ok_or_else(|| fail("nominal child geometry has no exact physical field coordinate"))?;
+    let owner_work = bounded_work(&owner.ty, budget)?;
+    let expected_work = bounded_work(&expected.ty, budget)?;
+    let reusable = owner_work.is_some() && expected_work.is_some();
+    let key = (
+        &owner.ty as *const Type as usize,
+        variant,
+        field,
+        &expected.ty as *const Type as usize,
+    );
+    if reusable {
+        budget.lookup(
+            budget.geometry_field_equalities.len(),
+            "complete nominal child equality query",
+        )?;
+        if budget.geometry_field_equalities.contains(&key) {
+            return Ok(true);
+        }
+    }
+    let before = budget.remaining();
+    crate::dyn_metadata::ty(actual, budget)?;
+    let actual_work = before - budget.remaining();
+    let expected_work = match expected_work {
+        Some(work) => work,
+        None => {
+            let before = budget.remaining();
+            crate::dyn_metadata::ty(&expected.ty, budget)?;
+            before - budget.remaining()
+        }
+    };
+    budget.spend(
+        actual_work.max(expected_work),
+        "complete nominal child Type comparison",
+    )?;
+    let equal = *actual == expected.ty;
+    if equal && reusable {
+        budget.lookup(
+            budget.geometry_field_equalities.len(),
+            "complete nominal child equality publication",
+        )?;
+        budget.geometry_field_equalities.insert(key);
+    }
+    Ok(equal)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,6 +443,20 @@ mod tests {
         assert!(inputs.resolved.borrow().is_empty());
         assert!(budget.geometry_types.is_empty());
     }
+    #[test]
+    fn physical_field_equalities_keep_complete_coordinate_and_type_identity() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let owner = copy_geometry(&Type::Record { name: "Pair".into(), fields: vec![("first".into(), Type::I32), ("second".into(), Type::U32)] }, &value::empty(), &mut budget).unwrap();
+        let expected = copy_geometry(&Type::I32, &value::empty(), &mut budget).unwrap();
+        retain(&owner, &mut budget).unwrap();
+        retain(&expected, &mut budget).unwrap();
+        assert!(field_equal(&owner, None, 0, &expected, &mut budget).unwrap());
+        assert!(!field_equal(&owner, None, 1, &expected, &mut budget).unwrap());
+        assert_eq!(budget.geometry_field_equalities.len(), 1);
+        assert!(field_equal(&owner, None, 0, &expected, &mut budget).unwrap());
+        assert!(field_equal(&owner, None, 2, &expected, &mut budget).is_err());
+    }
+
     #[test]
     fn immutable_raw_bounds_do_not_cross_changed_request_limits() {
         let mut budget = Budget::new(&zil_base::Limits::default());

@@ -496,8 +496,14 @@ struct Initialization {
 // All entries borrow identity from this one immutable analysis request. The
 // shared value contains only the complete CFG and its instruction-derived
 // initialization sets; it contains no current class, loan or access state.
+#[derive(Clone, Copy)]
+struct SsaDefinition {
+    block: BlockId,
+    instruction: usize,
+}
 struct InitializationCache {
     module: usize,
+    definitions: std::collections::BTreeMap<usize, std::sync::Arc<Vec<Option<SsaDefinition>>>>,
     functions:
         std::collections::BTreeMap<usize, (FunctionId, Option<std::sync::Arc<Initialization>>)>,
 }
@@ -526,6 +532,7 @@ fn bind_initialization(module: &TypedModule, budget: &mut Budget) -> CompileResu
     budget.initialization = Some(InitializationCache {
         module: owner,
         functions,
+        definitions: std::collections::BTreeMap::new(),
     });
     Ok(())
 }
@@ -564,6 +571,95 @@ fn shared_initialization(
         *entry = Some(std::sync::Arc::clone(&result));
     }
     Ok(result)
+}
+
+fn shared_definitions(
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<std::sync::Arc<Vec<Option<SsaDefinition>>>> {
+    let key = function as *const TypedFunction as usize;
+    let count = budget
+        .initialization
+        .as_ref()
+        .map_or(0, |cache| cache.functions.len());
+    budget.lookup(count, "actual SSA immutable function lookup")?;
+    let registered = budget
+        .initialization
+        .as_ref()
+        .and_then(|cache| cache.functions.get(&key))
+        .is_some_and(|(id, _)| *id == function.id);
+    if registered {
+        budget.lookup(count, "actual SSA definition directory lookup")?;
+        budget.spend(1, "actual SSA shared directory")?;
+        if let Some(directory) = budget
+            .initialization
+            .as_ref()
+            .and_then(|cache| cache.definitions.get(&key))
+        {
+            return Ok(std::sync::Arc::clone(directory));
+        }
+    }
+    if function.values.len() > budget.helper_nodes {
+        return Err(vec![Diagnostic::limit(
+            Phase::Analyze,
+            "actual SSA directory exceeds its complete node limit",
+            None,
+        )]);
+    }
+    budget.spend(function.values.len(), "actual SSA directory allocation")?;
+    let mut directory = vec![None; function.values.len()];
+    for (position, block) in function.blocks.iter().enumerate() {
+        budget.spend(
+            block.instructions.len().saturating_add(1),
+            "actual SSA definition scan",
+        )?;
+        if block.id.0 as usize != position {
+            return Err(bad(
+                "actual SSA directory has a noncanonical block identity",
+            ));
+        }
+        for (instruction, operation) in block.instructions.iter().enumerate() {
+            if let Some(value) = operation.result {
+                let slot = directory.get_mut(value.0 as usize).ok_or_else(|| {
+                    bad("actual SSA definition leaves its complete value directory")
+                })?;
+                if slot
+                    .replace(SsaDefinition {
+                        block: block.id,
+                        instruction,
+                    })
+                    .is_some()
+                {
+                    return Err(bad("actual SSA value has multiple definitions"));
+                }
+            }
+        }
+    }
+    budget.spend(1, "actual SSA shared directory")?;
+    let directory = std::sync::Arc::new(directory);
+    if registered {
+        budget.lookup(count, "actual SSA directory publication")?;
+        budget.spend(1, "actual SSA shared directory")?;
+        if let Some(cache) = &mut budget.initialization {
+            cache
+                .definitions
+                .insert(key, std::sync::Arc::clone(&directory));
+        }
+    }
+    Ok(directory)
+}
+fn shared_definition(
+    function: &TypedFunction,
+    value: ValueId,
+    budget: &mut Budget,
+) -> CompileResult<SsaDefinition> {
+    let directory = shared_definitions(function, budget)?;
+    budget.spend(1, "actual SSA definition query")?;
+    directory
+        .get(value.0 as usize)
+        .copied()
+        .flatten()
+        .ok_or_else(|| bad("actual SSA value has no complete definition"))
 }
 
 fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initialization> {
@@ -980,6 +1076,22 @@ mod tests {
                 .all(|(_, result)| result.is_none())
         );
         assert!(shared_initialization(&m.functions[0], &mut fresh).is_ok());
+    }
+
+    #[test]
+    fn ssa_directory_is_bound_to_the_actual_function_and_rejects_duplicates() {
+        let m = module(true);
+        let mut budget = Budget::new(&Limits::default());
+        bind_initialization(&m, &mut budget).unwrap();
+        let first = shared_definitions(&m.functions[0], &mut budget).unwrap();
+        let second = shared_definitions(&m.functions[0], &mut budget).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+        let mut other = m.functions[0].clone();
+        let first_value = other.blocks[0].instructions[0].result;
+        other.blocks[0].instructions.last_mut().unwrap().result = first_value;
+        assert!(shared_definitions(&other, &mut budget).is_err());
+        let same = shared_definitions(&m.functions[0], &mut budget).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first, &same));
     }
 
     #[test]

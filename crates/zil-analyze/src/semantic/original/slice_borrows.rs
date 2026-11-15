@@ -31,11 +31,11 @@ impl Solver<'_, '_> {
             ));
         }
         let input = place.inner;
-        let (address, element) = match self.state.arena[self.type_root(input, b)?] {
+        let (address, element, source_life) = match self.state.arena[self.type_root(input, b)?] {
             Kind::Address {
                 mutable: source_mutable,
+                life,
                 inner,
-                ..
             } => {
                 if mutable && !source_mutable {
                     return Err(fail(
@@ -55,7 +55,7 @@ impl Solver<'_, '_> {
                         "original range needs its exact nested backing-reference load",
                     ));
                 }
-                (true, element)
+                (true, element, Some(life))
             }
             Kind::Array { element, .. } => {
                 if mutable && !place.mutable {
@@ -63,7 +63,7 @@ impl Solver<'_, '_> {
                         "original mutable array range borrow needs a mutable place",
                     ));
                 }
-                (false, element)
+                (false, element, place.source_life)
             }
             _ => {
                 return Err(fail(
@@ -115,7 +115,10 @@ impl Solver<'_, '_> {
             return Err(fail("original range borrow has competing backing places"));
         }
         let ordinal = self.borrow_occurrence(frame.definition, node, b)?;
-        let life = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+        let life = match source_life {
+            Some(life) => life,
+            None => self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?,
+        };
         self.term(
             Kind::Address {
                 mutable,

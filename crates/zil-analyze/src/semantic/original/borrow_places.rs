@@ -10,6 +10,9 @@ pub(super) struct Place {
     pub path: Vec<u32>,
     pub inner: Term,
     pub indirect: bool,
+    // Original lifetime upper bound of the one Address actually traversed.
+    // A direct local-slot borrow has no such source and keeps its fresh row.
+    pub source_life: Option<Term>,
     pub mutable: bool,
 }
 
@@ -95,6 +98,7 @@ impl Solver<'_, '_> {
                     path: Vec::new(),
                     inner,
                     indirect: false,
+                    source_life: None,
                     mutable,
                 }
             }
@@ -138,7 +142,7 @@ impl Solver<'_, '_> {
                     self.borrow_place_inner(frame, object, b, depth + 1)?
                 } else {
                     let term = self.expression(frame, object, b, depth + 1)?;
-                    let Kind::Address { mutable, inner, .. } =
+                    let Kind::Address { mutable, life, inner } =
                         self.state.arena[self.type_root(term, b)?]
                     else {
                         return Err(fail(
@@ -153,6 +157,7 @@ impl Solver<'_, '_> {
                         path: Vec::new(),
                         inner,
                         indirect: true,
+                        source_life: Some(life),
                         mutable,
                     }
                 };
@@ -213,13 +218,14 @@ impl Solver<'_, '_> {
         self.step(depth, b)?;
         let root = self.type_root(place.inner, b)?;
         match self.state.arena[root] {
-            Kind::Address { mutable, inner, .. } => {
+            Kind::Address { mutable, life, inner } => {
                 if place.indirect || !place.path.is_empty() {
                     return Err(unknown(
                         "original borrow needs the exact nested pointer load boundary",
                     ));
                 }
                 place.indirect = true;
+                place.source_life = Some(life);
                 place.mutable = mutable;
                 place.inner = inner;
                 if matches!(

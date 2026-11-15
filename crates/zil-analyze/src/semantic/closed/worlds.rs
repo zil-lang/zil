@@ -7,15 +7,7 @@ impl<'a> Check<'a, '_> {
         target: FunctionId,
         b: &mut Budget,
     ) -> CompileResult<Vec<&'a SemanticInstance>> {
-        let mut worlds = Vec::new();
-        for instance in &self.program.instances {
-            b.spend(1, WORK)?;
-            if matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
-            {
-                self.push_value(&mut worlds, instance, b)?;
-            }
-        }
-        Ok(worlds)
+        self.inventory.worlds(self.program, target, b)
     }
 
     // Some consumers ask only for a definition-independent, zero-class view.

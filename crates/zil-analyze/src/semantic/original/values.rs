@@ -652,70 +652,22 @@ impl Checked {
             return Ok(value::scalar(ty.clone()));
         }
         let context = self.context(caller, context, inventory, b)?;
-        let source = inventory.definition(caller, b)?;
-        let SemanticDefinitionBody::FunctionWithBody {
-            site_nodes, sites, ..
-        } = &source.body
-        else {
-            return Err(fail("original call result has no complete caller body"));
-        };
-        let call = self
-            .calls
-            .get(&(caller, node))
-            .ok_or_else(|| fail("original result role has no checked call and actual vector"))?;
-        let mut recipe = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.node != SemanticOriginalNode::Expression(node) {
-                continue;
-            }
-            b.spend(sites.len(), WORK)?;
-            if sites.iter().any(|site| {
-                site.id == link.site
-                    && matches!(
-                        site.kind,
-                        SemanticSiteRecipeKind::OriginalCall
-                            | SemanticSiteRecipeKind::Call { .. }
-                            | SemanticSiteRecipeKind::CallableCall { .. }
-                    )
-            }) {
-                if recipe.replace(link.site).is_some() {
-                    return Err(fail("original call result has ambiguous role anchors"));
-                }
-            }
-        }
-        let recipe =
-            recipe.ok_or_else(|| fail("original call result has no emitted role anchor"))?;
+        b.lookup(self.calls.len(), WORK)?;
+        let call = self.calls.get(&(caller, node)).ok_or_else(|| fail("original result role has no checked call and actual vector"))?;
+        let recipe = inventory.call_anchor(caller, node, b)?;
         let function = match &context.target {
             SemanticInstanceTarget::Function(target) => inventory.function(target, b)?,
             _ => return Err(fail("original call result has no real caller function")),
         };
-        let mut actual = None;
-        for site in &program.sites {
-            b.spend(1, WORK)?;
-            if site.instance == context.id && site.recipe == recipe {
-                let SemanticSiteAddress::Typed {
-                    block,
-                    instruction,
-                    edge: SemanticSiteEdge::After,
-                } = site.at
-                else {
-                    return Err(fail(
-                        "original call result does not name its actual after boundary",
-                    ));
-                };
-                let instruction = function
-                    .blocks
-                    .get(block.0 as usize)
-                    .and_then(|block| block.instructions.get(instruction as usize))
-                    .ok_or_else(|| fail("original call role has no actual instruction"))?;
-                if actual.replace((instruction, &site.action)).is_some() {
-                    return Err(fail("original result role has multiple executable calls"));
-                }
-            }
-        }
-        let (instruction, action) =
-            actual.ok_or_else(|| fail("original result role has no actual call"))?;
+        let site = inventory.emitted_site(program, context.id, recipe, b)?;
+        let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
+            return Err(fail("original call result does not name its actual after boundary"));
+        };
+        let instruction = function.blocks.get(block.0 as usize)
+            .filter(|actual| actual.id == block)
+            .and_then(|block| block.instructions.get(instruction as usize))
+            .ok_or_else(|| fail("original call role has no actual instruction"))?;
+        let action = &site.action;
         if let InstructionKind::Call {
             function: target, ..
         }
@@ -727,12 +679,7 @@ impl Checked {
         } = instruction.kind
         {
             let mut worlds = 0usize;
-            for instance in &program.instances {
-                b.spend(1, WORK)?;
-                if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
-                {
-                    continue;
-                }
+            for instance in inventory.worlds(program, target, b)? {
                 if instance.definition != call.target {
                     return Err(fail("original result role selects another actual callee"));
                 }

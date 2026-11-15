@@ -100,21 +100,8 @@ impl Point<'_> {
             .values
             .get(value.0 as usize)
             .ok_or_else(|| fail("semantic operand selects an absent actual SSA value"))?;
-        let mut definition = None;
-        for block in &self.function.blocks {
-            b.spend(block.instructions.len().saturating_add(1), WORK)?;
-            for (index, instruction) in block.instructions.iter().enumerate() {
-                if instruction.result == Some(value)
-                    && definition.replace((block.id, index)).is_some()
-                {
-                    return Err(fail(
-                        "semantic SSA operand has competing actual definitions",
-                    ));
-                }
-            }
-        }
-        let (block, ordinal) =
-            definition.ok_or_else(|| fail("semantic SSA operand has no actual definition"))?;
+        let definition = crate::shared_definition(self.function, value, b)?;
+        let (block, ordinal) = (definition.block, definition.instruction);
         if block == self.block.id {
             if ordinal < self.instruction
                 || (ordinal == self.instruction && self.edge == SemanticSiteEdge::After)

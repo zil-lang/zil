@@ -24,6 +24,7 @@ enum DynDefinitionLocation {
 
 struct Inventory<'a> {
     module: &'a TypedModule,
+    program: &'a SemanticModule,
     limits: &'a zil_base::Limits,
     source: Option<&'a CoreProgram>,
     frozen_wrapper: Option<SemanticDefinitionId>,
@@ -38,6 +39,9 @@ struct Inventory<'a> {
     drop_methods: std::cell::RefCell<BTreeMap<SemanticDefinitionId, Option<SemanticDefinitionId>>>,
     ordinary_drop_absence: std::cell::RefCell<BTreeSet<SemanticDefinitionId>>,
     geometry: geometry::Inputs,
+    call_anchors: std::cell::RefCell<BTreeMap<SemanticDefinitionId, BTreeMap<zil_base::NodeId, SemanticSiteId>>>,
+    emitted_sites: std::cell::RefCell<BTreeMap<usize, BTreeMap<(SemanticInstanceId, SemanticSiteId), usize>>>,
+    function_worlds: std::cell::RefCell<BTreeMap<usize, BTreeMap<FunctionId, Vec<usize>>>>,
 }
 impl<'a> Inventory<'a> {
     fn new(
@@ -51,6 +55,7 @@ impl<'a> Inventory<'a> {
         crate::dyn_metadata::recipe(program, b)?;
         let mut inventory = Self {
             module,
+            program,
             limits,
             source: None,
             frozen_wrapper: None,
@@ -62,6 +67,9 @@ impl<'a> Inventory<'a> {
             drop_methods: std::cell::RefCell::new(BTreeMap::new()),
             ordinary_drop_absence: std::cell::RefCell::new(BTreeSet::new()),
             geometry: geometry::Inputs::new(module, program, b)?,
+            call_anchors: std::cell::RefCell::new(BTreeMap::new()),
+            emitted_sites: std::cell::RefCell::new(BTreeMap::new()),
+            function_worlds: std::cell::RefCell::new(BTreeMap::new()),
         };
         let mut identities = BTreeSet::new();
         for definition in &program.definitions {
@@ -157,6 +165,194 @@ impl<'a> Inventory<'a> {
             .get(id)
             .copied()
             .ok_or_else(|| fail("exact actual function target is absent"))
+    }
+    fn call_anchor(
+        &self,
+        owner: SemanticDefinitionId,
+        node: zil_base::NodeId,
+        b: &mut Budget,
+    ) -> CompileResult<SemanticSiteId> {
+        b.lookup(self.call_anchors.borrow().len(), WORK)?;
+        if !self.call_anchors.borrow().contains_key(&owner) {
+            let original = self.definition(owner, b)?;
+            let SemanticDefinitionBody::FunctionWithBody {
+                sites, site_nodes, ..
+            } = &original.body
+            else {
+                return Err(fail("original call anchor has no complete function body"));
+            };
+            let mut recipes = BTreeMap::new();
+            for site in sites {
+                b.lookup(recipes.len(), WORK)?;
+                if recipes
+                    .insert(
+                        site.id,
+                        matches!(
+                            site.kind,
+                            SemanticSiteRecipeKind::OriginalCall
+                                | SemanticSiteRecipeKind::Call { .. }
+                                | SemanticSiteRecipeKind::CallableCall { .. }
+                        ),
+                    )
+                    .is_some()
+                {
+                    return Err(fail("original call anchor has repeated recipe identities"));
+                }
+            }
+            let mut anchors = BTreeMap::new();
+            for link in site_nodes {
+                b.lookup(recipes.len(), WORK)?;
+                if recipes.get(&link.site) != Some(&true) {
+                    continue;
+                }
+                if let SemanticOriginalNode::Expression(node) = link.node {
+                    b.lookup(anchors.len(), WORK)?;
+                    if anchors.insert(node, link.site).is_some() {
+                        return Err(fail("original call result has ambiguous role anchors"));
+                    }
+                }
+            }
+            b.lookup(self.call_anchors.borrow().len(), WORK)?;
+            self.call_anchors.borrow_mut().insert(owner, anchors);
+        }
+        let anchors = self.call_anchors.borrow();
+        let anchors = anchors
+            .get(&owner)
+            .ok_or_else(|| fail("original call anchor directory is absent"))?;
+        b.lookup(anchors.len(), WORK)?;
+        anchors
+            .get(&node)
+            .copied()
+            .ok_or_else(|| fail("original call result has no emitted role anchor"))
+    }
+    fn owns_program(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<bool> {
+        b.spend(1, WORK)?;
+        if std::ptr::eq(self.program, program) {
+            return Ok(true);
+        }
+        if let Some(source) = self.source {
+            for module in &source.modules {
+                b.spend(1, WORK)?;
+                if module
+                    .core
+                    .semantic
+                    .as_ref()
+                    .is_some_and(|input| std::ptr::eq(input, program))
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+    fn emitted_site<'p>(
+        &self,
+        program: &'p SemanticModule,
+        instance: SemanticInstanceId,
+        recipe: SemanticSiteId,
+        b: &mut Budget,
+    ) -> CompileResult<&'p SemanticSite> {
+        if !self.owns_program(program, b)? {
+            let mut selected = None;
+            for site in &program.sites {
+                b.spend(1, WORK)?;
+                if site.instance == instance
+                    && site.recipe == recipe
+                    && selected.replace(site).is_some()
+                {
+                    return Err(fail("original result role has multiple executable calls"));
+                }
+            }
+            return selected.ok_or_else(|| fail("original result role has no actual call"));
+        }
+        let owner = program as *const SemanticModule as usize;
+        b.lookup(self.emitted_sites.borrow().len(), WORK)?;
+        if !self.emitted_sites.borrow().contains_key(&owner) {
+            let mut sites = BTreeMap::new();
+            for (position, site) in program.sites.iter().enumerate() {
+                b.lookup(sites.len(), WORK)?;
+                if sites
+                    .insert((site.instance, site.recipe), position)
+                    .is_some()
+                {
+                    return Err(fail("original result role has multiple executable calls"));
+                }
+            }
+            b.lookup(self.emitted_sites.borrow().len(), WORK)?;
+            self.emitted_sites.borrow_mut().insert(owner, sites);
+        }
+        let sites = self.emitted_sites.borrow();
+        let sites = sites
+            .get(&owner)
+            .ok_or_else(|| fail("actual event coordinate directory is absent"))?;
+        b.lookup(sites.len(), WORK)?;
+        let position = *sites
+            .get(&(instance, recipe))
+            .ok_or_else(|| fail("original result role has no actual call"))?;
+        program
+            .sites
+            .get(position)
+            .filter(|site| site.instance == instance && site.recipe == recipe)
+            .ok_or_else(|| fail("actual event coordinate differs from its complete program"))
+    }
+    fn worlds<'p>(
+        &self,
+        program: &'p SemanticModule,
+        function: FunctionId,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<&'p SemanticInstance>> {
+        if !self.owns_program(program, b)? {
+            let mut worlds = Vec::new();
+            for instance in &program.instances {
+                b.spend(1, WORK)?;
+                if matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function)
+                {
+                    b.spend(
+                        1 + if worlds.len() == worlds.capacity() {
+                            worlds.len()
+                        } else {
+                            0
+                        },
+                        WORK,
+                    )?;
+                    worlds.push(instance);
+                }
+            }
+            return Ok(worlds);
+        }
+        let owner = program as *const SemanticModule as usize;
+        b.lookup(self.function_worlds.borrow().len(), WORK)?;
+        if !self.function_worlds.borrow().contains_key(&owner) {
+            let mut worlds = BTreeMap::<FunctionId, Vec<usize>>::new();
+            for (position, instance) in program.instances.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) =
+                    instance.target
+                {
+                    b.lookup(worlds.len(), WORK)?;
+                    let entries = worlds.entry(function).or_default();
+                    b.spend(
+                        1 + if entries.len() == entries.capacity() {
+                            entries.len()
+                        } else {
+                            0
+                        },
+                        WORK,
+                    )?;
+                    entries.push(position);
+                }
+            }
+            b.lookup(self.function_worlds.borrow().len(), WORK)?;
+            self.function_worlds.borrow_mut().insert(owner, worlds);
+        }
+        let worlds = self.function_worlds.borrow();
+        let worlds = worlds
+            .get(&owner)
+            .ok_or_else(|| fail("actual function-world directory is absent"))?;
+        b.lookup(worlds.len(), WORK)?;
+        let positions = worlds.get(&function).map_or(&[][..], Vec::as_slice);
+        b.spend(positions.len(), WORK)?;
+        positions.iter().map(|position| program.instances.get(*position).filter(|instance| matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id == function)).ok_or_else(|| fail("actual function world changes its exact program coordinate"))).collect()
     }
     fn resolved(value: &SemanticTypeValue, b: &mut Budget) -> CompileResult<()> {
         let SemanticTypeValue::Resolved { ty, life, classes } = value else {

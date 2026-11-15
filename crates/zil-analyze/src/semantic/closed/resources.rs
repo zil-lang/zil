@@ -233,9 +233,9 @@ impl Check<'_, '_> {
         let mut actual = None;
         for resource in &self.module.resources {
             b.spend(1, WORK)?;
-            crate::dyn_metadata::ty(&resource.payload, b)?;
-            crate::dyn_metadata::ty(payload, b)?;
-            if resource.payload == *payload && actual.replace(resource).is_some() {
+            let source_life = match &resource.payload { Type::BorrowedStorage { life, .. } => Some(life), _ => None };
+            let candidate = self.inventory.geometry.type_value(&resource.payload, source_life, b)?;
+            if geometry::same_type(&candidate.ty, &geometry.ty, b)? && actual.replace(resource).is_some() {
                 return Err(fail(
                     "actual resource payload has multiple cleanup definitions",
                 ));

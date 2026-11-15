@@ -34,6 +34,8 @@ pub(super) struct Budget {
     // Request-local immutable function CFG/initialization successes only.
     pub(super) initialization: Option<super::InitializationCache>,
     pub(super) geometry_types: BTreeMap<usize, crate::semantic::geometry::TypeEntry>,
+    pub(super) geometry_equalities: BTreeSet<(usize, usize)>,
+    pub(super) geometry_field_equalities: BTreeSet<(usize, Option<usize>, usize, usize)>,
     cost_profiling: bool,
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
@@ -231,6 +233,8 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             initialization: None,
             geometry_types: BTreeMap::new(),
+            geometry_equalities: BTreeSet::new(),
+            geometry_field_equalities: BTreeSet::new(),
             cost_profiling: matches!(
                 std::env::var("ZIL_ANALYZE_PROFILE_COSTS").as_deref(),
                 Ok("1")

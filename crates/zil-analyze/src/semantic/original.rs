@@ -1761,6 +1761,7 @@ impl Solver<'_, '_> {
                         ));
                     }
                     let inner = place.inner;
+                    let source_life = place.source_life;
                     b.lookup(self.state.borrows.len(), WORK)?;
                     if self
                         .state
@@ -1785,7 +1786,10 @@ impl Solver<'_, '_> {
                         ));
                     }
                     let row = self.borrow_occurrence(frame.definition, value.id, b)?;
-                    let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+                    let life = match source_life {
+                        Some(life) => life,
+                        None => self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?,
+                    };
                     self.term(
                         Kind::Address {
                             mutable: *op == UnaryOp::BorrowMut,

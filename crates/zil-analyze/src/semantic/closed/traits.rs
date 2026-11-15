@@ -12,7 +12,6 @@ pub(super) struct Query {
 }
 pub(super) struct ActiveQuery {
     query: Query,
-    comparison_work: usize,
 }
 
 #[track_caller]
@@ -37,6 +36,25 @@ fn charge_arguments(arguments: &[Argument], b: &mut Budget) -> CompileResult<()>
         }
     }
     Ok(())
+}
+fn arguments_equal(left: &[Argument], right: &[Argument], b: &mut Budget) -> CompileResult<bool> {
+    b.spend(left.len().saturating_add(right.len()), WORK)?;
+    if left.len() != right.len() { return Ok(false); }
+    let mut equal = true;
+    for (left, right) in left.iter().zip(right) {
+        equal &= match (left, right) {
+            (Argument::Type(left), Argument::Type(right)) => left.equal_paid(right, b)?,
+            (Argument::Life(left), Argument::Life(right)) => left == right,
+            (Argument::Const { carrier: left_ty, value: left }, Argument::Const { carrier: right_ty, value: right }) => {
+                let same_carrier = geometry::same_type(left_ty, right_ty, b)?;
+                let width = |value: &Constant| match value { Constant::WideString(units) => units.len(), _ => 1 };
+                b.spend(width(left).saturating_add(width(right)), WORK)?;
+                same_carrier && left == right
+            }
+            _ => false,
+        };
+    }
+    Ok(equal)
 }
 impl Check<'_, '_> {
     #[allow(clippy::too_many_arguments)]
@@ -491,10 +509,8 @@ impl Check<'_, '_> {
                 "actual associated dependency exceeds its complete query depth",
             ));
         }
-        let before = b.remaining();
         charge_value(receiver, b)?;
         charge_arguments(arguments, b)?;
-        let comparison_work = (before - b.remaining()).saturating_add(1);
         let query = Query {
             receiver: receiver.clone(),
             declaration,
@@ -509,8 +525,9 @@ impl Check<'_, '_> {
             // Old queries are immutable owned clones, already fully bounded.
             // Pay a complete paired comparison rather than re-walking their
             // raw metadata; every current query still had a fresh preflight.
-            b.spend(old.comparison_work.max(comparison_work), WORK)?;
-            if old.query == query {
+            if old.query.receiver.equal_paid(&query.receiver, b)?
+                && arguments_equal(&old.query.arguments, &query.arguments, b)?
+            {
                 return Err(fail(
                     "actual original associated/trait query graph is cyclic",
                 ));
@@ -518,10 +535,7 @@ impl Check<'_, '_> {
         }
         let width = self.trait_queries.borrow().len();
         b.spend(width.saturating_add(1), WORK)?;
-        self.trait_queries.borrow_mut().push(ActiveQuery {
-            query,
-            comparison_work,
-        });
+        self.trait_queries.borrow_mut().push(ActiveQuery { query });
         Ok(())
     }
 
@@ -635,15 +649,11 @@ impl Check<'_, '_> {
                 // Start at the original Self recipe. The supplied Self claim
                 // is checked separately and never selects this provider.
                 let self_value = self.recipe_value(candidate, self_type, b, depth + 1)?;
-                charge_value(&self_value, b)?;
-                charge_value(receiver, b)?;
-                if self_value != *receiver {
+                if !self_value.equal_paid(receiver, b)? {
                     continue;
                 }
                 let actuals = self.trait_actuals(candidate, trait_application, b, depth + 1)?;
-                charge_arguments(&actuals, b)?;
-                charge_arguments(arguments, b)?;
-                if actuals != arguments {
+                if !arguments_equal(&actuals, arguments, b)? {
                     continue;
                 }
                 if let Some(old) = selected {

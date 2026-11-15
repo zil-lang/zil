@@ -84,6 +84,33 @@ impl Value {
         }
         Ok(std::sync::Arc::make_mut(&mut self.geometry))
     }
+    pub(super) fn field_equal(
+        &self,
+        owner: &std::sync::Arc<geometry::Geometry>,
+        variant: Option<usize>,
+        field: usize,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        geometry::field_equal(owner, variant, field, &self.geometry, b)
+    }
+    pub(super) fn equal_paid(&self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
+        b.spend(
+            self.classes
+                .len()
+                .saturating_add(other.classes.len())
+                .saturating_add(1),
+            WORK,
+        )?;
+        if std::sync::Arc::ptr_eq(&self.geometry, &other.geometry) {
+            return Ok(self.classes == other.classes);
+        }
+        if !geometry::same_type(&self.ty, &other.ty, b)? {
+            return Ok(false);
+        }
+        crate::dyn_metadata::shape(&self.life, b)?;
+        crate::dyn_metadata::shape(&other.life, b)?;
+        Ok(self.life == other.life && self.classes == other.classes)
+    }
     pub(super) fn with_classes(&self, classes: Vec<Class>, b: &mut Budget) -> CompileResult<Self> {
         b.spend(1, WORK)?;
         Ok(Self {
@@ -345,6 +372,40 @@ fn actual_equal(actual: &LifeNominalActual, expected: &ExpectedActual<'_>) -> bo
                 }
         }
         _ => false,
+    }
+}
+
+fn actual_equal_paid(
+    actual: &LifeNominalActual,
+    expected: &ExpectedActual<'_>,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let (ty, life) = match actual {
+        LifeNominalActual::Type(ty) => (ty, None),
+        LifeNominalActual::QualifiedType { ty, life } => (ty, Some(life)),
+        _ => return Ok(actual_equal(actual, expected)),
+    };
+    let ExpectedActual::Type {
+        ty: expected_ty,
+        life: expected_life,
+    } = expected
+    else {
+        return Ok(false);
+    };
+    let geometry = inventory.geometry.type_value(ty, life, b)?;
+    if !geometry::same_type(&geometry.ty, expected_ty, b)? {
+        return Ok(false);
+    }
+    let expected_life = *expected_life;
+    match (life, expected_life) {
+        (None, None) => Ok(true),
+        (Some(life), None) | (None, Some(life)) => Ok(empty_shape(life)),
+        (Some(life), Some(expected)) => {
+            crate::dyn_metadata::shape(life, b)?;
+            crate::dyn_metadata::shape(expected, b)?;
+            Ok(life == expected)
+        }
     }
 }
 
@@ -638,11 +699,7 @@ pub(super) fn nominal(
         )?;
         for argument in &instance.arguments {
             match argument {
-                LifeNominalActual::Type(ty) => crate::dyn_metadata::ty(ty, b)?,
-                LifeNominalActual::QualifiedType { ty, life } => {
-                    crate::dyn_metadata::ty(ty, b)?;
-                    crate::dyn_metadata::shape(life, b)?;
-                }
+                LifeNominalActual::Type(_) | LifeNominalActual::QualifiedType { .. } => {}
                 LifeNominalActual::Const(value) => {
                     b.spend(1, WORK)?;
                     if let Constant::WideString(units) = value {
@@ -655,22 +712,16 @@ pub(super) fn nominal(
         // A complete zero Type domain has two explicit inventory spellings:
         // Type(T) and QualifiedType(T, empty).  Neither spelling changes T or
         // supplies a class.  Nonzero domains still require the exact shape.
-        let arguments_equal = instance.arguments.len() == expected.len()
-            && instance
-                .arguments
-                .iter()
-                .zip(&expected)
-                .all(|(actual, expected)| actual_equal(actual, expected));
+        let mut arguments_equal = instance.arguments.len() == expected.len();
+        for (actual, expected) in instance.arguments.iter().zip(&expected) {
+            arguments_equal &= actual_equal_paid(actual, expected, inventory, b)?;
+        }
         if !arguments_equal {
             continue;
         }
         let actual_geometry = inventory.geometry.nominal(position, inventory.module, b)?;
-        let comparison_work = geometry::bounded_work(&actual_geometry.ty, b)?
-            .ok_or_else(|| fail("nominal geometry lacks its complete raw bound"))?;
-        b.spend(
-            comparison_work,
-            "nominal complete field geometry comparison",
-        )?;
+        crate::dyn_metadata::shape(&actual_geometry.life, b)?;
+        crate::dyn_metadata::shape(&shape, b)?;
         let storage = match &actual_geometry.ty {
             Type::BorrowedStorage { storage, life } if *life == shape => storage.as_ref(),
             Type::BorrowedStorage { .. } => continue,
@@ -699,10 +750,13 @@ pub(super) fn nominal(
                 Type::Package { fields: actual, .. },
             ) => {
                 b.spend(source_fields.len().saturating_add(actual.len()), WORK)?;
-                actual.len() == fields.len()
-                    && source_fields.iter().zip(actual).zip(fields).all(
-                        |((source, (name, ty)), field)| source.name == *name && *ty == field.ty,
-                    )
+                let mut valid = actual.len() == fields.len();
+                for (ordinal, ((source, (name, _)), field)) in source_fields.iter().zip(actual).zip(fields).enumerate() {
+                    b.spend(source.name.len().saturating_add(name.len()).saturating_add(1), WORK)?;
+                    valid &= source.name == *name;
+                    valid &= field.field_equal(&actual_geometry, None, ordinal, b)?;
+                }
+                valid
             }
             (
                 LifeNominalKind::Enum,
@@ -715,11 +769,14 @@ pub(super) fn nominal(
             ) => {
                 let mut offset = 0usize;
                 let mut valid = source_variants.len() == actual.len();
-                for (source, (name, types)) in source_variants.iter().zip(actual) {
+                for (variant, (source, (name, types))) in source_variants.iter().zip(actual).enumerate() {
                     b.spend(types.len().saturating_add(name.len() + 1), WORK)?;
                     valid &= source.name == *name && source.fields.len() == types.len();
-                    for ty in types {
-                        valid &= fields.get(offset).is_some_and(|field| field.ty == *ty);
+                    for (ordinal, _) in types.iter().enumerate() {
+                        valid &= match fields.get(offset) {
+                            Some(field) => field.field_equal(&actual_geometry, Some(variant), ordinal, b)?,
+                            None => false,
+                        };
                         offset += 1;
                     }
                 }

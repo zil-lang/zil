@@ -793,18 +793,15 @@ impl Check<'_, '_> {
         value: ValueId,
         b: &mut Budget,
     ) -> CompileResult<(BlockId, usize, &'a Instruction)> {
-        let mut selected = None;
-        for block in &function.blocks {
-            for (index, instruction) in block.instructions.iter().enumerate() {
-                b.spend(1, WORK)?;
-                if instruction.result == Some(value)
-                    && selected.replace((block.id, index, instruction)).is_some()
-                {
-                    return Err(fail("semantic SSA value has multiple definitions"));
-                }
-            }
-        }
-        selected.ok_or_else(|| fail("semantic SSA value has no actual definition"))
+        let definition = crate::shared_definition(function, value, b)?;
+        let instruction = function
+            .blocks
+            .get(definition.block.0 as usize)
+            .filter(|block| block.id == definition.block)
+            .and_then(|block| block.instructions.get(definition.instruction))
+            .filter(|instruction| instruction.result == Some(value))
+            .ok_or_else(|| fail("semantic SSA definition differs from its actual instruction"))?;
+        Ok((definition.block, definition.instruction, instruction))
     }
     pub(super) fn capture_value_origin(
         &self,
