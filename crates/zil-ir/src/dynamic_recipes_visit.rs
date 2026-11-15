@@ -5430,11 +5430,11 @@ fn visit_part_32<'a, V: DynRecipeVisitor>(
                 }
             }
         }
+
         _ => unreachable!("structural visitor dispatch group"),
     }
     Ok(())
 }
-
 impl DynRecipeMetadata for DynTypeValue {
     fn visit_dyn_metadata<V: DynRecipeVisitor>(
         &self,
