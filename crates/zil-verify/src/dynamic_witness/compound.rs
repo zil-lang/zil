@@ -107,16 +107,16 @@ impl Walk<'_, '_> {
                         "semantic pointee raw Address has no independent complete child domain",
                     ));
                 }
-                b.spend(physical.len().saturating_add(1))?;
-                self.slots.push((
-                    physical.clone(),
-                    if *mutable {
-                        StoredBorrowMode::ExclusiveAddress
-                    } else {
-                        StoredBorrowMode::SharedAddress
-                    },
-                    None,
-                ));
+                b.spend(physical.len().saturating_add(self.life.slots.len()).saturating_add(1))?;
+                if self.life.slots.iter().any(|row|row.path==*physical){
+                    self.slots.push((physical.clone(),if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress},None));
+                }else{
+                    if *mutable{return Err(bad("static compound occurrence cannot invent an exclusive address"));}
+                    // No variable κ is fabricated. This is a pending immutable
+                    // source occurrence, discharged by actual constructors,
+                    // writes and Return provenance before module release.
+                    self.pending=true;
+                }
                 semantic.push(LifeTypeProjection::Pointee);
                 self.node(inner, physical, semantic, false, depth + 1, b)?;
                 semantic.pop();
@@ -135,21 +135,14 @@ impl Walk<'_, '_> {
                         .saturating_add(1),
                 )?;
                 let mut rows = self.life.slots.iter().filter(|row| row.path == *physical);
-                let row = rows
-                    .next()
-                    .ok_or_else(|| bad("compound Description occurrence is absent"))?;
-                if rows.next().is_some()
-                    || !matches!(
-                        row.mode,
-                        StoredBorrowMode::ReadOnlyDescription
-                            | StoredBorrowMode::WritableDescription
-                    )
-                {
-                    return Err(bad(
-                        "compound Description mode is not an actual weak description",
-                    ));
+                if let Some(row)=rows.next(){
+                    if rows.next().is_some()||!matches!(row.mode,StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription){return Err(bad("compound Description mode is not an actual weak description"));}
+                    self.slots.push((physical.clone(),row.mode,None));
+                }else{
+                    // A constant description is read-only and still has no
+                    // source certificate at this metadata layer.
+                    self.pending=true;
                 }
-                self.slots.push((physical.clone(), row.mode, None));
                 semantic.push(LifeTypeProjection::Pointee);
                 self.node(inner, physical, semantic, false, depth + 1, b)?;
                 semantic.pop();

@@ -33,7 +33,7 @@ pub(super) fn with_active(module: &TypedModule, instance: &LifeNominalInstance, 
             _ => return Err(err("plain nominal changes its full-ordinal actual kind or constant carrier")),
         }
     }
-    if declaration.id.compiler {
+    if declaration.id.compiler && !sealed_task_enum(declaration,instance,b)? {
         let [argument] = instance.arguments.as_slice() else { return Err(err("plain builtin nominal omits its complete Type argument")); };
         let actual=match argument{LifeNominalActual::Type(ty)|LifeNominalActual::QualifiedType{ty,..}=>ty,_=>return Err(err("plain builtin nominal changes its actual full-ordinal Type kind"))};
         let Type::Enum { name, variants } = &instance.ty else { return Err(err("plain builtin nominal is not its actual enum")); };
@@ -101,4 +101,18 @@ fn zero(module: &TypedModule, ty: &Type, limits: &Limits, b: &mut Budget, active
         }
     }
     Ok(())
+}
+
+// These compiler declarations have zero Type formals. Their sealed complete
+// nominal identities and all variants are checked independently; they are not
+// Option/Poll instantiations selected by a matching physical enum layout.
+fn sealed_task_enum(declaration:&LifeNominalDeclaration,instance:&LifeNominalInstance,b:&mut Budget)->Check<bool>{
+    let (word,variants)=if declaration.id==zil_ir::builtin_life::TASK_CREATE_ERROR{("TaskCreateError",&["Allocation"][..])}
+        else if declaration.id==zil_ir::builtin_life::TASK_POLL_STATE{("TaskPollState",&["Complete","Cancelled","Invalid"][..])}
+        else{return Ok(false);};
+    b.spend(word.len().saturating_add(variants.len()).saturating_add(declaration.identity.package.len()).saturating_add(96))?;
+    if declaration.kind!=LifeNominalKind::Enum||!declaration.parameters.is_empty()||declaration.identity.package!="@zil.builtin"||declaration.identity.module_path.as_slice()!=["task"]||declaration.identity.declaration_path.as_slice()!=["enum",word]||!declaration.identity.generation_path.is_empty()||!instance.arguments.is_empty(){return Err(err("plain sealed Task enum changes its complete original declaration"));}
+    let Type::Enum{name,variants:actual}=&instance.ty else{return Err(err("plain sealed Task enum has another physical kind"));};
+    if name!=&format!("@std.task:v1:{word}")||actual.len()!=variants.len()||actual.iter().zip(variants).any(|((name,fields),expected)|name.as_str()!=*expected||!fields.is_empty()){return Err(err("plain sealed Task enum changes its exact complete variants"));}
+    Ok(true)
 }

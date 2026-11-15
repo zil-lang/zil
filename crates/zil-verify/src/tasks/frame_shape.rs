@@ -345,8 +345,11 @@ fn type_life(
             }
             parent
         }
-        _ => match input_scope::domain(ty, b)? {
-            input_scope::Domain::Known(0) => StorageLifeShape {
+        // Reconstruct from the actual module/header here. The preliminary
+        // input-scope cache can be absent while semantic child flow runs;
+        // absence is Unknown and cannot establish a closed child domain.
+        _ => match dynamic_witness::intrinsic_domain(module,ty,b)?.0 {
+            0 => StorageLifeShape {
                 binder_count: 0,
                 slots: vec![],
                 retained: vec![],

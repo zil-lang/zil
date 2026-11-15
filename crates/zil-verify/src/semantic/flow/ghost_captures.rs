@@ -24,8 +24,13 @@ impl CheckedContext {
 }
 pub(super) fn complete_environment(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<()>{
     dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
-    let(count,_)=dynamic_witness::intrinsic_domain(module,&value.ty,b)?;
-    if count!=value.life.binder_count||value.classes.len()!=count as usize||value.origins.len()!=count as usize{return Err(bad("logical environment omits a complete intrinsic class or original origin"));}Ok(())
+    let count=value.life.binder_count;
+    if value.classes.len()!=count as usize||value.origins.len()!=count as usize{return Err(bad("logical environment omits a complete intrinsic class or original origin"));}
+    // A bare Address/Desc has no intrinsic static/variable outer decision.
+    // Its full occurrence directory supplies that role, still as an untrusted
+    // source obligation; the actual producer/loan kernels prove the target.
+    b.spend(count as usize)?;
+    dynamic_witness::check_type_value(module,&DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:(0..count).map(StorageBinder::Fixed).collect()},DynInstantiationScope{fixed_binder_count:count,invocation_binder_count:0},b)
 }
 
 impl CheckedContext{

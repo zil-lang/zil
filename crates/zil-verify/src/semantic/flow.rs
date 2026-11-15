@@ -321,7 +321,17 @@ impl CheckedContext {
                         }
                         state.locals[local.0 as usize]=None;None
                     },
-                    InstructionKind::DropDynOwned{local}=>{crate::dynamic_dispatch::instruction(module,f,instruction,b)?;let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased cleanup has no complete initialized owner"))?;if !matches!(owner.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}dynamic_witness::structural_actual(module,&owner.ty,DynStructuralBound::SyncDrop,b)?;state.locals[local.0 as usize]=None;None},
+                    InstructionKind::DropDynOwned{local}=>{
+                        crate::dynamic_dispatch::instruction(module,f,instruction,b)?;
+                        let actual=f.locals.get(local.0 as usize).ok_or_else(||bad("erased cleanup has no exact actual local"))?;
+                        if !matches!(actual.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}
+                        if let Some(owner)=state.locals.get(local.0 as usize).and_then(Option::as_ref){if owner.ty!=actual.ty{return Err(bad("erased cleanup changes its complete initialized original owner"));}}
+                        dynamic_witness::structural_actual(module,&actual.ty,DynStructuralBound::SyncDrop,b)?;
+                        // Conditional cleanup of an already transferred slot
+                        // is empty. Actual ownership/debt/loan kernels still
+                        // prove every live owner is finalized exactly once.
+                        state.locals[local.0 as usize]=None;None
+                    },
                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
