@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-15T15:28:06.829627+00:00",
+  "updated_at_utc": "2026-11-15T22:34:28.801200+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -9,13 +9,13 @@
   },
   "current_acceptance": "NOT ACCEPTED",
   "latest_completed_runtime": {
-    "candidate": "9e58f60c045c4d19d8f64c8aa8e90cd258651747",
-    "record": "records/language-alpha-validation/9e58f60c0.json",
-    "acceptance": "NOT ACCEPTED"
+    "candidate": "a01ab1db13e3494c240e46697ca0420a335fdcc1",
+    "record": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-signature-and-address-head-consumers/complete-parallel-native/receipt.json",
+    "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "d99df07e0",
-  "current_candidate_under_validation": "d99df07e0",
+  "latest_ready_source": "64baba7acc98a9a3bdc69edb03170ee99cde002d",
+  "current_candidate_under_validation": null,
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -114,7 +114,7 @@
     "root_correction": "Overbroad type-occurrence cleanup ABI upper reverted in full, 3c24419bd."
   },
   "execution_state": "RESUMED BY USER; complete functional chains under personal audit constraints",
-  "last_completed_candidate": "243c05a737750c0091e7b719ba8003e9e6e027b9",
+  "last_completed_candidate": "64baba7acc98a9a3bdc69edb03170ee99cde002d",
   "personal_workflow_audit": {
     "reviewer": "root personally",
     "subagent_review_used": false,
@@ -138,5 +138,92 @@
     "resource_formation_before_qualification": "9b46d74c3",
     "scope": "Existing complete Source/negative/raw-Wire/native/cleanup acceptance; no requirement reduction",
     "candidate_run": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-ordinary-domains-and-runtime-layouts"
+  },
+  "parallel_continuation_20261116": {
+    "source_candidate": "64baba7acc98a9a3bdc69edb03170ee99cde002d",
+    "source_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-sum-option-and-original-index-consumers/core-coverage/receipt.json",
+    "positive_engineering_cases": {
+      "passed": 9,
+      "total": 13
+    },
+    "expected_safety_negatives": {
+      "passed": 4,
+      "total": 4
+    },
+    "remaining_engineering_cases": {
+      "ownership": "Analyze stored callback environment transfer consumers",
+      "owning-collections": "Analyze exact initialized ByteBuffer head provenance",
+      "buffered-io": "Verify executable value permission consumers; default work barrier crossed",
+      "iteration": "Verify original higher-ranked borrowed Callable premise"
+    },
+    "native_candidate": "a01ab1db13e3494c240e46697ca0420a335fdcc1",
+    "ct_tests": {
+      "passed": 31,
+      "failed": 0
+    },
+    "original_ct_controls": {
+      "cases_per_configuration": 4,
+      "backend_optimization_configurations": 4,
+      "passed_configurations": 4,
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-signature-and-address-head-consumers/original-ct-controls/receipt.json"
+    },
+    "stream_native": {
+      "zil_executions": 40,
+      "independent_rust_executions": 20,
+      "status": "Pass"
+    },
+    "other_exact_native_successes": [
+      "three dynamic-dispatch cleanup/allocation-failure tests",
+      "thread source/raw/Wire/native test",
+      "project manifest five tests"
+    ],
+    "native_remaining": [
+      "retained Task complete creator header rows",
+      "ordinary fresh manifest application Source default work budget"
+    ],
+    "core_unit_results": {
+      "ir": [
+        102,
+        0
+      ],
+      "expand": [
+        160,
+        0
+      ],
+      "types": [
+        84,
+        0
+      ],
+      "analyze": [
+        286,
+        13
+      ],
+      "verify": [
+        717,
+        44
+      ]
+    },
+    "verified_github_recovery": {
+      "commit": "cb7ac2c87e52a9e65106a7c66cec776459eebb2d",
+      "source_head": "a01ab1db13e3494c240e46697ca0420a335fdcc1",
+      "path": "language/20261115T221616Z-approved-source-recovery/recovery.tar.gz",
+      "sha256": "95f3cd9ca826495bf4c808822880389054d1b338b0c862266c0f00a43ef82652",
+      "readback_equal": true,
+      "scope": "crates only; formal source branch ref is not current"
+    },
+    "expanded_repository_recovery": "Local only; auto-review rejected public tests/tools/Cargo.lock scope, exact additional authorization requested asynchronously. Implementation unaffected.",
+    "workflow_improvements": [
+      "Independent foundation CLI cases execute with four workers and isolated outputs, retaining deterministic receipt order.",
+      "Precompile each unique package/features/test target once, then execute immutable test binaries with four workers and isolated TMP/report directories.",
+      "Read-only work, disjoint source implementation and GitHub recovery run independently of the sole heavy Rust build window.",
+      "Keep exact original identities, full unused declarations, every original branch, default budgets and cleanup assertions."
+    ],
+    "fixed_chain_causes": [
+      "Original occurrence, parent upper and selected contextual lifetime were conflated; explicit source identities and directed outlives relations now survive every consumer.",
+      "Whole mutable closures were unnecessarily loaded before a local invocation; choose invocation role first and retain actual local source identity.",
+      "Owning sums require both physical arm layouts and complete ownership transfer/cleanup, including real callback payloads.",
+      "Repeated whole immutable source/index/type scans exceeded default budgets; reuse complete immutable structural facts while checking current loans, epochs and ownership each time.",
+      "Associated provider normalization lost the real caller proof environment before checking obligations; call/signature/body proof roots are scoped and restored."
+    ]
   }
 }
