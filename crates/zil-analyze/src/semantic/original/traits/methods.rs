@@ -479,6 +479,9 @@ impl Solver<'_, '_> {
             b,
             depth + 1,
         )?;
+        if let Some(expected) = self.receiving_for(frame, node, b)? {
+            self.call_result_context(result, expected, b, depth + 1)?;
+        }
         let definition = self.inventory.definition(method, b)?;
         let SemanticDefinitionBody::FunctionWithBody {
             receiver_parameter,

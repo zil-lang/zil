@@ -2352,6 +2352,12 @@ impl Solver<'_, '_> {
                             "original call value arity differs from its declared scheme",
                         ));
                     }
+                    // The exact receiving expression constrains this call's
+                    // unresolved result roles before its arguments are checked.
+                    // This opens no equation between two rigid occurrences.
+                    if let Some(expected) = self.receiving_for(frame, value.id, b)? {
+                        self.call_result_context(result, expected, b, depth + 1)?;
+                    }
                     for (argument, parameter) in arguments.iter().zip(parameters) {
                         self.call_argument(frame, argument, parameter, b, depth + 1)?;
                     }

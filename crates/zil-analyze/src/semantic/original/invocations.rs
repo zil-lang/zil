@@ -199,14 +199,144 @@ impl Solver<'_, '_> {
             _ => Ok(term),
         }
     }
+    /// Propagate only inference variables through identical result structure.
+    /// Concrete lifetimes still meet at the ordinary argument/return checks;
+    /// an expected result supplies no outlives or ownership premise.
+    pub(super) fn call_result_context(
+        &mut self,
+        result: Term,
+        expected: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let result = self.type_root(result, b)?;
+        let expected = self.type_root(expected, b)?;
+        if result == expected {
+            return Ok(());
+        }
+        if matches!(
+            self.state.arena[result],
+            Kind::Infer(None) | Kind::LifeVariable(None)
+        ) {
+            return self.unify(result, expected, depth + 1, b);
+        }
+        let mut children = Vec::new();
+        match (&self.state.arena[result], &self.state.arena[expected]) {
+            (
+                Kind::Nominal {
+                    definition: a,
+                    arguments: aa,
+                    fields: af,
+                },
+                Kind::Nominal {
+                    definition: z,
+                    arguments: za,
+                    fields: zf,
+                },
+            ) if a == z && aa.len() == za.len() && af.len() == zf.len() => {
+                for pair in aa
+                    .iter()
+                    .copied()
+                    .zip(za.iter().copied())
+                    .chain(af.iter().copied().zip(zf.iter().copied()))
+                {
+                    Self::push(&mut children, pair, b)?;
+                }
+            }
+            (
+                Kind::Address {
+                    mutable: a,
+                    life: al,
+                    inner: ai,
+                },
+                Kind::Address {
+                    mutable: z,
+                    life: zl,
+                    inner: zi,
+                },
+            ) if a == z => {
+                Self::push(&mut children, (*al, *zl), b)?;
+                Self::push(&mut children, (*ai, *zi), b)?;
+            }
+            (
+                Kind::Desc {
+                    life: al,
+                    inner: ai,
+                },
+                Kind::Desc {
+                    life: zl,
+                    inner: zi,
+                },
+            ) => {
+                Self::push(&mut children, (*al, *zl), b)?;
+                Self::push(&mut children, (*ai, *zi), b)?;
+            }
+            (Kind::Wrapped(a, ai), Kind::Wrapped(z, zi)) if a == z => {
+                Self::push(&mut children, (*ai, *zi), b)?;
+            }
+            (Kind::Slice(a), Kind::Slice(z)) => Self::push(&mut children, (*a, *z), b)?,
+            (
+                Kind::Array {
+                    element: a,
+                    length: an,
+                },
+                Kind::Array {
+                    element: z,
+                    length: zn,
+                },
+            ) => {
+                let (a, z, an, zn) = (*a, *z, *an, *zn);
+                if self.same_original(an, zn, b, depth + 1)? {
+                    Self::push(&mut children, (a, z), b)?;
+                }
+            }
+            (Kind::Tuple(a), Kind::Tuple(z)) if a.len() == z.len() => {
+                for pair in a.iter().copied().zip(z.iter().copied()) {
+                    Self::push(&mut children, pair, b)?;
+                }
+            }
+            (
+                Kind::ErrorUnion {
+                    error: ae,
+                    result: ar,
+                },
+                Kind::ErrorUnion {
+                    error: ze,
+                    result: zr,
+                },
+            ) => {
+                Self::push(&mut children, (*ae, *ze), b)?;
+                Self::push(&mut children, (*ar, *zr), b)?;
+            }
+            // Different rigid heads and implicit union injections are checked
+            // at their actual operation, never selected by a contextual guess.
+            _ => {}
+        }
+        for (result, expected) in children {
+            self.call_result_context(result, expected, b, depth + 1)?;
+        }
+        Ok(())
+    }
     /// Source Name expressions denote the original address value. Reborrowing
     /// it for one call does not consume that reference or equate a new SSA head.
     pub(super) fn borrowed_argument_expected(
-        &mut self, frame: &mut Frame, value: &SemanticOriginalExpr, expected: Term, b: &mut Budget, depth: usize,
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        expected: Term,
+        b: &mut Budget,
+        depth: usize,
     ) -> CompileResult<Term> {
-        Self::push(&mut self.receiving, (frame.definition, value.id, expected), b)?;
+        Self::push(
+            &mut self.receiving,
+            (frame.definition, value.id, expected),
+            b,
+        )?;
         let result = self.borrowed_argument(frame, value, b, depth);
-        self.receiving.pop().ok_or_else(|| fail("original borrowed argument loses its exact receiving frame"))?;
+        self.receiving
+            .pop()
+            .ok_or_else(|| fail("original borrowed argument loses its exact receiving frame"))?;
         result
     }
     pub(super) fn borrowed_argument(
@@ -225,7 +355,9 @@ impl Solver<'_, '_> {
                 _ => self.receiving_for(frame, value.id, b)?,
             };
             let term = match wanted {
-                Some(expected) => self.borrowed_argument_expected(frame, inner, expected, b, depth + 1)?,
+                Some(expected) => {
+                    self.borrowed_argument_expected(frame, inner, expected, b, depth + 1)?
+                }
                 None => self.borrowed_argument(frame, inner, b, depth + 1)?,
             };
             if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
@@ -297,7 +429,10 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let expected_root = self.type_root(expected, b)?;
-        if let Kind::Desc { life: wanted_life, inner: payload } = self.state.arena[expected_root]
+        if let Kind::Desc {
+            life: wanted_life,
+            inner: payload,
+        } = self.state.arena[expected_root]
             && let Some(place) = self.place(frame, value, false, b, depth + 1)?
             && let Kind::Wrapped(Wrapper::Managed, actual_payload) =
                 self.state.arena[self.type_root(place.selected, b)?]
@@ -312,8 +447,15 @@ impl Solver<'_, '_> {
                 unknown("original description needs its complete owning source anchor")
             })?;
             let _ = anchor;
-            let described =
-                self.describe_argument_role(frame, value, &place, place.selected, Some(wanted_life), b, depth + 1)?;
+            let described = self.describe_argument_role(
+                frame,
+                value,
+                &place,
+                place.selected,
+                Some(wanted_life),
+                b,
+                depth + 1,
+            )?;
             return self.unify(described, expected, depth + 1, b);
         }
         let actual = if matches!(self.state.arena[expected_root], Kind::Address { .. }) {
