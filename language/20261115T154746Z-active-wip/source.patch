@@ -1,0 +1,168 @@
+diff --git a/crates/zil-verify/src/semantic/original/associated.rs b/crates/zil-verify/src/semantic/original/associated.rs
+index e6f0f7f2f..a254aa7b9 100644
+--- a/crates/zil-verify/src/semantic/original/associated.rs
++++ b/crates/zil-verify/src/semantic/original/associated.rs
+@@ -16,6 +16,7 @@ pub(super) fn has_projection(ty:&Ty,b:&mut Budget)->Check<bool>{
+         Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)=>pending.push(inner),
+         Ty::Array(inner,length)=>{pending.push(inner);pending.push(&length.carrier);},
+         Ty::ErrorUnion(error,result)=>{pending.push(error);pending.push(result);},
++        Ty::Dyn(value)=>value.types(&mut pending,b)?,
+         Ty::Carrier{child,retained,..}=>{pending.push(child);retained.types(&mut pending,b)?;},
+         Ty::Code{parameters,result,..}=>{pending.extend(parameters);pending.push(result);},
+         _=>{},
+diff --git a/crates/zil-verify/src/semantic/original/associated/normalize.rs b/crates/zil-verify/src/semantic/original/associated/normalize.rs
+index 51c9c7b63..2e0bce28a 100644
+--- a/crates/zil-verify/src/semantic/original/associated/normalize.rs
++++ b/crates/zil-verify/src/semantic/original/associated/normalize.rs
+@@ -26,6 +26,7 @@ impl CheckedOriginal {
+             Ty::Slice(inner)=>Ty::Slice(Box::new(self.normalize_original_type_at(module,context,&inner,caller,active,depth+1,b)?)),
+             Ty::Array(inner,length)=>Ty::Array(Box::new(self.normalize_original_type_at(module,context,&inner,caller,active,depth+1,b)?),length),
+             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.normalize_original_type_at(module,context,&error,caller,active,depth+1,b)?),Box::new(self.normalize_original_type_at(module,context,&result,caller,active,depth+1,b)?)),
++            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.normalize_original_arguments(module,context,std::slice::from_ref(arg),caller,active,depth+1,b)?.remove(0)),b)?)),
+             Ty::Carrier{kind,child,retained}=>{
+                 let retained=retained.map(|ty,b|self.normalize_original_type_at(module,context,ty,caller,active,depth+1,b),|life,b|{b.spend(1)?;Ok(life.clone())},b)?;
+                 Ty::Carrier{kind,child:Box::new(self.normalize_original_type_at(module,context,&child,caller,active,depth+1,b)?),retained:Box::new(retained)}
+diff --git a/crates/zil-verify/src/semantic/original/capabilities.rs b/crates/zil-verify/src/semantic/original/capabilities.rs
+index 2fed9207b..7007ec55d 100644
+--- a/crates/zil-verify/src/semantic/original/capabilities.rs
++++ b/crates/zil-verify/src/semantic/original/capabilities.rs
+@@ -40,6 +40,7 @@ impl CheckedOriginal {
+                 Ty::Array(child,_)|Ty::Store(child)|Ty::Managed(child)=>self.closed_value(module,context,&child,env,active,b)?,
+                 Ty::Carrier{child,retained,..}=>{if !retained.domain.is_empty()||!retained.ports.is_empty()||!retained.retained.is_empty()||!retained.nominal.is_empty(){return Ok(false);}self.closed_value(module,context,&child,env,active,b)?},
+                 Ty::ErrorUnion(error,result)=>self.closed_value(module,context,&error,env,active,b)?&&self.closed_value(module,context,&result,env,active,b)?,
++                Ty::Dyn(value)=>{if !value.owned||!matches!(value.context,DynContext::Closed){return Ok(false);}let mut types=Vec::new();value.types(&mut types,b)?;for ty in types{if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);}}!value.application.arguments.iter().any(|arg|matches!(arg,Arg::Life(_)))},
+                 Ty::Function(id)=>self.checked.contains(&id),
+                 Ty::Code{bound_lifetimes,invocation_lifetimes,parameters,result,..}=>{if bound_lifetimes!=0||invocation_lifetimes!=0{return Ok(false);}for parameter in parameters{if !self.closed_value(module,context,&parameter,env,active,b)?{return Ok(false);}}self.closed_value(module,context,&result,env,active,b)?},
+                 Ty::Closure(definition,arguments,sealed)=>{
+diff --git a/crates/zil-verify/src/semantic/original/invocation.rs b/crates/zil-verify/src/semantic/original/invocation.rs
+index 1ac3cade2..a17d9bded 100644
+--- a/crates/zil-verify/src/semantic/original/invocation.rs
++++ b/crates/zil-verify/src/semantic/original/invocation.rs
+@@ -38,6 +38,7 @@ impl CheckedOriginal {
+             Ty::Opaque(id,arguments)=>Ty::Opaque(id,self.map_invocation_arguments(&arguments,life,depth+1,b)?),
+             Ty::Projection{receiver,declaration,arguments,member}=>Ty::Projection{receiver:Box::new(self.map_invocation_type(&receiver,life,depth+1,b)?),declaration,arguments:self.map_invocation_arguments(&arguments,life,depth+1,b)?,member},
+             Ty::Closure(id,arguments,environment)=>Ty::Closure(id,self.map_invocation_arguments(&arguments,life,depth+1,b)?,self.map_invocation_arguments(&environment,life,depth+1,b)?),
++            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.map_invocation_arguments(std::slice::from_ref(arg),life,depth+1,b)?.remove(0)),b)?)),
+             Ty::Carrier{kind,child,retained}=>{
+                 // map()'s two closures cannot simultaneously borrow one life
+                 // mapper. Walk a closed copy in two passes: first children,
+diff --git a/crates/zil-verify/src/semantic/original/materialize.rs b/crates/zil-verify/src/semantic/original/materialize.rs
+index 852f2efe0..bccfb7709 100644
+--- a/crates/zil-verify/src/semantic/original/materialize.rs
++++ b/crates/zil-verify/src/semantic/original/materialize.rs
+@@ -64,6 +64,7 @@ impl CheckedOriginal {
+             Ty::Desc{life,inner}=>SemanticTypeRecipe::Desc{lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)},
+             Ty::Slice(inner)=>SemanticTypeRecipe::Slice(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
+             Ty::Managed(inner)=>SemanticTypeRecipe::Managed(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
++            Ty::Dyn(value)=>SemanticTypeRecipe::Dyn{owned:value.owned,interface:Box::new(self.reify_dyn(module,&value,env,b)?)},
+             Ty::Carrier{kind,child,retained}=>{let child=Box::new(self.reify_type_at(module,&child,env,depth+1,b)?);match kind{CarrierKind::Mutex=>SemanticTypeRecipe::Mutex(child),CarrierKind::MutexGuard=>SemanticTypeRecipe::MutexGuard{payload:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Task=>SemanticTypeRecipe::Task{result:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Registration=>SemanticTypeRecipe::Registration(child),CarrierKind::AsyncRegistration=>SemanticTypeRecipe::AsyncRegistration(child)}},
+             Ty::Store(inner)=>SemanticTypeRecipe::OwnedStore(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
+             Ty::Array(element,length)=>SemanticTypeRecipe::Array{element:Box::new(self.reify_type_at(module,&element,env,depth+1,b)?),length:Box::new(self.reify_constant(module,&length,env,b)?)},
+diff --git a/crates/zil-verify/src/semantic/original/mod.rs b/crates/zil-verify/src/semantic/original/mod.rs
+index abd1586bb..c2fa40f3e 100644
+--- a/crates/zil-verify/src/semantic/original/mod.rs
++++ b/crates/zil-verify/src/semantic/original/mod.rs
+@@ -3,6 +3,7 @@
+ use super::*;
+ use zil_base::NodeId;
+ mod terms;
++mod dyn_types;
+ mod recipes;
+ mod bodies;
+ mod index;
+@@ -46,6 +47,7 @@ mod opaque;
+ pub(super) mod intrinsics;
+ use usage::{Binder,Place,Uses};
+ use terms::*;
++use dyn_types::*;
+ use std::collections::{BTreeMap,BTreeSet};
+ #[derive(Clone)]
+ pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) callable_kind:Option<CallableKind>}
+@@ -152,6 +154,7 @@ impl CheckedOriginal {
+             Ty::Slice(inner)=>Ty::Slice(Box::new(self.resolve_at(inner,depth+1,b)?)),
+             Ty::Managed(inner)=>Ty::Managed(Box::new(self.resolve_at(inner,depth+1,b)?)),
+             Ty::Store(inner)=>Ty::Store(Box::new(self.resolve_at(inner,depth+1,b)?)),
++            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.resolve_arguments(std::slice::from_ref(arg),depth+1,b)?.remove(0)),b)?)),
+             Ty::Carrier{kind,child,retained}=>Ty::Carrier{kind:*kind,child:Box::new(self.resolve_at(child,depth+1,b)?),retained:Box::new(retained.map(|ty,b|self.resolve_at(ty,depth+1,b),|life,b|self.resolved_life(life,b),b)?)},
+             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.resolve_at(error,depth+1,b)?),Box::new(self.resolve_at(result,depth+1,b)?)),
+             Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{let mut values=Vec::new();for parameter in parameters{values.push(self.resolve_at(parameter,depth+1,b)?);}Ty::Code{kind:*kind,parameters:values,result:Box::new(self.resolve_at(result,depth+1,b)?),modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes}},
+@@ -209,5 +212,5 @@ impl CheckedOriginal {
+     }
+ }
+ fn atom_category(ty:&Type)->&'static str{match ty{Type::Unit=>"Unit",Type::Bool=>"Bool",Type::I8=>"i8",Type::I16=>"i16",Type::I32=>"i32",Type::I64=>"i64",Type::Isize=>"isize",Type::U8=>"u8",Type::U16=>"u16",Type::U32=>"u32",Type::U64=>"u64",Type::Usize=>"usize",Type::F32=>"f32",Type::F64=>"f64",Type::ForeignHandle=>"ForeignHandle",Type::CWideString=>"CWideString",Type::ByteBuffer=>"ByteBuffer",Type::SyncCell(_)=>"SyncCell",_=>"NonAtomicType"}}
+-fn type_category(ty:&Ty)->String{match ty{Ty::Atom(ty)=>atom_category(ty).into(),Ty::Variable(definition,ordinal)=>format!("TypeFormal({definition:?},{ordinal})"),Ty::SelfType(definition)=>format!("Self({definition:?})"),Ty::Nominal(definition,args)=>format!("Nominal({definition:?},{} actuals)",args.len()),Ty::Opaque(definition,args)=>format!("Opaque({definition:?},{} actuals)",args.len()),Ty::Projection{declaration,member,..}=>format!("Projection({declaration:?},{member})"),Ty::Tuple(fields)=>format!("Tuple({} fields)",fields.len()),Ty::Array(_,length)=>format!("Array(length carrier {}, {})",match length.carrier.as_ref(){Ty::Atom(ty)=>atom_category(ty),_=>"symbolic"},match &length.value{ConstValue::Value(_)=>"literal",ConstValue::Variable(..)=>"formal",_=>"expression"}),Ty::Address{mutable,..}=>if *mutable{"ExclusiveAddress".into()}else{"SharedAddress".into()},Ty::Desc{..}=>"Description".into(),Ty::Managed(_)=>"Managed".into(),Ty::Store(_)=>"Store".into(),Ty::Carrier{kind,..}=>format!("{kind:?}"),Ty::Closure(definition,..)=>format!("Closure({definition:?})"),Ty::Function(definition)=>format!("Function({definition:?})"),Ty::Code{..}=>"Code".into(),Ty::ErrorUnion(..)=>"ErrorUnion".into(),Ty::Slice(_)=>"Slice".into(),Ty::SealedError(kind)=>format!("{kind:?}"),Ty::Infer(id)=>format!("Infer({id})")}}
+-fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::Carrier{child,retained,..}=>{queue.push(child);retained.types(&mut queue,b)?;},Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)|Ty::Opaque(_,arguments)|Ty::Projection{arguments,..}=>{if let Ty::Projection{receiver,..}=ty{queue.push(receiver);}for actual in arguments{match actual{Arg::Type(ty)=>queue.push(ty),Arg::Const(value)=>queue.push(&value.carrier),_=>{}}}},_=>{}}}Ok(false)}
++fn type_category(ty:&Ty)->String{match ty{Ty::Atom(ty)=>atom_category(ty).into(),Ty::Variable(definition,ordinal)=>format!("TypeFormal({definition:?},{ordinal})"),Ty::SelfType(definition)=>format!("Self({definition:?})"),Ty::Nominal(definition,args)=>format!("Nominal({definition:?},{} actuals)",args.len()),Ty::Opaque(definition,args)=>format!("Opaque({definition:?},{} actuals)",args.len()),Ty::Projection{declaration,member,..}=>format!("Projection({declaration:?},{member})"),Ty::Tuple(fields)=>format!("Tuple({} fields)",fields.len()),Ty::Array(_,length)=>format!("Array(length carrier {}, {})",match length.carrier.as_ref(){Ty::Atom(ty)=>atom_category(ty),_=>"symbolic"},match &length.value{ConstValue::Value(_)=>"literal",ConstValue::Variable(..)=>"formal",_=>"expression"}),Ty::Address{mutable,..}=>if *mutable{"ExclusiveAddress".into()}else{"SharedAddress".into()},Ty::Desc{..}=>"Description".into(),Ty::Managed(_)=>"Managed".into(),Ty::Store(_)=>"Store".into(),Ty::Dyn(value)=>format!("Dyn(owned={},trait={:?})",value.owned,value.application.declaration),Ty::Carrier{kind,..}=>format!("{kind:?}"),Ty::Closure(definition,..)=>format!("Closure({definition:?})"),Ty::Function(definition)=>format!("Function({definition:?})"),Ty::Code{..}=>"Code".into(),Ty::ErrorUnion(..)=>"ErrorUnion".into(),Ty::Slice(_)=>"Slice".into(),Ty::SealedError(kind)=>format!("{kind:?}"),Ty::Infer(id)=>format!("Infer({id})")}}
++fn contains(ty:&Ty,needle:u64,b:&mut Budget)->Check<bool>{let mut queue=vec![ty];while let Some(ty)=queue.pop(){b.spend(1)?;match ty{Ty::Infer(id)if *id==needle=>return Ok(true),Ty::Tuple(children)=>queue.extend(children),Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>queue.push(inner),Ty::Dyn(value)=>value.types(&mut queue,b)?,Ty::Carrier{child,retained,..}=>{queue.push(child);retained.types(&mut queue,b)?;},Ty::ErrorUnion(a,c)=>{queue.push(a);queue.push(c);},Ty::Code{parameters,result,..}=>{queue.extend(parameters);queue.push(result);},Ty::Nominal(_,arguments)|Ty::Opaque(_,arguments)|Ty::Projection{arguments,..}=>{if let Ty::Projection{receiver,..}=ty{queue.push(receiver);}for actual in arguments{match actual{Arg::Type(ty)=>queue.push(ty),Arg::Const(value)=>queue.push(&value.carrier),_=>{}}}},_=>{}}}Ok(false)}
+diff --git a/crates/zil-verify/src/semantic/original/recipes.rs b/crates/zil-verify/src/semantic/original/recipes.rs
+index 9766b5a45..0c8e1e766 100644
+--- a/crates/zil-verify/src/semantic/original/recipes.rs
++++ b/crates/zil-verify/src/semantic/original/recipes.rs
+@@ -46,6 +46,7 @@ impl CheckedOriginal {
+             SemanticTypeRecipe::MutexGuard{payload,retained}=>Ty::Carrier{kind:CarrierKind::MutexGuard,child:Box::new(self.ty(module,context,payload,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
+             SemanticTypeRecipe::Task{result,retained}=>Ty::Carrier{kind:CarrierKind::Task,child:Box::new(self.ty(module,context,result,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
+             SemanticTypeRecipe::Registration(inner)|SemanticTypeRecipe::AsyncRegistration(inner)=>Ty::Carrier{kind:if matches!(recipe,SemanticTypeRecipe::Registration(_)){CarrierKind::Registration}else{CarrierKind::AsyncRegistration},child:Box::new(self.ty(module,context,inner,env,active,b)?),retained:Box::default()},
++            SemanticTypeRecipe::Dyn{owned,interface}=>Ty::Dyn(Box::new(self.dyn_type(module,context,*owned,interface,env,active,b)?)),
+             SemanticTypeRecipe::OwnedStore(inner)=>Ty::Store(Box::new(self.ty(module,context,inner,env,active,b)?)),
+             SemanticTypeRecipe::Array{element,length}=>Ty::Array(Box::new(self.ty(module,context,element,env,active,b)?),Box::new(self.constant(module,context,length,&Ty::Atom(Type::Usize),env,active,b)?)),
+             SemanticTypeRecipe::ErrorUnion{error,result}=>Ty::ErrorUnion(Box::new(self.ty(module,context,error,env,active,b)?),Box::new(self.ty(module,context,result,env,active,b)?)),
+diff --git a/crates/zil-verify/src/semantic/original/schemes.rs b/crates/zil-verify/src/semantic/original/schemes.rs
+index b74e5e2d7..7f0b9fdaf 100644
+--- a/crates/zil-verify/src/semantic/original/schemes.rs
++++ b/crates/zil-verify/src/semantic/original/schemes.rs
+@@ -160,6 +160,7 @@ impl CheckedOriginal {
+                 Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Slice(inner)|Ty::Managed(inner)|Ty::Store(inner)=>self.scheme_term(module,context,inner,caller,active,b)?,
+                 Ty::ErrorUnion(error,result)=>{self.scheme_term(module,context,error,caller,active,b)?;self.scheme_term(module,context,result,caller,active,b)?;},
+                 Ty::Code{parameters,result,..}=>{for parameter in parameters{self.scheme_term(module,context,parameter,caller,active,b)?;}self.scheme_term(module,context,result,caller,active,b)?;},
++                Ty::Dyn(value)=>self.dyn_scheme(module,context,value,caller,active,b)?,
+                 Ty::Carrier{child,retained,..}=>{self.scheme_term(module,context,child,caller,active,b)?;let mut types=Vec::new();retained.types(&mut types,b)?;for ty in types{self.scheme_term(module,context,ty,caller,active,b)?;}},
+                 Ty::Closure(owner,arguments,sealed)=>{
+                     let original=context.definition(module,*owner,b)?;
+diff --git a/crates/zil-verify/src/semantic/original/substitution.rs b/crates/zil-verify/src/semantic/original/substitution.rs
+index 3d114bbb2..c67074166 100644
+--- a/crates/zil-verify/src/semantic/original/substitution.rs
++++ b/crates/zil-verify/src/semantic/original/substitution.rs
+@@ -21,6 +21,7 @@ impl CheckedOriginal {
+             Ty::Slice(inner)=>Ty::Slice(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
+             Ty::Managed(inner)=>Ty::Managed(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
+             Ty::Store(inner)=>Ty::Store(Box::new(self.apply_type_at(&inner,env,depth+1,b)?)),
++            Ty::Dyn(value)=>Ty::Dyn(Box::new(value.map(|arg,b|Ok(self.apply_arguments(std::slice::from_ref(arg),env,depth+1,b)?.remove(0)),b)?)),
+             Ty::Carrier{kind,child,retained}=>Ty::Carrier{kind,child:Box::new(self.apply_type_at(&child,env,depth+1,b)?),retained:Box::new(retained.map(|ty,b|self.apply_type_at(ty,env,depth+1,b),|life,b|self.apply_life(life,env,b),b)?)},
+             Ty::Array(inner,length)=>Ty::Array(Box::new(self.apply_type_at(&inner,env,depth+1,b)?),Box::new(self.apply_constant(&length,env,depth+1,b)?)),
+             Ty::ErrorUnion(error,result)=>Ty::ErrorUnion(Box::new(self.apply_type_at(&error,env,depth+1,b)?),Box::new(self.apply_type_at(&result,env,depth+1,b)?)),
+diff --git a/crates/zil-verify/src/semantic/original/tasks.rs b/crates/zil-verify/src/semantic/original/tasks.rs
+index 9092bcebc..e324205f5 100644
+--- a/crates/zil-verify/src/semantic/original/tasks.rs
++++ b/crates/zil-verify/src/semantic/original/tasks.rs
+@@ -731,6 +731,7 @@ impl CheckedOriginal {
+                 }
+                 self.task_zero_domain(module, context, &result, env, active, b, depth + 1)?
+             }
++            Ty::Dyn(value)=>{let mut types=Vec::new();value.types(&mut types,b)?;if !matches!(value.context,DynContext::Closed){return Ok(false);}for ty in types{if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)?{return Ok(false);}}true},
+             Ty::Closure(..) => false,
+         })
+     }
+diff --git a/crates/zil-verify/src/semantic/original/terms.rs b/crates/zil-verify/src/semantic/original/terms.rs
+index b2c46fd31..58e797858 100644
+--- a/crates/zil-verify/src/semantic/original/terms.rs
++++ b/crates/zil-verify/src/semantic/original/terms.rs
+@@ -18,6 +18,7 @@ pub(super) enum Ty {
+     Managed(Box<Ty>),
+     Store(Box<Ty>),
+     Carrier{kind:CarrierKind,child:Box<Ty>,retained:Box<Retained>},
++    Dyn(Box<DynType>),
+     ErrorUnion(Box<Ty>,Box<Ty>),
+     Closure(SemanticDefinitionId,Vec<Arg>,Vec<Arg>),
+     Function(SemanticDefinitionId),
+diff --git a/crates/zil-verify/src/semantic/original/usage.rs b/crates/zil-verify/src/semantic/original/usage.rs
+index 7a1ea018e..3a1af2074 100644
+--- a/crates/zil-verify/src/semantic/original/usage.rs
++++ b/crates/zil-verify/src/semantic/original/usage.rs
+@@ -84,6 +84,7 @@ pub(super) fn has_inference(ty:&Ty,substitutions:&BTreeMap<u64,Ty>,b:&mut Budget
+         Ty::Tuple(fields)=>pending.extend(fields),
+         Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Store(inner)|Ty::Slice(inner)|Ty::Array(inner,_)=>pending.push(inner),
+         Ty::Nominal(_,arguments)|Ty::Opaque(_,arguments)|Ty::Closure(_,arguments,_)|Ty::Projection{arguments,..}=>{if let Ty::Projection{receiver,..}=ty{pending.push(receiver);}for argument in arguments{match argument{Arg::Type(ty)=>pending.push(ty),Arg::Const(value)=>pending.push(&value.carrier),_=>{}}}},
++        Ty::Dyn(value)=>value.types(&mut pending,b)?,
+         Ty::Carrier{child,retained,..}=>{pending.push(child);retained.types(&mut pending,b)?;},
+         Ty::ErrorUnion(error,result)=>{pending.push(error);pending.push(result);},
+         Ty::Code{parameters,result,..}=>{pending.extend(parameters);pending.push(result);},
