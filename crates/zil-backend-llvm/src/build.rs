@@ -162,6 +162,9 @@ pub struct BuildOptions {
     pub incremental_o2: bool,
     /// Explicit audited LLVM optimization/machine products; no default opt-in.
     pub native_products: bool,
+    /// Capture only current layout units containing implementation imports.
+    /// Cost permission only; all native validation and capture guards remain.
+    pub native_products_imports_only: bool,
     /// Explicit current-module post-O2 machine-body sharing. No default opt-in.
     pub emission_reuse: bool,
     /// Explicit O2 pass policy; default preserves the reference pipeline.
@@ -187,6 +190,7 @@ impl BuildOptions {
             late_closed_executable: false,
             incremental_o2: false,
             native_products: false,
+            native_products_imports_only: false,
             emission_reuse: false,
             function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
@@ -298,6 +302,20 @@ pub fn build_view_with_cancellation_and_session(
     let mut next_native_products = std::collections::BTreeMap::new();
     let mut native_activity = Vec::new();
     let mut timings = BackendTimings::default();
+    if options.native_products_imports_only
+        && (!options.native_products
+            || options.backend != NativeBackend::LlvmApi
+            || options.optimization != Optimization::O2
+            || !options.closed_executable
+            || !options.incremental_o2
+            || options.late_closed_executable
+            || options.function_merging != FunctionMerging::Disabled)
+    {
+        return Err(infra(
+            "E-CODEGEN-NATIVE-PRODUCT-SCOPE",
+            "imports-only native capture requires closed incremental LLVM API O2 without merging",
+        ));
+    }
     if let Some(session) = session.as_deref_mut() {
         session.begin();
     }
@@ -480,9 +498,11 @@ pub fn build_view_with_cancellation_and_session(
                 && Some(&cached.input) == partition_input.as_ref()
         })
         .cloned();
+    let mut imported_definitions = Vec::new();
     let (plan, llvm, pending_layout, stable_diagnostic, private_closures) = if let Some(cached) =
         cached_partition
     {
+        imported_definitions = cached.imported_definitions.clone();
         if let Some(session) = session.as_deref_mut() {
             session.summary.reused_partition = true;
             session.summary.reused_partition_units = cached.units.len();
@@ -610,23 +630,28 @@ pub fn build_view_with_cancellation_and_session(
                 pending_layout = pending;
                 (plan, None, None, recipe)
             } else {
-                let (plan, pending) = crate::machine_cgu::partition_view_cached(
-                    machine.to_module(),
-                    lir,
-                    options.emit.entry,
-                    options.codegen.units,
-                    options.optimization == Optimization::O0 || options.incremental_o2,
-                    crate::machine_cgu::CallImportPolicy::for_incremental_o2(
-                        options.optimization == Optimization::O2 && options.incremental_o2,
-                        options.function_merging,
-                    ),
-                    (options.backend == NativeBackend::LlvmApi)
-                        .then_some(options.object_cache.as_deref())
-                        .flatten(),
-                );
+                let (plan, pending, imported) =
+                    crate::machine_cgu::partition_view_cached_with_imports(
+                        machine.to_module(),
+                        lir,
+                        options.emit.entry,
+                        options.codegen.units,
+                        options.optimization == Optimization::O0 || options.incremental_o2,
+                        crate::machine_cgu::CallImportPolicy::for_incremental_o2(
+                            options.optimization == Optimization::O2 && options.incremental_o2,
+                            options.function_merging,
+                        ),
+                        (options.backend == NativeBackend::LlvmApi)
+                            .then_some(options.object_cache.as_deref())
+                            .flatten(),
+                    );
+                imported_definitions = imported;
                 pending_layout = pending;
                 (plan, None, None, None)
             };
+        if imported_definitions.is_empty() {
+            imported_definitions.resize(plan.units.len(), 0);
+        }
         if let Some(session) = session.as_deref_mut()
             && !session.summary.reused_partition_recipe
         {
@@ -653,6 +678,7 @@ pub fn build_view_with_cancellation_and_session(
             session.partition = Some(std::sync::Arc::new(crate::incremental::PartitionProduct {
                 input,
                 units: plan.units.clone(),
+                imported_definitions: imported_definitions.clone(),
                 fallback: plan.fallback,
                 diagnostic: llvm.clone(),
                 private_closures,
@@ -667,6 +693,7 @@ pub fn build_view_with_cancellation_and_session(
             private_closures,
         )
     };
+    debug_assert_eq!(imported_definitions.len(), plan.units.len());
     timings.partition_ns =
         crate::object_cache::elapsed_ns(partition_started).saturating_sub(timings.diagnostic_ns);
     let object_setup_started = std::time::Instant::now();
@@ -986,13 +1013,13 @@ pub fn build_view_with_cancellation_and_session(
                     preflight: None,
                     retain_preflight: session.is_some(),
                     emission_reuse: options.emission_reuse,
-                    native_owner: options.native_products.then(|| {
-                        crate::incremental::NativeUnitOwner {
+                    native_owner: native_capture_for_unit(options, imported_definitions[id]).then(
+                        || crate::incremental::NativeUnitOwner {
                             triple: lir.target.triple.clone(),
                             requested_units: options.codegen.units,
                             ordinal: id,
-                        }
-                    }),
+                        },
+                    ),
                     native_prior: None,
                     native_history: Vec::new(),
                     late_closed: late_plans.as_ref().map(|plans| plans[id].clone()),
@@ -1065,7 +1092,7 @@ pub fn build_view_with_cancellation_and_session(
             cancelled,
         )?;
         let mut next_preflights = Vec::new();
-        for (unit, result) in inputs.iter().zip(compiled) {
+        for (unit_index, (unit, result)) in inputs.iter().zip(compiled).enumerate() {
             result.record_native_activity(unit, &mut native_activity);
             if result.restored_native_history
                 && let Some(session) = session.as_deref_mut()
@@ -1088,7 +1115,17 @@ pub fn build_view_with_cancellation_and_session(
                 }));
             }
             commands.extend(result.commands);
-            if let Some(receipt) = result.receipt {
+            if let Some(mut receipt) = result.receipt {
+                if options.native_products_imports_only {
+                    // Actual current planner roles, not symbol-name guesses or
+                    // a claim that an object hit executed native capture.
+                    debug_assert!(receipt.ends_with('}'));
+                    receipt.pop();
+                    receipt.push_str(&format!(
+                        ",\"native_product_selection\":{{\"scope\":\"current-layout-imports-only\",\"imported_definitions\":{},\"selected\":{}}}}}",
+                        imported_definitions[unit_index], unit.native_owner.is_some()
+                    ));
+                }
                 codegen.object_reports.push(receipt);
             }
             if let Some(access) = result.access {
@@ -1330,6 +1367,10 @@ pub fn build_view_with_cancellation_and_session(
 /// Largest input first reduces tail latency. Workers return results by unit id,
 /// so errors/command records are deterministic rather than completion-ordered.
 /// All started processes finish before staging is removed or output published.
+fn native_capture_for_unit(options: &BuildOptions, imported_definitions: usize) -> bool {
+    options.native_products && (!options.native_products_imports_only || imported_definitions != 0)
+}
+
 struct UnitInput {
     input: PathBuf,
     object: PathBuf,

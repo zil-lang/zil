@@ -166,6 +166,7 @@ pub(crate) fn partition_view(
 
 /// Reuse only the exact current input's layout; validation authority remains in
 /// the current lowering/Verify request and the native units' full preflight.
+#[cfg(test)]
 pub(crate) fn partition_view_cached(
     module: Module,
     lir: &LirView<'_>,
@@ -175,7 +176,7 @@ pub(crate) fn partition_view_cached(
     imports: CallImportPolicy,
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>) {
-    let (plan, pending, _) = partition_view_cached_impl(
+    let (plan, pending, _, _) = partition_view_cached_impl(
         module,
         lir,
         CachedPartitionOptions {
@@ -198,7 +199,7 @@ pub(crate) fn partition_view_cached_with_recipe(
     imports: CallImportPolicy,
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>, Option<Recipe>) {
-    partition_view_cached_impl(
+    let (plan, pending, recipe, _) = partition_view_cached_impl(
         module,
         lir,
         CachedPartitionOptions {
@@ -209,7 +210,34 @@ pub(crate) fn partition_view_cached_with_recipe(
             cache_root,
             record_recipe: true,
         },
-    )
+    );
+    (plan, pending, recipe)
+}
+
+/// Return the actual current layout's imported-body counts alongside its
+/// replay. Names never select capture, and no cache receipt authorizes codegen.
+pub(crate) fn partition_view_cached_with_imports(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    imports: CallImportPolicy,
+    cache_root: Option<&std::path::Path>,
+) -> (Plan, Option<layout::Pending>, Vec<usize>) {
+    let (plan, pending, _, imported) = partition_view_cached_impl(
+        module,
+        lir,
+        CachedPartitionOptions {
+            entry,
+            count,
+            split_large_files,
+            imports,
+            cache_root,
+            record_recipe: false,
+        },
+    );
+    (plan, pending, imported)
 }
 struct CachedPartitionOptions<'a> {
     entry: EntryPoint,
@@ -223,7 +251,7 @@ fn partition_view_cached_impl(
     module: Module,
     lir: &LirView<'_>,
     options: CachedPartitionOptions<'_>,
-) -> (Plan, Option<layout::Pending>, Option<Recipe>) {
+) -> (Plan, Option<layout::Pending>, Option<Recipe>, Vec<usize>) {
     let CachedPartitionOptions {
         entry,
         count,
@@ -241,7 +269,9 @@ fn partition_view_cached_impl(
     if imports == CallImportPolicy::ResourceHelpers
         && let Some(recipe) = resource_helpers::prepare(&module, lir, entry, count)
     {
-        return (recipe.replay(module), None, None);
+        let plan = recipe.replay(module);
+        let imported = vec![0; plan.units.len()];
+        return (plan, None, None, imported);
     }
     let cache = cache_root.and_then(|root| {
         layout::Cache::new(root, &module, lir, entry, count, split_large_files, imports)
@@ -252,6 +282,7 @@ fn partition_view_cached_impl(
         && valid_declaration_prelude(&module)
     {
         let recipe = recipe_source.and_then(|source| Recipe::new(source, cached.clone()));
+        let imported = cached.units.iter().map(|unit| unit.imports.len()).collect();
         return (
             Plan {
                 units: cached.replay(module),
@@ -259,6 +290,7 @@ fn partition_view_cached_impl(
             },
             None,
             recipe,
+            imported,
         );
     }
     let mut recorded = None;
@@ -274,10 +306,14 @@ fn partition_view_cached_impl(
     let recipe = recipe_source
         .zip(recorded.as_ref())
         .and_then(|(source, layout)| Recipe::new(source, layout.clone()));
+    let imported = recorded.as_ref().map_or_else(
+        || vec![0; plan.units.len()],
+        |layout| layout.units.iter().map(|unit| unit.imports.len()).collect(),
+    );
     let pending = cache
         .zip(recorded)
         .and_then(|(cache, layout)| cache.pending(&layout));
-    (plan, pending, recipe)
+    (plan, pending, recipe, imported)
 }
 
 // Complete implementation import is an optional optimization. A rejected copy
