@@ -1,8 +1,32 @@
 //! Original place observations retain binder identity and ordered field paths.
 //! They do not create physical addresses or executable borrow permissions.
 use super::*;
+pub(in crate::semantic) struct Assignment {
+    pub(in crate::semantic) statement: NodeId,
+    pub(in crate::semantic) target: NodeId,
+    pub(in crate::semantic) value: NodeId,
+    pub(in crate::semantic) span: Span,
+    pub(in crate::semantic) compound: Option<BinaryOp>,
+}
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
+    pub(in crate::semantic) fn assignments(&self,module:&TypedModule,definition:SemanticDefinitionId,b:&mut Budget)->Check<Vec<Assignment>> {
+        if !self.checked.contains(&definition){return Err(bad("assignment source body is not completely checked"));}
+        let index=self.source_index(module,&[definition],b)?;
+        let function=index.definitions.get(&definition).ok_or_else(||bad("assignment source has no complete original body"))?;
+        let mut result=Vec::new();
+        for statement in function.statements.values(){
+            b.spend(1)?;
+            let(target,value,compound)=match &statement.kind{
+                CoreStatementKind::Assign{target,value}=>(target,value,None),
+                CoreStatementKind::CompoundAssign{target,value,op}=>(target,value,Some(*op)),
+                _=>continue,
+            };
+            b.spend(result.len().saturating_add(1))?;
+            result.push(Assignment{statement:statement.id,target:target.id,value:value.id,span:target.span,compound});
+        }
+        Ok(result)
+    }
     pub(in crate::semantic) fn scalar_input<'a>(&'a self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(&'a SemanticOriginalExpr,Type)>{
         let Ty::Atom(carrier)=self.original_type(definition,&SemanticOriginalTypeSource::Expression(node),b)? else{return Err(bad("scalar source input lacks its independent original carrier"));};
         if !carrier.is_integer()&&!carrier.is_float()&&!matches!(carrier,Type::Unit|Type::Bool){return Err(bad("source input is not an independently checked scalar expression"));}

@@ -16,6 +16,16 @@ impl Session {
     }
 }
 
+/// Static source correspondence is recomputed against the immutable actual
+/// body. No cached W result or source class can activate an assignment loan.
+pub(crate) fn assignment_writes(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<ValueId>> {
+    if module.semantic.is_none()||f.foreign.is_some(){return Ok(Vec::new());}
+    b.spend(1)?;
+    let session=b.semantic_checked.clone().ok_or_else(||bad("assignment lacks the completely checked original programme"))?;
+    if session.module!=module as *const TypedModule as usize{return Err(bad("assignment interpreter belongs to another immutable module"));}
+    session.context.assignment_writes(module,f,b)
+}
+
 pub(crate) fn provider(module:&TypedModule,table:&DynVtable,declaration:&DynDeclaration,interface:&DynInterface,b:&mut Budget)->Check<()>{
     if table.implementation!=declaration.id||declaration.kind!=DynDeclarationKind::Impl{return Err(bad("semantic provider selects another complete original implementation"));}
     let life=table.self_life.as_ref().ok_or_else(||bad("semantic provider complete Self intrinsic domain is Unknown"))?;

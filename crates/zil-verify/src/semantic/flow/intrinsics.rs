@@ -7,6 +7,8 @@ use original::intrinsics::{BufferSource, Intrinsic};
 mod owner_fields;
 #[path = "owner_sources.rs"]
 mod owner_sources;
+#[path = "assignments.rs"]
+mod assignments;
 
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]

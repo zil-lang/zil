@@ -3021,8 +3021,89 @@ fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> 
     Ok(marks.into_iter().map(|mark| mark == 3).collect())
 }
 
-fn is_projection_head_load(i: &Instruction, heads: &[bool]) -> bool {
+fn is_deferred_address(i: &Instruction, heads: &[bool]) -> bool {
     i.result.and_then(|id| heads.get(id.0 as usize)).copied().unwrap_or(false)
+}
+
+/// Only a completely matched original assignment may reserve its lvalue
+/// address until the actual WriteAddress. Every intermediate SSA head has one
+/// use in that same nonescaping projection chain; explicit borrows, calls,
+/// stores and returns are never reservations. The original parent loans and
+/// exact roots remain on every view and are checked at the actual write.
+fn assignment_reservations(f:&TypedFunction,writes:&[ValueId],b:&mut Budget)->Check<Vec<bool>> {
+    let count=f.values.len();
+    b.spend(count.saturating_mul(5).saturating_add(f.blocks.len()))?;
+    let mut candidate=vec![false;count];
+    let mut uses=vec![0u8;count];
+    let mut next=vec![usize::MAX;count];
+    let mut state=vec![0u8;count];
+    for block in &f.blocks {for instruction in &block.instructions {
+        b.spend(1)?;
+        if matches!(instruction.kind,InstructionKind::Load(_)|InstructionKind::AddressField{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..})
+            && let Some(result)=instruction.result
+            && matches!(vt(f,result)?,Type::Address{mutable:true,..})
+        {candidate[result.0 as usize]=true;}
+    }}
+    for block in &f.blocks {
+        for instruction in &block.instructions {
+            b.spend(1)?;
+            for operand in instruction_operands(&instruction.kind) {
+                b.spend(1)?;
+                let index=operand.0 as usize;
+                if !candidate.get(index).copied().ok_or_else(||err("assignment reservation operand is absent"))?{continue;}
+                uses[index]=uses[index].saturating_add(1).min(2);
+                if uses[index]!=1 {next[index]=usize::MAX;continue;}
+                next[index]=match instruction.kind {
+                    InstructionKind::AddressField{address,..}|InstructionKind::AddressIndex{address,..}|InstructionKind::AddressSlice{address,..}if address==operand=>
+                        instruction.result.filter(|value|candidate[value.0 as usize]).map_or(usize::MAX,|value|value.0 as usize),
+                    InstructionKind::WriteAddress{address,..}if address==operand=>{
+                        b.spend(writes.len().saturating_add(1))?;
+                        if writes.contains(&address){count}else{usize::MAX}
+                    },
+                    _=>usize::MAX,
+                };
+            }
+        }
+        b.spend(1)?;
+        let value=match block.terminator{Terminator::Return(value)=>value,Terminator::Branch{condition,..}=>Some(condition),_=>None};
+        if let Some(value)=value {
+            let use_count=uses.get_mut(value.0 as usize).ok_or_else(||err("assignment reservation terminator operand is absent"))?;
+            *use_count=2;next[value.0 as usize]=usize::MAX;
+        }
+    }
+    for start in 0..count {
+        b.spend(1)?;
+        if state[start]!=0{continue;}
+        let mut path=Vec::new();let mut current=start;
+        let valid=loop {
+            b.spend(1)?;
+            if state[current]!=0{break state[current]==3;}
+            if !candidate[current]||uses[current]!=1||next[current]==usize::MAX{state[current]=2;break false;}
+            state[current]=1;
+            if path.len()==path.capacity(){b.spend(path.len().saturating_add(1))?;}
+            path.push(current);
+            if next[current]==count{break true;}
+            current=next[current];
+        };
+        for value in path {b.spend(1)?;state[value]=if valid{3}else{2};}
+    }
+    Ok(state.into_iter().map(|state|state==3).collect())
+}
+
+fn deferred_addresses(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<bool>> {
+    let mut heads=projection_head_loads(f,b)?;
+    if module.semantic.is_none(){return Ok(heads);}
+    b.spend(f.blocks.len())?;
+    let mut has_write=false;
+    for block in &f.blocks{b.spend(block.instructions.len())?;has_write|=block.instructions.iter().any(|instruction|matches!(instruction.kind,InstructionKind::WriteAddress{..}));}
+    if has_write {
+        let writes=crate::dynamic_witness::semantic_patterns::assignment_writes(module,f,b)?;
+        if !writes.is_empty(){
+            let reservations=assignment_reservations(f,&writes,b)?;
+            b.spend(heads.len())?;for(head,reservation)in heads.iter_mut().zip(reservations){*head|=reservation;}
+        }
+    }
+    Ok(heads)
 }
 
 fn projection_only_load(
@@ -3297,7 +3378,7 @@ fn step(
     sites: &WriteSites,
     dyn_sites: &mut dyn_leases::Sites,
     loans: &mut Vec<Loan>,
-    projection_head_load: bool,
+    deferred_projection: bool,
     b: &mut Budget,
 ) -> Check<Payload> {
     b.spend(1)?;
@@ -4510,6 +4591,7 @@ static_dependency: StaticProvenance::NotStatic,
             || pure_copy::ordinary_copy_field_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
+        && !deferred_projection
     {
         let row = &mut loans[id.0 as usize];
         add_sources(&mut row.sources, &out.address.sources, b)?;
@@ -4522,7 +4604,7 @@ static_dependency: StaticProvenance::NotStatic,
     if let Some(id) = i.result
         && matches!(i.kind, InstructionKind::Load(_))
         && matches!(vt(f, id)?, Type::Address { mutable: true, .. })
-        && !projection_head_load
+        && !deferred_projection
     {
         let row = &mut loans[id.0 as usize];
         add_sources(&mut row.sources, &out.address.sources, b)?;
@@ -4630,7 +4712,7 @@ fn solve(
     b: &mut Budget,
 ) -> Check<Solution> {
     replacements::prepare(module, f, g, b)?;
-    let projection_heads = projection_head_loads(f, b)?;
+    let projection_heads = deferred_addresses(module, f, b)?;
     // Each reverse-batch solve creates a new function-local loan arena.
     // Its paid seed/site/step writes record every possible exclusive loan,
     // including constructor sites that are not currently active.
@@ -4699,7 +4781,7 @@ fn solve(
                     &sites,
                     &mut dyn_sites,
                     &mut loans,
-                    is_projection_head_load(instruction, &projection_heads),
+                    is_deferred_address(instruction, &projection_heads),
                     b,
                 )?;
                 if let Some(value) = instruction.result {
@@ -4750,7 +4832,7 @@ fn solve(
                     &sites,
                     &mut dyn_sites,
                     &mut loans,
-                    is_projection_head_load(i, &projection_heads),
+                    is_deferred_address(i, &projection_heads),
                     b,
                 )?;
                 if let Some(v) = i.result {
@@ -5385,7 +5467,7 @@ fn windows(
     dyn_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
-    let projection_heads = projection_head_loads(f, b)?;
+    let projection_heads = deferred_addresses(module, f, b)?;
     // A module marker only schedules this actual per-function inventory.
     let mut ordinary_error_places = false;
     if b.ordinary_error_places {
@@ -5776,7 +5858,7 @@ fn windows(
                         if matches!(
                             f.locals[local.0 as usize].ty,
                             Type::Address { mutable: true, .. }
-                        ) && !is_projection_head_load(i, &projection_heads) {
+                        ) && !is_deferred_address(i, &projection_heads) {
                             checks.check(
                                 &state.locals[local.0 as usize].address,
                                 true,
@@ -5896,14 +5978,18 @@ fn windows(
                             loans: original.loans.clone(),
                         };
                         let write = matches!(vt(f, result)?, Type::Address { mutable: true, .. });
-                        checks.check(&actual, write, requirements, b)?;
+                        if is_deferred_address(i,&projection_heads){access_head(&actual,write,b)?;}
+                        else{checks.check(&actual, write, requirements, b)?;}
                     }
                     InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
                         let write = i.result.is_some_and(|v| {
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
                         });
-                        checks.check(pointer(*address)?, write, requirements, b)?;
+                        if is_deferred_address(i,&projection_heads){
+                            let result=i.result.ok_or_else(||err("reserved projection has no actual result"))?;
+                            access_head(pointer(result)?,write,b)?;
+                        }else{checks.check(pointer(*address)?, write, requirements, b)?;}
                     }
                     InstructionKind::WriteAddress { address, .. }
                     | InstructionKind::ReborrowAddress {
@@ -6342,7 +6428,7 @@ fn windows(
                 &solution.sites,
                 &mut solution.dyn_sites,
                 &mut solution.loans,
-                is_projection_head_load(i, &projection_heads),
+                is_deferred_address(i, &projection_heads),
                 b,
             )?;
             if let Some(flow) = &byte_flow {
@@ -7753,6 +7839,59 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn assignment_reservations_require_source_and_nonescaping_unique_write_chains() {
+        let module=fixture::module();
+        assert!(module.semantic.is_none());
+        let mut function=module.functions[0].clone();
+        let array=Type::Array{element:Box::new(Type::I64),length:4};
+        let pair=Type::Package{name:"Buffer".into(),fields:vec![("bytes".into(),array.clone())]};
+        function.environment=None;
+        function.parameters=vec![LocalId(0)];function.locals.truncate(1);
+        function.locals[0].ty=fixture::address(pair,true);
+        function.values=vec![function.locals[0].ty.clone(),fixture::address(array.clone(),true),Type::I64,fixture::address(Type::I64,true),Type::I64];
+        function.blocks.truncate(1);
+        function.blocks[0].instructions=vec![
+            fixture::instruction(Some(0),InstructionKind::Load(LocalId(0))),
+            fixture::instruction(Some(1),InstructionKind::AddressField{address:ValueId(0),index:0}),
+            fixture::instruction(Some(2),InstructionKind::Constant(Constant::I64(0))),
+            fixture::instruction(Some(3),InstructionKind::AddressIndex{address:ValueId(1),index:ValueId(2)}),
+            fixture::instruction(Some(4),InstructionKind::Constant(Constant::I64(1))),
+            fixture::instruction(None,InstructionKind::WriteAddress{address:ValueId(3),value:ValueId(4)}),
+        ];
+        function.blocks[0].terminator=Terminator::Return(None);
+        let limits=Limits::default();
+        let raw=deferred_addresses(&module,&function,&mut Budget::new(&limits)).unwrap();
+        assert!(raw[0]);assert!(!raw[1]&&!raw[3],"raw heads are not source assignment receipts");
+        assert!(assignment_reservations(&function,&[],&mut Budget::new(&limits)).unwrap().iter().all(|reserved|!*reserved));
+        // Here the private kernel receives the source match already proved by
+        // the separate original assignment consumer, never a raw claim.
+        let marked=assignment_reservations(&function,&[ValueId(3)],&mut Budget::new(&limits)).unwrap();
+        assert!(marked[0]&&marked[1]&&marked[3]);
+        for escape in 0..5 {
+            let mut forged=function.clone();
+            match escape {
+                0=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::Store{local:LocalId(0),value:ValueId(3)})),
+                1=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::Call{function:FunctionId(1),arguments:vec![ValueId(3)]})),
+                2=>forged.blocks[0].terminator=Terminator::Return(Some(ValueId(3))),
+                3=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::WriteAddress{address:ValueId(3),value:ValueId(4)})),
+                _=>{
+                    let mut block=forged.blocks[0].clone();block.id=BlockId(1);
+                    block.instructions=vec![fixture::instruction(None,InstructionKind::Store{local:LocalId(0),value:ValueId(3)})];
+                    forged.blocks.push(block);
+                },
+            }
+            let marked=assignment_reservations(&forged,&[ValueId(3)],&mut Budget::new(&limits)).unwrap();
+            assert!(!marked[0]&&!marked[1]&&!marked[3],"escape {escape}");
+        }
+        let source=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![PlaceProjection::Field(0)],heap_parents:vec![],heap_element:None};
+        let parent=Loan{receiver_head:false,sources:vec![source.clone()],parents:vec![],exclusive:true};
+        let child=Loan{receiver_head:false,sources:vec![source.clone()],parents:vec![0],exclusive:true};
+        let permission=Permission{sources:vec![source],loans:vec![0]};
+        assert!(access(&permission,true,&[0,1],&[parent.clone(),child],&mut vec![],&mut Budget::new(&limits)).unwrap_err().message.contains("loan"));
+        access(&permission,true,&[0],&[parent],&mut vec![],&mut Budget::new(&limits)).unwrap();
     }
 
     #[test]

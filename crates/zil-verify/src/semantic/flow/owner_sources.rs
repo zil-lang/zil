@@ -15,7 +15,7 @@ impl CheckedContext{
         self.original_projection_source(module,caller,f,value,definition,node,observed,b)
     }
     #[allow(clippy::too_many_arguments)]
-    fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
+    pub(super) fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
         if definition!=caller.definition{return Err(bad("indirect borrow selects another original lexical owner"));}
         let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
         let mut seen=BTreeSet::new();
@@ -46,6 +46,9 @@ impl CheckedContext{
                     (AddressProjection::Index(node),InstructionKind::AddressIndex{address,index})=>{
                         self.exact_expression_value(module,caller,f,*index,*node,b)?;value=*address;
                     },
+                    (AddressProjection::Index(node),InstructionKind::ExtractIndex{aggregate,index})if read_value=>{
+                        self.exact_expression_value(module,caller,f,*index,*node,b)?;value=*aggregate;
+                    },
                     (AddressProjection::Slice{start,end},InstructionKind::AddressSlice{address,start:actual_start,end:actual_end})=>{
                         for(original,actual)in[(start,actual_start),(end,actual_end)]{match(original,actual){(Some(node),Some(value))=>self.exact_expression_value(module,caller,f,*value,*node,b)?,(None,None)=>{},_=>return Err(bad("indirect slice changes an exact original endpoint occurrence")),}}
                         value=*address;
@@ -65,7 +68,7 @@ impl CheckedContext{
             AddressRoot::Parameter(ordinal)=>self.intrinsic_buffer_source(module,caller,f,value,BufferSource::Parameter{definition,ordinal},b),
         }
     }
-    fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+    pub(super) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
         let definition=self.definition(module,caller.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("address source occurrence has no complete original body"));};
         let program=module.semantic.as_ref().ok_or_else(||bad("address source occurrence programme is absent"))?;
@@ -308,7 +311,7 @@ impl CheckedContext {
     }
 }
 
-fn producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<(BlockId,u32,&'a Instruction)>{
+pub(super) fn producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<(BlockId,u32,&'a Instruction)>{
     let mut result=None;
     for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){if instruction.result==Some(value)&&result.replace((block.id,index as u32,instruction)).is_some(){return Err(bad("buffer projection has several actual SSA producers"));}}}
     result.ok_or_else(||bad("buffer projection lacks its actual SSA definition"))
