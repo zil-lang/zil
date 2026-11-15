@@ -455,8 +455,11 @@ pub(super) fn source_relation(
             path.splice(path.len() - 1..path.len() - 1, carrier.iter().cloned());
             carriers::relation(module, f, base, &path, b)
         }
-        Some(PortOrigin::Dyn { .. }) => {
-            Err(err("Dyn port cannot use a Task result source relation"))
+        Some(PortOrigin::Dyn { carrier,port }) => {
+            b.spend(source.leaf.len().saturating_add(carrier.len()))?;
+            let path=source.leaf.iter().copied().map(ContractProjection::Place)
+                .chain(carrier.iter().copied()).collect::<Vec<_>>();
+            dyn_returns::source_relation_at(module,f,base,&path,*port,b)
         }
         None => relation(f, base, &source.leaf, b),
     }
@@ -617,6 +620,7 @@ pub(super) fn summarize(
     }
     for (mut path, port, _) in carriers::paths(module, &f.return_type, b)? {
         path.push(ContractProjection::RetainedPort(port));
+        if enum_address::inactive_path(&p.enum_variants,&f.return_type,&path,b)?{continue;}
         b.spend(p.task_ports.iter().fold(path.len(), |n, (actual, _)| {
             n.saturating_add(actual.len())
                 .saturating_add(path.len())

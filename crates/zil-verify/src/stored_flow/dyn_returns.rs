@@ -567,7 +567,18 @@ pub(super) fn source_relation(
     port: u32,
     b: &mut Budget,
 ) -> Check<StorageBinder> {
-    let root = parameter_type(f, parameter)?;
+    source_relation_at(module,f,StorageBase::Parameter(parameter),carrier,port,b)
+}
+pub(super) fn source_relation_at(
+    module:&TypedModule,f:&TypedFunction,base:StorageBase,carrier:&[ContractProjection],port:u32,b:&mut Budget,
+)->Check<StorageBinder>{
+    let root=match base {
+        StorageBase::Parameter(parameter)=>parameter_type(f,parameter)?,
+        StorageBase::Capture(index)=>f.environment.and_then(|id|module.closures.get(id.0 as usize))
+            .and_then(|definition|definition.captures.get(index as usize))
+            .ok_or_else(||bad("Dyn class source lacks its exact actual capture"))?,
+        _=>return Err(bad("Dyn class source is outside its actual input/capture domain")),
+    };
     let endpoint = dyn_ports::carrier_type(module, root, carrier, b)?;
     let (Type::Dyn { interface } | Type::OwnedDyn { interface }) = endpoint else {
         return Err(bad("Dyn class source has a non-Dyn endpoint"));
@@ -579,7 +590,7 @@ pub(super) fn source_relation(
         .ok_or_else(|| bad("Dyn class source port is absent"))?
         .binder;
     let (path, class) = class_key(module, root, carrier, class, 0, b)?;
-    class_binding(f, StorageBase::Parameter(parameter), &path, class, b)
+    class_binding(f, base, &path, class, b)
 }
 fn class_binding(
     f: &TypedFunction,
