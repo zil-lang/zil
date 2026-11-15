@@ -3931,6 +3931,16 @@ pub(super) fn check(
                     "original actual does not establish its declared sealed capability"
                 }
             });
+            if matches!(need.predicate, Predicate::StoreElement) {
+                let root = solver.type_root(need.term, b)?;
+                let detail = match &solver.state.arena[root] {
+                    Kind::Nominal { definition, .. } => format!("nominal {:?}", definition),
+                    kind => format!("kind {:?}", std::mem::discriminant(kind)),
+                };
+                errors[0]
+                    .notes
+                    .push(format!("original StoreElement subject {}", detail));
+            }
             if matches!(need.predicate, Predicate::Value) {
                 for (term, owner, field) in &solver.field_needs {
                     b.spend(1, WORK)?;
@@ -4470,8 +4480,31 @@ impl Solver<'_, '_> {
                 }
                 if matches!(predicate, Predicate::StoreElement) {
                     resources::ordinary_drop_absent(*definition, self.inventory, b)?;
+                    let mut callback = None;
+                    let mut callbacks = 0usize;
                     for field in fields {
-                        if !self.satisfies(*field, Predicate::StoreElement, b, depth + 1)? {
+                        let root = self.type_root(*field, b)?;
+                        if matches!(self.state.arena[root], Kind::Closure { .. }) {
+                            callbacks += 1;
+                            let same_callback = if let Some(old) = callback {
+                                self.same_original(old, root, b, depth + 1)?
+                            } else {
+                                true
+                            };
+                            if callbacks > 2
+                                || !same_callback
+                                || !self.capability(
+                                    root,
+                                    SemanticBuiltinTrait::ClosedEnvironment,
+                                    b,
+                                    depth + 1,
+                                )?
+                                || !self.satisfies(root, Predicate::SyncDrop, b, depth + 1)?
+                            {
+                                return Ok(false);
+                            }
+                            callback = Some(root);
+                        } else if !self.satisfies(*field, Predicate::StoreElement, b, depth + 1)? {
                             return Ok(false);
                         }
                     }
