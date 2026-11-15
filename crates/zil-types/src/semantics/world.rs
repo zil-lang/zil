@@ -809,50 +809,95 @@ impl<'a> World<'a, '_> {
                 *image = actual.clone();
                 continue;
             }
-            if matches!(
-                image,
-                SemanticClassExpr::Implicit {
-                    scope: SemanticScopeRef::Ancestor(0),
+            // Resolve a sealed proxy and its ancestor spelling in the child's
+            // original Gamma before selecting a real Fixed image. Concrete
+            // caller coincidences never select or merge captured classes.
+            let captured = match image {
+                SemanticClassExpr::Formal {
+                    scope: SemanticScopeRef::Ancestor(hops),
+                    ..
+                } => *hops != 0,
+                SemanticClassExpr::Implicit { .. } => true,
+                SemanticClassExpr::IntrinsicClass {
+                    operand:
+                        SemanticOperand::TypeArgument {
+                            scope: SemanticScopeRef::Ancestor(hops),
+                            ..
+                        },
+                    ..
+                } => *hops != 0,
+                SemanticClassExpr::Environment { .. }
+                | SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Environment(_),
                     ..
                 }
-            ) {
-                if let Some((
+                | SemanticClassExpr::OuterOccurrence {
+                    operand: SemanticOperand::Environment(_),
+                    ..
+                } => true,
+                _ => false,
+            };
+            if captured
+                && let Some((
                     header,
                     child,
                     SemanticTypeValue::Resolved {
+                        life,
                         classes: actual_images,
                         ..
                     },
                 )) = environment
+            {
+                if actual_images.len() != life.binder_count as usize
+                    || life.binder_count != header.fixed_binder_count
                 {
-                    self.pay(child.header_embedding.len())?;
-                    let mut rows = child.header_embedding.iter().filter(|row| {
-                        row.actual == *image && matches!(row.header, StorageBinder::Fixed(_))
-                    });
-                    if let Some(row) = rows.next() {
-                        if rows.next().is_some() {
-                            return Err(bad("implicit capture has ambiguous actual Fixed images"));
-                        }
-                        let StorageBinder::Fixed(fixed) = row.header else {
-                            unreachable!()
-                        };
-                        if fixed >= header.fixed_binder_count {
-                            return Err(bad(
-                                "implicit capture Fixed image exceeds complete environment domain",
-                            ));
-                        }
-                        let actual = actual_images
-                            .get(fixed as usize)
-                            .ok_or_else(|| bad("call omits an implicit captured Fixed image"))?;
-                        crate::dyn_metadata::semantic_operand_snapshot(
-                            actual,
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                        *image = actual.clone();
+                    return Err(bad(
+                        "call environment loses its complete persistent class domain",
+                    ));
+                }
+                let original = self.class(child.id, image, &BTreeMap::new())?;
+                let mut selected = None;
+                for row in &child.header_embedding {
+                    self.pay(1)?;
+                    let StorageBinder::Fixed(fixed) = row.header else {
                         continue;
+                    };
+                    if fixed >= header.fixed_binder_count {
+                        return Err(bad(
+                            "captured header image is outside its complete Fixed domain",
+                        ));
                     }
+                    let source = self.class(child.id, &row.actual, &BTreeMap::new())?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        &source,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        &original,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if source == original && selected.replace(fixed).is_some() {
+                        return Err(bad(
+                            "captured original class has ambiguous actual Fixed images",
+                        ));
+                    }
+                }
+                if let Some(fixed) = selected {
+                    let actual = actual_images
+                        .get(fixed as usize)
+                        .ok_or_else(|| bad("call truncates the actual captured class image"))?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        actual,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    *image = actual.clone();
+                    continue;
                 }
             }
             match image {
@@ -900,40 +945,14 @@ impl<'a> World<'a, '_> {
                 | SemanticClassExpr::IntrinsicClass {
                     operand: SemanticOperand::Environment(_),
                     ..
+                }
+                | SemanticClassExpr::OuterOccurrence {
+                    operand: SemanticOperand::Environment(_),
+                    ..
                 } => {
-                    let Some((
-                        header,
-                        child,
-                        SemanticTypeValue::Resolved {
-                            classes: actual_images,
-                            ..
-                        },
-                    )) = environment
-                    else {
-                        return Err(bad("call reads an unsealed child environment class"));
-                    };
-                    let mut selected = None;
-                    for row in &child.header_embedding {
-                        self.pay(1)?;
-                        if row.actual == *image {
-                            let StorageBinder::Fixed(fixed) = row.header else {
-                                continue;
-                            };
-                            if fixed >= header.fixed_binder_count
-                                || selected.replace(fixed).is_some()
-                            {
-                                return Err(bad("environment class has ambiguous Fixed images"));
-                            }
-                        }
-                    }
-                    *image = actual_images
-                        .get(
-                            selected
-                                .ok_or_else(|| bad("environment class has no actual Fixed image"))?
-                                as usize,
-                        )
-                        .ok_or_else(|| bad("call truncates an environment's complete domain"))?
-                        .clone();
+                    return Err(bad(
+                        "call environment class has no exact original Fixed image",
+                    ));
                 }
                 _ => {
                     crate::dyn_metadata::semantic_operand_snapshot(
@@ -1016,10 +1035,16 @@ impl World<'_, '_> {
                 self.left,
             )?,
             SemanticClassExpr::OuterOccurrence {
-                operand: SemanticOperand::Environment(ordinal),
-                path,
-                mode,
-            } => roles::environment_outer(self, scope, *ordinal, path, *mode)?,
+                operand: SemanticOperand::Environment(_),
+                ..
+            }
+            | SemanticClassExpr::IntrinsicClass {
+                operand: SemanticOperand::Environment(_),
+                ..
+            }
+            | SemanticClassExpr::Environment { .. } => {
+                roles::environment_class(self, scope, image)?
+            }
             _ => image.clone(),
         })
     }

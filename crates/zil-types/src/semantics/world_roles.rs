@@ -2,6 +2,15 @@
 //! incoming image stays separate from exact class normalization and whole N.
 use super::*;
 use crate::semantics::original::{LocalRole, LocalRoleKind};
+#[path = "world_environment_classes.rs"]
+mod environment_classes;
+pub(super) fn environment_class(
+    world: &mut World<'_, '_>,
+    scope: SemanticInstanceId,
+    image: &SemanticClassExpr,
+) -> R<SemanticClassExpr> {
+    environment_classes::normalize(world, scope, image)
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Source {
     Static,
