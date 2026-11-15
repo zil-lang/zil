@@ -326,6 +326,7 @@ fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
         | Type::U32
         | Type::F32
         | Type::F64 => Ok(true),
+        Type::FunctionPointer { .. } => super::super::class_flow::thin::data(ty, b, depth + 1),
         Type::Tuple(fields) => {
             for field in fields {
                 if !pure(field, b, depth + 1)? {
@@ -611,6 +612,11 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Co
             | Type::Closure(_)
             | Type::BorrowedFunctionPointer { .. }
             | Type::Task { .. } => return Ok(false),
+            Type::FunctionPointer { .. } => {
+                if !super::super::class_flow::thin::data(ty, b, depth + 1)? {
+                    return Ok(false);
+                }
+            }
             Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 fee(b, fields.len())?;
                 pending.extend(fields.iter().map(|(_, child)| (child, depth + 1)));

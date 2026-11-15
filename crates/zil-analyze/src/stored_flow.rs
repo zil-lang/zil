@@ -5358,7 +5358,30 @@ fn transfer(
         }
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
-            if super::class_flow::pointer_instruction(f, i) => {}
+            if super::class_flow::pointer_instruction(f, i) => {
+                if super::class_flow::thin::instruction(f, i)
+                    && let InstructionKind::CallIndirect { callee, arguments } = &i.kind
+                {
+                    for input in std::iter::once(callee).chain(arguments) {
+                        fee(b, 1)?;
+                        let payload = get(*input)?;
+                        if !payload.pointer.targets.is_empty()
+                            || !payload.pointer.loans.is_empty()
+                            || !payload.slots.is_empty()
+                            || !payload.held.targets.is_empty()
+                            || !payload.held.loans.is_empty()
+                            || !payload.store_description.targets.is_empty()
+                            || !payload.store_description.loans.is_empty()
+                            || !payload.task_ports.is_empty()
+                            || !payload.dyn_ports.is_empty()
+                            || payload.creation_complete.is_some()
+                            || !payload.environment.is_empty()
+                        {
+                            return Err(failure("thin code input carries actual stored target permissions"));
+                        }
+                    }
+                }
+            }
         InstructionKind::ReadAddress { address } => {
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("read transfer lacks an actual Address"));

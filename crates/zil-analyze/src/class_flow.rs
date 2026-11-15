@@ -2,6 +2,7 @@
 //! storage initialization, parent loans, effects or physical access rights.
 use super::*;
 mod array_outer;
+pub(super) mod thin;
 
 #[derive(Clone, Default)]
 struct Ports {
@@ -2455,6 +2456,20 @@ fn check_with(
                     }
                 }
                 InstructionKind::CallIndirect { callee, arguments } => {
+                    if thin::instruction(f, i) {
+                        thin::types(module, f, i, b)?;
+                        for operand in std::iter::once(callee).chain(arguments).chain(i.result.iter()) {
+                            let ports = values.get(operand.0 as usize)
+                                .ok_or_else(|| bad("thin indirect value has no complete class inventory"))?;
+                            b.spend(1, "thin indirect empty class inventory")?;
+                            if ports.outer.is_some() || !ports.classes.is_empty()
+                                || !ports.keys.is_empty() || ports.direct || ports.environment
+                                || !ports.task_ports.is_empty() || !ports.array_elements.is_empty() {
+                                return Err(bad("thin indirect call retains actual class or environment obligations"));
+                            }
+                        }
+                        continue;
+                    }
                     let Type::BorrowedFunctionPointer { life, .. } = &f.values[callee.0 as usize]
                     else {
                         return Err(bad(
@@ -2635,6 +2650,9 @@ fn scalar(t: &Type) -> bool {
     )
 }
 pub(super) fn pointer_instruction(f: &TypedFunction, i: &Instruction) -> bool {
+    if thin::instruction(f, i) {
+        return true;
+    }
     match &i.kind {
         InstructionKind::FunctionRef { .. } => i
             .result
@@ -2654,6 +2672,9 @@ pub(super) fn pointer_types(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if thin::instruction(f, i) {
+        return thin::types(module, f, i, b);
+    }
     match &i.kind {
         InstructionKind::FunctionRef { function } => {
             let ty = i
