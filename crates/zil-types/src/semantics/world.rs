@@ -101,6 +101,8 @@ struct World<'a, 'b> {
     canonical_work: usize,
     key_work: usize,
     where_work: usize,
+    same_calls: usize,
+    same_work: usize,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -312,10 +314,22 @@ impl<'a> World<'a, '_> {
             .frames
             .get(&function.id)
             .ok_or_else(|| bad("actual result has no private emission owner"))?;
-        self.pay(frame.expressions.len())?;
+        self.pay(index::search(self.index.expressions.len()))?;
+        let nodes = match self.index.expressions.get(&(function.id, result)) {
+            Some(nodes) => {
+                index::pay(self.left, nodes.len())?;
+                nodes.clone()
+            }
+            None => return Ok(None),
+        };
         let original = self.definition(instance.definition)?;
         let mut selected: Option<SharedType> = None;
-        for expression in frame.expressions.values() {
+        for node in nodes {
+            self.pay(index::search(frame.expressions.len()))?;
+            let expression = frame
+                .expressions
+                .get(&node)
+                .ok_or_else(|| bad("actual expression index changes its emitter owner"))?;
             self.pay(expression.instructions.len())?;
             if expression.value != Some(result)
                 || !expression
@@ -328,8 +342,37 @@ impl<'a> World<'a, '_> {
             let Some(end) = expression.end else {
                 continue;
             };
-            self.pay(self.program.sites.len())?;
-            for site in &self.program.sites {
+            self.pay(index::search(self.index.points.len()))?;
+            let positions = match self
+                .index
+                .points
+                .get(&(instance.id, end.block, end.instruction))
+            {
+                Some(positions) => {
+                    index::pay(self.left, positions.len())?;
+                    positions.clone()
+                }
+                None => continue,
+            };
+            self.pay(index::search(self.index.sites.len()))?;
+            let sites = self
+                .index
+                .sites
+                .get(&instance.id)
+                .ok_or_else(|| bad("actual expression index lost its instance sites"))?;
+            let offsets = positions
+                .into_iter()
+                .map(|position| {
+                    sites.get(position).copied().ok_or_else(|| {
+                        bad("actual expression point index leaves its instance sites")
+                    })
+                })
+                .collect::<R<Vec<_>>>()?;
+            self.pay(offsets.len())?;
+            for offset in offsets {
+                let site = self.program.sites.get(offset).ok_or_else(|| {
+                    bad("actual expression site index leaves its complete directory")
+                })?;
                 if site.instance != instance.id
                     || !matches!(site.at, SemanticSiteAddress::Typed {
                     block: actual_block, instruction, edge: SemanticSiteEdge::Before,
@@ -963,6 +1006,22 @@ impl World<'_, '_> {
         }
         Ok(())
     }
+    fn normalized_images(
+        &mut self,
+        scope: SemanticInstanceId,
+        classes: &[SemanticClassExpr],
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<(Vec<SemanticClassExpr>, bool)> {
+        self.pay(classes.len().saturating_add(1))?;
+        let mut mapped = Vec::with_capacity(classes.len());
+        let mut changed = false;
+        for image in classes {
+            let actual = self.class(scope, image, implicit)?;
+            changed |= actual != *image;
+            mapped.push(actual);
+        }
+        Ok((mapped, changed))
+    }
     fn normalized<'v>(
         &mut self,
         scope: SemanticInstanceId,
@@ -972,14 +1031,7 @@ impl World<'_, '_> {
         let SemanticTypeValue::Resolved { classes, .. } = value else {
             return Err(bad("Core value survives normalization"));
         };
-        self.pay(classes.len().saturating_add(1))?;
-        let mut mapped = Vec::with_capacity(classes.len());
-        let mut changed = false;
-        for image in classes {
-            let actual = self.class(scope, image, implicit)?;
-            changed |= actual != *image;
-            mapped.push(actual);
-        }
+        let (mapped, changed) = self.normalized_images(scope, classes, implicit)?;
         if !changed {
             return Ok(std::borrow::Cow::Borrowed(value));
         }
@@ -1005,6 +1057,7 @@ impl World<'_, '_> {
             }
         }
     }
+    #[track_caller]
     fn same(
         &mut self,
         scope: SemanticInstanceId,
@@ -1012,9 +1065,49 @@ impl World<'_, '_> {
         b: &SemanticTypeValue,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
-        let a = self.normalized(scope, a, implicit)?;
-        let b = self.normalized(scope, b, implicit)?;
-        self.equal(&a, &b)
+        let location = std::panic::Location::caller();
+        let before = *self.left;
+        self.same_calls = self.same_calls.saturating_add(1);
+        let result = (|| {
+            let (
+                SemanticTypeValue::Resolved {
+                    ty: a_ty,
+                    life: a_life,
+                    classes: a_classes,
+                },
+                SemanticTypeValue::Resolved {
+                    ty: b_ty,
+                    life: b_life,
+                    classes: b_classes,
+                },
+            ) = (a, b)
+            else {
+                return Err(bad("Core value survives normalization"));
+            };
+            // Rebuild only the class images in this exact live world. The
+            // physical type and complete intrinsic domain are immutable and
+            // borrowed; an equation never needs two cloned whole values.
+            let (a_images, _) = self.normalized_images(scope, a_classes, implicit)?;
+            let (b_images, _) = self.normalized_images(scope, b_classes, implicit)?;
+            self.pay(1)?;
+            if std::ptr::eq(a, b) {
+                return Ok(());
+            }
+            crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+            if a_ty != b_ty || a_life != b_life || a_images != b_images {
+                crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+                let mut diagnostic = bad("actual whole type or rigid original classes disagree");
+                diagnostic.notes.push(format!("actual class equation at {}:{}; actual point {:?}; left complete value {:?}; right complete value {:?}; current left images {:?}; current right images {:?}", location.file(), location.line(), self.current_point, a, b, a_images, b_images));
+                return Err(diagnostic);
+            }
+            Ok(())
+        })();
+        self.same_work = self
+            .same_work
+            .saturating_add(before.saturating_sub(*self.left));
+        result
     }
     fn original_recipe<'a>(
         &mut self,
@@ -1026,11 +1119,19 @@ impl World<'_, '_> {
         else {
             return Err(bad("operation is outside its original function"));
         };
-        self.pay(sites.len())?;
-        sites
-            .iter()
-            .find(|r| r.id == id)
-            .ok_or_else(|| bad("actual operation has no original recipe"))
+        self.pay(index::search(self.index.recipes.len()))?;
+        let offset = self
+            .index
+            .recipes
+            .get(&(original.id, id))
+            .ok_or_else(|| bad("actual operation has no original recipe"))?;
+        let recipe = sites
+            .get(*offset)
+            .ok_or_else(|| bad("actual recipe index leaves its original definition"))?;
+        if recipe.id != id {
+            return Err(bad("actual recipe index changes its original identity"));
+        }
+        Ok(recipe)
     }
     fn point_sites<'a>(
         &mut self,
@@ -4230,6 +4331,8 @@ fn program_at(
         canonical_work: 0,
         key_work: 0,
         where_work: 0,
+        same_calls: 0,
+        same_work: 0,
         current_point: None,
     };
     world.pay(
@@ -4418,7 +4521,7 @@ fn program_at(
             );
             let before = *world.left;
             if let Err(mut diagnostic) = world.run(instance) {
-                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}; canonical work {}, digest work {}, immutable where work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata, world.canonical_work, world.key_work, world.where_work));
+                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}; canonical work {}, digest work {}, immutable where work {}; live normalized equations {} work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata, world.canonical_work, world.key_work, world.where_work, world.same_calls, world.same_work));
                 return Err(diagnostic);
             }
         }
