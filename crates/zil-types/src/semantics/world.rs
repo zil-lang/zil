@@ -98,6 +98,9 @@ struct World<'a, 'b> {
     comparisons: usize,
     compare_work: usize,
     retired_metadata: usize,
+    canonical_work: usize,
+    key_work: usize,
+    where_work: usize,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -1529,25 +1532,30 @@ impl World<'_, '_> {
         source: Option<SemanticSiteId>,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
-        let recipes = {
+        let before = *self.left;
+        let recipes: R<Option<Rc<Vec<SemanticActualRecipe>>>> = (|| {
             let original_proof = self.ledger.original.borrow();
             let proof = original_proof
                 .as_ref()
                 .ok_or_else(|| bad("where requirement lacks independent original Gamma"))?;
             if let Some(site) = source {
-                Some(proof.where_call(
+                Ok(Some(proof.where_call(
                     self.program,
                     instance.definition,
                     site,
                     original.id,
                     self.limits,
                     self.left,
-                )?)
+                )?))
             } else {
                 proof.where_entry(self.program, original.id, self.limits, self.left)?;
-                None
+                Ok(None)
             }
-        };
+        })();
+        self.where_work = self
+            .where_work
+            .saturating_add(before.saturating_sub(*self.left));
+        let recipes = recipes?;
         match (recipes.as_ref(), actuals) {
             (Some(recipes), Some(actuals)) => {
                 if recipes.len() != actuals.len() {
@@ -4219,6 +4227,9 @@ fn program_at(
         comparisons: 0,
         compare_work: 0,
         retired_metadata: 0,
+        canonical_work: 0,
+        key_work: 0,
+        where_work: 0,
         current_point: None,
     };
     world.pay(
@@ -4407,7 +4418,7 @@ fn program_at(
             );
             let before = *world.left;
             if let Err(mut diagnostic) = world.run(instance) {
-                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata));
+                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}; canonical work {}, digest work {}, immutable where work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata, world.canonical_work, world.key_work, world.where_work));
                 return Err(diagnostic);
             }
         }

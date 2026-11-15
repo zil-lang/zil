@@ -8,6 +8,12 @@ use std::rc::Rc;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Query {
     Type(SemanticTypeRecipe),
+    WhereEntry,
+    WhereCall {
+        site: SemanticSiteId,
+        target: SemanticDefinitionId,
+        arguments: Vec<SemanticActualRecipe>,
+    },
     Parent {
         caller: SemanticDefinitionId,
         call: SemanticSiteId,
@@ -20,6 +26,8 @@ pub(super) enum Query {
 #[derive(Clone)]
 pub(super) enum Value {
     Type(Rc<SemanticTypeRecipe>),
+    WhereEntry,
+    WhereCall(Rc<Vec<SemanticActualRecipe>>),
     Parent(Rc<Vec<SemanticActualRecipe>>),
 }
 type Key = (SemanticDefinitionId, zil_base::Fingerprint);
@@ -52,6 +60,14 @@ impl Query {
         fee(left, 8)?;
         match self {
             Self::Type(ty) => crate::dyn_metadata::semantic_operand_snapshot(ty, limits, left, 1),
+            Self::WhereEntry => Ok(()),
+            Self::WhereCall { arguments, .. } => {
+                fee(left, arguments.len())?;
+                for argument in arguments {
+                    crate::dyn_metadata::semantic_operand_snapshot(argument, limits, left, 1)?;
+                }
+                Ok(())
+            }
             Self::Parent {
                 receiver,
                 application,

@@ -221,6 +221,23 @@ impl Proof {
         left: &mut usize,
     ) -> R<()> {
         let mut check = borrowed_check(program, self, owner, limits, left)?;
+        let query = source_cache::Query::WhereEntry;
+        let key = if self.pure_queries_ready {
+            let (key, cached) = self
+                .pure_queries
+                .lookup(owner, &query, limits, check.left)?;
+            if let Some(value) = cached {
+                return match value {
+                    source_cache::Value::WhereEntry => Ok(()),
+                    _ => Err(bad(
+                        "original where-entry cache changes its exact query kind",
+                    )),
+                };
+            }
+            Some(key)
+        } else {
+            None
+        };
         let original = check.definition(owner)?;
         if !matches!(
             original.body,
@@ -233,6 +250,15 @@ impl Proof {
         // Include inherited lexical and associated premises using the same
         // declaration-domain operation used during original body checking.
         let _ = check.original_requirements(owner, 0)?;
+        if let Some(key) = key {
+            self.pure_queries.insert(
+                key,
+                query,
+                source_cache::Value::WhereEntry,
+                limits,
+                check.left,
+            )?;
+        }
         Ok(())
     }
 
@@ -247,7 +273,7 @@ impl Proof {
         target: SemanticDefinitionId,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<Vec<SemanticActualRecipe>> {
+    ) -> R<std::rc::Rc<Vec<SemanticActualRecipe>>> {
         let mut check = borrowed_check(program, self, caller, limits, left)?;
         if !self.complete.contains(&target) {
             return Err(bad("where call target lacks complete original typing"));
@@ -269,6 +295,30 @@ impl Proof {
             .calls
             .get(&key)
             .ok_or_else(|| bad("where call lacks its complete original mixed actuals"))?;
+        for argument in arguments {
+            crate::dyn_metadata::semantic_operand_snapshot(argument, limits, check.left, 1)?;
+        }
+        let query = source_cache::Query::WhereCall {
+            site,
+            target,
+            arguments: arguments.clone(),
+        };
+        let cache_key = if self.pure_queries_ready {
+            let (key, cached) = self
+                .pure_queries
+                .lookup(caller, &query, limits, check.left)?;
+            if let Some(value) = cached {
+                return match value {
+                    source_cache::Value::WhereCall(value) => Ok(value),
+                    _ => Err(bad(
+                        "original where-call cache changes its exact query kind",
+                    )),
+                };
+            }
+            Some(key)
+        } else {
+            None
+        };
         let original = check.definition(target)?;
         if original.parameters.len() != arguments.len() {
             return Err(bad("where call omits a complete mixed argument position"));
@@ -327,7 +377,18 @@ impl Proof {
         for argument in arguments {
             crate::dyn_metadata::semantic_operand_snapshot(argument, limits, check.left, 1)?;
         }
-        Ok(arguments.clone())
+        check.pay(1, 0)?;
+        let arguments = std::rc::Rc::new(arguments.clone());
+        if let Some(key) = cache_key {
+            self.pure_queries.insert(
+                key,
+                query,
+                source_cache::Value::WhereCall(arguments.clone()),
+                limits,
+                check.left,
+            )?;
+        }
+        Ok(arguments)
     }
 
     /// Reduce a complete recipe in its explicitly selected original Gamma.

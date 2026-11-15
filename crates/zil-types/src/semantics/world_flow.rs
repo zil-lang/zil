@@ -1058,8 +1058,18 @@ impl Cfg {
         state
             .value_role_sources
             .retain(|id, _| state.values[id.0 as usize].is_some());
-        state.canonicalize(world)?;
-        let key = state.key(world)?;
+        let before = *world.left;
+        let canonical = state.canonicalize(world);
+        world.canonical_work = world
+            .canonical_work
+            .saturating_add(before.saturating_sub(*world.left));
+        canonical?;
+        let before = *world.left;
+        let key = state.key(world);
+        world.key_work = world
+            .key_work
+            .saturating_add(before.saturating_sub(*world.left));
+        let key = key?;
         world.pay(index::search(self.seen[index].len()))?;
         if let Some(candidates) = self.seen[index].get(&key) {
             world.pay(candidates.len())?;
