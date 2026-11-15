@@ -159,7 +159,6 @@ impl CheckedOriginal {
             if self.structural_premise(module,context,ty,DynStructuralBound::Value,env,active,b)?||self.is_copy(module,context,ty,env,active,b)?{return Ok(true);}
             Ok(match self.resolved(ty,b)?{
                 Ty::Address{..}|Ty::Desc{..}|Ty::Managed(_)=>true,
-                Ty::Dyn(value)=>value.owned,
                 Ty::Closure(definition,..)=>self.checked.contains(&definition)&&self.creator_moves.contains_key(&definition),
                 Ty::Tuple(fields)=>{for field in fields{if !self.value_type(module,context,&field,env,active,b)?{return Ok(false);}}true},
                 Ty::Array(element,_)=>self.value_type(module,context,&element,env,active,b)?,
