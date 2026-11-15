@@ -1837,8 +1837,10 @@ impl Solver<'_, '_> {
                     op: UnaryOp::Dereference,
                     operand,
                 } => {
-                    let address = self.expression(frame, operand, b, depth + 1)?;
-                    let root = self.root(address, b)?;
+                    // Dereferencing observes the existing address head; it
+                    // does not move that affine head out of its lexical slot.
+                    let address = self.borrowed_argument(frame, operand, b, depth + 1)?;
+                    let root = self.type_root(address, b)?;
                     let Kind::Address { inner, .. } = self.state.arena[root] else {
                         return Err(fail("original dereference does not select an address"));
                     };

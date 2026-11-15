@@ -293,11 +293,20 @@ pub(super) fn ordinary_owned(
     ty: &Type,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    const WORK: &str = "ordinary Product canonical Store";
     let Type::Managed(payload) = ty else {
         return Err(super::bad("ordinary Product Store must be owned"));
     };
-    let Type::OwnedStore { element } = payload.as_ref() else {
+    ordinary_payload(module, payload, budget)
+}
+
+/// Complete immutable Store payload proof, independent of the caller's mode.
+pub(super) fn ordinary_payload(
+    module: &TypedModule,
+    payload: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    const WORK: &str = "ordinary Product canonical Store";
+    let Type::OwnedStore { element } = payload else {
         return Err(super::bad("ordinary Product Store payload is absent"));
     };
     if super::nested_store::selected(element) {
@@ -339,9 +348,7 @@ pub(super) fn ordinary_owned(
             continue;
         }
         budget.type_work(&resource.payload, true, WORK)?;
-        if resource.name != canonical
-            || resource.payload != **payload
-            || resource.teardown.is_some()
+        if resource.name != canonical || resource.payload != *payload || resource.teardown.is_some()
         {
             return Err(super::bad(
                 "ordinary Product Store requires its exact canonical definition and no user teardown",

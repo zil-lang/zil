@@ -347,6 +347,47 @@ pub(super) fn closure_relation(
         &[],
     )
 }
+/// Module-aware resource domains do not confer an owning capture or call.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn closure_relation_resource_scopes(
+    module: &TypedModule,
+    kind: CallableKind,
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let mut roots = Vec::new();
+    for (base, ty) in parameters
+        .iter()
+        .enumerate()
+        .map(|(index, ty)| (StorageBase::Parameter(index as u32), ty))
+        .chain(
+            captures
+                .iter()
+                .enumerate()
+                .map(|(index, ty)| (StorageBase::Capture(index as u32), ty)),
+        )
+        .chain(std::iter::once((StorageBase::Result, result)))
+    {
+        if let Some(root) = store_resource_root(module, base, ty, b)? {
+            roots.push(root);
+        }
+    }
+    relation_inner(
+        parameters,
+        Some(captures),
+        result,
+        c,
+        true,
+        &module.closures,
+        false,
+        &module.dyn_interfaces,
+        Some(kind),
+        &roots,
+    )
+}
 pub(super) fn function_relation_in_module(
     parameters: &[Type],
     result: &Type,
@@ -372,6 +413,52 @@ pub(super) fn function_relation_in_module(
 struct ZeroResourceRoot<'a> {
     base: StorageBase,
     whole_type: &'a Type,
+}
+fn store_resource_root<'a>(
+    module: &TypedModule,
+    base: StorageBase,
+    ty: &'a Type,
+    b: &mut Budget,
+) -> CompileResult<Option<ZeroResourceRoot<'a>>> {
+    b.spend(1, "resource signature complete root category")?;
+    // A descriptor itself has a head class. An Address<Desc<...>> therefore
+    // cannot claim a zero child domain by peeling both boundaries.
+    let carrier = match ty {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) => inner.as_ref(),
+        Type::Managed(_) | Type::Desc(_) => ty,
+        _ => return Ok(None),
+    };
+    let (Type::Managed(payload) | Type::Desc(payload)) = carrier else {
+        unreachable!()
+    };
+    if !matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+        return Ok(None);
+    }
+    crate::ownership_store::payload_definition(module, payload, b)?;
+    let mut domain = crate::tasks::input_scope::domain(payload, b)?;
+    if domain == crate::tasks::input_scope::Domain::Unknown
+        && b.task_input_scopes.is_none()
+        && !module.closures.is_empty()
+    {
+        // This existing structural scope builder consumes exactly these two
+        // bounds; use the current request's bounds, never its default values.
+        let limits = zil_base::Limits {
+            max_nodes: b.helper_nodes,
+            max_call_depth: b.partial_depth,
+            ..zil_base::Limits::default()
+        };
+        b.task_input_scopes = Some(crate::tasks::input_scope::build(module, &limits, b)?);
+        domain = crate::tasks::input_scope::domain(payload, b)?;
+    }
+    if domain != crate::tasks::input_scope::Domain::Known(0) {
+        return Ok(None);
+    }
+    b.type_work(ty, false, "actual zero Store signature occurrence")?;
+    b.spend(1, "actual zero Store signature root")?;
+    Ok(Some(ZeroResourceRoot {
+        base,
+        whole_type: ty,
+    }))
 }
 fn opaque_resource(ty: &Type) -> Option<&Type> {
     let ty = if let Type::Address { inner, .. } = ty {
@@ -404,12 +491,16 @@ pub(super) fn function_relation_resource_scopes(
     b: &mut Budget,
 ) -> CompileResult<()> {
     let mut roots = Vec::new();
+    let mut opaque_roots = false;
     for (base, ty) in parameters
         .iter()
         .enumerate()
         .map(|(index, ty)| (StorageBase::Parameter(index as u32), ty))
         .chain(std::iter::once((StorageBase::Result, result)))
     {
+        if let Some(root) = store_resource_root(module, base, ty, b)? {
+            roots.push(root);
+        }
         if let Some(resource) = opaque_resource(ty) {
             if matches!(resource, Type::Task { .. }) {
                 crate::tasks::require_closed_context(resource)?;
@@ -422,10 +513,11 @@ pub(super) fn function_relation_resource_scopes(
                     base,
                     whole_type: ty,
                 });
+                opaque_roots = true;
             }
         }
     }
-    if !roots.is_empty() && !c.static_bindings.is_empty() {
+    if opaque_roots && !c.static_bindings.is_empty() {
         return Err(bad(
             "opaque resource header requires its complete static occurrence consumer",
         ));
@@ -592,6 +684,7 @@ fn relation_inner(
         fn ty(&mut self, ty: &Type, base: StorageBase) -> CompileResult<()> {
             if matches!(ty, Type::Desc(inner)
                 if class_free_owned_tree(inner)
+                    || self.zero_resources.iter().any(|root| root.base == base && root.whole_type == ty)
                     || matches!(inner.as_ref(), Type::Mutex { payload } if **payload == Type::I32))
             {
                 // A complete closed weak head has one outer occurrence and

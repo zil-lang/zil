@@ -370,6 +370,20 @@ impl Solver<'_, '_> {
             }
             return Ok(term);
         }
+        if matches!(value.kind, CoreExprKind::Member { .. })
+            && let Some(place) = self.place(frame, value, false, b, depth + 1)?
+            && matches!(
+                self.state.arena[self.type_root(place.selected, b)?],
+                Kind::Address { .. }
+            )
+        {
+            // A head stored in an inline field is observed in its real place.
+            // Selecting it for an access is not a Copy or an owning move.
+            let place = self
+                .place(frame, value, true, b, depth + 1)?
+                .ok_or_else(|| fail("original address observation loses its exact field place"))?;
+            return Ok(place.selected);
+        }
         if let CoreExprKind::Name(name) = &value.kind {
             b.spend(
                 frame

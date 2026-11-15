@@ -271,14 +271,14 @@ pub(super) fn borrowed_signature(
         for ty in &definition.captures {
             budget.type_work(ty, false, "Task result actual capture class walk")?;
         }
-        super::signature_life::closure_relation(
-            &module.closures,
-            &module.dyn_interfaces,
+        super::signature_life::closure_relation_resource_scopes(
+            module,
             definition.kind,
             &parameters,
             &definition.captures,
             &f.return_type,
             contract,
+            budget,
         )?;
         return Ok(true);
     }

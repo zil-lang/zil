@@ -207,7 +207,7 @@ pub(super) fn capture_directories(module: &TypedModule, b: &mut Budget) -> Compi
             .ok_or_else(||failure("dyn environment actual entry absent"))?;
         if entry.storage_life.as_ref()!=Some(life){return Err(failure("dyn environment entry and definition class domains differ"));}
         super::super::signature_life::charge(life,b)?;
-        super::super::signature_life::closure_relation(&module.closures,&module.dyn_interfaces,d.kind,&d.parameters,&d.captures,super::super::stored_callables::life_result(d),life)?;
+        super::super::signature_life::closure_relation_resource_scopes(module,d.kind,&d.parameters,&d.captures,super::super::stored_callables::life_result(d),life,b)?;
     }
     Ok(())
 }

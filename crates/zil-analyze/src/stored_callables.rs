@@ -479,14 +479,14 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             }
             super::borrowed_fp::qualified_array_relation_work(&d.parameters, &d.result, b)?;
             super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-            super::signature_life::closure_relation(
-                &module.closures,
-                &module.dyn_interfaces,
+            super::signature_life::closure_relation_resource_scopes(
+                module,
                 d.kind,
                 &d.parameters,
                 &d.captures,
                 life_result(d),
                 life,
+                b,
             )?;
         } else if f.storage_life.is_some() {
             return Err(bad("closure definition omits actual entry relation"));
