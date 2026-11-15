@@ -1607,7 +1607,19 @@ impl Check<'_, '_> {
             InstructionKind::Call {
                 function: callee,
                 arguments,
+            }
+            | InstructionKind::SuspendCall {
+                function: callee,
+                arguments,
             } => {
+                let suspend = matches!(instruction.kind, InstructionKind::SuspendCall { .. });
+                let entry = self.inventory.function(&SemanticFunctionTarget::Typed(*callee), b)?;
+                if entry.call_kind != (if suspend { CallKind::Suspend } else { CallKind::Direct })
+                    || entry.foreign.is_some()
+                    || (suspend && function.call_kind != CallKind::Suspend)
+                {
+                    return Err(fail("actual call result changes its original execution convention"));
+                }
                 if let Some(value) = self.trait_result(instance, function, block, index, b)? {
                     return Ok(value);
                 }

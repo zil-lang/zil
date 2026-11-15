@@ -198,30 +198,35 @@ impl Check<'_, '_> {
                         InstructionKind::ReadAddress { .. } => {
                             self.captured_read(function, value, b)?;
                         }
-                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
-                            if function
-                                .values
-                                .get(value.0 as usize)
-                                .is_some_and(Type::is_b0_scalar)
-                                && function.locals.get(local.0 as usize).is_some_and(
-                                    |declaration| {
-                                        declaration.id == *local
-                                            && function.values.get(value.0 as usize)
-                                                == Some(&declaration.ty)
-                                    },
-                                ) =>
-                        {
-                            // A real scalar parameter/local read activates no
-                            // persistent capture class. Fixed rows below still
-                            // require their own exact original captured-head
-                            // read, so this case cannot supply a head loan.
+                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                            let anchor = self.original.local_recipe_anchor(instance.definition, recipe, b)?
+                                .ok_or_else(|| fail("implicit name read lacks its exact original local binder"))?;
+                            if matches!(anchor, original::LocalAnchor::Environment(_))
+                                || self.anchored_local(instance, function, anchor, b)? != *local
+                            {
+                                return Err(fail("implicit name read substitutes another actual local for its original binder"));
+                            }
+                            let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
+                                return Err(fail("implicit local read has another original operation"));
+                            };
+                            let expected = self.recipe_value(instance, expected, b, 0)?;
+                            let actual_type = function.values.get(value.0 as usize)
+                                .ok_or_else(|| fail("implicit local read has no actual output"))?;
+                            let declaration = function.locals.get(local.0 as usize)
+                                .filter(|declaration| declaration.id == *local)
+                                .ok_or_else(|| fail("implicit local read has no actual declaration"))?;
+                            if !geometry::same_type(actual_type, &declaration.ty, b)?
+                                || !geometry::same_type(actual_type, &expected.ty, b)?
+                                || !self.ssa_value(instance, function, value, b, 0)?.equal_paid(&expected, b)?
+                            {
+                                return Err(fail("implicit local read changes its complete original value"));
+                            }
+                            // This read supplies no Fixed capture head. Its
+                            // initialized occupant and consuming/Copy mode are
+                            // checked independently by the actual CFG kernel.
                             let (block, index, _) = self.definition_at(function, value, b)?;
-                            operations::available_before(
-                                function,
-                                (block, index, SemanticSiteEdge::After),
-                                value,
-                                b,
-                            )?;
+                            operations::available_before(function,
+                                (block, index, SemanticSiteEdge::After), value, b)?;
                         }
                         _ => {
                             return Err(unknown(

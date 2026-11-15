@@ -89,7 +89,7 @@ fn head_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<
     }
 }
 
-pub(super) fn relation(
+pub(crate) fn relation(
     module: &TypedModule,
     f: &TypedFunction,
     b: &mut Budget,

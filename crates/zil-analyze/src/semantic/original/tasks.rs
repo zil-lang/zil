@@ -634,11 +634,16 @@ impl Solver<'_, '_> {
             for ((argument, parameter), mode) in arguments.iter().zip(&parameters).zip(&modes) {
                 let actual = self.expression(frame, argument, b, depth + 1)?;
                 self.unify(actual, *parameter, depth + 1, b)?;
-                if !self.satisfies(*parameter, Predicate::Copy, b, depth + 1)? {
-                    return Err(unknown(
-                        "Task owning creation inputs need their complete allocation-failure ownership carrier",
-                    ));
-                }
+                // Ordinary task_create consumes its inputs on both outcomes.
+                // Allocation failure synchronously destroys owning inputs and
+                // releases borrowed ports; task_create_owned has a different
+                // complete input-return carrier. Neither operation makes Task
+                // itself SyncDrop, and an exclusive Address need not be Copy.
+                Self::push(
+                    &mut self.needs,
+                    Need { term: *parameter, predicate: Predicate::SyncDrop },
+                    b,
+                )?;
                 if *mode == PassingMode::Copy {
                     Self::push(
                         &mut self.needs,

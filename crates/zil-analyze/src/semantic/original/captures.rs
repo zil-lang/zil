@@ -19,6 +19,19 @@ impl Solver<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         if index >= frame.inherited {
+            let local = frame.locals.get(index)
+                .ok_or_else(|| fail("original name read loses its lexical binding"))?;
+            let Some(anchor) = local.anchor else {
+                // A source-only synthetic binder has no physical local
+                // receipt. Any actual transport query must still reject it.
+                return Ok(());
+            };
+            b.lookup(self.state.local_reads.len(), WORK)?;
+            if self.state.local_reads.insert((frame.definition, node), anchor)
+                .is_some_and(|old| old != anchor)
+            {
+                return Err(fail("one original name reads competing lexical bindings"));
+            }
             return Ok(());
         }
         let local = frame
@@ -256,6 +269,25 @@ impl Checked {
         b.lookup(self.capture_origins.len(), WORK)?;
         Ok(self.capture_origins.get(&(definition, ordinal)).copied())
     }
+    /// The checked original Name resolves to this local binder, even when a
+    /// parameter shadows an equally named outer capture. No type/name match
+    /// can substitute for that original lexical resolution.
+    pub(in crate::semantic) fn local_recipe_anchor(
+        &self,
+        definition: SemanticDefinitionId,
+        recipe: &SemanticSiteRecipe,
+        b: &mut Budget,
+    ) -> CompileResult<Option<LocalAnchor>> {
+        let SemanticSiteRecipeKind::TypeUse {
+            expected: SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(node),
+            },
+        } = &recipe.kind else { return Ok(None); };
+        b.lookup(self.local_reads.len(), WORK)?;
+        Ok(self.local_reads.get(&(definition, *node)).copied())
+    }
+
     /// The original Γ selected this environment slot at the actual Name
     /// operation. A local shadow never enters this map, even with equal Type.
     pub(in crate::semantic) fn capture_recipe_ordinal(

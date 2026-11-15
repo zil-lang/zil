@@ -253,6 +253,7 @@ pub(super) struct Checked {
     pattern_origins: Vec<pattern_places::PatternOrigin>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
     environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
+    local_reads: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
     capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
@@ -1571,8 +1572,8 @@ impl Solver<'_, '_> {
                     let index = selected.ok_or_else(|| {
                         fail("original name is not in the complete lexical value context")
                     })?;
+                    self.record_environment_read(frame, index, value.id, b)?;
                     if index < frame.inherited {
-                        self.record_environment_read(frame, index, value.id, b)?;
                         b.lookup(frame.captured.len(), WORK)?;
                         frame.captured.insert(index, frame.locals[index].ty);
                     }
@@ -3884,6 +3885,7 @@ pub(super) fn check(
             pattern_origins: Vec::new(),
             names_at: BTreeMap::new(),
             environment_reads: BTreeMap::new(),
+            local_reads: BTreeMap::new(),
             capture_origins: BTreeMap::new(),
             function_values: BTreeMap::new(),
             code_calls: BTreeMap::new(),
