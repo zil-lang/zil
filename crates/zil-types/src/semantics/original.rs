@@ -4802,6 +4802,7 @@ impl<'a> Check<'a, '_> {
                 }
                 CoreStatementKind::Assign { target, value }
                 | CoreStatementKind::CompoundAssign { target, value, .. } => {
+                    self.record_task_place_source(owner, target, variables, depth + 1)?;
                     let mut expected = self.writable(owner, target, variables, depth + 1)?;
                     if matches!(&statement.kind, CoreStatementKind::CompoundAssign { .. }) {
                         let observed = self.place(owner, target, variables, depth + 1)?;

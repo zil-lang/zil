@@ -2,6 +2,181 @@
 //! return occurrences. A Task type alone never creates a close-state fact.
 use super::*;
 
+impl Engine<'_, '_> {
+    pub(super) fn task_set_sources(
+        &mut self,
+        bindings: &mut SourceBindings,
+        query: Query,
+        source: Option<Vec<TaskResultSource>>,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(
+            query
+                .copy_work()
+                .saturating_add(bindings.len().saturating_add(1).ilog2() as usize + 2),
+            depth,
+        )?;
+        if let Some(source) = &source {
+            task_results::source_snapshot(source, self.limits, self.left)?;
+        }
+        if bindings.len() >= self.limits.max_nodes && !bindings.contains_key(&query) {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "Task source binder inventory limit exceeded",
+                None,
+            ));
+        }
+        bindings.insert(query, source);
+        Ok(())
+    }
+    fn task_union_sources(
+        &mut self,
+        a: &Option<Vec<TaskResultSource>>,
+        b: &Option<Vec<TaskResultSource>>,
+        depth: usize,
+    ) -> R<Option<Vec<TaskResultSource>>> {
+        let (Some(a), Some(b)) = (a, b) else {
+            return Ok(None);
+        };
+        task_results::source_snapshot(a, self.limits, self.left)?;
+        task_results::source_snapshot(b, self.limits, self.left)?;
+        let mut result = a.clone();
+        for source in b {
+            task_results::source_snapshot(&result, self.limits, self.left)?;
+            self.pay(result.len().saturating_add(1), depth)?;
+            if !result.contains(source) {
+                if result.len() >= self.limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "Task source relation inventory limit exceeded",
+                        None,
+                    ));
+                }
+                result.push(source.clone());
+            }
+        }
+        Ok(Some(result))
+    }
+    pub(super) fn task_join_sources(
+        &mut self,
+        a: Option<&SourceBindings>,
+        b: Option<&SourceBindings>,
+        depth: usize,
+    ) -> R<Option<SourceBindings>> {
+        let (Some(a), Some(b)) = (a, b) else {
+            return Ok(None);
+        };
+        self.pay(a.len().saturating_add(b.len()), depth)?;
+        let mut result = BTreeMap::new();
+        for (query, source) in a {
+            let joined = match b.get(query) {
+                Some(other) => self.task_union_sources(source, other, depth + 1)?,
+                None => None,
+            };
+            self.task_set_sources(&mut result, query.clone(), joined, depth + 1)?;
+        }
+        for query in b.keys() {
+            if !result.contains_key(query) {
+                self.task_set_sources(&mut result, query.clone(), None, depth + 1)?;
+            }
+        }
+        Ok(Some(result))
+    }
+    pub(super) fn task_assign_sources(
+        &mut self,
+        owner: SemanticDefinitionId,
+        target: &SemanticOriginalExpr,
+        source: Option<Vec<TaskResultSource>>,
+        state: &mut State,
+        depth: usize,
+    ) -> R<()> {
+        let Some(bindings) = &mut state.task_sources else {
+            return Ok(());
+        };
+        let mut base = target;
+        let mut whole = true;
+        loop {
+            self.pay(1, depth)?;
+            match &base.kind {
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                    base = inner
+                }
+                CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => {
+                    base = object;
+                    whole = false;
+                }
+                CoreExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    operand,
+                } => {
+                    base = operand;
+                    whole = false;
+                }
+                _ => break,
+            }
+        }
+        // Writes through an external pointer cannot mint a new parameter
+        // origin. A projected write invalidates the old whole-value relation
+        // until its complete field correspondence is independently rebuilt.
+        let Some(name) = self.proof.task_name_sources.get(&(owner, base.id)) else {
+            return Ok(());
+        };
+        if name.owner != owner {
+            return Ok(());
+        }
+        let work = name.origin.copy_work();
+        self.pay(work, depth)?;
+        let query = self.proof.task_name_sources[&(owner, base.id)]
+            .origin
+            .clone();
+        self.task_set_sources(
+            bindings,
+            query,
+            if whole { source } else { None },
+            depth + 1,
+        )
+    }
+    pub(super) fn task_record_sources(
+        &mut self,
+        owner: SemanticDefinitionId,
+        statement: NodeId,
+        source: Option<Vec<TaskResultSource>>,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(
+            self.task_source_returns.len().saturating_add(1).ilog2() as usize + 2,
+            depth,
+        )?;
+        let key = (owner, statement);
+        let source = if self.task_source_returns.contains(&key) {
+            let previous = self
+                .proof
+                .task_returns
+                .get(&key)
+                .ok_or_else(|| failure("Task CFG return loses its original endpoint"))?;
+            if let Some(previous) = &previous.sources {
+                task_results::source_snapshot(previous, self.limits, self.left)?;
+            }
+            let previous = previous.sources.clone();
+            self.task_union_sources(&previous, &source, depth + 1)?
+        } else {
+            source
+        };
+        if let Some(source) = &source {
+            task_results::source_snapshot(source, self.limits, self.left)?;
+        }
+        // None is absorbing across every real reaching state. One successful
+        // branch never fills a missing relation on another path or backedge.
+        self.proof
+            .task_returns
+            .get_mut(&key)
+            .ok_or_else(|| failure("Task CFG return has no checked original endpoint"))?
+            .sources = source;
+        self.task_source_returns.insert(key);
+        Ok(())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Exit {
     pub value: Value,

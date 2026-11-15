@@ -60,6 +60,30 @@ pub(super) fn source_snapshot(
     Ok(())
 }
 impl Check<'_, '_> {
+    pub(super) fn record_task_place_source(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        match &expression.kind {
+            CoreExprKind::Name(_) => {
+                self.record_task_name_source(owner, expression, variables, depth + 1)
+            }
+            CoreExprKind::Group(inner)
+            | CoreExprKind::Ascribed { value: inner, .. }
+            | CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand: inner,
+            } => self.record_task_place_source(owner, inner, variables, depth + 1),
+            CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => {
+                self.record_task_place_source(owner, object, variables, depth + 1)
+            }
+            _ => Ok(()),
+        }
+    }
     pub(super) fn record_task_name_source(
         &mut self,
         owner: SemanticDefinitionId,
@@ -583,6 +607,37 @@ impl Check<'_, '_> {
     }
 }
 impl Proof {
+    /// Only bodies whose complete result still needs a source derivation need
+    /// the additional per-path binder inventory. Zero-domain results keep the
+    /// existing inexpensive path; their emptiness is independently rebuilt.
+    pub(super) fn task_control_sources_needed(
+        &self,
+        program: &SemanticModule,
+        owner: SemanticDefinitionId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<bool> {
+        for (_, returned) in self
+            .task_returns
+            .range((owner, NodeId(0))..=(owner, NodeId(u32::MAX)))
+        {
+            *left = left.checked_sub(1).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "Task return source control lookup exceeded",
+                    None,
+                )
+            })?;
+            if returned.sources.is_none() {
+                let mut check =
+                    super::nominal_where::borrowed_check(program, self, owner, limits, left)?;
+                if !check.original_zero_domain(owner, &returned.ty, 0)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
     /// Replay only the already checked class-transport algebra in one exact
     /// control-flow inventory. The caller must retain every reaching state.
     pub(super) fn task_value_sources_at(

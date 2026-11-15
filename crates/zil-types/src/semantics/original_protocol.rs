@@ -219,6 +219,9 @@ enum Control {
 #[derive(Clone, PartialEq, Eq)]
 struct State {
     owner: SemanticDefinitionId,
+    // Exact original binder origins at this control-flow state. None avoids a
+    // second provenance inventory when all complete results are already known.
+    task_sources: Option<SourceBindings>,
     tasks: BTreeSet<Root>,
     reachable: bool,
     abrupt: Vec<State>,
@@ -238,6 +241,19 @@ impl State {
                         .len()
                         .saturating_add(self.tasks.len())
                         .saturating_add(self.returned.work())
+                        .saturating_add(self.task_sources.as_ref().map_or(0, |bindings| {
+                            bindings.iter().fold(1usize, |work, (query, sources)| {
+                                work.saturating_add(query.copy_work()).saturating_add(
+                                    sources.as_ref().map_or(1, |sources| {
+                                        sources.iter().fold(1usize, |work, source| {
+                                            work.saturating_add(source.result_path.len())
+                                                .saturating_add(source.input_path.len())
+                                                .saturating_add(4)
+                                        })
+                                    }),
+                                )
+                            })
+                        }))
                         .saturating_add(1),
                     |w, v| w.saturating_add(v.work()),
                 ),
@@ -330,6 +346,7 @@ struct Engine<'a, 'b> {
     function_cost_total: usize,
     task_exits: BTreeMap<SemanticDefinitionId, Vec<tasks::Exit>>,
     task_exit_count: usize,
+    task_source_returns: BTreeSet<(SemanticDefinitionId, NodeId)>,
 }
 impl<'a> Engine<'a, '_> {
     fn record_cost(&mut self, name: &'static str, before: usize, children: usize) {
@@ -2565,6 +2582,11 @@ impl<'a> Engine<'a, '_> {
             for (root, phase) in &b.roots {
                 *output.roots.entry(*root).or_default() |= *phase;
             }
+            output.task_sources = self.task_join_sources(
+                a.task_sources.as_ref(),
+                b.task_sources.as_ref(),
+                depth + 1,
+            )?;
             for (name, values) in &mut output.names {
                 if let Some(other) = b.names.get(name) {
                     if values.len() != other.len() {
@@ -2608,6 +2630,17 @@ impl<'a> Engine<'a, '_> {
             self.pay(value.work().saturating_add(1), depth)?;
             match &pattern.kind {
                 CorePatternKind::Name(name) => {
+                    // Pattern constructors not yet represented by an exact
+                    // source projection must erase any prior loop iteration's
+                    // projected binder relation, never replay its old source.
+                    if let Some(bindings) = &mut state.task_sources {
+                        self.pay(bindings.len(), depth)?;
+                        for (query, source) in bindings {
+                            if matches!(query, Query::BindingProjection { .. }) {
+                                *source = None;
+                            }
+                        }
+                    }
                     self.pay(name.len().saturating_add(1), depth)?;
                     state.names.entry(name.clone()).or_default().push(value);
                 }
@@ -3526,6 +3559,28 @@ impl<'a> Engine<'a, '_> {
                     };
                     self.pay(name.len().saturating_add(1), depth)?;
                     state.names.entry(name.clone()).or_default().push(value);
+                    if let Some(bindings) = &mut state.task_sources {
+                        let source = initializer
+                            .as_ref()
+                            .map(|expr| {
+                                self.proof.task_value_sources_at(
+                                    self.program,
+                                    owner,
+                                    expr,
+                                    bindings,
+                                    self.limits,
+                                    self.left,
+                                )
+                            })
+                            .transpose()?
+                            .flatten();
+                        self.task_set_sources(
+                            bindings,
+                            Query::Binding(statement.id),
+                            source,
+                            depth + 1,
+                        )?;
+                    }
                 }
                 CoreStatementKind::TupleBinding {
                     pattern,
@@ -3541,15 +3596,50 @@ impl<'a> Engine<'a, '_> {
                     } else {
                         Value::Plain
                     };
+                    if let (Some(bindings), Some(expr)) = (&state.task_sources, value) {
+                        let source = self.proof.task_value_sources_at(
+                            self.program,
+                            owner,
+                            expr,
+                            bindings,
+                            self.limits,
+                            self.left,
+                        )?;
+                        self.task_record_sources(owner, statement.id, source, depth + 1)?;
+                    }
                     state.control = Control::Return;
                 }
                 CoreStatementKind::Expression(expr) => {
                     let value = self.expr(owner, expr, &mut state, depth + 1)?;
                     self.drop_value(&value, &state, depth + 1)?;
                 }
-                CoreStatementKind::Assign { target, value }
-                | CoreStatementKind::CompoundAssign { target, value, .. } => {
-                    let value = self.expr(owner, value, &mut state, depth + 1)?;
+                CoreStatementKind::Assign {
+                    target,
+                    value: expression,
+                }
+                | CoreStatementKind::CompoundAssign {
+                    target,
+                    value: expression,
+                    ..
+                } => {
+                    let value = self.expr(owner, expression, &mut state, depth + 1)?;
+                    let source = if let Some(bindings) = &state.task_sources {
+                        if matches!(statement.kind, CoreStatementKind::Assign { .. }) {
+                            self.proof.task_value_sources_at(
+                                self.program,
+                                owner,
+                                expression,
+                                bindings,
+                                self.limits,
+                                self.left,
+                            )?
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    self.task_assign_sources(owner, target, source, &mut state, depth + 1)?;
                     let inserted = self.value_copy(&value, depth + 1)?;
                     if let Some(old) =
                         self.replace_place(target, &mut state, inserted, depth + 1)?
@@ -3859,6 +3949,12 @@ impl<'a> Engine<'a, '_> {
                 return Ok(());
             };
             let mut cases = vec![BTreeMap::new()];
+            let task_sources = self.proof.task_control_sources_needed(
+                self.program,
+                owner,
+                self.limits,
+                self.left,
+            )?;
             for contract in protocol_contracts {
                 let mut next = Vec::new();
                 for case in cases {
@@ -3876,6 +3972,7 @@ impl<'a> Engine<'a, '_> {
                 let inputs_children = self.method_cost_total;
                 let mut state = State {
                     owner,
+                    task_sources: task_sources.then(BTreeMap::new),
                     tasks: BTreeSet::new(),
                     reachable: true,
                     abrupt: Vec::new(),
@@ -3949,6 +4046,21 @@ impl<'a> Engine<'a, '_> {
                     }
                 }
                 for (index, parameter) in parameters.iter().enumerate() {
+                    if let Some(bindings) = &mut state.task_sources {
+                        let ordinal = u32::try_from(index)
+                            .map_err(|_| failure("Task source formal ordinal overflow"))?;
+                        self.task_set_sources(
+                            bindings,
+                            Query::Parameter(ordinal),
+                            Some(vec![TaskResultSource {
+                                result_path: Vec::new(),
+                                parameter: ordinal,
+                                input_path: Vec::new(),
+                                class: None,
+                            }]),
+                            depth + 1,
+                        )?;
+                    }
                     self.pay(parameter.name.len().saturating_add(1), depth)?;
                     let value =
                         if self.query_async(owner, Query::Parameter(index as u32), depth + 1)? {
@@ -4144,6 +4256,7 @@ pub(super) fn check(
         function_cost_total: 0,
         task_exits: BTreeMap::new(),
         task_exit_count: 0,
+        task_source_returns: BTreeSet::new(),
     };
     let setup_before = *engine.left;
     engine.pay(
