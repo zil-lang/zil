@@ -103,6 +103,7 @@ struct World<'a, 'b> {
     where_work: usize,
     same_calls: usize,
     same_work: usize,
+    direct_work: BTreeMap<(&'static str, u32), (usize, usize)>,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -112,15 +113,39 @@ struct World<'a, 'b> {
     )>,
 }
 impl<'a> World<'a, '_> {
+    #[track_caller]
     fn pay(&mut self, n: usize) -> R<()> {
+        let location = std::panic::Location::caller();
         *self.left = self.left.checked_sub(n).ok_or_else(|| {
-            Diagnostic::limit(
+            let mut diagnostic = Diagnostic::limit(
                 Phase::Types,
                 "original world class-flow work exceeded",
                 None,
-            )
+            );
+            diagnostic.notes.push(format!(
+                "actual direct work at {}:{}; requested {}; remaining {}",
+                location.file(),
+                location.line(),
+                n,
+                *self.left
+            ));
+            diagnostic
         })?;
+        let row = self
+            .direct_work
+            .entry((location.file(), location.line()))
+            .or_default();
+        row.0 = row.0.saturating_add(1);
+        row.1 = row.1.saturating_add(n);
         Ok(())
+    }
+    fn work_note(&self) -> String {
+        let mut rows: Vec<_> = self.direct_work.iter().collect();
+        rows.sort_by_key(|(_, (_, work))| std::cmp::Reverse(*work));
+        format!(
+            "actual direct work by call site (calls, paid work): {:?}",
+            &rows[..rows.len().min(16)]
+        )
     }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
         self.pay(index::search(self.index.instances.len()))?;
@@ -4333,6 +4358,7 @@ fn program_at(
         where_work: 0,
         same_calls: 0,
         same_work: 0,
+        direct_work: BTreeMap::new(),
         current_point: None,
     };
     world.pay(
@@ -4521,6 +4547,7 @@ fn program_at(
             );
             let before = *world.left;
             if let Err(mut diagnostic) = world.run(instance) {
+                diagnostic.notes.push(world.work_note());
                 diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}; canonical work {}, digest work {}, immutable where work {}; live normalized equations {} work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata, world.canonical_work, world.key_work, world.where_work, world.same_calls, world.same_work));
                 return Err(diagnostic);
             }

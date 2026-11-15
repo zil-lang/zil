@@ -320,6 +320,12 @@ fn charge_roots(world: &mut World<'_, '_>, roots: &BTreeSet<arguments::Root>) ->
 struct LiveMetadata {
     values: BTreeSet<ValueId>,
     implicit: BTreeSet<u32>,
+    pending: VecDeque<LiveNode>,
+    track_values: bool,
+}
+enum LiveNode {
+    Value(ValueId),
+    Implicit(u32),
 }
 fn image_value(image: &SemanticClassExpr) -> Option<ValueId> {
     match image {
@@ -337,12 +343,28 @@ fn image_value(image: &SemanticClassExpr) -> Option<ValueId> {
 impl LiveMetadata {
     fn value_id(&mut self, world: &mut World<'_, '_>, value: ValueId) -> R<()> {
         world.pay(index::search(self.values.len()))?;
-        self.values.insert(value);
-        Ok(())
+        if self.values.insert(value) && self.track_values {
+            world.pay(1)?;
+            self.pending.push_back(LiveNode::Value(value));
+        }
+        self.bound(world)
     }
     fn implicit_id(&mut self, world: &mut World<'_, '_>, ordinal: u32) -> R<()> {
         world.pay(index::search(self.implicit.len()))?;
-        self.implicit.insert(ordinal);
+        if self.implicit.insert(ordinal) {
+            world.pay(1)?;
+            self.pending.push_back(LiveNode::Implicit(ordinal));
+        }
+        self.bound(world)
+    }
+    fn bound(&self, world: &World<'_, '_>) -> R<()> {
+        if self.values.len().saturating_add(self.implicit.len()) > world.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "live CFG metadata closure exceeds node limit",
+                None,
+            ));
+        }
         Ok(())
     }
     fn image(&mut self, world: &mut World<'_, '_>, image: &SemanticClassExpr) -> R<()> {
@@ -410,41 +432,61 @@ impl State {
             live.value(world, &reservation.parent)?;
             live.value(world, &reservation.expected)?;
         }
-        loop {
-            let before = live.values.len().saturating_add(live.implicit.len());
-            world.pay(self.implicit.len().saturating_add(self.reborrows.len()))?;
-            for (ordinal, image) in &self.implicit {
-                // Non-SSA formal/environment images are kept conservatively.
-                // Matching an SSA head keeps a correspondence; it never merges
-                // two original ordinals or establishes a class equality.
-                world.pay(
-                    index::search(live.implicit.len())
-                        .saturating_add(index::search(live.values.len())),
-                )?;
-                if live.implicit.contains(ordinal)
-                    || image_value(image).is_none_or(|head| live.values.contains(&head))
-                {
-                    live.implicit_id(world, *ordinal)?;
-                    live.image(world, image)?;
+        // Form the exact sparse dependency graph once. Non-SSA images remain
+        // conservative roots. An SSA head activates all correspondences that
+        // name it; an active reborrow activates its real parent/source.
+        let mut heads: BTreeMap<ValueId, Vec<u32>> = BTreeMap::new();
+        world.pay(self.implicit.len().saturating_add(self.reborrows.len()))?;
+        for (ordinal, image) in &self.implicit {
+            if let Some(head) = image_value(image) {
+                world.pay(index::search(heads.len()).saturating_add(1))?;
+                heads.entry(head).or_default().push(*ordinal);
+            } else {
+                live.implicit_id(world, *ordinal)?;
+            }
+        }
+        for value in self.reborrows.keys() {
+            world.pay(index::search(heads.len()))?;
+            heads.entry(*value).or_default();
+        }
+        // Initial scalar occupants with no outgoing metadata edges need no
+        // queue entry. Newly reached values are queued exactly once.
+        live.track_values = true;
+        world.pay(heads.len())?;
+        for head in heads.keys() {
+            world.pay(index::search(live.values.len()))?;
+            if live.values.contains(head) {
+                world.pay(1)?;
+                live.pending.push_back(LiveNode::Value(*head));
+            }
+        }
+        while let Some(node) = live.pending.pop_front() {
+            world.pay(1)?;
+            match node {
+                LiveNode::Value(value) => {
+                    if !heads.is_empty() {
+                        world.pay(index::search(heads.len()))?;
+                        if let Some(ordinals) = heads.get(&value) {
+                            world.pay(ordinals.len())?;
+                            for ordinal in ordinals {
+                                live.implicit_id(world, *ordinal)?;
+                            }
+                        }
+                    }
+                    if !self.reborrows.is_empty() {
+                        world.pay(index::search(self.reborrows.len()))?;
+                        if let Some(edge) = self.reborrows.get(&value) {
+                            live.value_id(world, edge.parent)?;
+                            live.source(world, &edge.source)?;
+                        }
+                    }
                 }
-            }
-            for (value, edge) in &self.reborrows {
-                world.pay(index::search(live.values.len()))?;
-                if live.values.contains(value) {
-                    live.value_id(world, edge.parent)?;
-                    live.source(world, &edge.source)?;
+                LiveNode::Implicit(ordinal) => {
+                    world.pay(index::search(self.implicit.len()))?;
+                    if let Some(image) = self.implicit.get(&ordinal) {
+                        live.image(world, image)?;
+                    }
                 }
-            }
-            let after = live.values.len().saturating_add(live.implicit.len());
-            if after > world.limits.max_nodes {
-                return Err(Diagnostic::limit(
-                    Phase::Types,
-                    "live CFG metadata closure exceeds node limit",
-                    None,
-                ));
-            }
-            if before == after {
-                break;
             }
         }
         world.pay(
