@@ -3,16 +3,30 @@
 use super::*;
 use std::hash::{Hash, Hasher};
 
-fn type_hash(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<u64> {
-    shape_work(ty, limits, b)?;
-    let before = b.remaining();
-    crate::dyn_metadata::ty(ty, b)?;
+// This key only selects candidates. It deliberately does not hash child
+// Types, domains or fields; every candidate still compares the complete Type.
+fn candidate_hash(mut ty: &Type, b: &mut Budget) -> CompileResult<u64> {
+    while let Type::BorrowedStorage { storage, .. } = ty {
+        fee(b, 1)?;
+        ty = storage;
+    }
+    let (kind, name) = match ty {
+        Type::Record { name, .. } => (0u8, name),
+        Type::Package { name, .. } => (1u8, name),
+        Type::Enum { name, .. } => (2u8, name),
+        _ => {
+            return Err(failure(
+                "zero nominal lookup requires an actual nominal type",
+            ));
+        }
+    };
     b.spend(
-        before - b.remaining(),
-        "zero nominal complete structural hash",
+        name.len().saturating_add(1),
+        "zero nominal candidate identity hash",
     )?;
     let mut hash = std::collections::hash_map::DefaultHasher::new();
-    ty.hash(&mut hash);
+    kind.hash(&mut hash);
+    name.hash(&mut hash);
     Ok(hash.finish())
 }
 
@@ -22,7 +36,6 @@ pub(super) fn validate(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    crate::dyn_metadata::ty(&instance.ty, b)?;
     instance_zero(module, instance, limits, b, &mut Vec::new(), 0)
 }
 
@@ -41,22 +54,34 @@ pub(super) fn exact_index(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<usize> {
+    // Bound the entire query before key selection, including unmatched input.
+    shape_work(ty, limits, b)?;
+    let before = b.remaining();
+    crate::dyn_metadata::ty(ty, b)?;
+    let query_work = before - b.remaining();
     let module_key = module as *const TypedModule as usize;
     if b.nominal_zero_instances
         .as_ref()
         .is_none_or(|(owner, _)| *owner != module_key)
     {
-        let mut index = BTreeMap::<u64, Vec<usize>>::new();
+        let mut index = BTreeMap::<u64, Vec<(usize, usize)>>::new();
         fee(b, module.life_instances.len())?;
         for (position, instance) in module.life_instances.iter().enumerate() {
-            let hash = type_hash(&instance.ty, limits, b)?;
+            shape_work(&instance.ty, limits, b)?;
+            let before = b.remaining();
+            crate::dyn_metadata::ty(&instance.ty, b)?;
+            let comparison_work = before - b.remaining();
+            let hash = candidate_hash(&instance.ty, b)?;
             b.lookup(index.len(), "zero nominal exact identity index")?;
             fee(b, 1)?;
-            index.entry(hash).or_default().push(position);
+            index
+                .entry(hash)
+                .or_default()
+                .push((position, comparison_work));
         }
         b.nominal_zero_instances = Some((module_key, index));
     }
-    let hash = type_hash(ty, limits, b)?;
+    let hash = candidate_hash(ty, b)?;
     let (_, index) = b.nominal_zero_instances.as_ref().unwrap();
     let index_len = index.len();
     b.lookup(index_len, "zero nominal exact identity lookup")?;
@@ -67,7 +92,7 @@ pub(super) fn exact_index(
         .1
         .get(&hash)
         .map_or(0, Vec::len);
-    fee(b, width)?;
+    fee(b, width.saturating_mul(2))?;
     let candidates = b
         .nominal_zero_instances
         .as_ref()
@@ -77,12 +102,16 @@ pub(super) fn exact_index(
         .cloned()
         .unwrap_or_default();
     let mut selected = None;
-    for position in candidates {
+    for (position, comparison_work) in candidates {
         let instance = &module.life_instances[position];
-        shape_work(ty, limits, b)?;
-        shape_work(&instance.ty, limits, b)?;
-        crate::dyn_metadata::ty(ty, b)?;
-        crate::dyn_metadata::ty(&instance.ty, b)?;
+        // Immutable candidates were fully bounded when the directory formed.
+        // Pay a complete paired Eq traversal, even if this comparison stops
+        // early. The larger complete metadata tree bounds every compared node,
+        // path, name and string; no successful domain/permission is reused.
+        b.spend(
+            query_work.max(comparison_work),
+            "zero nominal complete identity comparison",
+        )?;
         if instance.ty == *ty && selected.replace(position).is_some() {
             return Err(failure(
                 "zero nominal type has ambiguous complete instances",
@@ -159,6 +188,7 @@ fn instance_zero(
             return Ok(());
         }
     }
+    crate::dyn_metadata::ty(&instance.ty, b)?;
     fee(b, 1)?;
     active.push(key);
     let storage = match &instance.ty {

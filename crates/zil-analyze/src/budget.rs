@@ -35,9 +35,10 @@ pub(super) struct Budget {
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
     semantic_cost_sites: BTreeMap<(&'static str, u32), (usize, usize)>,
-    // Complete immutable request-local Type lookup only; no domain or runtime
-    // qualification is retained here. Hash collisions still compare full IR.
-    pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<usize>>)>,
+    // Immutable nominal candidate directory plus complete comparison bounds.
+    // Keys only filter candidates; all collisions still compare the full IR.
+    // No domain, class or runtime qualification is retained here.
+    pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<(usize, usize)>>>)>,
     // Successful zero-domain formation at registered immutable roots only.
     // No classes, images or access/cleanup qualifications are cached.
     pub(super) nominal_zero_formed: Option<(usize, [usize; 8], BTreeSet<usize>)>,
