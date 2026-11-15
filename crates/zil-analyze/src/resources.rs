@@ -2540,7 +2540,9 @@ impl Flow<'_> {
                             } else {
                                 false
                             };
-                            if budget.owned_store_package_type(ty)?
+                            if product::admit_callback_head(self.module, ty, budget)? {
+                                // This is a borrow of the existing complete State.
+                            } else if budget.owned_store_package_type(ty)?
                                 || address_owner
                                 || matches!(ty, Type::BorrowedStorage { .. })
                                 || budget.ordinary_pod_store_type(ty)?
@@ -2764,7 +2766,9 @@ impl Flow<'_> {
                     } else {
                         false
                     };
-                    if matches!(ty, Type::BorrowedStorage { .. })
+                    if product::admit_callback_head(self.module, ty, budget)? {
+                        // Actual completeness and target loans are checked below.
+                    } else if matches!(ty, Type::BorrowedStorage { .. })
                         || budget.owned_store_package_type(ty)?
                         || address_owner
                         || budget.ordinary_pod_store_type(ty)?

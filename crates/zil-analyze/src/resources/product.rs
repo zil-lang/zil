@@ -26,6 +26,9 @@ pub(crate) fn admit_capture_head(
     ty: &Type,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if admit_callback_head(module, ty, budget)? {
+        return Ok(());
+    }
     // The global inventory only schedules complete checking. In particular,
     // a capture type snapshot need not share a pointer with a local/SSA type;
     // this branch still validates every actual field and sealed Store below.
@@ -37,6 +40,38 @@ pub(crate) fn admit_capture_head(
     } else {
         admit(ty, budget)
     }
+}
+
+/// Borrowing an already formed callback State does not grant a new container
+/// qualification. Its complete concrete environment and fields must still
+/// satisfy the independent State profile; actual loans and field cleanup stay
+/// with the ordinary executable resource proof.
+pub(crate) fn admit_callback_head(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Package { name, fields } = package_storage(ty) else {
+        return Ok(false);
+    };
+    budget.spend(fields.len(), "borrowed callback State field inventory")?;
+    if !fields.iter().any(|(_, field)| matches!(field, Type::Closure(_))) {
+        return Ok(false);
+    }
+    budget.product(fields.len(), fields.len().saturating_add(1), 1,
+        "borrowed callback State field identities")?;
+    let mut names = BTreeSet::new();
+    if name.is_empty() {
+        return Err(error("Product nominal identity is empty"));
+    }
+    for (field, _) in fields {
+        budget.spend(field.len(), "borrowed callback State field name")?;
+        if field.is_empty() || !names.insert(field) {
+            return Err(error("Product field identity is empty or duplicated"));
+        }
+    }
+    crate::dynamic_store::callback_element(module, package_storage(ty), budget)?;
+    Ok(true)
 }
 
 /// A borrowed nested Product retains its old finite field profile. A valid
