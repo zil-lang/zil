@@ -641,18 +641,19 @@ impl Checked {
         let mut recipe = None;
         for link in site_nodes {
             b.spend(1, WORK)?;
+            if link.node != SemanticOriginalNode::Expression(node) {
+                continue;
+            }
             b.spend(sites.len(), WORK)?;
-            if link.node == SemanticOriginalNode::Expression(node)
-                && sites.iter().any(|site| {
-                    site.id == link.site
-                        && matches!(
-                            site.kind,
-                            SemanticSiteRecipeKind::OriginalCall
-                                | SemanticSiteRecipeKind::Call { .. }
-                                | SemanticSiteRecipeKind::CallableCall { .. }
-                        )
-                })
-            {
+            if sites.iter().any(|site| {
+                site.id == link.site
+                    && matches!(
+                        site.kind,
+                        SemanticSiteRecipeKind::OriginalCall
+                            | SemanticSiteRecipeKind::Call { .. }
+                            | SemanticSiteRecipeKind::CallableCall { .. }
+                    )
+            }) {
                 if recipe.replace(link.site).is_some() {
                     return Err(fail("original call result has ambiguous role anchors"));
                 }

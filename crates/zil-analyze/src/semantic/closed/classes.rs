@@ -454,13 +454,19 @@ impl Check<'_, '_> {
             }
         }
     }
+    #[track_caller]
     pub(super) fn push_value<T>(
         &self,
         out: &mut Vec<T>,
         value: T,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        b.spend(out.len().saturating_add(1), WORK)?;
+        let relocation = if out.len() == out.capacity() {
+            out.len()
+        } else {
+            0
+        };
+        b.spend(relocation.saturating_add(1), WORK)?;
         out.try_reserve(1)
             .map_err(|_| fail("complete original value allocation failed"))?;
         out.push(value);

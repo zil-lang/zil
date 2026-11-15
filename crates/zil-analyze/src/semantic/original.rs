@@ -297,8 +297,16 @@ impl Solver<'_, '_> {
         }
         Ok(())
     }
+    #[track_caller]
     fn push<T>(rows: &mut Vec<T>, row: T, b: &mut Budget) -> CompileResult<()> {
-        b.spend(rows.len().saturating_add(1), WORK)?;
+        // Spare capacity appends one fresh node. Only a real growth can move
+        // existing rows; charging their full length on every append is quadratic.
+        let relocation = if rows.len() == rows.capacity() {
+            rows.len()
+        } else {
+            0
+        };
+        b.spend(relocation.saturating_add(1), WORK)?;
         rows.try_reserve(1)
             .map_err(|_| resource("original inference inventory allocation failed"))?;
         rows.push(row);

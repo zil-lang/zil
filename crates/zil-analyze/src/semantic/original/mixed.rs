@@ -296,10 +296,11 @@ impl Solver<'_, '_> {
         };
         let mut selected = None;
         for link in site_nodes {
-            b.spend(sites.len().saturating_add(1), WORK)?;
+            b.spend(1, WORK)?;
             if link.node != SemanticOriginalNode::Expression(node) {
                 continue;
             }
+            b.spend(sites.len(), WORK)?;
             for site in sites {
                 if site.id != link.site
                     || !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. })

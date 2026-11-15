@@ -38,8 +38,14 @@ fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
         None,
     )]
 }
+#[track_caller]
 fn put<T>(rows: &mut Vec<T>, value: T, b: &mut Budget) -> CompileResult<()> {
-    b.spend(rows.len().saturating_add(1), WORK)?;
+    let relocation = if rows.len() == rows.capacity() {
+        rows.len()
+    } else {
+        0
+    };
+    b.spend(relocation.saturating_add(1), WORK)?;
     rows.try_reserve(1).map_err(|_| {
         vec![zil_base::Diagnostic::limit(
             zil_base::Phase::Analyze,
