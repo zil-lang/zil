@@ -1427,21 +1427,21 @@ impl Check<'_, '_> {
                         }
                     }
                 }
-                let expected = selected.ok_or_else(|| {
-                    let mut errors =
-                        unknown("borrow SSA has no complete original occurrence value");
-                    errors[0].notes.push(format!(
-                        "world {}:{} function {} SSA {} block {} instruction {}: {:?}",
-                        instance.id.module.0,
-                        instance.id.index,
-                        function.id.0,
-                        id.0,
-                        block.0,
-                        index,
-                        instruction.kind
-                    ));
-                    errors
-                })?;
+                let expected = if let Some(expected) = selected {
+                    expected
+                } else {
+                    // Emitter-created capture heads need no invented original
+                    // TypeUse. Their fresh outer occurrence belongs to this
+                    // actual borrow producer; the complete child still comes
+                    // from the real local's reaching value at this point.
+                    let (local, mutable) = match instruction.kind {
+                        InstructionKind::BorrowLocal { local } => (local, false),
+                        InstructionKind::BorrowLocalMut { local } => (local, true),
+                        _ => unreachable!(),
+                    };
+                    let child = self.local_value(instance, function, local, (block, index), b, depth + 1)?;
+                    value::address(mutable, Class::Reborrow(function.id, id), child, b)?
+                };
                 if expected.ty != *ty {
                     return Err(fail("borrow SSA loses its complete original type"));
                 }

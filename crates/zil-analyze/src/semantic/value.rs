@@ -15,8 +15,8 @@ pub(super) enum Class {
     // Signature-local invocation symbols, never an enclosing function's
     // Invocation domain and never a premise for nominal equality.
     Role(SemanticInstanceId, u32),
-    // Every actual reborrow has its own outer occurrence. Its parent is read
-    // from that exact instruction only when proving a particular call role.
+    // Every actual borrow/reborrow producer has its own outer occurrence. Its
+    // source is read only from that exact instruction at a real consumer.
     Reborrow(FunctionId, ValueId),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -546,16 +546,27 @@ pub(super) fn nominal(
         // Type(T) and QualifiedType(T, empty).  Neither spelling changes T or
         // supplies a class.  Nonzero domains still require the exact shape.
         let arguments_equal = instance.arguments.len() == expected.len()
-            && instance.arguments.iter().zip(&expected).all(|(actual, expected)| {
-                match (actual, expected) {
-                    (LifeNominalActual::QualifiedType { ty, life }, LifeNominalActual::Type(other))
-                    | (LifeNominalActual::Type(other), LifeNominalActual::QualifiedType { ty, life }) => {
-                        ty == other && life.binder_count == 0 && life.slots.is_empty()
-                            && life.retained.is_empty() && life.nominal_arguments.is_empty()
+            && instance
+                .arguments
+                .iter()
+                .zip(&expected)
+                .all(|(actual, expected)| match (actual, expected) {
+                    (
+                        LifeNominalActual::QualifiedType { ty, life },
+                        LifeNominalActual::Type(other),
+                    )
+                    | (
+                        LifeNominalActual::Type(other),
+                        LifeNominalActual::QualifiedType { ty, life },
+                    ) => {
+                        ty == other
+                            && life.binder_count == 0
+                            && life.slots.is_empty()
+                            && life.retained.is_empty()
+                            && life.nominal_arguments.is_empty()
                     }
                     _ => actual == expected,
-                }
-            });
+                });
         if instance.declaration != *declaration || !arguments_equal {
             continue;
         }
@@ -675,6 +686,95 @@ pub(super) fn class(
         return Err(unknown("semantic class relation exceeds its finite depth"));
     }
     match expression {
+        SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Value(id),
+            path,
+            mode,
+        } if path.is_empty() => {
+            let SemanticInstanceTarget::Function(target) = &instance.target else {
+                return Err(fail(
+                    "actual outer occurrence has no executing function world",
+                ));
+            };
+            let function = inventory.function(target, b)?;
+            let ty = function
+                .values
+                .get(id.0 as usize)
+                .ok_or_else(|| fail("actual outer occurrence names no SSA value"))?;
+            crate::dyn_metadata::ty(ty, b)?;
+            let Type::Address { mutable, inner } = ty else {
+                return Err(fail(
+                    "fresh outer occurrence is not an actual address producer",
+                ));
+            };
+            if *mode
+                != if *mutable {
+                    StoredBorrowMode::ExclusiveAddress
+                } else {
+                    StoredBorrowMode::SharedAddress
+                }
+            {
+                return Err(fail(
+                    "fresh outer occurrence changes its actual producer mode",
+                ));
+            }
+            let mut producer = None;
+            for block in &function.blocks {
+                b.spend(block.instructions.len().saturating_add(1), WORK)?;
+                for instruction in &block.instructions {
+                    if instruction.result == Some(*id)
+                        && producer.replace(&instruction.kind).is_some()
+                    {
+                        return Err(fail(
+                            "fresh outer occurrence has competing actual producers",
+                        ));
+                    }
+                }
+            }
+            match producer.ok_or_else(|| fail("fresh outer occurrence has no actual producer"))? {
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } => {
+                    let expected_mutable =
+                        matches!(producer, Some(InstructionKind::BorrowLocalMut { .. }));
+                    let local = function
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| fail("fresh outer occurrence names no actual local"))?;
+                    crate::dyn_metadata::ty(&local.ty, b)?;
+                    if *mutable != expected_mutable || local.ty != **inner {
+                        return Err(fail(
+                            "fresh outer occurrence changes its actual complete local head",
+                        ));
+                    }
+                }
+                InstructionKind::ReborrowAddress {
+                    address,
+                    mutable: output,
+                } => {
+                    let parent = function.values.get(address.0 as usize).ok_or_else(|| {
+                        fail("fresh reborrow occurrence has no actual parent SSA")
+                    })?;
+                    crate::dyn_metadata::ty(parent, b)?;
+                    if !matches!(parent, Type::Address { mutable: parent_mutable, inner: parent_inner }
+                        if parent_inner == inner && (!*output || *parent_mutable))
+                        || output != mutable
+                    {
+                        return Err(fail(
+                            "fresh reborrow occurrence changes its actual parent type or strengthens its mode",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(fail(
+                        "outer occurrence does not name an actual fresh borrow producer",
+                    ));
+                }
+            }
+            // This class transports no initialized data, target, parent loan,
+            // mutability permission or cleanup ability. Those actual ledgers
+            // still check every creator, access and exit independently.
+            Ok(Class::Reborrow(function.id, *id))
+        }
         SemanticClassExpr::OuterOccurrence {
             operand: SemanticOperand::Environment(ordinal),
             path,
