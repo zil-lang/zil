@@ -62,3 +62,80 @@ impl CheckedOriginal{
         let _=value.definition;let mut actuals=Vec::new();for value in &value.actuals{actuals.push(self.reify_argument(module,value,env,b)?);}Ok((value.variant,actuals))
     }
 }
+
+impl CheckedOriginal {
+    /// A type-qualified trait method carries the same complete application as
+    /// a value method. The declaration binding alone supplies neither Self nor
+    /// the trait's mixed actuals, and never selects an executable provider.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn static_trait_call(&mut self,module:&TypedModule,context:&CheckedContext,target:SemanticDefinitionId,call:&SemanticOriginalExpr,base:&SemanticOriginalExpr,written_types:Option<&[SemanticTypeRecipe]>,written_mixed:Option<&[CoreGenericArgument<SemanticTypeRecipe>]>,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Ty>> {
+        let original=context.definition(module,target,b)?;
+        let Some(parent)=original.parent else{return Ok(None);};
+        let scope=context.definition(module,parent,b)?;
+        let SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration})=&scope.body else{return Ok(None);};
+        let CoreExprKind::Member{object,member,owner:None}=&base.kind else{return Ok(None);};
+        let mut node=object.as_ref();let mut parts=Vec::new();
+        let receiver=loop{b.spend(1)?;match &node.kind{
+            CoreExprKind::Group(inner)=>node=inner,
+            CoreExprKind::Member{object,member,owner:None}=>{b.spend(member.len())?;parts.push(member.as_str());node=object;},
+            CoreExprKind::Name(name)=>{
+                if bindings.contains_key(name){return Ok(None);}
+                b.spend(name.len().saturating_add(parts.iter().map(|part|part.len().saturating_add(2)).sum::<usize>()))?;
+                let mut path=name.clone();for part in parts.iter().rev(){path.push_str("::");path.push_str(part);}
+                let Some(value)=self.named(module,context,env.current()?,&path,SemanticOriginalNamespace::Type,b)?else{return Ok(None);};
+                break match value{
+                    SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(recipe))=>self.ty(module,context,recipe,env,active,b)?,
+                    SemanticOriginalNameValue::Definition(id)=>{let definition=context.definition(module,*id,b)?;if definition.kind!=SemanticDefinitionKind::Nominal||!definition.parameters.is_empty(){return Ok(None);}Ty::Nominal(*id,vec![])},
+                    _=>return Err(bad("original static receiver does not denote a complete Type application")),
+                };
+            },
+            _=>return Ok(None),
+        }};
+        let mut applications=self.original_method_applications(module,context,&receiver,member,env,active,b)?;
+        // The bound must independently name the exact declaration selected by
+        // the lexical Value namespace, including its original member ordinal.
+        if applications.len()!=1{return Err(bad("original static member lacks one complete trait application"));}
+        let(actual_declaration,trait_arguments,ordinal,method)=applications.pop().unwrap();
+        if actual_declaration!=*declaration||method!=target{return Err(bad("original static member declaration differs from its complete trait application"));}
+        let SemanticDefinitionBody::FunctionWithBody{signature,receiver_parameter:None,..}=&original.body else{return Err(bad("original static member requires a value receiver"));};
+        let mut selected=self.environment(module,context,target,active,b)?;
+        let frame=selected.lexical.iter_mut().find(|row|row.definition==scope.id).ok_or_else(||bad("original static member omits its trait parent"))?;
+        frame.actuals=self.resolve_arguments(&trait_arguments,0,b)?;
+        selected.self_type=Some((scope.id,self.resolved(&receiver,b)?));
+        let written=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
+        if written>original.parameters.len(){return Err(bad("original static member has excess written mixed actuals"));}
+        let mut actuals=Vec::new();
+        for(ordinal,formal)in original.parameters.iter().enumerate(){
+            let written=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match mixed.get(ordinal){
+                Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),
+                Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("original static member lifetime is unresolved"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("original static member lifetime has another kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},
+                Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original static method Const requires its exact declared carrier",None)),None=>None,
+            }}else{None};
+            let actual=match(written,formal){(Some(value),_)=>value,(None,SemanticFormal::Type{..})=>Arg::Type(self.fresh(b)?),(None,SemanticFormal::Lifetime)=>Arg::Life(self.fresh_life(b)?),_=>return Err(unsupported("original static method Const is not independently inferred",None))};
+            if !matches!((formal,&actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original static method changes a full-ordinal actual kind"));}actuals.push(actual);
+        }
+        selected.lexical[0].actuals=actuals;
+        let prototype=self.call_signature(module,context,target,signature,&selected,active,b)?;
+        if prototype.parameters.len()!=arguments.len(){return Err(bad("original static method argument arity differs"));}
+        self.execute_effect(env,prototype.call_kind,b)?;
+        if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
+        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
+        for definition in [scope,original]{
+            let depth=selected.lexical.iter().position(|frame|frame.definition==definition.id).ok_or_else(||bad("original static method obligation loses its declaration scope"))?;
+            let mut obligation_env=selected.clone();obligation_env.lexical=obligation_env.lexical[depth..].to_vec();
+            for requirement in &definition.requirements{self.obligation(module,context,requirement,&obligation_env,env,active,b)?;}
+            for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&obligation_env,env,active,b)?;}}}
+        }
+        let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
+        if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+        let caller=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{return Err(bad("original static method has no caller body"));};
+        b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;
+        let mut rows=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall));
+        let site=rows.next().ok_or_else(||bad("original static member requires its exact BodyCall occurrence"))?;
+        if rows.next().is_some(){return Err(bad("original static member Call occurrence is ambiguous"));}
+        let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
+        self.trait_calls.insert((env.current()?,site.id),super::trait_calls::TraitCall{receiver,declaration:*declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode:None});
+        if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
+        Ok(Some(result))
+    }
+}

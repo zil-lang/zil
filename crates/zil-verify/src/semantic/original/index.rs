@@ -303,7 +303,7 @@ fn compatible(recipe: &SemanticSiteRecipeKind, node: Node<'_>) -> bool {
         (SemanticSiteRecipeKind::DeclareLocal { .. }, Node::Statement(statement)) => matches!(statement.kind, SemanticOriginalStatementKind::Binding { .. } | SemanticOriginalStatementKind::TupleBinding { .. }),
         (SemanticSiteRecipeKind::Closure { .. }, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Closure { .. }),
         (SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. } | SemanticSiteRecipeKind::OriginalCall, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Call { .. } | SemanticOriginalExprKind::CallDynSlot { .. } | SemanticOriginalExprKind::Pipeline { .. }),
-        (SemanticSiteRecipeKind::Construct { .. }, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Tuple(_) | SemanticOriginalExprKind::Array(_) | SemanticOriginalExprKind::Record { .. } | SemanticOriginalExprKind::RecordUpdate { .. } | SemanticOriginalExprKind::RecordConstructor { .. } | SemanticOriginalExprKind::MakeDynOwned { .. } | SemanticOriginalExprKind::Call { .. } | SemanticOriginalExprKind::Literal(_)),
+        (SemanticSiteRecipeKind::Construct { .. }, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Tuple(_) | SemanticOriginalExprKind::Array(_) | SemanticOriginalExprKind::Record { .. } | SemanticOriginalExprKind::RecordUpdate { .. } | SemanticOriginalExprKind::RecordConstructor { .. } | SemanticOriginalExprKind::MakeDynOwned { .. } | SemanticOriginalExprKind::Call { .. } | SemanticOriginalExprKind::Member { owner: None, .. } | SemanticOriginalExprKind::Literal(_)),
         _ => false,
     }
 }
