@@ -6,7 +6,11 @@ use original::intrinsics::{AddressProjection,AddressRoot,BufferRoot,BufferSource
 use zil_base::NodeId;
 
 impl CheckedContext{
-    pub(super) fn address_place_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
+    pub(super) fn address_place_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
+        self.original_projection_source(module,caller,f,value,definition,node,false,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
         if definition!=caller.definition{return Err(bad("indirect borrow selects another original lexical owner"));}
         let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
         let mut seen=BTreeSet::new();
@@ -16,12 +20,22 @@ impl CheckedContext{
                 b.spend(1)?;if !seen.insert(value){return Err(bad("indirect borrow has a cyclic actual projection chain"));}
                 let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
                 if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
+                if read_value&&let InstructionKind::ReadAddress{address}=instruction.kind{value=address;continue;}
                 match (projection,&instruction.kind){
                     (AddressProjection::Field(name),InstructionKind::AddressField{address,index})=>{
                         let ty=f.values.get(address.0 as usize).ok_or_else(||bad("indirect field parent has no actual type"))?;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;value=*address;
                     },
                     (AddressProjection::Field(name),InstructionKind::BorrowPackageField{local,index,..})if ordinal+1==projections.len()=>{
                         let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("borrowed Package field has no complete actual parent"))?.ty;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;fused=Some(*local);
+                    },
+                    (AddressProjection::Field(name),InstructionKind::ReadPackageField{local,index})if read_value&&ordinal+1==projections.len()=>{
+                        let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("observed Package field has no complete actual parent"))?.ty;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;fused=Some(*local);
+                    },
+                    (AddressProjection::Field(name),InstructionKind::ExtractField{aggregate,index})if read_value=>{
+                        let ty=f.values.get(aggregate.0 as usize).ok_or_else(||bad("observed field aggregate is absent"))?;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;value=*aggregate;
+                    },
+                    (AddressProjection::Field(name),InstructionKind::ReadDesc{desc,index})if read_value=>{
+                        let ty=f.values.get(desc.0 as usize).ok_or_else(||bad("observed field descriptor is absent"))?;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;value=*desc;
                     },
                     (AddressProjection::Index(node),InstructionKind::AddressIndex{address,index})=>{
                         self.exact_expression_value(module,caller,f,*index,*node,b)?;value=*address;
@@ -60,7 +74,7 @@ impl CheckedContext{
                 },_=>{},
             }}
         }
-        if sources.is_empty(){return Err(bad("address input has no exact actual original expression occurrence"));}
+        if sources.is_empty(){return self.scalar_expression_source(module,caller,f,value,node,b);}
         let mut seen=BTreeSet::new();loop{
             b.spend(sources.len().saturating_add(1))?;
             if sources.contains(&value){return Ok(());}
@@ -68,6 +82,35 @@ impl CheckedContext{
             let(_,_,instruction)=producer(f,value,b)?;
             let InstructionKind::ReborrowAddress{address,..}=instruction.kind else{return Err(bad("address input selects another same-typed original expression value"));};
             crate::check_instruction(module,f,instruction,b)?;value=address;
+        }
+    }
+    fn scalar_expression_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+        let(expression,carrier)=self.original.borrow().as_ref().ok_or_else(||bad("scalar address input lacks its complete independent original proof"))?.scalar_input(module,caller.definition,node,b)?;
+        if f.values.get(value.0 as usize)!=Some(&carrier){return Err(bad("address scalar input changes its complete original carrier"));}
+        let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
+        match(&expression.kind,&instruction.kind){
+            (CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::CompileTime(inner),_)=>self.exact_expression_value(module,caller,f,value,inner.id,b),
+            (CoreExprKind::Sequence{bindings,value:inner},_)if bindings.is_empty()=>self.exact_expression_value(module,caller,f,value,inner.id,b),
+            (CoreExprKind::Name(_),_)=>self.projected_buffer_source(module,caller,f,value,caller.definition,node,b),
+            (CoreExprKind::Unit,InstructionKind::Constant(Constant::Unit))=>Ok(()),
+            (CoreExprKind::Bool(original),InstructionKind::Constant(Constant::Bool(actual)))if original==actual=>Ok(()),
+            (CoreExprKind::Literal(original),InstructionKind::Constant(actual))if original==actual=>Ok(()),
+            (CoreExprKind::Integer(text)|CoreExprKind::Float(text),InstructionKind::Constant(actual))=>{
+                b.spend(text.len())?;let pattern=if matches!(expression.kind,CoreExprKind::Integer(_)){DynConstPattern::IntegerLiteral(text.clone())}else{DynConstPattern::FloatLiteral(text.clone())};
+                let expected=scalar::closed(&pattern,&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("address scalar literal retains an unresolved original value"))?;
+                if &expected!=actual{return Err(bad("address scalar literal changes its exact original bits"));}Ok(())
+            },
+            (CoreExprKind::Unary{op:UnaryOp::Negate,operand},InstructionKind::Constant(actual))if matches!(operand.kind,CoreExprKind::Integer(_)|CoreExprKind::Float(_))=>{
+                let pattern=match &operand.kind{CoreExprKind::Integer(text)=>{b.spend(text.len())?;DynConstPattern::IntegerLiteral(text.clone())},CoreExprKind::Float(text)=>{b.spend(text.len())?;DynConstPattern::FloatLiteral(text.clone())},_=>unreachable!()};
+                let pattern=DynConstPattern::Unary{op:UnaryOp::Negate,ty:Box::new(DynTypePattern::Concrete(carrier.clone())),value:Box::new(pattern)};
+                let expected=scalar::closed(&pattern,&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("address signed scalar literal remains unresolved"))?;
+                if &expected!=actual{return Err(bad("address signed literal changes its exact original bits"));}Ok(())
+            },
+            (CoreExprKind::Unary{op,operand},InstructionKind::Unary{op:actual,operand:input})if op==actual=>self.exact_expression_value(module,caller,f,*input,operand.id,b),
+            (CoreExprKind::Binary{op,left,right},InstructionKind::Binary{op:actual,left:a,right:z})if op==actual=>{self.exact_expression_value(module,caller,f,*a,left.id,b)?;self.exact_expression_value(module,caller,f,*z,right.id,b)},
+            (CoreExprKind::NumericConvert{value:input,..}|CoreExprKind::IntegerConvert{value:input,..},InstructionKind::ConvertInteger{value:actual,target}|InstructionKind::ConvertNumber{value:actual,target})if target==&carrier=>self.exact_expression_value(module,caller,f,*actual,input.id,b),
+            (CoreExprKind::Member{..}|CoreExprKind::ReceiverMember(_)|CoreExprKind::Index{..},_)=>self.original_projection_source(module,caller,f,value,caller.definition,node,true,b),
+            _=>Err(unsupported("address scalar input lacks its complete original operation/operand correspondence",Some(expression.span))),
         }
     }
     pub(super) fn projected_buffer_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{

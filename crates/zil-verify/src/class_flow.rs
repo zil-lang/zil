@@ -2328,6 +2328,18 @@ fn check_with(
                         }
                     }
                     InstructionKind::CallIndirect { callee, arguments } => {
+                        if plain_pointer_operation(module,f,i,b)?{
+                            // This complete signature contains no runtime
+                            // data head or intrinsic/captured class. Validate
+                            // every real operand/result directory explicitly;
+                            // an absent borrowed-code header is not the proof.
+                            for value in std::iter::once(callee).chain(arguments).chain(i.result.iter()){
+                                let ports=values.get(value.0 as usize).ok_or_else(||bad("plain indirect call has no complete actual value directory"))?;
+                                b.spend(ports.classes.len().saturating_add(ports.keys.len()).saturating_add(ports.task_ports.len()).saturating_add(ports.array_elements.len()).saturating_add(1))?;
+                                if ports.outer.is_some()||!ports.classes.is_empty()||!ports.keys.is_empty()||ports.environment||!ports.task_ports.is_empty()||!ports.array_elements.is_empty(){return Err(bad("plain indirect call retains an actual borrowed/intrinsic/environment role"));}
+                            }
+                            continue;
+                        }
                         let Type::BorrowedFunctionPointer { life, .. } =
                             &f.values[callee.0 as usize]
                         else {
