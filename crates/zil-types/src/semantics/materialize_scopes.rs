@@ -12,22 +12,24 @@ impl<'a> Eval<'a, '_, '_> {
         // The publication materializes actuals in place. Their defining
         // recipes remain in the one immutable original request context.
         if let Some(context) = self.ledger.original.context() {
-            self.fee(context.semantic.instances.len())?;
-            if let Some(row) = context.semantic.instances.iter().find(|row| row.id == id) {
-                self.fee(self.input.instances.len())?;
-                let actual = self
-                    .input
-                    .instances
-                    .iter()
-                    .find(|actual| actual.id == id)
-                    .ok_or_else(|| bad("parent source request has no actual instance"))?;
-                if row.definition != actual.definition || row.parent != actual.parent {
-                    return Err(bad(
-                        "parent source request changes its original instance identity",
-                    ));
+            match context.instance(id, self.left) {
+                Ok(row) => {
+                    let actual = self.instance(id)?;
+                    if row.definition != actual.definition || row.parent != actual.parent {
+                        return Err(bad(
+                            "parent source request changes its original instance identity",
+                        ));
+                    }
+                    return Ok(row);
                 }
-                return Ok(row);
+                Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                    return Err(error);
+                }
+                Err(_) => {}
             }
+        }
+        if let Some(row) = self.module.indexed_instance(self.input, id, self.left)? {
+            return Ok(row);
         }
         self.fee(self.input.instances.len())?;
         if let Some(row) = self.input.instances.iter().find(|row| row.id == id) {
@@ -300,6 +302,35 @@ impl<'a> Eval<'a, '_, '_> {
         })
     }
     fn source_parent_solution(
+        &mut self,
+        caller: SemanticInstanceId,
+        call: SemanticSiteId,
+        holder: SemanticInstanceId,
+        active: &mut BTreeSet<(SemanticInstanceId, u32)>,
+        depth: usize,
+    ) -> R<(SemanticInstanceId, std::rc::Rc<Vec<SemanticActualRecipe>>)> {
+        self.node(depth)?;
+        let key = (caller, call, holder);
+        if let Some(value) = self.module.parent_solution(
+            self.input,
+            self.ledger.original.context(),
+            key,
+            self.left,
+        )? {
+            return Ok(value);
+        }
+        let value = self.source_parent_solution_uncached(caller, call, holder, active, depth)?;
+        self.module.remember_parent(
+            self.input,
+            self.ledger.original.context(),
+            key,
+            &value,
+            self.limits,
+            self.left,
+        )?;
+        Ok(value)
+    }
+    fn source_parent_solution_uncached(
         &mut self,
         caller: SemanticInstanceId,
         call: SemanticSiteId,

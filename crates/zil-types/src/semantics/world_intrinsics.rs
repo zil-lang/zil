@@ -54,9 +54,9 @@ pub(super) fn evaluate(
         }
         world.pay(recipes.len())?;
         for (recipe, actual) in recipes.iter().zip(actuals.into_iter().flatten()) {
-            let expected = super::super::materialize::actual_at(
+            let expected = super::super::materialize::actual_in_view(
                 world.program,
-                world.module,
+                &world.view,
                 world.ledger,
                 instance.id,
                 recipe,

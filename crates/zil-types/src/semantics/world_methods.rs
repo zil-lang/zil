@@ -9,9 +9,9 @@ fn recipe_type(
     recipe: &SemanticTypeRecipe,
 ) -> R<SharedType> {
     crate::dyn_metadata::semantic_operand_snapshot(recipe, world.limits, world.left, 1)?;
-    match super::super::materialize::actual_at(
+    match super::super::materialize::actual_in_view(
         world.program,
-        world.module,
+        &world.view,
         world.ledger,
         scope,
         &SemanticActualRecipe::Type(recipe.clone()),
@@ -300,9 +300,9 @@ pub(super) fn evaluate(
             return Err(bad("method call omits original mixed method actuals"));
         }
         for ((recipe, actual), specialized) in recipes.iter().zip(actuals).zip(&callee.actuals) {
-            let expected = super::super::materialize::actual_at(
+            let expected = super::super::materialize::actual_in_view(
                 world.program,
-                world.module,
+                &world.view,
                 world.ledger,
                 instance.id,
                 recipe,
@@ -333,9 +333,9 @@ pub(super) fn evaluate(
             let mut expected = Vec::new();
             world.pay(parent_recipes.len())?;
             for recipe in parent_recipes {
-                expected.push(super::super::materialize::actual_at(
+                expected.push(super::super::materialize::actual_in_view(
                     world.program,
-                    world.module,
+                    &world.view,
                     world.ledger,
                     instance.id,
                     recipe,
@@ -348,9 +348,9 @@ pub(super) fn evaluate(
             // The abstract declaration supplied a quantified trait premise;
             // solve the concrete lexical parent in that original source Gamma,
             // rather than treating its resolved actuals or Self as evidence.
-            super::super::materialize::parent_actuals_at(
+            super::super::materialize::parent_actuals_in_view(
                 world.program,
-                world.module,
+                &world.view,
                 world.ledger,
                 instance.id,
                 site.recipe,
@@ -410,18 +410,18 @@ pub(super) fn evaluate(
                     && expected.arguments.len() == actual.arguments.len() =>
             {
                 for (expected, actual) in expected.arguments.iter().zip(&actual.arguments) {
-                    let expected = super::super::materialize::actual_at(
+                    let expected = super::super::materialize::actual_in_view(
                         world.program,
-                        world.module,
+                        &world.view,
                         world.ledger,
                         instance.id,
                         expected,
                         world.limits,
                         world.left,
                     )?;
-                    let actual = super::super::materialize::actual_at(
+                    let actual = super::super::materialize::actual_in_view(
                         world.program,
-                        world.module,
+                        &world.view,
                         world.ledger,
                         parent_instance.id,
                         actual,
@@ -437,9 +437,9 @@ pub(super) fn evaluate(
                     && expected.arguments.len() == parent_actuals.len() =>
             {
                 for (expected, actual) in expected.arguments.iter().zip(&parent_actuals) {
-                    let expected = super::super::materialize::actual_at(
+                    let expected = super::super::materialize::actual_in_view(
                         world.program,
-                        world.module,
+                        &world.view,
                         world.ledger,
                         instance.id,
                         expected,
@@ -1062,9 +1062,9 @@ pub(super) fn sealed_worker(
     world.pay(recipes.len().saturating_add(signature.parameters.len()))?;
     let mut actuals = Vec::new();
     for (recipe, target) in recipes.iter().zip(&callee.actuals) {
-        let actual = super::super::materialize::actual_at(
+        let actual = super::super::materialize::actual_in_view(
             world.program,
-            world.module,
+            &world.view,
             world.ledger,
             caller.id,
             recipe,

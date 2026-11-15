@@ -283,9 +283,9 @@ impl<'a> World<'a, '_> {
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
     ) -> R<SemanticTypeRecipe> {
-        super::materialize::symbolic_at(
+        super::materialize::symbolic_in_view(
             self.program,
-            self.module,
+            &self.view,
             self.ledger,
             scope,
             recipe,
@@ -923,9 +923,9 @@ impl World<'_, '_> {
             SemanticClassExpr::Formal {
                 scope: relative,
                 ordinal,
-            } => super::materialize::class_at(
+            } => super::materialize::class_in_view(
                 self.program,
-                self.module,
+                &self.view,
                 self.ledger,
                 scope,
                 &SemanticLifeRecipe::Formal(SemanticFormalRef {
@@ -1501,9 +1501,9 @@ impl World<'_, '_> {
             recipes.clone()
         };
         for (recipe, actual) in recipes.iter().zip(actuals) {
-            let expected = super::materialize::actual_at(
+            let expected = super::materialize::actual_in_view(
                 self.program,
-                self.module,
+                &self.view,
                 self.ledger,
                 instance.id,
                 recipe,
@@ -2945,9 +2945,9 @@ impl World<'_, '_> {
                                     for (formal, claimed) in
                                         child_original.environment.iter().zip(&expected.actuals)
                                     {
-                                        let source = super::materialize::actual_at(
+                                        let source = super::materialize::actual_in_view(
                                             self.program,
-                                            self.module,
+                                            &self.view,
                                             self.ledger,
                                             instance.id,
                                             &formal.source,
@@ -2975,9 +2975,9 @@ impl World<'_, '_> {
                                     for ((recipe, actual), claimed) in
                                         recipes.iter().zip(environment).zip(&expected.actuals)
                                     {
-                                        let value = super::materialize::actual_at(
+                                        let value = super::materialize::actual_in_view(
                                             self.program,
-                                            self.module,
+                                            &self.view,
                                             self.ledger,
                                             instance.id,
                                             recipe,
@@ -3272,9 +3272,9 @@ impl World<'_, '_> {
                                                 return Err(bad("call omits original actuals"));
                                             }
                                             for (recipe, actual) in recipes.iter().zip(actuals) {
-                                                let expected = super::materialize::actual_at(
+                                                let expected = super::materialize::actual_in_view(
                                                     self.program,
-                                                    self.module,
+                                                    &self.view,
                                                     self.ledger,
                                                     instance.id,
                                                     recipe,
@@ -4125,6 +4125,16 @@ fn program_at(
 ) -> R<()> {
     let entered = *left;
     let index = index::Index::new(program, module, ledger, limits, left)?;
+    let view = super::materialize::ActualDirectory::for_world(
+        module,
+        program,
+        ledger
+            .original
+            .context()
+            .ok_or_else(|| bad("actual world lacks its immutable original Gamma"))?,
+        limits,
+        left,
+    )?;
     let mut world = World {
         program,
         module,
@@ -4144,7 +4154,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
-        view: super::materialize::ActualDirectory::from_module_at(module, "world"),
+        view,
         snapshots: 0,
         snapshot_work: 0,
         comparisons: 0,
@@ -4192,9 +4202,9 @@ fn program_at(
             world.pay(1)?;
             match (formal, actual) {
                 (SemanticFormal::Lifetime, SemanticActual::Life(actual)) => {
-                    let expected = super::materialize::class_at(
+                    let expected = super::materialize::class_in_view(
                         program,
-                        module,
+                        &world.view,
                         ledger,
                         instance.id,
                         &SemanticLifeRecipe::Formal(SemanticFormalRef {

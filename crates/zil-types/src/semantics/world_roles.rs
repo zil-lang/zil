@@ -42,9 +42,9 @@ pub(super) fn environment_outer(
         scope: SemanticScopeRef::Ancestor(0),
         ordinal,
     });
-    let SemanticActual::Type(value) = super::super::materialize::actual_at(
+    let SemanticActual::Type(value) = super::super::materialize::actual_in_view(
         world.program,
-        world.module,
+        &world.view,
         world.ledger,
         scope,
         &recipe,
@@ -249,9 +249,9 @@ pub(super) fn store(
         let candidate = match &source.lifetime {
             SemanticOuterLifeRecipe::Static => Source::Static,
             SemanticOuterLifeRecipe::Class(recipe) => {
-                let image = super::super::materialize::class_at(
+                let image = super::super::materialize::class_in_view(
                     world.program,
-                    world.module,
+                    &world.view,
                     world.ledger,
                     instance.id,
                     recipe,
@@ -353,9 +353,9 @@ pub(super) fn loop_sources(
                     match source.lifetime {
                         SemanticOuterLifeRecipe::Static => {}
                         SemanticOuterLifeRecipe::Class(recipe) => {
-                            let image = super::super::materialize::class_at(
+                            let image = super::super::materialize::class_in_view(
                                 world.program,
-                                world.module,
+                                &world.view,
                                 world.ledger,
                                 instance,
                                 &recipe,

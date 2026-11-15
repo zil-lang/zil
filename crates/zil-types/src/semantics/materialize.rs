@@ -94,6 +94,9 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         if let Some(row) = self.module.instances.get(&id) {
             return Ok(row);
         }
+        if let Some(row) = self.module.indexed_instance(self.input, id, self.left)? {
+            return Ok(row);
+        }
         self.fee(self.input.instances.len())?;
         if let Some(row) = self.input.instances.iter().find(|row| row.id == id) {
             return Ok(row);
@@ -149,7 +152,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 "runtime type operand is outside its actual emitted function",
             ));
         };
-        self.fee(self.module.function_count())?;
+        self.fee(self.module.function_lookup_work())?;
         self.module
             .function(id)
             .ok_or_else(|| bad("materialized type has no actual Typed function"))
@@ -2268,9 +2271,9 @@ pub(super) fn actual_in_view(
     .actual(scope, &actual, 0)
 }
 
-pub(super) fn parent_actuals_at(
+pub(super) fn parent_actuals_in_view(
     program: &SemanticModule,
-    module: &TypedModule,
+    module: &ActualDirectory<'_>,
     ledger: &Ledger,
     caller: SemanticInstanceId,
     call: SemanticSiteId,
@@ -2280,7 +2283,7 @@ pub(super) fn parent_actuals_at(
 ) -> R<Vec<SemanticActual>> {
     Eval {
         input: program,
-        module: &ActualDirectory::from_module_at(module, "materialize::parent_actuals_at"),
+        module,
         ledger,
         limits,
         left,
@@ -2301,6 +2304,26 @@ pub(super) fn class_at(
     Eval {
         input: program,
         module: &ActualDirectory::from_module_at(module, "materialize::class_at"),
+        ledger,
+        limits,
+        left,
+        active: BTreeSet::new(),
+    }
+    .life(scope, recipe)
+}
+
+pub(super) fn class_in_view(
+    program: &SemanticModule,
+    module: &ActualDirectory<'_>,
+    ledger: &Ledger,
+    scope: SemanticInstanceId,
+    recipe: &SemanticLifeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticClassExpr> {
+    Eval {
+        input: program,
+        module,
         ledger,
         limits,
         left,
