@@ -1,0 +1,321 @@
+diff --git a/crates/zil-analyze/src/semantic/value.rs b/crates/zil-analyze/src/semantic/value.rs
+index 7bb0a6917..e17240626 100644
+--- a/crates/zil-analyze/src/semantic/value.rs
++++ b/crates/zil-analyze/src/semantic/value.rs
+@@ -542,7 +542,21 @@ pub(super) fn nominal(
+                 LifeNominalActual::Lifetime(_) => b.spend(1, WORK)?,
+             }
+         }
+-        if instance.declaration != *declaration || instance.arguments != expected {
++        // A complete zero Type domain has two explicit inventory spellings:
++        // Type(T) and QualifiedType(T, empty).  Neither spelling changes T or
++        // supplies a class.  Nonzero domains still require the exact shape.
++        let arguments_equal = instance.arguments.len() == expected.len()
++            && instance.arguments.iter().zip(&expected).all(|(actual, expected)| {
++                match (actual, expected) {
++                    (LifeNominalActual::QualifiedType { ty, life }, LifeNominalActual::Type(other))
++                    | (LifeNominalActual::Type(other), LifeNominalActual::QualifiedType { ty, life }) => {
++                        ty == other && life.binder_count == 0 && life.slots.is_empty()
++                            && life.retained.is_empty() && life.nominal_arguments.is_empty()
++                    }
++                    _ => actual == expected,
++                }
++            });
++        if instance.declaration != *declaration || !arguments_equal {
+             continue;
+         }
+         crate::dyn_metadata::ty(&instance.ty, b)?;
+diff --git a/crates/zil-analyze/src/stored_flow/nominal.rs b/crates/zil-analyze/src/stored_flow/nominal.rs
+index a9ddc7fe0..799914de3 100644
+--- a/crates/zil-analyze/src/stored_flow/nominal.rs
++++ b/crates/zil-analyze/src/stored_flow/nominal.rs
+@@ -83,11 +83,11 @@ fn walk(
+         for actual in &instance.arguments {
+             if let LifeNominalActual::Type(ty) = actual {
+                 shape_work(ty, limits, b)?;
+-                b.type_work(ty, true, "builtin Option actual equality")?;
++                crate::dyn_metadata::ty(ty, b)?;
+             }
+         }
+         shape_work(storage, limits, b)?;
+-        b.type_work(storage, true, "builtin Option physical equality")?;
++        crate::dyn_metadata::ty(storage, b)?;
+         if !option_address::shape(&instance.ty, b)?
+             || !matches!((instance.arguments.as_slice(), storage.as_ref()),
+                 ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
+@@ -146,7 +146,7 @@ fn walk(
+             continue;
+         };
+         shape_work(ty, limits, b)?;
+-        b.type_work(ty, true, "nominal metadata identity")?;
++        crate::dyn_metadata::ty(ty, b)?;
+         if enum_address::candidate(&instance.ty)
+             && matches!(ty, Type::Address { mutable: false, .. })
+         {
+@@ -160,9 +160,9 @@ fn walk(
+         let mut selected = None;
+         for child in &module.life_instances {
+             shape_work(&child.ty, limits, b)?;
+-            b.type_work(&child.ty, true, "nominal metadata identity")?;
++            crate::dyn_metadata::ty(&child.ty, b)?;
+             shape_work(ty, limits, b)?;
+-            b.type_work(ty, true, "nominal metadata identity")?;
++            crate::dyn_metadata::ty(ty, b)?;
+             if child.ty == *ty && selected.replace(child).is_some() {
+                 return Err(failure(
+                     "Type actual has ambiguous complete nominal instances",
+@@ -276,9 +276,9 @@ fn physical_instances(
+                 let mut count = 0usize;
+                 for child in &module.life_instances {
+                     shape_work(ty, limits, b)?;
+-                    b.type_work(ty, true, "nominal metadata identity")?;
++                    crate::dyn_metadata::ty(ty, b)?;
+                     shape_work(&child.ty, limits, b)?;
+-                    b.type_work(&child.ty, true, "nominal metadata identity")?;
++                    crate::dyn_metadata::ty(&child.ty, b)?;
+                     if child.ty == *ty {
+                         count += 1;
+                     }
+@@ -330,7 +330,12 @@ pub(super) fn same_key(
+         match actual {
+             LifeNominalActual::Type(ty) => {
+                 shape_work(ty, limits, b)?;
+-                b.type_work(ty, true, "nominal actual vector identity")?;
++                crate::dyn_metadata::ty(ty, b)?;
++            }
++            LifeNominalActual::QualifiedType { ty, life } => {
++                shape_work(ty, limits, b)?;
++                crate::dyn_metadata::ty(ty, b)?;
++                crate::dyn_metadata::shape(life, b)?;
+             }
+             LifeNominalActual::Const(Constant::WideString(data)) => {
+                 fee(b, data.len())?;
+@@ -338,13 +343,22 @@ pub(super) fn same_key(
+             _ => {}
+         }
+     }
++    let arguments_equal = a.arguments.len() == c.arguments.len()
++        && a.arguments.iter().zip(&c.arguments).all(|(a, c)| match (a, c) {
++            (LifeNominalActual::Type(ty), LifeNominalActual::QualifiedType { ty: other, life })
++            | (LifeNominalActual::QualifiedType { ty: other, life }, LifeNominalActual::Type(ty)) => {
++                ty == other && life.binder_count == 0 && life.slots.is_empty()
++                    && life.retained.is_empty() && life.nominal_arguments.is_empty()
++            }
++            _ => a == c,
++        });
+     let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
+         (&a.ty, &c.ty)
+     else {
+         return Ok(!matches!(a.ty, Type::BorrowedStorage { .. })
+             && !matches!(c.ty, Type::BorrowedStorage { .. })
+             && a.declaration == c.declaration
+-            && a.arguments == c.arguments);
++            && arguments_equal);
+     };
+     fee(
+         b,
+@@ -358,6 +372,6 @@ pub(super) fn same_key(
+     // The Type actual's local scope alone omits the enclosing occurrence's
+     // class relation. Include the independently checked nominal relation.
+     Ok(a.declaration == c.declaration
+-        && a.arguments == c.arguments
++        && arguments_equal
+         && al.nominal_arguments == cl.nominal_arguments)
+ }
+diff --git a/crates/zil-analyze/src/stored_flow/nominal_zero.rs b/crates/zil-analyze/src/stored_flow/nominal_zero.rs
+index 0e3db5c00..a9ae1cb0a 100644
+--- a/crates/zil-analyze/src/stored_flow/nominal_zero.rs
++++ b/crates/zil-analyze/src/stored_flow/nominal_zero.rs
+@@ -304,7 +304,9 @@ fn type_zero(
+     // Prepay complete recursive identity work, including opaque/retained data,
+     // before any structural comparison or directory lookup.
+     crate::dyn_metadata::ty(ty, b)?;
+-    b.type_work(ty, false, "complete zero nominal dependency")?;
++    // This is intrinsic-domain formation, before runtime interface/permission
++    // qualification. The bounded visitor above pays the full type identity;
++    // type_work would incorrectly require already published Dyn interfaces.
+     if crate::dyn_dispatch::is_create_error(ty) {
+         return Ok(());
+     }
+@@ -394,20 +396,82 @@ fn type_zero(
+             if b.semantic_zero_closures.contains(id) {
+                 Ok(())
+             } else {
+-                Err(failure(
+-                    "plain nominal closure dependency lacks its completed zero-domain proof",
+-                ))
++                // Original formation can precede publication of the completed
++                // closure directory. Reconstruct every stored child instead;
++                // Some(0) alone is never enough. Original environment binding,
++                // actual captures and callable access remain separate gates.
++                fee(b, module.closures.len())?;
++                let closure = module.closures.get(id.0 as usize)
++                    .filter(|closure| closure.id == *id)
++                    .ok_or_else(|| failure("zero closure has no exact actual environment"))?;
++                if !closure.storage_life.as_ref().is_some_and(|life| life.fixed_binder_count == 0)
++                    || !closure.lending_captures.is_empty()
++                {
++                    return Err(failure("zero closure retains an unknown or nonzero complete domain"));
++                }
++                fee(b, closure.captures.len())?;
++                for capture in &closure.captures {
++                    type_zero(module, capture, limits, b, active, depth + 1)?;
++                }
++                Ok(())
++            }
++        }
++        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
++            // Only the intrinsic domain is reconstructed here. This neither
++            // publishes an admitted interface nor proves provider, access,
++            // ownership or cleanup; all runtime consumers still require those.
++            fee(b, module.dyn_interfaces.len())?;
++            let mut selected = None;
++            for candidate in &module.dyn_interfaces {
++                if candidate.id == *interface && selected.replace(candidate).is_some() {
++                    return Err(failure("zero Dyn has ambiguous actual interfaces"));
++                }
++            }
++            let interface = selected.ok_or_else(|| failure("zero Dyn has no actual interface"))?;
++            crate::dyn_metadata::recipe(&interface.application, b)?;
++            crate::dyn_metadata::retained_shape(&interface.retained_life, b)?;
++            if interface.context.is_some()
++                || interface.retained_life.binder_count != 0
++                || !interface.retained_life.ports.is_empty()
++                || !interface.retained_life.retained.is_empty()
++                || !interface.retained_life.nominal_arguments.is_empty()
++                || !interface.application.actuals.is_empty()
++                || !interface.inherited.is_empty()
++                || !interface.associated_types.is_empty()
++                || !interface.associated_constants.is_empty()
++            {
++                return Err(failure("zero Dyn requires its complete original Context and mixed domain"));
++            }
++            fee(b, module.dyn_declarations.len())?;
++            let mut declaration = None;
++            for candidate in &module.dyn_declarations {
++                if candidate.id == interface.application.declaration
++                    && declaration.replace(candidate).is_some()
++                {
++                    return Err(failure("zero Dyn has ambiguous original declarations"));
++                }
++            }
++            let declaration = declaration.ok_or_else(|| failure("zero Dyn has no original declaration"))?;
++            crate::dyn_metadata::recipe_declaration(declaration, b)?;
++            if declaration.kind != DynDeclarationKind::Trait || !declaration.parameters.is_empty() {
++                return Err(failure("zero Dyn changes its original trait kind or complete arity"));
++            }
++            Ok(())
++        }
++        Type::Registration { environment } | Type::AsyncRegistration { environment } => {
++            // The environment determines the intrinsic domain. The provider,
++            // live protocol phase and synchronous/asynchronous teardown are
++            // independently reconstructed by registration's actual consumer.
++            if !matches!(environment.as_ref(), Type::Closure(_)) {
++                return Err(failure("zero registration has no concrete callback environment"));
+             }
++            type_zero(module, environment, limits, b, active, depth + 1)
+         }
+         // Their hidden class domains need the completed original/opaque
+         // consumer. Neither an empty port list nor Some(0) proves this case.
+         Type::Opaque { .. }
+-        | Type::Dyn { .. }
+-        | Type::OwnedDyn { .. }
+         | Type::TaskI32
+         | Type::MutexGuard { .. }
+-        | Type::Registration { .. }
+-        | Type::AsyncRegistration { .. }
+         | Type::BorrowedFunctionPointer { .. }
+         | Type::Named(_)
+         | Type::Unsupported(_) => Err(failure(
+diff --git a/crates/zil-verify/src/class_flow.rs b/crates/zil-verify/src/class_flow.rs
+index 87800187d..a624eab9b 100644
+--- a/crates/zil-verify/src/class_flow.rs
++++ b/crates/zil-verify/src/class_flow.rs
+@@ -301,13 +301,16 @@ impl Equations {
+         Ok(())
+     }
+     fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Ports> {
+-        let outer = if matches!(ty, Type::Address { .. }) {
++        let outer = if matches!(ty, Type::Address { .. })
++            || b.task_sources() && matches!(ty, Type::Desc(_)) {
+             Some(self.fresh(false, b)?)
+         } else {
+             None
+         };
+         let ty = if let Type::Address { inner, .. } = ty {
+             inner.as_ref()
++        } else if let Type::Desc(inner) = ty && b.task_sources() {
++            inner.as_ref()
+         } else {
+             ty
+         };
+diff --git a/crates/zil-verify/src/class_flow/task_equations.rs b/crates/zil-verify/src/class_flow/task_equations.rs
+index f28f74e23..4b7e7ba2e 100644
+--- a/crates/zil-verify/src/class_flow/task_equations.rs
++++ b/crates/zil-verify/src/class_flow/task_equations.rs
+@@ -117,7 +117,7 @@ fn whole_input(
+             return Err(limit("Task whole input equation depth exceeded"));
+         }
+         match current {
+-            Type::Address { inner, .. } => {
++            Type::Address { inner, .. } | Type::Desc(inner) => {
+                 if class == 0 && path.is_empty() {
+                     return ports
+                         .outer
+diff --git a/crates/zil-verify/src/semantic/original/closure_sources.rs b/crates/zil-verify/src/semantic/original/closure_sources.rs
+index 8181b535d..e8ee12f77 100644
+--- a/crates/zil-verify/src/semantic/original/closure_sources.rs
++++ b/crates/zil-verify/src/semantic/original/closure_sources.rs
+@@ -22,6 +22,9 @@ impl CheckedOriginal {
+             let CoreStatementKind::Binding{ty:None,initializer:Some(initializer),..}=&statement.kind else{return Ok(None);};initializer
+         }else if let SemanticOriginalTypeSource::Expression(node)=source{let Some(expression)=function.expressions.get(node)else{return Ok(None);};*expression}else{return Ok(None);};
+         while let CoreExprKind::Group(inner)=&expression.kind{b.spend(1)?;expression=inner;}
++        // A contextual TypeUse observes the injected sum. The source Call
++        // remains its sole payload operation and has a different result role.
++        if self.injections.contains_key(&(definition,expression.id)){return Ok(None);}
+         if !matches!(expression.kind,CoreExprKind::Call{..}){return Ok(None);}
+         let mut selected=None;
+         for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}
+diff --git a/crates/zil-verify/src/semantic/original/expressions.rs b/crates/zil-verify/src/semantic/original/expressions.rs
+index 6a9f4e4c6..53b5f410f 100644
+--- a/crates/zil-verify/src/semantic/original/expressions.rs
++++ b/crates/zil-verify/src/semantic/original/expressions.rs
+@@ -4,6 +4,24 @@ impl CheckedOriginal {
+     pub(super) fn expression(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,expected:Option<&Ty>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
+             let id=env.current()?;self.remember_names(env,SemanticOriginalNode::Expression(expression.id),bindings,b)?;
++            if !matches!(expression.kind,CoreExprKind::If{..}|CoreExprKind::Sequence{..}) {
++                if let Some(expected)=expected {
++                    let sum=self.resolved(expected,b)?;
++                    if let Ty::ErrorUnion(error,result)=&sum {
++                        // Elaborating a contextual injection never equates
++                        // the payload with the sum or one arm with the other.
++                        let payload=self.expression(module,context,expression,env,bindings,None,active,b)?;
++                        if self.same(&payload,&sum,b)?{return Ok(payload);}
++                        let failed=self.same(&payload,error,b)?;
++                        let succeeded=self.same(&payload,result,b)?;
++                        if failed==succeeded{return Err(bad("original implicit error injection has no unique complete payload arm"));}
++                        b.spend(2)?;
++                        self.injections.insert((id,expression.id),(failed,payload));
++                        self.expressions.insert((id,expression.id),sum.clone());
++                        return Ok(sum);
++                    }
++                }
++            }
+             let actual=match &expression.kind{
+                 CoreExprKind::Unit=>Ty::Atom(Type::Unit),
+                 CoreExprKind::Bool(_)=>Ty::Atom(Type::Bool),
+diff --git a/crates/zil-verify/src/semantic/original/mod.rs b/crates/zil-verify/src/semantic/original/mod.rs
+index 6b8c7e12c..406f69782 100644
+--- a/crates/zil-verify/src/semantic/original/mod.rs
++++ b/crates/zil-verify/src/semantic/original/mod.rs
+@@ -53,6 +53,9 @@ struct VariantConstruction{definition:SemanticDefinitionId,variant:u32,actuals:V
+ #[derive(Default)]
+ pub(super) struct CheckedOriginal {
+     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
++    // Contextual sum observations are distinct from the payload operation.
++    // The selected arm is solved in original Γ before any actual emission.
++    injections:BTreeMap<(SemanticDefinitionId,NodeId),(bool,Ty)>,
+     bindings:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+     parameters:BTreeMap<(SemanticDefinitionId,u32),Ty>,
+     results:BTreeMap<SemanticDefinitionId,Ty>,
