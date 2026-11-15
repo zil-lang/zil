@@ -757,9 +757,22 @@ fn check_resolved_program_in_context(
         for export in &mut interface.exports {
             finalize_export_header(export, &module, &mut remaining, limits)?;
         }
+    }
+    let stored_context = if interfaces.is_empty() {
+        None
+    } else {
+        interface_context_fingerprint(&module, &mut remaining, limits)?
+    };
+    for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
-        interface.signature_fingerprint =
-            interface_fingerprint(&interface.exports, target, &module, &mut remaining, limits)?;
+        interface.signature_fingerprint = interface_fingerprint(
+            &interface.exports,
+            target,
+            &module,
+            stored_context.as_ref(),
+            &mut remaining,
+            limits,
+        )?;
     }
     Ok(TypedProgram {
         task_interfaces,
@@ -902,15 +915,11 @@ fn finalize_export_header(
     Ok(())
 }
 
-fn interface_fingerprint(
-    exports: &[ScalarFunction],
-    target: &TargetProfile,
+fn interface_context_fingerprint(
     module: &TypedModule,
     remaining: &mut usize,
     limits: &Limits,
-) -> CompileResult<Fingerprint> {
-    let closures = &module.closures;
-    let functions = &module.functions;
+) -> CompileResult<Option<Fingerprint>> {
     let stored = !module.life_declarations.is_empty() || !module.life_instances.is_empty();
     if stored {
         let work = inference::life_table_snapshot_work(
@@ -932,6 +941,20 @@ fn interface_fingerprint(
                 )]
             })?;
     }
+    Ok(stored
+        .then(|| life_inventory_fingerprint(&module.life_declarations, &module.life_instances)))
+}
+
+fn interface_fingerprint(
+    exports: &[ScalarFunction],
+    target: &TargetProfile,
+    module: &TypedModule,
+    stored_context: Option<&Fingerprint>,
+    remaining: &mut usize,
+    limits: &Limits,
+) -> CompileResult<Fingerprint> {
+    let closures = &module.closures;
+    let functions = &module.functions;
     let mut bytes = b"ZIL-SCALAR-INTERFACE-4\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
@@ -1055,11 +1078,12 @@ fn interface_fingerprint(
             None,
         )]
     };
-    if stored {
+    if let Some(context) = stored_context {
+        *remaining = remaining
+            .checked_sub(b"STORED-CONTEXT-2\0".len() + context.0.len())
+            .ok_or_else(exhausted)?;
         bytes.extend_from_slice(b"STORED-CONTEXT-2\0");
-        bytes.extend_from_slice(
-            &life_inventory_fingerprint(&module.life_declarations, &module.life_instances).0,
-        );
+        bytes.extend_from_slice(&context.0);
     }
     for export in exports {
         if let Some(contract) = &export.storage_life {
