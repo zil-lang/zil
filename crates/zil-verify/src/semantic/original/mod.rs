@@ -55,9 +55,9 @@ pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,
 struct VariantConstruction{definition:SemanticDefinitionId,variant:u32,actuals:Vec<Arg>}
 #[derive(Default)]
 pub(super) struct CheckedOriginal {
-    // Structural memo only. The module address keys an immutable input within
-    // this verification request; it is never a declaration identity or proof.
-    source_indices:std::cell::RefCell<Vec<(usize,index::Directory)>>,
+    // Structural cursors and original expressions borrow this exact owned,
+    // immutable source snapshot. They cannot inherit a recycled view address.
+    source_grammar:Option<index::SourceIndex>,
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
     // Contextual sum observations are distinct from the payload operation.
     // The selected arm is solved in original Γ before any actual emission.
@@ -120,8 +120,7 @@ impl CheckedOriginal {
     pub(super) fn check(module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<Self> {
         let mut result=Self::default();
         let index=index::build(module,b)?;
-        let directory=index::directory(module,&index,b)?;
-        result.source_indices.get_mut().push((std::ptr::from_ref(module)as usize,directory));
+        result.source_grammar=Some(index::snapshot(module,&index,b)?);
         for function in index.definitions.values(){b.spend(function.parameters.len().saturating_add(1))?;if function.parameters.len()!=function.signature.parameters.len(){return Err(bad("original body index and signature have different value arity"));}}
         let program=module.semantic.as_ref().ok_or_else(||bad("original body program is absent"))?;
         let mut pending=program.definitions.iter().filter(|definition|matches!(definition.kind,SemanticDefinitionKind::Function|SemanticDefinitionKind::Method|SemanticDefinitionKind::Closure|SemanticDefinitionKind::TaskEntry)).collect::<Vec<_>>();
@@ -150,22 +149,11 @@ impl CheckedOriginal {
         for binding in &result.creation_returns{b.spend(1)?;if result.creation_tainted.contains(binding){return Err(bad("original create result has a reassigned or loop-carried unproved lineage"));}}
         Ok(result)
     }
-    fn source_index<'m>(&self,module:&'m TypedModule,definitions:&[SemanticDefinitionId],b:&mut Budget)->Check<index::Index<'m>>{
-        let key=std::ptr::from_ref(module)as usize;
-        {
-            let indices=self.source_indices.borrow();b.spend(indices.len().saturating_add(1))?;
-            if let Some((_,directory))=indices.iter().find(|(input,_)|*input==key){
-                return index::select(module,directory,definitions,b);
-            }
-        }
-        // A distinct private frozen/session view cannot borrow another input's
-        // structural receipt. Its entire grammar is checked once as well.
-        let index=index::build(module,b)?;
-        let directory=index::directory(module,&index,b)?;
-        b.spend(1)?;
-        self.source_indices.borrow_mut().push((key,directory));
-        Ok(index)
+    fn source_index<'s>(&'s self,_module:&TypedModule,definitions:&[SemanticDefinitionId],b:&mut Budget)->Check<index::Index<'s>>{
+        let source=self.source_grammar.as_ref().ok_or_else(||bad("original source query has no owned complete grammar"))?;
+        index::select(source,definitions,b)
     }
+
     fn fresh(&mut self,b:&mut Budget)->Check<Ty>{b.spend(1)?;let id=self.next_inference;self.next_inference=id.checked_add(1).ok_or_else(||limit("original body inference identity exhausted"))?;Ok(Ty::Infer(id))}
     fn resolved(&self,ty:&Ty,b:&mut Budget)->Check<Ty>{self.resolve_at(ty,0,b)}
     fn resolve_at(&self,ty:&Ty,depth:usize,b:&mut Budget)->Check<Ty>{

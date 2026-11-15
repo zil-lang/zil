@@ -3,7 +3,7 @@
 use super::*;
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
-    pub(in crate::semantic) fn scalar_input<'a>(&self,module:&'a TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(&'a SemanticOriginalExpr,Type)>{
+    pub(in crate::semantic) fn scalar_input<'a>(&'a self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(&'a SemanticOriginalExpr,Type)>{
         let Ty::Atom(carrier)=self.original_type(definition,&SemanticOriginalTypeSource::Expression(node),b)? else{return Err(bad("scalar source input lacks its independent original carrier"));};
         if !carrier.is_integer()&&!carrier.is_float()&&!matches!(carrier,Type::Unit|Type::Bool){return Err(bad("source input is not an independently checked scalar expression"));}
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("scalar source input original owner is absent"))?;

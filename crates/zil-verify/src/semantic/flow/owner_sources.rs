@@ -85,7 +85,8 @@ impl CheckedContext{
         }
     }
     fn scalar_expression_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
-        let(expression,carrier)=self.original.borrow().as_ref().ok_or_else(||bad("scalar address input lacks its complete independent original proof"))?.scalar_input(module,caller.definition,node,b)?;
+        let original=self.original.borrow();
+        let(expression,carrier)=original.as_ref().ok_or_else(||bad("scalar address input lacks its complete independent original proof"))?.scalar_input(module,caller.definition,node,b)?;
         if f.values.get(value.0 as usize)!=Some(&carrier){return Err(bad("address scalar input changes its complete original carrier"));}
         let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
         match(&expression.kind,&instruction.kind){

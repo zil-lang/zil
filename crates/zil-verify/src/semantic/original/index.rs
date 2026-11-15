@@ -106,7 +106,13 @@ fn function<'a>(definition:&'a SemanticDefinition,b:&mut Budget)->Check<Option<F
 
 /// Immutable structural cursors after the complete build above. This directory
 /// is request-local, not an IR receipt and not a type/source/loan certificate.
-pub(super) struct Directory {
+pub(super) struct SourceIndex {
+    // Keeping this exact source tree alive binds every structural cursor and
+    // returned expression to the grammar checked by this original Γ.
+    program:std::sync::Arc<SemanticModule>,
+    directory:Directory,
+}
+struct Directory {
     definitions:BTreeMap<SemanticDefinitionId,DefinitionCursor>,
 }
 struct DefinitionCursor {
@@ -114,7 +120,7 @@ struct DefinitionCursor {
     nodes:BTreeMap<SemanticSiteId,SemanticOriginalNode>,
     closures:BTreeMap<NodeId,SemanticDefinitionId>,
 }
-pub(super) fn directory(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Check<Directory>{
+pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Check<SourceIndex>{
     let program=module.semantic.as_ref().ok_or_else(||bad("original index directory has no complete programme"))?;
     let mut definitions=BTreeMap::new();
     for(ordinal,definition)in program.definitions.iter().enumerate(){
@@ -128,10 +134,15 @@ pub(super) fn directory(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Che
         })).collect();
         definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone()});
     }
-    Ok(Directory{definitions})
+    // Prepay the complete immutable snapshot copy, including all unused
+    // definitions, annotations and quote payloads. No address/digest/ID key
+    // can claim another transient module's grammar receipt.
+    dynamic_metadata::recipe(program,b)?;
+    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions}})
 }
-pub(super) fn select<'a>(module:&'a TypedModule,directory:&Directory,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
-    let program=module.semantic.as_ref().ok_or_else(||bad("original local cursor has no complete programme"))?;
+pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
+    let program=source.program.as_ref();
+    let directory=&source.directory;
     let mut definitions=BTreeMap::new();
     for id in requested{
         b.spend(directory.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;

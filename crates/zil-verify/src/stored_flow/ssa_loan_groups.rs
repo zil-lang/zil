@@ -47,7 +47,7 @@ impl<'values> Sources<'values> {
             b.spend(3)?;
             if !payload.leaves.is_empty()
                 || !payload.task_ports.is_empty()
-                || b.store_descriptions() && !payload.store_description.loans.is_empty()
+                || !payload.store_description.loans.is_empty()
                 || !payload.dyn_ports.0.is_empty()
             {
                 push(&mut ordinary, id, b)?;
@@ -58,7 +58,9 @@ impl<'values> Sources<'values> {
                 continue;
             }
             if payload.address.loans.is_empty() {
-                // The unchanged collector reads no other SSA fields here.
+                // All nonempty description loans were kept above, independent
+                // of producer/profile flags. The collector reads no other
+                // contributing SSA fields here.
                 continue;
             }
             let key = payload.address.loans.as_slice();
