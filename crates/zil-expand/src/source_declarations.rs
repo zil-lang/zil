@@ -741,7 +741,7 @@ mod tests {
             SourceDeclarationSite, SourceTreeIdentity,
         };
         use std::sync::Arc;
-        let (mut module, mut origins) = source("#emit factory() fn main()->i32{return 0}");
+        let (mut module, mut origins) = source("#emit factory()\nfn main()->i32{return 0}");
         let (parent, _) = source("#emit child_factory()");
         let (child, _) =
             source("struct Made{x:i32;fn value()->i32{return 7}} fn answer()->i32{return 7}");
