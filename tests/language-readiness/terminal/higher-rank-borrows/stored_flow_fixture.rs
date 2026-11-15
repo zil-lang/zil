@@ -1018,14 +1018,13 @@ pub(super) fn unbound_fixed_pointer() -> TypedModule {
 pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedModule {
     let mut m = rich_marker_pointer(false, false);
     let target = &mut m.functions[0];
-    target.storage_life = None;
     target.environment = Some(ClosureId(0));
     let parameters = target
         .parameters
         .iter()
         .map(|p| target.locals[p.0 as usize].ty.clone())
         .collect::<Vec<_>>();
-    let definition = ClosureDefinition {
+    let mut definition = ClosureDefinition {
         storage_life: None,
         id: ClosureId(0),
         function: FunctionId(0),
@@ -1061,6 +1060,15 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
             binder: StorageBinder::Invocation(if wrong_role { 0 } else { 1 }),
         }],
     };
+    // This concrete environment has no captures and no free Fixed classes.
+    // Its two invocation parameters still carry the complete relation:
+    // &Tag<'b> has an outer Invocation(0), while its real nominal class and
+    // the second Address share Invocation(1). Keep the actual entry relation
+    // independent of the hostile role mutation below; None is not Known0.
+    let mut concrete_life = role_life.clone();
+    concrete_life.classes[0].binder = StorageBinder::Invocation(1);
+    m.functions[0].storage_life = Some(concrete_life.clone());
+    definition.storage_life = Some(concrete_life);
     let mut helper = function(
         1,
         vec![env.clone(), parameters[0].clone(), parameters[1].clone()],
