@@ -1,7 +1,7 @@
 use super::*;
 type Application=(LifeDeclarationId,Vec<Arg>,u32,SemanticDefinitionId);
 impl CheckedOriginal {
-    pub(super) fn original_method_applications(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,name:&str,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<Application>>{
+    pub(in crate::semantic::original) fn original_method_applications(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&Ty,name:&str,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<Application>>{
         let mut applications=Vec::<(LifeDeclarationId,Vec<Arg>)>::new();
         for(index,frame)in caller.lexical.iter().enumerate(){
             let definition=context.definition(module,frame.definition,b)?;

@@ -91,7 +91,7 @@ impl CheckedOriginal {
             },
             _=>return Ok(None),
         }};
-        let mut applications=self.original_method_applications(module,context,&receiver,member,env,active,b)?;
+        let mut applications:Vec<(LifeDeclarationId,Vec<Arg>,u32,SemanticDefinitionId)>=self.original_method_applications(module,context,&receiver,member,env,active,b)?;
         // The bound must independently name the exact declaration selected by
         // the lexical Value namespace, including its original member ordinal.
         if applications.len()!=1{return Err(bad("original static member lacks one complete trait application"));}
