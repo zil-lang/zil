@@ -14,6 +14,7 @@ enum Target {
     FallibleTrait(LifeDeclarationId),
     FallibleNominal(SemanticDefinitionId),
     LengthReceiver,
+    CodeSequence { dimensions: u32, kind: CallKind },
     Unknown,
 }
 struct Vertex {
@@ -25,6 +26,7 @@ struct Scan<'a, 'd, 'b, 'l> {
     definitions: &'d [&'a SemanticDefinition],
     owner: usize,
     locals: Vec<(&'a str, Target)>,
+    captures: &'b mut Vec<(usize, Vec<(&'a str, Target)>)>,
     vertex: &'b mut Vertex,
     budget: &'b mut Budget<'l>,
 }
@@ -57,7 +59,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
             | Target::FormalReceiver { .. }
             | Target::FallibleTrait(_)
             | Target::FallibleNominal(_)
-            | Target::LengthReceiver => self.vertex.suspend = true,
+            | Target::LengthReceiver
+            | Target::CodeSequence { .. } => self.vertex.suspend = true,
             Target::Definition(index) => {
                 self.budget.identity_work(self.vertex.edges.len(), span)?;
                 if !self.vertex.edges.contains(&index) {
@@ -156,9 +159,11 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     Target::Kind,
                 )
             }
-            SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_) => {
-                Target::LengthReceiver
-            }
+            SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_) => self
+                .code_sequence(ty, depth + 1, span)?
+                .map_or(Target::LengthReceiver, |(dimensions, kind)| {
+                    Target::CodeSequence { dimensions, kind }
+                }),
             SemanticTypeRecipe::Dyn { interface, .. } => {
                 Target::TraitReceiver(interface.application.declaration)
             }
@@ -200,6 +205,36 @@ impl<'a> Scan<'a, '_, '_, '_> {
             }
             _ => Target::Unknown,
         })
+    }
+    fn code_sequence(
+        &mut self,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+        span: Span,
+    ) -> R<Option<(u32, CallKind)>> {
+        self.budget.node(span, depth)?;
+        match ty {
+            SemanticTypeRecipe::Code {
+                kind: SemanticCodeKind::FunctionPointer,
+                signature,
+            } => Ok(Some((0, signature.call_kind))),
+            SemanticTypeRecipe::Array { element, .. } | SemanticTypeRecipe::Slice(element) => {
+                let Some((count, kind)) = self.code_sequence(element, depth + 1, span)? else {
+                    return Ok(None);
+                };
+                Ok(Some((
+                    count
+                        .checked_add(1)
+                        .ok_or_else(|| error(span, "effect code sequence depth overflows"))?,
+                    kind,
+                )))
+            }
+            SemanticTypeRecipe::Address { inner, .. }
+            | SemanticTypeRecipe::Qualified { storage: inner, .. } => {
+                self.code_sequence(inner, depth + 1, span)
+            }
+            _ => Ok(None),
+        }
     }
     fn callable_requirements(
         &mut self,
@@ -315,6 +350,36 @@ impl<'a> Scan<'a, '_, '_, '_> {
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            CoreExprKind::Index { object, .. } => {
+                return Ok(match self.target(object, depth + 1)? {
+                    Target::CodeSequence {
+                        dimensions: 1,
+                        kind,
+                    } => Target::Kind(kind),
+                    Target::CodeSequence { dimensions, kind } if dimensions > 1 => {
+                        Target::CodeSequence {
+                            dimensions: dimensions - 1,
+                            kind,
+                        }
+                    }
+                    _ => Target::Unknown,
+                });
+            }
+            CoreExprKind::Slice { object, .. } => {
+                return Ok(match self.target(object, depth + 1)? {
+                    target @ (Target::CodeSequence { .. } | Target::LengthReceiver) => target,
+                    _ => Target::Unknown,
+                });
+            }
+            CoreExprKind::Unary {
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference,
+                operand,
+            } => {
+                return Ok(match self.target(operand, depth + 1)? {
+                    target @ Target::CodeSequence { .. } => target,
+                    _ => Target::Unknown,
+                });
+            }
             CoreExprKind::Member { object, member, .. } => {
                 let receiver = self.target(object, depth + 1)?;
                 let target = self.field_target(receiver, member, depth + 1, expression.span)?;
@@ -560,7 +625,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
     ) -> R<bool> {
         self.budget.node(span, depth)?;
         match target {
-            Target::LengthReceiver if spelling == "len" => {
+            Target::LengthReceiver | Target::CodeSequence { .. } if spelling == "len" => {
                 self.edge(Target::Kind(CallKind::Direct), span)?;
                 Ok(true)
             }
@@ -1049,8 +1114,62 @@ impl<'a> Scan<'a, '_, '_, '_> {
             }
             // Creation does not execute the child's body. Each authored child
             // definition is a separate graph vertex with its own full body.
-            E::Closure { .. }
-            | E::CompileTime(_)
+            E::Closure { .. } => {
+                let Target::Definition(child) = self.target(expression, depth + 1)? else {
+                    return Err(error(
+                        expression.span,
+                        "effect closure has no exact original definition",
+                    ));
+                };
+                let definition = self.definitions[child];
+                if definition.parent != Some(self.definitions[self.owner].id) {
+                    return Err(error(
+                        expression.span,
+                        "effect closure changes its original lexical creator",
+                    ));
+                }
+                let mut captured = Vec::new();
+                for slot in &definition.environment {
+                    self.budget.node(expression.span, depth + 1)?;
+                    let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                        source: SemanticOriginalTypeSource::NameAt { at, name },
+                        ..
+                    }) = &slot.source
+                    else {
+                        continue;
+                    };
+                    if *at != SemanticOriginalNode::Expression(expression.id) {
+                        return Err(error(
+                            expression.span,
+                            "effect capture selects another original creator point",
+                        ));
+                    }
+                    self.budget
+                        .identity_work(self.locals.len(), expression.span)?;
+                    let target = self
+                        .locals
+                        .iter()
+                        .rev()
+                        .find(|(local, _)| *local == name)
+                        .map_or(Target::Unknown, |(_, target)| *target);
+                    self.budget.lineage_push(
+                        &mut captured,
+                        (name.as_str(), target),
+                        expression.span,
+                    )?;
+                }
+                self.budget
+                    .identity_work(self.captures.len(), expression.span)?;
+                if self.captures.iter().any(|(owner, _)| *owner == child) {
+                    return Err(error(
+                        expression.span,
+                        "effect closure repeats its original creator point",
+                    ));
+                }
+                self.budget
+                    .lineage_push(self.captures, (child, captured), expression.span)?;
+            }
+            E::CompileTime(_)
             | E::CompileTimeBlock(_)
             | E::SyntaxQuote { .. }
             | E::SyntaxIsland { .. }
@@ -1082,6 +1201,7 @@ pub(super) fn propose(
         }
     }
     let mut vertices = Vec::new();
+    let mut order = Vec::new();
     for (index, definition) in definitions.iter().enumerate() {
         let mut explicit = None;
         budget.identity_work(originals.declarations.len(), Span::default())?;
@@ -1093,11 +1213,34 @@ pub(super) fn propose(
             explicit = crate::tasks::selection(function, &mut remaining.max_analysis_steps)?.0;
             budget.adopt_remaining(&remaining);
         }
-        let mut vertex = Vertex {
+        let vertex = Vertex {
             explicit,
             suspend: explicit == Some(CallKind::Suspend),
             edges: Vec::new(),
         };
+        budget.lineage_push(&mut vertices, vertex, Span::default())?;
+        let mut parent = definition.parent;
+        let mut depth = 0usize;
+        while let Some(id) = parent {
+            depth += 1;
+            budget.node(Span::default(), depth)?;
+            let Some(owner) = declaration_index(&definitions, id, budget, Span::default())? else {
+                return Err(error(Span::default(), "effect lexical parent is absent"));
+            };
+            parent = definitions[owner].parent;
+        }
+        budget.lineage_push(&mut order, (depth, index), Span::default())?;
+    }
+    budget.identity_work(
+        order
+            .len()
+            .saturating_mul(order.len().saturating_add(1).ilog2() as usize + 1),
+        Span::default(),
+    )?;
+    order.sort_unstable();
+    let mut captures: Vec<(usize, Vec<(&str, Target)>)> = Vec::new();
+    for &(_, index) in &order {
+        let definition = definitions[index];
         if let SemanticDefinitionBody::FunctionWithBody {
             signature,
             parameters,
@@ -1105,11 +1248,19 @@ pub(super) fn propose(
             ..
         } = &definition.body
         {
+            let mut locals = Vec::new();
+            budget.identity_work(captures.len(), Span::default())?;
+            if let Some((_, environment)) = captures.iter().find(|(owner, _)| *owner == index) {
+                for entry in environment {
+                    budget.lineage_push(&mut locals, *entry, Span::default())?;
+                }
+            }
             let mut scan = Scan {
                 definitions: &definitions,
                 owner: index,
-                locals: Vec::new(),
-                vertex: &mut vertex,
+                locals,
+                captures: &mut captures,
+                vertex: &mut vertices[index],
                 budget,
             };
             for (ordinal, parameter) in parameters.iter().enumerate() {
@@ -1130,8 +1281,12 @@ pub(super) fn propose(
             let locals = std::mem::take(&mut scan.locals);
             scan.budget.drop_lineage_vec(locals, Span::default())?;
         }
-        budget.lineage_push(&mut vertices, vertex, Span::default())?;
     }
+    budget.drop_lineage_vec(order, Span::default())?;
+    for (_, environment) in &mut captures {
+        budget.drop_lineage_vec(std::mem::take(environment), Span::default())?;
+    }
+    budget.drop_lineage_vec(captures, Span::default())?;
     // Monotone propagation reaches a fixed point after at most one promotion
     // per vertex. Closed recursive SCCs without a Suspend edge remain Direct.
     loop {
