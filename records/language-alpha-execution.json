@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-15T22:34:28.801200+00:00",
+  "updated_at_utc": "2026-11-15T23:14:27.164859+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -14,8 +14,8 @@
     "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "64baba7acc98a9a3bdc69edb03170ee99cde002d",
-  "current_candidate_under_validation": null,
+  "latest_ready_source": "beebdca12fc5fb648ba3ac86116d88e23334d0c7",
+  "current_candidate_under_validation": "beebdca12fc5fb648ba3ac86116d88e23334d0c7",
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -114,7 +114,7 @@
     "root_correction": "Overbroad type-occurrence cleanup ABI upper reverted in full, 3c24419bd."
   },
   "execution_state": "RESUMED BY USER; complete functional chains under personal audit constraints",
-  "last_completed_candidate": "64baba7acc98a9a3bdc69edb03170ee99cde002d",
+  "last_completed_candidate": "3ed9f88017f293474213484104d326a226886fce",
   "personal_workflow_audit": {
     "reviewer": "root personally",
     "subagent_review_used": false,
@@ -225,5 +225,38 @@
       "Repeated whole immutable source/index/type scans exceeded default budgets; reuse complete immutable structural facts while checking current loans, epochs and ownership each time.",
       "Associated provider normalization lost the real caller proof environment before checking obligations; call/signature/body proof roots are scoped and restored."
     ]
+  },
+  "latest_actual_checkpoint": {
+    "source_positive_passed": 8,
+    "source_positive_total": 13,
+    "expected_negatives_passed": 4,
+    "candidate": "3ed9f88017f293474213484104d326a226886fce",
+    "regression": "Closure ordinary/stored scheduling in e747; complete proposed fix in beeb pending actual validation.",
+    "source_application": "Original ordinary application Source complete under default budget; now Types default work barrier.",
+    "actual_borrowed_iterator": "Types original universal Callable obligation unsupported; Types owner implementing independently.",
+    "workspace_alltargets": {
+      "candidate": "28b58780b6ecdc64b2762fe32546045c88541cc4",
+      "exit": 0
+    },
+    "source_probe": {
+      "candidate": "28b58780b6ecdc64b2762fe32546045c88541cc4",
+      "passed": 2,
+      "failed": 0
+    },
+    "wide_original_source_fixtures": {
+      "candidate": "7ec17b12bac10a5cce19be396f84712d7d1db382",
+      "passed": 0,
+      "total": 11,
+      "source_scope_fix": "28b58780b; rerun pending",
+      "types_remaining": "Seven legal returned callable/source combinations, full current source preserved."
+    },
+    "github_crates_recovery": {
+      "commit": "1db78dd968dfd954dd58ed253bf48629e64e57bc",
+      "source_head": "4cbfd16947f40eb79b4b97c1215ec47c40206f03",
+      "path": "language/20261115T230209Z-approved-source-recovery/recovery.tar.gz",
+      "sha256": "ba84094d5a120273989e87529c6dbbce17c3b65bbdd6848c3184428d7a158e73",
+      "readback_equal": true
+    },
+    "publication_limitation": "Expanded tests/tools/Cargo.lock archive and goal update rejected by automatic approval review. Goal changes retained locally; scoped archive authorization pending. Do not claim formal source branch current."
   }
 }
