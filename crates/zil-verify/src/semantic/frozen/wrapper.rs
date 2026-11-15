@@ -34,7 +34,19 @@ fn expression_pair<'a>(source:&'a CoreExpr,actual:&'a SemanticOriginalExpr,annot
     depth(level,b)?;
     if source.id!=actual.id{return Err(bad("CT wrapper expression identity differs from the actual frozen query payload"));}
     use CoreExprKind as K;
-    match (&source.kind,&actual.kind) {
+    // The public pure-stage wrapper rewrite splices only a nested marker's
+    // kind, retaining that marker's own NodeId. No evaluation/substitution is
+    // authorized here: every operation, child identity and mixed argument
+    // below must still match the actual frozen source subtree exactly.
+    let mut source_kind=&source.kind;
+    let mut stages=0usize;
+    while let K::CompileTime(inner)=source_kind{
+        if matches!(actual.kind,K::CompileTime(_)){break;}
+        stages=stages.checked_add(1).ok_or_else(||limit("nested frozen stage depth exceeded"))?;
+        depth(level.saturating_add(stages),b)?;
+        source_kind=&inner.kind;
+    }
+    match (source_kind,&actual.kind) {
         (K::Unit,K::Unit)=>{},
         (K::Bool(a),K::Bool(c)) if a==c=>{},
         (K::Literal(a),K::Literal(c)) if a==c=>{},
