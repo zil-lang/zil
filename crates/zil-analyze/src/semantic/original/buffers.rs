@@ -34,6 +34,7 @@ impl Solver<'_, '_> {
             ));
         }
         let mut inputs = Vec::new();
+        let mut manager_life = None;
         if !new {
             let place = self
                 .place(frame, &arguments[0], true, b, depth + 1)?
@@ -85,9 +86,19 @@ impl Solver<'_, '_> {
                 Kind::Address { inner, .. } => self.type_root(inner, b)?,
                 _ => selected,
             };
-            if matches!(self.state.arena[owner], Kind::Wrapped(Wrapper::Managed, _)) {
-                self.describe_argument(frame, &arguments[0], &place, owner, b, depth + 1)?;
-            }
+            let descriptor =
+                if matches!(self.state.arena[owner], Kind::Wrapped(Wrapper::Managed, _)) {
+                    self.describe_argument(frame, &arguments[0], &place, owner, b, depth + 1)?
+                } else {
+                    owner
+                };
+            let descriptor = self.type_root(descriptor, b)?;
+            let Kind::Desc { life, .. } = self.state.arena[descriptor] else {
+                return Err(fail(
+                    "original ByteBuffer view lacks its exact manager description",
+                ));
+            };
+            manager_life = Some(life);
             Self::push(&mut inputs, place.root, b)?;
             Self::push(&mut inputs, place.selected, b)?;
             b.lookup(self.state.intrinsic_anchors.len(), WORK)?;
@@ -136,8 +147,9 @@ impl Solver<'_, '_> {
             let payload = self.atom(Type::ByteBuffer, b)?;
             self.term(Kind::Wrapped(Wrapper::Managed, payload), b)
         } else if intrinsic == sealed::Intrinsic::BytesView {
-            let ordinal = self.borrow_occurrence(frame.definition, node, b)?;
-            let life = self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+            let life = manager_life.ok_or_else(|| {
+                fail("original ByteBuffer borrow lacks its complete manager source lifetime")
+            })?;
             let element = self.atom(Type::U8, b)?;
             let inner = self.term(Kind::Slice(element), b)?;
             self.term(
