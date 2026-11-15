@@ -1306,28 +1306,45 @@ impl World<'_, '_> {
                         },
                     ) = (original_value.as_ref(), value.as_ref())
                     {
-                        self.pay(
-                            images
-                                .len()
-                                .saturating_add(original.implicit_lifetimes.len()),
-                        )?;
                         for (expected, actual) in images.iter().zip(actual_images) {
+                            self.pay(1)?;
                             if let SemanticClassExpr::Implicit {
                                 scope: SemanticScopeRef::Ancestor(0),
                                 ordinal,
                             } = expected
-                            {
-                                if original.implicit_lifetimes.iter().any(|i| {
-                                    i.ordinal == *ordinal
-                                        && i.occurrence_path == recipe.occurrence_path
-                                }) && matches!(
+                                && matches!(
                                     actual,
                                     SemanticClassExpr::OuterOccurrence {
                                         operand: SemanticOperand::Value(_),
                                         ..
                                     }
-                                ) {
+                                )
+                            {
+                                let mut found = false;
+                                for occurrence in &original.implicit_lifetimes {
+                                    self.pay(occurrence.occurrence_path.len().saturating_add(1))?;
+                                    if occurrence.ordinal == *ordinal
+                                        && occurrence.occurrence_path == recipe.occurrence_path
+                                    {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if found {
+                                    crate::dyn_metadata::semantic_operand_snapshot(
+                                        actual,
+                                        self.limits,
+                                        self.left,
+                                        1,
+                                    )?;
+                                    self.pay(index::search(implicit.len()).saturating_add(1))?;
                                     if let Some(old) = implicit.insert(*ordinal, actual.clone()) {
+                                        crate::dyn_metadata::semantic_operand_snapshot(
+                                            &old,
+                                            self.limits,
+                                            self.left,
+                                            1,
+                                        )?;
                                         if old != *actual {
                                             return Err(bad(
                                                 "one original occurrence selects different emitted class heads",

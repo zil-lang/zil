@@ -4,7 +4,7 @@ use super::*;
 type Key = (SemanticDefinitionId, zil_base::Fingerprint);
 
 pub(super) struct Table<T> {
-    buckets: BTreeMap<Key, Vec<(SemanticTypeRecipe, T)>>,
+    buckets: BTreeMap<Key, Vec<(std::rc::Rc<SemanticTypeRecipe>, T)>>,
     entries: usize,
 }
 impl<T: Copy> Table<T> {
@@ -29,9 +29,14 @@ impl<T: Copy> Table<T> {
         if let Some(bucket) = self.buckets.get(&key) {
             fee(left, bucket.len())?;
             for (candidate, result) in bucket {
-                crate::dyn_metadata::semantic_operand_snapshot(candidate, limits, left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    candidate.as_ref(),
+                    limits,
+                    left,
+                    1,
+                )?;
                 crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
-                if candidate == recipe {
+                if candidate.as_ref() == recipe {
                     return Ok((key, Some(*result)));
                 }
             }
@@ -45,7 +50,7 @@ impl<T: Copy> Table<T> {
         value: T,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<()> {
+    ) -> R<std::rc::Rc<SemanticTypeRecipe>> {
         if self.entries >= limits.max_nodes {
             return Err(Diagnostic::limit(
                 Phase::Types,
@@ -57,12 +62,15 @@ impl<T: Copy> Table<T> {
             left,
             (self.buckets.len().saturating_add(1).ilog2() as usize + 1)
                 .saturating_add(std::mem::size_of::<Key>())
-                .saturating_add(std::mem::size_of::<(SemanticTypeRecipe, T)>()),
+                .saturating_add(std::mem::size_of::<(std::rc::Rc<SemanticTypeRecipe>, T)>()),
         )?;
-        let recipe = copy_recipe(recipe, limits, left)?;
-        self.buckets.entry(key).or_default().push((recipe, value));
+        let recipe = std::rc::Rc::new(copy_recipe(recipe, limits, left)?);
+        self.buckets
+            .entry(key)
+            .or_default()
+            .push((recipe.clone(), value));
         self.entries += 1;
-        Ok(())
+        Ok(recipe)
     }
 }
 fn fee(left: &mut usize, amount: usize) -> R<()> {

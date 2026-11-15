@@ -11,7 +11,7 @@ fn with_check<T>(
     run: impl FnOnce(&mut Check<'_, '_>) -> R<T>,
 ) -> R<T> {
     *left = left
-        .checked_sub(proof.complete.len().saturating_add(1))
+        .checked_sub(proof.complete.len().saturating_add(1).ilog2() as usize + 2)
         .ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "original cleanup context work exceeded", None)
         })?;
