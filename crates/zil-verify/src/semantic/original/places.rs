@@ -3,6 +3,28 @@
 use super::*;
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
+    pub(in crate::semantic) fn address_place(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(intrinsics::AddressRoot,Vec<intrinsics::AddressProjection>)>{
+        let index=index::build(module,b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect address has no complete original owner body"))?;
+        let mut expression=*function.expressions.get(&node).ok_or_else(||bad("indirect address original operand is absent"))?;
+        let mut projections=Vec::new();
+        loop{
+            b.spend(1)?;
+            if expression.id!=node&&matches!(self.resolved(self.expressions.get(&(definition,expression.id)).ok_or_else(||bad("address parent has no independent original type"))?,b)?,Ty::Address{..}){
+                if self.value_places.contains_key(&(definition,expression.id)){return Ok((intrinsics::AddressRoot::Place(expression.id),projections));}
+                return Ok((intrinsics::AddressRoot::Value(expression.id),projections));
+            }
+            expression=match &expression.kind{
+                CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=>inner,
+                CoreExprKind::Member{object,member,..}=>{b.spend(member.len())?;projections.push(intrinsics::AddressProjection::Field(member.clone()));object},
+                CoreExprKind::Index{object,index}=>{projections.push(intrinsics::AddressProjection::Index(index.id));object},
+                CoreExprKind::Slice{object,start,end}=>{projections.push(intrinsics::AddressProjection::Slice{start:start.as_ref().map(|value|value.id),end:end.as_ref().map(|value|value.id)});object},
+                CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>operand,
+                CoreExprKind::ReceiverMember(member)=>{let ordinal=function.receiver_parameter.ok_or_else(||bad("borrowed receiver field lacks its exact original receiver parameter"))?;b.spend(member.len())?;projections.push(intrinsics::AddressProjection::Field(member.clone()));return Ok((intrinsics::AddressRoot::Parameter(ordinal),projections));},
+                _ if self.value_places.contains_key(&(definition,expression.id))=>return Ok((intrinsics::AddressRoot::Place(expression.id),projections)),
+                _=>return Err(unsupported("indirect address has no complete original Place/address-parent projection",Some(expression.span))),
+            };
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn place(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<(Ty,Option<Place>)>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{

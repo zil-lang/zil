@@ -13,9 +13,12 @@ impl Numeric {
     fn from_type(ty:&Type)->Option<Self>{[Self::I8,Self::I16,Self::I32,Self::I64,Self::Isize,Self::U8,Self::U16,Self::U32,Self::U64,Self::Usize,Self::F32,Self::F64].into_iter().find(|value|value.ty()==*ty)}
 }
 #[derive(Clone,Copy,PartialEq,Eq)]
-pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32},Place{definition:SemanticDefinitionId,node:NodeId}}
+pub(in crate::semantic) enum BufferSource {Local{definition:SemanticDefinitionId,node:NodeId},Parameter{definition:SemanticDefinitionId,ordinal:u32},Place{definition:SemanticDefinitionId,node:NodeId},Address{definition:SemanticDefinitionId,node:NodeId}}
 #[derive(Clone,Copy)]
 pub(in crate::semantic) enum BufferRoot {Local{node:NodeId},Parameter{ordinal:u32},Capture,Pattern}
+#[derive(Clone,Copy)]
+pub(in crate::semantic) enum AddressRoot {Place(NodeId),Value(NodeId),Parameter(u32)}
+pub(in crate::semantic) enum AddressProjection {Field(String),Index(NodeId),Slice{start:Option<NodeId>,end:Option<NodeId>}}
 #[derive(Clone,Copy)]
 pub(in crate::semantic) struct Use {pub(in crate::semantic) kind:Intrinsic,pub(in crate::semantic) buffer:Option<BufferSource>,pub(in crate::semantic) worker:Option<SemanticDefinitionId>,pub(in crate::semantic) providers:Option<[SemanticDefinitionId;3]>}
 impl Intrinsic {

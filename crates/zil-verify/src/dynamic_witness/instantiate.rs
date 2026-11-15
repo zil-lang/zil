@@ -260,6 +260,7 @@ fn walk(
         return Err(limit("fresh type substitution depth exceeded"));
     }
     let expected = match pattern {
+        DynTypePattern::Semantic{scope,ty}=>semantic_patterns::value(module,*scope,ty,receiver,args,None,b)?,
         DynTypePattern::SelfType => {
             dynamic_metadata::recipe(&receiver.raw, b)?;
             receiver.clone()

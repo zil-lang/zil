@@ -16,6 +16,22 @@ impl Session {
     }
 }
 
+pub(crate) fn provider(module:&TypedModule,table:&DynVtable,declaration:&DynDeclaration,interface:&DynInterface,b:&mut Budget)->Check<()>{
+    if table.implementation!=declaration.id||declaration.kind!=DynDeclarationKind::Impl{return Err(bad("semantic provider selects another complete original implementation"));}
+    let life=table.self_life.as_ref().ok_or_else(||bad("semantic provider complete Self intrinsic domain is Unknown"))?;
+    dynamic_metadata::life_shape(life,b)?;dynamic_metadata::ty(&table.self_type,b)?;b.spend(table.self_classes.len())?;
+    let receiver=DynTypeValue{ty:table.self_type.clone(),life:life.clone(),classes:table.self_classes.clone()};
+    let scope=DynInstantiationScope{fixed_binder_count:interface.retained_life.binder_count,invocation_binder_count:0};
+    values::check(module,&receiver,scope,b)?;graph::kinds(module,&declaration.parameters,&table.actuals,scope,b)?;
+    let count=declaration.implicit_lifetimes.as_ref().ok_or_else(||bad("semantic provider original anonymous occurrence directory is Unknown"))?.len();b.spend(count)?;
+    let mut args=matching::Arguments{semantic_owner:Some(SemanticDynOwner::Declaration(declaration.id)),owner:terms::Owner::Witness(table.id,u32::MAX),terms:terms::Substitution::default(),projections:vec![],constants:vec![],collecting_anchors:false,declaration:std::borrow::Cow::Borrowed(&table.actuals),method:std::borrow::Cow::Borrowed(&[]),invocation:&[],implicit:vec![None;count]};
+    let pattern=declaration.self_pattern.as_ref().ok_or_else(||bad("semantic provider original Self recipe is Unknown"))?;
+    matching::ty(module,pattern,&receiver,&receiver,&mut args,b)?;
+    matching::complete_anchors(module,declaration,&interface.application,&receiver,&mut args,b)?;
+    let application=declaration.implemented_trait.as_ref().ok_or_else(||bad("semantic provider original trait application is Unknown"))?;
+    matching::application(module,application,&interface.application,&receiver,&mut args,b)
+}
+
 fn method(owner:&SemanticDynOwner)->bool{!matches!(owner,SemanticDynOwner::Declaration(_))}
 fn formal_role(owner:&SemanticDynOwner,scope:SemanticScopeRef)->Check<bool>{
     let SemanticScopeRef::Ancestor(depth)=scope;

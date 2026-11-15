@@ -750,6 +750,7 @@ impl CheckedContext {
             match &instruction.kind {
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}=>value=*address,
                 InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}if !description=>break,
+                InstructionKind::AddressField{..}|InstructionKind::AddressIndex{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::BorrowCapture{..}if !description&&source.is_some()=>break,
                 InstructionKind::DescribeLocal{..}|InstructionKind::DescribePackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::DescribeAddress{..}if description=>break,
                 _=>return Ok(()),
             }

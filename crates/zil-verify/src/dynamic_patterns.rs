@@ -291,6 +291,16 @@ pub(super) fn provider(
     iface: &DynInterface,
     b: &mut Budget,
 ) -> Check<()> {
+    let mut pending=Vec::new();if let Some(pattern)=&declaration.self_pattern{pending.push(pattern);}
+    if let Some(application)=&declaration.implemented_trait{for argument in &application.arguments{if let DynPatternActual::Type(ty)=argument{pending.push(ty);}}}
+    while let Some(pattern)=pending.pop(){b.spend(1)?;match pattern{
+        DynTypePattern::Semantic{..}=>return crate::dynamic_witness::semantic_patterns::provider(module,table,declaration,iface,b),
+        DynTypePattern::Nominal(application)=>for argument in &application.arguments{if let DynPatternActual::Type(ty)=argument{pending.push(ty);}},
+        DynTypePattern::Address{inner,..}|DynTypePattern::Desc{inner,..}|DynTypePattern::Managed(inner)|DynTypePattern::Slice(inner)|DynTypePattern::OwnedStore(inner)|DynTypePattern::Array{element:inner,..}=>pending.push(inner),
+        DynTypePattern::Tuple(fields)=>pending.extend(fields),
+        DynTypePattern::ErrorUnion{error,result}=>{pending.push(error);pending.push(result);},
+        _=>{},
+    }}
     match &declaration.self_pattern {
         Some(DynTypePattern::Nominal(pattern)) => {
             let Type::BorrowedStorage { life, .. } = &table.self_type else {

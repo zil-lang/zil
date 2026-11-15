@@ -42,7 +42,14 @@ impl CheckedOriginal {
         let mut expression=*function.expressions.get(node).ok_or_else(||bad("original address expression is absent"))?;
         loop{b.spend(1)?;match &expression.kind{CoreExprKind::Group(value)|CoreExprKind::Ascribed{value,..}=>expression=value, _=>break}}
         let CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=&expression.kind else{return Ok(None);};
-        let place=self.value_places.get(&(definition,operand.id)).ok_or_else(||unsupported("original address needs its complete checked source Place",None))?;
+        if !matches!(operand.kind,CoreExprKind::Name(_)){
+            self.address_place(module,definition,operand.id,b)?;
+            return Ok(Some(intrinsics::BufferSource::Address{definition,node:operand.id}));
+        }
+        let Some(place)=self.value_places.get(&(definition,operand.id))else{
+            self.address_place(module,definition,operand.id,b)?;
+            return Ok(Some(intrinsics::BufferSource::Address{definition,node:operand.id}));
+        };
         if !place.fields.is_empty()||matches!(place.binder,Binder::Capture{..}|Binder::Pattern{..}){return Ok(Some(intrinsics::BufferSource::Place{definition,node:operand.id}));}
         Ok(Some(match &place.binder{Binder::Local{definition,node,..}=>intrinsics::BufferSource::Local{definition:*definition,node:*node},Binder::Parameter{definition,ordinal}=>intrinsics::BufferSource::Parameter{definition:*definition,ordinal:*ordinal},_=>return Err(unsupported("original address needs its complete captured/indirect Place boundary",None))}))
     }

@@ -2,10 +2,74 @@
 //! selectors prove identities only; address/description loans, initialization,
 //! field debts and retirement remain obligations of the ordinary kernels.
 use super::*;
-use original::intrinsics::{BufferRoot,BufferSource};
+use original::intrinsics::{AddressProjection,AddressRoot,BufferRoot,BufferSource};
 use zil_base::NodeId;
 
 impl CheckedContext{
+    pub(super) fn address_place_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
+        if definition!=caller.definition{return Err(bad("indirect borrow selects another original lexical owner"));}
+        let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
+        let mut seen=BTreeSet::new();
+        let mut fused=None;
+        for(ordinal,projection)in projections.iter().enumerate(){
+            loop{
+                b.spend(1)?;if !seen.insert(value){return Err(bad("indirect borrow has a cyclic actual projection chain"));}
+                let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
+                if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
+                match (projection,&instruction.kind){
+                    (AddressProjection::Field(name),InstructionKind::AddressField{address,index})=>{
+                        let ty=f.values.get(address.0 as usize).ok_or_else(||bad("indirect field parent has no actual type"))?;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;value=*address;
+                    },
+                    (AddressProjection::Field(name),InstructionKind::BorrowPackageField{local,index,..})if ordinal+1==projections.len()=>{
+                        let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("borrowed Package field has no complete actual parent"))?.ty;let mut field=vec![name.clone()];consume_field(ty,*index,&mut field,b)?;fused=Some(*local);
+                    },
+                    (AddressProjection::Index(node),InstructionKind::AddressIndex{address,index})=>{
+                        self.exact_expression_value(module,caller,f,*index,*node,b)?;value=*address;
+                    },
+                    (AddressProjection::Slice{start,end},InstructionKind::AddressSlice{address,start:actual_start,end:actual_end})=>{
+                        for(original,actual)in[(start,actual_start),(end,actual_end)]{match(original,actual){(Some(node),Some(value))=>self.exact_expression_value(module,caller,f,*value,*node,b)?,(None,None)=>{},_=>return Err(bad("indirect slice changes an exact original endpoint occurrence")),}}
+                        value=*address;
+                    },
+                    _=>return Err(bad("indirect borrow actual projection differs from its complete original ordered Place")),
+                }break;
+            }
+        }
+        if let Some(local)=fused{return match root{
+            AddressRoot::Place(node)=>{let(root,fields)=self.original.borrow().as_ref().ok_or_else(||bad("borrowed Package field lacks its independent original parent Place"))?.buffer_place(definition,node,b)?;if !fields.is_empty(){return Err(bad("fused borrowed Package field omitted an original parent projection"));}self.projected_local_root(module,caller,f,local,root,node,b)},
+            AddressRoot::Parameter(ordinal)=>{if self.buffer_source_local(module,caller,f,BufferSource::Parameter{definition,ordinal},b)?!=local{return Err(bad("borrowed receiver field selects another actual parameter"));}Ok(())},
+            AddressRoot::Value(_)=>Err(bad("fused borrowed Package field replaced its original indirect parent")),
+        };}
+        match root{
+            AddressRoot::Place(node)=>self.projected_buffer_source(module,caller,f,value,definition,node,b),
+            AddressRoot::Value(node)=>self.exact_expression_value(module,caller,f,value,node,b),
+            AddressRoot::Parameter(ordinal)=>self.intrinsic_buffer_source(module,caller,f,value,BufferSource::Parameter{definition,ordinal},b),
+        }
+    }
+    fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+        let definition=self.definition(module,caller.definition,b)?;
+        let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("address source occurrence has no complete original body"));};
+        let program=module.semantic.as_ref().ok_or_else(||bad("address source occurrence programme is absent"))?;
+        let mut sources=BTreeSet::new();
+        for original in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(node)){
+            b.spend(program.sites.len())?;
+            for site in program.sites.iter().filter(|site|site.instance==caller.id&&site.recipe==original.site){match site.action{
+                SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}|SemanticSiteAction::Construct{result:SemanticOperand::Value(value),..}=>{sources.insert(value);},
+                SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}=>{
+                    let SemanticSiteAddress::Typed{block,instruction,..}=site.at else{return Err(bad("address input retains a nonactual original call"));};
+                    if let Some(value)=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize)).and_then(|instruction|instruction.result){sources.insert(value);}
+                },_=>{},
+            }}
+        }
+        if sources.is_empty(){return Err(bad("address input has no exact actual original expression occurrence"));}
+        let mut seen=BTreeSet::new();loop{
+            b.spend(sources.len().saturating_add(1))?;
+            if sources.contains(&value){return Ok(());}
+            if !seen.insert(value){return Err(bad("address input has a cyclic actual reborrow chain"));}
+            let(_,_,instruction)=producer(f,value,b)?;
+            let InstructionKind::ReborrowAddress{address,..}=instruction.kind else{return Err(bad("address input selects another same-typed original expression value"));};
+            crate::check_instruction(module,f,instruction,b)?;value=address;
+        }
+    }
     pub(super) fn projected_buffer_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
         if definition!=caller.definition{return Err(bad("projected buffer observation uses another original scope"));}
         let (root,mut fields)=self.original.borrow().as_ref().ok_or_else(||bad("projected buffer has no original body proof"))?.buffer_place(definition,node,b)?;

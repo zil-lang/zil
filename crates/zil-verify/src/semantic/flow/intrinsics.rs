@@ -216,6 +216,9 @@ impl CheckedContext {
         if let BufferSource::Place { definition, node } = source {
             return self.projected_buffer_source(module, caller, f, value, definition, node, b);
         }
+        if let BufferSource::Address { definition, node } = source {
+            return self.address_place_source(module, caller, f, value, definition, node, b);
+        }
         let local = self.buffer_source_local(module, caller, f, source, b)?;
         let mut value = value;
         let mut seen = std::collections::BTreeSet::new();
@@ -324,7 +327,7 @@ impl CheckedContext {
                     bad("intrinsic original buffer has no exact actual local declaration")
                 })?
             }
-            BufferSource::Place { .. } => {
+            BufferSource::Place { .. } | BufferSource::Address { .. } => {
                 return Err(bad(
                     "projected buffer source was reduced to an unqualified local",
                 ));
