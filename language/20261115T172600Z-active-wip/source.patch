@@ -1,0 +1,113 @@
+diff --git a/crates/zil-verify/src/semantic/flow.rs b/crates/zil-verify/src/semantic/flow.rs
+index dc55bc007..e7ac4d0d2 100644
+--- a/crates/zil-verify/src/semantic/flow.rs
++++ b/crates/zil-verify/src/semantic/flow.rs
+@@ -421,7 +421,7 @@ impl CheckedContext {
+         let mut anchors=Vec::<(SemanticClassExpr,ClassKey)>::new();
+         for(ordinal,value)in checked.iter().enumerate(){match value{
+             CheckedActual::Life(key)=>anchors.push((SemanticClassExpr::Environment{scope:SemanticScopeRef::Ancestor(0),ordinal:ordinal as u32},key.clone())),
+-            CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::phantom_only(value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
++            CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::complete_environment(module,value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
+             _=>{},
+         }}
+         for value in &checked{b.spend(1)?;match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{dynamic_metadata::ty(&value.ty,b)?;b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;},CheckedActual::Life(_)=>{}}}
+@@ -452,7 +452,7 @@ impl CheckedContext {
+             }else if value.classes.is_empty()&&value.statics.is_empty(){
+                 self.classfree_capture(module,creator,child,index as u32,*capture,b)?;
+             }else{
+-                let ordinal=self.phantom_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
++                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
+                 logical_captures.insert(index as u32,ordinal);
+             }
+             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;
+@@ -491,16 +491,7 @@ impl CheckedContext {
+         for (index,_) in captures.iter().enumerate() {
+             if let Some(ordinal)=logical_captures.get(&(index as u32)){
+                 let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
+-                for class in 0..value.classes.len(){
+-                    b.spend(relation.classes.len().saturating_add(child.header_embedding.len()))?;
+-                    let mut rows=relation.classes.iter().filter(|row|row.position.base==StorageBase::Capture(index as u32)&&row.position.path.is_empty()&&row.position.class==class as u32);
+-                    let row=rows.next().ok_or_else(||bad("logical capture class lacks its complete actual header occurrence"))?;
+-                    if rows.next().is_some(){return Err(bad("logical capture class has repeated header occurrences"));}
+-                    let mut embedding=child.header_embedding.iter().filter(|map|map.header==row.binder);
+-                    let map=embedding.next().ok_or_else(||bad("logical capture class has no original environment embedding"))?;
+-                    let expected=SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(*ordinal as u32),path:vec![],class:class as u32};
+-                    if !matches!(row.binder,StorageBinder::Fixed(_))||embedding.next().is_some()||map.actual!=expected{return Err(bad("logical capture class maps another original environment occurrence"));}
+-                }
++                self.environment_capture_header(relation,child,index as u32,*ordinal,value,b)?;
+                 continue;
+             }
+             if value_at(values,captures[index])?.classes.is_empty(){continue;}
+diff --git a/crates/zil-verify/src/semantic/flow/ghost_captures.rs b/crates/zil-verify/src/semantic/flow/ghost_captures.rs
+index 918a9ad82..579c49ae4 100644
+--- a/crates/zil-verify/src/semantic/flow/ghost_captures.rs
++++ b/crates/zil-verify/src/semantic/flow/ghost_captures.rs
+@@ -4,14 +4,14 @@
+ use super::*;
+ impl CheckedContext {
+     #[allow(clippy::too_many_arguments)]
+-    pub(super) fn phantom_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,sealed:&[CheckedActual],environment:&EvalEnv,b:&mut Budget)->Check<usize>{
++    pub(super) fn environment_capture(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,node:zil_base::NodeId,value:ValueId,actual:&CheckedType,sealed:&[CheckedActual],environment:&EvalEnv,b:&mut Budget)->Check<usize>{
+         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("logical capture creator is not an actual function"));};
+         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("logical capture creator function is absent"))?;
+         let mut selected=None;
+         for(ordinal,expected)in sealed.iter().enumerate(){
+             let CheckedActual::Type(expected)=expected else{continue;};
+             if expected.ty!=actual.ty{continue;}
+-            phantom_only(expected,b)?;
++            complete_environment(module,expected,b)?;
+             let source=self.original.borrow().as_ref().ok_or_else(||bad("logical capture has no checked original body"))?.ghost_capture_source(module,creator.definition,child.definition,ordinal,node,b)?;
+             // Resolve every same-shaped original candidate by its real binder.
+             // A different candidate cannot donate its class inventory.
+@@ -38,5 +38,11 @@ pub(super) fn phantom_only(value:&CheckedType,b:&mut Budget)->Check<()> {
+ fn capture_local(f:&TypedFunction,value:ValueId,local:LocalId,b:&mut Budget)->Check<bool>{
+     let mut producer=None;
+     for block in &f.blocks{b.spend(block.instructions.len())?;for instruction in &block.instructions{if instruction.result==Some(value)&&producer.replace(instruction).is_some(){return Err(bad("logical capture operand has several actual SSA definitions"));}}}
+-    match &producer.ok_or_else(||bad("logical capture actual operand is undefined"))?.kind{InstructionKind::Load(actual)|InstructionKind::TakeLocal{local:actual}=>Ok(*actual==local),_=>Ok(false)}
++    match &producer.ok_or_else(||bad("logical capture actual operand is undefined"))?.kind{InstructionKind::Load(actual)|InstructionKind::TakeLocal{local:actual}|InstructionKind::DescribeLocal{local:actual}|InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual}=>Ok(*actual==local),InstructionKind::ReborrowAddress{address,..}|InstructionKind::DescribeAddress{address}=>capture_local(f,*address,local,b),_=>Ok(false)}
++}
++
++pub(super) fn complete_environment(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<()>{
++    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
++    let(count,_)=dynamic_witness::intrinsic_domain(module,&value.ty,b)?;
++    if count!=value.life.binder_count||value.classes.len()!=count as usize||value.origins.len()!=count as usize{return Err(bad("logical environment omits a complete intrinsic class or original origin"));}Ok(())
+ }
+diff --git a/crates/zil-verify/src/semantic/original/raw_schemes.rs b/crates/zil-verify/src/semantic/original/raw_schemes.rs
+index 1dfb8c264..6cdfcb956 100644
+--- a/crates/zil-verify/src/semantic/original/raw_schemes.rs
++++ b/crates/zil-verify/src/semantic/original/raw_schemes.rs
+@@ -8,6 +8,9 @@ impl CheckedOriginal {
+         for declaration in &module.dyn_declarations {
+             dynamic_metadata::scoped_declaration(module,declaration,b)?;
+             if !identities.insert(declaration.id) { return Err(bad("original trait/impl inventory repeats a declaration identity")); }
++            // Builtin Drop has an exact sealed original body and identity,
++            // but no user DynProvider/FullW recipe. Preserve that distinction.
++            if dynamic_metadata::sealed_drop_metadata(module,declaration,b)? { continue; }
+             let scope = dynamic_witness::semantic_external::original_scope(module, declaration.id, b)?;
+             self.current = Some(scope.id);
+             let env = self.environment(module, context, scope.id, active, b)?;
+diff --git a/crates/zil-verify/src/stored_flow/nominal/plain.rs b/crates/zil-verify/src/stored_flow/nominal/plain.rs
+index 4b685cad1..d1e04f254 100644
+--- a/crates/zil-verify/src/stored_flow/nominal/plain.rs
++++ b/crates/zil-verify/src/stored_flow/nominal/plain.rs
+@@ -23,12 +23,19 @@ pub(super) fn with_active(module: &TypedModule, instance: &LifeNominalInstance,
+             // cannot provide its original occurrence or map it to no class.
+             (LifeParameterKind::Lifetime, _) => return Err(err("plain nominal omits a persistent lifetime actual")),
+             (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => zero(module, ty, limits, b, active)?,
++            (LifeParameterKind::Type, LifeNominalActual::QualifiedType{ty,life}) => {
++                if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Err(err("plain nominal cannot erase a nonzero qualified Type actual"));}
++                // Empty metadata is not a zero-domain proof. The complete
++                // actual type independently establishes Known0 below.
++                zero(module,ty,limits,b,active)?;
++            },
+             (LifeParameterKind::Const(ty), LifeNominalActual::Const(value)) if value.ty() == *ty && (ty.is_integer() || ty.is_float() || matches!(ty, Type::Unit | Type::Bool)) => { type_work(ty, limits, b)?; },
+             _ => return Err(err("plain nominal changes its full-ordinal actual kind or constant carrier")),
+         }
+     }
+     if declaration.id.compiler {
+-        let [LifeNominalActual::Type(actual)] = instance.arguments.as_slice() else { return Err(err("plain builtin nominal omits its complete Type argument")); };
++        let [argument] = instance.arguments.as_slice() else { return Err(err("plain builtin nominal omits its complete Type argument")); };
++        let actual=match argument{LifeNominalActual::Type(ty)|LifeNominalActual::QualifiedType{ty,..}=>ty,_=>return Err(err("plain builtin nominal changes its actual full-ordinal Type kind"))};
+         let Type::Enum { name, variants } = &instance.ty else { return Err(err("plain builtin nominal is not its actual enum")); };
+         b.spend(name.len().saturating_add(variants.len()).saturating_add(96))?;
+         let option = option_address::declaration(declaration);
