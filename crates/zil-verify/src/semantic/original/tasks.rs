@@ -238,6 +238,7 @@ impl CheckedOriginal {
                 "Task operation selects another complete frame/result type",
             ));
         };
+        self.calls.insert((env.current()?,site),vec![Arg::Type(*child.clone())]);
         Ok(match kind {
             Intrinsic::TaskValid => Ty::Atom(Type::Bool),
             Intrinsic::TaskPoll => Ty::ErrorUnion(

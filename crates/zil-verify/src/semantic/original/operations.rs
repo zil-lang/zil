@@ -38,6 +38,7 @@ impl CheckedOriginal {
             worker: None,
             providers: None,
         };
+        let mut mixed=Vec::new();
         if kind != Intrinsic::StoreNew && !written.is_empty() {
             return Err(bad("operational intrinsic has unexpected mixed actuals"));
         }
@@ -71,6 +72,7 @@ impl CheckedOriginal {
                 b.spend(1)?;
                 self.element_obligations
                     .push((element.clone(), env.clone()));
+                mixed.push(Arg::Type(element.clone()));
                 Ty::Managed(Box::new(Ty::Store(Box::new(element))))
             }
             Intrinsic::StoreReserve
@@ -107,6 +109,7 @@ impl CheckedOriginal {
                 let Ty::Store(element) = payload else {
                     return Err(bad("Store operation has another complete resource payload"));
                 };
+                mixed.push(Arg::Type(*element.clone()));
                 self.element_obligations
                     .push((*element.clone(), env.clone()));
                 match kind {
@@ -214,6 +217,7 @@ impl CheckedOriginal {
                     active,
                     b,
                 )?;
+                mixed.push(Arg::Type(value.clone()));
                 Ty::ErrorUnion(
                     Box::new(Ty::SealedError(SealedError::MutexCreate)),
                     Box::new(Ty::Managed(Box::new(Ty::Carrier {
@@ -253,6 +257,7 @@ impl CheckedOriginal {
                     child: child.clone(),
                     retained: Box::default(),
                 };
+                mixed.push(Arg::Type(*child.clone()));
                 Ty::Carrier {
                     kind: CarrierKind::MutexGuard,
                     child,
@@ -311,6 +316,7 @@ impl CheckedOriginal {
                 else {
                     return Err(bad("guard operation has another complete guard type"));
                 };
+                mixed.push(Arg::Type(*child.clone()));
                 if kind == Intrinsic::MutexValue {
                     use_.buffer = Some(self.operation_source(&arguments[0], env, bindings, b)?);
                     Ty::Address {
@@ -361,6 +367,8 @@ impl CheckedOriginal {
                     active,
                     b,
                 )?;
+                mixed.push(Arg::Type(callback.clone()));
+                self.intrinsic_type_sources.insert((env.current()?,site,0),arguments[3].id);
                 let signature =
                     self.operation_callable(module, context, &callback, env, active, b)?;
                 if signature.parameters != [Ty::Atom(Type::I32)]
@@ -464,13 +472,9 @@ impl CheckedOriginal {
                 };
                 let (payload, _) =
                     self.operation_payload(&value, env.current()?, arguments[0].id, b)?;
-                if !matches!(
-                    payload,
-                    Ty::Carrier {
-                        kind: CarrierKind::AsyncRegistration,
-                        ..
-                    }
-                ) {
+                if let Ty::Carrier{kind:CarrierKind::AsyncRegistration,child,..}=&payload {
+                    mixed.push(Arg::Type(*child.clone()));
+                } else {
                     return Err(bad(
                         "async operation has another complete registration environment",
                     ));
@@ -492,6 +496,7 @@ impl CheckedOriginal {
             _ => return Err(bad("operation entered another closed scheme")),
         };
         self.execute_effect(env, CallKind::Direct, b)?;
+        self.calls.entry((env.current()?,site)).or_insert(mixed);
         b.spend(1)?;
         self.intrinsic_calls.insert((env.current()?, site), use_);
         Ok(Some(result))

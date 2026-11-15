@@ -2,6 +2,19 @@
 //! table cannot shadow an actual value binder or create a new where premise.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn parameter_source(&self,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<u32>> {
+        b.spend(1)?;
+        let binder=match source {
+            SemanticOriginalTypeSource::Parameter(index)=>return Ok(Some(*index)),
+            SemanticOriginalTypeSource::Expression(node)=>{
+                if self.injections.contains_key(&(definition,*node)){return Ok(None);}
+                self.value_bindings.get(&(definition,*node))
+            },
+            SemanticOriginalTypeSource::NameAt{at,name}=>{let(kind,node)=node_key(*at);b.spend(name.len())?;self.name_binders_at.get(&(definition,kind,node,name.clone()))},
+            _=>None,
+        };
+        Ok(match binder {Some(Binder::Parameter{definition:owner,ordinal})if *owner==definition=>Some(*ordinal),_=>None})
+    }
     /// An imported/static member chain is a declaration path only when its
     /// root is not an actual runtime value and the complete path has a real
     /// Value binding. A module alias or a Type binding alone grants no call.

@@ -149,7 +149,7 @@ impl CheckedContext {
         Ok(true)
     }
     pub(super) fn zero_header_type(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
-        dynamic_metadata::ty(ty,b)?;let mut pending=vec![ty];let mut has_task=false;
+        dynamic_metadata::ty(ty,b)?;let mut pending=vec![ty];
         while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
             // A zero pointee/retained domain does not erase an outer borrow.
             Type::Address{..}|Type::Desc(_)|Type::Dyn{..}|Type::BorrowedFunctionPointer{..}|Type::MutexGuard{..}=>return Ok(false),
@@ -162,16 +162,15 @@ impl CheckedContext {
             Type::Slice{..}=>return Ok(false),
             // Opaque/code inventories retain their own complete domain. Their
             // signature borrows are not physical fields of this runtime value.
-            Type::Task{..}=>has_task=true,
+            Type::Task{..}=>{},
             Type::Closure(_)|Type::OwnedDyn{..}|Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{},
             _=>{},
         }}
-        if has_task{
-            // Only a structural ABI cursor. Worker/full-entry and every
-            // constructor obligation must still be discharged at module exit.
-            return task_domains::metadata_zero_type(module,ty,b)?.ok_or_else(||unsupported("Task ABI metadata has no complete zero-domain cursor",None));
-        }
-        let(count,pending)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0||pending{return Ok(false);}
+        // Inspect complete opaque captures as well as direct frame heads.
+        // Pending data/cleanup sources do not make a known zero ABI domain
+        // nonzero, and this cursor grants none of those pending obligations.
+        if let Some(zero)=task_domains::metadata_zero_type(module,ty,b)?{return Ok(zero);}
+        let(count,_pending)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0{return Ok(false);}
         // Missing/unknown nominal or opaque inventory never becomes Known0.
         // This structural ABI fact supplies no constructor, root or permission.
         self.checked_value(module,ty,&empty_life(),vec![],b)?;Ok(true)

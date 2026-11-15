@@ -35,11 +35,12 @@ impl CheckedContext {
         let SemanticSiteAction::BodyCall { actuals } = &site.action else {
             unreachable!()
         };
-        if !actuals.is_empty() {
-            return Err(unsupported(
-                "operational mixed actual vector requires its complete original closed-scheme substitution",
-                None,
-            ));
+        let recipes=self.original.borrow().as_ref().ok_or_else(||bad("actual intrinsic lacks universal original proof"))?
+            .intrinsic_recipes(module,caller.definition,site.recipe,environment,b)?;
+        if recipes.len()!=actuals.len(){return Err(bad("operational mixed actual vector differs from its complete original scheme arity"));}
+        for(recipe,actual)in recipes.iter().zip(actuals){
+            let expected=self.evaluate_actual(module,recipe,environment,external,active,b)?;
+            self.actual_claim(module,actual,&expected,environment,b)?;
         }
         let use_ = self
             .original

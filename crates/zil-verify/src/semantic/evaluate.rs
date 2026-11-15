@@ -34,6 +34,19 @@ impl CheckedContext {
                 let frame = self.frame(environment, *scope, b)?;
                 let definition = frame.definition;
                 if !self.domain_only.get() {
+                    let parameter=self.original.borrow().as_ref().ok_or_else(||bad("original source lacks its completed universal body"))?
+                        .parameter_source(definition,source,b)?;
+                    if let Some(parameter)=parameter {
+                        let values=self.occurrences.borrow();
+                        if let Some(value)=values.get(&(frame.key,OperandKey::Parameter(parameter))) {
+                            dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
+                            b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
+                            for key in &value.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
+                            for origin in &value.origins{charge_intrinsic_origin(origin,b)?;}
+                            for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
+                            return Ok(value.clone());
+                        }
+                    }
                     if let Some(value)=self.original_call_result(module,definition,source,frame.key,environment,b)?{
                         return Ok(value);
                     }

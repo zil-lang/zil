@@ -2,6 +2,19 @@
 //! This never infers a source type from the Typed value it is checking.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn intrinsic_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<Vec<SemanticActualRecipe>> {
+        self.intrinsic(definition,site,b)?;
+        let mut recipes=Vec::new();
+        if let Some(actuals)=self.calls.get(&(definition,site)) {
+            for(ordinal,value)in actuals.iter().enumerate(){
+                b.spend(1)?;
+                if let Some(node)=self.intrinsic_type_sources.get(&(definition,site,ordinal as u32)) {
+                    recipes.push(SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(*node)}));
+                } else {recipes.push(self.reify_argument(module,value,env,b)?);}
+            }
+        }
+        Ok(recipes)
+    }
     pub(in crate::semantic) fn opaque_result_recipe(&self,module:&TypedModule,owner:SemanticDefinitionId,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
         if !self.checked.contains(&owner){return Err(bad("opaque result lacks its completed universal original body proof"));}
         let hidden=self.results.get(&owner).ok_or_else(||bad("opaque original result role is absent"))?;

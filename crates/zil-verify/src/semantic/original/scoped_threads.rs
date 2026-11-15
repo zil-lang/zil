@@ -33,6 +33,9 @@ impl CheckedOriginal {
         self.structural_obligation(module,context,&body,DynStructuralBound::SyncDrop,env,active,b)?;
         b.spend(2)?;
         self.scoped_threads.insert((env.current()?,site),(worker,arguments[1].id,arguments[2].id));
+        self.calls.insert((env.current()?,site),vec![Arg::Type(input.clone()),Arg::Type(body.clone())]);
+        self.intrinsic_type_sources.insert((env.current()?,site,0),arguments[1].id);
+        self.intrinsic_type_sources.insert((env.current()?,site,1),arguments[2].id);
         self.scoped_thread_workers.push((worker,input,env.clone()));
         Ok(Ty::Tuple(vec![Ty::Atom(Type::Bool),Ty::Atom(Type::I32),Ty::Atom(Type::I32)]))
     }
