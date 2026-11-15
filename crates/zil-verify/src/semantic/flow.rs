@@ -752,7 +752,7 @@ impl CheckedContext {
         let mut actual=self.construct_value(module,ty,life,classes,b)?;
         for (index,expression) in expressions.iter().enumerate() {
             let source=self.expression_origin(expression,environment,b)?;
-            let expected_origin=expected.origins.get(index).ok_or_else(||bad("nominal claim original domain is incomplete"))?;
+            let expected_origin=expected.origins.get(index).ok_or_else(||bad(&format!("nominal claim original domain is incomplete [at {:?}, original {:?}, claim type {:?}, claim domain {}, claim classes {}, expected type {:?}, expected domain {}, expected classes {}, expected origins {}]",environment.at,environment.lexical.first().map(|frame|frame.definition),ty,life.binder_count,expressions.len(),expected.ty,expected.life.binder_count,expected.classes.len(),expected.origins.len())))?;
             if let Some(origin)=self.nominal_claim_origin(&actual.origins[index],expected_origin,source.as_ref(),environment,b)?{actual.origins[index]=origin;}
             else if let Some(origin)=source{actual.origins[index]=origin;}
         }
