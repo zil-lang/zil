@@ -56,7 +56,7 @@ struct Check<'a, 'i> {
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
-    trait_queries: std::cell::RefCell<Vec<traits::Query>>,
+    trait_queries: std::cell::RefCell<Vec<traits::ActiveQuery>>,
     nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
 }
 impl Check<'_, '_> {

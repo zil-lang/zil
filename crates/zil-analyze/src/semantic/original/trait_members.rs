@@ -87,6 +87,15 @@ pub(super) fn declaration_scope(
     inventory: &Inventory<'_>,
     b: &mut Budget,
 ) -> CompileResult<SemanticDefinitionId> {
+    let key = (
+        inventory.source_key(),
+        program as *const SemanticModule as usize,
+        declaration,
+    );
+    b.lookup(inventory.declaration_scopes.borrow().len(), WORK)?;
+    if let Some(scope) = inventory.declaration_scopes.borrow().get(&key) {
+        return Ok(*scope);
+    }
     let id = binding(
         program,
         &SemanticDynOwner::Declaration(declaration),
@@ -137,6 +146,8 @@ pub(super) fn declaration_scope(
         ));
     }
     mixed(&raw.parameters, &original.parameters, b)?;
+    b.lookup(inventory.declaration_scopes.borrow().len(), WORK)?;
+    inventory.declaration_scopes.borrow_mut().insert(key, id);
     Ok(id)
 }
 fn method_header(

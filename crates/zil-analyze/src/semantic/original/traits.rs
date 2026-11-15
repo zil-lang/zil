@@ -90,6 +90,11 @@ impl<'a> Inventory<'a> {
         id: LifeDeclarationId,
         b: &mut Budget,
     ) -> CompileResult<&'a DynDeclaration> {
+        let key = (self.source_key(), id);
+        b.lookup(self.dyn_definitions.borrow().len(), WORK)?;
+        if let Some(row) = self.dyn_definitions.borrow().get(&key) {
+            return Ok(*row);
+        }
         let mut found = None;
         let mut scan = |rows: &'a [DynDeclaration], b: &mut Budget| -> CompileResult<()> {
             for row in rows {
@@ -117,9 +122,12 @@ impl<'a> Inventory<'a> {
                 scan(&module.core.dyn_declarations, b)?;
             }
         }
-        found.ok_or_else(|| {
+        let found = found.ok_or_else(|| {
             fail("original trait declaration is absent from the complete source inventory")
-        })
+        })?;
+        b.lookup(self.dyn_definitions.borrow().len(), WORK)?;
+        self.dyn_definitions.borrow_mut().insert(key, found);
+        Ok(found)
     }
 }
 

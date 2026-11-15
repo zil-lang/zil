@@ -10,16 +10,29 @@ pub(super) struct Query {
     arguments: Vec<Argument>,
     member: Option<u32>,
 }
+pub(super) struct ActiveQuery {
+    query: Query,
+    comparison_work: usize,
+}
+
+#[track_caller]
 fn charge_value(value: &Value, b: &mut Budget) -> CompileResult<()> {
     crate::dyn_metadata::ty(&value.ty, b)?;
     crate::dyn_metadata::shape(&value.life, b)?;
     b.spend(value.classes.len(), WORK)
 }
+#[track_caller]
 fn charge_arguments(arguments: &[Argument], b: &mut Budget) -> CompileResult<()> {
+    b.spend(arguments.len(), WORK)?;
     for argument in arguments {
         match argument {
             Argument::Type(value) => charge_value(value, b)?,
-            Argument::Const { carrier, .. } => crate::dyn_metadata::ty(carrier, b)?,
+            Argument::Const { carrier, value } => {
+                crate::dyn_metadata::ty(carrier, b)?;
+                if let Constant::WideString(units) = value {
+                    b.spend(units.len(), WORK)?;
+                }
+            }
             Argument::Life(_) => b.spend(1, WORK)?,
         }
     }
@@ -478,8 +491,10 @@ impl Check<'_, '_> {
                 "actual associated dependency exceeds its complete query depth",
             ));
         }
+        let before = b.remaining();
         charge_value(receiver, b)?;
         charge_arguments(arguments, b)?;
+        let comparison_work = (before - b.remaining()).saturating_add(1);
         let query = Query {
             receiver: receiver.clone(),
             declaration,
@@ -487,15 +502,26 @@ impl Check<'_, '_> {
             member,
         };
         for old in self.trait_queries.borrow().iter() {
-            charge_value(&old.receiver, b)?;
-            charge_arguments(&old.arguments, b)?;
-            if old == &query {
+            b.spend(1, WORK)?;
+            if old.query.declaration != declaration || old.query.member != member {
+                continue;
+            }
+            // Old queries are immutable owned clones, already fully bounded.
+            // Pay a complete paired comparison rather than re-walking their
+            // raw metadata; every current query still had a fresh preflight.
+            b.spend(old.comparison_work.max(comparison_work), WORK)?;
+            if old.query == query {
                 return Err(fail(
                     "actual original associated/trait query graph is cyclic",
                 ));
             }
         }
-        self.trait_queries.borrow_mut().push(query);
+        let width = self.trait_queries.borrow().len();
+        b.spend(width.saturating_add(1), WORK)?;
+        self.trait_queries.borrow_mut().push(ActiveQuery {
+            query,
+            comparison_work,
+        });
         Ok(())
     }
 

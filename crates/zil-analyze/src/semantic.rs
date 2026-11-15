@@ -23,6 +23,13 @@ struct Inventory<'a> {
     definitions: BTreeMap<SemanticDefinitionId, &'a SemanticDefinition>,
     instances: BTreeMap<SemanticInstanceId, &'a SemanticInstance>,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
+    // Successful immutable source-directory queries only. A frozen source
+    // view is part of each key; none of these rows carries N/kappa or access.
+    dyn_definitions: std::cell::RefCell<BTreeMap<(usize, LifeDeclarationId), &'a DynDeclaration>>,
+    declaration_scopes:
+        std::cell::RefCell<BTreeMap<(usize, usize, LifeDeclarationId), SemanticDefinitionId>>,
+    drop_methods: std::cell::RefCell<BTreeMap<SemanticDefinitionId, Option<SemanticDefinitionId>>>,
+    ordinary_drop_absence: std::cell::RefCell<BTreeSet<SemanticDefinitionId>>,
 }
 impl<'a> Inventory<'a> {
     fn new(
@@ -42,6 +49,10 @@ impl<'a> Inventory<'a> {
             definitions: BTreeMap::new(),
             instances: BTreeMap::new(),
             functions: BTreeMap::new(),
+            dyn_definitions: std::cell::RefCell::new(BTreeMap::new()),
+            declaration_scopes: std::cell::RefCell::new(BTreeMap::new()),
+            drop_methods: std::cell::RefCell::new(BTreeMap::new()),
+            ordinary_drop_absence: std::cell::RefCell::new(BTreeSet::new()),
         };
         let mut identities = BTreeSet::new();
         for definition in &program.definitions {
@@ -94,6 +105,10 @@ impl<'a> Inventory<'a> {
             }
         }
         Ok(inventory)
+    }
+    fn source_key(&self) -> usize {
+        self.source
+            .map_or(0, |source| source as *const CoreProgram as usize)
     }
     #[track_caller]
     fn definition(
