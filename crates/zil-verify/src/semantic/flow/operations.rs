@@ -147,7 +147,7 @@ impl CheckedContext {
                 .get(row.binder as usize)
                 .cloned()
                 .ok_or_else(|| bad("owned-region head class is absent"))?;
-            let child = self.closed_value(module, inner, b)?;
+            let child = self.closed_pointee(module, inner, b)?;
             return dynamic_witness::semantic_external::construct(
                 self,
                 environment,
