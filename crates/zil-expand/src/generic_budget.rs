@@ -380,7 +380,7 @@ impl<'a> Budget<'a> {
     pub(crate) fn lineage_bytes(&mut self, bytes: usize, span: Span) -> R<()> {
         self.profile_cost(bytes.max(1));
         self.work = self.work.checked_sub(bytes.max(1)).ok_or_else(|| {
-            Diagnostic::limit(
+            self.profile_limit(
                 Phase::Expand,
                 "declaration lineage copy work exhausted",
                 Some(span),
