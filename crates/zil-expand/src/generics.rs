@@ -3688,17 +3688,12 @@ fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     if let Some(key) = rich_pointer::key(ty, budget)? {
         return Ok(key);
     }
-    // The profile is recorded during the existing bounded AST walk. Requests
-    // without anonymous sums retain their original key fees and traversal.
-    if budget.has_anonymous_sums()
-        || budget.has_borrowed_keys()
-        || budget.has_type_member_patterns()
-    {
-        if let Some(key) = type_keys::streamed(ty, budget)? {
-            return Ok(key);
-        }
-        type_keys::prepay(ty, budget)?;
+    if let Some(key) = type_keys::streamed(ty, budget)? {
+        return Ok(key);
     }
+    // Sorted sums and quantified keys allocate separate canonical child
+    // strings. Pay that renderer's complete output and comparison work.
+    type_keys::prepay(ty, budget)?;
     render_type_key(ty)
 }
 fn render_type_key(ty: &TypeRef) -> R<String> {
