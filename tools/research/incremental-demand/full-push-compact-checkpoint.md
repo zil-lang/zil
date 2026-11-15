@@ -1,33 +1,25 @@
-# 当前接续：完整调用链归并、导入与构造前裁剪
+# 当前接续：实际依赖、结果截断和当前分区条目复用
 
-实际编译源码 **027695318436fcb1f8994d0dc9802a0b2349c362**，binary `5b3a309a7860dca3a1d3f15e7c930ec7d3f3a3fa59286e6d91c67e0067c0743f`；工具05d4b276f。唯一施工分支research/full-push-native，actual main9170，研究默认关闭，合入Hold。源码与下面所有新性能数字只绑027，不归给98fa/021997/e677/065。
+当前编译源码 **f19fc847c5774a2472bd3af85019b5c937546010**，tree `c4aeeccf0ba4bfd92d2fb2587365444d75bed105`，binary `68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85`；冻结工具0f9d4d78e。唯一施工分支research/full-push-native；actual main9170保持。下列新数字只属于f19，不归027/021997/98fa。SDK18/native-link沿固定V32恢复，没有重建LLVM，研究入口仍默认关闭，main合入Hold。
 
-已按整条链实施：完整当前标量体→受限整数直接调用DAG精确等价类→完整导入/当前内部化→检查原完整unit后裁剪不可达local函数→真实16unit的preflight/Builder/full O2/LLVM Verify→发布/编辑/恢复。函数hash仅选择，完整Function等价授权；地址/入口/未知/循环边界保留。当前独立语言Verify、原始未裁体检查、预算和O2未减，所有研究入口默认关闭。
+本轮已施工：Expand按实际标量namespace保留未受远程签名影响的产物；CT按函数记录真实正/负/歧义hint读取。后端按FunctionId索引及自身/直接callee完整headers复用，结果相等截断仍绑定原Source调用槽位。完整当前planner继续选择CGU和导入闭包；实际旧条目只有完整输入、owner/role和私有导入名依赖均相同才能复用。当前内部化之后，完整未裁unit与配置相等才复用已检查裁剪结果。独立Verify、当前机器授权、完整O2/LLVM Verify、原始预算不减；没有新增磁盘Source→Machine授权。
 
-原始102文件项目：1000/2500/5105声明；两平衡block、完整18请求含8私改，每请求恰一次，无行业频率杜撰。actual main/候选/Rust，CGU16/O2/jobs1，check与native分开。下表为完整流程等待中位数和用户产物物理边界峰中位数。
+f19实际backend299、driver219、真实Source9、native publication1，以及strict/fmt/release全过。Expand124/CT76在f629实际通过，f19仅改后端测试fixture和精确计数，按差异复用这200项，不冒认重跑。首败Expand121/3、backend293/6及未启动compiler的controller03错误全部保留；非作者和Astra复核见[native-dependency-reviews-20261116](native-dependency-reviews-20261116)。
 
-| 规模 | main等待s | ZIL等待s | Rust等待s | ZIL省等待 | ZIL/Rust磁盘峰MiB |
+正式同窗actual main/候选/Rust、O2/CGU16/jobs1：原102文件、两平衡block、18请求含8私改，每请求一次，无杜撰频率。324原始请求/108功能格完成，51个原Source绑定的持续运行用例全部过Rust门，R/B运行几何均值4.137；这不是编译提速比例。main1000/2500运行门过，main5105仍Expand限额，使main回归未知、summary.accepted=false而candidate_rust_accepted=true。
+
+| 声明规模 | main流程s | f19流程s | Rust流程s | 省等待 | f19/Rust用户磁盘边界峰MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 1000 | 8.246 | 6.412 | 8.424 | 23.9% | 9.061 / 19.176 |
-| 2500 | 11.748 | 7.106 | 9.307 | 23.6% | 12.846 / 36.670 |
-| 5105 | Expand限额 | 26.296 | 31.668 | 17.0% | 46.820 / 72.855 |
+| 1000 | 8.288 | 6.620 | 8.877 | 25.4% | 9.078 / 19.176 |
+| 2500 | 11.514 | 8.212 | 9.271 | 11.4% | 13.145 / 42.516 |
+| 5105 | Expand限额 | 24.823 | 31.119 | 20.2% | 46.852 / 72.855 |
 
-5105冷3.835/Rust6.719s，broad2.758/5.024s，restore1.370/5.450s；8私改10.754/9.859s、interface2.688/1.852s、重启2.232/0.0217s仍输。1000/2500接口和重启同样有缺口。只报告同窗完整流程净收益，不以平均掩盖单场景失败。
+5105冷3.623/Rust6.065s、broad2.791/4.970s、restore1.310/5.406s领先；八私改10.962/9.894s、接口2.195/1.800s、保留缓存重启1.273/0.032s仍落后。2500 broad1.386/1.164s、接口1.009/.780s；1000接口.755/.677s同样落后。六份当前Rust重启stderr均Fresh且无rustc。新窗2500流程8.212s相对旧027窗7.106s更慢，不能隐藏；两窗不是配对因果实验，旧027结果仍固定原提交和原Rust控制。任何完整流程领先均不关闭单场景差距。
 
-8私改磁盘增长1000为1.186/Rust5.125MiB，2500为1.041/11.527MiB，5105为1.484/28.480MiB。口径为用户cache/最终产物/诊断IR，lstat/st_blocks全局inode去重、请求边界峰；非构建瞬时峰，不含SDK、宿主target或研究证据。fresh恢复不保持hardlink拓扑，不重算磁盘收益。
+8私改磁盘增长f19/Rust：1000为1.223/5.125MiB，2500为1.199/11.527，5105为1.441/28.480。计量含用户semantic/object cache、最终产物和诊断IR，lstat/st_blocks全局inode去重、请求边界峰；不含SDK、宿主target、研究证据，不是瞬时峰。恢复不保持hardlink拓扑，不能由解包后文件重算产品收益。清缓存后的因果实验和独立check窗口待完成；不以现有冷/热两点冒认清历史后仍快。
 
-324原始请求/108功能格完成；51个按原Source身份绑定的10000循环持续运行用例全部过Rust门，R/B几何均值4.131。main1000/2500运行回归门过，main5105 Expand失败使该回归未知，所以summary.accepted=false、candidate_rust_accepted=true。每个原始成功exe实际EOF+256字节oracle；功能并发8仅在编译计时之外，正式runtime串行1warmup+6平衡次。1.10/.90/.95门不变，六样本p95/RSS不支持稳定尾延迟或内存优势声明。
+真实组合缺口已保留：positions→interface同时改变导入位置和远程签名，两个外层attempt gate合取失配，使100个有效placement未重绑定；CT还需要真实producer到当前Core owner的桥接，不能仅忽略span或借旧owner。5k/private002实际codegen980.56ms=machine274.09+partition186.25+objects483.98+link21.03，CT14.71、Expand46.95、Verify48.01ms；后续按重复私改的绝对累计成本优先，不先扩小访客框架。此族native产品捕获由既有阈值39.5<64关闭，不将这些收益归给正在命中的SDK18函数捕获，也不重推已否定140启发式。
 
-扩大到10105/25105声明：102文件、100×100/250×1原生成输入，无新增unused或裁源。check/native分开、两block七请求。实际main和027在全部快照默认lex token预算拒绝，Rust检查/原生观察成功；56个native ZIL限额报告、84请求完整、0基础设施失败。容量未过，不给无效构建时间/磁盘比；大规模native期间宿主归档清理重叠，整个容量批次时盘性能均排除。首次check工具误拒绝零query的合法lex限额，首败保持incomplete，56原响应经独立重放形状/身份验证，未冒认新检查执行。
+原10105/25105容量仍受默认1M token和全项目10000函数硬合同拒绝，数值/语义不改则不能准入。有限标量单crate/O2/no-debug并不覆盖工业workspace、泛型、宏、async、debug/test或分钟级项目；未全面超过Rust。每个主动/落后优化继续对照实际Rust58cf/Cargo5f94，见上轮[真实实现复核](rust-pain-reviews-20261116/review.md)：Rust已有result-green、早期CGU判断、按需恢复、session锁/共享/GC、ThinLocal及O2 MergeFunctions，不能假定其没有。
 
-集中门：5af2实际backend291/driver219/Source9/publication1过；027只等价let查找转?，独立复核后按差异复用，未冒认重跑。当前027 strict/fmt/release实过；首个strict lint失败保留。工具05d实际19测试过；失败window04旧layout误选及原工件重放保留。见[算法独审](call-classes-reviews-20261115/algorithm-review.md)、[交叉集成复核](call-classes-reviews-20261115/integration-review.md)、[完整加权数字](call-classes-reviews-20261115/weighted-coverage.json)、[容量缺口](call-classes-reviews-20261115/capacity.json)。
-
-负结果不抹去：closed-only e677的51运行门全失败；complete-import e677运行过但全流程9.018/11.810/49.025s输Rust8.224/8.917/33.004s；native140捕获30.972→31.272s无净益已回退；065的31.649→16.706s仅e677/065诊断，不是027/Rust正式数字。前述完整证据分别固定948/5af2恢复依赖。
-
-[本批恢复入口](evidence/call-classes-20261115/RESTORE.json)保存当前全原始正负、027/065二进制、集中门/失败/诊断、控制器与独审。SDK18/native-link固定V32依赖，不重建LLVM。历史宿主证据/恢复副本只在committed manifest、全parts、fresh收据与每原文件完整hash核对后退役，不计产品磁盘收益；恢复路径以各archive为准。98fa正式结果仍固定59fd，绝不归当前源码。
-
-尚未全面超Rust：1万/2.5万默认容量失败是优先级最高的硬缺口；当前三族是有限合成Source，不代表工业workspace、泛型、宏、async或分钟级ZIL成功。下一完整链处理容量合同与fresh机器构造/partition/cache恢复共同成本，先解决不能完成和绝对秒数，保留原始义务与默认预算；goal与研究归档不合main。
-
-恢复验收：正式窗35份867,164,161bytes、236,551files/3,985,638,723rawbytes；源码/门/失败/容量66份1,655,437,572bytes、33,414files/5,737,021,115rawbytes。两包均从空目录逐文件完整验证通过；只退役刚验证的fresh副本，当前原始证据与全部parts仍留存。首次合包超过既有64MiB inventory安全上限已保留首败，按两份证据容器恢复，未修改packer限额。
-
-2026-11-16按Rust真实痛点复核：[行业痛点/时间空间与源码对照](rust-pain-reviews-20261116/review.md)、[Astra实际Rust实现审核](rust-pain-reviews-20261116/rust-implementation-review.md)。Rust58cf/Cargo5f94逐项固定；Rust已有session共享/回收和O2合并，改进应对照其实际查询传播、早期CGU复用与按需存盘。当前保留缓存更小但重启慢，未证明等空间/清历史后仍快。除token外，全项目默认10000函数使10105/25105原输入在合同不变时必然不合；不能许诺只优化lexer即恢复容量。后续每个落后点和主动优化均先附实际Rust对应文件/函数与代价差异，完整链完成后统一验收，数据仍绑027，未新增编译/测量。
+当前正式raw正在独立归档及fresh验证，随后补齐本源码check与retain/clear窗口，再固定完整恢复入口。旧027正式窗固定[05f270](https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json)，旧源码/门/容量/负结果固定[53c077](https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json)。旧window05及两容量raw本地已按committed manifest、全parts、完整fresh收据和每个原文件hash核对后退役，完整原字节仍可恢复；不假设旧本地存在、不计作产品磁盘收益。98fa正式数字仍只绑98fa/59fd。

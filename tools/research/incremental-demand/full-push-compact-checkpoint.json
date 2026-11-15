@@ -1,39 +1,60 @@
 {
-  "schema": "zil.compiler-pain-continuation.v2",
+  "schema": "zil.compiler-pain-continuation.v3",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "027695318436fcb1f8994d0dc9802a0b2349c362",
-  "compiled_tree": "83fd7b71aadb6f5c1000a70590bd8707114d667f",
-  "binary_sha256": "5b3a309a7860dca3a1d3f15e7c930ec7d3f3a3fa59286e6d91c67e0067c0743f",
-  "status": "Complete checked call-class/import/pruning chain implemented. Finite full workflows and product disk beat Rust at1000/2500/5105 with51 current runtime cases passed. NOT all-scenario Rust success: restart/interface/private5105 and10k/25k token capacity fail; main merge Hold.",
+  "compiled_source": "f19fc847c5774a2472bd3af85019b5c937546010",
+  "compiled_tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
+  "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
+  "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "baseline_binary_sha256": "08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0",
-  "tool_source": "05d4b276f8983b176951c7163c52edcf3208ab38",
+  "status": "Full consumed-header/result-equality/current-layout-item chain implemented and gated; current finite full workflows beat Rust but all-scenario goal remains OPEN. Check/cache-lifecycle windows pending; main Hold.",
   "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
   "LLVM_rebuilt": false,
   "research_defaults_enabled": false,
   "main_merge": false,
   "implementation": [
-    "Explicit closed executable + incremental O2 + LLVM API/full O2 + merging off only. Exact supported integer direct-call DAG classes before complete imports; complete normalized Function equality authorizes, hashes select only; addresses/entry/unsupported/cycles excluded and all original definitions retained by this pass. Complete original model validation precedes a nonempty rewrite.",
-    "Rebuild/reinternalize current whole unit after scalar-body replay, then prune only unreachable Internal/Private definitions from complete structured call/address reachability rooted at every nonlocal definition and every retained global initializer. Complete original unpruned units checked before deletion, structured errors/cancellation preserved. Actual unit vector stays16, including real empty LLVM units.",
-    "Transform/partition cache binds complete current input/options plus explicit pruning-policy presence. Cached producer removals and fresh original checks are distinct. Current independent language Verify, actual-unit preflight/Builder, unchanged full O2 and LLVM verification remain. First production remains fully checked; no weakened numeric budgets."
+    "Expand retains scalar raw products across remote signature edits under complete consumed namespace and exact current imports; public InputContext remains full. CT records exact positive/negative/ambiguous lexical hint reads per body, preserves raw owner/target/limits and original ordered costs.",
+    "Backend headers use a FunctionId map and each body binds its own full header and all direct callee headers. Inventory/global/entry/policy changes still invalidate; current LIR binding and admission remain.",
+    "Completed machine-value cutoff also binds full source-call/block/instruction projection owners; equal machine bytes alone cannot authorize partition reuse.",
+    "Current full CGU planner still chooses layout/import closure. Reuse of actual raw items requires complete source value equality, current owner/role and every consumed private import name. Prototype/prelude creation remains current; counters measure actual reused items.",
+    "Closed linkage is recomputed for current units; exact complete unpruned input/options/policy may reuse a completed checked prune transform. First nonempty production checks original complete units. Independent Verify/current preflight/full O2/LLVM Verify preserved. No new persisted Source-to-Machine authority."
   ],
-  "gates": {
-    "actual_5af2_tests": {
-      "backend": 291,
+  "acceptance": {
+    "executed_on_f19": {
+      "backend": 299,
       "driver": 219,
       "Source": 9,
-      "publication": 1,
-      "failed_or_ignored": 0
+      "native_publication": 1,
+      "strict": true,
+      "fmt": true,
+      "release": true
     },
-    "027_reuse": "Only equivalent let Some else return None -> ? lookup changed. Independent algorithm reviewer accepted semantic-test reuse; no rerun claim.",
-    "actual_027": [
-      "strict",
-      "fmt",
-      "release"
-    ],
-    "initial_strict_failure_preserved": true,
-    "tool05d_tests": 19,
-    "window05": {
+    "reused_unchanged_from_f629": {
+      "Expand": 124,
+      "CT": 76,
+      "reason": "Only backend test fixtures/counters changed; production and these tests unchanged"
+    },
+    "earliest_failures": "Expand121/3; backend293/6; controller03 precompiler tuple-key error. All raw first failures retained.",
+    "full_native": {
+      "execution_complete": true,
+      "accepted": false,
+      "candidate_rust_accepted": true,
+      "main_regression_accepted": null,
+      "rows": 324,
+      "quality_cells": 108
+    },
+    "source_bound_runtime_cases": 51,
+    "runtime_R_over_B_GM": 4.137381218685457,
+    "check_windows": "pending",
+    "cache_lifecycle": "pending"
+  },
+  "current_formal_f19": {
+    "compiler_source": "f19fc847c5774a2472bd3af85019b5c937546010",
+    "tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
+    "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
+    "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
+    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+    "window": "out/runs/native-dependency-full-window-01",
+    "quality": {
       "execution_complete": true,
       "accepted": false,
       "candidate_rust_accepted": true,
@@ -42,400 +63,294 @@
       "quality_cells": 108
     },
     "runtime_cases": 51,
-    "runtime_R_over_B_GM": 4.131299284965498,
-    "main5105_regression": "UNKNOWN because actual main ResourceLimit, never Pass",
-    "root_gates_receipts": "out/runs/call-classes-chain-gates-02-5af2f7a981cd and gates-03-027695318436; gate-reuse-03.json"
-  },
-  "current_windows": {
-    "formal_native": "out/runs/closed-project-window-05",
-    "source_runtime_protocol": "closed-import-project-runtime-v1",
-    "O2": true,
-    "CGU": 16,
-    "compiler_jobs": 1,
-    "blocks": 2,
-    "workflow_requests": 324,
-    "functional_cells": 108,
-    "runtime_cases": 51,
-    "functional_native_inputs": "EOF and all256 bytes on each successful original executable; optional8 functional processes outside compile timers. Formal runtime serial, one warmup/six balanced arm orders per case,10000 dynamic iterations; unchanged1.10/.90/.95 gates.",
-    "check_separate": true,
-    "tail_limit": "Six sustained samples per case; observed nearest-rank p95/RSS only, no stable-tail or memory advantage claim"
-  },
-  "current027_full_workflows": {
-    "1000": {
-      "main_role": "actual main9170",
-      "total_wait_median_ms": {
-        "baseline": 8246.03355,
-        "candidate": 6411.8884044999995,
-        "rust": 8424.4878665
+    "runtime_R_over_B_GM": 4.137381218685457,
+    "frequency_policy": "Each request exactly once in predeclared 18-request workflow including eight private edits; two balanced blocks, median complete total. No invented industry frequency. Compile quality scoped to separately named finite runtime protocol.",
+    "disk_scope": "Explicit user caches/artifacts incl diagnostic IR, global inode dedup/lstat st_blocks at request boundaries, not transient peaks; SDK/host Cargo/evidence excluded. Restore hardlink topology is not a new disk measurement.",
+    "sizes": {
+      "1000": {
+        "main_role": "actual main9170",
+        "total_wait_median_ms": {
+          "baseline": 8288.3202055,
+          "candidate": 6620.212674,
+          "rust": 8876.6672205
+        },
+        "candidate_wait_reduction_vs_rust": 0.2542006465319423,
+        "compile_median_ms": {
+          "cold": {
+            "baseline": 1726.6612525,
+            "candidate": 936.7359280000001,
+            "rust": 1287.6210035
+          },
+          "broad": {
+            "baseline": 1527.7959725,
+            "candidate": 674.810035,
+            "rust": 1096.752018
+          },
+          "interface": {
+            "baseline": 438.61999000000003,
+            "candidate": 755.4153565,
+            "rust": 677.437712
+          },
+          "warm-restart": {
+            "baseline": 182.924987,
+            "candidate": 311.187681,
+            "rust": 19.526798499999998
+          },
+          "restore": {
+            "baseline": 195.5228575,
+            "candidate": 361.862505,
+            "rust": 1098.6962065
+          },
+          "unchanged": {
+            "baseline": 177.733712,
+            "candidate": 22.021318,
+            "rust": 18.198358
+          },
+          "eight_private": {
+            "baseline": 2882.4707065000002,
+            "candidate": 2762.05591,
+            "rust": 3572.350109
+          }
+        },
+        "disk": {
+          "baseline": {
+            "boundary_peak_physical_bytes_by_block": [
+              24543232,
+              24543232
+            ],
+            "median_boundary_peak_MiB": 23.40625,
+            "eight_private_growth_bytes_by_block": [
+              12419072,
+              12419072
+            ],
+            "median_eight_private_growth_MiB": 11.84375
+          },
+          "candidate": {
+            "boundary_peak_physical_bytes_by_block": [
+              9510912,
+              9527296
+            ],
+            "median_boundary_peak_MiB": 9.078125,
+            "eight_private_growth_bytes_by_block": [
+              1286144,
+              1277952
+            ],
+            "median_eight_private_growth_MiB": 1.22265625
+          },
+          "rust": {
+            "boundary_peak_physical_bytes_by_block": [
+              20107264,
+              20107264
+            ],
+            "median_boundary_peak_MiB": 19.17578125,
+            "eight_private_growth_bytes_by_block": [
+              5373952,
+              5373952
+            ],
+            "median_eight_private_growth_MiB": 5.125
+          }
+        },
+        "runtime_R_over_B_range": [
+          1.3894864848736708,
+          1.9676871241958243
+        ],
+        "runtime_rust_gate_all_pass": true,
+        "runtime_main_gate_all_pass": true
       },
-      "candidate_wait_reduction_vs_rust": 0.23889873116241378,
-      "compile_median_ms": {
-        "cold": {
-          "baseline": 1709.6437245,
-          "candidate": 762.7044185,
-          "rust": 1042.2204215000002
+      "2500": {
+        "main_role": "actual main9170",
+        "total_wait_median_ms": {
+          "baseline": 11514.2393985,
+          "candidate": 8212.005323,
+          "rust": 9271.3045695
         },
-        "broad": {
-          "baseline": 1454.857643,
-          "candidate": 595.9909745,
-          "rust": 956.1803205
+        "candidate_wait_reduction_vs_rust": 0.11425568414447296,
+        "compile_median_ms": {
+          "cold": {
+            "baseline": 2511.9996665,
+            "candidate": 1051.1364645,
+            "rust": 1434.9171755
+          },
+          "broad": {
+            "baseline": 2171.5816095,
+            "candidate": 1386.450404,
+            "rust": 1163.5623544999999
+          },
+          "interface": {
+            "baseline": 849.0279185,
+            "candidate": 1008.8258840000001,
+            "rust": 780.3234055
+          },
+          "warm-restart": {
+            "baseline": 229.50492100000002,
+            "candidate": 376.6791455,
+            "rust": 46.577501
+          },
+          "restore": {
+            "baseline": 181.31259849999998,
+            "candidate": 353.458761,
+            "rust": 1152.140884
+          },
+          "unchanged": {
+            "baseline": 221.538623,
+            "candidate": 14.7055605,
+            "rust": 23.6960325
+          },
+          "eight_private": {
+            "baseline": 4142.238371,
+            "candidate": 2940.834261,
+            "rust": 3375.539538
+          }
         },
-        "interface": {
-          "baseline": 481.097731,
-          "candidate": 754.3528645,
-          "rust": 711.776251
+        "disk": {
+          "baseline": {
+            "boundary_peak_physical_bytes_by_block": [
+              30220288,
+              30220288
+            ],
+            "median_boundary_peak_MiB": 28.8203125,
+            "eight_private_growth_bytes_by_block": [
+              15597568,
+              15597568
+            ],
+            "median_eight_private_growth_MiB": 14.875
+          },
+          "candidate": {
+            "boundary_peak_physical_bytes_by_block": [
+              13680640,
+              13885440
+            ],
+            "median_boundary_peak_MiB": 13.14453125,
+            "eight_private_growth_bytes_by_block": [
+              1232896,
+              1282048
+            ],
+            "median_eight_private_growth_MiB": 1.19921875
+          },
+          "rust": {
+            "boundary_peak_physical_bytes_by_block": [
+              44580864,
+              44580864
+            ],
+            "median_boundary_peak_MiB": 42.515625,
+            "eight_private_growth_bytes_by_block": [
+              12087296,
+              12087296
+            ],
+            "median_eight_private_growth_MiB": 11.52734375
+          }
         },
-        "warm-restart": {
-          "baseline": 171.89644700000002,
-          "candidate": 456.760585,
-          "rust": 31.036938
-        },
-        "restore": {
-          "baseline": 135.33369199999999,
-          "candidate": 363.110762,
-          "rust": 1037.240135
-        },
-        "unchanged": {
-          "baseline": 162.07135549999998,
-          "candidate": 16.2876165,
-          "rust": 32.673687
-        },
-        "eight_private": {
-          "baseline": 3242.8548965,
-          "candidate": 2841.6579845,
-          "rust": 3580.3685335
-        }
+        "runtime_R_over_B_range": [
+          1.2275555853258768,
+          1.7463497155905883
+        ],
+        "runtime_rust_gate_all_pass": true,
+        "runtime_main_gate_all_pass": true
       },
-      "disk": {
-        "baseline": {
-          "boundary_peak_physical_bytes_by_block": [
-            24543232,
-            24543232
-          ],
-          "median_boundary_peak_MiB": 23.40625,
-          "eight_private_growth_bytes_by_block": [
-            12419072,
-            12419072
-          ],
-          "median_eight_private_growth_MiB": 11.84375
+      "5105": {
+        "main_role": "ResourceLimit; no performance ratio",
+        "total_wait_median_ms": {
+          "candidate": 24822.8493015,
+          "rust": 31119.471770000004
         },
-        "candidate": {
-          "boundary_peak_physical_bytes_by_block": [
-            9506816,
-            9494528
-          ],
-          "median_boundary_peak_MiB": 9.060546875,
-          "eight_private_growth_bytes_by_block": [
-            1282048,
-            1204224
-          ],
-          "median_eight_private_growth_MiB": 1.185546875
+        "candidate_wait_reduction_vs_rust": 0.2023370613433778,
+        "compile_median_ms": {
+          "cold": {
+            "candidate": 3623.2037259999997,
+            "rust": 6065.107861
+          },
+          "broad": {
+            "candidate": 2791.1343415,
+            "rust": 4969.6422705
+          },
+          "interface": {
+            "candidate": 2194.8285255,
+            "rust": 1800.4282954999999
+          },
+          "warm-restart": {
+            "candidate": 1272.7157705,
+            "rust": 32.1921035
+          },
+          "restore": {
+            "candidate": 1309.931829,
+            "rust": 5405.8876445000005
+          },
+          "unchanged": {
+            "candidate": 21.2082455,
+            "rust": 18.138372
+          },
+          "eight_private": {
+            "candidate": 10961.711888499998,
+            "rust": 9893.920642000001
+          }
         },
-        "rust": {
-          "boundary_peak_physical_bytes_by_block": [
-            20107264,
-            20107264
-          ],
-          "median_boundary_peak_MiB": 19.17578125,
-          "eight_private_growth_bytes_by_block": [
-            5373952,
-            5373952
-          ],
-          "median_eight_private_growth_MiB": 5.125
-        }
-      },
-      "runtime_R_over_B_range": [
-        1.4673077152424785,
-        1.8246595748382428
-      ],
-      "runtime_rust_gate_all_pass": true,
-      "runtime_main_gate_all_pass": true
-    },
-    "2500": {
-      "main_role": "actual main9170",
-      "total_wait_median_ms": {
-        "baseline": 11747.7244025,
-        "candidate": 7106.137925,
-        "rust": 9307.2132175
-      },
-      "candidate_wait_reduction_vs_rust": 0.23649133645734066,
-      "compile_median_ms": {
-        "cold": {
-          "baseline": 2533.466862,
-          "candidate": 802.2809115,
-          "rust": 1331.5824834999999
+        "disk": {
+          "candidate": {
+            "boundary_peak_physical_bytes_by_block": [
+              49020928,
+              49233920
+            ],
+            "median_boundary_peak_MiB": 46.8515625,
+            "eight_private_growth_bytes_by_block": [
+              1466368,
+              1556480
+            ],
+            "median_eight_private_growth_MiB": 1.44140625
+          },
+          "rust": {
+            "boundary_peak_physical_bytes_by_block": [
+              76394496,
+              76394496
+            ],
+            "median_boundary_peak_MiB": 72.85546875,
+            "eight_private_growth_bytes_by_block": [
+              29863936,
+              29863936
+            ],
+            "median_eight_private_growth_MiB": 28.48046875
+          }
         },
-        "broad": {
-          "baseline": 2440.816756,
-          "candidate": 1029.327639,
-          "rust": 1193.699198
-        },
-        "interface": {
-          "baseline": 549.5335104999999,
-          "candidate": 951.6204224999999,
-          "rust": 712.5312755
-        },
-        "warm-restart": {
-          "baseline": 508.690211,
-          "candidate": 379.3268155,
-          "rust": 38.397565
-        },
-        "restore": {
-          "baseline": 181.465745,
-          "candidate": 356.6082085,
-          "rust": 1327.2825185000002
-        },
-        "unchanged": {
-          "baseline": 190.25958250000002,
-          "candidate": 16.207799,
-          "rust": 21.0712605
-        },
-        "eight_private": {
-          "baseline": 4054.8005780000003,
-          "candidate": 2767.2624415,
-          "rust": 3296.8690370000004
-        }
-      },
-      "disk": {
-        "baseline": {
-          "boundary_peak_physical_bytes_by_block": [
-            30220288,
-            30220288
-          ],
-          "median_boundary_peak_MiB": 28.8203125,
-          "eight_private_growth_bytes_by_block": [
-            15597568,
-            15597568
-          ],
-          "median_eight_private_growth_MiB": 14.875
-        },
-        "candidate": {
-          "boundary_peak_physical_bytes_by_block": [
-            13438976,
-            13500416
-          ],
-          "median_boundary_peak_MiB": 12.845703125,
-          "eight_private_growth_bytes_by_block": [
-            1085440,
-            1097728
-          ],
-          "median_eight_private_growth_MiB": 1.041015625
-        },
-        "rust": {
-          "boundary_peak_physical_bytes_by_block": [
-            44580864,
-            32321536
-          ],
-          "median_boundary_peak_MiB": 36.669921875,
-          "eight_private_growth_bytes_by_block": [
-            12087296,
-            12087296
-          ],
-          "median_eight_private_growth_MiB": 11.52734375
-        }
-      },
-      "runtime_R_over_B_range": [
-        1.0127705914055347,
-        1.634982360885959
-      ],
-      "runtime_rust_gate_all_pass": true,
-      "runtime_main_gate_all_pass": true
-    },
-    "5105": {
-      "main_role": "ResourceLimit; no performance ratio",
-      "total_wait_median_ms": {
-        "candidate": 26296.388169500002,
-        "rust": 31668.0426135
-      },
-      "candidate_wait_reduction_vs_rust": 0.1696238226517378,
-      "compile_median_ms": {
-        "cold": {
-          "candidate": 3834.68284,
-          "rust": 6719.3082405000005
-        },
-        "broad": {
-          "candidate": 2758.2096149999998,
-          "rust": 5023.653635
-        },
-        "interface": {
-          "candidate": 2688.2942620000003,
-          "rust": 1851.9809005000002
-        },
-        "warm-restart": {
-          "candidate": 2232.3640405,
-          "rust": 21.663687000000003
-        },
-        "restore": {
-          "candidate": 1369.9454380000002,
-          "rust": 5449.632734
-        },
-        "unchanged": {
-          "candidate": 49.7674625,
-          "rust": 22.299349499999998
-        },
-        "eight_private": {
-          "candidate": 10754.368973,
-          "rust": 9859.251275999999
-        }
-      },
-      "disk": {
-        "candidate": {
-          "boundary_peak_physical_bytes_by_block": [
-            49135616,
-            49053696
-          ],
-          "median_boundary_peak_MiB": 46.8203125,
-          "eight_private_growth_bytes_by_block": [
-            1544192,
-            1568768
-          ],
-          "median_eight_private_growth_MiB": 1.484375
-        },
-        "rust": {
-          "boundary_peak_physical_bytes_by_block": [
-            76394496,
-            76394496
-          ],
-          "median_boundary_peak_MiB": 72.85546875,
-          "eight_private_growth_bytes_by_block": [
-            29863936,
-            29863936
-          ],
-          "median_eight_private_growth_MiB": 28.48046875
-        }
-      },
-      "runtime_R_over_B_range": [
-        26.827278870184436,
-        33.296696017401416
-      ],
-      "runtime_rust_gate_all_pass": true,
-      "runtime_main_gate_all_pass": null
+        "runtime_R_over_B_range": [
+          24.38798094597821,
+          33.42271774315384
+        ],
+        "runtime_rust_gate_all_pass": true,
+        "runtime_main_gate_all_pass": null
+      }
     }
   },
-  "weighted_report": "call-classes-reviews-20261115/weighted-coverage.json",
-  "capacity": {
-    "compiled_source": "027695318436fcb1f8994d0dc9802a0b2349c362",
-    "scope": "expanded-large-capacity-v1;102 source files,100modules x100/250helpers x1step, original generator no trimming; separate check/native; two balanced blocks/seven-request history; unchanged default budgets",
-    "check01": "Tool-incomplete: legacy response validator rejected empty query log before lex admission; actual56 ResourceLimit/lex responses validated by saved-artifact replay. Check01 remains incomplete and no performance conclusions are admitted.",
-    "check_saved_replay": "out/runs/expanded-large-capacity-check-replay-01/result.json",
-    "native01": {
-      "execution_complete": true,
-      "capacity_valid": false,
-      "accepted": false
-    },
-    "native_rows": 84,
-    "native_infrastructure_failures": 0,
-    "actual_native_resource_limit_reports": 56,
-    "actual_native_rust_valid_rows": 28,
-    "actual_native_rust_successful_executables": 24,
-    "token_limit_gap": "Both actual main and candidate fail all10105/25105 snapshots in lex token limit, Verify0; not correctness rejection or capacity success. Rust native success or intended name rejection observed. No ZIL/Rust speed/disk ratio for an invalid ZIL build.",
-    "performance_qualification": false,
-    "native_timing_excluded": "Host archived duplicate cleanup may overlap this diagnostic capacity run; all native capacity timing/disk comparisons excluded. Completed qualified window05 unaffected.",
-    "sustained_runtime_acceptance": "UNKNOWN: not executed for these failed capacity sizes"
-  },
-  "negative_and_limits": [
-    "Closed-only e677 window02 all51 Rust runtime gates failed despite compile/disk improvements; cannot adopt those speed observations. Complete raw remains fixed94816f8a recovery.",
-    "Complete-import e677 window03 all51 Rust runtime gates passed but workflow9.018/11.810/49.025s lost to Rust8.224/8.917/33.004s; numbers remain e677, not027. Full raw fixed5af2 recovery.",
-    "Selective native capture140 diagnostic lost net30.972->31.272s and was reverted a124; exactELF/functionality did not make a net performance win. No broad gate claim for140.",
-    "0655105 old/new24-request screen31.649->16.706s is e677/065-only diagnostic, not paired Rust evidence or027 numbers.",
-    "Window04 tool-failed/incomplete at historical stale layout;05d scans strictly validated envelopes for a unique complete current physical layout. Stale-only still rejected; failed04/replay/tool19 tests preserved.",
-    "027 current full workflow leads at finite1000/2500/5105 but interface and process restart lose at every size; private8 at5105 loses10.754vs9.859s. All negatives retained.",
-    "10105/25105: both actual main and027 reject all original snapshots at default lex token limit; Rust check/native observed. Verify0 on lex failure is not a successful semantic rejection. No invalid-build timing or disk ratios. Firstcheck validator failure preserved with56 saved-response replays; native84requests complete/0infrastructurefailures/capacity false.",
-    "Synthetic102-file scalar families do not establish industrial workspace/generic/proc-macro/async coverage or minute-scale ZIL capacity success. Capacity timings excluded due host evidence maintenance; no sustained capacity runtime qualification.",
-    "20261116 actual Rust implementation audit: default10000 function hard cap also precludes original10105/25105 projects, beyond observed lex cap. Current lower disk does not prove cleanup preserves hot edits; Rust has GC and optional LLVM merging already. O2 single-crate native/no-debug results do not establish debug/test/multicrate/longhistory or current successful check superiority."
+  "new_performance_not_assigned_to_prior_sources": true,
+  "unresolved": [
+    "5105 eight private edits10.962s vs Rust9.894s; retained-cache restart1.273s vs0.032s; interface2.195s vs1.800s.",
+    "2500 broad1.386s vsRust1.164s; interface1.009s vs0.780s.1000 interface0.755s vs0.677s. Full-workflow lead does not close individual losses.",
+    "Actual positions-to-interface adjacency still invalidates all frontend modules and CT owners; two independent static reviews confirmed mapped-placement optimization opportunity. Do not introduce broad raw namespace or old-position authority to fix this.",
+    "Current5105/private002 codegen980.56ms: machine274.09, partition186.25, objects483.98, link21.03; CT14.71ms/Expand46.95ms/current Verify48.01ms. Prioritize repeated backend work over smaller isolated visitors.",
+    "This profile native product capture is disabled by existing minimum-average-LIR threshold39.5<64. Do not attribute these gains to active SDK18 per-function captures or repeat rejected140 heuristic without new evidence.",
+    "10105/25105 original capacity remains rejected by default1M-token and10000-function whole-project contracts. Current code does not claim capacity success.",
+    "Finite synthetic single-crate O2/no-debug corpus; industrial workspaces, generics/macros/async/debug/test/minute-scale and partial history GC not established."
   ],
-  "stock_main_candidate": {
-    "source": "30c0009ff94b3476c15f4afe2ba5d067f7f78cbb",
-    "status": "Hold;6122 workspace/reference73/strict/fmt/release passed previously, but native1000 ELF failure and warm performance regressions remain. No main merge."
+  "rust_source_policy": {
+    "rustc": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "cargo": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+    "references": [
+      "rustc_middle/dep_graph/graph.rs:791-825 result green;rustc_query_impl/execution.rs:418 current recorded dependencies",
+      "rustc_codegen_ssa/base.rs:1238 CGU reuse,842 skip green; rustc_codegen_llvm/base.rs:64 module after reuse decision",
+      "rustc_middle/query/on_disk_cache.rs:346 offset loading;rustc_incremental/persist/fs.rs:364 hardlink/lock,590 current/live GC",
+      "Cargo fingerprint/mod.rs:499 Fresh; save.rs:60-92 promotion/serialization/deletion; LLVM O2 MergeFunctions and ThinLocal already present"
+    ],
+    "every_future_direction": "Actual Rust implementation, exact ZIL consumer/input/cost difference, facts vs hypotheses, preserve stronger current checks, one whole-chain acceptance."
   },
-  "priority": [
-    "Absolute saved seconds times actual recorded request frequency; large-project ability to finish and product disk capacity come first.",
-    "10k/25k default token admission is a concrete product capacity gap; preserve numeric budget and do not relabel unsupported/limited builds as wins.",
-    "Fresh lowering/current transformations/partition construction jointly dominate restart/interface/private5105; implement as one source-to-cache construction chain and run one frozen acceptance batch.",
-    "Extend diverse real multi-package/generic/resource workloads as language capability admits; Rust-only workloads are references, not matched ZIL wins."
-  ],
-  "next": "One chain based on actual Rust58cf/Cargo5f94: tracked header/body/ABI/name dependencies and equal-result cutoff -> class/call/import updates -> current unit authorization and cached-product choice before MachineOutput expansion -> red-unit full checks/O2 -> referenced cache publication and bounded history cleanup. Preserve independent current Verify and all stronger integrity checks. Joint cold/resident/real compiler restart/edit and space-budget/cleanup-history tests, no CargoFresh guarantee relabel. Actual >10000-function project cannot fit unchanged whole-project limit; capacity contract/independent package boundary is separate explicit design, not a repeated-charge optimization.",
   "recovery": {
-    "archive": "evidence/call-classes-20261115/RESTORE.json",
-    "prior_complete_imports": "https://github.com/zil-lang/zil/blob/5af2f7a981cd04d48535cf049d4a8f41a192baff/tools/research/incremental-demand/evidence/closed-import-20261115/RESTORE.json",
-    "prior_closed_negative": "https://github.com/zil-lang/zil/blob/94816f8a3efa03ac6011b270f1c87e3d29f361d4/tools/research/incremental-demand/evidence/closed-project-negative-20261115/RESTORE.json",
+    "current_formal": "evidence/native-dependency-formal-20261116/RESTORE.json (packing/fresh verification pending)",
+    "prior027_formal": "https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
+    "prior027_core_negative_capacity": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
+    "prior_rust_source_audit": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json",
     "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
-    "formal": {
-      "archive": "evidence/call-classes-formal-20261115/RESTORE.json",
-      "archive_sha256": "6e7ff2799c17fa4b79b56d489100f0280e86af1f2dfe3cb957957f4c900799a1",
-      "archive_bytes": 867164161,
-      "parts": 35,
-      "regular_files": 236551,
-      "logical_bytes": 3985638723,
-      "fresh_verified": true,
-      "fresh_scratch_retired": true,
-      "original_raw_retained": true
-    },
-    "core": {
-      "archive": "evidence/call-classes-20261115/RESTORE.json",
-      "archive_sha256": "1fa3ec722b4187b7d082ca967dc31ce43ac5b0e6a4ce79f66e9998dac3e9a626",
-      "archive_bytes": 1655437572,
-      "parts": 66,
-      "regular_files": 33414,
-      "logical_bytes": 5737021115,
-      "fresh_verified": true,
-      "fresh_scratch_retired": true,
-      "original_raw_retained": true
-    },
-    "external_controller_source_appendix": "call-classes-reviews-20261115/capacity-controller-provenance.json"
+    "historical98fa": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c formal59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628; never relabelled"
   },
-  "previous_accepted": {
-    "source": "789f879f249c7f45a5c84ce062be30f9c0985740",
-    "checkpoint_commit": "dff584ce518dfcf44b97375f86263989392dc937"
-  },
-  "historical_formal_98fa": {
-    "source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
-    "delivery": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
-    "numbers_relabelled_to_021997_or_current": false
-  },
-  "pain_audit": {
-    "date_Asia_Shanghai": "2026-11-16",
-    "report": "rust-pain-reviews-20261116/review.md",
-    "data": "rust-pain-reviews-20261116/audit.json",
-    "rust_implementation_review": "rust-pain-reviews-20261116/rust-implementation-review.md",
-    "rust_reference_policy": "rust-pain-reviews-20261116/rust-reference-policy.json",
-    "new_benchmark": false,
-    "verdict": "Finite O2 scalar cold/disk gains true; persistent restart, fixed-space cleanup tradeoff, longhistory/debug/test/workspace not solved. Rust already has session GC/sharing and O2 merging; compare actual implementation before every direction.",
-    "capacity_hard_limits": {
-      "whole_project_tokens": 1000000,
-      "whole_project_functions": 10000,
-      "unchanged_contract_cannot_admit_actual_10105_or_25105_functions": true
-    },
-    "recovery": "evidence/rust-pain-audit-20261116/RESTORE.json",
-    "recovery_verified": {
-      "archive_sha256": "3c0f9588efb6cdb7bb6dbe29746b92d5f2d2877498c99d9c0b94c1c2b245cee0",
-      "archive_bytes": 372435,
-      "parts": 1,
-      "regular_files": 53,
-      "logical_bytes": 1498530,
-      "fresh_restore_verified": true
-    }
-  },
-  "rust_reference_policy": {
-    "scope": "Every current or proposed compile-time/cache-space optimization must compare actual Rust source, including proactive designs. Evidence of absence must be bounded, not assumed.",
-    "rustc_source": "58cf8f9c35b355199727627d07ae34a4e2846d67",
-    "cargo_source": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
-    "required_fields": [
-      "Pinned Rust file/function and relevant flags",
-      "Current ZIL consumer and measured absolute cost",
-      "Actual mechanism difference, measured facts vs hypotheses",
-      "What is borrowed and what stronger ZIL safety obligations remain",
-      "One complete implementation chain and unified source/runtime/time-space acceptance"
-    ],
-    "current_covered_mechanisms": [
-      "Cargo fingerprint/Fresh",
-      "Ordered actual-query dependency tracking and result-green cutoff",
-      "Early CGU work-product decision before LLVM construction",
-      "On-demand disk query loading/cache promotion and stable IDs",
-      "Incremental session hardlink/copy/current/live lock-safe GC",
-      "MonoItem dedup, CGU inline-item partition, O2 LLVM MergeFunctions",
-      "Default ThinLocal/pre-LTO stage identity vs final-object reuse"
-    ],
-    "not_claimed": "Entire Rust compiler audited; universal superiority; new compiler optimization; new benchmark; same current Verify guarantee from Cargo Fresh."
-  }
+  "local_retirements": [
+    "closed-project-window-05 original raw retired only after immutable committed archive/parts/fresh receipt and every local file hash match; full restore from05f270 above.",
+    "expanded-large-capacity-check-01 and expanded-large-capacity-native-01 retired by same proof against53c077 above; ledger out/runs/native-dependency-retired-capacity-01.json. Host evidence storage only, not product savings."
+  ],
+  "next": "Finish same-f19 independent check and retain/clear lifecycle windows, retain all negatives, then archive/fresh verify/push exact evidence. Next backend chain should prioritize actual class/import/CGU construction and persistent restart dependencies; no default-budget or Verify/O2 reduction."
 }
