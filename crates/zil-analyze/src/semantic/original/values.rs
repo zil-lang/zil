@@ -124,65 +124,100 @@ impl Checked {
                     return Err(fail("receiver role has no actual function world"));
                 };
                 let function = inventory.function(target, b)?;
-                let mut selected = None;
+                b.lookup(self.trait_calls.len(), WORK)?;
+                let call = self
+                    .trait_calls
+                    .get(&(*owner, *node))
+                    .ok_or_else(|| fail("receiver role has no independently checked trait call"))?;
+                if call.receiver_anchor.is_none() || call.dynamic.is_some() {
+                    return Err(fail(
+                        "receiver role changes its original borrowed method kind",
+                    ));
+                }
+                let mut recipe = None;
                 for link in site_nodes {
-                    b.spend(sites.len().saturating_add(1), WORK)?;
-                    if link.node != SemanticOriginalNode::Expression(*node)
-                        || !sites.iter().any(|site| {
-                            site.id == link.site
-                                && matches!(site.kind, SemanticSiteRecipeKind::Call { .. })
-                        })
-                    {
+                    b.spend(1, WORK)?;
+                    if link.node != SemanticOriginalNode::Expression(*node) {
                         continue;
                     }
-                    for site in &program.sites {
-                        b.spend(1, WORK)?;
-                        if site.instance != scope.id
-                            || site.recipe != link.site
-                            || !matches!(site.action, SemanticSiteAction::BodyCall { .. })
-                        {
-                            continue;
-                        }
-                        let SemanticSiteAddress::Typed {
-                            block,
-                            instruction,
-                            edge: SemanticSiteEdge::After,
-                        } = site.at
-                        else {
-                            return Err(fail("receiver role changes its original call occurrence"));
-                        };
-                        let operation = function
-                            .blocks
-                            .get(block.0 as usize)
-                            .filter(|row| row.id == block)
-                            .and_then(|row| row.instructions.get(instruction as usize))
-                            .ok_or_else(|| fail("receiver role has no actual call operation"))?;
-                        let arguments = match &operation.kind {
-                            InstructionKind::Call { arguments, .. }
-                            | InstructionKind::SuspendCall { arguments, .. } => arguments,
-                            _ => {
-                                return Err(fail(
-                                    "receiver role is replaced by another actual operation",
-                                ));
-                            }
-                        };
-                        let head = *arguments
-                            .first()
-                            .ok_or_else(|| fail("receiver role omits its actual receiver"))?;
-                        if !matches!(
-                            function.values.get(head.0 as usize),
-                            Some(Type::Address { .. })
-                        ) {
-                            return Err(fail("receiver role has no actual borrowed head"));
-                        }
-                        if selected
-                            .replace(Class::Reborrow(function.id, head))
-                            .is_some()
-                        {
-                            return Err(fail("receiver role has competing actual call bindings"));
-                        }
+                    b.spend(sites.len(), WORK)?;
+                    let source = sites
+                        .iter()
+                        .find(|site| site.id == link.site)
+                        .ok_or_else(|| fail("receiver role points to an absent original site"))?;
+                    // Trait member calls retain their original syntax until
+                    // the actual provider is selected. Both recipe forms bind
+                    // this same independently checked call-local receiver.
+                    if matches!(
+                        source.kind,
+                        SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Call { .. }
+                    ) && recipe.replace(link.site).is_some()
+                    {
+                        return Err(fail("receiver role has competing original call recipes"));
                     }
                 }
+                let recipe = recipe
+                    .ok_or_else(|| fail("receiver role has no exact original call recipe"))?;
+                let mut selected = None;
+                for site in &program.sites {
+                    b.spend(1, WORK)?;
+                    if site.instance != scope.id || site.recipe != recipe {
+                        continue;
+                    }
+                    if !matches!(site.action, SemanticSiteAction::BodyCall { .. }) {
+                        return Err(fail("receiver role changes its actual call action"));
+                    }
+                    let SemanticSiteAddress::Typed {
+                        block,
+                        instruction,
+                        edge: SemanticSiteEdge::After,
+                    } = site.at
+                    else {
+                        return Err(fail("receiver role changes its original call occurrence"));
+                    };
+                    let operation = function
+                        .blocks
+                        .get(block.0 as usize)
+                        .filter(|row| row.id == block)
+                        .and_then(|row| row.instructions.get(instruction as usize))
+                        .ok_or_else(|| fail("receiver role has no actual call operation"))?;
+                    let arguments = match &operation.kind {
+                        InstructionKind::Call { arguments, .. }
+                            if call.call_kind == CallKind::Direct =>
+                        {
+                            arguments
+                        }
+                        InstructionKind::SuspendCall { arguments, .. }
+                            if call.call_kind == CallKind::Suspend
+                                && function.call_kind == CallKind::Suspend =>
+                        {
+                            arguments
+                        }
+                        _ => {
+                            return Err(fail(
+                                "receiver role changes its original call ABI or operation",
+                            ));
+                        }
+                    };
+                    let head = *arguments
+                        .first()
+                        .ok_or_else(|| fail("receiver role omits its actual receiver"))?;
+                    if !matches!(
+                        function.values.get(head.0 as usize),
+                        Some(Type::Address { .. })
+                    ) {
+                        return Err(fail("receiver role has no actual borrowed head"));
+                    }
+                    if selected
+                        .replace(Class::Reborrow(function.id, head))
+                        .is_some()
+                    {
+                        return Err(fail("receiver role has competing actual call bindings"));
+                    }
+                }
+                // This only names the call's outer class. The trait operation
+                // still checks the complete provider/member, actual vector,
+                // receiver place and type; memory flow proves the real loan.
                 selected.ok_or_else(|| fail("receiver role has no exact actual call binding"))
             }
             Kind::Life(Life::Invocation(owner, ordinal)) => {
