@@ -130,14 +130,17 @@ impl Checked {
                     if link.node != SemanticOriginalNode::Expression(*node)
                         || !sites.iter().any(|site| {
                             site.id == link.site
-                                && matches!(site.kind, SemanticSiteRecipeKind::BodyCall { .. })
+                                && matches!(site.kind, SemanticSiteRecipeKind::Call { .. })
                         })
                     {
                         continue;
                     }
                     for site in &program.sites {
                         b.spend(1, WORK)?;
-                        if site.instance != scope.id || site.recipe != link.site {
+                        if site.instance != scope.id
+                            || site.recipe != link.site
+                            || !matches!(site.action, SemanticSiteAction::BodyCall { .. })
+                        {
                             continue;
                         }
                         let SemanticSiteAddress::Typed {

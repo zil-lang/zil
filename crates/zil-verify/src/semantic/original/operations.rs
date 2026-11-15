@@ -539,7 +539,7 @@ impl CheckedOriginal {
         )?;
         self.unify(&actual, &expected, b)
     }
-    fn operation_source(
+    pub(super) fn operation_source(
         &self,
         expression: &SemanticOriginalExpr,
         env: &Env,
