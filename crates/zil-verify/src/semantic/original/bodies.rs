@@ -123,7 +123,7 @@ impl CheckedOriginal {
                     CoreStatementKind::While{condition,body}=>{
                         let entry=self.use_snapshot(env,b)?;self.condition_original(module,context,condition,env,bindings,active,b)?;let after_condition=self.use_snapshot(env,b)?;
                         let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let backedge=self.use_snapshot(env,b)?;
-                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;false
+                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;Self::constant_true(condition,b)?&&!Self::loop_break(body,b)?
                     },
                     CoreStatementKind::WhileLet{pattern,value,body}=>{
                         let entry=self.use_snapshot(env,b)?;let ty=self.expression(module,context,value,env,bindings,None,active,b)?;let after_condition=self.use_snapshot(env,b)?;
@@ -148,7 +148,7 @@ impl CheckedOriginal {
                         let after=self.use_snapshot(env,b)?;self.set_uses(env,before.clone())?;
                         if after.moved.difference(&before.moved).any(|place|bindings.values().any(|binding|binding.identity==place.binder)){return Err(unsupported("original deferred value transfer requires its complete scope-exit use schedule",None));}false
                     },
-                    CoreStatementKind::Loop(body)=>{let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}false},
+                    CoreStatementKind::Loop(body)=>{let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}!Self::loop_break(body,b)?},
                     CoreStatementKind::Break|CoreStatementKind::Continue if loops!=0=>false,
                     _=>return Err(unsupported("original statement has no complete symbolic operation rule",Some(statement.span))),
                 };
@@ -162,6 +162,37 @@ impl CheckedOriginal {
 }
 
 impl CheckedOriginal {
+    fn constant_true(mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
+        loop {
+            b.spend(1)?;
+            match &expression.kind {
+                CoreExprKind::Group(inner)=>expression=inner,
+                CoreExprKind::Bool(value)=>return Ok(*value),
+                _=>return Ok(false),
+            }
+        }
+    }
+    fn loop_break(body:&SemanticOriginalBlock,b:&mut Budget)->Check<bool>{
+        let mut pending=vec![body];
+        while let Some(body)=pending.pop(){
+            b.spend(body.statements.len().saturating_add(1))?;
+            for statement in &body.statements {
+                match &statement.kind {
+                    CoreStatementKind::Break=>return Ok(true),
+                    CoreStatementKind::If{then_body,else_body,..}|CoreStatementKind::IfLet{then_body,else_body,..}=>{
+                        pending.push(then_body);
+                        if let Some(body)=else_body{pending.push(body);}
+                    },
+                    CoreStatementKind::Match{arms,..}=>{b.spend(arms.len())?;for arm in arms{pending.push(&arm.body);}},
+                    CoreStatementKind::Block(body)|CoreStatementKind::Unsafe(body)=>pending.push(body),
+                    // Nested loops bind their own break; deferred bodies have
+                    // an independent control context checked by block().
+                    _=>{},
+                }
+            }
+        }
+        Ok(false)
+    }
     pub(super) fn contextual_numeric_literal(expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
         let mut pending=vec![expression];
         while let Some(expression)=pending.pop(){

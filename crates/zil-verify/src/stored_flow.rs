@@ -983,10 +983,10 @@ fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
-    // Only the Option profile creates this private description ledger.
-    if b.masked_stored_tasks() {
-        changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
-    }
+    // Description transfers independently establish the real manager root.
+    // Ordinary Store/ByteBuffer requests need the same fixed-point channel as
+    // Option and Task requests, including every existing parent loan.
+    changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::join(to, from, b)?;
     changed |= dyn_ports::join(to, from, b)?;
     if let Some(complete) = from.creation_complete {
