@@ -601,11 +601,12 @@ impl Budget {
             row.1 = row.1.saturating_add(1);
         }
         self.remaining = self.remaining.checked_sub(amount).ok_or_else(|| {
-            let mut message = format!(
-                "independent verification work budget exhausted [requested {amount}, remaining {}, function {:?}, callsite {location}]",
-                self.remaining, self.current_function
-            );
+            let mut message = "independent verification work budget exhausted".to_owned();
             if let Some(costs) = &self.diagnostic_costs {
+                message.push_str(&format!(
+                    " [requested {amount}, remaining {}, function {:?}, callsite {location}]",
+                    self.remaining, self.current_function
+                ));
                 let mut rows: Vec<_> = costs.iter().collect();
                 rows.sort_by_key(|(_, (work, calls))| std::cmp::Reverse((*work, *calls)));
                 for ((file, line), (work, calls)) in rows.into_iter().take(20) {
