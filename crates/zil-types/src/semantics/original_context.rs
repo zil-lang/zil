@@ -17,6 +17,134 @@ fn pay(left: &mut usize, work: usize) -> R<()> {
 fn search(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
+// Publication audits borrow both operands. Account one complete comparison
+// of the actual structure, including every field/list boundary and byte, and
+// independently bound it before derived Eq reads the immutable checked source.
+// Allocation/scratch callbacks intentionally add no owned-copy reservation.
+struct EqualityWork<'a> {
+    limits: &'a Limits,
+    left: &'a mut usize,
+    nodes: usize,
+}
+impl EqualityWork<'_> {
+    fn add_nodes(&mut self, count: usize) -> R<()> {
+        self.nodes = self.nodes.checked_add(count).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "original equality node count overflow", None)
+        })?;
+        if self.nodes > self.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original equality node limit exceeded",
+                None,
+            ));
+        }
+        Ok(())
+    }
+}
+impl DynRecipeVisitor for EqualityWork<'_> {
+    type Error = Diagnostic;
+    fn node(&mut self, depth: usize) -> R<()> {
+        if depth > self.limits.max_call_depth.min(128) {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original equality depth limit exceeded",
+                None,
+            ));
+        }
+        self.add_nodes(1)?;
+        pay(self.left, 1)
+    }
+    fn rows(&mut self, count: usize, depth: usize) -> R<()> {
+        self.node(depth)?; // Complete field/sequence boundary, even when empty.
+        self.add_nodes(count)?;
+        pay(self.left, count)
+    }
+    fn ty(&mut self, value: &Type, depth: usize) -> R<()> {
+        self.node(depth)?;
+        // Retain the established complete physical-Type bound/accounting;
+        // metadata/text/root structure uses borrowed comparison accounting.
+        inference::charge_type_snapshot(
+            value,
+            Span::default(),
+            &Limits {
+                max_call_depth: self.limits.max_call_depth.min(128).saturating_sub(depth),
+                ..self.limits.clone()
+            },
+            self.left,
+            1,
+        )
+    }
+    fn life(&mut self, value: &StorageLifeShape, depth: usize) -> R<()> {
+        self.node(depth)?;
+        if value.binder_count as usize > self.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original equality class-domain limit exceeded",
+                None,
+            ));
+        }
+        pay(self.left, 1)?; // The complete binder count is one integer field.
+        self.rows(value.slots.len(), depth)?;
+        for row in &value.slots {
+            self.rows(row.path.len(), depth.saturating_add(row.path.len()))?;
+            pay(self.left, 2)?; // Binder and actual borrow mode.
+        }
+        self.rows(value.retained.len(), depth)?;
+        for row in &value.retained {
+            self.rows(row.path.len(), depth.saturating_add(row.path.len()))?;
+            pay(self.left, 2)?; // Child class and complete parent image.
+        }
+        self.rows(value.nominal_arguments.len(), depth)?;
+        for row in &value.nominal_arguments {
+            self.rows(row.path.len(), depth.saturating_add(row.path.len()))?;
+            pay(self.left, 5)?; // Exact declaration, mixed position and binder.
+        }
+        Ok(())
+    }
+    fn identity(&mut self, value: &LifeDeclarationIdentity, depth: usize) -> R<()> {
+        self.node(depth)?;
+        self.text(&value.package, depth)?;
+        self.rows(value.module_path.len(), depth)?;
+        self.rows(value.declaration_path.len(), depth)?;
+        self.rows(value.generation_path.len(), depth)?;
+        for part in value.module_path.iter().chain(&value.declaration_path) {
+            self.text(part, depth)?;
+        }
+        Ok(())
+    }
+    fn position(&mut self, value: &StoragePosition, depth: usize) -> R<()> {
+        self.node(depth)?;
+        pay(self.left, 1)?; // Exact base discriminant/ordinal.
+        self.rows(value.path.len(), depth.saturating_add(value.path.len()))
+    }
+    fn constant(&mut self, value: &Constant, depth: usize) -> R<()> {
+        self.node(depth)?;
+        pay(self.left, 1)?;
+        if let Constant::WideString(units) = value {
+            self.rows(units.len(), depth)?;
+        }
+        Ok(())
+    }
+    fn text(&mut self, text: &str, depth: usize) -> R<()> {
+        self.node(depth)?;
+        pay(self.left, text.len())
+    }
+}
+#[track_caller]
+fn equality_work(value: &impl DynRecipeMetadata, limits: &Limits, left: &mut usize) -> R<()> {
+    let location = std::panic::Location::caller();
+    let before = *left;
+    let mut work = EqualityWork {
+        limits,
+        left,
+        nodes: 0,
+    };
+    value.visit_dyn_metadata(&mut work, 0).map_err(|mut diagnostic| {
+        diagnostic.notes.push(format!("original borrowed equality at {}:{}; nodes visited {}; work consumed {}; remaining {}", location.file(), location.line(), work.nodes, before.saturating_sub(*work.left), *work.left));
+        diagnostic
+    })
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Declaration {
     pub(super) row: DynDeclaration,
@@ -338,7 +466,7 @@ impl OriginalContext {
             let Some(actual) = &core.semantic else {
                 continue;
             };
-            crate::dyn_metadata::semantic_snapshot(actual, limits, left, 1)?;
+            equality_work(actual, limits, left)?;
             if actual.definitions.as_slice() != &self.semantic.definitions[part.definitions.clone()]
                 || actual.instances.as_slice() != &self.semantic.instances[part.instances.clone()]
                 || actual.sites.as_slice() != &self.semantic.sites[part.sites.clone()]
@@ -369,8 +497,7 @@ impl OriginalContext {
             return Err(bad("publication changed the original definition inventory"));
         }
         for (definition, expected) in actual.definitions.iter().zip(&self.semantic.definitions) {
-            crate::dyn_metadata::semantic_operand_snapshot(definition, limits, left, 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(expected, limits, left, 1)?;
+            equality_work(definition, limits, left)?;
             if definition != expected {
                 return Err(bad(
                     "publication changed an immutable original body, scope or premise",
