@@ -53,7 +53,7 @@ impl CheckedOriginal {
                 let rigid = self.environment(module, context, owner, active, b)?;
                 let mut prototype = self.signature(module, context, signature, &rigid, active, b)?;
                 prototype.callable_kind = Some(*kind);
-                result = Some(self.instantiate_prototype(&prototype, Some(owner), &selected, b)?);
+                result = Some(self.specialize_code_prototype(&prototype, &selected, b)?);
             }
         }
         Ok(result)

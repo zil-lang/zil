@@ -727,13 +727,14 @@ fn relation_inner(
             Ok(())
         };
         let (actual, pointee) = match ty {
-            Type::Address { mutable, inner } => {
+            Type::Address { inner, .. } | Type::Desc(inner) => {
+                let writable = matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_));
                 let position = StoragePosition { base, path: vec![] };
                 if c.static_bindings.get(constant) == Some(&position) {
                     // A constant occurrence has no class or invocation binder.
                     // This checks only its shape; actual Static provenance is
                     // discharged separately by the typed body/constructor proof.
-                    if *mutable
+                    if writable
                         || c.bindings
                             .get(borrow)
                             .is_some_and(|r| r.position == position)

@@ -53,3 +53,22 @@ impl CheckedOriginal {
     }
     fn map_invocation_arguments(&self,args:&[Arg],life:&mut impl FnMut(&Life,&mut Budget)->Check<Life>,depth:usize,b:&mut Budget)->Check<Vec<Arg>>{let mut values=Vec::new();for arg in args{b.spend(1)?;values.push(match arg{Arg::Type(ty)=>Arg::Type(self.map_invocation_type(ty,life,depth,b)?),Arg::Life(value)=>Arg::Life(life(value,b)?),Arg::Const(value)=>Arg::Const(value.clone())});}Ok(values)}
 }
+
+impl CheckedOriginal {
+    /// Specialize a capability's original code scheme without calling it.
+    /// Its own quantifiers remain complete and rigid for local alpha checking;
+    /// invocation freshening belongs to the later actual call occurrence.
+    pub(super) fn specialize_code_prototype(&self,prototype:&Prototype,selected:&Env,b:&mut Budget)->Check<Prototype>{
+        let mut environment=selected.clone();
+        b.spend(prototype.environment.invocation.len().saturating_add(prototype.bound_lifetimes as usize).saturating_add(1))?;
+        if prototype.environment.invocation.len()!=prototype.invocation_lifetimes as usize{return Err(bad("original callable scheme loses its complete invocation frame"));}
+        environment.invocation=prototype.environment.invocation.clone();
+        if prototype.bound_lifetimes!=0{
+            let bound=prototype.environment.bounds.first().ok_or_else(||bad("original callable scheme has no own bound frame"))?;
+            if bound.len()!=prototype.bound_lifetimes as usize{return Err(bad("original callable scheme has an incomplete own bound frame"));}
+            environment.bounds.insert(0,bound.clone());
+        }
+        let mut parameters=Vec::new();for parameter in &prototype.parameters{parameters.push(self.apply_type(parameter,selected,b)?);}
+        Ok(Prototype{parameters,result:self.apply_type(&prototype.result,selected,b)?,environment,modes:prototype.modes.clone(),result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:prototype.bound_lifetimes,invocation_lifetimes:prototype.invocation_lifetimes,callable_kind:prototype.callable_kind})
+    }
+}
