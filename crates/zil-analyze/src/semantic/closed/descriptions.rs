@@ -11,6 +11,17 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
+        self.source_description_at(instance, function, id, b, depth)?
+            .ok_or_else(|| unknown("actual weak description lacks its exact original argument occurrence and owning source"))
+    }
+    pub(super) fn source_description_at(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        id: ValueId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Value>> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth {
             return Err(unknown(
@@ -82,6 +93,6 @@ impl Check<'_, '_> {
             }
             selected = Some(expected);
         }
-        selected.ok_or_else(||unknown("actual weak description lacks its exact original argument occurrence and owning source"))
+        Ok(selected)
     }
 }

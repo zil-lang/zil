@@ -1204,6 +1204,11 @@ impl Check<'_, '_> {
             return Err(errors);
         }
         let (block, index, instruction) = self.defining(function, id, b)?;
+        if matches!(ty, Type::Desc(_))
+            && let Some(value) = self.source_description_at(instance, function, id, b, depth + 1)?
+        {
+            return Ok(value);
+        }
         match &instruction.kind {
             InstructionKind::StaticUtf8 { bytes } => {
                 b.spend(bytes.len().saturating_add(1), WORK)?;
@@ -1227,7 +1232,10 @@ impl Check<'_, '_> {
             InstructionKind::ByteBufferBorrow { .. } => {
                 self.buffer_result(instance, function, block, index, b)
             }
-            InstructionKind::DescribeLocal { .. } | InstructionKind::DescribeAddress { .. } => {
+            InstructionKind::DescribeLocal { .. }
+            | InstructionKind::DescribeAddress { .. }
+            | InstructionKind::DescribeCapture { .. }
+            | InstructionKind::DescribePackageField { .. } => {
                 self.source_description(instance, function, id, b, depth + 1)
             }
             InstructionKind::MutexCreate { .. }

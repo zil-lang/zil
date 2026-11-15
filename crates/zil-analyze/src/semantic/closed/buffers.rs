@@ -97,6 +97,23 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         let (block, index, instruction) = self.defining(function, descriptor, b)?;
+        if let InstructionKind::Load(local) | InstructionKind::TakeLocal { local } =
+            instruction.kind
+            && matches!(selected.ty, Type::Managed(_))
+        {
+            return self.sealed_description_local(
+                instance,
+                function,
+                local,
+                (block, index),
+                anchor,
+                root,
+                selected,
+                expected_path,
+                family,
+                b,
+            );
+        }
         let (origin, path) = match &instruction.kind {
             InstructionKind::DescribeLocal { local } => {
                 (Origin::Local(*local, block, index), Vec::new())
@@ -222,6 +239,114 @@ impl Check<'_, '_> {
             return Err(fail(
                 "actual ByteBuffer operation uses another complete description family",
             ));
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn sealed_description_local(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        local: LocalId,
+        at: (BlockId, usize),
+        anchor: original::LocalAnchor,
+        root: &Value,
+        selected: &Value,
+        expected_path: &[u32],
+        family: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        // A prologue description may be copied into a lexical slot and used
+        // at several distinct original occurrences. Trace its real origins on
+        // every reaching edge, while the caller retains this use's own class.
+        let initialized = crate::initialize(function, b)?;
+        let mut pending = vec![(local, at.0, at.1)];
+        let mut seen = BTreeSet::new();
+        let mut origins = 0usize;
+        while let Some((local, block, end)) = pending.pop() {
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert((local, block, end)) {
+                continue;
+            }
+            let actual_block = function
+                .blocks
+                .get(block.0 as usize)
+                .filter(|candidate| candidate.id == block)
+                .ok_or_else(|| fail("description source chain has no exact actual block"))?;
+            let mut stored = None;
+            for (index, instruction) in actual_block.instructions.iter().enumerate().take(end).rev()
+            {
+                b.spend(1, WORK)?;
+                match instruction.kind {
+                    InstructionKind::Store {
+                        local: target,
+                        value,
+                    } if target == local => {
+                        operations::available_before(
+                            function,
+                            (block, index, SemanticSiteEdge::Before),
+                            value,
+                            b,
+                        )?;
+                        stored = Some(value);
+                        break;
+                    }
+                    InstructionKind::StorageLive(target)
+                    | InstructionKind::StorageDead(target)
+                    | InstructionKind::TakeLocal { local: target }
+                        if target == local =>
+                    {
+                        return Err(fail(
+                            "description source chain crosses a vacant local activation",
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(value) = stored {
+                let (source_block, source_index, instruction) =
+                    self.defining(function, value, b)?;
+                match instruction.kind {
+                    InstructionKind::Load(source)
+                    | InstructionKind::TakeLocal { local: source } => {
+                        b.spend(1, WORK)?;
+                        pending.push((source, source_block, source_index));
+                    }
+                    _ => {
+                        self.sealed_resource_place(
+                            instance,
+                            function,
+                            value,
+                            anchor,
+                            root,
+                            selected,
+                            expected_path,
+                            family,
+                            b,
+                        )?;
+                        origins += 1;
+                    }
+                }
+                continue;
+            }
+            let mut incoming = false;
+            for predecessor in &initialized.predecessors[block.0 as usize] {
+                b.spend(1, WORK)?;
+                if !initialized.reachable[*predecessor] {
+                    continue;
+                }
+                incoming = true;
+                let previous = &function.blocks[*predecessor];
+                pending.push((local, previous.id, previous.instructions.len()));
+            }
+            if !incoming || block == function.entry {
+                return Err(fail(
+                    "description source chain has no real initialized owning origin",
+                ));
+            }
+        }
+        if origins == 0 {
+            return Err(fail("description source cycle has no actual owning origin"));
         }
         Ok(())
     }

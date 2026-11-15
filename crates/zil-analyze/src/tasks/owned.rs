@@ -382,7 +382,10 @@ fn enum_resource<'a>(
             || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.reference_return_bound.is_some()
-            || (f.storage_life.as_ref().is_some_and(|life| !super::input_scope::empty_relation(life)))
+            || (f
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| !super::input_scope::empty_relation(life)))
             || f.return_type != Type::Unit
             || f.result_mode != PassingMode::Infer
             || f.parameters.len() != 1
@@ -397,8 +400,11 @@ fn enum_resource<'a>(
         // Record receiver. Its presence is not a new retained class; None
         // keeps the prior interface, and nonempty/unknown rows stay rejected.
         if f.storage_life.is_some() && !record(payload, budget)? {
-            return Err(reject("E-VERIFY-TASK", span,
-                "complete Enum teardown zero header has a nonzero or unknown actual receiver"));
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum teardown zero header has a nonzero or unknown actual receiver",
+            ));
         }
         let receiver = local_type(f, f.parameters[0], span)?;
         budget.type_work(receiver, false, "Enum teardown actual receiver")?;
@@ -437,11 +443,46 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
     budget.type_work(t, false, "pollable frame actual type")?;
     budget.spend(1, "pollable frame actual storage")?;
     match t {
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            budget.spend(fields.len(), "pollable frame complete product")?;
+            for (_, field) in fields {
+                if !pollable_storage(module, field, budget)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        Type::Tuple(fields) => {
+            budget.spend(fields.len(), "pollable frame complete tuple")?;
+            for field in fields {
+                if !pollable_storage(module, field, budget)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        Type::Enum { variants, .. } => {
+            budget.spend(variants.len(), "pollable frame complete alternatives")?;
+            for (_, fields) in variants {
+                budget.spend(fields.len(), "pollable frame complete alternative fields")?;
+                for field in fields {
+                    if !pollable_storage(module, field, budget)? {
+                        return Ok(false);
+                    }
+                }
+            }
+            Ok(true)
+        }
+        Type::ErrorUnion { error, result } => {
+            Ok(pollable_storage(module, error, budget)?
+                && pollable_storage(module, result, budget)?)
+        }
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
-        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => {
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) =>
+        {
             super::require_closed_context(p)?;
-            Ok(super::input_scope::domain(p,budget)? == super::input_scope::Domain::Known(0))
+            Ok(super::input_scope::domain(p, budget)? == super::input_scope::Domain::Known(0))
         }
         Type::Managed(p) | Type::Desc(p)
             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
@@ -460,10 +501,15 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             if !c.lending_captures.is_empty() {
                 return Ok(false);
             }
-            if super::input_scope::domain(t,budget)? != super::input_scope::Domain::Known(0) { return Ok(false); }
+            if super::input_scope::domain(t, budget)? != super::input_scope::Domain::Known(0) {
+                return Ok(false);
+            }
             for (index, capture) in c.captures.iter().enumerate() {
-                if matches!(capture,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}|Type::AsyncRegistration{..})) {
-                    if !pollable_storage(module,capture,budget)? { return Ok(false); }
+                if matches!(capture,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}|Type::AsyncRegistration{..}))
+                {
+                    if !pollable_storage(module, capture, budget)? {
+                        return Ok(false);
+                    }
                     // A real owner leaf is drained by the enclosing root's
                     // flagged cleanup group. It is not an inline Record and
                     // has not acquired synchronous Drop or Closed here.
@@ -494,11 +540,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
                     // all-constructor/write source proof has already run.
                     continue;
                 }
-                let complete = if matches!(capture, Type::Closure(_)) {
-                    pollable_storage(module, capture, budget)?
-                } else {
-                    complete_aggregate(capture, budget)?
-                };
+                let complete = pollable_storage(module, capture, budget)?;
                 if !complete {
                     return Ok(false);
                 }
@@ -506,7 +548,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
                     let Type::Managed(payload) = leaf else {
                         unreachable!()
                     };
-                    let resource = enum_resource(module, payload, budget, None)?;
+                    let resource = frame_resource(module, payload, budget, None)?;
                     if let Some(drop) = resource.teardown {
                         cleanup(module, drop, budget, None)?;
                     }
@@ -516,6 +558,84 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
         }
         _ => storage(t, budget),
     }
+}
+
+// One resource inventory is used after frame qualification for both direct
+// owners and leaves of products/sums. An asynchronous head carries its real
+// cleanup debt; admitting its sealed storage never proves Closed or SyncDrop.
+fn frame_resource<'a>(
+    module: &'a TypedModule,
+    payload: &Type,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> CompileResult<&'a zil_ir::ResourceDefinition> {
+    let expected = match payload {
+        Type::Task { .. } => {
+            super::require_closed_context(payload)?;
+            budget.type_work(payload, false, "Task frame sealed resource identity")?;
+            Some(format!(
+                "{TASK_RESOURCE_NAME_PREFIX}{}",
+                payload.fingerprint()
+            ))
+        }
+        Type::AsyncRegistration { environment } | Type::Registration { environment } => {
+            let Type::Closure(id) = environment.as_ref() else {
+                return Err(fail(
+                    span.unwrap_or_default(),
+                    "frame registration has no real concrete environment",
+                ));
+            };
+            crate::registration::semantic_resource_scope(module, payload, budget)?;
+            let prefix = if matches!(payload, Type::AsyncRegistration { .. }) {
+                crate::registration::ASYNC_PREFIX
+            } else {
+                "@builtin:Registration:"
+            };
+            budget.spend(
+                prefix.len().saturating_add(32),
+                "frame registration sealed identity",
+            )?;
+            Some(format!("{prefix}{}", id.0))
+        }
+        _ => None,
+    };
+    let Some(expected) = expected else {
+        return enum_resource(module, payload, budget, span);
+    };
+    let mut selected = None;
+    budget.spend(
+        module.resources.len(),
+        "frame asynchronous resource inventory",
+    )?;
+    for resource in &module.resources {
+        budget.type_work(
+            &resource.payload,
+            false,
+            "frame asynchronous resource identity",
+        )?;
+        budget.spend(
+            resource.name.len().saturating_add(expected.len()),
+            "frame asynchronous allocator identity",
+        )?;
+        if resource.payload != *payload {
+            continue;
+        }
+        if selected.replace(resource).is_some()
+            || resource.name != expected
+            || resource.teardown.is_some()
+        {
+            return Err(fail(
+                span.unwrap_or_default(),
+                "frame asynchronous head has no unique canonical allocator and cleanup identity",
+            ));
+        }
+    }
+    selected.ok_or_else(|| {
+        fail(
+            span.unwrap_or_default(),
+            "frame asynchronous head lacks its sealed resource definition",
+        )
+    })
 }
 fn borrowed_driver_signature(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
     if f.protocol_contracts.is_empty() {
@@ -616,11 +736,23 @@ fn helper_graph(
                 .saturating_add(f.parameters.len()),
             "actual owning task profile",
         )?;
+        let handoff = driving
+            && match (&f.return_type, &f.callable_return_contract) {
+                (Type::Closure(id), Some(contract)) if *id == contract.closure => {
+                    // Forming/returning an owning environment does not invoke it.
+                    // Retained-return and resource kernels prove the actual moved
+                    // capture sources; this is frame eligibility only.
+                    pollable_storage(module, &f.return_type, budget)?
+                }
+                _ => false,
+            };
         if f.call_kind != CallKind::Direct
             || f.environment.is_some()
             || f.callable_contract.is_some()
-            || f.callable_return_contract.is_some()
-            || !(record(&f.return_type, budget)? || complete_aggregate(&f.return_type, budget)?)
+            || f.callable_return_contract.is_some() && !handoff
+            || !(record(&f.return_type, budget)?
+                || complete_aggregate(&f.return_type, budget)?
+                || handoff)
         {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -646,7 +778,8 @@ fn helper_graph(
             continue;
         }
         let task_driver = driving && task_driver_signature(f)?;
-        let borrowed_driver = task_driver || driving && borrowed_driver_signature(f, budget)?;
+        let borrowed_driver =
+            task_driver || handoff || driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
         // prove checked finish observes Closed; the annotation cannot retire it.
@@ -676,35 +809,14 @@ fn helper_graph(
             }
         }
         for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-            if let Type::Managed(payload) = t {
-                for _ in &module.resources {
-                    budget.type_work(payload, false, "actual cleanup resource equality")?;
-                }
-                if let Some(drop) = module
-                    .resources
-                    .iter()
-                    .find(|r| r.payload == **payload)
-                    .and_then(|r| r.teardown)
-                {
+            for leaf in aggregate_resources(t, budget)? {
+                budget.spend(1, "complete helper cleanup leaves")?;
+                let Type::Managed(payload) = leaf else {
+                    unreachable!()
+                };
+                let resource = frame_resource(module, payload, budget, span)?;
+                if let Some(drop) = resource.teardown {
                     pending.push((drop, false));
-                }
-            }
-        }
-        for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-            if matches!(
-                t,
-                Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-            ) && !t.is_copy_value()
-            {
-                for leaf in aggregate_resources(t, budget)? {
-                    budget.spend(1, "complete helper cleanup leaves")?;
-                    let Type::Managed(payload) = leaf else {
-                        unreachable!()
-                    };
-                    let resource = enum_resource(module, payload, budget, span)?;
-                    if let Some(drop) = resource.teardown {
-                        pending.push((drop, false));
-                    }
                 }
             }
         }
@@ -712,6 +824,14 @@ fn helper_graph(
             for i in &b.instructions {
                 budget.spend(1, "actual owning task profile")?;
                 match &i.kind {
+                    InstructionKind::MakeClosure { closure, .. } if handoff => {
+                        if !pollable_storage(module, &Type::Closure(*closure), budget)? {
+                            return Err(fail(
+                                i.span,
+                                "Task environment handoff lacks its complete concrete capture frame",
+                            ));
+                        }
+                    }
                     InstructionKind::TaskPoll { .. }
                     | InstructionKind::TaskValid { .. }
                     | InstructionKind::TaskRequestCancel { .. }
@@ -828,11 +948,15 @@ pub(super) fn profile(
 
     if f.resume_bound == zil_ir::TaskResumeBound::Transfer {
         for parameter in &f.parameters {
-            let ty=local_type(f,*parameter,span)?;
-            if matches!(ty,Type::Closure(_))
-                && (super::needs_synchronous_proof(module,ty,budget)?
-                    || super::drop_sync::contains_kind(module,ty,budget,true)?) {
-                return Err(fail(span.unwrap_or(f.span),"hidden asynchronous callable inputs need actual per-instance frame handoff proof"));
+            let ty = local_type(f, *parameter, span)?;
+            if matches!(ty, Type::Closure(_))
+                && (super::needs_synchronous_proof(module, ty, budget)?
+                    || super::drop_sync::contains_kind(module, ty, budget, true)?)
+            {
+                return Err(fail(
+                    span.unwrap_or(f.span),
+                    "hidden asynchronous callable inputs need actual per-instance frame handoff proof",
+                ));
             }
         }
     }
@@ -862,34 +986,10 @@ pub(super) fn profile(
                 "task owner needs a complete canonical inline resource frame slot",
             ));
         }
-        let mut leaves = match t {
-            Type::Package { fields, .. } => fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
-            Type::Tuple(fields) => fields.iter().collect(),
-            _ => vec![t],
-        };
-        if enum_storage {
-            leaves = aggregate_resources(t, budget)?;
-        }
+        let leaves = aggregate_resources(t, budget)?;
         for leaf in leaves {
             if let Type::Managed(payload) = leaf {
-                let resource = if enum_storage || payload.as_ref() == &Type::ByteBuffer {
-                    enum_resource(module, payload, budget, span)?
-                } else {
-                    for _ in &module.resources {
-                        budget.type_work(payload, false, "actual task resource equality")?;
-                    }
-                    module
-                        .resources
-                        .iter()
-                        .find(|r| r.payload == **payload)
-                        .ok_or_else(|| {
-                            reject(
-                                "E-VERIFY-TASK",
-                                span,
-                                "owned task slot has no actual resource",
-                            )
-                        })?
-                };
+                let resource = frame_resource(module, payload, budget, span)?;
                 if let Some(drop) = resource.teardown
                     && checked.insert(drop)
                 {
@@ -903,7 +1003,7 @@ pub(super) fn profile(
             let Type::Managed(payload) = leaf else {
                 unreachable!()
             };
-            let resource = enum_resource(module, payload, budget, span)?;
+            let resource = frame_resource(module, payload, budget, span)?;
             if let Some(drop) = resource.teardown {
                 cleanup(module, drop, budget, span)?;
             }
@@ -1084,7 +1184,9 @@ pub(crate) fn once_cleanup_resumable(
         return Ok(false);
     };
     if !super::needs_synchronous_proof(module, ty, budget)?
-        && !(budget.async_registrations && super::drop_sync::contains_kind(module, ty, budget, true)?) {
+        && !(budget.async_registrations
+            && super::drop_sync::contains_kind(module, ty, budget, true)?)
+    {
         return Ok(false);
     }
     pollable_storage(module, ty, budget)

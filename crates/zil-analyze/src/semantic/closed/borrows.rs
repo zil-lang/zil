@@ -116,7 +116,10 @@ impl Check<'_, '_> {
         }
         let (_, _, instruction) = self.defining(function, id, b)?;
         match instruction.kind {
-            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => Ok(local),
+            InstructionKind::Load(local)
+            | InstructionKind::TakeLocal { local }
+            | InstructionKind::BorrowLocal { local }
+            | InstructionKind::BorrowLocalMut { local } => Ok(local),
             InstructionKind::ReborrowAddress { address, .. } => {
                 self.receiver_local(function, address, b, depth + 1)
             }
