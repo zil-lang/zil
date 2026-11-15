@@ -5,6 +5,8 @@ use crate::ct_selection::Visitor;
 use crate::generics::origins::Origins;
 use zil_base::{CompileResult, Limits};
 use zil_syntax::ast::{self as s, Module};
+#[path = "source_ast_storage.rs"]
+mod storage;
 
 // A frozen source snapshot is input data for later CT and runtime checks.
 // Walk every syntax form for clone cost; the runtime specialization walk has
@@ -231,14 +233,26 @@ fn capture_impl(
                         (row.original.clone(), row.generated.clone())
                     }
                     DeclarationPlacement::Original => {
-                        let original = budget.retained_copy(module.span, |budget| {
+                        let before = budget.remaining_limits();
+                        let original = budget.metadata_scope(module.span, false, |budget| {
                             for item in &module.items {
                                 FrozenCopy(budget)
                                     .item(item, 0)
                                     .map_err(|mut errors| errors.remove(0))?;
                             }
-                            budget.lineage_bytes(std::mem::size_of::<Module>(), module.span)?;
+                            // Syntax node/work/depth bounds above are unchanged.
+                            // Charge only the heap actually retained by this clone.
+                            storage::module(module, budget)?;
                             Ok(std::sync::Arc::new((*module).clone()))
+                        }).map_err(|mut error| {
+                            let left = budget.remaining_limits();
+                            error.notes.push(format!(
+                                "original Module {} frozen AST clone: temporary allowance {} -> {}, work {} -> {}, nodes {} -> {}",
+                                module.id.0, before.max_source_bytes, left.max_source_bytes,
+                                before.max_analysis_steps, left.max_analysis_steps,
+                                before.max_nodes, left.max_nodes,
+                            ));
+                            error
                         })?;
                         (original, GeneratedSourceCatalog::default())
                     }
