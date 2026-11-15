@@ -420,10 +420,41 @@ impl Check<'_, '_> {
         match (source.index, origin.index) {
             (None, None) => {}
             (Some(node), Some(actual)) => {
-                if self.original_subject_value(instance, function, node, b)? != Some(actual) {
-                    return Err(unknown(
-                        "actual indexed borrow lacks its exact original emitted index operand",
-                    ));
+                let observed = self.original_subject_value(instance, function, node, b)?;
+                if observed != Some(actual) {
+                    let definition = self.inventory.definition(instance.definition, b)?;
+                    let original = super::super::original_index::index(definition, b)?;
+                    let expression = original.get_expr(node, b)?;
+                    let (_, _, operation) = self.defining(function, actual, b)?;
+                    // A folded integer literal need not have a separate
+                    // runtime observation. Prove its exact original spelling,
+                    // carrier and value against the actual Constant instead.
+                    let literal = match (&expression.kind, &operation.kind) {
+                        (CoreExprKind::Integer(text), InstructionKind::Constant(value))
+                            if observed.is_none() && value.ty().is_integer() =>
+                        {
+                            let expected = self.recipe_value(
+                                instance,
+                                &SemanticTypeRecipe::OriginalType {
+                                    scope: SemanticScopeRef::Ancestor(0),
+                                    source: SemanticOriginalTypeSource::Expression(node),
+                                },
+                                b,
+                                0,
+                            )?;
+                            expected.ty == value.ty()
+                                && original::mixed::integer_constant(text, &expected.ty, b)?
+                                    == *value
+                        }
+                        _ => false,
+                    };
+                    if !literal {
+                        let mut errors = unknown(
+                            "actual indexed borrow lacks its exact original emitted index operand",
+                        );
+                        errors[0].notes.push(format!("original index node {}, actual SSA {}, observed {:?}, actual operation {:?}", node.0, actual.0, observed, operation.kind));
+                        return Err(errors);
+                    }
                 }
                 leaf = match leaf {
                     Type::Array { element, .. } | Type::Slice { element } => element.as_ref(),

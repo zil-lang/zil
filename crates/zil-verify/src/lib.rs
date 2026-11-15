@@ -655,7 +655,10 @@ impl Budget {
                 self.spend(self.function_count)?;
                 self.sum_functions = vec![false; self.function_count];
             }
-            self.sum_functions[index] = true;
+            let marked = self.sum_functions.get_mut(index).ok_or_else(|| reject(
+                "E-VERIFY-FUNCTION", None, "semantic sum work selects an absent actual function",
+            ))?;
+            *marked = true;
         }
         Ok(())
     }
@@ -858,6 +861,7 @@ fn check_module_budget(
         ));
     }
 
+    budget.function_count = module.functions.len();
     if module.semantic.is_none(){semantic::task_domains::prepare_raw_task_contexts(module,&mut budget)?;}
     budget.stored_context = true;
     if let Some(frozen)=frozen {
@@ -872,7 +876,6 @@ fn check_module_budget(
         stored_flow::inventory(module, limits, &mut budget)?;
         budget.stored_borrows = true;
     }
-    budget.function_count = module.functions.len();
     resources::check_definitions(module, limits, &mut budget)?;
     for text in [
         &module.target.id,

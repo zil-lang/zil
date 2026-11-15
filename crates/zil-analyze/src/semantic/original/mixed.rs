@@ -8,6 +8,7 @@ pub(super) enum Life {
     Implicit(SemanticDefinitionId, u32),
     Invocation(SemanticDefinitionId, u32),
     Role(SemanticDefinitionId, u32, u32),
+    Receiver(SemanticDefinitionId, NodeId),
 }
 
 impl Solver<'_, '_> {

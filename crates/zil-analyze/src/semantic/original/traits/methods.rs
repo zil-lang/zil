@@ -419,8 +419,7 @@ impl Solver<'_, '_> {
                     borrowed.owned = false;
                     (self.term(Kind::Dyn(borrowed), b)?, None, Some(true))
                 }
-                _ if !place.path.is_empty() => (actual, None, None),
-                _ => return Ok(None),
+                _ => (actual, None, None),
             };
             let anchor = place.anchor.ok_or_else(|| {
                 unknown("original trait receiver has no exact original place anchor")
@@ -458,7 +457,9 @@ impl Solver<'_, '_> {
         let Some((declaration, trait_actuals, member)) = selected else {
             return Ok(None);
         };
-        let receiver_place = if place.as_ref().is_some_and(|place| !place.path.is_empty()) {
+        let receiver_place = if place.as_ref().is_some_and(|place| {
+            !place.path.is_empty() || actual_receiver.is_none() && dynamic.is_none()
+        }) {
             let place = self.borrow_place(frame, object, b, depth + 1)?;
             Some(place)
         } else {
@@ -525,8 +526,7 @@ impl Solver<'_, '_> {
                 };
                 life
             } else {
-                let ordinal = self.borrow_occurrence(frame.definition, object.id, b)?;
-                self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?
+                self.term(Kind::Life(Life::Receiver(frame.definition, node)), b)?
             };
             self.unify(life, head, depth + 1, b)?;
         }

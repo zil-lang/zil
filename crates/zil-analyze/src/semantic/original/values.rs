@@ -100,6 +100,88 @@ impl Checked {
                     0,
                 )
             }
+            Kind::Life(Life::Receiver(owner, node)) => {
+                let scope = self.context(*owner, context, inventory, b)?;
+                // The source-only universe has a distinct call-local symbol.
+                // An executable world binds it only to that exact original
+                // call's actual receiver; no other caller image is a premise.
+                if inventory.source.is_some() {
+                    return Ok(Class::Role(scope.id, node.0));
+                }
+                let definition = inventory.definition(scope.definition, b)?;
+                let SemanticDefinitionBody::FunctionWithBody {
+                    site_nodes, sites, ..
+                } = &definition.body
+                else {
+                    return Err(fail("receiver role has no complete original body"));
+                };
+                let program = inventory
+                    .module
+                    .semantic
+                    .as_ref()
+                    .ok_or_else(|| fail("receiver role has no actual semantic module"))?;
+                let SemanticInstanceTarget::Function(target) = &scope.target else {
+                    return Err(fail("receiver role has no actual function world"));
+                };
+                let function = inventory.function(target, b)?;
+                let mut selected = None;
+                for link in site_nodes {
+                    b.spend(sites.len().saturating_add(1), WORK)?;
+                    if link.node != SemanticOriginalNode::Expression(*node)
+                        || !sites.iter().any(|site| {
+                            site.id == link.site
+                                && matches!(site.kind, SemanticSiteRecipeKind::BodyCall { .. })
+                        })
+                    {
+                        continue;
+                    }
+                    for site in &program.sites {
+                        b.spend(1, WORK)?;
+                        if site.instance != scope.id || site.recipe != link.site {
+                            continue;
+                        }
+                        let SemanticSiteAddress::Typed {
+                            block,
+                            instruction,
+                            edge: SemanticSiteEdge::After,
+                        } = site.at
+                        else {
+                            return Err(fail("receiver role changes its original call occurrence"));
+                        };
+                        let operation = function
+                            .blocks
+                            .get(block.0 as usize)
+                            .filter(|row| row.id == block)
+                            .and_then(|row| row.instructions.get(instruction as usize))
+                            .ok_or_else(|| fail("receiver role has no actual call operation"))?;
+                        let arguments = match &operation.kind {
+                            InstructionKind::Call { arguments, .. }
+                            | InstructionKind::SuspendCall { arguments, .. } => arguments,
+                            _ => {
+                                return Err(fail(
+                                    "receiver role is replaced by another actual operation",
+                                ));
+                            }
+                        };
+                        let head = *arguments
+                            .first()
+                            .ok_or_else(|| fail("receiver role omits its actual receiver"))?;
+                        if !matches!(
+                            function.values.get(head.0 as usize),
+                            Some(Type::Address { .. })
+                        ) {
+                            return Err(fail("receiver role has no actual borrowed head"));
+                        }
+                        if selected
+                            .replace(Class::Reborrow(function.id, head))
+                            .is_some()
+                        {
+                            return Err(fail("receiver role has competing actual call bindings"));
+                        }
+                    }
+                }
+                selected.ok_or_else(|| fail("receiver role has no exact actual call binding"))
+            }
             Kind::Life(Life::Invocation(owner, ordinal)) => {
                 let scope = self.context(*owner, context, inventory, b)?;
                 Ok(Class::Invocation(scope.id, *ordinal))
