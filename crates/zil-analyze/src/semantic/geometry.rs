@@ -2,19 +2,55 @@
 //! stored here; every value carries its own current complete class vector.
 use super::*;
 use std::sync::Arc;
+#[path = "geometry_intern.rs"]
+mod intern;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Geometry {
     pub ty: Type,
     pub life: StorageLifeShape,
+    receipt: std::sync::OnceLock<intern::Receipt>,
 }
+impl Geometry {
+    pub(super) fn new(ty: Type, life: StorageLifeShape) -> Self {
+        Self {
+            ty,
+            life,
+            receipt: std::sync::OnceLock::new(),
+        }
+    }
+    pub(super) fn invalidate(&mut self) {
+        let _ = self.receipt.take();
+    }
+}
+impl Clone for Geometry {
+    fn clone(&self) -> Self {
+        Self::new(self.ty.clone(), self.life.clone())
+    }
+}
+impl std::fmt::Debug for Geometry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Geometry")
+            .field("ty", &self.ty)
+            .field("life", &self.life)
+            .finish()
+    }
+}
+impl PartialEq for Geometry {
+    fn eq(&self, other: &Self) -> bool {
+        self.ty == other.ty && self.life == other.life
+    }
+}
+impl Eq for Geometry {}
+pub(crate) use intern::{GeometryRecord, TypeRecord};
 
 pub(crate) struct TypeEntry {
     // Retaining the owner makes every registered address request-stable.
     pub owner: Arc<Geometry>,
     pub raw_work: usize,
     pub raw_limits: (usize, usize),
+    module: Option<usize>,
     pub nominal: Option<(usize, usize, usize)>, // module, type-depth limit, row
+    type_id: usize,
 }
 
 pub(super) struct Inputs {
@@ -91,6 +127,7 @@ impl Inputs {
     ) -> CompileResult<Self> {
         // The complete raw metadata/depth preflight has already succeeded.
         // This existing structural visitor only records exact immutable roots.
+        budget.geometry_module = Some(module as *const TypedModule as usize);
         let mut inputs = Self {
             module: Some(module as *const TypedModule as usize),
             raw_limits: (budget.partial_depth, budget.helper_nodes),
@@ -162,10 +199,26 @@ impl Inputs {
         life: &StorageLifeShape,
         budget: &mut Budget,
     ) -> CompileResult<Arc<Geometry>> {
+        if self.module != budget.geometry_module {
+            return Err(fail("geometry source changes its exact immutable module"));
+        }
         let key = (
             ty as *const Type as usize,
             life as *const StorageLifeShape as usize,
         );
+        // Only immutable input coordinates are ever published in this map.
+        // A hit therefore already authenticates both roots and their limits;
+        // do not repeat two source-membership and an owned-root tree search.
+        if self.raw_limits == (budget.partial_depth, budget.helper_nodes) {
+            budget.lookup(
+                self.resolved.borrow().len(),
+                "semantic geometry source lookup",
+            )?;
+            if let Some(value) = self.resolved.borrow().get(&key) {
+                budget.spend(1, "semantic geometry shared result")?;
+                return Ok(Arc::clone(value));
+            }
+        }
         // Current values may already point into an owned immutable geometry.
         // Keep that exact owner; this is neither an address-only borrowed cache
         // nor an inference about any current class vector.
@@ -180,9 +233,13 @@ impl Inputs {
             .filter(|entry| {
                 std::ptr::eq(&entry.owner.ty, ty)
                     && entry.raw_limits == (budget.partial_depth, budget.helper_nodes)
+                    && entry.module == budget.geometry_module
             })
             .map(|entry| Arc::clone(&entry.owner));
         if let Some(existing) = existing {
+            if std::ptr::eq(life, &existing.life) {
+                return Ok(existing);
+            }
             crate::dyn_metadata::shape(life, budget)?;
             crate::dyn_metadata::shape(&existing.life, budget)?;
             if existing.life == *life {
@@ -194,16 +251,6 @@ impl Inputs {
         let registered = self.raw_limits == (budget.partial_depth, budget.helper_nodes)
             && self.types.contains(&key.0)
             && (self.lives.contains(&key.1) || std::ptr::eq(life, &self.empty));
-        if registered {
-            budget.lookup(
-                self.resolved.borrow().len(),
-                "semantic geometry source lookup",
-            )?;
-            if let Some(value) = self.resolved.borrow().get(&key) {
-                budget.spend(1, "semantic geometry shared result")?;
-                return Ok(Arc::clone(value));
-            }
-        }
         let value = copy_geometry(ty, life, budget)?;
         if registered {
             budget.lookup(
@@ -263,41 +310,25 @@ fn copy_geometry(
     life: &StorageLifeShape,
     budget: &mut Budget,
 ) -> CompileResult<Arc<Geometry>> {
-    // Owned output is still a real deep clone on a miss. Pay its complete
-    // Type/shape traversal and allocation before constructing it.
-    let before = budget.remaining();
-    crate::dyn_metadata::ty(ty, budget)?;
-    let work = before - budget.remaining();
-    crate::dyn_metadata::shape(life, budget)?;
-    budget.spend(work.saturating_add(1), "semantic geometry owned copy")?;
-    Ok(Arc::new(Geometry {
-        ty: ty.clone(),
-        life: life.clone(),
-    }))
+    intern::borrowed(ty, life, budget)
 }
 fn retain(value: &Arc<Geometry>, budget: &mut Budget) -> CompileResult<()> {
-    // A complete raw visit on the miss above bounded this exact owned root.
-    // Reserve a comparison upper independently from the copy's own work.
-    let before = budget.remaining();
-    crate::dyn_metadata::ty(&value.ty, budget)?;
-    let raw_work = before - budget.remaining();
-    budget.lookup(
-        budget.geometry_types.len(),
-        "semantic geometry root publication",
-    )?;
-    budget.spend(1, "semantic geometry shared result")?;
-    budget.geometry_types.insert(
-        &value.ty as *const Type as usize,
-        TypeEntry {
-            owner: Arc::clone(value),
-            raw_work,
-            raw_limits: (budget.partial_depth, budget.helper_nodes),
-            nominal: None,
-        },
-    );
+    intern::owned(value, budget)?;
     Ok(())
 }
+pub(super) fn same_geometry(
+    left: &Arc<Geometry>,
+    right: &Arc<Geometry>,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let left = intern::owned(left, budget)?;
+    let right = intern::owned(right, budget)?;
+    Ok(left.geometry_id == right.geometry_id)
+}
 pub(crate) fn bounded_work(ty: &Type, budget: &mut Budget) -> CompileResult<Option<usize>> {
+    Ok(registered_type(ty, budget)?.map(|(_, work)| work))
+}
+fn registered_type(ty: &Type, budget: &mut Budget) -> CompileResult<Option<(usize, usize)>> {
     budget.lookup(
         budget.geometry_types.len(),
         "semantic geometry bounded root query",
@@ -308,28 +339,21 @@ pub(crate) fn bounded_work(ty: &Type, budget: &mut Budget) -> CompileResult<Opti
         .filter(|entry| {
             std::ptr::eq(&entry.owner.ty, ty)
                 && entry.raw_limits == (budget.partial_depth, budget.helper_nodes)
+                && entry.module == budget.geometry_module
         })
-        .map(|entry| entry.raw_work))
+        .map(|entry| (entry.type_id, entry.raw_work)))
 }
 
 /// Exact Type equality only. Cached roots are owned until this request ends;
 /// class vectors, providers and permissions are not part of this catalogue.
 pub(super) fn same_type(left: &Type, right: &Type, budget: &mut Budget) -> CompileResult<bool> {
-    let left_work = bounded_work(left, budget)?;
-    let right_work = bounded_work(right, budget)?;
-    let left_key = left as *const Type as usize;
-    let right_key = right as *const Type as usize;
-    let key = (left_key.min(right_key), left_key.max(right_key));
-    let reusable = left_work.is_some() && right_work.is_some();
-    if reusable {
-        budget.lookup(
-            budget.geometry_equalities.len(),
-            "complete Type equality query",
-        )?;
-        if left_key == right_key || budget.geometry_equalities.contains(&key) {
-            return Ok(true);
-        }
+    let left_entry = registered_type(left, budget)?;
+    let right_entry = registered_type(right, budget)?;
+    if let (Some((left, _)), Some((right, _))) = (left_entry, right_entry) {
+        return Ok(left == right);
     }
+    let left_work = left_entry.map(|(_, work)| work);
+    let right_work = right_entry.map(|(_, work)| work);
     let left_work = match left_work {
         Some(work) => work,
         None => {
@@ -351,13 +375,6 @@ pub(super) fn same_type(left: &Type, right: &Type, budget: &mut Budget) -> Compi
         "complete Type equality comparison",
     )?;
     let equal = left == right;
-    if equal && reusable {
-        budget.lookup(
-            budget.geometry_equalities.len(),
-            "complete Type equality publication",
-        )?;
-        budget.geometry_equalities.insert(key);
-    }
     Ok(equal)
 }
 
@@ -370,83 +387,45 @@ pub(super) fn field_equal(
     expected: &Arc<Geometry>,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
-    let storage = match &owner.ty {
-        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
-        ty => ty,
-    };
-    let actual = match (storage, variant) {
-        (Type::Record { fields, .. } | Type::Package { fields, .. }, None) => {
-            fields.get(field).map(|(_, ty)| ty)
-        }
-        (Type::Enum { variants, .. }, Some(variant)) => variants
-            .get(variant)
-            .and_then(|(_, fields)| fields.get(field)),
-        _ => None,
-    }
-    .ok_or_else(|| fail("nominal child geometry has no exact physical field coordinate"))?;
-    let owner_work = bounded_work(&owner.ty, budget)?;
-    let expected_work = bounded_work(&expected.ty, budget)?;
-    let reusable = owner_work.is_some() && expected_work.is_some();
-    let key = (
-        &owner.ty as *const Type as usize,
-        variant,
-        field,
-        &expected.ty as *const Type as usize,
-    );
-    if reusable {
-        budget.lookup(
-            budget.geometry_field_equalities.len(),
-            "complete nominal child equality query",
-        )?;
-        if budget.geometry_field_equalities.contains(&key) {
-            return Ok(true);
-        }
-    }
-    let before = budget.remaining();
-    crate::dyn_metadata::ty(actual, budget)?;
-    let actual_work = before - budget.remaining();
-    let expected_work = match expected_work {
-        Some(work) => work,
-        None => {
-            let before = budget.remaining();
-            crate::dyn_metadata::ty(&expected.ty, budget)?;
-            before - budget.remaining()
-        }
-    };
-    budget.spend(
-        actual_work.max(expected_work),
-        "complete nominal child Type comparison",
-    )?;
-    let equal = *actual == expected.ty;
-    if equal && reusable {
-        budget.lookup(
-            budget.geometry_field_equalities.len(),
-            "complete nominal child equality publication",
-        )?;
-        budget.geometry_field_equalities.insert(key);
-    }
-    Ok(equal)
+    intern::field_equal(owner, variant, field, expected, budget)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn temporary_input_coordinates_never_publish_reusable_geometry() {
+    fn temporary_inputs_reuse_only_complete_structural_identity() {
         let inputs = Inputs::default();
         let mut budget = Budget::new(&zil_base::Limits::default());
-        let ty = Type::I32;
+        let mut ty = Type::I32;
         let life = value::empty();
         let first = inputs.resolved(&ty, &life, &mut budget).unwrap();
         let second = inputs.resolved(&ty, &life, &mut budget).unwrap();
-        assert!(!Arc::ptr_eq(&first, &second));
+        assert!(Arc::ptr_eq(&first, &second));
         assert!(inputs.resolved.borrow().is_empty());
-        assert!(budget.geometry_types.is_empty());
+        assert!(
+            !budget
+                .geometry_types
+                .contains_key(&(&ty as *const Type as usize))
+        );
+        ty = Type::U32;
+        let changed = inputs.resolved(&ty, &life, &mut budget).unwrap();
+        assert!(!Arc::ptr_eq(&first, &changed));
+        assert_eq!(first.ty, Type::I32);
+        assert_eq!(changed.ty, Type::U32);
     }
     #[test]
     fn physical_field_equalities_keep_complete_coordinate_and_type_identity() {
         let mut budget = Budget::new(&zil_base::Limits::default());
-        let owner = copy_geometry(&Type::Record { name: "Pair".into(), fields: vec![("first".into(), Type::I32), ("second".into(), Type::U32)] }, &value::empty(), &mut budget).unwrap();
+        let owner = copy_geometry(
+            &Type::Record {
+                name: "Pair".into(),
+                fields: vec![("first".into(), Type::I32), ("second".into(), Type::U32)],
+            },
+            &value::empty(),
+            &mut budget,
+        )
+        .unwrap();
         let expected = copy_geometry(&Type::I32, &value::empty(), &mut budget).unwrap();
         retain(&owner, &mut budget).unwrap();
         retain(&expected, &mut budget).unwrap();

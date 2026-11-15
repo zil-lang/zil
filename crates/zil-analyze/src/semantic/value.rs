@@ -46,7 +46,7 @@ impl Value {
     }
     pub(super) fn new(ty: Type, life: StorageLifeShape, classes: Vec<Class>) -> Self {
         Self {
-            geometry: std::sync::Arc::new(geometry::Geometry { ty, life }),
+            geometry: std::sync::Arc::new(geometry::Geometry::new(ty, life)),
             classes,
         }
     }
@@ -82,7 +82,9 @@ impl Value {
             crate::dyn_metadata::ty(&self.geometry.ty, b)?;
             crate::dyn_metadata::shape(&self.geometry.life, b)?;
         }
-        Ok(std::sync::Arc::make_mut(&mut self.geometry))
+        let geometry = std::sync::Arc::make_mut(&mut self.geometry);
+        geometry.invalidate();
+        Ok(geometry)
     }
     pub(super) fn field_equal(
         &self,
@@ -101,15 +103,10 @@ impl Value {
                 .saturating_add(1),
             WORK,
         )?;
-        if std::sync::Arc::ptr_eq(&self.geometry, &other.geometry) {
-            return Ok(self.classes == other.classes);
-        }
-        if !geometry::same_type(&self.ty, &other.ty, b)? {
+        if self.classes != other.classes {
             return Ok(false);
         }
-        crate::dyn_metadata::shape(&self.life, b)?;
-        crate::dyn_metadata::shape(&other.life, b)?;
-        Ok(self.life == other.life && self.classes == other.classes)
+        geometry::same_geometry(&self.geometry, &other.geometry, b)
     }
     pub(super) fn with_classes(&self, classes: Vec<Class>, b: &mut Budget) -> CompileResult<Self> {
         b.spend(1, WORK)?;
@@ -394,19 +391,10 @@ fn actual_equal_paid(
         return Ok(false);
     };
     let geometry = inventory.geometry.type_value(ty, life, b)?;
-    if !geometry::same_type(&geometry.ty, expected_ty, b)? {
-        return Ok(false);
-    }
-    let expected_life = *expected_life;
-    match (life, expected_life) {
-        (None, None) => Ok(true),
-        (Some(life), None) | (None, Some(life)) => Ok(empty_shape(life)),
-        (Some(life), Some(expected)) => {
-            crate::dyn_metadata::shape(life, b)?;
-            crate::dyn_metadata::shape(expected, b)?;
-            Ok(life == expected)
-        }
-    }
+    let expected = inventory
+        .geometry
+        .type_value(expected_ty, *expected_life, b)?;
+    geometry::same_geometry(&geometry, &expected, b)
 }
 
 /// Reconstruct a nominal from the original whole argument vector. A local
@@ -751,8 +739,17 @@ pub(super) fn nominal(
             ) => {
                 b.spend(source_fields.len().saturating_add(actual.len()), WORK)?;
                 let mut valid = actual.len() == fields.len();
-                for (ordinal, ((source, (name, _)), field)) in source_fields.iter().zip(actual).zip(fields).enumerate() {
-                    b.spend(source.name.len().saturating_add(name.len()).saturating_add(1), WORK)?;
+                for (ordinal, ((source, (name, _)), field)) in
+                    source_fields.iter().zip(actual).zip(fields).enumerate()
+                {
+                    b.spend(
+                        source
+                            .name
+                            .len()
+                            .saturating_add(name.len())
+                            .saturating_add(1),
+                        WORK,
+                    )?;
                     valid &= source.name == *name;
                     valid &= field.field_equal(&actual_geometry, None, ordinal, b)?;
                 }
@@ -769,12 +766,16 @@ pub(super) fn nominal(
             ) => {
                 let mut offset = 0usize;
                 let mut valid = source_variants.len() == actual.len();
-                for (variant, (source, (name, types))) in source_variants.iter().zip(actual).enumerate() {
+                for (variant, (source, (name, types))) in
+                    source_variants.iter().zip(actual).enumerate()
+                {
                     b.spend(types.len().saturating_add(name.len() + 1), WORK)?;
                     valid &= source.name == *name && source.fields.len() == types.len();
                     for (ordinal, _) in types.iter().enumerate() {
                         valid &= match fields.get(offset) {
-                            Some(field) => field.field_equal(&actual_geometry, Some(variant), ordinal, b)?,
+                            Some(field) => {
+                                field.field_equal(&actual_geometry, Some(variant), ordinal, b)?
+                            }
                             None => false,
                         };
                         offset += 1;
@@ -1450,6 +1451,13 @@ mod geometry_tests {
         let mut budget = Budget::new(&zil_base::Limits::default());
         let first = address(false, Class::Local(0), scalar(Type::I32), &mut budget).unwrap();
         let mut other = first.copy(&mut budget).unwrap();
+        let diagnostic = format!("{first:?}");
+        assert!(first.equal_paid(&other, &mut budget).unwrap());
+        assert_eq!(diagnostic, format!("{first:?}"));
+        let different_classes = first
+            .with_classes(vec![Class::Local(1)], &mut budget)
+            .unwrap();
+        assert!(!first.equal_paid(&different_classes, &mut budget).unwrap());
         let before = budget.remaining();
         let geometry = other.geometry_mut(&mut budget).unwrap();
         let Type::Address { mutable, .. } = &mut geometry.ty else {
@@ -1462,5 +1470,6 @@ mod geometry_tests {
         assert!(matches!(other.ty, Type::Address { mutable: true, .. }));
         assert_eq!(first.classes, other.classes);
         assert_ne!(first, other);
+        assert!(!first.equal_paid(&other, &mut budget).unwrap());
     }
 }

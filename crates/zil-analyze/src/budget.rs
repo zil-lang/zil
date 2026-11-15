@@ -34,7 +34,19 @@ pub(super) struct Budget {
     // Request-local immutable function CFG/initialization successes only.
     pub(super) initialization: Option<super::InitializationCache>,
     pub(super) geometry_types: BTreeMap<usize, crate::semantic::geometry::TypeEntry>,
-    pub(super) geometry_equalities: BTreeSet<(usize, usize)>,
+    // Pure complete Type/domain identity only. Each raw-limit/module partition
+    // retains its real immutable owners; no class, where or live loan enters.
+    pub(super) geometry_epoch: std::sync::Arc<()>,
+    pub(super) geometry_module: Option<usize>,
+    pub(super) geometry_type_catalog:
+        BTreeMap<(Option<usize>, (usize, usize), u64), Vec<crate::semantic::geometry::TypeRecord>>,
+    pub(super) geometry_catalog: BTreeMap<
+        (Option<usize>, (usize, usize), u64),
+        Vec<crate::semantic::geometry::GeometryRecord>,
+    >,
+    pub(super) geometry_next_type: usize,
+    pub(super) geometry_next_value: usize,
+    pub(super) geometry_child_types: BTreeMap<(usize, Option<usize>, usize), usize>,
     pub(super) geometry_field_equalities: BTreeSet<(usize, Option<usize>, usize, usize)>,
     cost_profiling: bool,
     costs: BTreeMap<String, (usize, usize)>,
@@ -233,7 +245,13 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             initialization: None,
             geometry_types: BTreeMap::new(),
-            geometry_equalities: BTreeSet::new(),
+            geometry_epoch: std::sync::Arc::new(()),
+            geometry_module: None,
+            geometry_type_catalog: BTreeMap::new(),
+            geometry_catalog: BTreeMap::new(),
+            geometry_next_type: 0,
+            geometry_next_value: 0,
+            geometry_child_types: BTreeMap::new(),
             geometry_field_equalities: BTreeSet::new(),
             cost_profiling: matches!(
                 std::env::var("ZIL_ANALYZE_PROFILE_COSTS").as_deref(),
