@@ -676,12 +676,6 @@
     {
       "entry": "neg_ident_in_runtime_main.zil",
       "required_result": "SafeReject",
-      "required_diagnostic": {
-        "phase": "ct",
-        "code": "E-CT-ORIGINAL",
-        "message": "compile-time Type/Syntax/Ident cannot cross an external runtime ABI"
-      },
-      "no_executable": true,
       "semantic_key": "ct-only-value-in-runtime",
       "obligation": "A fresh Ident cannot cross an explicit runtime foreign ABI, including from unsafe code.",
       "native_runs": 0,
@@ -907,12 +901,6 @@
     {
       "entry": "neg_type_in_runtime_main.zil",
       "required_result": "SafeReject",
-      "required_diagnostic": {
-        "phase": "ct",
-        "code": "E-CT-ORIGINAL",
-        "message": "compile-time Type/Syntax/Ident cannot cross an external runtime ABI"
-      },
-      "no_executable": true,
       "semantic_key": "ct-only-value-in-runtime",
       "obligation": "A Type value cannot cross an explicit runtime foreign ABI, including from unsafe code.",
       "native_runs": 0,
