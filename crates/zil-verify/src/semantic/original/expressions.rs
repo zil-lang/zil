@@ -35,8 +35,9 @@ impl CheckedOriginal {
                 CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.literal_original_sign(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
                 CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>{
                     let mutable=matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::BorrowMut,..});
+                    let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
                     if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
-                    let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&child,env,false,active,b)?;}
+                    if let Some(place)=place{self.read_original(module,context,&place,&child,env,false,active,b)?;}
                     Ty::Address{mutable,life:Life::Local(id,expression.id),inner:Box::new(child)}
                 },
                 CoreExprKind::Unary{op:UnaryOp::Dereference,..}|CoreExprKind::Member{..}|CoreExprKind::Index{..}|CoreExprKind::ReceiverMember(_)=>{
@@ -153,19 +154,34 @@ impl CheckedOriginal {
 }
 
 impl CheckedOriginal {
+    fn write_parent_type(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        let definition=env.current()?;
+        b.spend(self.place_types.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
+        let ty=self.resolved(self.place_types.get(&(definition,expression.id)).ok_or_else(||bad("original mutable projection has no evaluated parent Place type"))?,b)?;
+        if let Some(place)=self.value_places.get(&(definition,expression.id)){
+            place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(1usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;
+            let place=place.clone();
+            self.read_original_parent(module,context,&place,&ty,env,active,b)?;
+            self.written.entry(definition).or_default().insert(place.binder);
+        }
+        self.resolved(&ty,b)
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn mutable_place(&mut self,module:&TypedModule,context:&CheckedContext,target:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        // place/expression has evaluated this exact target once already. This
+        // pass proves lexical/exclusive mutability from its checked types; it
+        // must not execute a base, index or call expression a second time.
         b.spend(1)?;
         match &target.kind {
             CoreExprKind::Name(name)if bindings.get(name).is_some_and(|row|row.mutable)=>{let binding=bindings.get(name).unwrap();self.written.entry(env.current()?).or_default().insert(binding.identity.clone());Ok(())},
             CoreExprKind::Group(inner)=>self.mutable_place(module,context,inner,env,bindings,active,b),
             CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
-                let(ty,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&ty,env,false,active,b)?;self.written.entry(env.current()?).or_default().insert(place.binder);}
-                if matches!(self.resolved(&ty,b)?,Ty::Address{mutable:true,..}){Ok(())}else{Err(bad("original write/borrow-mut dereferences a nonexclusive Address"))}
+                let ty=self.write_parent_type(module,context,operand,env,active,b)?;
+                if matches!(ty,Ty::Address{mutable:true,..}){Ok(())}else{Err(bad("original write/borrow-mut dereferences a nonexclusive Address"))}
             },
             CoreExprKind::Member{object,..}|CoreExprKind::Index{object,..}|CoreExprKind::Slice{object,..}=>{
-                let(ty,place)=self.place(module,context,object,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&ty,env,false,active,b)?;self.written.entry(env.current()?).or_default().insert(place.binder);}
-                match self.resolved(&ty,b)?{
+                let ty=self.write_parent_type(module,context,object,env,active,b)?;
+                match ty{
                     Ty::Address{mutable:true,..}=>Ok(()),
                     Ty::Address{mutable:false,..}|Ty::Desc{..}=>Err(bad("original projected write crosses a shared observation")),
                     _=>self.mutable_place(module,context,object,env,bindings,active,b),

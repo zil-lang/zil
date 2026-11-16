@@ -16,6 +16,10 @@ impl Binder{
 #[derive(Clone,Default)]
 pub(super) struct Uses {pub(super) moved:BTreeSet<Place>,pub(super) definite:BTreeSet<Place>}
 impl Uses {
+    pub(super) fn navigation_conflicts(&self,place:&Place,b:&mut Budget)->Check<bool>{
+        b.spend(self.moved.len().saturating_mul(place.fields.len().saturating_add(1)))?;
+        Ok(self.moved.iter().any(|old|old.binder==place.binder&&place.fields.starts_with(&old.fields)))
+    }
     pub(super) fn conflicts(&self,place:&Place,b:&mut Budget)->Check<bool> {
         b.spend(self.moved.len().saturating_mul(place.fields.len().saturating_add(1)))?;
         Ok(self.moved.iter().any(|old|old.binder==place.binder&&(old.fields.starts_with(&place.fields)||place.fields.starts_with(&old.fields))))
@@ -30,6 +34,17 @@ impl Uses {
     }
 }
 impl CheckedOriginal {
+    /// Selecting a product child observes its parent shell, not all sibling
+    /// values. A moved parent/ancestor is still a read conflict; a moved
+    /// descendant does not stop a disjoint field use or exact field refill.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn read_original_parent(&mut self,module:&TypedModule,context:&CheckedContext,place:&Place,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+        let id=env.current()?;b.spend(1)?;self.used.entry(id).or_default().insert(place.binder.clone());
+        if self.uses.get(&id).map(|uses|uses.navigation_conflicts(place,b)).transpose()?.unwrap_or(false){
+            self.read_original(module,context,place,ty,env,false,active,b)?;
+        }
+        Ok(())
+    }
     pub(super) fn is_copy(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
             let ty=self.resolved(ty,b)?;
@@ -111,5 +126,51 @@ impl CheckedOriginal {
     pub(super) fn require_copy(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         if self.is_copy(module,context,ty,env,active,b)?{return Ok(());}
         if has_inference(ty,&self.substitutions,b)?{self.copy_obligations.push((ty.clone(),env.clone()));Ok(())}else{Err(bad("original explicit Copy operation lacks an original Copy proof"))}
+    }
+}
+
+#[cfg(test)]
+mod partial_place_tests{
+    use super::*;
+    #[test]
+    fn field_refill_keeps_parent_live_without_reading_moved_siblings(){
+        let limits=Limits::default();
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();let mut active=ActiveQueries::new();
+        let mut checked=CheckedOriginal::check(&module,&context,&mut active,&mut b).unwrap();
+        let id=module.semantic.as_ref().unwrap().definitions.iter().find(|row|row.kind==SemanticDefinitionKind::Function&&matches!(row.parameters.as_slice(),[SemanticFormal::Type{..}])).unwrap().id;
+        checked.current=Some(id);let env=checked.prototypes[&id].environment.clone();
+        let f=Ty::Variable(id,0);let whole=Ty::Tuple(vec![f.clone(),f.clone(),Ty::Atom(Type::I32)]);
+        assert!(!checked.is_copy(&module,&context,&f,&env,&mut active,&mut b).unwrap());
+        assert!(!checked.sync_drop(&module,&context,&f,&env,&mut active,&mut b).unwrap());
+        let binder=Binder::Local{definition:id,node:NodeId(900),name:"next".into()};
+        let root=Place{binder:binder.clone(),fields:vec![]};let a=Place{binder:binder.clone(),fields:vec!["0".into()]};let sibling=Place{binder:binder.clone(),fields:vec!["1".into()]};
+        let binding=Binding{ty:whole.clone(),mutable:true,identity:binder};
+        let bindings=BTreeMap::from([("next".into(),binding)]);
+        checked.set_uses(&env,Uses::default()).unwrap();
+        checked.read_original(&module,&context,&a,&f,&env,true,&mut active,&mut b).unwrap();
+        checked.read_original(&module,&context,&sibling,&f,&env,false,&mut active,&mut b).unwrap();
+        assert!(checked.read_original(&module,&context,&root,&whole,&env,false,&mut active,&mut b).is_err());
+        assert!(checked.read_original(&module,&context,&a,&f,&env,false,&mut active,&mut b).is_err());
+        let span=zil_base::Span::default();
+        let target=SemanticOriginalExpr{id:NodeId(901),kind:CoreExprKind::Member{object:Box::new(SemanticOriginalExpr{id:NodeId(902),kind:CoreExprKind::Name("next".into()),span}),member:"0".into(),owner:None},span};
+        let(ty,place)=checked.place(&module,&context,&target,&env,&bindings,&mut active,&mut b).unwrap();
+        checked.mutable_place(&module,&context,&target,&env,&bindings,&mut active,&mut b).unwrap();
+        checked.overwrite_cleanup(&env,target.id,&ty,place.as_ref(),&mut b).unwrap();
+        checked.uses.get_mut(&id).unwrap().initialize(&a,&mut b).unwrap();
+        checked.check_cleanups(&module,&context,&mut active,&mut b).unwrap();
+        checked.current=Some(id);
+        checked.read_original(&module,&context,&root,&whole,&env,false,&mut active,&mut b).unwrap();
+        // Copy fields do not revive a moved non-Copy parent. A different
+        // target likewise cannot refill the missing field or resurrect it.
+        checked.set_uses(&env,Uses{moved:BTreeSet::from([root.clone()]),definite:BTreeSet::from([root])}).unwrap();
+        let mut copy_field=target.clone();let CoreExprKind::Member{member,..}=&mut copy_field.kind else{unreachable!()};*member="2".into();
+        assert!(checked.place(&module,&context,&copy_field,&env,&bindings,&mut active,&mut b).is_err());
+        assert!(checked.uses.get_mut(&id).unwrap().initialize(&a,&mut b).is_err());
+        let mut state=Uses{moved:BTreeSet::from([a.clone()]),definite:BTreeSet::from([a.clone()])};
+        state.initialize(&sibling,&mut b).unwrap();assert!(state.conflicts(&a,&mut b).unwrap());
+        let mut restored=state.clone();restored.initialize(&a,&mut b).unwrap();
+        let mut one_branch=restored.clone();one_branch.join(&state,&mut b).unwrap();assert!(one_branch.conflicts(&a,&mut b).unwrap());
+        restored.join(&restored.clone(),&mut b).unwrap();assert!(!restored.conflicts(&a,&mut b).unwrap());
     }
 }

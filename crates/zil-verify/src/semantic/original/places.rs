@@ -83,6 +83,7 @@ impl CheckedOriginal {
                     let (object,mut place)=self.place(module,context,source_object,env,bindings,active,b)?;
                     let(storage,observed)=self.field_observation_storage(module,context,&object,b)?;
                     if observed{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}self.observed_argument(source_object,&object,env,b)?;place=None;}
+                    else if let Some(place)=&place{self.read_original_parent(module,context,place,&object,env,active,b)?;}
                     if let Some(owner)=owner{let expected=self.ty(module,context,owner,env,active,b)?;self.unify(&storage,&expected,b)?;}
                     let ty=self.field(module,context,&storage,member,env,active,b)?;if let Some(place)=&mut place{place.fields.push(member.clone());}(ty,place)
                 },
@@ -98,20 +99,28 @@ impl CheckedOriginal {
                 },
                 CoreExprKind::Index{object,index}=>{
                     let (object,mut place)=self.place(module,context,object,env,bindings,active,b)?;let mut storage=self.resolved(&object,b)?;
-                    if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}
+                    if let Some(place)=&place{self.read_original_parent(module,context,place,&object,env,active,b)?;place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(1usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;}
+                    let parent=place.clone();
                     if let Ty::Address{inner,..}=storage{storage=*inner;place=None;}
                     // Runtime indices accept every actual integer carrier.
                     // An existing u32/i16 index is not implicitly a usize, and
                     // an unsuffixed value keeps normal original inference.
                     let index_ty=self.expression(module,context,index,env,bindings,None,active,b)?;
                     if !matches!(self.resolved(&index_ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original index is not integer"));}
+                    // An index expression may execute a call. Recheck the
+                    // already selected parent after it, without replaying it.
+                    if let Some(parent)=&parent{self.read_original_parent(module,context,parent,&object,env,active,b)?;}
                     let child=match storage{Ty::Array(child,_)|Ty::Slice(child)=>*child,_=>return Err(bad("original indexed place is not an Array/Slice"))};
                     if let Some(whole)=&mut place{if let CoreExprKind::Integer(text)=&index.kind{let Ty::Atom(carrier)=self.resolved(&index_ty,b)? else{return Err(bad("original constant index has no integer carrier"));};b.spend(text.len())?;let value=scalar::closed(&DynConstPattern::IntegerLiteral(text.clone()),&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("original constant index unresolved"))?;let value=nonnegative_index(&value);if let Some(value)=value{b.spend(24)?;whole.fields.push(format!("[{value}]"));}else{place=None;}}else{place=None;}}
+                    if place.is_none(){if let Some(parent)=&parent{self.read_original(module,context,parent,&object,env,false,active,b)?;}}
                     (child,place)
                 },
                 _=>(self.expression(module,context,expression,env,bindings,None,active,b)?,None),
             };
             if let Some(place)=&result.1{place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(2usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;self.value_places.insert((env.current()?,expression.id),place.clone());}
+            let place_type=self.resolved(&result.0,b)?;
+            b.spend(self.place_types.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
+            self.place_types.insert((env.current()?,expression.id),place_type);
             self.expressions.insert((env.current()?,expression.id),result.0.clone());Ok(result)
         })
     }

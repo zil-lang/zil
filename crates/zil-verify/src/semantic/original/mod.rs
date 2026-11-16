@@ -61,6 +61,9 @@ pub(super) struct CheckedOriginal {
     // immutable source snapshot. They cannot inherit a recycled view address.
     source_grammar:Option<index::SourceIndex>,
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+    // Category of the evaluated Place before a later field observation
+    // publishes an effective Desc type for that same original expression.
+    place_types:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
     // Contextual sum observations are distinct from the payload operation.
     // The selected arm is solved in original Γ before any actual emission.
     injections:BTreeMap<(SemanticDefinitionId,NodeId),(bool,Ty)>,
