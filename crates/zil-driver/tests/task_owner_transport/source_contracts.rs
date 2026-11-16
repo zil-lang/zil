@@ -5,6 +5,10 @@ use super::*;
 // independently reviewed language error. Each runs separately so one failing
 // check cannot hide the remaining source contracts.
 fn rejects(text: &str, expected: &str) {
+    rejects_matching(text, |diagnostic| diagnostic.message.contains(expected));
+}
+
+fn rejects_matching(text: &str, expected: impl Fn(&zil_base::Diagnostic) -> bool) {
     let report = compile_source(
         &source(text),
         &CompileOptions {
@@ -24,7 +28,7 @@ fn rejects(text: &str, expected: &str) {
             .iter()
             .any(|diagnostic| diagnostic.phase == zil_base::Phase::Types
                 && diagnostic.category == ResultCategory::SafeReject
-                && diagnostic.message.contains(expected)),
+                && expected(diagnostic)),
         "{}",
         report.to_json()
     );
@@ -102,11 +106,21 @@ fn distinct_returned_task_classes_cannot_be_equal() {
 
 #[test]
 fn unused_child_helper_cannot_claim_once_kind() {
-    rejects(
+    // The complete source also has a Direct parent that drops an incoming
+    // Task without Closed or a known synchronous graph. Either independent
+    // obligation can be visited first; no other rejection establishes it.
+    rejects_matching(
         include_str!(
             "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/direct-child-cleanup.zil"
         ),
-        "opaque callable declaration differs",
+        |diagnostic| {
+            (diagnostic.code == "E-TYPE-MISMATCH"
+                && diagnostic.message
+                    == "opaque callable declaration differs from its actual environment invocation kind")
+                || (diagnostic.code == "E-ORIGINAL-CLEANUP"
+                    && diagnostic.message
+                        == "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root")
+        },
     );
 }
 
