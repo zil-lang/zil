@@ -110,19 +110,22 @@ mod structural_tests{
             let mut checked=CheckedOriginal::check(&candidate,&context,&mut active,&mut b).unwrap();
             checked.current=Some(caller);let env=checked.prototypes[&caller].environment.clone();
             let scalar=Arg::Type(Ty::Atom(Type::I32));
-            let borrowed=Arg::Type(Ty::Address{mutable:false,life:Life::Static,inner:Box::new(Ty::Atom(Type::I32))});
-            for(hidden,phantom,closed,element)in [
-                (scalar.clone(),scalar.clone(),true,true),
-                (Arg::Type(Ty::Atom(Type::Unit)),scalar.clone(),true,false),
-                (borrowed.clone(),scalar.clone(),false,false),
-                (scalar.clone(),borrowed,false,false),
+            let borrowed=Arg::Type(Ty::Address{mutable:false,life:Life::Local(caller,NodeId(8123)),inner:Box::new(Ty::Atom(Type::I32))});
+            let constant=Arg::Type(Ty::Address{mutable:false,life:Life::Static,inner:Box::new(Ty::Atom(Type::I32))});
+            for(hidden,phantom,closed,transferable,element)in [
+                (scalar.clone(),scalar.clone(),true,true,true),
+                (Arg::Type(Ty::Atom(Type::Unit)),scalar.clone(),true,true,false),
+                (borrowed.clone(),scalar.clone(),false,false,false),
+                (scalar.clone(),borrowed,false,false,false),
+                (constant.clone(),scalar.clone(),true,false,false),
+                (scalar.clone(),constant,true,false,true),
             ]{
                 let ty=Ty::Opaque(id,vec![hidden,phantom]);
                 assert!(checked.value_type(&candidate,&context,&ty,&env,&mut active,&mut b).unwrap());
                 assert!(checked.sync_drop(&candidate,&context,&ty,&env,&mut active,&mut b).unwrap());
                 assert_eq!(checked.closed_value(&candidate,&context,&ty,&env,&mut active,&mut b).unwrap(),closed);
                 let transfer=checked.builtin_obligation(&candidate,&context,&ty,SemanticBuiltinTrait::Transfer,&env,&mut active,&mut b);
-                if closed{transfer.unwrap();}else{assert_eq!(transfer.unwrap_err().category,zil_base::ResultCategory::Unsupported);}
+                if transferable{transfer.unwrap();}else{assert_eq!(transfer.unwrap_err().category,zil_base::ResultCategory::Unsupported);}
                 assert_eq!(checked.store_element(&candidate,&context,&ty,&env,&mut active,&mut b).unwrap(),element);
                 assert!(!checked.is_copy(&candidate,&context,&ty,&env,&mut active,&mut b).unwrap(),"structural Value/StoreElement never supplies Copy");
             }

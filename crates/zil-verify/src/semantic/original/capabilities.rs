@@ -35,6 +35,14 @@ impl CheckedOriginal {
             Ok(match self.resolved(ty,b)?{
                 Ty::SealedError(_)=>true,
             Ty::Atom(ty)=>ty.is_b0_scalar()||matches!(ty,Type::ByteBuffer|Type::ForeignHandle|Type::CWideString),
+                Ty::Address{mutable:false,life,inner}if self.resolved_life(&life,b)?==Life::Static=>{
+                    // An exact original program-static shared view has no
+                    // activation dependency. Its complete pointee must still
+                    // close; a Slice is inspected only beneath this real head.
+                    // Every actual literal/constructor/return Static source
+                    // remains pending in the independent memory kernel.
+                    match *inner{Ty::Slice(element)=>self.closed_value(module,context,&element,env,active,b)?,inner=>self.closed_value(module,context,&inner,env,active,b)?}
+                },
                 Ty::Address{..}|Ty::Desc{..}|Ty::Slice(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Infer(_)=>false,
                 Ty::Opaque(owner,arguments)=>{
                     for argument in &arguments{match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
@@ -92,5 +100,27 @@ impl CheckedOriginal {
         let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=args.to_vec();
         let fields=match body{SemanticNominalBody::Product{fields}=>fields.iter().map(|row|&row.ty).collect::<Vec<_>>(),SemanticNominalBody::Enum{variants}=>variants.iter().flat_map(|row|&row.fields).collect()};
         for field in fields{let ty=self.ty(module,context,field,&selected,active,b)?;let ok=if kind==SemanticBuiltinTrait::Transfer{self.transfer_value(module,context,&ty,caller,active,b)?}else{self.closed_value(module,context,&ty,caller,active,b)?};if !ok{return Ok(false);}}Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod static_environment_tests{
+    use super::*;
+    #[test]
+    fn closed_environment_static_view_is_exact_readonly_and_not_transfer(){
+        let limits=Limits::default();
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();let mut active=ActiveQueries::new();let mut original=CheckedOriginal::check(&module,&context,&mut active,&mut b).unwrap();
+        let owner=module.semantic.as_ref().unwrap().definitions.iter().find(|row|row.kind==SemanticDefinitionKind::Function&&row.parent.is_none()&&row.parameters.is_empty()).unwrap().id;
+        original.current=Some(owner);let env=original.prototypes[&owner].environment.clone();
+        for variant in 0..7{
+            let element=if variant==5{Ty::Address{mutable:false,life:Life::Local(owner,NodeId(8123)),inner:Box::new(Ty::Atom(Type::I32))}}else{Ty::Atom(Type::U8)};
+            let life=match variant{1=>Life::Local(owner,NodeId(8123)),2=>Life::Invocation(FrameToken(7),0),3=>Life::Formal(owner,0),_=>Life::Static};
+            let inner=if variant==6{Ty::Atom(Type::I32)}else{Ty::Slice(Box::new(element))};
+            let ty=Ty::Address{mutable:variant==4,life,inner:Box::new(inner)};
+            assert_eq!(original.closed_value(&module,&context,&ty,&env,&mut active,&mut b).unwrap(),matches!(variant,0|6),"Static view variant {variant}");
+            assert!(original.builtin_obligation(&module,&context,&ty,SemanticBuiltinTrait::Transfer,&env,&mut active,&mut b).is_err());
+        }
+        assert!(!original.closed_value(&module,&context,&Ty::Slice(Box::new(Ty::Atom(Type::U8))),&env,&mut active,&mut b).unwrap());
     }
 }
