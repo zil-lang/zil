@@ -12,12 +12,17 @@ pub(super) fn check(
     bound: DynStructuralBound,
     b: &mut Budget,
 ) -> Check<()> {
-    dynamic_metadata::recipe(&value.raw, b)?;
+    parts(module,&value.raw.ty,&value.raw.life,&value.raw.classes,bound,b)
+}
+/// The same structural obligation over a borrowed complete value. No class
+/// image or source result is memoized; only a temporary owned DTV is avoided.
+pub(super) fn parts(module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],bound:DynStructuralBound,b:&mut Budget)->Check<()>{
+    dynamic_metadata::bounds_type_parts(ty,life,classes,b)?;
     if bound == DynStructuralBound::StoreElement {
-        return dynamic_store::check_store_element(module, &value.raw.ty, None, b);
+        return dynamic_store::check_store_element(module, ty, None, b);
     }
     let mut active = vec![];
-    walk(module, &value.raw.ty, bound, &mut active, b, 0)
+    walk(module, ty, bound, &mut active, b, 0)
 }
 fn walk(
     module: &TypedModule,

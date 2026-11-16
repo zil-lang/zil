@@ -249,12 +249,12 @@ impl CheckedContext {
         caller: &EvalEnv,
         b: &mut Budget,
     ) -> Check<Option<CheckedType>> {
-        dynamic_metadata::ty(ty, b)?;
+        dynamic_metadata::bounds_type(ty, b)?;
         if recorded.len() != actuals.len() {
             return Ok(None);
         }
         let life = match ty {
-            Type::BorrowedStorage { life, .. } => life.clone(),
+            Type::BorrowedStorage { life, .. } => {dynamic_metadata::life_shape(life,b)?;life.clone()},
             _ => empty_life(),
         };
         if life.binder_count as usize > b.limits.max_nodes {

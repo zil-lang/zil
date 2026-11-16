@@ -124,22 +124,20 @@ impl Symbols {
     /// Reverse a freshly constructed value in this private Semantic domain.
     /// Its outside indices were created from checked ClassKeys/Γ here; they
     /// are never public W/Context indices or an inverse to_context map.
-    pub(super) fn constructed(
-        &self,
-        value: terms::Value,
-        statics: Vec<crate::semantic::StaticOccurrence>,
-        b: &mut Budget,
-    ) -> Check<CheckedType> {
+    pub(super) fn constructed(&self,value:terms::Value,statics:Vec<crate::semantic::StaticOccurrence>,b:&mut Budget)->Check<CheckedType>{
+        self.constructed_shared(crate::semantic::CheckedTypeData::new(value.raw.ty),constructors::Shape{life:value.raw.life,classes:value.raw.classes,terms:value.terms},statics,b)
+    }
+    pub(super) fn constructed_shared(&self,type_cell:std::rc::Rc<crate::semantic::CheckedTypeData>,shape:constructors::Shape,statics:Vec<crate::semantic::StaticOccurrence>,b:&mut Budget)->Check<CheckedType>{
         if !matches!(self.owner, terms::Owner::Semantic(_)) {
             return Err(bad(
                 "fresh semantic construction has no request-local image domain",
             ));
         }
-        dynamic_metadata::bounds_type_parts(&value.raw.ty,&value.raw.life,&value.raw.classes,b)?;
-        b.spend(value.terms.len())?;
-        let mut classes = Vec::with_capacity(value.terms.len());
-        let mut origins = Vec::with_capacity(value.terms.len());
-        for term in &value.terms {
+        dynamic_metadata::bounds_type_parts(&type_cell.ty,&shape.life,&shape.classes,b)?;
+        b.spend(shape.terms.len())?;
+        let mut classes = Vec::with_capacity(shape.terms.len());
+        let mut origins = Vec::with_capacity(shape.terms.len());
+        for term in &shape.terms {
             b.spend(self.classes.len().saturating_add(self.origins.len()))?;
             let (key, _) = self
                 .classes
@@ -158,8 +156,8 @@ impl Symbols {
                 });
             }
         }
-        Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(value.raw.ty),
-            life: value.raw.life,
+        Ok(CheckedType {type_cell,
+            life: shape.life,
             classes,
             origins,
             statics,

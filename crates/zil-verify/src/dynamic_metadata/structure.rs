@@ -221,6 +221,20 @@ pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&m
     b.structural.as_mut().unwrap().resource_success.insert(key,index);Ok(())
 }
 
+/// Adopt an already formed immutable physical type. Strong ownership covers
+/// every registered child address until this exact module scope is restored.
+pub(crate) fn adopt_type_cell(cell:&std::rc::Rc<crate::semantic::CheckedTypeData>,b:&mut Budget)->Check<()>{
+    let Some(state)=&b.structural else{return Ok(());};
+    let ptr=&cell.ty as *const Type as usize;
+    b.spend(lookup(state.shared_types.len()).saturating_add(1))?;
+    if b.structural.as_ref().unwrap().shared_types.get(&ptr).is_some_and(|known|std::rc::Rc::ptr_eq(known,cell)){return Ok(());}
+    b.spend(lookup(b.structural.as_ref().unwrap().shared_types.len()).saturating_add(2))?;
+    let mut state=b.structural.take().unwrap();
+    state.shared_types.insert(ptr,cell.clone());
+    let result=state.ty(&cell.ty,b);
+    b.structural=Some(state);result
+}
+
 /// Owned storage for an exact registered immutable input node. This memo owns
 /// no class/origin/source result and never recognizes a temporary by address.
 pub(crate) fn shared_type(ty:&Type,b:&mut Budget)->Check<Option<std::rc::Rc<crate::semantic::CheckedTypeData>>>{

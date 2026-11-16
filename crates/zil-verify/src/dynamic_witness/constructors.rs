@@ -29,7 +29,7 @@ impl Rows {
         inline: bool,
         b: &mut Budget,
     ) -> Check<()> {
-        dynamic_metadata::copy_type_parts(child.ty,child.life,child.classes,b)?;
+        dynamic_metadata::bounds_type_parts(child.ty,child.life,child.classes,b)?;
         let boundary = matches!(
             child.ty,
             Type::BorrowedStorage { .. }
@@ -92,7 +92,7 @@ impl Rows {
         }
         Ok(())
     }
-    fn finish(self, mut ty: Type, qualified: bool, b: &mut Budget) -> Check<terms::Value> {
+    fn shape(self,b:&mut Budget)->Check<Shape>{
         b.spend(
             self.nominal
                 .len()
@@ -141,22 +141,19 @@ impl Rows {
             retained,
             nominal_arguments,
         };
-        dynamic_metadata::bounds_type(&ty, b)?;
-        if qualified && !unique.is_empty() {
-            ty = Type::BorrowedStorage {
-                storage: Box::new(ty),
-                life: {dynamic_metadata::life_shape(&life,b)?;life.clone()},
-            };
-        }
-        Ok(terms::Value {
-            raw: DynTypeValue {
-                ty,
-                life,
-                classes: unique.iter().map(|v| v.image).collect(),
-            },
-            terms: unique,
-        })
+        b.spend(unique.len())?;
+        Ok(Shape{life,classes:unique.iter().map(|term|term.image).collect(),terms:unique})
     }
+    fn finish(self,mut ty:Type,qualified:bool,b:&mut Budget)->Check<terms::Value>{
+        let shape=self.shape(b)?;
+        dynamic_metadata::bounds_type(&ty,b)?;
+        if qualified&&!shape.terms.is_empty(){
+            dynamic_metadata::life_shape(&shape.life,b)?;
+            ty=Type::BorrowedStorage{storage:Box::new(ty),life:shape.life.clone()};
+        }
+        Ok(terms::Value{raw:DynTypeValue{ty,life:shape.life,classes:shape.classes},terms:shape.terms})
+    }
+
 }
 
 pub(super) fn address(child:&terms::Value,term:terms::LifeTerm,mode:StoredBorrowMode,b:&mut Budget)->Check<terms::Value>{address_view(View::of(child),Some(term),mode,b)}
@@ -169,6 +166,7 @@ pub(super) fn address_view(child:View<'_>,term:Option<terms::LifeTerm>,mode:Stor
     if let Some(term)=term{rows.slots.push((vec![],mode,term));}
     else if !matches!(mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ReadOnlyDescription){return Err(bad("static type constructor cannot invent mutable storage"));}
     rows.child(child,&[],&[LifeTypeProjection::Pointee],false,b)?;
+    dynamic_metadata::ty(child.ty,b)?;
     let ty=match mode{
         StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress=>Type::Address{mutable:mode==StoredBorrowMode::ExclusiveAddress,inner:Box::new(child.ty.clone())},
         _=>Type::Desc(Box::new(child.ty.clone())),
@@ -177,6 +175,7 @@ pub(super) fn address_view(child:View<'_>,term:Option<terms::LifeTerm>,mode:Stor
 }
 pub(super) fn managed_view(child:View<'_>,b:&mut Budget)->Check<terms::Value>{
     let mut rows=Rows::default();rows.child(child,&[],&[LifeTypeProjection::Pointee],false,b)?;
+    dynamic_metadata::ty(child.ty,b)?;
     rows.finish(Type::Managed(Box::new(child.ty.clone())),false,b)
 }
 pub(super) fn tuple_views(children:&[View<'_>],b:&mut Budget)->Check<terms::Value>{
@@ -184,9 +183,27 @@ pub(super) fn tuple_views(children:&[View<'_>],b:&mut Budget)->Check<terms::Valu
     for(index,child)in children.iter().copied().enumerate(){
         let field=PlaceProjection::Field(index as u32);
         rows.child(child,&[field],&[LifeTypeProjection::Place(field)],true,b)?;
-        fields.push(child.ty.clone());
+        dynamic_metadata::ty(child.ty,b)?;fields.push(child.ty.clone());
     }
     rows.finish(if fields.is_empty(){Type::Unit}else{Type::Tuple(fields)},true,b)
+}
+
+/// Fresh logical occurrence directories, independent of physical Type storage.
+pub(super) struct Shape{pub life:StorageLifeShape,pub classes:Vec<StorageBinder>,pub terms:Vec<terms::LifeTerm>}
+pub(super) fn shape_views(kind:crate::semantic::PhysicalConstructor,children:&[View<'_>],head:Option<terms::LifeTerm>,mode:Option<StoredBorrowMode>,b:&mut Budget)->Check<Shape>{
+    use crate::semantic::PhysicalConstructor as K;
+    b.spend(children.len())?;let mut rows=Rows::default();
+    if kind==K::Tuple{
+        for(index,child)in children.iter().copied().enumerate(){let field=PlaceProjection::Field(index as u32);rows.child(child,&[field],&[LifeTypeProjection::Place(field)],true,b)?;}
+    }else{
+        if children.len()!=1{return Err(bad("unary semantic constructor has another child count"));}
+        if let Some(mode)=mode{
+            if let Some(head)=head{rows.slots.push((vec![],mode,head));}
+            else if !matches!(mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ReadOnlyDescription){return Err(bad("static type constructor cannot invent mutable storage"));}
+        }
+        rows.child(children[0],&[],&[LifeTypeProjection::Pointee],false,b)?;
+    }
+    rows.shape(b)
 }
 
 #[cfg(test)]

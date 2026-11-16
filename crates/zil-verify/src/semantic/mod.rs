@@ -11,6 +11,8 @@ use std::cell::{RefCell,Cell};
 mod lifetimes;
 mod relations;
 mod evaluate;
+mod type_storage;
+pub(crate) use type_storage::PhysicalConstructor;
 mod dyn_types;
 mod requirements;
 mod constants;
@@ -62,6 +64,7 @@ pub(crate) struct CheckedContext {
     closure_boundaries: RefCell<Vec<ClosureBoundary>>,
     frozen_functions: BTreeMap<SemanticInstanceId,frozen::FrozenFunction>,
     shared_types: RefCell<BTreeMap<usize,(std::rc::Weak<CheckedTypeData>,(usize,usize))>>,
+    constructed_types:RefCell<BTreeMap<type_storage::ConstructionKey,type_storage::ConstructedType>>,
 }
 
 /// A provisional constructor fact. It becomes trusted only when every actual
