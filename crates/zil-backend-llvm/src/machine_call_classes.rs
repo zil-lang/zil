@@ -506,7 +506,7 @@ fn canonicalize_inner(
         }
     }
     let mut representatives = vec![None; count];
-    let mut stable_names = vec![None; count];
+    let mut stable_names: Vec<Option<String>> = vec![None; count];
     let mut implementations = std::collections::BTreeMap::new();
     let source_cost = cache
         .functions

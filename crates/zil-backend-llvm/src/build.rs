@@ -474,7 +474,6 @@ pub fn build_view_with_cancellation_and_session(
     if let Some(cached) = reused_transform {
         call_classes = cached.call_classes;
         class_symbols = cached.class_symbols.clone();
-        class_cache = cached.class_cache.clone();
         checked_add_cache = cached.checked_add_cache.clone();
         let fingerprint = machine.fingerprint.clone();
         machine = cached.machine.clone();
