@@ -746,6 +746,10 @@ impl CompilationSession {
                 // rebasing an entire old Typed/Plan image first duplicates
                 // that work and cannot supply any current producer epoch.
                 if options.push_reuse {
+                    // Retain only bounded pack locations. Publication checks
+                    // their complete bytes again before reusing them; this
+                    // avoids rewriting all items after a multi-pack restart.
+                    store.remember_packed_epoch(options, &mut self.semantic_publication);
                     return None;
                 }
                 store.load(options).map(|(typed, candidate)| {
@@ -3230,6 +3234,22 @@ pub fn main()->i32=>0",
         let mut producer = CompilationSession::default();
         let cold = producer.compile_path(&path, &options);
         assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        fs::write(dir.0.join("dep.zil"), "pub fn f(x:i32)->i32{return x+2;}").unwrap();
+        let edited = producer.compile_path(&path, &options);
+        assert_eq!(
+            edited.status,
+            ResultCategory::Success,
+            "{}",
+            edited.to_json()
+        );
+        assert!(
+            edited
+                .semantic_cache_publication
+                .as_ref()
+                .unwrap()
+                .referenced_packs
+                > 1
+        );
         drop(producer);
         let mut consumer = CompilationSession::default();
         let restarted = consumer.compile_path(&path, &options);
@@ -3253,6 +3273,15 @@ pub fn main()->i32=>0",
         );
         assert_eq!(restarted.verification_runs, 1);
         assert_eq!(restarted.disk_cache, DiskCacheStatus::Rebuilt);
+        assert_eq!(
+            restarted
+                .semantic_cache_publication
+                .as_ref()
+                .unwrap()
+                .physical_pack_writes,
+            0,
+            "a restart keeps existing multi-pack locations without decoding the whole image"
+        );
         let ingress = restarted.source_ingress.as_ref().unwrap();
         assert_eq!(
             (ingress.source_files_read, ingress.parser_executions),
