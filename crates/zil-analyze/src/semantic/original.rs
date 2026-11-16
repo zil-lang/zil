@@ -2474,7 +2474,11 @@ impl Solver<'_, '_> {
                             Self::push(&mut outer_inputs, input, b)?;
                         }
                     }
-                    self.settle_call_inputs(frame, value.id, &outer_inputs, b, depth + 1)?;
+                    b.lookup(self.state.calls.len(), WORK)?;
+                    b.lookup(self.state.abstract_calls.len(), WORK)?;
+                    let prototype = self.state.calls.get(&(frame.definition, value.id)).map(|call| call.target)
+                        .or_else(|| self.state.abstract_calls.get(&(frame.definition, value.id)).map(|call| call.signature_owner));
+                    self.settle_call_inputs(frame, value.id, prototype, &outer_inputs, b, depth + 1)?;
                     if !prepared_arguments.is_empty() { return Err(fail("original staged call leaves an unchecked argument")); }
                     self.finish_abstract_call(frame.definition, value.id, b)?;
                     b.lookup(self.state.intrinsics.len(), WORK)?;

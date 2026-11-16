@@ -849,7 +849,7 @@ impl Solver<'_, '_> {
                 }
                 Self::push(&mut inputs, *parameter, b)?;
             }
-            self.settle_call_inputs(frame, node, &outer_inputs, b, depth + 1)?;
+            self.settle_call_inputs(frame, node, Some(target), &outer_inputs, b, depth + 1)?;
             for parameter in &parameters { self.task_input_shape(*parameter, &mut task, b, depth + 1)?; }
             // Each real ordered input contributes its complete original
             // whole domain and P_i mapping, including opaque/phantom children.

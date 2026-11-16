@@ -121,6 +121,7 @@ impl Solver<'_, '_> {
         frame: &Frame,
         call: NodeId,
         role: Role,
+        prototype: Option<SemanticDefinitionId>,
         b: &mut Budget,
     ) -> CompileResult<Term> {
         let definition = self.inventory.definition(frame.definition, b)?;
@@ -172,8 +173,36 @@ impl Solver<'_, '_> {
                 ));
             }
         }
-        let ordinal =
-            ordinal.ok_or_else(|| fail("call region lacks its complete Source role occurrence"))?;
+        let ordinal = match ordinal {
+            Some(ordinal) => ordinal,
+            None => {
+                b.spend(size.saturating_mul(16).saturating_add(512), WORK)?;
+                let mut errors = fail("call region lacks its complete Source role occurrence");
+                errors[0].notes.push(format!(
+                    "original call region owner {}:{} expression {}; role kind {} full ordinal {} bound depth {:?}; original Call path {:?}; required suffix {:?}; original prototype {:?}",
+                    frame.definition.module.0, frame.definition.index, call.0,
+                    suffix[1], suffix[length - 1], (length == 4).then_some(suffix[2]),
+                    site.occurrence_path, &suffix[..length], prototype,
+                ));
+                if let Some(prototype) = prototype {
+                    let original = self.inventory.definition(prototype, b)?;
+                    b.spend(
+                        original
+                            .identity
+                            .declaration_path
+                            .iter()
+                            .map(|name| name.len().saturating_mul(10).saturating_add(8))
+                            .sum::<usize>(),
+                        WORK,
+                    )?;
+                    errors[0].notes.push(format!(
+                        "original call prototype {}:{} declaration path {:?}",
+                        prototype.module.0, prototype.index, original.identity.declaration_path
+                    ));
+                }
+                return Err(errors);
+            }
+        };
         b.lookup(self.state.call_regions.len(), WORK)?;
         if let Some(previous) = self.state.call_regions.get(&(frame.definition, ordinal)) {
             if previous.call != call || previous.role != role {
@@ -301,12 +330,18 @@ impl Solver<'_, '_> {
                 }
                 role => role,
             });
-        Ok(Some(Input { source, ordinal, life, role }))
+        Ok(Some(Input {
+            source,
+            ordinal,
+            life,
+            role,
+        }))
     }
     pub(super) fn settle_call_inputs(
         &mut self,
         frame: &mut Frame,
         call: NodeId,
+        prototype: Option<SemanticDefinitionId>,
         inputs: &[Input],
         b: &mut Budget,
         depth: usize,
@@ -327,10 +362,7 @@ impl Solver<'_, '_> {
                         continue;
                     }
                     common &= incoming.source.input;
-                    common &= match (
-                        input.source.life,
-                        incoming.source.life,
-                    ) {
+                    common &= match (input.source.life, incoming.source.life) {
                         (Some(first), Some(next)) => {
                             self.same_original(first, next, b, depth + 1)?
                         }
@@ -346,6 +378,7 @@ impl Solver<'_, '_> {
                         input.role.ok_or_else(|| {
                             fail("fresh call outer has no original declaration role")
                         })?,
+                        prototype,
                         b,
                     )?
                 }
@@ -375,8 +408,20 @@ impl Solver<'_, '_> {
         }
         for (input, target) in inputs.iter().zip(targets) {
             b.lookup(self.state.call_uses.len(), WORK)?;
-            let uses = self.state.call_uses.entry((frame.definition, call)).or_default();
-            Self::push(uses, Use { source: input.source.clone(), target, ordinal: input.ordinal }, b)?;
+            let uses = self
+                .state
+                .call_uses
+                .entry((frame.definition, call))
+                .or_default();
+            Self::push(
+                uses,
+                Use {
+                    source: input.source.clone(),
+                    target,
+                    ordinal: input.ordinal,
+                },
+                b,
+            )?;
             self.unify(input.life, target, depth + 1, b)?;
             if let Some(source) = input.source.life {
                 if !self.call_source_allows(frame, source, target, b, depth + 1)? {
@@ -422,42 +467,6 @@ impl Solver<'_, '_> {
             }
         }
         self.view_upper_allows(frame, source, target, &mut BTreeSet::new(), b, depth + 1)
-    }
-    pub(super) fn intrinsic_call_input(
-        &mut self,
-        frame: &mut Frame,
-        call: NodeId,
-        expression: &SemanticOriginalExpr,
-        actual: Term,
-        role: Role,
-        wanted: Option<Term>,
-        b: &mut Budget,
-        depth: usize,
-    ) -> CompileResult<Term> {
-        self.step(depth, b)?;
-        let life = self.call_variable(role, b)?;
-        if let Some(wanted) = wanted {
-            self.unify(life, wanted, depth + 1, b)?;
-        }
-        let expected = match self.state.arena[self.type_root(actual, b)?] {
-            Kind::Address { mutable, inner, .. } => self.term(
-                Kind::Address {
-                    mutable,
-                    life,
-                    inner,
-                },
-                b,
-            )?,
-            Kind::Desc { inner, .. } => self.term(Kind::Desc { life, inner }, b)?,
-            _ => return Ok(actual),
-        };
-        b.lookup(self.call_parameters.len(), WORK)?;
-        self.call_parameters.insert(expected);
-        let input = self
-            .collect_call_input(frame, expression, actual, expected, 0, b, depth + 1)?
-            .ok_or_else(|| fail("sealed borrowed input has no complete original outer role"))?;
-        self.settle_call_inputs(frame, call, &[input], b, depth + 1)?;
-        Ok(expected)
     }
 }
 

@@ -132,7 +132,6 @@ impl Solver<'_, '_> {
                     "original Store operation selects another resource family",
                 ));
             };
-            let mut call_wanted = None;
             let descriptor = if matches!(
                 self.state.arena[selected],
                 Kind::Wrapped(Wrapper::Managed, _)
@@ -149,13 +148,10 @@ impl Solver<'_, '_> {
                         None => None,
                     }
                 } else { None };
-                call_wanted = wanted;
-                self.describe_argument_role(frame, &arguments[0], &place, selected, None, b, depth + 1)?
+                self.describe_argument_role(frame, &arguments[0], &place, selected, wanted, b, depth + 1)?
             } else {
                 selected
             };
-            let descriptor = self.intrinsic_call_input(frame, node, &arguments[0], descriptor,
-                call_regions::Role::Head(0), call_wanted, b, depth + 1)?;
             let descriptor = self.type_root(descriptor, b)?;
             let Kind::Desc { life, .. } = self.state.arena[descriptor] else {
                 return Err(fail(

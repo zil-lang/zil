@@ -575,7 +575,7 @@ impl Solver<'_, '_> {
                 Self::push(&mut outer_inputs, input, b)?;
             }
         }
-        self.settle_call_inputs(frame, node, &outer_inputs, b, depth + 1)?;
+        self.settle_call_inputs(frame, node, Some(method), &outer_inputs, b, depth + 1)?;
         b.spend(
             trait_actuals
                 .len()

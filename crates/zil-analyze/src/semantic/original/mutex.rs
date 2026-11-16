@@ -44,7 +44,7 @@ impl Solver<'_, '_> {
             if let Some(input) = self.collect_call_input(frame, argument, actual, parameters[0], 0, b, depth + 1)? {
                 Self::push(&mut outer_inputs, input, b)?;
             }
-            self.settle_call_inputs(frame, node, &outer_inputs, b, depth + 1)?;
+            self.settle_call_inputs(frame, node, Some(target), &outer_inputs, b, depth + 1)?;
             if !self.thread_boundary(parameters[0], b, depth + 1)? {
                 return Err(fail(
                     "structured thread input lacks its scoped synchronization or transfer scheme",
@@ -114,12 +114,7 @@ impl Solver<'_, '_> {
             let [argument] = arguments else {
                 return Err(fail("mutex operation changes its complete ordered arity"));
             };
-            let mut input = self.expression(frame, argument, b, depth + 1)?;
-            if intrinsic == sealed::Intrinsic::MutexLock {
-                input = self.intrinsic_call_input(frame, node, argument, input, call_regions::Role::Head(0), None, b, depth + 1)?;
-            } else if intrinsic == sealed::Intrinsic::MutexValue {
-                input = self.intrinsic_call_input(frame, node, argument, input, call_regions::Role::Implicit(0), None, b, depth + 1)?;
-            }
+            let input = self.expression(frame, argument, b, depth + 1)?;
             Self::push(&mut inputs, input, b)?;
             match intrinsic {
                 sealed::Intrinsic::MutexCreate => {
