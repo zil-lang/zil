@@ -345,12 +345,51 @@ impl Check<'_, '_> {
                 )?;
                 used_bindings += 1;
             }
+            // A Task's physical retained ports select its preserved opaque
+            // classes. They are not ordinary inline address slots, and their
+            // absence does not make the full logical domain empty.
+            for (path, class) in self.task_ports(value, b)? {
+                let image = value.classes.get(class as usize)
+                    .ok_or_else(|| fail("callable Task port leaves its complete original domain"))?;
+                let position = StoragePosition { base, path };
+                let mut selected = None;
+                for row in &actual.bindings {
+                    b.spend(row.position.path.len().saturating_add(position.path.len() + 1), WORK)?;
+                    if row.position == position && selected.replace(row.binder).is_some() {
+                        return Err(fail("actual callable repeats an original Task retained port"));
+                    }
+                }
+                b.spend(actual.static_bindings.len().saturating_mul(position.path.len() + 1), WORK)?;
+                if actual.static_bindings.contains(&position) {
+                    return Err(fail("actual callable replaces a Task retained port with a static category"));
+                }
+                let binder = selected.ok_or_else(||
+                    fail("actual callable omits an original Task retained port"))?;
+                b.spend(actual.bindings.len(), WORK)?;
+                let receiver_input = matches!(image, Class::Role(_, index) if *index < signature.invocation_lifetimes)
+                    && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                    && actual.bindings.iter().any(|row| row.position.base == StorageBase::Receiver
+                        && row.position.path.is_empty() && row.binder == binder);
+                self.role_occurrence(image, binder, subject, actual.invocation_binder_count,
+                    base != StorageBase::Result || receiver_input, &mut relation, &mut reverse, b)?;
+                used_bindings += 1;
+            }
             let mut occurrences = Vec::new();
-            if matches!(value.ty, Type::BorrowedStorage { .. } | Type::Closure(_)) {
+            let task_domain = match &value.ty {
+                Type::Task { .. } | Type::Managed(_) | Type::ErrorUnion { .. } =>
+                    self.task_domain(&value.ty, b)?,
+                _ => None,
+            };
+            if task_domain.as_ref().is_some_and(|domain| domain != &value.life) {
+                return Err(fail("callable Task changes its complete original occurrence forest"));
+            }
+            if matches!(value.ty, Type::BorrowedStorage { .. } | Type::Closure(_))
+                || task_domain.is_some() && value.life.retained.is_empty()
+            {
                 for (class, image) in value.classes.iter().enumerate() {
                     self.push_value(&mut occurrences, (Vec::new(), class as u32, image), b)?;
                 }
-            } else if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) {
+            } else if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) || task_domain.is_some() {
                 for row in &value.life.retained {
                     b.spend(row.path.len().saturating_add(1), WORK)?;
                     let image = value
@@ -424,9 +463,19 @@ impl Check<'_, '_> {
             || used_classes != actual.classes.len()
             || used_statics != actual.static_bindings.len()
         {
-            return Err(fail(
+            b.spend(actual.bindings.len().saturating_add(actual.classes.len())
+                .saturating_add(actual.static_bindings.len()).saturating_add(result.classes.len())
+                .saturating_add(1).saturating_mul(128), WORK)?;
+            let mut errors = fail(
                 "actual callable has an unproved original role occurrence",
-            ));
+            );
+            errors[0].notes.push(format!(
+                "original role context {}:{} definition {}:{}, actual closure {} entry {}; used bindings/classes/statics {}/{}/{}, actual {}/{}/{}",
+                context.id.module.0, context.id.index, context.definition.module.0, context.definition.index,
+                definition.id.0, definition.function.0, used_bindings, used_classes, used_statics,
+                actual.bindings.len(), actual.classes.len(), actual.static_bindings.len()));
+            errors[0].notes.push(format!("complete original result classes {:?}; actual role header {:?}", result.classes, actual));
+            return Err(errors);
         }
         Ok(())
     }
