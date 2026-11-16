@@ -62,7 +62,7 @@ fn borrowed_option_input_keeps_joint_actual_and_complete_variants() {
                 .iter()
                 .any(|(name, fields)| name == "None" && fields.is_empty())
         );
-        assert!(physical.variants.iter().any(|(name, fields)| name == "Some" && matches!(fields.as_slice(), [Type::Address { mutable: false, pointee }] if **pointee == Type::I32)));
+        assert!(physical.variants.iter().any(|(name, fields)| name == "Some" && matches!(fields.as_slice(), [Type::Address { mutable: false, inner: pointee }] if **pointee == Type::I32)));
         let instance = core
             .life_instances
             .iter()
@@ -86,7 +86,7 @@ fn borrowed_option_input_keeps_joint_actual_and_complete_variants() {
                 instance.arguments
             );
         };
-        assert!(matches!(ty, Type::Address { mutable: false, pointee } if **pointee == Type::I32));
+        assert!(matches!(ty, Type::Address { mutable: false, inner: pointee } if **pointee == Type::I32));
         assert_eq!(argument_life.binder_count, 1);
         assert_eq!(argument_life.slots.len(), 1);
         let contract = identity.storage_life.as_ref().unwrap();

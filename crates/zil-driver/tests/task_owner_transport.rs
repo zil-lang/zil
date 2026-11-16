@@ -415,7 +415,7 @@ fn typed_original(text: &str) -> zil_ir::TypedModule {
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::default();
-    let core = zil_expand::expand_with_map_limits_target_context(
+    let core = zil_expand::expand_with_map_semantics(
         &input,
         &syntax,
         &limits,
@@ -428,6 +428,7 @@ fn typed_original(text: &str) -> zil_ir::TypedModule {
     )
     .unwrap()
     .core;
+    assert!(core.semantic.is_some(), "raw mutation seeds require the complete original Source program");
     zil_types::check(&core, &target, &limits).unwrap()
 }
 
@@ -1224,24 +1225,9 @@ fn returned_frame_keeps_actual_capture_identity_when_lifetime_classes_are_equal_
     )
     .replace("keep<life a,life b>", "keep<life a>")
     .replace("&'b mut i32", "&'a mut i32");
-    let input = source(&text);
-    let syntax = zil_syntax::parse(&input).into_result().unwrap();
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::default();
-    let core = zil_expand::expand_with_map_limits_target_context(
-        &input,
-        &syntax,
-        &limits,
-        &target,
-        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-            root: input.module_id,
-            aliases: &Default::default(),
-            declarations: zil_expand::source_context::DeclarationPlacement::Original,
-        },
-    )
-    .unwrap()
-    .core;
-    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let typed = typed_original(&text);
     let d = &typed.closures[0];
     assert_eq!(d.captures[0], d.captures[1]);
     assert_eq!(d.storage_life.as_ref().unwrap().fixed_binder_count, 1);
@@ -1575,12 +1561,9 @@ fn equal_task_types_and_classes_keep_actual_source_identity_raw_and_wire() {
         .replace("var number=37;", "var number=37;var other=41;")
         .replace("let callback=keep(give original);", "let otherTask=task_create(worker,&mut other)?;let callback=keep(give original,give otherTask);")
         .replace("return answer-42;", "if other!=46{return 92;}return answer-88;");
-    let input = source(&text);
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::default();
-    let ast = zil_syntax::parse(&input).into_result().unwrap();
-    let core = zil_expand::expand(&input, &ast).unwrap();
-    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let typed = typed_original(&text);
     assert_eq!(typed.closures[0].captures[0], typed.closures[0].captures[1]);
     assert_eq!(
         typed.closures[0]
