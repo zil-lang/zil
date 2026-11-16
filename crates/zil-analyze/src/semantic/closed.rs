@@ -258,6 +258,7 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+    #[track_caller]
     fn value_type(&self, value: &SemanticTypeValue, b: &mut Budget) -> CompileResult<Type> {
         let SemanticTypeValue::Resolved { ty, life, classes } = value else {
             return Err(fail("Core type survived into executable semantic context"));
@@ -265,6 +266,17 @@ impl Check<'_, '_> {
         crate::dyn_metadata::shape(life, b)?;
         if classes.len() != life.binder_count as usize {
             return Err(fail("semantic value omits a complete class occurrence"));
+        }
+        if let Some(domain) = self.task_domain(ty, b)? {
+            if domain != *life {
+                return Err(fail("semantic Task type view changes its full original child-domain forest"));
+            }
+            // A physical type view consumes the same complete directory as
+            // actual SSA/environment values. It creates no class equation,
+            // runtime head, retained source or cleanup permission.
+            self.actual_type(ty, b)?;
+            crate::dyn_metadata::ty(ty, b)?;
+            return Ok(ty.clone());
         }
         if let Some(domain) = self.dyn_value_domain(ty, b, 0)? {
             crate::dyn_metadata::shape(&domain.life, b)?;
@@ -359,9 +371,11 @@ impl Check<'_, '_> {
             }
             _ if empty(life) => {}
             _ => {
-                return Err(unknown(
-                    "semantic value needs its full type/class occurrence reconstruction",
-                ));
+                crate::dyn_metadata::ty(ty, b)?;
+                b.spend(classes.len().saturating_add(192), WORK)?;
+                let mut errors = unknown("semantic value needs its full type/class occurrence reconstruction");
+                errors[0].notes.push(format!("physical complete Type {ty:?}; shape {life:?}; classes {classes:?}; consumer {}", std::panic::Location::caller()));
+                return Err(errors);
             }
         }
         self.actual_type(ty, b)?;
@@ -918,7 +932,16 @@ impl Check<'_, '_> {
                     // parent, before the child may read this checked slot.
                     match (&formal.kind, value) {
                         (SemanticFormal::Type { requirements }, SemanticActual::Type(value)) => {
-                            self.value_type(value, b)?;
+                            if let Err(mut errors) = self.value_type(value, b) {
+                                if errors.iter().any(|error| error.category == zil_base::ResultCategory::ResourceLimit) { return Err(errors); }
+                                b.spend(192, WORK)?;
+                                for error in &mut errors {
+                                    error.notes.push(format!("actual environment world {}:{} original definition {}:{} function {} parent world {}:{} original source {:?}",
+                                        instance.id.module.0, instance.id.index, definition.id.module.0, definition.id.index,
+                                        function.id.0, parent.id.module.0, parent.id.index, formal.source));
+                                }
+                                return Err(errors);
+                            }
                             self.requirements(parent, requirements, b)?;
                             let SemanticActualRecipe::Type(source) = &formal.source else {
                                 return Err(fail(
@@ -1071,9 +1094,11 @@ pub(super) fn check(
                 "zero closure directory contains a nonzero or unknown actual capture",
             ));
         }
-        for capture in &closure.captures {
-            checker.zero_data(capture, b, 0)?;
-        }
+        // Reconstruct the complete actual environment, including the
+        // creator-grounded Static literal capture directory. Checking each
+        // raw Address in isolation would lose that original occurrence;
+        // declaring it zero here would erase an ordinary borrowed child.
+        checker.zero_data(&Type::Closure(closure.id), b, 0)?;
         b.lookup(zero.len(), WORK)?;
         zero.insert(closure.id);
     }
