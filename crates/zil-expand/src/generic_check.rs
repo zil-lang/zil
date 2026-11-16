@@ -1381,6 +1381,18 @@ impl Check<'_, '_, '_> {
                 self.life_expression(value, state)
             }
             ExprKind::Group(inner) => self.life_expression(inner, state),
+            ExprKind::Member { .. } | ExprKind::Index { .. }
+                if self.value_hint(expression, state, 0, false)?.as_ref()
+                    .is_some_and(|ty| matches!(group(ty).kind, TypeKind::Reference { mutable: false, .. })) =>
+            {
+                // Loading a stored shared address is a value projection, not
+                // borrowing its pointer slot. This old parameter-index check
+                // supplies only an input upper candidate; the complete original
+                // type/domain and CFG consumers retain the actual field's Fixed
+                // lifetime, target and parents independently. No class equality
+                // or permission is obtained from this coarse input selector.
+                self.life_place(expression, state)
+            }
             ExprKind::Call { callee, arguments }
                 if super::enums::constructor(callee).is_some_and(|(name, variant, _)| {
                     name == super::options::TEMPLATE && matches!(variant, "Some" | "None")
