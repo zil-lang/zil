@@ -1081,10 +1081,11 @@ fn mutable_frame_cases() -> Vec<(&'static str, String)> {
             "var callback=keep(give original);callback();callback();return 0;",
         )
         .replace("return answer-42;", "return answer;");
-    let uncalled = text
-        .replace(driver, "var callback=keep(give original);return 0;")
-        .replace("if number!=42", "if number!=37")
-        .replace("return answer-42;", "return answer;");
+    // Default cleanup is proved from this body's actual Task creation graph.
+    // The old generic incoming-Task version is a separate fixed Γ negative.
+    let uncalled = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/mutable-local-never-called.zil"
+    ).to_owned();
     let begin = text.find(" return move()->i32=>{").unwrap();
     let end = text.find("fn drive_callback").unwrap();
     let canceled = format!(

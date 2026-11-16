@@ -66,7 +66,12 @@ fn pending_once_cleanup_keeps_its_environment_and_every_returned_owner_raw_and_w
             stop_after: Stage::Verify, ..CompileOptions::default()
         });
         assert_ne!(rejected.status, ResultCategory::Success, "{}", rejected.to_json());
-        assert!(rejected.diagnostics.iter().any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
+        assert!(rejected.diagnostics.iter().any(|d|
+            d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"
+            || (d.phase == zil_base::Phase::Types
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-ORIGINAL-CLEANUP"
+                && d.message == "consuming call has remaining environment cleanup without a synchronous proof or a Suspend execution root")),
             "{}", rejected.to_json());
     }
 }

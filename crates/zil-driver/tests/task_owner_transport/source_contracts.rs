@@ -109,3 +109,13 @@ fn unused_child_helper_cannot_claim_once_kind() {
         "opaque callable declaration differs",
     );
 }
+
+#[test]
+fn unused_incoming_task_requires_closed_or_synchronous_graph() {
+    rejects(
+        include_str!(
+            "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/mutable-frame-never-called.zil"
+        ),
+        "default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+    );
+}
