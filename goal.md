@@ -22,6 +22,8 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
+2026-11-16 同版完整Source首次13/13：`3f591ec16`在CLI alpha-64m-v2下，核心正向工程13/13独立Verify成功，原缺SyncDrop负例4/4在实际语义阶段拒绝。不是完整Alpha交付：extra14仍11/14（三个V借用返回路径），nearest36为28/36（六个A借用/泛型/构造消费者、两个新正例输入模式语法需修）。Sol整链施工与A/V分离Astra审核并行；全核心回归及真实native继续。当前源码恢复已GitHub上传并读回至3f591ec16（archive固定a9dd246830）；不据阶段计数宣称发布。
+
 2026-11-16 继续施工（覆盖此前迁移暂停）：结果κ与外部来源分通道、完整provider父环境、已有header Invocation发布已保存至`0ca931d11`；该版本Types cargo check通过。c817 CLI预检拦截原query新增sources参数漏接，原负责人正在闭合所有消费者；未运行旧CLI充当新验收。d2a上一轮Source因磁盘满中断，不报整套计数；现改每例完成后校验并无损压缩phase。七处遗留A/Backend增量经owner亲核仅格式/挪位，备份后恢复精确HEAD。c817施工恢复包四片已GitHub逐片读回，索引固定`4b87db528`。Alpha仍未接受；见本轮integration-regression-review记录。
 
 2026-11-16 客户端迁移检查点：用户报告桌面客户端解码82,785,376B超过64MiB，云端仍可查看。已将所有已知代理暂停在原子文件检查点；完整READY批提交至`74094ece4`，A shared/nested/retained与V definition/default-contract仍明确WIP，原未识别Backend增量一并原样保全但不盲合。源码增量、WIP、真实校验输入、执行助手及说明已在archive/source-history固定`d2eac4cd3`备份，并逐段读回确认；包SHA256 `bb1e92e7e9347d55a208dc916c51a72d5034a6f79adc4a37e8dc1c057e2d5ded`。Alpha仍未接受；最新受测2cf核心IR103/0、Expand175/0、Types96/0、A306/0、V838/1。CLI64M默认配置及后续READY修复已保存但未重建验收。新对话先读[精简接续记录](records/language-alpha-client-handoff-20261116.json)，不要从旧长对话重审或重复派工。

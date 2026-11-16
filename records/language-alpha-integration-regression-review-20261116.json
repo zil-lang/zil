@@ -396,5 +396,40 @@
       "parts_readback_verified": 4
     },
     "alpha_accepted": false
+  },
+  "latest_complete_foundation_source": {
+    "candidate": "3f591ec16de6c49d8f0a5333a812b1260a1caffa",
+    "positive": {
+      "passed": 13,
+      "total": 13
+    },
+    "negative_syncdrop": {
+      "passed": 4,
+      "total": 4
+    },
+    "work_profile": "alpha-64m-v2",
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-header-and-signature-consumers/alpha-coverage/receipt.json",
+    "extra_originals": {
+      "passed": 11,
+      "total": 14,
+      "remaining": [
+        "short-external-view: original input physical WF a->r",
+        "short-inline-view: exact actual-call receiver bridge",
+        "static-callback-getter-cycle: borrowed-output physical sigma relation"
+      ]
+    },
+    "nearest": {
+      "passed": 28,
+      "total": 36,
+      "remaining_analyze": 6,
+      "invalid_new_positive_syntax": 2,
+      "negative_rejection_phases_audited": [
+        "expand",
+        "types",
+        "analyze",
+        "verify"
+      ]
+    },
+    "alpha_accepted": false
   }
 }
