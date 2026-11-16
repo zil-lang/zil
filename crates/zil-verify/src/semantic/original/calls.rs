@@ -257,6 +257,24 @@ impl CheckedOriginal {
 mod quantified_goal_tests{
     use super::*;
     fn address(life:Life,inner:Ty)->Ty{Ty::Address{mutable:false,life,inner:Box::new(inner)}}
+    fn signature(input:Life,result:Life)->Prototype{Prototype{parameters:vec![address(input,Ty::Atom(Type::I32))],result:address(result,Ty::Atom(Type::I32)),environment:Env{lexical:vec![],bounds:vec![],invocation:vec![],self_type:None},modes:vec![PassingMode::Infer],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::FnMut)}}
+    #[test]
+    fn callable_elision_eliminates_its_own_role_into_the_introduced_goal_frame(){
+        let mut checked=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());
+        let invocation=Life::Invocation(FrameToken(800),0);let goal=Life::Bound(FrameToken(900),0);let other=Life::Bound(FrameToken(901),0);
+        let mut source=signature(invocation.clone(),invocation.clone());source.invocation_lifetimes=1;source.environment.invocation=vec![invocation];
+        let mut wanted=signature(goal.clone(),goal.clone());wanted.environment.bounds=vec![vec![goal.clone()]];
+        let(actual,flexible)=checked.callable_goal_source(&source,&wanted,None,&mut b).unwrap();
+        assert_eq!(actual.invocation_lifetimes,1);assert_eq!(actual.environment.invocation.len(),1);assert_eq!(wanted.invocation_lifetimes,0);assert_eq!(wanted.environment.bounds,vec![vec![goal.clone()]]);
+        checked.callable_goal_type(&actual.parameters[0],&wanted.parameters[0],&flexible,&mut b).unwrap();checked.callable_goal_type(&actual.result,&wanted.result,&flexible,&mut b).unwrap();
+        assert!(checked.callable_goal_type(&actual.result,&address(other.clone(),Ty::Atom(Type::I32)),&flexible,&mut b).is_err(),"the source's repeated role cannot switch to another nonzero frame");
+        let fixed=signature(other.clone(),other);let(actual,flexible)=checked.callable_goal_source(&fixed,&wanted,None,&mut b).unwrap();assert!(checked.callable_goal_type(&actual.parameters[0],&wanted.parameters[0],&flexible,&mut b).is_err(),"a captured rigid role is not universally callable");
+        for malformed in [0,2]{let mut bad=source.clone();bad.invocation_lifetimes=malformed;assert!(checked.callable_goal_source(&bad,&wanted,None,&mut b).is_err());}
+        let mut bad=wanted.clone();bad.bound_lifetimes=2;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
+        let mut bad=wanted.clone();bad.modes[0]=PassingMode::BorrowMut;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
+        let mut bad=wanted.clone();bad.result_mode=PassingMode::Copy;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
+        let mut bad=wanted;bad.call_kind=CallKind::Suspend;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
+    }
     #[test]
     fn universal_callable_goal_solves_only_explicit_private_call_roles(){
         let mut checked=CheckedOriginal::default();let mut budget=Budget::new(&Limits::default());
@@ -304,21 +322,12 @@ impl CheckedOriginal{
             _=>(self.callable_premise(module,context,&receiver,caller,active,b)?.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?,None),
         };
         if !callable_accepts(actual.callable_kind,kind){return Err(unsupported("original Callable source capability is not independently established",None));}
-        if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind||actual.bound_lifetimes!=wanted.bound_lifetimes||actual.invocation_lifetimes!=wanted.invocation_lifetimes{return Err(bad("original Callable requirement has different complete modes/kind/binder domains"));}
         // Universal elimination instantiates only this source code scheme's
-        // private roles. All caller and retained identities stay rigid.
-        let (actual,roles)=self.instantiate_prototype_roles(&actual,owner,&actual.environment,b)?;
-        b.spend(roles.len())?;let flexible=roles.values().cloned().collect::<BTreeSet<_>>();
-        // Explicit code coordinates keep their kinds and ordinals. They
-        // cannot trade places with one another merely because unification of
-        // their physical argument occurrences would otherwise be possible.
-        for(source,goal)in actual.environment.invocation.iter().zip(&wanted.environment.invocation){self.unify_life(source,goal,b)?;}
-        if actual.bound_lifetimes!=0{
-            let source=actual.environment.bounds.first().ok_or_else(||bad("Callable goal source loses its own Bound frame"))?;
-            let goal=wanted.environment.bounds.first().ok_or_else(||bad("Callable goal target loses its own Bound frame"))?;
-            if source.len()!=actual.bound_lifetimes as usize||goal.len()!=wanted.bound_lifetimes as usize{return Err(bad("Callable goal has an incomplete own Bound coordinate directory"));}
-            for(source,goal)in source.iter().zip(goal){self.unify_life(source,goal,b)?;}
-        }
+        // private roles. A source's elided Invocation and a target's outer
+        // ForAll need not put equivalent quantifiers in the same code field.
+        // Their complete directories are checked separately; the real P/R
+        // occurrences discharge every substitution, never numeric ordinals.
+        let (actual,flexible)=self.callable_goal_source(&actual,&wanted,owner,b)?;
         for(actual,wanted)in actual.parameters.iter().zip(&wanted.parameters){
             let actual=self.normalize_original_type(module,context,actual,caller,active,b)?;
             let wanted=self.normalize_original_type(module,context,wanted,caller,active,b)?;
@@ -327,6 +336,12 @@ impl CheckedOriginal{
         let actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
         let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
         self.callable_goal_type(&actual,&wanted,&flexible,b)
+    }
+    fn callable_goal_source(&mut self,actual:&Prototype,wanted:&Prototype,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<(Prototype,BTreeSet<Life>)>{
+        if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind{return Err(bad("original Callable requirement has different complete modes/kind"));}
+        self.private_prototype_frames(wanted,b)?;
+        let(actual,roles)=self.instantiate_prototype_roles(actual,owner,&actual.environment,b)?;
+        b.spend(roles.len())?;Ok((actual,roles.values().cloned().collect()))
     }
     fn callable_goal_type(&mut self,actual:&Ty,wanted:&Ty,flexible:&BTreeSet<Life>,b:&mut Budget)->Check<()>{
         let mut sources=Vec::new();let mut goals=Vec::new();

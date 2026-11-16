@@ -41,7 +41,7 @@ impl CheckedOriginal {
         let result=self.map_invocation_type(&prototype.result,&mut rewrite,0,b)?;
         Ok((Prototype{parameters,result:self.apply_type(&result,selected,b)?,environment,modes:prototype.modes.clone(),result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:prototype.bound_lifetimes,invocation_lifetimes:prototype.invocation_lifetimes,premise_bounds,callable_kind:prototype.callable_kind},map))
     }
-    fn private_prototype_frames<'a>(&self,prototype:&'a Prototype,b:&mut Budget)->Check<Vec<&'a [Life]>>{
+    pub(super) fn private_prototype_frames<'a>(&self,prototype:&'a Prototype,b:&mut Budget)->Check<Vec<&'a [Life]>>{
         if prototype.environment.invocation.len()!=prototype.invocation_lifetimes as usize{return Err(bad("original prototype lacks its complete Invocation directory"));}
         let mut frames=Vec::new();
         if prototype.bound_lifetimes!=0{
