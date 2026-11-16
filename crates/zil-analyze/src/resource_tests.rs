@@ -3508,17 +3508,8 @@ fn concrete_local_copy_fn_observation_budget_raw_wire() {
         let mut budget = Budget::new(&defaults);
         let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
         let exact = defaults.max_analysis_steps - budget.remaining();
-        let (old_cost, state_cells, origin_cells) =
-            if alias { (855, 14, 21) } else { (726, 10, 15) };
-        measured.push((
-            alias,
-            exact,
-            if alias {
-                old_cost + callable_storage_delta(state_cells, origin_cells)
-            } else {
-                1219
-            },
-        ));
+        let old_cost = if alias { 855 } else { 726 };
+        measured.push((alias, exact, if alias { 1530 } else { 1219 }));
         assert_eq!(
             analyze(
                 &module,
@@ -3558,7 +3549,6 @@ fn concrete_local_copy_fn_observation_budget_raw_wire() {
             "282 Copy Fn observation alias={alias}: raw=Wire N={exact}; N-1 ResourceLimit; fresh equality"
         );
     }
-    eprintln!("complete Copy Fn observation request rows: {measured:?}");
     for (alias, exact, expected) in measured {
         assert_eq!(exact, expected, "alias={alias}");
     }

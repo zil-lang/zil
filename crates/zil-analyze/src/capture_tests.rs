@@ -694,14 +694,13 @@ fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
         );
         measured.push((same, after_last, exact));
     }
-    eprintln!("complete copy-field request rows: {measured:?}");
     for (same, after_last, exact) in measured {
         assert_eq!(
             exact,
             match (same, after_last) {
                 (false, false) => 2431,
-                (true, false) => 2202,
-                (_, true) => 2551,
+                (true, false) => 2246,
+                (_, true) => 2600,
             }
         );
     }

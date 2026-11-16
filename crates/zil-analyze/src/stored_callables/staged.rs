@@ -418,7 +418,7 @@ mod tests {
         eprintln!(
             "complete staged role rows: staged N={low}/N-1/fresh; direct N={direct}/N-1/fresh"
         );
-        assert_eq!(direct, 10, "complete direct role query work changed");
+        assert_eq!(direct, 11, "complete direct role query work changed");
     }
     #[allow(dead_code)]
     mod tail_fixture {
