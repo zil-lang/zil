@@ -59,7 +59,7 @@ pub(in crate::dynamic_witness) fn instantiate(module:&TypedModule,owner:&Semanti
         c.call.as_mut().ok_or_else(||bad("default Context access disappeared"))?.reads.push(position.clone());
         if mutable&&matches!(row.mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription){c.requires.as_mut().unwrap().push(DynRequirement::Write(position.clone()));c.call.as_mut().unwrap().writes.push(position.clone());}
         b.spend(2)?;let mut sources=vec![StorageSource::Exact(position.clone())];
-        if mutable{for argument in &arguments{if compatible(row,argument,b)?{dynamic_metadata::recipe(&argument.source,b)?;b.spend(1)?;sources.push(StorageSource::Exact(argument.source.clone()));}}}
+        if mutable{for argument in &arguments{if compatible(row,argument,b)?{dynamic_metadata::position(&argument.source,b)?;b.spend(1)?;sources.push(StorageSource::Exact(argument.source.clone()));}}}
         c.guarantees.as_mut().ok_or_else(||bad("default Context after-state disappeared"))?.push(DynGuarantee::StorageSources(StorageSourceBinding{position:position.clone(),sources}));
         if let(Some(result),Some(DynResultSource::Borrow{sources,..}))=(&result,&mut c.result){if compatible(row,result,b)?{sources.push(StorageSource::Exact(position));}}
     }
@@ -72,7 +72,7 @@ pub(in crate::dynamic_witness) fn instantiate(module:&TypedModule,owner:&Semanti
             dynamic_metadata::ty(&argument.ty,b)?;dynamic_metadata::ty(&result.ty,b)?;
             b.spend(argument.classes.len().saturating_mul(result.classes.len()).saturating_add(2))?;
             if argument.ty==result.ty&&mode==result_mode&&matches!(&argument.kind,requests::LeafKind::Physical{outer:requests::Borrow::Variable{binder,..},..}if binder==result_binder)&&argument.classes.len()==result.classes.len()&&argument.classes.iter().all(|row|result.classes.iter().any(|other|row.path==other.path&&row.class==other.class&&row.binder==other.binder)){
-                dynamic_metadata::recipe(&argument.source,b)?;for source in sources.iter(){dynamic_metadata::source(source,b)?;}
+                dynamic_metadata::position(&argument.source,b)?;for source in sources.iter(){dynamic_metadata::source(source,b)?;}
                 let source=StorageSource::Exact(argument.source.clone());if !sources.contains(&source){b.spend(1)?;sources.push(source);}
             }
         }
