@@ -187,6 +187,7 @@ pub(super) struct Proof {
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+    pub(super) return_borrows: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub(super) borrow_bindings:
         BTreeMap<(SemanticDefinitionId, NodeId), SemanticOriginalTypeSource>,
     pub(super) call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::CallRegion>,
@@ -5050,7 +5051,16 @@ impl<'a> Check<'a, '_> {
                             ));
                         }
                         self.same(&value, hidden)?;
-                    } else if !task_family {
+                    } else if !task_family
+                        && !self.return_view(
+                            owner,
+                            value_node,
+                            variables,
+                            &value,
+                            &expected,
+                            depth + 1,
+                        )?
+                    {
                         self.same(&value, &expected)?;
                     }
                     self.record_task_return(

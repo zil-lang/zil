@@ -269,6 +269,7 @@ fn clone_proof(
             .saturating_add(source.capture_candidates.len())
             .saturating_add(source.view_bounds.len())
             .saturating_add(source.borrow_roles.len())
+            .saturating_add(source.return_borrows.len())
             .saturating_add(source.field_reborrows.len())
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
@@ -397,8 +398,28 @@ fn clone_proof(
             crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
         }
     }
-    for role in source.borrow_roles.values() {
+    for role in source
+        .borrow_roles
+        .values()
+        .chain(source.return_borrows.values())
+    {
         spend(left, role.steps.len(), 0, limits)?;
+        for step in &role.steps {
+            match &step.kind {
+                ViewBorrowStepKind::Capture { name } => spend(left, name.len(), 0, limits)?,
+                ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
+                    if pattern.len() > limits.max_call_depth {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "frozen projected loan path depth exceeded",
+                            None,
+                        ));
+                    }
+                    spend(left, pattern.len(), 0, limits)?;
+                }
+                _ => {}
+            }
+        }
         for lifetime in [
             &role.source_lifetime,
             &role.target_lifetime,

@@ -317,8 +317,14 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
     expected
 }
 pub(super) fn valid_slot_contract(slot: &DynSlot, interface: &DynInterface) -> bool {
-    if interface.context.is_none() {
-        return valid_scalar_contract(slot);
+    if interface.context.is_none() && valid_scalar_contract(slot) {
+        // Preserve the exact closed head-only contract. A borrowed result can
+        // also have the explicit Static/OwnedView declaration upper below;
+        // these atoms do not equate retained classes with the receiver head.
+        return true;
+    }
+    if interface.context.is_none() && !borrowed_result(&slot.result) {
+        return false;
     }
     if borrowed_result(&slot.result) && context_result_binder(slot, interface).is_none() {
         return false;
@@ -328,15 +334,16 @@ pub(super) fn valid_slot_contract(slot: &DynSlot, interface: &DynInterface) -> b
         return false;
     }
     let effects = slot.contract.effects.as_deref();
-    effects
-        == Some(&[
-            DynEffect::Alloc,
-            DynEffect::Io,
-            DynEffect::Block,
-            DynEffect::Ffi,
-            DynEffect::Reenter,
-            DynEffect::Panic,
-        ])
+    slot.storage_life.as_ref() == Some(&context_slot_life(slot, interface))
+        && effects
+            == Some(&[
+                DynEffect::Alloc,
+                DynEffect::Io,
+                DynEffect::Block,
+                DynEffect::Ffi,
+                DynEffect::Reenter,
+                DynEffect::Panic,
+            ])
         && slot.contract == contextual_contract(slot, interface)
 }
 pub(super) fn context_slot_life(slot: &DynSlot, interface: &DynInterface) -> StorageLifeContract {

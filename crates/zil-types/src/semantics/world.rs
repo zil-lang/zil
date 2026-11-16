@@ -4430,7 +4430,21 @@ impl World<'_, '_> {
                     reservations::exit(self)?;
                     places::capture_exit(self, instance, f)?;
                     let value = self.get(&values, result)?;
-                    self.same(instance.id, &value, &expected_result, &implicit)?;
+                    if !borrow_roles::return_view(
+                        self,
+                        instance,
+                        original,
+                        f,
+                        &sites,
+                        result,
+                        &value,
+                        &expected_result,
+                        &values,
+                        &locals,
+                        &implicit,
+                    )? {
+                        self.same(instance.id, &value, &expected_result, &implicit)?;
+                    }
                     Vec::new()
                 }
                 Terminator::Return(None) if f.return_type == Type::Unit => {

@@ -59,7 +59,7 @@ pub(super) struct ViewBorrowBound {
     pub lifetime: Option<SemanticOuterLifeRecipe>,
     pub steps: Vec<ViewBorrowStep>,
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct BorrowRole {
     pub root: ViewBorrowRoot,
     pub source_lifetime: SemanticOuterLifeRecipe,
@@ -595,8 +595,97 @@ impl Check<'_, '_> {
         wanted: &SemanticOuterLifeRecipe,
         depth: usize,
     ) -> R<SemanticOuterLifeRecipe> {
+        if let Some(role) = self.projected_borrow_role(
+            owner, expression, operand, variables, inner, occurrence, wanted, true, depth,
+        )? {
+            self.pay(1, depth)?;
+            self.proof
+                .proof_mut()?
+                .borrow_roles
+                .insert((owner, expression.id), role);
+        }
+        Ok(wanted.clone())
+    }
+
+    /// A result view is a boundary loan, not a new type for its source
+    /// expression. In particular a retained field may be viewed for the
+    /// receiver loan while its original Fixed class remains unchanged.
+    pub(super) fn return_view(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        actual: &SemanticTypeRecipe,
+        expected: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        let (
+            SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: source,
+                inner,
+            },
+            SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: target,
+                inner: target_inner,
+            },
+        ) = (actual, expected)
+        else {
+            return Ok(false);
+        };
+        if source == target || matches!(target, SemanticOuterLifeRecipe::Static) {
+            return Ok(false);
+        }
+        self.same(inner, target_inner)?;
+        let Some(role) = self.projected_borrow_role(
+            owner,
+            expression,
+            expression,
+            variables,
+            inner,
+            source,
+            target,
+            false,
+            depth + 1,
+        )?
+        else {
+            return Ok(false);
+        };
+        self.pay(
+            self.proof.return_borrows.len().saturating_add(1).ilog2() as usize + 1,
+            depth,
+        )?;
+        let rows = &mut self.proof.proof_mut()?.return_borrows;
+        match rows.entry((owner, expression.id)) {
+            std::collections::btree_map::Entry::Occupied(old) if old.get() != &role => {
+                return Err(bad(
+                    "one original result view changes its complete source loan",
+                ));
+            }
+            std::collections::btree_map::Entry::Occupied(_) => {}
+            std::collections::btree_map::Entry::Vacant(row) => {
+                row.insert(role);
+            }
+        }
+        Ok(true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn projected_borrow_role(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        operand: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        inner: &SemanticTypeRecipe,
+        occurrence: &SemanticOuterLifeRecipe,
+        wanted: &SemanticOuterLifeRecipe,
+        local_region: bool,
+        depth: usize,
+    ) -> R<Option<BorrowRole>> {
         if wanted == occurrence {
-            return Ok(wanted.clone());
+            return Ok(None);
         }
         let slot = if matches!(&expression.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand: original } if original.id == operand.id)
         {
@@ -619,6 +708,9 @@ impl Check<'_, '_> {
                 .view_bounds
                 .get(&(owner, Query::Expression(operand.id)))
             else {
+                if !local_region {
+                    return Ok(None);
+                }
                 return Err(bad(
                     "original contextual borrow has no proved projected input loan",
                 ));
@@ -626,7 +718,7 @@ impl Check<'_, '_> {
             snapshot_bound(bound, self.limits, self.left, depth + 1)?
         };
         let region = self.region_key(owner, wanted, depth + 1)?;
-        if region.is_some_and(|(region_owner, _)| region_owner == owner) {
+        if local_region && region.is_some_and(|(region_owner, _)| region_owner == owner) {
             self.record_region_source(
                 owner,
                 wanted,
@@ -643,12 +735,13 @@ impl Check<'_, '_> {
                     scope: SemanticScopeRef::Ancestor(0),
                     ..
                 }),
-            ) if matches!(
-                bound.root,
-                ViewBorrowRoot::Local(_)
-                    | ViewBorrowRoot::Capture(_)
-                    | ViewBorrowRoot::Parameter(_)
-            ) =>
+            ) if local_region
+                && matches!(
+                    bound.root,
+                    ViewBorrowRoot::Local(_)
+                        | ViewBorrowRoot::Capture(_)
+                        | ViewBorrowRoot::Parameter(_)
+                ) =>
             {
                 true
             }
@@ -660,6 +753,9 @@ impl Check<'_, '_> {
             _ => false,
         };
         if !allowed {
+            if !local_region {
+                return Ok(None);
+            }
             return Err(bad(
                 "original projected borrow exceeds its complete source lifetime bound",
             ));
@@ -667,19 +763,14 @@ impl Check<'_, '_> {
         crate::dyn_metadata::semantic_operand_snapshot(occurrence, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(wanted, self.limits, self.left, 2)?;
         let inner = copy_recipe(inner, self.limits, self.left)?;
-        self.pay(1, depth)?;
-        self.proof.proof_mut()?.borrow_roles.insert(
-            (owner, expression.id),
-            BorrowRole {
-                root: bound.root,
-                source_lifetime: bound.lifetime.unwrap_or_else(|| occurrence.clone()),
-                target_lifetime: wanted.clone(),
-                occurrence_lifetime: occurrence.clone(),
-                inner,
-                steps: bound.steps,
-            },
-        );
-        Ok(wanted.clone())
+        Ok(Some(BorrowRole {
+            root: bound.root,
+            source_lifetime: bound.lifetime.unwrap_or_else(|| occurrence.clone()),
+            target_lifetime: wanted.clone(),
+            occurrence_lifetime: occurrence.clone(),
+            inner,
+            steps: bound.steps,
+        }))
     }
     pub(super) fn place_borrow_bound(
         &mut self,

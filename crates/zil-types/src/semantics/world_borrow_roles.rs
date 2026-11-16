@@ -736,6 +736,19 @@ fn trace(
                     return Err(bad("projected loan field has no actual SSA projection"));
                 };
                 let operation = producer(world, function, value)?.0;
+                // Reading an address-valued retained field is a real read of
+                // its field address, not an equality with the receiver head.
+                // Authenticate the complete pointee before following that
+                // exact AddressField producer back to the receiver loan.
+                let operation = if let InstructionKind::ReadAddress { address } = operation {
+                    let field_address = world.get(values, *address)?;
+                    let field_value = world.get(values, value)?;
+                    let pointee = world.pointee(&field_address)?;
+                    world.same(instance.id, &field_value, &pointee, implicit)?;
+                    producer(world, function, *address)?.0
+                } else {
+                    operation
+                };
                 let (next, index) = match operation {
                     InstructionKind::AddressField { address, index } => {
                         (Cursor::Value(*address), *index)
@@ -1128,6 +1141,26 @@ pub(super) fn apply(
         }
         role.clone()
     };
+    apply_role(
+        world, instance, original, function, &role, operand, actual, expected, values, locals,
+        implicit,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_role(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    function: &TypedFunction,
+    role: &BorrowRole,
+    operand: ValueId,
+    actual: &SharedType,
+    expected: &SharedType,
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<Option<(SharedType, roles::Source)>> {
     let expected_source = roles::outer(world, expected)?;
     let target_source = match &role.target_lifetime {
         SemanticOuterLifeRecipe::Static => roles::Source::Static,
@@ -1203,6 +1236,138 @@ pub(super) fn apply(
         }
     }
     Ok(Some((world.share(expected)?, source)))
+}
+
+/// A return consumes only its own original expression's directed result
+/// loan. A call adapter on the same source value is not a result theorem.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn return_view(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    function: &TypedFunction,
+    sites: &[&SemanticSite],
+    operand: ValueId,
+    actual: &SharedType,
+    expected: &SharedType,
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<bool> {
+    if !matches!(
+        World::type_of(actual)?,
+        Type::Address { mutable: false, .. }
+    ) {
+        return Ok(false);
+    }
+    let role = {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("result view lacks original Gamma"))?;
+        world.pay(index::search(proof.return_borrows.len()))?;
+        if proof
+            .return_borrows
+            .range((original.id, NodeId(0))..=(original.id, NodeId(u32::MAX)))
+            .next()
+            .is_none()
+        {
+            return Ok(false);
+        }
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+            return Err(bad("result view has no original expression directory"));
+        };
+        let mut selected = None;
+        for site in sites {
+            world.pay(1)?;
+            if !matches!(site.action, SemanticSiteAction::TypeUse {
+                subject: SemanticOperand::Value(value), ..
+            } if value == operand)
+            {
+                continue;
+            }
+            world.pay(site_nodes.len())?;
+            let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
+            let Some(row) = nodes.next() else {
+                continue;
+            };
+            if nodes.next().is_some() {
+                return Err(bad(
+                    "result view changes its exact original expression occurrence",
+                ));
+            }
+            let SemanticOriginalNode::Expression(node) = row.node else {
+                continue;
+            };
+            world.pay(index::search(proof.return_borrows.len()))?;
+            let Some(role) = proof.return_borrows.get(&(original.id, node)) else {
+                continue;
+            };
+            let frame = ledger
+                .frames
+                .get(&function.id)
+                .ok_or_else(|| bad("result view has no exact actual emission owner"))?;
+            world.pay(index::search(frame.expressions.len()))?;
+            let expression = frame
+                .expressions
+                .get(&node)
+                .ok_or_else(|| bad("result view loses its original expression emission"))?;
+            if expression.value != Some(operand) {
+                return Err(bad(
+                    "result view changes its emitted original expression SSA",
+                ));
+            }
+            if selected.replace((node, role)).is_some() {
+                return Err(bad(
+                    "result SSA has several original result-loan occurrences",
+                ));
+            }
+        }
+        let Some((node, role)) = selected else {
+            return Ok(false);
+        };
+        for lifetime in [
+            &role.source_lifetime,
+            &role.target_lifetime,
+            &role.occurrence_lifetime,
+        ] {
+            crate::dyn_metadata::semantic_operand_snapshot(lifetime, world.limits, world.left, 1)?;
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(&role.inner, world.limits, world.left, 1)?;
+        world.pay(role.steps.len().saturating_add(1))?;
+        for step in &role.steps {
+            match &step.kind {
+                ViewBorrowStepKind::Capture { name } => world.pay(name.len())?,
+                ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
+                    if pattern.len() > world.limits.max_call_depth {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "result loan path depth exceeded",
+                            None,
+                        ));
+                    }
+                    world.pay(pattern.len())?;
+                }
+                _ => {}
+            }
+        }
+        (node, role.clone())
+    };
+    let source = world.ty(
+        instance.id,
+        &SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Expression(role.0),
+        },
+        World::type_of(actual)?,
+    )?;
+    world.same(instance.id, actual, &source, implicit)?;
+    Ok(apply_role(
+        world, instance, original, function, &role.1, operand, actual, expected, values, locals,
+        implicit,
+    )?
+    .is_some())
 }
 
 /// A directed call loan preserves the source's original complete sigma.
