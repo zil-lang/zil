@@ -85,7 +85,13 @@ fn result_sources(module:&TypedModule,context:&semantic::CheckedContext,environm
     let outside=domain.symbols.incoming(&descriptor,b)?;
     b.spend(fresh.len())?;
     if result.terms.len()!=fresh.len()||outside.terms.len()!=fresh.len(){return Err(bad("nominal result outside directory changes its full intrinsic cardinality"));}
-    Ok(result.terms.iter().zip(&outside.terms).zip(fresh).filter_map(|((term,source),fresh)|fresh.then_some((*term,*source))).collect())
+    let mut sources=Vec::new();
+    for(index,((term,source),fresh))in result.terms.iter().zip(&outside.terms).zip(fresh).enumerate(){
+        if !fresh{continue;}
+        if let IntrinsicOrigin::DerivedClass{source:key}=&descriptor.origins[index]{if domain.symbols.class(key,b)?.image!=term.image{return Err(bad("nominal result outside source changes its independently resolved image"));}}
+        sources.push((*term,*source));
+    }
+    Ok(sources)
 }
 
 fn original_recipe<'a>(module:&'a TypedModule,owner:&SemanticDynOwner,b:&mut Budget)->Check<&'a DynSignatureRecipe>{

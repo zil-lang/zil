@@ -39,6 +39,8 @@ struct Graph<'a> {
     key_active: Vec<bool>,
     quantified: u32,
     callable_obligations: Vec<callables::Obligation>,
+    semantic_sources: Vec<(terms::LifeTerm,terms::LifeTerm,bool)>,
+    collecting_sources: usize,
 }
 fn declaration<'a>(
     module: &'a TypedModule,
@@ -466,14 +468,22 @@ impl<'a> Graph<'a> {
         recipe: &DynSignatureRecipe,
         b: &mut Budget,
     ) -> Check<signatures::Resolved> {
+        Ok(self.signature_with_sources(env,recipe,b)?.0)
+    }
+    fn signature_with_sources(&mut self,env:&mut Environment<'a>,recipe:&DynSignatureRecipe,b:&mut Budget)->Check<(signatures::Resolved,Vec<(terms::LifeTerm,terms::LifeTerm,bool)>)>{
         let module = self.module;
-        signatures::materialize(
+        let floor=self.semantic_sources.len();
+        self.collecting_sources+=1;
+        let signature=signatures::materialize(
             module,
             recipe,
             env.scope,
             |pattern, b| self.value(env, pattern, b),
             b,
-        )
+        )?;
+        self.collecting_sources-=1;
+        let sources=self.semantic_sources.split_off(floor);
+        Ok((signature,sources))
     }
     fn value(
         &mut self,
@@ -483,7 +493,12 @@ impl<'a> Graph<'a> {
     ) -> Check<terms::Value> {
         self.prepare_type(env, pattern, b, 0)?;
         match pattern {
-            DynTypePattern::Semantic { scope, ty } => semantic_patterns::value(self.module,*scope,ty,&env.receiver,&mut env.args,None,b),
+            DynTypePattern::Semantic { scope, ty } => {
+                if self.collecting_sources==0{return semantic_patterns::value(self.module,*scope,ty,&env.receiver,&mut env.args,None,b);}
+                let(value,sources)=semantic_patterns::value_with_sources(self.module,*scope,ty,&env.receiver,&mut env.args,None,b)?;
+                if self.semantic_sources.len().saturating_add(sources.len())>b.limits.max_nodes{return Err(limit("query nominal source directory exceeds selected bound"));}
+                b.spend(sources.len())?;self.semantic_sources.extend(sources);Ok(value)
+            },
             DynTypePattern::SelfType => {
                 dynamic_metadata::recipe(&env.receiver.raw, b)?;
                 Ok(env.receiver.clone())
@@ -1323,10 +1338,11 @@ impl<'a> Graph<'a> {
             )?;
             body_env.args.semantic_owner = Some(SemanticDynOwner::MethodDefinition(definition.id));
             self.requirements(&mut body_env, &definition.requirements, b)?;
-            let mut body = self.signature(&mut body_env, &definition.signature, b)?;
+            let (mut body,source_rows) = self.signature_with_sources(&mut body_env, &definition.signature, b)?;
             contracts::defaults::instantiate(self.module,&SemanticDynOwner::MethodDefinition(definition.id),&definition.signature,&mut body,interface,body_env.scope,b)?;
             declared.same_signature(&body, b)?;
-            let (header, embedding) = body.function(self.module, actual, b)?;
+            let sources=semantic_patterns::checked_result_sources(self.module,actual,&body.result,&source_rows,b)?;
+            let (header, embedding) = body.function(self.module, actual, &sources, b)?;
             let images = signatures::specialization(
                 self.module,
                 actual,
@@ -1461,6 +1477,8 @@ pub(super) fn check(
         key_active: vec![false; nodes.len()],
         quantified: 0,
         callable_obligations: vec![],
+        semantic_sources: vec![],
+        collecting_sources: 0,
     };
     for node in 0..nodes.len() {
         graph.prove(node, b)?;
