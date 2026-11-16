@@ -178,7 +178,7 @@ impl<'a> Cache<'a> {
         let output = lower()?;
         if output.task_machines.is_empty()
             && output.foreign_adapters.is_empty()
-            && matches!(&*output.body, [m::Item::Function(f)]
+            && matches!(output.body.as_slice(), [m::Item::Function(f)]
                 if f.name == symbol(function.id) && f.blocks.is_some())
         {
             self.produced += 1;
