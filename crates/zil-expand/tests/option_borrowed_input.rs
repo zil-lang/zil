@@ -284,12 +284,72 @@ fn later_none_context_keeps_the_frozen_original_call_obligations() {
     .unwrap_or_else(|errors| panic!("{errors:?}"))
     .core;
     let original = core.semantic.as_ref().unwrap();
-    assert!(original.definitions.iter().any(|definition| {
-        let zil_ir::SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else { return false };
-        sites.iter().any(|site| matches!(&site.kind,
-            zil_ir::SemanticSiteRecipeKind::Call { actuals, .. }
-                if actuals.iter().any(|actual| matches!(actual, zil_ir::SemanticActualRecipe::Infer))))
-    }), "physical contextualization must not rewrite original Infer into a claimed solution");
+    // OriginalCall carries its unresolved actuals in the original operation
+    // tree, not in the older explicit Call recipe. Inspect both original
+    // bindings and their exact call anchors: only the physical clone may gain
+    // the resolved constructor TypeApply or a caller lifetime application.
+    let mut checked = 0;
+    for definition in &original.definitions {
+        let zil_ir::SemanticDefinitionBody::FunctionWithBody {
+            sites,
+            site_nodes,
+            body: zil_ir::SemanticOriginalFunctionBody::Defined(body),
+            ..
+        } = &definition.body
+        else {
+            continue;
+        };
+        for statement in &body.statements {
+            let zil_ir::CoreStatementKind::Binding {
+                name,
+                mutable,
+                ty,
+                initializer: Some(initializer),
+            } = &statement.kind
+            else {
+                continue;
+            };
+            if name != "x" && name != "y" {
+                continue;
+            }
+            assert!(
+                !mutable && ty.is_none(),
+                "original pending binding was annotated"
+            );
+            let zil_ir::CoreExprKind::Call { callee, arguments } = &initializer.kind else {
+                panic!("original identity call was rewritten: {initializer:?}")
+            };
+            assert!(matches!(&callee.kind, zil_ir::CoreExprKind::Name(name) if name == "identity"));
+            let [empty] = arguments.as_slice() else {
+                panic!("identity lost its original argument")
+            };
+            let zil_ir::CoreExprKind::Call { callee, arguments } = &empty.kind else {
+                panic!("original None call was rewritten: {empty:?}")
+            };
+            assert!(arguments.is_empty());
+            assert!(
+                matches!(&callee.kind,
+                zil_ir::CoreExprKind::Member { object, member, owner: None }
+                if member == "None" && matches!(&object.kind,
+                    zil_ir::CoreExprKind::Name(name) if name == "Option")),
+                "physical contextualization rewrote the original inferred constructor"
+            );
+            for call in [initializer, empty] {
+                assert!(
+                    site_nodes.iter().any(|anchor| anchor.node
+                        == zil_ir::SemanticOriginalNode::Expression(call.id)
+                        && sites.iter().any(|site| site.id == anchor.site
+                            && matches!(site.kind, zil_ir::SemanticSiteRecipeKind::OriginalCall))),
+                    "original call lost its exact independently checked occurrence"
+                );
+            }
+            checked += 1;
+        }
+    }
+    assert_eq!(
+        checked, 2,
+        "both pending original calls must remain unresolved"
+    );
     assert!(core.unsupported.is_empty());
 }
 

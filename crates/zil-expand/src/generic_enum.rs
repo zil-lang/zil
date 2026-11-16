@@ -1735,11 +1735,19 @@ impl Engine<'_> {
             }
         }
         let mut contexts = BTreeMap::new();
+        let mut scoped_patterns = BTreeSet::new();
         let parameters = f
             .params
             .iter()
             .enumerate()
             .map(|(index, p)| {
+                // Inspect the declaration before inserting caller Type actuals.
+                // Equal spellings in those two lexical domains are unrelated.
+                if hint_has_free_life(&p.ty, &mut self.budget)? {
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<usize>(), p.span)?;
+                    scoped_patterns.insert(index);
+                }
                 if self.traits.has_associated
                     && trait_bounds::associated::contains(&p.ty, &mut self.budget)?
                 {
@@ -1774,6 +1782,7 @@ impl Engine<'_> {
             }),
             parameters,
             contexts,
+            scoped_patterns,
             variables,
             found,
         }))
@@ -1829,12 +1838,100 @@ pub(super) fn contains(ty: &TypeRef, variable: &str) -> bool {
     }
 }
 
+// This only decides whether a declaration pattern can be used as a caller
+// construction hint. It neither substitutes lives nor proves their equality.
+fn hint_has_free_life(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
+    struct Scan<'a, 'l> {
+        budget: &'a mut Budget<'l>,
+        bound: Vec<String>,
+        free: bool,
+    }
+    impl Scan<'_, '_> {
+        fn life(&mut self, name: &str, span: Span) -> CompileResult<()> {
+            self.budget
+                .identity_work(self.bound.len().saturating_add(1), span)
+                .map_err(|e| vec![e])?;
+            self.free |= !self.bound.iter().any(|bound| bound == name);
+            Ok(())
+        }
+        fn argument(
+            &mut self,
+            argument: &GenericArg,
+            span: Span,
+            depth: usize,
+        ) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])?;
+            match argument {
+                GenericArg::Lifetime(name) => self.life(name, span),
+                GenericArg::AssociatedBinding(binding) => self.binding(binding, depth + 1),
+                GenericArg::Type(_) | GenericArg::Const(_) => Ok(()),
+            }
+        }
+        fn binding(&mut self, binding: &DynBinding, depth: usize) -> CompileResult<()> {
+            self.budget.node(binding.span, depth).map_err(|e| vec![e])?;
+            if let DynBindingKind::Method { arguments, .. } = &binding.kind {
+                for argument in arguments {
+                    self.argument(argument, binding.span, depth + 1)?;
+                }
+            }
+            Ok(())
+        }
+    }
+    impl crate::ct_selection::Visitor for Scan<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            match &ty.kind {
+                TypeKind::Reference {
+                    lifetime: Some(name),
+                    ..
+                } => self.life(name, ty.span)?,
+                TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                    for argument in args {
+                        self.argument(argument, ty.span, depth + 1)?;
+                    }
+                }
+                _ => {}
+            }
+            if let TypeKind::Dyn { bindings, .. } = &ty.kind {
+                for binding in bindings {
+                    self.binding(binding, depth + 1)?;
+                }
+            }
+            if let TypeKind::ForLifetime { lifetime, .. } = &ty.kind {
+                self.budget.text(lifetime, ty.span).map_err(|e| vec![e])?;
+                self.budget
+                    .lineage_push(&mut self.bound, lifetime.clone(), ty.span)
+                    .map_err(|e| vec![e])?;
+                let result = crate::ct_selection::walk_type(self, ty, depth);
+                self.bound.pop();
+                result
+            } else {
+                crate::ct_selection::walk_type(self, ty, depth)
+            }
+        }
+    }
+    let mut scan = Scan {
+        budget,
+        bound: Vec::new(),
+        free: false,
+    };
+    crate::ct_selection::Visitor::ty(&mut scan, ty, 0).map_err(|mut errors| errors.remove(0))?;
+    Ok(scan.free)
+}
+
 pub(super) struct CallHints {
     pub(super) source_scope: Option<Function>,
     callable: Vec<usize>,
     parameters: Vec<TypeRef>,
     // Complete physical contexts are distinct from pattern-only source hints.
     contexts: BTreeMap<usize, TypeRef>,
+    // An original callee pattern with free lives is not a caller expected type.
+    scoped_patterns: BTreeSet<usize>,
     variables: BTreeSet<String>,
     found: BTreeMap<String, TypeRef>,
 }
@@ -1938,6 +2035,13 @@ impl CallHints {
         if let Some(context) = self.contexts.get(&index) {
             budget.ty(context)?;
             return Ok(Some(context.clone()));
+        }
+        if self.scoped_patterns.contains(&index) {
+            // Keep the complete pattern for constrain(). A real caller
+            // annotation or the resolved empty-constructor context supplies
+            // its own lives; copying the callee's names here would capture
+            // an unrelated caller binder (or invent an undeclared one).
+            return Ok(None);
         }
         let Some(parameter) = self.parameters.get(index) else {
             return Ok(None);
