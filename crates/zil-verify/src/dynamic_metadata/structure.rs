@@ -240,10 +240,13 @@ pub(crate) fn store_element_known(module:&TypedModule,ty:&Type,product:bool,b:&m
     let Some(state)=&b.structural else{return Ok(false);};
     if state.module!=module as *const TypedModule as usize{return Ok(false);}
     let fee=lookup(state.store_success.len());b.spend(fee)?;
-    let state=b.structural.as_ref().unwrap();
-    if let Some(profiles)=state.store_success.get(&(ty as *const Type as usize,product,b.nested_store_windows)){
-        for limits in profiles {b.spend(12)?;if *limits==b.limits{return Ok(true);}}
-    }Ok(false)
+    let state=b.structural.take().unwrap();
+    let result=(||{
+        if let Some(profiles)=state.store_success.get(&(ty as *const Type as usize,product,b.nested_store_windows)){
+            for limits in profiles {b.spend(12)?;if *limits==b.limits{return Ok(true);}}
+        }Ok(false)
+    })();
+    b.structural=Some(state);result
 }
 pub(crate) fn store_element_success(module:&TypedModule,ty:&Type,product:bool,b:&mut Budget)->Check<()>{
     let Some(state)=&b.structural else{return Ok(());};
