@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-16T02:28:49.341595+00:00",
+  "updated_at_utc": "2026-11-16T04:47:47.577477+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -14,8 +14,8 @@
     "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "cf616dd47d84a949416138373acf81e0e743d936",
-  "current_candidate_under_validation": "e17bdb789832e638ddadb378eca9a25b5cf003cc",
+  "latest_ready_source": "e3d5f0cd1941d5eb550850b9cfebab971b648aba",
+  "current_candidate_under_validation": "fc6d2eac35444f9f0893d1d20fc817797d63bb61",
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -114,7 +114,7 @@
     "root_correction": "Overbroad type-occurrence cleanup ABI upper reverted in full, 3c24419bd."
   },
   "execution_state": "RESUMED BY USER; complete functional chains under personal audit constraints",
-  "last_completed_candidate": "3ed9f88017f293474213484104d326a226886fce",
+  "last_completed_candidate": "fc6d2eac35444f9f0893d1d20fc817797d63bb61",
   "personal_workflow_audit": {
     "reviewer": "root personally",
     "subagent_review_used": false,
@@ -227,47 +227,78 @@
     ]
   },
   "latest_actual_checkpoint": {
-    "candidate": "e17bdb789832e638ddadb378eca9a25b5cf003cc",
-    "source_positive_passed": 7,
+    "candidate": "fc6d2eac35444f9f0893d1d20fc817797d63bb61",
+    "source_positive_passed": 10,
     "source_positive_total": 13,
     "expected_negatives_passed": 4,
-    "buffered_io_native": "Pass; original short_io.zil/C, both backends O0/O2, default Rust thread stack and failure/close assertions retained",
-    "source_application": "Source/Types complete; Analyze work limit in original definition identity/name/recipe scans. 2.02M actual hot work localized by Astra; complete directory batch319a33958 saved, pending validation",
-    "actual_borrowed_iterator": "Types complete; Analyze original implicit/formal role correspondence failure",
-    "remaining_foundation": [
-      "ownership: Analyze Enum resource query budget",
-      "owning-collections: Analyze complete actual shared-result transport",
-      "iteration: Verify default work budget"
-    ],
+    "source_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-immutable-child-inputs-and-qualified-static-query-consumers/core-coverage/receipt.json",
+    "remaining_foundation": {
+      "ownership": "Verify original partial-move/field-reinitialization consumer",
+      "owning-collections": "Analyze default 10M work bound",
+      "iteration": "Verify complete static trait member dynamic-specialization bridge; old work bound passed to this functional rejection, not whole-program acceptance"
+    },
+    "ordinary_application": "Source and all 62 Types worlds complete; Analyze still default work bound",
     "extra_original_sources": {
-      "candidate": "e17bdb789832e638ddadb378eca9a25b5cf003cc",
-      "success_through_independent_verify": 2,
+      "passed_independent_verify": 2,
       "total": 12,
-      "successful_cases": [
+      "successes": [
         "two-addresses",
         "loan_control"
       ],
-      "native": "8/8 exact original source builds/executions across both requested backends O0/O2, no fallback, Verify1 each. two-addresses exits0; loan_control indexes an empty byte view and correctly SIGILL bounds-traps in all four configurations."
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-immutable-child-inputs-and-qualified-static-query-consumers/complete-original-checks/receipt.json",
+      "native_evidence": "Prior exact e17 candidate only: both sources x two backends x O0/O2. two-addresses exit0; loan_control correct empty-view bounds trap SIGILL -4. No fallback."
     },
-    "core_units": "423862e30 IR103/0 Expand168/0 Types96/0 Analyze292/7 Verify752/34. e17 unit-only FrameToken literal compile error fixed in cf616; no stale executable reused.",
+    "core_units": {
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-immutable-child-inputs-and-qualified-static-query-consumers/core-unit-regressions/receipt.json",
+      "ir": [
+        103,
+        0
+      ],
+      "expand": [
+        168,
+        0
+      ],
+      "types": [
+        96,
+        0
+      ],
+      "analyze": [
+        294,
+        7
+      ],
+      "verify": [
+        759,
+        35
+      ],
+      "ignored": 0,
+      "analysis_failures": "Six old exact work pins plus one direct-role exact quota pin; prior forward receiver semantic failure now passes complete positive/stale controls"
+    },
+    "integrated_unvalidated": [
+      "20bf807fd complete independent static trait specialization/call bridge",
+      "e3d5f0cd1 current Source-produced two-addresses/loan-control/revival Wire with unchanged original source and exact mutations"
+    ],
     "github_crates_recovery": {
-      "commit": "8499073b22c02d1f0ada75ee69aa108a2341f675",
-      "source_head": "a2ada45b41b602081ad1028b8a81bd8a5258cc33",
-      "path": "language/20261116T011440Z-approved-source-recovery/recovery.tar.gz",
-      "sha256": "dd23309b0ea50bd20102a1d7c803982656fee49696d9b5b28d377ccc50246b8f",
-      "readback_equal": true
+      "commit": "1ca028adbef2fad8f002eb9177bcdabfb6ab50db",
+      "source_head": "20bf807fd43190306487fa4e8ff44a6bc3ec8423",
+      "path": "language/20261116T044352Z-approved-source-recovery/recovery.tar.gz.base64",
+      "decoded_sha256": "2834db6010e1ed40c8281057733b232cc085942573ca34fa9374ae67b5922ed5",
+      "decoded_bytes": 729629,
+      "readback_equal": true,
+      "restore": "Decode base64 once before extracting gzip archive; crates-only scope plus same-scope live WIP"
     },
-    "publication_limitation": "Expanded tests/tools/Cargo.lock archive and goal publication rejected by automatic approval review; retained locally. Formal task/language-alpha remote ref is not current.",
-    "regression": "Three previously passing original projects rejected by an overbroad verifier call-argument equality bridge; scoped fix cf616dd47 saved, awaiting validation",
-    "ownership": "Complete module Analyze now passes its default work bound; task interface rejects Source inference incorrectly marking a generic field call Suspend. Source exact scoped nominal application fix underway; do not remove ABI guard",
-    "new_github_recovery_pending": {
-      "source_head": "cf616dd47d84a949416138373acf81e0e743d936",
-      "sha256": "b5411b9eb59eeda23992a86bc0cfa24a3fc08f0c565f3f85b8497cfaf6901492"
-    }
+    "full_local_recovery": {
+      "path": "/workspace/.zil-env/alpha-local-recovery-20261116T044352Z/language-alpha-recovery.tar.gz",
+      "sha256": "b06b376228517560608298b01aacd52fd4ec9b82b480da8655459ec5d3a3c719"
+    },
+    "publication_limitation": "Formal task/language-alpha remote ref remains old; expanded tests/tools/Cargo.lock archive and goal publication previously rejected by automatic approval review, preserved locally. Crates-only approved recovery read back verified; no new user input required for ongoing implementation.",
+    "acceptance": "NOT ACCEPTED; no Alpha PR/merge/release"
   },
   "chain_lessons": "records/language-alpha-chain-lessons-20261116.md",
   "interface_status_question": {
+    "checked_at_utc": "2026-11-16T04:47:47.577477+00:00",
+    "thread_id": "6af531ae-7974-8191-a126-bf584d8f3009",
+    "list_threads_status": "active",
     "pending_user_input_required": false,
-    "ui_banner": "Possibly stale async approval; available tools have no cancellation interface, and list_threads read failed. Cannot confirm UI root cause. Implementation is running."
+    "ui_banner": "Observed user report conflicts with current backend active status. Historical async approval cards or stale UI sync are possible causes; no pending-input cancellation capability exposed. Root cause is not confirmed; no claim of UI repair."
   }
 }

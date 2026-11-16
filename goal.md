@@ -22,7 +22,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
-2026-11-16（Asia/Shanghai）继续按完整功能链施工。最新完整候选 `e17bdb789` 正向 **7/13**、预期安全负例 **4/4**；此前 `04ca91fee` 为10/13，新验证输入桥带来三个旧工程回归，修正 `cf616dd47` 已保存待同版核验，Alpha仍未接受。所有权已过默认分析预算，现修Source泛型字段调用作用域丢失导致错误Suspend；拥有集合及迭代仍有实际域/预算问题。额外12原Source首次2个通过独立Verify，原双地址闭包四后端优化配置正常运行；原活字节视图控制四配置均正确在空视图索引处bounds trap，全部无后端fallback。Astra将原应用2.02M实际热点定位为身份、名字及recipe目录重复查询，完整优化已保存待验。原CT31/31、流项目40次ZIL/20次Rust、三组动态分派及线程既有证据保留各自精确版本；不能拼成当前Alpha。最新组件423862为IR103/0、Expand168/0、Types96/0、Analyze292/7、Verify752/34；新候选单元测试机械类型错已修待验。独立读写和源码/原生消费者四并发，一个不可变候选和重Rust构建窗口。详见[执行记录](records/language-alpha-execution.json)及[整链修复经验](records/language-alpha-chain-lessons-20261116.md)。
+2026-11-16（Asia/Shanghai）继续按完整功能链施工。最新同版候选 `fc6d2eac3` 正向 **10/13**、预期安全负例 **4/4**，Alpha仍未接受。完整Source作用域与调用实参桥已恢复此前三个工程回归；所有权现修独立Verify的部分移动后字段补回，拥有集合及原应用仍受Analyze默认10M预算约束，迭代已越过原重复重建预算断点到静态trait成员实际桥，完整桥20bf已集成待验。额外12份完整原Source仍2份通过独立Verify；其既有双后端O0/O2原生证据保持精确旧版本，不拼作新候选验收。当前组件IR103/0、Expand168/0、Types96/0、Analyze294/7、Verify759/35；原回调来源功能反例已通过，Analyze余7为严格实际收费pin，Verify旧Wire与现行安全义务分别收口。最新已读回GitHub恢复 `1ca028adb` 保全crates施工至20bf及同范围WIP，完整本地包另存；正式源码ref及超范围归档仍有此前自动审批限制。一个不可变候选、单重构建窗口，独立源码检查与原生消费者四并发，READY立即保存。详见[执行记录](records/language-alpha-execution.json)及[整链修复经验](records/language-alpha-chain-lessons-20261116.md)。
 
 2026-11-15（Asia/Shanghai）用户要求停止施工并由 root 本人审核，不使用子代理审查。全部实施与审查代理及构建已停止；最新完整候选243c05a73仍正向1/13、预期负例4/4，Alpha未接受。源码fd028ceb3与全部活动WIP已同步/固定归档90d7881b并读回校验。具体算法不一致、完整消费者遗漏、调度问题及已更新执行约束见[亲自审核](records/language-alpha-personal-workflow-audit-20261115.md)；仅文档与现场保全，不自动恢复施工。
 
