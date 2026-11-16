@@ -694,6 +694,82 @@ impl Emitter {
     }
 }
 
+fn collect<'a>(
+    ty: &'a Type,
+    found: &mut BTreeMap<zil_base::Fingerprint, &'a Type>,
+    seen: &mut BTreeMap<zil_base::Fingerprint, (&'a Type, bool)>,
+    budget: &mut Budget<'_>,
+    force: bool,
+    depth: usize,
+) -> CompileResult<()> {
+    // Hash and equality consume the actual complete type. Hashes only
+    // locate memo candidates; distinct types are never equated by digest.
+    budget.tree(ty, depth)?;
+    budget.pay(depth, usize::BITS as usize)?;
+    let hash = key(ty);
+    if let Some((previous, expanded)) = seen.get(&hash) {
+        budget.tree(ty, depth)?;
+        if *previous != ty {
+            return invalid(
+                "E-CODEGEN-SUM-HASH",
+                "distinct complete Sum types share a helper key",
+                None,
+            );
+        }
+        if *expanded || !force {
+            return Ok(());
+        }
+    }
+    let expand = force || new_shape(ty);
+    seen.insert(hash, (ty, expand));
+    if !expand {
+        return Ok(());
+    }
+    if !ty.is_copy_value()
+        && matches!(
+            ty,
+            Type::Tuple(_)
+                | Type::Package { .. }
+                | Type::Enum { .. }
+                | Type::ErrorUnion { .. }
+                | Type::BorrowedStorage { .. }
+        )
+    {
+        found.insert(hash, ty);
+    }
+    match ty {
+        Type::BorrowedStorage { storage, .. } => {
+            collect(storage, found, seen, budget, true, depth + 1)?
+        }
+        Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
+            collect(element, found, seen, budget, true, depth + 1)?;
+        }
+        Type::Tuple(fields) => {
+            for t in fields {
+                collect(t, found, seen, budget, true, depth + 1)?;
+            }
+        }
+        Type::Package { fields, .. } | Type::Record { fields, .. } => {
+            for (_, t) in fields {
+                collect(t, found, seen, budget, true, depth + 1)?;
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for t in fields {
+                    collect(t, found, seen, budget, true, depth + 1)?;
+                }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            collect(error, found, seen, budget, true, depth + 1)?;
+            collect(result, found, seen, budget, true, depth + 1)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 pub(super) struct Helpers<'a> {
     pub code: m::Code,
     pub types: BTreeMap<zil_base::Fingerprint, &'a Type>,
@@ -714,87 +790,12 @@ pub(super) fn functions<'a>(
     let mut budget = Budget::new(limits);
     let mut found = BTreeMap::new();
     let mut seen = BTreeMap::new();
-    fn visit<'a>(
-        ty: &'a Type,
-        found: &mut BTreeMap<zil_base::Fingerprint, &'a Type>,
-        seen: &mut BTreeMap<zil_base::Fingerprint, (&'a Type, bool)>,
-        budget: &mut Budget<'_>,
-        force: bool,
-        depth: usize,
-    ) -> CompileResult<()> {
-        // Hash and equality consume the actual complete type. Hashes only
-        // locate memo candidates; distinct types are never equated by digest.
-        budget.tree(ty, depth)?;
-        budget.pay(depth, usize::BITS as usize)?;
-        let hash = key(ty);
-        if let Some((previous, expanded)) = seen.get(&hash) {
-            budget.tree(ty, depth)?;
-            if *previous != ty {
-                return invalid(
-                    "E-CODEGEN-SUM-HASH",
-                    "distinct complete Sum types share a helper key",
-                    None,
-                );
-            }
-            if *expanded || !force {
-                return Ok(());
-            }
-        }
-        let expand = force || new_shape(ty);
-        seen.insert(hash, (ty, expand));
-        if !expand {
-            return Ok(());
-        }
-        if !ty.is_copy_value()
-            && matches!(
-                ty,
-                Type::Tuple(_)
-                    | Type::Package { .. }
-                    | Type::Enum { .. }
-                    | Type::ErrorUnion { .. }
-                    | Type::BorrowedStorage { .. }
-            )
-        {
-            found.insert(hash, ty);
-        }
-        match ty {
-            Type::BorrowedStorage { storage, .. } => {
-                visit(storage, found, seen, budget, true, depth + 1)?
-            }
-            Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
-                visit(element, found, seen, budget, true, depth + 1)?;
-            }
-            Type::Tuple(fields) => {
-                for t in fields {
-                    visit(t, found, seen, budget, true, depth + 1)?;
-                }
-            }
-            Type::Package { fields, .. } | Type::Record { fields, .. } => {
-                for (_, t) in fields {
-                    visit(t, found, seen, budget, true, depth + 1)?;
-                }
-            }
-            Type::Enum { variants, .. } => {
-                for (_, fields) in variants {
-                    for t in fields {
-                        visit(t, found, seen, budget, true, depth + 1)?;
-                    }
-                }
-            }
-            Type::ErrorUnion { error, result } => {
-                visit(error, found, seen, budget, true, depth + 1)?;
-                visit(result, found, seen, budget, true, depth + 1)?;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
     for f in lir.functions {
         for ty in std::iter::once(&f.return_type)
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(f.values.iter())
         {
-            visit(ty, &mut found, &mut seen, &mut budget, false, 0)?;
+            collect(ty, &mut found, &mut seen, &mut budget, false, 0)?;
         }
     }
     // Callback data ABI creates typed aggregate parameters and results even
@@ -808,7 +809,7 @@ pub(super) fn functions<'a>(
                 Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
             ) && !ty.is_copy_value()
             {
-                visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
+                collect(ty, &mut found, &mut seen, &mut budget, true, 0)?;
             }
         }
     }
@@ -820,7 +821,7 @@ pub(super) fn functions<'a>(
         // every nested Package child Sum receive their concrete helpers.
         // Legacy captures never enter this list or pay this new traversal.
         for ty in capture_roots {
-            visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
+            collect(ty, &mut found, &mut seen, &mut budget, true, 0)?;
         }
     }
     // Entry error extraction, storage, typed cleanup GEPs and helper names
@@ -853,7 +854,7 @@ pub(super) fn functions<'a>(
                             // legacy error shapes omitted by new_shape. The
                             // paid visitor retains full Type/hash identity and
                             // recursively collects its actual owned children.
-                            visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
+                            collect(ty, &mut found, &mut seen, &mut budget, true, 0)?;
                         }
                     }
                     InstructionKind::TakeTupleField { local, .. }
@@ -994,8 +995,8 @@ pub(super) fn functions<'a>(
     Ok(Helpers { code, types: found })
 }
 
-/// Whole SSA packages introduced by verified continuation transfers use the
-/// same complete ordinary cleanup recipe. Local partial fields have their own
+/// Whole SSA owners and results introduced by verified continuation transfers
+/// use the same complete ordinary cleanup recipe. Local partial fields have their own
 /// canonical debt slots, so this never drops an aggregate and its leaves twice.
 pub(super) fn task_helpers(
     verified: &VerifiedModule,
@@ -1010,57 +1011,48 @@ pub(super) fn task_helpers(
     let mut budget = Budget::new(&limits);
     let result = (|| {
         let mut found = BTreeMap::new();
+        let mut seen = BTreeMap::new();
         for id in verified.task_worker_ids() {
             budget.pay(0, 1)?;
             let Some(ownership) = verified.task_ownership(*id) else {
                 continue;
             };
-            // Result debt has its own canonical frame slot, just like each
-            // local/value owner. Its cleanup address must be emitted even if
-            // the result never appears among the function's input debts.
+            // Canonical whole-value debts and the result may need any of the
+            // same aggregate helpers as task_leaf, including legacy shapes.
+            // Force the complete dependency closure, not just the root's new
+            // shape/profile classification. Partial debts remain separate slots.
             for ty in ownership
                 .owners()
                 .iter()
                 .map(|owner| owner.ty())
                 .chain(ownership.result_type())
             {
+                collect(ty, &mut found, &mut seen, &mut budget, true, 0)?;
+            }
+        }
+        // An ordinary definition already emits its entire dependency closure.
+        // Suppress duplicate definitions only after exact complete Type Eq;
+        // matching digests alone never establish equivalent cleanup layouts.
+        let mut missing = Vec::new();
+        for (hash, ty) in found {
+            budget.pay(0, ordinary.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+            if let Some(previous) = ordinary.get(&hash) {
+                budget.tree(previous, 0)?;
                 budget.tree(ty, 0)?;
-                if !matches!(ty, Type::Package { .. }) || new_shape(ty) {
-                    continue;
+                if **previous != *ty {
+                    return invalid(
+                        "E-CODEGEN-SUM-HASH",
+                        "task and ordinary cleanup Types share a helper key",
+                        None,
+                    );
                 }
-                budget.tree(ty, 0)?;
-                budget.pay(
-                    0,
-                    ordinary.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                )?;
-                let hash = key(ty);
-                if let Some(previous) = ordinary.get(&hash) {
-                    budget.tree(previous, 0)?;
-                    budget.tree(ty, 0)?;
-                    if **previous != *ty {
-                        return invalid(
-                            "E-CODEGEN-SUM-HASH",
-                            "task and ordinary cleanup Types share a helper key",
-                            None,
-                        );
-                    }
-                    continue;
-                }
-                budget.pay(0, found.len().saturating_add(1))?;
-                if let Some(previous) = found.insert(hash, ty) {
-                    budget.tree(ty, 0)?;
-                    if previous != ty {
-                        return invalid(
-                            "E-CODEGEN-SUM-HASH",
-                            "distinct task SSA packages share a cleanup key",
-                            None,
-                        );
-                    }
-                }
+            } else {
+                budget.pay(0, 1usize.saturating_add(if missing.len()==missing.capacity(){missing.len()}else{0}))?;
+                missing.push(ty);
             }
         }
         let mut code = m::Code::new();
-        for ty in found.values() {
+        for ty in missing {
             let p = plan(ty, &verified.module().resources, &mut budget, 0)?;
             let mut emitter = Emitter {
                 code: m::Code::new(),
@@ -1091,6 +1083,69 @@ pub(super) fn task_helpers(
 #[cfg(test)]
 mod owned_sum_drop_plan_tests {
     use super::*;
+    #[test]
+    fn continuation_roots_collect_legacy_and_qualified_cleanup_dependencies_completely() {
+        // Private recipe inputs, never a VerifiedModule. Continuation slots
+        // select these exact roots only after the independent owner proof.
+        let package = Type::Package {
+            name: "ContinuationLegacy".into(),
+            fields: vec![
+                ("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+                ("callback".into(), Type::Closure(ClosureId(7))),
+                ("dynamic".into(), Type::OwnedDyn { interface: zil_ir::DynInterfaceId { module: zil_base::ModuleId(0), index: 9 } }),
+            ],
+        };
+        let legacy = Type::ErrorUnion { error: Box::new(Type::Unit), result: Box::new(package.clone()) };
+        assert!(!new_shape(&legacy), "the continuation must also force legacy shapes");
+        let tuple = Type::Tuple(vec![legacy.clone(), package.clone()]);
+        let qualified = Type::BorrowedStorage {
+            storage: Box::new(tuple.clone()),
+            life: zil_ir::StorageLifeShape { binder_count: 0, slots: vec![], retained: vec![], nominal_arguments: vec![] },
+        };
+        let enumeration = Type::Enum { name: "ContinuationChoice".into(), variants: vec![("Empty".into(), vec![]), ("Full".into(), vec![qualified.clone()])] };
+        let roots = [legacy, tuple, qualified, enumeration];
+        fn references(plan: &DropPlan, out: &mut std::collections::BTreeSet<String>) {
+            match plan {
+                DropPlan::Empty => {},
+                DropPlan::Leaf(name) => { out.insert(name.clone()); },
+                DropPlan::Product(_, fields) => for (_, child) in fields { references(child, out); },
+                DropPlan::Enum(_, fields) => for child in fields { references(child, out); },
+                DropPlan::Error(_, error, result) => { references(error, out); references(result, out); },
+            }
+        }
+        let measure = |work| -> CompileResult<usize> {
+            let limits = zil_base::Limits { max_analysis_steps: work, ..zil_base::Limits::default() };
+            let mut budget = Budget::new(&limits);
+            let (mut found, mut seen) = (BTreeMap::new(), BTreeMap::new());
+            // A previous ordinary visit may have declined this legacy root.
+            // The continuation's force must expand the exact same seen node.
+            collect(&roots[0], &mut found, &mut seen, &mut budget, false, 0)?;
+            assert!(found.is_empty());
+            for root in &roots { collect(root, &mut found, &mut seen, &mut budget, true, 0)?; }
+            for root in roots.iter().chain(std::iter::once(&package)) { assert!(found.contains_key(&key(root))); }
+            let definitions: std::collections::BTreeSet<_> = found.values().map(|ty| symbol(ty)).collect();
+            let mut calls = std::collections::BTreeSet::new();
+            for ty in found.values() { references(&plan(ty, &resources(), &mut budget, 0)?, &mut calls); }
+            for call in &calls {
+                if call.starts_with("zil.sum.drop.") { assert!(definitions.contains(call), "undefined dependency {call}"); }
+            }
+            assert!(calls.contains("zil.closure.drop.7"));
+            assert!(calls.contains(&dyn_dispatch::owner_drop_symbol(zil_ir::DynInterfaceId { module: zil_base::ModuleId(0), index: 9 })));
+            assert!(calls.contains("zil.bytes.drop"));
+            Ok(budget.spent())
+        };
+        let exact = measure(1_000_000).unwrap();
+        assert_eq!(measure(exact).unwrap(), exact);
+        assert_eq!(measure(exact - 1).unwrap_err()[0].category, zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(measure(exact).unwrap(), exact);
+        let limits = zil_base::Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut seen = BTreeMap::from([(key(&roots[0]), (&Type::Unit, true))]);
+        let mut found = BTreeMap::new();
+        let failure = collect(&roots[0], &mut found, &mut seen, &mut budget, true, 0).unwrap_err();
+        assert_eq!(failure[0].code, "E-CODEGEN-SUM-HASH");
+        assert!(found.is_empty(), "a digest collision cannot publish a cleanup helper");
+    }
     fn packet() -> Type {
         let leaf = Type::Package {
             name: "Leaf".into(),
