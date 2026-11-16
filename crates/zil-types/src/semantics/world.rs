@@ -1311,6 +1311,29 @@ impl World<'_, '_> {
                     let original_value = self.ty(instance.id, recipe_ty, Self::type_of(&value)?)?;
                     self.same(instance.id, expected, &original_value, implicit)?;
                     if let SemanticOperand::Value(operand) = subject
+                        && let Some((adapted, source)) = borrow_roles::shared_expression_view(
+                            self,
+                            instance,
+                            original,
+                            function,
+                            sites,
+                            site,
+                            *operand,
+                            &value,
+                            &original_value,
+                            values,
+                            locals,
+                            implicit,
+                        )?
+                    {
+                        *values
+                            .get_mut(operand.0 as usize)
+                            .ok_or_else(|| bad("shared view has no actual SSA cell"))? =
+                            Some(adapted.clone());
+                        self.value_role_sources.insert(*operand, source);
+                        value = adapted;
+                    }
+                    if let SemanticOperand::Value(operand) = subject
                         && let Some((adapted, source)) = borrow_roles::apply(
                             self,
                             instance,
@@ -2492,10 +2515,17 @@ impl World<'_, '_> {
                             } else {
                                 std::collections::BTreeSet::new()
                             };
-                            let adapted = roles::store(
-                                self, instance, original, &sites, *local, operand, &value,
-                                &implicit,
-                            )?;
+                            let adapted = if let Some(view) = borrow_roles::shared_binding_view(
+                                self, instance, original, f, &sites, *local, operand, &value,
+                                &values, &locals, &implicit,
+                            )? {
+                                Some(view)
+                            } else {
+                                roles::store(
+                                    self, instance, original, &sites, *local, operand, &value,
+                                    &implicit,
+                                )?
+                            };
                             let source = if let Some((adapted, source)) = adapted {
                                 value = adapted;
                                 Some(source)

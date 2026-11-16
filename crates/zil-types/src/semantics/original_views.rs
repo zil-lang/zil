@@ -111,6 +111,73 @@ pub(super) fn snapshot_bound(
     Ok(value.clone())
 }
 impl Check<'_, '_> {
+    /// An explicit shared binding/ascription observes an exclusive input;
+    /// it does not transfer or copy that input. Only the root mode changes.
+    /// Its original read keeps its exact exclusive sigma and whole pointee.
+    pub(super) fn shared_input_view(
+        &mut self,
+        owner: SemanticDefinitionId,
+        target: Query,
+        expression: &SemanticOriginalExpr,
+        expected: &SemanticTypeRecipe,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
+        let SemanticTypeRecipe::Address { mutable: false, .. } = expected else {
+            return Ok(None);
+        };
+        let mut root = expression;
+        while let CoreExprKind::Group(value) = &root.kind {
+            self.pay(1, depth)?;
+            root = value;
+        }
+        let CoreExprKind::Name(name) = &root.kind else {
+            return Ok(None);
+        };
+        self.pay(name.len(), depth)?;
+        let Some(binding) = variables.get(name) else {
+            return Ok(None);
+        };
+        let source = copy_recipe(&binding.ty, self.limits, self.left)?;
+        let source = self.observation_type(owner, &source, depth + 1)?;
+        let SemanticTypeRecipe::Address {
+            mutable: true,
+            lifetime,
+            inner,
+        } = &source
+        else {
+            return Ok(None);
+        };
+        crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
+        let shared = SemanticTypeRecipe::Address {
+            mutable: false,
+            lifetime: lifetime.clone(),
+            inner: Box::new(copy_recipe(inner, self.limits, self.left)?),
+        };
+        // This is root permission attenuation, not lifetime shortening or
+        // a conversion of an intrinsic/nominal child class.
+        self.same(&shared, expected)?;
+        let observed = self.place(owner, expression, variables, depth + 1)?;
+        self.same(&observed, &source)?;
+        self.pay(
+            target.copy_work().saturating_add(
+                self.proof.shared_views.len().saturating_add(1).ilog2() as usize + 1,
+            ),
+            depth,
+        )?;
+        let rows = &mut self.proof.proof_mut()?.shared_views;
+        match rows.entry((owner, target)) {
+            std::collections::btree_map::Entry::Occupied(old) if *old.get() != expression.id => {
+                return Err(bad("shared input view changes its exact original read"));
+            }
+            std::collections::btree_map::Entry::Occupied(_) => {}
+            std::collections::btree_map::Entry::Vacant(row) => {
+                row.insert(expression.id);
+            }
+        }
+        Ok(Some(shared))
+    }
+
     pub(super) fn alias_view_bound(
         &mut self,
         owner: SemanticDefinitionId,

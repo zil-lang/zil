@@ -323,6 +323,11 @@ impl Solver<'_, '_> {
                 let expected = match &self.state.arena[root] {
                     Kind::ConstRigid { carrier, .. } => *carrier,
                     Kind::ConstValue(value) => self.atom(value.ty(), b)?,
+                    Kind::Infer(None) => {
+                        b.lookup(self.constructor_constants.len(), WORK)?;
+                        *self.constructor_constants.get(&term).ok_or_else(||
+                            fail("original Const inference has no real constructor carrier"))?
+                    }
                     _ => return Err(fail("original Const term has another kind")),
                 };
                 self.unify(carrier, expected, depth + 1, b)?;

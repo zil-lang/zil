@@ -3325,21 +3325,10 @@ mod local_class_tests {
             let parsed = zil_syntax::parse(&source).into_result().unwrap();
             let limits = Limits::default();
             let mut budget = Budget::new(&limits);
-            let surface = crate::lifetimes::validate(&parsed, &mut budget);
-            if body.contains("alias:&") {
-                // Body-local explicitly labelled Address syntax is still a
-                // separate unsupported surface. Also exercise this independent
-                // class checker directly on its real parsed AST, so that such
-                // an annotation can never wash a future admitted stored class.
-                assert!(
-                    surface
-                        .unwrap_err()
-                        .iter()
-                        .all(|error| error.category == zil_base::ResultCategory::Unsupported)
-                );
-            } else {
-                surface.unwrap();
-            }
+            // Explicit local lifetime syntax is now admitted in its actual
+            // lexical scope. The independent class check must still reject
+            // every original relabelling/field-write attack below.
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
             let diagnostic = validate(&parsed, &mut budget).unwrap_err();
             assert_eq!(
                 diagnostic.message,

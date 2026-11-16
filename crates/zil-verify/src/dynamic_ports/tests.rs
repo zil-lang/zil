@@ -1,6 +1,7 @@
 //! The bytes were produced from context-read.zil by real Expand+Types. The
-//! typed-only fixture has an empty plan for raw header checks. Separate real
-//! Analyze candidates exercise full independent module verification.
+//! typed-only fixture has an empty plan for raw header checks. Its complete
+//! original programme and actual worlds are independently checked before W
+//! queries. Separate Analyze candidates exercise full module verification.
 use super::*;
 fn candidate() -> TypedModule {
     zil_ir::wire::decode_module_candidate(
@@ -13,7 +14,12 @@ fn candidate() -> TypedModule {
 fn headers(module: &TypedModule) -> Result<(), Diagnostic> {
     let limits = Limits::default();
     let mut b = Budget::new(&limits);
+    b.function_count = module.functions.len();
+    b.structural = Some(crate::dynamic_metadata::Structure::register(module, &mut b)?);
     b.stored_context = true;
+    // Publish the interpreter only through the ordinary complete original /
+    // actual-world proof. Header inventories cannot manufacture this fact.
+    crate::semantic::check_program(module, &mut b)?;
     crate::stored_flow::inventory(module, &limits, &mut b)?;
     crate::dynamic_dispatch::inventory(module, &mut b)
 }

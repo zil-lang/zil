@@ -188,6 +188,7 @@ pub(super) struct Proof {
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub(super) return_borrows: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+    pub(super) shared_views: BTreeMap<(SemanticDefinitionId, Query), NodeId>,
     pub(super) borrow_bindings:
         BTreeMap<(SemanticDefinitionId, NodeId), SemanticOriginalTypeSource>,
     pub(super) call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::CallRegion>,
@@ -3382,7 +3383,18 @@ impl<'a> Check<'a, '_> {
             } => self.give_place(owner, operand, variables, depth + 1)?,
             CoreExprKind::Ascribed { ty, value } => {
                 let expected = self.resolve(owner, ty, depth + 1)?;
-                let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
+                let actual = if let Some(view) = self.shared_input_view(
+                    owner,
+                    Query::Expression(expression.id),
+                    value,
+                    &expected,
+                    variables,
+                    depth + 1,
+                )? {
+                    view
+                } else {
+                    self.expr(owner, value, variables, Some(&expected), depth + 1)?
+                };
                 self.same(&actual, &expected)?;
                 expected
             }
@@ -3631,6 +3643,15 @@ impl<'a> Check<'a, '_> {
             CoreExprKind::Record { ty, fields } => {
                 self.record_constructor(owner, ty, fields, variables, wanted, depth + 1)?
             }
+            CoreExprKind::RecordConstructor { definition, fields } => self
+                .inferred_record_constructor(
+                    owner,
+                    *definition,
+                    fields,
+                    variables,
+                    wanted,
+                    depth + 1,
+                )?,
             CoreExprKind::Closure {
                 move_capture,
                 parameters,
@@ -4922,10 +4943,28 @@ impl<'a> Check<'a, '_> {
                             .map(|ty| copy_recipe(ty, self.limits, self.left))
                             .transpose()?
                     };
-                    let actual = initializer
-                        .as_ref()
-                        .map(|value| self.expr(owner, value, variables, hint.as_ref(), depth + 1))
-                        .transpose()?;
+                    let actual = if let (Some(value), Some(expected)) = (initializer, hint.as_ref())
+                    {
+                        if let Some(view) = self.shared_input_view(
+                            owner,
+                            Query::Binding(statement.id),
+                            value,
+                            expected,
+                            variables,
+                            depth + 1,
+                        )? {
+                            Some(view)
+                        } else {
+                            Some(self.expr(owner, value, variables, Some(expected), depth + 1)?)
+                        }
+                    } else {
+                        initializer
+                            .as_ref()
+                            .map(|value| {
+                                self.expr(owner, value, variables, hint.as_ref(), depth + 1)
+                            })
+                            .transpose()?
+                    };
                     let value = if family {
                         let actual = actual.as_ref().ok_or_else(|| {
                             bad("resource-family binding has no initializing category")

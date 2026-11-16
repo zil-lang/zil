@@ -1935,7 +1935,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                 let wanted = ty.as_ref().filter(|t| {
                     (!matches!(t, Type::Desc(_)) || store_constructor) && !task_constraint
                 });
-                let (v, t) = self.transfer_expr(e, wanted)?;
+                let (v, t) = if let Some(view) = self.shared_input_view(e, wanted)? {
+                    view
+                } else {
+                    self.transfer_expr(e, wanted)?
+                };
                 let mut task_annotation = None;
                 if task_constraint
                     && let Some(actual) = task_factories::result_task(&t)
@@ -2603,7 +2607,13 @@ impl<'a, 'c> Builder<'a, 'c> {
             | CoreExprKind::Bool(_)
             | CoreExprKind::Unit => self.expr_literal_body(e, expected),
             CoreExprKind::String(spelling) => self.utf8_literal(spelling, e.span),
-            CoreExprKind::Ascribed { ty, value } => self.expr(value, Some(ty)),
+            CoreExprKind::Ascribed { ty, value } => {
+                if let Some(view) = self.shared_input_view(value, Some(ty))? {
+                    Ok(view)
+                } else {
+                    self.expr(value, Some(ty))
+                }
+            }
             CoreExprKind::IntegerConvert { .. } => self.scalar_expr_integer_convert(e, expected),
             CoreExprKind::Try(operand) => {
                 if self.defer_body {

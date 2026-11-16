@@ -207,6 +207,16 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+            let header_mark = self.headers.len();
+            if let s::ExprKind::Closure { params, return_type, .. } = &expression.kind {
+                // Explicit closure annotations use their actual lexical frame.
+                // A free life remains rigid in the parent; registering syntax
+                // positions here does not introduce a callable quantifier.
+                for ty in params.iter().filter_map(|parameter| parameter.ty.as_ref()).chain(return_type.iter()) {
+                    self.budget.node(ty.span, depth).map_err(|error| vec![error])?;
+                    self.headers.push(std::ptr::from_ref(reference(ty)));
+                }
+            }
             // Inferred generic actuals need the same source-class machinery as
             // an explicit Tuple TypeApply. This only selects bounded producer
             // work; actual type, class and source permission proofs stay separate.
@@ -220,6 +230,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.budget.note_static_task_create(expression);
             }
             self.direct_type_argument = old_type_argument;
+            self.headers.truncate(header_mark);
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
@@ -887,10 +898,19 @@ mod tests {
     use super::*;
     use zil_base::{FileId, ModuleId};
 
+    fn current(source: &SourceUnit, syntax: &s::Module) -> CoreModule {
+        let aliases = BTreeMap::new();
+        crate::expand_with_map_semantics(source, syntax, &Limits::default(), &zil_base::TargetProfile::default(),
+            crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id, aliases: &aliases,
+                declarations: crate::source_context::DeclarationPlacement::Original,
+            }).unwrap().core
+    }
+
     fn header(source: &str, name: &str) -> CoreFunction {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "nested-header.zil", source);
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
-        super::super::expand(&source, &syntax).unwrap().functions.into_iter().find(|function| function.name == name).unwrap()
+        current(&source, &syntax).functions.into_iter().find(|function| function.name == name).unwrap()
     }
 
     #[test]
@@ -907,7 +927,7 @@ mod tests {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "whole-shared-view.zil",
             "struct Pair<life a,life b>{first:&'a i32,second:&'b i32}fn pair<life a,life b>(first:&'a i32,second:&'b i32)->Pair<'a,'b>{return Pair::<'a,'b>{first:first,second:second}}fn identity<T:Copy>(value:T)->T{return value}fn share<life s,life a,life b>(value:&'s mut Pair<'a,'b>)->&'s Pair<'a,'b>{return identity(value)}fn main()->i32{let n:i32=5;var value=pair(&n,&n);let pointer=&mut value;let result=share(pointer);return *result.first+*result.second-10}");
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
-        let core = super::super::expand(&source, &syntax).unwrap();
+        let core = current(&source, &syntax);
         let identity = core.functions.iter().find(|function| function.name.contains("identity")).unwrap();
         assert!(matches!(identity.parameters[0].ty, Type::Address { mutable: false, .. }));
         let life = identity.storage_life.as_ref().unwrap();

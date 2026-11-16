@@ -228,11 +228,41 @@ pub(super) fn seal_borrow(
                 continue;
             };
             world.pay(original.implicit_lifetimes.len())?;
-            if !original.implicit_lifetimes.iter().any(|entry| {
+            let observation = original.implicit_lifetimes.iter().any(|entry| {
                 entry.ordinal == *ordinal && entry.occurrence_path == recipe.occurrence_path
-            }) {
+            });
+            let call_region = if !observation {
+                world.pay(site_nodes.len().saturating_add(
+                    proof.call_regions.len().saturating_add(1).ilog2() as usize + 1,
+                ))?;
+                let mut nodes = site_nodes.iter().filter(|row| row.site == call_site.recipe);
+                let node = nodes.next().map(|row| row.node);
+                if nodes.next().is_some() {
+                    return Err(bad("dynamic receiver call repeats its original node"));
+                }
+                match (node, proof.call_regions.get(&(original.id, *ordinal))) {
+                    (Some(SemanticOriginalNode::Expression(node)), Some(region))
+                        if region.call == node && region.inputs.get(&0) == Some(receiver_node) =>
+                    {
+                        let call_recipe = world.original_recipe(original, call_site.recipe)?;
+                        world.pay(original.implicit_lifetimes.len())?;
+                        original.implicit_lifetimes.iter().any(|entry| {
+                            entry.ordinal == *ordinal
+                                && entry
+                                    .occurrence_path
+                                    .starts_with(&call_recipe.occurrence_path)
+                                && entry.occurrence_path.get(call_recipe.occurrence_path.len())
+                                    == Some(&u32::MAX)
+                        })
+                    }
+                    _ => false,
+                }
+            } else {
+                false
+            };
+            if !observation && !call_region {
                 return Err(bad(
-                    "dynamic receiver outer role differs from its original borrow occurrence",
+                    "dynamic receiver outer role differs from its original observation or complete call region",
                 ));
             }
             if role.is_some_and(|previous| previous != *ordinal) {

@@ -2,6 +2,14 @@
 
 本合同规定原始泛型、生命周期和语义捕获的完整表示。运输记录是不可信程序操作数，不是来源、能力或安全证明。Source、Types、Analyze、Verify 和 CT 消费者分别承担自己的完整检查；字段存在或能往返编码不代表检查通过。
 
+## 原始构造发生与联合推导
+
+省略混排实参的普通名义构造保留 `RecordConstructor` 的真实声明 ID、原 Construct site、完整原字段及其顺序。无 wanted 的构造也须从全部字段联合推导 Type/Const/Life，并证明声明的全部要求；不可由首字段形状、物理布局或具体调用者猜实参。真正欠定的 phantom 实参或矛盾应报推导失败，不能填充虚构实参。
+
+构造的生命周期发生使用独立保留路径 `Construct.occurrence_path + [u32::MAX - 1, 0, mixed_ordinal]`。`mixed_ordinal` 是原声明完整 Type/Const/Life 混排中 Life 形参的序号。每个真实构造按原声明登记这些发生；原 owner、site、操作种类、声明身份与完整序号必须逐项对应。该目录不属于 Call 的 MAX 后缀，不适用于 pattern、类型资格或 sealed intrinsic；目录存在本身不是借用或相等证明，旧发生 ordinal 不重排。
+
+已有显式、wanted 或内层不变位置的精确解优先。其余 Life 只有在全部相关字段的原 outer σ 本身均为同一原 rigid Input（完整声明身份与序号相同）时才保留该 Input；仅 upper 指向 Input、具体 outside 图像相同或混入 local σ 均不够。其余使用本次构造的独立 region r，分别证明每个实际字段来源到 r 的有向关系，保留全部来源、父 loan 与清理责任。不得据此加入来源之间的 Eq，或改变完整内层 κ、N、phantom、名义及字段身份。两核独立完成这些检查。
+
 ## 原始定义与实例
 
 定义保留跨模块限定身份、真实词法父链、原始混排的 Type/Const/Life 形参、隐式生命周期的原始发生位置、const 的完整载荷类型、全部 where 条件、语义自由变量和原始签名或名义类型体。未使用形参、phantom 参数和非活动枚举分支不能删除。

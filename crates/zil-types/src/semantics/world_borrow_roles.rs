@@ -2,13 +2,14 @@
 //! outlives theorem selects a role; every actual input/projection/alias/Store
 //! operation is authenticated before that role can be observed by consumers.
 use super::*;
-use crate::semantics::original::{BorrowRole, ViewBorrowRoot, ViewBorrowStepKind};
+use crate::semantics::original::{BorrowRole, Query, ViewBorrowRoot, ViewBorrowStepKind};
 use zil_base::NodeId;
 
 #[derive(Clone, Copy)]
 enum Cursor {
     Value(ValueId),
     Local(LocalId),
+    StoredField { value: ValueId, remaining: usize },
 }
 fn producer<'f>(
     world: &mut World<'_, '_>,
@@ -526,7 +527,17 @@ fn trace(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
+    return_boundary: bool,
 ) -> R<()> {
+    if return_boundary {
+        world.pay(role.steps.len())?;
+    }
+    let input_referent = return_boundary
+        && matches!(role.root, ViewBorrowRoot::Parameter(_))
+        && role
+            .steps
+            .iter()
+            .any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter));
     let mut cursor = Cursor::Value(operand);
     world.pay(role.steps.len())?;
     let mut reached_input = false;
@@ -597,6 +608,9 @@ fn trace(
                 let index = selected
                     .ok_or_else(|| bad("capture loan has no exact original creator source"))?;
                 match cursor {
+                    Cursor::StoredField { .. } => {
+                        return Err(bad("capture loan omits part of its stored field path"));
+                    }
                     Cursor::Value(value) => {
                         let reconstructed = capture_source_value(
                             world,
@@ -701,6 +715,7 @@ fn trace(
                 let local = binding_source_local(world, instance, original, &source, step.node)?;
                 let actual = world.local(locals, local)?;
                 let valid = match cursor {
+                    Cursor::StoredField { .. } => false,
                     Cursor::Local(found) => !*read && found == local,
                     Cursor::Value(value) => match producer(world, function, value)?.0 {
                         InstructionKind::Load(found) => *read && *found == local,
@@ -732,10 +747,77 @@ fn trace(
                 definition,
                 ordinal,
             } => {
-                let Cursor::Value(value) = cursor else {
-                    return Err(bad("projected loan field has no actual SSA projection"));
+                let (value, remaining) = match cursor {
+                    Cursor::Value(value) => (value, None),
+                    Cursor::StoredField { value, remaining } => (value, Some(remaining)),
+                    Cursor::Local(_) => {
+                        return Err(bad("projected loan field has no actual SSA projection"));
+                    }
                 };
                 let operation = producer(world, function, value)?.0;
+                if let InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path,
+                    mode,
+                } = operation
+                {
+                    let count = remaining.unwrap_or(path.len());
+                    if count == 0
+                        || count > path.len()
+                        || path.get(count - 1) != Some(&PlaceProjection::Field(*ordinal))
+                    {
+                        return Err(bad(
+                            "stored field loan changes its complete original projection path",
+                        ));
+                    }
+                    let storage_value = world.get(values, *storage)?;
+                    let payload = world.pointee(&storage_value)?;
+                    let parent = places::path(world, &payload, &path[..count - 1])?;
+                    input_nominal(world, *definition, &parent)?;
+                    if remaining.is_none() {
+                        let selected = projection::place(world, &parent, path[count - 1])?;
+                        let actual = world.get(values, value)?;
+                        match (mode, World::type_of(&selected)?) {
+                            (
+                                StoredBorrowLoad::CopyShared,
+                                Type::Address { mutable: false, .. },
+                            )
+                            | (StoredBorrowLoad::CopyDescription, Type::Desc(_)) => {
+                                world.same(instance.id, &actual, &selected, implicit)?;
+                            }
+                            (
+                                StoredBorrowLoad::Reborrow { mutable },
+                                Type::Address {
+                                    mutable: available, ..
+                                },
+                            ) if !*mutable || *available => {
+                                places::borrow_mode(Some(World::type_of(&actual)?), *mutable)?;
+                                let source = world.pointee(&selected)?;
+                                let actual = world.pointee(&actual)?;
+                                world.same(instance.id, &source, &actual, implicit)?;
+                            }
+                            _ => {
+                                return Err(bad(
+                                    "stored field loan changes its real read or reborrow authority",
+                                ));
+                            }
+                        }
+                    }
+                    cursor = if count == 1 {
+                        Cursor::Value(*storage)
+                    } else {
+                        Cursor::StoredField {
+                            value,
+                            remaining: count - 1,
+                        }
+                    };
+                    continue;
+                }
+                if remaining.is_some() {
+                    return Err(bad(
+                        "stored field loan loses its actual field-path producer",
+                    ));
+                }
                 // Reading an address-valued retained field is a real read of
                 // its field address, not an equality with the receiver head.
                 // Authenticate the complete pointee before following that
@@ -774,6 +856,11 @@ fn trace(
                 let parent = match next {
                     Cursor::Value(value) => world.get(values, value)?,
                     Cursor::Local(local) => world.local(locals, local)?,
+                    Cursor::StoredField { .. } => {
+                        return Err(bad(
+                            "ordinary field operation invents a stored projection cursor",
+                        ));
+                    }
                 };
                 input_nominal(world, *definition, &parent)?;
                 cursor = next;
@@ -803,7 +890,9 @@ fn trace(
             }
             ViewBorrowStepKind::Alias { binding } => {
                 let local = binding_local(world, instance, original, *binding, step.node)?;
-                world.local(locals, local)?;
+                if !input_referent {
+                    world.local(locals, local)?;
+                }
                 match cursor {
                     Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(actual) if *actual == local) =>
                         {}
@@ -887,7 +976,16 @@ fn trace(
                         ));
                     }
                 }
-                let actual = world.local(locals, local)?;
+                let actual = if input_referent && matches!(step.kind, ViewBorrowStepKind::Parameter)
+                {
+                    if let Cursor::Value(value) = cursor {
+                        world.get(values, value)?
+                    } else {
+                        world.local(locals, local)?
+                    }
+                } else {
+                    world.local(locals, local)?
+                };
                 let expected = world.parameter_value(
                     instance.id,
                     parameter as usize,
@@ -1143,7 +1241,7 @@ pub(super) fn apply(
     };
     apply_role(
         world, instance, original, function, &role, operand, actual, expected, values, locals,
-        implicit,
+        implicit, false,
     )
 }
 
@@ -1160,6 +1258,7 @@ fn apply_role(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
+    return_boundary: bool,
 ) -> R<Option<(SharedType, roles::Source)>> {
     let expected_source = roles::outer(world, expected)?;
     let target_source = match &role.target_lifetime {
@@ -1205,17 +1304,40 @@ fn apply_role(
     let target_inner = world.pointee(expected)?;
     world.same(instance.id, &inner, &target_inner, implicit)?;
     trace(
-        world, instance, original, function, &role, operand, values, locals, implicit,
+        world,
+        instance,
+        original,
+        function,
+        &role,
+        operand,
+        values,
+        locals,
+        implicit,
+        return_boundary,
     )?;
     let source = roles::outer(world, actual)?;
     let roots = arguments::roots(world, operand, actual)?;
     for root in &roots {
         world.pay(1)?;
+        if return_boundary {
+            world.pay(role.steps.len())?;
+        }
+        // A loaded input pointer's slot can end before Return; its referent
+        // loan belongs to the caller and is still the function's declared
+        // input. Borrowing the pointer slot (ParameterStorage) never qualifies.
+        let input_referent = return_boundary
+            && role
+                .steps
+                .iter()
+                .any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter))
+            && matches!(role.root, ViewBorrowRoot::Parameter(parameter)
+                if function.parameters.get(parameter as usize) == Some(&root.local));
         if world.stale_locals.contains(&root.local)
-            || locals
-                .get(root.local.0 as usize)
-                .and_then(Option::as_ref)
-                .is_none()
+            || !input_referent
+                && locals
+                    .get(root.local.0 as usize)
+                    .and_then(Option::as_ref)
+                    .is_none()
         {
             return Err(bad(
                 "projected borrow role has an inactive or stale actual storage root",
@@ -1397,9 +1519,336 @@ pub(super) fn return_view(
     world.same(instance.id, actual, &source, implicit)?;
     Ok(apply_role(
         world, instance, original, function, &role.1, operand, actual, expected, values, locals,
-        implicit,
+        implicit, true,
     )?
     .is_some())
+}
+
+/// Consume a shared view only at the exact original binding/ascription
+/// boundary. The exclusive read and its actual parent remain unchanged.
+#[allow(clippy::too_many_arguments)]
+fn shared_view_value(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    function: &TypedFunction,
+    sites: &[&SemanticSite],
+    target: Query,
+    operand: ValueId,
+    actual: &SharedType,
+    expected: &SharedType,
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<Option<(SharedType, roles::Source)>> {
+    let source_node = {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("shared view lacks original Gamma"))?;
+        world.pay(index::search(proof.shared_views.len()))?;
+        let Some(node) = proof.shared_views.get(&(original.id, target)) else {
+            return Ok(None);
+        };
+        *node
+    };
+    if !matches!(
+        World::type_of(actual)?,
+        Type::Address { mutable: false, .. }
+    ) || World::type_of(actual)? != World::type_of(expected)?
+    {
+        return Err(bad(
+            "shared input view changes its complete target type or access",
+        ));
+    }
+    let InstructionKind::ReborrowAddress {
+        address,
+        mutable: false,
+    } = producer(world, function, operand)?.0
+    else {
+        return Err(bad(
+            "shared input view lacks its real shared ReborrowAddress",
+        ));
+    };
+    let parent = *address;
+    let incoming = world.get(values, parent)?;
+    if !matches!(
+        World::type_of(&incoming)?,
+        Type::Address { mutable: true, .. }
+    ) {
+        return Err(bad(
+            "shared input view has no exact exclusive incoming source",
+        ));
+    }
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Err(bad("shared input view has no original read directory"));
+    };
+    let mut read = false;
+    for site in sites {
+        world.pay(1)?;
+        if !matches!(site.action, SemanticSiteAction::TypeUse {
+            subject: SemanticOperand::Value(value), ..
+        } if value == parent)
+        {
+            continue;
+        }
+        world.pay(site_nodes.len())?;
+        if site_nodes.iter().any(|row| {
+            row.site == site.recipe && row.node == SemanticOriginalNode::Expression(source_node)
+        }) {
+            if read {
+                return Err(bad("shared input view has ambiguous original reads"));
+            }
+            read = true;
+        }
+    }
+    if !read {
+        return Err(bad(
+            "shared input view loses its original exclusive read SSA",
+        ));
+    }
+    let source = world.ty(
+        instance.id,
+        &SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Expression(source_node),
+        },
+        World::type_of(&incoming)?,
+    )?;
+    world.same(instance.id, &incoming, &source, implicit)?;
+    let inner = world.pointee(&incoming)?;
+    let actual_inner = world.pointee(actual)?;
+    let target_inner = world.pointee(expected)?;
+    world.same(instance.id, &inner, &actual_inner, implicit)?;
+    world.same(instance.id, &inner, &target_inner, implicit)?;
+    let incoming_outer = roles::outer(world, &incoming)?;
+    let target_outer = roles::outer(world, expected)?;
+    match (&incoming_outer, &target_outer) {
+        (roles::Source::Class(source), roles::Source::Class(target)) => {
+            world.same_class(instance.id, source, target, implicit)?
+        }
+        _ => return Err(bad("shared input view changes its rigid original lifetime")),
+    }
+    for root in arguments::roots(world, parent, &incoming)? {
+        world.pay(
+            world
+                .vacant
+                .len()
+                .saturating_add(root.path.len())
+                .saturating_add(1),
+        )?;
+        if world.stale_locals.contains(&root.local)
+            || locals
+                .get(root.local.0 as usize)
+                .and_then(Option::as_ref)
+                .is_none()
+            || world.vacant.iter().any(|(local, path)| {
+                *local == root.local
+                    && (path.starts_with(&root.path) || root.path.starts_with(path))
+            })
+        {
+            return Err(bad("shared input view has no live initialized parent loan"));
+        }
+    }
+    Ok(Some((world.share(expected)?, incoming_outer)))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn shared_expression_view(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    function: &TypedFunction,
+    sites: &[&SemanticSite],
+    site: &SemanticSite,
+    operand: ValueId,
+    actual: &SharedType,
+    expected: &SharedType,
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<Option<(SharedType, roles::Source)>> {
+    if !matches!(
+        World::type_of(actual)?,
+        Type::Address { mutable: false, .. }
+    ) {
+        return Ok(None);
+    }
+    {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("shared view lacks original Gamma"))?;
+        world.pay(index::search(proof.shared_views.len()))?;
+        if proof
+            .shared_views
+            .range(
+                (original.id, Query::Expression(NodeId(0)))
+                    ..=(original.id, Query::Expression(NodeId(u32::MAX))),
+            )
+            .next()
+            .is_none()
+        {
+            return Ok(None);
+        }
+    }
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Ok(None);
+    };
+    world.pay(site_nodes.len())?;
+    let mut rows = site_nodes.iter().filter(|row| row.site == site.recipe);
+    let Some(row) = rows.next() else {
+        return Ok(None);
+    };
+    if rows.next().is_some() {
+        return Err(bad("shared view repeats its original expression"));
+    }
+    let SemanticOriginalNode::Expression(node) = row.node else {
+        return Ok(None);
+    };
+    shared_view_value(
+        world,
+        instance,
+        original,
+        function,
+        sites,
+        Query::Expression(node),
+        operand,
+        actual,
+        expected,
+        values,
+        locals,
+        implicit,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn shared_binding_view(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    function: &TypedFunction,
+    sites: &[&SemanticSite],
+    local: LocalId,
+    operand: ValueId,
+    actual: &SharedType,
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<Option<(SharedType, roles::Source)>> {
+    if !matches!(
+        World::type_of(actual)?,
+        Type::Address { mutable: false, .. }
+    ) {
+        return Ok(None);
+    }
+    {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("shared binding lacks original Gamma"))?;
+        world.pay(index::search(proof.shared_views.len()))?;
+        if proof
+            .shared_views
+            .range(
+                (original.id, Query::Binding(NodeId(0)))
+                    ..=(original.id, Query::Binding(NodeId(u32::MAX))),
+            )
+            .next()
+            .is_none()
+        {
+            return Ok(None);
+        }
+    }
+    let mut result = None;
+    for site in sites {
+        world.pay(1)?;
+        if !matches!(site.action, SemanticSiteAction::DeclareLocal {
+            local: SemanticLocalTarget::Typed(target), ..
+        } if target == local)
+        {
+            continue;
+        }
+        let SemanticSiteRecipeKind::DeclareLocal {
+            expected:
+                SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Binding(binding),
+                },
+        } = &world.original_recipe(original, site.recipe)?.kind
+        else {
+            continue;
+        };
+        let binding = *binding;
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        world.pay(index::search(
+            proof.as_ref().map_or(0, |proof| proof.shared_views.len()),
+        ))?;
+        if !proof.as_ref().is_some_and(|proof| {
+            proof
+                .shared_views
+                .contains_key(&(original.id, Query::Binding(binding)))
+        }) {
+            continue;
+        }
+        let Some((_, _, block, store, _)) = world.current_point else {
+            return Err(bad("shared binding view lacks its exact Store boundary"));
+        };
+        let SemanticSiteAddress::Typed {
+            block: declaration_block,
+            instruction,
+            ..
+        } = site.at
+        else {
+            return Err(bad("shared binding has no relocated declaration"));
+        };
+        if block != declaration_block || instruction as usize >= store {
+            continue;
+        }
+        let body = function
+            .blocks
+            .iter()
+            .find(|row| row.id == block)
+            .ok_or_else(|| bad("shared binding leaves its actual CFG"))?;
+        world.pay(store.saturating_sub(instruction as usize))?;
+        if !matches!(body.instructions.get(instruction as usize).map(|row| &row.kind), Some(InstructionKind::StorageLive(id)) if *id == local)
+            || body.instructions[instruction as usize + 1..store].iter().any(|row|
+                matches!(row.kind, InstructionKind::Store { local: id, .. }
+                    | InstructionKind::StorageDead(id) | InstructionKind::TakeLocal { local: id } if id == local)) {
+            continue;
+        }
+        let expected = world.ty(
+            instance.id,
+            &SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Binding(binding),
+            },
+            World::type_of(actual)?,
+        )?;
+        if let Some(view) = shared_view_value(
+            world,
+            instance,
+            original,
+            function,
+            sites,
+            Query::Binding(binding),
+            operand,
+            actual,
+            &expected,
+            values,
+            locals,
+            implicit,
+        )? {
+            if result.replace(view).is_some() {
+                return Err(bad("shared binding has multiple declaration loans"));
+            }
+        }
+    }
+    Ok(result)
 }
 
 /// A directed call loan preserves the source's original complete sigma.
@@ -1511,7 +1960,7 @@ pub(super) fn call_region_argument(
     };
     let function = world.function(function)?;
     trace(
-        world, caller, original, function, &role, operand, values, locals, implicit,
+        world, caller, original, function, &role, operand, values, locals, implicit, false,
     )?;
     Ok(true)
 }

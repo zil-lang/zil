@@ -138,7 +138,7 @@ impl CheckedOriginal {
 impl CheckedOriginal {
     pub(in crate::semantic) fn has_call_regions(&self,owner:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<bool>{
         b.spend(self.call_regions.len())?;
-        for(definition,node,_,_)in self.call_regions.values(){if *definition==owner&&self.original_call_site(owner,*node,b)?.1==site{return Ok(true);}}Ok(false)
+        for(definition,node,role,_)in self.call_regions.values(){if *definition==owner&&role.first()!=Some(&(u32::MAX-1))&&self.original_call_site(owner,*node,b)?.1==site{return Ok(true);}}Ok(false)
     }
 }
 

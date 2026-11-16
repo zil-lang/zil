@@ -381,7 +381,7 @@ impl Engine<'_> {
         &mut self,
         e: &mut Expr,
         env: &mut Env,
-        _context: ExprExpectedContext<'_>,
+        context: ExprExpectedContext<'_>,
         depth: usize,
     ) -> R<Option<TypeRef>> {
         let ExprKind::Record { ty, base, fields } = &mut e.kind else {
@@ -389,6 +389,81 @@ impl Engine<'_> {
         };
         let result = {
             let mut source_record = None;
+            if let Some(t) = ty.as_mut()
+                && let ExprKind::Name(template) = &t.kind
+                && let Some((declaration, _)) = self.record_declaration(template, e.span)?
+                && !params(declaration).is_empty()
+                && let Some(expected) = context.expected
+            {
+                // The argument/result context already selected a complete
+                // layout. Authenticate its original nominal declaration;
+                // its machine name is not lifetime or generic evidence.
+                let origin = self.template_origin(declaration)?.ok_or_else(|| {
+                    error(
+                        t.span,
+                        "inferred record lacks its original declaration provenance",
+                    )
+                })?;
+                let origins = self.origins.ok_or_else(|| {
+                    error(
+                        t.span,
+                        "inferred record lacks its original declaration inventory",
+                    )
+                })?;
+                self.budget
+                    .identity_work(origins.identities.len(), t.span)?;
+                let identity = origins.identities.get(&origin.declaration).ok_or_else(|| {
+                    error(
+                        t.span,
+                        "inferred record original declaration identity is absent",
+                    )
+                })?;
+                let mut physical = self.original_type(expected)?;
+                if let TypeKind::Named { path, args } = &physical.kind
+                    && path.as_slice() == ["Managed"]
+                    && let [GenericArg::Type(payload)] = args.as_slice()
+                {
+                    self.budget.ty(payload)?;
+                    physical = payload.clone();
+                }
+                self.ty(&mut physical, depth + 1)?;
+                if let TypeKind::Named { path, args } = &grouped(&physical).kind
+                    && path.len() == 1
+                    && args.is_empty()
+                {
+                    let mut matched = false;
+                    for instance in &self.products.storage.instances {
+                        self.budget.node(t.span, depth)?;
+                        let zil_ir::Type::BorrowedStorage { storage, .. } = &instance.instance.ty
+                        else {
+                            continue;
+                        };
+                        let (zil_ir::Type::Record { name, .. }
+                        | zil_ir::Type::Package { name, .. }) = storage.as_ref()
+                        else {
+                            continue;
+                        };
+                        self.budget.text(name, t.span)?;
+                        self.budget.text(&path[0], t.span)?;
+                        if name == &path[0] {
+                            if instance.declaration.id.module != origin.declaration.module
+                                || instance.declaration.id.compiler != origin.declaration.compiler
+                                || instance.declaration.id.declaration != identity.declaration
+                            {
+                                return Err(error(
+                                    t.span,
+                                    "inferred record context changes its original nominal declaration",
+                                ));
+                            }
+                            matched = true;
+                        }
+                    }
+                    if matched {
+                        self.budget.text(&path[0], t.span)?;
+                        t.kind = ExprKind::Name(path[0].clone());
+                    }
+                }
+            }
             if let Some(t) = ty
                 && let ExprKind::TypeApply { callee, arguments } = &mut t.kind
                 && let ExprKind::Name(template) = &callee.kind

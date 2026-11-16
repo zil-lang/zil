@@ -77,6 +77,253 @@ impl Check<'_, '_> {
             _ => false,
         })
     }
+    /// A constructor with an omitted application is an inference operation,
+    /// not a nominal type with an empty mixed argument vector. Solve every
+    /// declaration formal against the wanted type and all real field values.
+    /// These are rigid data classes; no callable lifetime is introduced here.
+    pub(super) fn inferred_record_constructor(
+        &mut self,
+        owner: SemanticDefinitionId,
+        selected: Option<SemanticDefinitionId>,
+        fields: &[(String, SemanticOriginalExpr)],
+        variables: &mut BTreeMap<String, Binding>,
+        wanted: Option<&SemanticTypeRecipe>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.pay(fields.len(), depth)?;
+        let empty = BTreeMap::new();
+        let context = wanted
+            .map(|wanted| {
+                substitute::caller_context(
+                    wanted,
+                    &substitute::Substitution {
+                        frames: &[],
+                        selves: &[],
+                        environments: &[],
+                        implicit: &empty,
+                        invocation: &empty,
+                        shift: 0,
+                    },
+                    self.limits,
+                    self.left,
+                )
+            })
+            .transpose()?
+            .flatten();
+        let nominal_context = context.as_ref().map(|ty| match ty {
+            SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::Desc { inner, .. } => {
+                inner.as_ref()
+            }
+            _ => ty,
+        });
+        let contextual_definition = match nominal_context {
+            Some(SemanticTypeRecipe::Nominal { definition, .. }) => Some(*definition),
+            _ => None,
+        };
+        let selected = selected.or(contextual_definition).ok_or_else(|| {
+            bad("original inferred record has no selected declaration or complete nominal context")
+        })?;
+        if contextual_definition.is_some_and(|context| context != selected) {
+            return Err(bad(
+                "original inferred record changes its wanted nominal declaration",
+            ));
+        }
+        let definition = self.definition(selected)?;
+        self.canonical_carrier(definition, depth + 1)?;
+        let SemanticDefinitionBody::Nominal {
+            kind,
+            body: SemanticNominalBody::Product { fields: declared },
+            ..
+        } = &definition.body
+        else {
+            return Err(bad(
+                "original inferred record selects a nonproduct declaration",
+            ));
+        };
+        if declared.len() != fields.len() {
+            return Err(bad("original inferred record omits or adds fields"));
+        }
+        self.pay(
+            definition
+                .parameters
+                .len()
+                .saturating_add(fields.len().saturating_mul(declared.len())),
+            depth,
+        )?;
+        let mut identity_arguments = Vec::new();
+        for (ordinal, formal) in definition.parameters.iter().enumerate() {
+            let reference = SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: ordinal as u32,
+            };
+            identity_arguments.push(match formal {
+                SemanticFormal::Type { .. } => {
+                    SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                }
+                SemanticFormal::Lifetime => {
+                    SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                }
+                SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
+                    carrier: copy_recipe(carrier, self.limits, self.left)?,
+                    value: SemanticConstRecipe::Formal(reference),
+                },
+            });
+        }
+        let signature = SemanticSignatureRecipe {
+            bound_lifetimes: 0,
+            invocation_lifetimes: 0,
+            parameters: declared
+                .iter()
+                .map(|field| {
+                    Ok(SemanticParameterRecipe {
+                        ty: copy_recipe(&field.ty, self.limits, self.left)?,
+                        mode: PassingMode::Infer,
+                    })
+                })
+                .collect::<R<Vec<_>>>()?,
+            result: SemanticTypeRecipe::Nominal {
+                definition: selected,
+                arguments: identity_arguments,
+            },
+            result_mode: PassingMode::Infer,
+            call_kind: CallKind::Direct,
+        };
+        let template =
+            self.inference_template(&signature, &definition.parameters, false, depth + 1)?;
+        let mut solutions = vec![None; definition.parameters.len()];
+        let mut implicit = BTreeMap::new();
+        let mut invocation = BTreeMap::new();
+        if let Some(context) = nominal_context {
+            self.unify(
+                &template.result,
+                context,
+                &definition.parameters,
+                &mut solutions,
+                &mut implicit,
+                &mut invocation,
+                depth + 1,
+            )?;
+        }
+        let mut seen = BTreeSet::new();
+        let mut actual_fields = Vec::new();
+        for (name, value) in fields {
+            if !seen.insert(name.as_str()) {
+                return Err(bad("original inferred record repeats a field"));
+            }
+            let ordinal = declared
+                .iter()
+                .position(|field| field.name == *name)
+                .ok_or_else(|| bad("original inferred record changes a field identity"))?;
+            let complete = solutions.iter().all(Option::is_some);
+            let hint = if complete {
+                self.pay(solutions.len(), depth)?;
+                for actual in solutions.iter().flatten() {
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        actual,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                }
+                let arguments = solutions
+                    .iter()
+                    .map(|actual| actual.clone().expect("complete mixed inference"))
+                    .collect::<Vec<_>>();
+                Some(super::super::instantiate::ty(
+                    self.program,
+                    &self.proof,
+                    &declared[ordinal].ty,
+                    super::super::instantiate::DomainMapping {
+                        source: selected,
+                        use_definition: owner,
+                        arguments: &arguments,
+                        parent_call: None,
+                    },
+                    self.limits,
+                    self.left,
+                )?)
+            } else {
+                substitute::caller_context(
+                    &template.parameters[ordinal].ty,
+                    &substitute::Substitution {
+                        frames: &[],
+                        selves: &[],
+                        environments: &[],
+                        implicit: &empty,
+                        invocation: &empty,
+                        shift: 0,
+                    },
+                    self.limits,
+                    self.left,
+                )?
+            };
+            let actual = self.expr(owner, value, variables, hint.as_ref(), depth + 1)?;
+            if complete {
+                self.constructor_field_value(
+                    owner,
+                    &actual,
+                    hint.as_ref().expect("complete constructor field"),
+                    depth + 1,
+                )?;
+            } else {
+                self.unify(
+                    &template.parameters[ordinal].ty,
+                    &actual,
+                    &definition.parameters,
+                    &mut solutions,
+                    &mut implicit,
+                    &mut invocation,
+                    depth + 1,
+                )?;
+            }
+            actual_fields.push((ordinal, actual));
+        }
+        let arguments = solutions
+            .into_iter()
+            .map(|actual| {
+                actual.ok_or_else(|| {
+                    bad("original inferred record has an unconstrained mixed formal")
+                })
+            })
+            .collect::<R<Vec<_>>>()?;
+        if !implicit.is_empty() || !invocation.is_empty() {
+            return Err(bad(
+                "original inferred record invents a callable lifetime domain",
+            ));
+        }
+        // Check every complete field after solving the joint vector; an early
+        // field is never authoritative for a later, conflicting life source.
+        for (ordinal, actual) in actual_fields {
+            let expected = super::super::instantiate::ty(
+                self.program,
+                &self.proof,
+                &declared[ordinal].ty,
+                super::super::instantiate::DomainMapping {
+                    source: selected,
+                    use_definition: owner,
+                    arguments: &arguments,
+                    parent_call: None,
+                },
+                self.limits,
+                self.left,
+            )?;
+            self.constructor_field_value(owner, &actual, &expected, depth + 1)?;
+        }
+        self.call_requirements(owner, definition, &arguments, depth + 1)?;
+        let nominal = SemanticTypeRecipe::Nominal {
+            definition: selected,
+            arguments,
+        };
+        let result = if *kind == LifeNominalKind::Resource {
+            SemanticTypeRecipe::Managed(Box::new(nominal))
+        } else {
+            nominal
+        };
+        if let Some(context) = context.as_ref() {
+            self.same(&result, context)?;
+        }
+        Ok(result)
+    }
     pub(super) fn record_constructor(
         &mut self,
         owner: SemanticDefinitionId,

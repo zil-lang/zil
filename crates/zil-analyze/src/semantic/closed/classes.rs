@@ -1605,7 +1605,8 @@ impl Check<'_, '_> {
                     };
                     let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
                     if !actual.equal_paid(&field, b)?
-                        && !self.outer_role(instance, function, &actual, &field, b, depth + 1)?
+                        && !self.outer_call_role(instance, function, (block, index), ordinal, *operand,
+                            &actual, &field, b, depth + 1)?
                     {
                         return Err(fail("actual aggregate child changes its complete original data or directed outer role"));
                     }

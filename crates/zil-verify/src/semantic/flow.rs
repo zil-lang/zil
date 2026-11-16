@@ -24,6 +24,7 @@ mod code_calls;
 mod type_uses;
 mod callable_sources;
 mod local_roles;
+mod replacements;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -291,6 +292,7 @@ impl CheckedContext {
                     InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
+                    InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}|InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>self.replacement_instruction(module,instance,f,instruction,&mut state,&values,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
                         let Type::Address{..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
@@ -886,7 +888,7 @@ impl CheckedContext {
         self.claim_static_obligations(&mut actual,expected,b)?;
         let same=self.same_type(environment,&actual,expected,b)?;
         let view=!same&&root_view&&self.compatible(environment,expected,&actual,b)?;
-        if !same&&!view {return Err(bad("site complete type/class claim differs from its original scoped recipe").with_note(format!("original {:?}, actual point {:?}; domains {}/{}, class images {:?}/{:?}",environment.lexical.first().map(|frame|frame.definition),environment.at,actual.life.binder_count,expected.life.binder_count,&actual.classes[..actual.classes.len().min(6)],&expected.classes[..expected.classes.len().min(6)])));}
+        if !same&&!view {return Err(bad("site complete type/class claim differs from its original scoped recipe").with_note(format!("original {:?}, actual point {:?}; domains {}/{}, class images {:?}/{:?}",environment.lexical.first().map(|frame|frame.definition),environment.at,actual.life.binder_count,expected.life.binder_count,&actual.classes[..actual.classes.len().min(6)],&expected.classes[..expected.classes.len().min(6)])).with_note(format!("claim failure components: raw_type_equal {}, complete_shape_equal {}, raw_class_images_equal {}, raw_origins_equal {}, statics_equal {}; root_view {root_view}; actual type {:?}, original type {:?}; actual shape {:?}, original shape {:?}; actual origins {:?}, original origins {:?}; actual statics {:?}, original statics {:?}; original claim classes {:?}",actual.ty==expected.ty,actual.life==expected.life,actual.classes==expected.classes,actual.origins==expected.origins,actual.statics==expected.statics,actual.ty,expected.ty,actual.life,expected.life,actual.origins,expected.origins,actual.statics,expected.statics,expressions)));}
         Ok(())
     }
 }

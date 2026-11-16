@@ -33,9 +33,9 @@ impl CheckedContext {
                     let InstructionKind::Binary{op:actual_op,left,right}=actual.kind else{return Err(bad("compound assignment omits its complete original operator"));};
                     if actual_op!=op{return Err(bad("compound assignment changes its original operator"));}
                     self.original_projection_source(module,caller,f,left,caller.definition,original.target,true,b)?;
-                    self.exact_expression_value(module,caller,f,right,original.value,b)?;
+                    self.assignment_value_source(module,caller,f,right,original.value,b)?;
                 } else {
-                    self.exact_expression_value(module,caller,f,value,original.value,b)?;
+                    self.assignment_value_source(module,caller,f,value,original.value,b)?;
                 }
                 b.spend(used.len().saturating_add(writes.len()).saturating_add(1))?;
                 if !used.insert(original.statement){return Err(bad("one original assignment occurrence supplies several actual writes"));}
