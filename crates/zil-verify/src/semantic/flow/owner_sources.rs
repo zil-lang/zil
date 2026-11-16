@@ -19,7 +19,7 @@ impl CheckedContext{
         self.original_projection_source(module,caller,f,value,definition,node,observed,b)
     }
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
+    pub(in crate::semantic::flow) fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
         if definition!=caller.definition{return Err(bad("indirect borrow selects another original lexical owner"));}
         let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
         let mut seen=BTreeSet::new();
