@@ -99,6 +99,20 @@ pub(crate) fn program(
     )?;
     stored::OrdinaryStats::step(
         &ledger.ordinary_stats,
+        "finish: closure invocation embeddings",
+        left,
+        |left| {
+            super::headers::complete_invocation_embeddings(
+                &mut result,
+                module,
+                ledger,
+                limits,
+                left,
+            )
+        },
+    )?;
+    stored::OrdinaryStats::step(
+        &ledger.ordinary_stats,
         "finish: ordinary inventory",
         left,
         |left| stored::ordinary_inventory(module, limits, left),

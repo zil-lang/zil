@@ -940,6 +940,336 @@ pub(in crate::semantics) fn complete_emitted_headers(
     Ok(())
 }
 
+/// Complete invocation images for a directory that was emitted before its
+/// original P/C/R operands could be interpreted. Actual header positions, not
+/// original quantifier ordinals, select these images. Fixed images must already
+/// have been independently grounded by the capture passes.
+pub(in crate::semantics) fn complete_invocation_embeddings(
+    program: &mut SemanticModule,
+    module: &TypedModule,
+    ledger: &super::super::emission::Ledger,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let view = super::super::materialize::ActualDirectory::from_module(module);
+    let mut changes = Vec::new();
+    for instance in &program.instances {
+        pay(left, 1)?;
+        let Some(environment) = &instance.environment else {
+            continue;
+        };
+        let SemanticClosureTarget::Typed(id) = environment.closure else {
+            return Err(bad("invocation embedding retains a Core closure target"));
+        };
+        pay(left, module.closures.len())?;
+        let definition = module
+            .closures
+            .iter()
+            .find(|row| row.id == id)
+            .ok_or_else(|| bad("invocation embedding lost its actual closure"))?;
+        let Some(header) = &definition.storage_life else {
+            continue;
+        };
+        if header.invocation_binder_count == 0 {
+            continue;
+        }
+        crate::borrowed_fp::charge_contract(header, |work| pay(left, work), 1)?;
+        if (header.fixed_binder_count as usize)
+            .saturating_add(header.invocation_binder_count as usize)
+            > limits.max_nodes
+        {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "closure header domain node limit exceeded",
+                None,
+            ));
+        }
+        let mut existing = BTreeMap::new();
+        for row in &instance.header_embedding {
+            crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
+            let valid = match row.header {
+                StorageBinder::Fixed(i) => i < header.fixed_binder_count,
+                StorageBinder::Invocation(i) => i < header.invocation_binder_count,
+            };
+            pay(left, existing.len().saturating_add(1).ilog2() as usize + 1)?;
+            if !valid || existing.insert(row.header, &row.actual).is_some() {
+                return Err(bad(
+                    "invocation embedding duplicates or exceeds its actual binder domain",
+                ));
+            }
+        }
+        pay(left, header.fixed_binder_count as usize)?;
+        for fixed in 0..header.fixed_binder_count {
+            pay(left, existing.len().saturating_add(1).ilog2() as usize + 1)?;
+            if !existing.contains_key(&StorageBinder::Fixed(fixed)) {
+                return Err(bad(
+                    "invocation embedding lacks an independently grounded Fixed image",
+                ));
+            }
+        }
+        if existing.len()
+            == (header.fixed_binder_count as usize)
+                .saturating_add(header.invocation_binder_count as usize)
+        {
+            // Complete proposals still undergo the independent whole World
+            // header proof; this pass supplies only genuinely absent images.
+            continue;
+        }
+        pay(left, module.functions.len())?;
+        let entry = module
+            .functions
+            .iter()
+            .find(|row| row.id == definition.function)
+            .ok_or_else(|| bad("invocation embedding lost its actual entry"))?;
+        if let Some(actual) = &entry.storage_life {
+            crate::borrowed_fp::charge_contract(actual, |work| pay(left, work), 1)?;
+        }
+        if entry.environment != Some(id)
+            || entry.storage_life.as_ref() != Some(header)
+            || !matches!(instance.target,
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))
+                    if function == entry.id)
+        {
+            return Err(bad(
+                "invocation embedding changes the actual closure entry directory",
+            ));
+        }
+        let values = emitted_operands(
+            program,
+            &view,
+            ledger,
+            instance,
+            id,
+            crate::FunctionRef::from(entry),
+            limits,
+            left,
+        )?
+        .ok_or_else(|| bad("invocation embedding lacks complete original P/C/R operands"))?;
+        let mut bindings = Vec::new();
+        let mut classes = Vec::new();
+        let mut statics = Vec::new();
+        for (base, value) in &values {
+            super::super::creator_headers::rows::append(
+                value,
+                *base,
+                &mut bindings,
+                &mut classes,
+                &mut statics,
+                limits,
+                left,
+            )?;
+        }
+        if bindings.len() != header.bindings.len()
+            || classes.len() != header.classes.len()
+            || statics.len() != header.static_bindings.len()
+        {
+            return Err(bad(
+                "invocation embedding changes complete original header occurrences",
+            ));
+        }
+        let mut images = BTreeMap::new();
+        let mut seen_bindings = BTreeSet::new();
+        for (position, image) in bindings {
+            pay(
+                left,
+                position
+                    .path
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(seen_bindings.len().saturating_add(1).ilog2() as usize + 1),
+            )?;
+            if !seen_bindings.insert(position.clone()) {
+                return Err(bad(
+                    "original invocation operands repeat a borrow occurrence",
+                ));
+            }
+            pay(
+                left,
+                header
+                    .bindings
+                    .len()
+                    .saturating_mul(position.path.len().saturating_add(1)),
+            )?;
+            let mut rows = header
+                .bindings
+                .iter()
+                .filter(|row| row.position == position);
+            let row = rows
+                .next()
+                .ok_or_else(|| bad("invocation embedding omits an original borrow occurrence"))?;
+            if rows.next().is_some() {
+                return Err(bad(
+                    "invocation embedding repeats an actual borrow occurrence",
+                ));
+            }
+            invocation_image(
+                &mut images,
+                &existing,
+                header,
+                row.binder,
+                image,
+                matches!(position.base, StorageBase::Capture(_)),
+                limits,
+                left,
+            )?;
+        }
+        let mut seen_classes = BTreeSet::new();
+        for (position, image) in classes {
+            pay(
+                left,
+                position
+                    .path
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(seen_classes.len().saturating_add(1).ilog2() as usize + 1),
+            )?;
+            if !seen_classes.insert(position.clone()) {
+                return Err(bad("original invocation operands repeat a whole class"));
+            }
+            pay(
+                left,
+                header
+                    .classes
+                    .len()
+                    .saturating_mul(position.path.len().saturating_add(1)),
+            )?;
+            let mut rows = header.classes.iter().filter(|row| row.position == position);
+            let row = rows
+                .next()
+                .ok_or_else(|| bad("invocation embedding omits an original whole class"))?;
+            if rows.next().is_some() {
+                return Err(bad("invocation embedding repeats an actual whole class"));
+            }
+            invocation_image(
+                &mut images,
+                &existing,
+                header,
+                row.binder,
+                image,
+                matches!(position.base, StorageBase::Capture(_)),
+                limits,
+                left,
+            )?;
+        }
+        let mut seen_statics = BTreeSet::new();
+        for position in statics {
+            pay(
+                left,
+                position
+                    .path
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(seen_statics.len().saturating_add(1).ilog2() as usize + 1),
+            )?;
+            if !seen_statics.insert(position.clone()) {
+                return Err(bad(
+                    "original invocation operands repeat a static occurrence",
+                ));
+            }
+            pay(
+                left,
+                header
+                    .static_bindings
+                    .len()
+                    .saturating_mul(position.path.len().saturating_add(1)),
+            )?;
+            if header
+                .static_bindings
+                .iter()
+                .filter(|row| **row == position)
+                .count()
+                != 1
+            {
+                return Err(bad(
+                    "invocation embedding changes an original static occurrence",
+                ));
+            }
+        }
+        if images.len() != header.invocation_binder_count as usize {
+            return Err(bad(
+                "invocation embedding lacks a complete original invocation image",
+            ));
+        }
+        let mut embedding = Vec::new();
+        for row in &instance.header_embedding {
+            crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
+            embedding.push(row.clone());
+        }
+        for (index, actual) in images {
+            pay(left, existing.len().saturating_add(1).ilog2() as usize + 1)?;
+            if !existing.contains_key(&StorageBinder::Invocation(index)) {
+                embedding.push(SemanticHeaderBinding {
+                    header: StorageBinder::Invocation(index),
+                    actual,
+                });
+            }
+        }
+        changes.push((instance.id, embedding));
+    }
+    for (id, embedding) in changes {
+        pay(left, program.instances.len())?;
+        program
+            .instances
+            .iter_mut()
+            .find(|row| row.id == id)
+            .ok_or_else(|| bad("completed invocation instance disappeared"))?
+            .header_embedding = embedding;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn invocation_image(
+    images: &mut BTreeMap<u32, SemanticClassExpr>,
+    existing: &BTreeMap<StorageBinder, &SemanticClassExpr>,
+    header: &StorageLifeContract,
+    binder: StorageBinder,
+    image: SemanticClassExpr,
+    persistent: bool,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    // Fixed images are never inferred from invocation inputs. Their original
+    // capture proof and the final World row proof remain mandatory.
+    let StorageBinder::Invocation(index) = binder else {
+        let StorageBinder::Fixed(index) = binder else {
+            unreachable!()
+        };
+        pay(left, existing.len().saturating_add(1).ilog2() as usize + 1)?;
+        if index >= header.fixed_binder_count || !existing.contains_key(&binder) {
+            return Err(bad("invocation row has no grounded actual Fixed image"));
+        }
+        return Ok(());
+    };
+    if persistent || index >= header.invocation_binder_count {
+        return Err(bad(
+            "persistent capture or out-of-domain row uses an invocation image",
+        ));
+    }
+    crate::dyn_metadata::semantic_operand_snapshot(&image, limits, left, 1)?;
+    pay(left, existing.len().saturating_add(1).ilog2() as usize + 1)?;
+    if let Some(prior) = existing.get(&binder) {
+        crate::dyn_metadata::semantic_operand_snapshot(*prior, limits, left, 1)?;
+        if *prior != &image {
+            return Err(bad(
+                "invocation proposal differs from its complete original operand image",
+            ));
+        }
+    }
+    pay(left, images.len().saturating_add(1).ilog2() as usize + 1)?;
+    if let Some(prior) = images.get(&index) {
+        crate::dyn_metadata::semantic_operand_snapshot(prior, limits, left, 1)?;
+        if prior != &image {
+            return Err(bad(
+                "one actual invocation class has different original operand images",
+            ));
+        }
+    } else {
+        images.insert(index, image);
+    }
+    Ok(())
+}
+
 /// Form the same untrusted complete header at a real closure mint or at finish.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::semantics) fn form_emitted_header(
@@ -958,6 +1288,67 @@ pub(in crate::semantics) fn form_emitted_header(
         Vec<(StorageBase, SemanticTypeValue)>,
     )>,
 > {
+    let Some(values) =
+        emitted_operands(program, module, ledger, instance, id, entry, limits, left)?
+    else {
+        return Ok(None);
+    };
+    let mut bindings = Vec::new();
+    let mut classes = Vec::new();
+    let mut statics = Vec::new();
+    // Keep the established P/C/R row order and the capture-first value order
+    // used by early Task formation; neither order numbers original roles.
+    for captures in [false, true] {
+        for (base, value) in &values {
+            pay(left, 1)?;
+            if (*base != StorageBase::Result) && matches!(base, StorageBase::Capture(_)) == captures
+            {
+                super::super::creator_headers::rows::append(
+                    value,
+                    *base,
+                    &mut bindings,
+                    &mut classes,
+                    &mut statics,
+                    limits,
+                    left,
+                )?;
+            }
+        }
+    }
+    let (_, result) = values
+        .last()
+        .ok_or_else(|| bad("closure directory lacks its result"))?;
+    super::super::creator_headers::rows::append(
+        result,
+        StorageBase::Result,
+        &mut bindings,
+        &mut classes,
+        &mut statics,
+        limits,
+        left,
+    )?;
+    let (directory, mapping) = complete_rows(bindings, classes, statics, limits, left)?;
+    if !instance.header_embedding.is_empty() && instance.header_embedding != mapping {
+        return Err(bad(
+            "completed closure directory changes its original domain embedding",
+        ));
+    }
+    Ok(Some((directory, mapping, values)))
+}
+
+/// Interpret original operands without deriving or renumbering an actual
+/// directory. Existing Fixed axes remain grounded by the capture pass.
+#[allow(clippy::too_many_arguments)]
+fn emitted_operands(
+    program: &SemanticModule,
+    module: &super::super::materialize::ActualDirectory<'_>,
+    ledger: &super::super::emission::Ledger,
+    instance: &SemanticInstance,
+    id: ClosureId,
+    entry: crate::FunctionRef<'_>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Option<Vec<(StorageBase, SemanticTypeValue)>>> {
     let original = program
         .definitions
         .iter()
@@ -984,9 +1375,6 @@ pub(in crate::semantics) fn form_emitted_header(
     }
     let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
     let mut values = Vec::new();
-    let mut capture_bindings = Vec::new();
-    let mut capture_classes = Vec::new();
-    let mut capture_statics = Vec::new();
     let mut complete = true;
     for (capture, ordinal, actual_ty) in captures {
         let Some(value) = capture_value(
@@ -996,23 +1384,11 @@ pub(in crate::semantics) fn form_emitted_header(
             complete = false;
             break;
         };
-        super::super::creator_headers::rows::append(
-            &value,
-            StorageBase::Capture(capture),
-            &mut capture_bindings,
-            &mut capture_classes,
-            &mut capture_statics,
-            limits,
-            left,
-        )?;
         values.push((StorageBase::Capture(capture), value));
     }
     if !complete {
         return Ok(None);
     }
-    let mut bindings = Vec::new();
-    let mut classes = Vec::new();
-    let mut statics = Vec::new();
     for (ordinal, local) in entry.parameters.iter().enumerate() {
         pay(left, 1)?;
         let actual = &entry
@@ -1039,20 +1415,8 @@ pub(in crate::semantics) fn form_emitted_header(
                 "closure directory completion changes an original parameter type",
             ));
         }
-        super::super::creator_headers::rows::append(
-            &value,
-            StorageBase::Parameter(ordinal as u32),
-            &mut bindings,
-            &mut classes,
-            &mut statics,
-            limits,
-            left,
-        )?;
         values.push((StorageBase::Parameter(ordinal as u32), value));
     }
-    bindings.extend(capture_bindings);
-    classes.extend(capture_classes);
-    statics.extend(capture_statics);
     let recipe = SemanticTypeRecipe::OriginalType {
         scope: SemanticScopeRef::Ancestor(0),
         source: SemanticOriginalTypeSource::Result,
@@ -1072,23 +1436,8 @@ pub(in crate::semantics) fn form_emitted_header(
             "closure directory completion changes its original result type",
         ));
     }
-    super::super::creator_headers::rows::append(
-        &value,
-        StorageBase::Result,
-        &mut bindings,
-        &mut classes,
-        &mut statics,
-        limits,
-        left,
-    )?;
     values.push((StorageBase::Result, value));
-    let (directory, mapping) = complete_rows(bindings, classes, statics, limits, left)?;
-    if !instance.header_embedding.is_empty() && instance.header_embedding != mapping {
-        return Err(bad(
-            "completed closure directory changes its original domain embedding",
-        ));
-    }
-    Ok(Some((directory, mapping, values)))
+    Ok(Some(values))
 }
 
 fn complete_rows(
