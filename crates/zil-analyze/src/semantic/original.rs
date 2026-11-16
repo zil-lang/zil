@@ -2025,36 +2025,6 @@ impl Solver<'_, '_> {
                     };
                     let mut prepared_arguments = BTreeMap::new();
                     let (parameters, result) = if let Some(local) = local {
-                        // The call path reads the callee as a place, without a
-                        // second owning expression evaluation. Preserve that
-                        // exact original node for Type/capture consumers too.
-                        // Thin code values already take the ordinary
-                        // expression path in code_call, exactly once.
-                        if !matches!(self.state.arena[self.type_root(local, b)?], Kind::Code { .. }) {
-                            b.lookup(frame.expressions.len(), WORK)?;
-                            if frame.expressions.insert(head.id, local).is_some() {
-                                return Err(fail("original callable head node is reused"));
-                            }
-                        }
-                        if let CoreExprKind::Name(name) = &head.kind {
-                            b.spend(
-                                frame
-                                    .locals
-                                    .iter()
-                                    .map(|local| local.name.len().saturating_add(name.len() + 1))
-                                    .sum::<usize>(),
-                                WORK,
-                            )?;
-                            if let Some(index) =
-                                frame.locals.iter().rposition(|local| local.name == *name)
-                            {
-                                self.record_environment_read(frame, index, head.id, b)?;
-                                if index < frame.inherited {
-                                    b.lookup(frame.captured.len(), WORK)?;
-                                    frame.captured.insert(index, local);
-                                }
-                            }
-                        }
                         if !written.is_empty() {
                             return Err(unknown(
                                 "original generic callable needs its complete method instantiation",
@@ -2069,6 +2039,7 @@ impl Solver<'_, '_> {
                         {
                             call
                         } else {
+                            let callee_value = local;
                             let mut local = self.root(local, b)?;
                             for _ in 0..=b.partial_depth {
                                 if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
@@ -2099,6 +2070,25 @@ impl Solver<'_, '_> {
                                     "original indirect call needs its full callable premise",
                                 ));
                             };
+                            // Abstract receivers register through their exact
+                            // borrow_place/receiver path; thin code registers
+                            // through expression. Only this known-Closure path
+                            // observes a callee without either evaluation.
+                            b.lookup(frame.expressions.len(), WORK)?;
+                            if frame.expressions.insert(head.id, callee_value).is_some() {
+                                return Err(fail("original callable head node is reused"));
+                            }
+                            if let CoreExprKind::Name(name) = &head.kind {
+                                b.spend(frame.locals.iter().map(|local|
+                                    local.name.len().saturating_add(name.len() + 1)).sum::<usize>(), WORK)?;
+                                let index = frame.locals.iter().rposition(|local| local.name == *name)
+                                    .ok_or_else(|| fail("original known callable has no exact lexical binding"))?;
+                                self.record_environment_read(frame, index, head.id, b)?;
+                                if index < frame.inherited {
+                                    b.lookup(frame.captured.len(), WORK)?;
+                                    frame.captured.insert(index, callee_value);
+                                }
+                            }
                             self.known_capture_call(frame, head, target, b)?;
                             let declaration = self.inventory.definition(target, b)?;
                             let SemanticDefinitionBody::FunctionWithBody { signature, .. } =

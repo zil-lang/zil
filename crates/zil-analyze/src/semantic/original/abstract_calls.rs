@@ -299,6 +299,10 @@ impl Solver<'_, '_> {
         }
         let position =
             position.ok_or_else(|| fail("abstract receiver has no original lexical value"))?;
+        // This borrowed receiver is observed by this invocation path, not
+        // by expression() or borrow_place(). Keep its exact binder receipt
+        // alongside the single expression registration below.
+        self.record_environment_read(frame, position, callee.id, b)?;
         let parameter = position
             .checked_sub(frame.inherited)
             .filter(|position| *position < frame.parameters.len())
