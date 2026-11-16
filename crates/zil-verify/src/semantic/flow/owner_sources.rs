@@ -4,6 +4,8 @@
 use super::*;
 use original::intrinsics::{AddressProjection,AddressRoot,BufferRoot,BufferSource};
 use zil_base::NodeId;
+#[path = "scalar_preparations.rs"]
+mod scalar_preparations;
 
 impl CheckedContext{
     pub(super) fn address_place_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
@@ -20,6 +22,15 @@ impl CheckedContext{
         let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
         let mut seen=BTreeSet::new();
         let mut fused=None;
+        // An implicit scalar capture read can have an empty original field
+        // path. It still returns to the exact original binder below.
+        if read_value {loop{
+            b.spend(1)?;
+            let(_,_,instruction)=producer(f,value,b)?;
+            let InstructionKind::ReadAddress{address}=instruction.kind else{break;};
+            if !seen.insert(value){return Err(bad("observed original root has a cyclic actual read chain"));}
+            crate::check_instruction(module,f,instruction,b)?;value=address;
+        }}
         for(ordinal,projection)in projections.iter().enumerate(){
             loop{
                 b.spend(1)?;if !seen.insert(value){return Err(bad("indirect borrow has a cyclic actual projection chain"));}
@@ -83,14 +94,29 @@ impl CheckedContext{
                 },_=>{},
             }}
         }
-        if sources.is_empty(){return self.scalar_expression_source(module,caller,f,value,node,b);}
         let mut seen=BTreeSet::new();loop{
             b.spend(sources.len().saturating_add(1))?;
-            if sources.contains(&value){return Ok(());}
-            if !seen.insert(value){return Err(bad("address input has a cyclic actual reborrow chain"));}
-            let(_,_,instruction)=producer(f,value,b)?;
-            let InstructionKind::ReborrowAddress{address,..}=instruction.kind else{return Err(bad("address input selects another same-typed original expression value"));};
-            crate::check_instruction(module,f,instruction,b)?;value=address;
+            if sources.contains(&value){
+                let ty=f.values.get(value.0 as usize).ok_or_else(||bad("exact source SSA type is absent"))?;
+                if ty.is_integer()||ty.is_float()||matches!(ty,Type::Unit|Type::Bool){
+                    let name=self.original.borrow().as_ref().ok_or_else(||bad("exact scalar occurrence lacks its original binding proof"))?.bound_value_name(caller.definition,node,b)?;
+                    if name{self.original_projection_source(module,caller,f,value,caller.definition,node,true,b).map_err(|error|{
+                        if error.category==zil_base::ResultCategory::Unsupported{bad("exact scalar source occurrence selects another original binding").with_note(error.message)}
+                        else{error.with_note(format!("original bound scalar {:?} expression {:?}, actual {:?}",caller.definition,node,value))}
+                    })?;}
+                }
+                return Ok(());
+            }
+            if !seen.insert(value){return Err(bad("address input has a cyclic actual preparation/reborrow chain"));}
+            let(block,at,instruction)=producer(f,value,b)?;
+            crate::check_instruction(module,f,instruction,b)?;
+            if let InstructionKind::Load(local)=instruction.kind {
+                if let Some(source)=scalar_preparations::source(module,f,block,at,local,b)?{value=source;continue;}
+            }
+            if sources.is_empty(){return self.scalar_expression_source(module,caller,f,value,node,b);}
+            if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
+            return Err(bad("address input selects another same-typed original expression value").with_note(format!(
+                "original {:?} expression {:?}, exact source SSA {:?}; actual {:?} at {:?}:{at} has producer {:?}",caller.definition,node,sources,value,block,instruction.kind)));
         }
     }
     fn scalar_expression_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{

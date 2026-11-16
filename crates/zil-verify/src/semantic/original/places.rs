@@ -10,6 +10,10 @@ pub(in crate::semantic) struct Assignment {
 }
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
+    pub(in crate::semantic) fn bound_value_name(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<bool>{
+        b.spend(self.value_bindings.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
+        Ok(self.value_bindings.contains_key(&(definition,node)))
+    }
     pub(in crate::semantic) fn assignments(&self,module:&TypedModule,definition:SemanticDefinitionId,b:&mut Budget)->Check<Vec<Assignment>> {
         if !self.checked.contains(&definition){return Err(bad("assignment source body is not completely checked"));}
         let index=self.source_index(module,&[definition],b)?;
