@@ -136,7 +136,19 @@ impl Solver<'_, '_> {
                 self.state.arena[selected],
                 Kind::Wrapped(Wrapper::Managed, _)
             ) {
-                self.describe_argument(frame, &arguments[0], &place, selected, b, depth + 1)?
+                let wanted = if matches!(intrinsic, sealed::Intrinsic::StoreAt | sealed::Intrinsic::StoreAtMut) {
+                    match self.receiving_for(frame, node, b)? {
+                        Some(expected) => match self.state.arena[self.type_root(expected, b)?] {
+                            Kind::Address { life, inner, .. } => {
+                                self.unify(inner, element, depth + 1, b)?;
+                                Some(life)
+                            }
+                            _ => None,
+                        },
+                        None => None,
+                    }
+                } else { None };
+                self.describe_argument_role(frame, &arguments[0], &place, selected, wanted, b, depth + 1)?
             } else {
                 selected
             };

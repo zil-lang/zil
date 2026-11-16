@@ -2,6 +2,79 @@
 //! never rewrites a declaration, an intrinsic child class or a retained life.
 use super::*;
 impl Solver<'_, '_> {
+    // Solve only Type variables exposed by a real input's complete original
+    // constructor/argument directory before forming a dependent nominal or
+    // associated output. This is inference, never a provider/where proof.
+    pub(super) fn input_recipe_hint(&mut self, frame: &Frame, recipe: &SemanticTypeRecipe, actual: Term,
+        b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let actual = self.type_root(actual, b)?;
+        match recipe {
+            SemanticTypeRecipe::Formal(reference) if reference.scope == SemanticScopeRef::Ancestor(0) => {
+                if matches!(self.inventory.definition(frame.definition, b)?.parameters.get(reference.ordinal as usize),
+                    Some(SemanticFormal::Type { .. }))
+                {
+                    let target = *frame.formals.get(reference.ordinal as usize)
+                        .ok_or_else(|| fail("input inference omits its exact Type formal"))?;
+                    self.input_hint(target, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Nominal { definition, arguments } => {
+                if let Kind::Nominal { definition: source, arguments: actuals, .. } = &self.state.arena[actual]
+                    && source == definition && actuals.len() == arguments.len()
+                {
+                    b.spend(actuals.len(), WORK)?;
+                    let actuals = actuals.clone();
+                    for (recipe, actual) in arguments.iter().zip(actuals) {
+                        if let SemanticActualRecipe::Type(recipe) = recipe {
+                            self.input_recipe_hint(frame, recipe, actual, b, depth + 1)?;
+                        }
+                    }
+                }
+            }
+            SemanticTypeRecipe::Address { inner, .. } => {
+                if let Kind::Address { inner: actual, .. } = self.state.arena[actual] {
+                    self.input_recipe_hint(frame, inner, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Desc { inner, .. } => {
+                if let Kind::Desc { inner: actual, .. } = self.state.arena[actual] {
+                    self.input_recipe_hint(frame, inner, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::OwnedStore(inner)
+            | SemanticTypeRecipe::Mutex(inner) | SemanticTypeRecipe::Registration(inner)
+            | SemanticTypeRecipe::AsyncRegistration(inner) => {
+                if let Kind::Wrapped(wrapper, actual) = self.state.arena[actual] {
+                    let same = matches!((recipe, wrapper),
+                        (SemanticTypeRecipe::Managed(_), Wrapper::Managed)
+                        | (SemanticTypeRecipe::OwnedStore(_), Wrapper::Store)
+                        | (SemanticTypeRecipe::Mutex(_), Wrapper::Mutex)
+                        | (SemanticTypeRecipe::Registration(_), Wrapper::Registration)
+                        | (SemanticTypeRecipe::AsyncRegistration(_), Wrapper::AsyncRegistration));
+                    if same { self.input_recipe_hint(frame, inner, actual, b, depth + 1)?; }
+                }
+            }
+            SemanticTypeRecipe::Tuple(fields) => {
+                if let Kind::Tuple(actuals) = &self.state.arena[actual] && actuals.len() == fields.len() {
+                    b.spend(actuals.len(), WORK)?;
+                    let actuals = actuals.clone();
+                    for (field, actual) in fields.iter().zip(actuals) {
+                        self.input_recipe_hint(frame, field, actual, b, depth + 1)?;
+                    }
+                }
+            }
+            SemanticTypeRecipe::Array { element, .. } => {
+                if let Kind::Array { element: actual, .. } = self.state.arena[actual] {
+                    self.input_recipe_hint(frame, element, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Qualified { storage, .. } => self.input_recipe_hint(frame, storage, actual, b, depth + 1)?,
+            _ => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn invocation_actuals(
         &mut self,
         count: u32,
@@ -478,6 +551,12 @@ impl Solver<'_, '_> {
         } else {
             self.expression_expected(frame, value, expected, b, depth + 1)?
         };
+        self.call_argument_value(actual, expected, b, depth + 1)
+    }
+    pub(super) fn call_argument_value(&mut self, actual: Term, expected: Term,
+        b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let expected_root = self.type_root(expected, b)?;
         let actual_root = self.type_root(actual, b)?;
         if self.static_byte_role(actual, expected, b, depth + 1)? {
             return Ok(());

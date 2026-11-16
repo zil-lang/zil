@@ -1488,6 +1488,12 @@ impl Solver<'_, '_> {
         )?;
         let answer: CompileResult<Term> = (|| {
             for (ordinal, parameter) in signature.parameters.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if let Some(Some(actual)) = input_hints.and_then(|hints| hints.get(ordinal)) {
+                    self.input_recipe_hint(&frame, &parameter.ty, *actual, b, depth + 1)?;
+                }
+            }
+            for (ordinal, parameter) in signature.parameters.iter().enumerate() {
                 let term = self.recipe(&frame, &parameter.ty, b, depth + 1)?;
                 if let Some(Some(actual)) = input_hints.and_then(|hints| hints.get(ordinal)) {
                     self.input_hint(term, *actual, b, depth + 1)?;
@@ -1978,6 +1984,7 @@ impl Solver<'_, '_> {
                             .filter(|place| !place.path.is_empty())
                             .map(|place| place.selected)
                     };
+                    let mut prepared_arguments = BTreeMap::new();
                     let (parameters, result) = if let Some(local) = local {
                         if let CoreExprKind::Name(name) = &head.kind {
                             b.spend(
@@ -2325,6 +2332,39 @@ impl Solver<'_, '_> {
                                         self.lexical_input_hint(frame, argument, b, depth + 1)?;
                                     Self::push(&mut hints, hint, b)?;
                                 }
+                                let definition = self.inventory.definition(target, b)?;
+                                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else {
+                                    return Err(fail("original call inference has no full static signature"));
+                                };
+                                // A nested argument of an abstract Type must be
+                                // evaluated once before dependent trait output
+                                // formation. Stage the complete ordered vector
+                                // only when all inputs have that direct Type
+                                // role and no receiving context is being lost.
+                                b.spend(signature.parameters.len().saturating_add(arguments.len().saturating_mul(2)), WORK)?;
+                                let abstract_inputs = signature.parameters.iter().all(|parameter|
+                                    matches!(parameter.ty, SemanticTypeRecipe::Formal(SemanticFormalRef {
+                                        scope: SemanticScopeRef::Ancestor(0), .. })));
+                                let nested = hints.iter().zip(arguments).any(|(hint, argument)| hint.is_none()
+                                    && matches!(argument.kind, CoreExprKind::Call { .. }));
+                                if written.is_empty() && abstract_inputs && nested
+                                    && self.receiving_for(frame, value.id, b)?.is_none()
+                                    && hints.iter().zip(arguments).all(|(hint, argument)| hint.is_some()
+                                        || matches!(argument.kind, CoreExprKind::Call { .. }))
+                                {
+                                    for (ordinal, argument) in arguments.iter().enumerate() {
+                                        let borrowed = if let Some(Some(hint)) = hints.get(ordinal) {
+                                            matches!(self.state.arena[self.type_root(*hint, b)?], Kind::Address { .. })
+                                        } else { false };
+                                        let actual = if borrowed { self.borrowed_argument(frame, argument, b, depth + 1)? }
+                                            else { self.expression(frame, argument, b, depth + 1)? };
+                                        b.lookup(prepared_arguments.len(), WORK)?;
+                                        if prepared_arguments.insert(argument.id, actual).is_some() {
+                                            return Err(fail("staged call argument reuses an original source identity"));
+                                        }
+                                        if let Some(hint) = hints.get_mut(ordinal) { *hint = Some(actual); }
+                                    }
+                                }
                                 let (actuals, parameters, result) = self.scheme(
                                     frame,
                                     target,
@@ -2371,8 +2411,14 @@ impl Solver<'_, '_> {
                         self.call_result_context(result, expected, b, depth + 1)?;
                     }
                     for (argument, parameter) in arguments.iter().zip(parameters) {
-                        self.call_argument(frame, argument, parameter, b, depth + 1)?;
+                        b.lookup(prepared_arguments.len(), WORK)?;
+                        if let Some(actual) = prepared_arguments.remove(&argument.id) {
+                            self.call_argument_value(actual, parameter, b, depth + 1)?;
+                        } else {
+                            self.call_argument(frame, argument, parameter, b, depth + 1)?;
+                        }
                     }
+                    if !prepared_arguments.is_empty() { return Err(fail("original staged call leaves an unchecked argument")); }
                     self.static_call_roles(frame, value.id, arguments, result, b, depth + 1)?;
                     self.finish_abstract_call(frame.definition, value.id, b)?;
                     b.lookup(self.state.intrinsics.len(), WORK)?;
