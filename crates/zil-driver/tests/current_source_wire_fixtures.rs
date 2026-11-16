@@ -11,6 +11,7 @@ use zil_base::{FileId, Fingerprint, Limits, ModuleId, SourceUnit, TargetProfile}
 
 fn original_source(label: &str) -> String {
     match label {
+        "semantic/ordinary-identity" => "crates/zil-verify/src/semantic/fixtures/ordinary-identity.zil".into(),
         "dyn-context/static-callback-getter-cycle" => "tests/fixtures/dyn-context/static-callback-getter-cycle-control.zil".into(),
         "returned-owning-holders/semantic-only-phantom-capture" => format!("tests/fixtures/{label}.zil"),
         "loan_control" => "tests/borrowed-callable-arguments/loan_control.zil".into(),
@@ -24,6 +25,9 @@ fn original_source(label: &str) -> String {
 // loaded and no schema/version field is edited by this producer.
 fn fixture_outputs(label: &str) -> Vec<(&'static str, String)> {
     match label {
+        "semantic/ordinary-identity" => vec![
+            ("candidate", "crates/zil-verify/src/semantic/fixtures/ordinary-identity-complete-call-sites.wire".into()),
+        ],
         "dyn-context/context-read" => vec![
             ("typed", format!("crates/zil-verify/tests/fixtures/{label}.typed.wire")),
             ("candidate", format!("crates/zil-verify/tests/fixtures/{label}.candidate.wire")),
@@ -64,6 +68,10 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
         });
     fs::create_dir_all(&output).unwrap();
     let cases = [
+        (
+            "semantic/ordinary-identity",
+            include_str!("../../zil-verify/src/semantic/fixtures/ordinary-identity.zil"),
+        ),
         (
             "dyn-context/context-read",
             include_str!("../../zil-verify/tests/fixtures/dyn-context/context-read.zil"),
