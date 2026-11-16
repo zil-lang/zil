@@ -62,6 +62,7 @@ impl CheckedOriginal {
         let mut sites=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall));
         let site=sites.next().ok_or_else(||bad("abstract original member requires its exact BodyCall site"))?;if sites.next().is_some(){return Err(bad("original trait member call site is ambiguous"));}
         let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
+        self.remember_inferred_type_sources(module,env.current()?,site.id,original,signature,arguments,1,&written_slots,&actuals,b)?;
         self.trait_calls.insert((env.current()?,site.id),TraitCall{receiver,declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode});
         Ok(Some(result))
     }

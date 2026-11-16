@@ -3,6 +3,11 @@
 //! caller's original lifetime actual/result image.
 use super::*;
 impl CheckedContext {
+    pub(super) fn inferred_call_type(&self,module:&TypedModule,sources:&[(SemanticTypeRecipe,bool)],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
+        let mut selected=None;
+        for(source,shared_view)in sources{let value=self.evaluate_type(module,source,environment,external,active,b)?;let value=if *shared_view{self.call_shared_view(&value,b)?}else{value};if let Some(expected)=&selected{if !self.same_type(environment,expected,&value,b)?{return Err(bad("repeated inferred Type arguments have different whole intrinsic domains"));}}else{selected=Some(value);}}
+        Ok(selected)
+    }
     /// Only exported fresh borrow heads use the checked original operand
     /// image. An extra compiler reborrow is an input role, not the lifetime of
     /// an opaque/nominal result that retains the original caller occurrence.

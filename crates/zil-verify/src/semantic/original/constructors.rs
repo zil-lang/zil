@@ -139,6 +139,7 @@ impl CheckedOriginal {
         let site=rows.next().ok_or_else(||bad("original static member requires its exact BodyCall occurrence"))?;
         if rows.next().is_some(){return Err(bad("original static member Call occurrence is ambiguous"));}
         let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
+        self.remember_inferred_type_sources(module,env.current()?,site.id,original,signature,arguments,0,&written_slots,&actuals,b)?;
         self.trait_calls.insert((env.current()?,site.id),super::trait_calls::TraitCall{receiver,declaration:*declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode:None});
         if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
         Ok(Some(result))

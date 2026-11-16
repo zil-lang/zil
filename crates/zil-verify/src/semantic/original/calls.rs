@@ -90,24 +90,7 @@ impl CheckedOriginal {
                 // a fresh nominal reconstructed from its outside Life images.
                 // Preserve every inducing occurrence; the actual bridge must
                 // compare all of them rather than choose the first match.
-                for(ordinal,formal)in definition.parameters.iter().enumerate(){
-                    if written_slots[ordinal].is_some()||!matches!(formal,SemanticFormal::Type{..}){continue;}
-                    let mut sources=Vec::new();
-                    for(parameter,argument)in signature.parameters.iter().zip(arguments){
-                        b.spend(1)?;
-                        if matches!(&parameter.ty,SemanticTypeRecipe::Formal(reference)if reference.scope==SemanticScopeRef::Ancestor(0)&&reference.ordinal==ordinal as u32){
-                            let Arg::Type(inferred)=&checked[ordinal]else{return Err(bad("inferred Type source has another complete kind"));};
-                            let source=self.expressions.get(&(env.current()?,argument.id)).ok_or_else(||bad("inferred Type argument lacks its original expression proof"))?;
-                            // Whole-Type receipts preserve the original source
-                            // domain. A shared reborrow uses a private root-mode
-                            // view; the source expression still proves its true
-                            // exclusive category and every child class.
-                            if self.same(inferred,source,b)?{sources.push((argument.id,false));}
-                            else{let view=self.contextual_borrow_value(source,inferred,b)?;if self.same(inferred,&view,b)?{sources.push((argument.id,true));}}
-                        }
-                    }
-                    if !sources.is_empty(){b.spend(sources.len())?;self.call_type_sources.insert((env.current()?,site.id,ordinal as u32),sources);}
-                }
+                self.remember_inferred_type_sources(module,env.current()?,site.id,definition,signature,arguments,0,&written_slots,&checked,b)?;
                 self.calls.insert((env.current()?,site.id),checked);
                 self.call_targets.insert((env.current()?,site.id),target);
                 if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
@@ -486,5 +469,27 @@ mod written_kind_tests {
         let formals=[formal_const()];let types=[scalar()];
         assert!(CheckedOriginal::written_original_slots(&formals,Some(&types),None,&mut Budget::new(&Limits::default())).unwrap_err().message.contains("full-ordinal kind"));
         assert!(CheckedOriginal::written_original_slots(&[],Some(&[]),Some(&[]),&mut Budget::new(&Limits::default())).is_err(),"two competing syntax lists cannot share a full-ordinal map");
+    }
+}
+
+impl CheckedOriginal{
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn remember_inferred_type_sources(&mut self,module:&TypedModule,owner:SemanticDefinitionId,site:SemanticSiteId,definition:&SemanticDefinition,signature:&SemanticSignatureRecipe,arguments:&[SemanticOriginalExpr],parameter_offset:usize,written:&[Option<usize>],actuals:&[Arg],b:&mut Budget)->Check<()>{
+        if written.len()!=definition.parameters.len()||actuals.len()!=definition.parameters.len()||signature.parameters.len()!=arguments.len().saturating_add(parameter_offset){return Err(bad("inferred whole Type sources change their full original parameter domains"));}
+        for(ordinal,formal)in definition.parameters.iter().enumerate(){
+            if written[ordinal].is_some()||!matches!(formal,SemanticFormal::Type{..}){continue;}
+            let Arg::Type(inferred)=&actuals[ordinal]else{return Err(bad("inferred Type source has another complete kind"));};let mut sources=Vec::new();
+            for(parameter,argument)in signature.parameters[parameter_offset..].iter().zip(arguments){
+                let mut parameter=&parameter.ty;let mut depth=0usize;
+                while let SemanticTypeRecipe::Address{inner,..}=parameter{b.spend(1)?;depth=depth.checked_add(1).ok_or_else(||limit("inferred Type source borrow depth exhausted"))?;parameter=inner;}
+                if !matches!(parameter,SemanticTypeRecipe::Formal(reference)if reference.scope==SemanticScopeRef::Ancestor(0)&&reference.ordinal==ordinal as u32){continue;}
+                let mut node=Some(argument.id);
+                for _ in 0..depth{let Some(current)=node else{break;};node=self.borrow_operand_source(module,owner,&SemanticOriginalTypeSource::Expression(current),b)?;}
+                let Some(node)=node else{continue;};let source=self.original_type(owner,&SemanticOriginalTypeSource::Expression(node),b)?;
+                if self.same(inferred,&source,b)?{sources.push((node,false));}
+                else{let view=self.contextual_borrow_value(&source,inferred,b)?;if self.same(inferred,&view,b)?{sources.push((node,true));}}
+            }
+            if !sources.is_empty(){b.spend(sources.len())?;self.call_type_sources.insert((owner,site,ordinal as u32),sources);}
+        }Ok(())
     }
 }

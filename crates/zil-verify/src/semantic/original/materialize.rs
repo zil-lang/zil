@@ -42,7 +42,39 @@ impl CheckedOriginal {
     }
     pub(in crate::semantic) fn type_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
         let value=self.original_type(definition,source,b)?;
+        if let Ty::Address{mutable,life,inner}=&value{if !matches!(inner.as_ref(),Ty::Atom(_)){
+            if let Some(operand)=self.borrow_operand_source(module,definition,source,b)?{
+                let child=self.original_type(definition,&SemanticOriginalTypeSource::Expression(operand),b)?;
+                if !self.same(inner,&child,b)?{return Err(bad("original borrow changes its exact operand's complete child type"));}
+                // The root is this borrow's own occurrence. Its child is an
+                // existing whole value, including an already sealed Closure
+                // or opaque Call domain; reification must not rebuild its κ
+                // from an entry header's unrelated outside image.
+                return Ok(SemanticTypeRecipe::Address{mutable:*mutable,lifetime:self.reify_outer(module,life,env,b)?,inner:Box::new(SemanticTypeRecipe::OriginalType{scope:self.scope(definition,env,b)?,source:SemanticOriginalTypeSource::Expression(operand)})});
+            }
+        }}
         self.reify_type(module,&value,env,b)
+    }
+    pub(super) fn borrow_operand_source(&self,module:&TypedModule,owner:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>>{
+        if !matches!(source,SemanticOriginalTypeSource::Expression(_)|SemanticOriginalTypeSource::Binding(_)|SemanticOriginalTypeSource::NameAt{..}){return Ok(None);}
+        let index=self.source_index(module,&[owner],b)?;let function=index.definitions.get(&owner).ok_or_else(||bad("original borrow source has no complete function"))?;
+        let binding=match source{
+            SemanticOriginalTypeSource::Binding(node)=>Some(*node),
+            SemanticOriginalTypeSource::NameAt{at,name}=>{let(statement,node)=match at{SemanticOriginalNode::Expression(node)=>(false,*node),SemanticOriginalNode::Statement(node)=>(true,*node)};b.spend(name.len())?;match self.name_binders_at.get(&(owner,statement,node,name.clone())){Some(Binder::Local{definition,node,..})if *definition==owner=>Some(*node),_=>return Ok(None)}},
+            SemanticOriginalTypeSource::Expression(_)=>None,
+            _=>return Ok(None),
+        };
+        let initializer=|node|->Check<Option<&SemanticOriginalExpr>>{let Some(statement)=function.bindings.get(&node)else{return Ok(function.expressions.get(&node).copied());};Ok(match &statement.kind{CoreStatementKind::Binding{initializer,..}=>initializer.as_ref(),_=>None})};
+        let mut expression=if let Some(node)=binding{let Some(expression)=initializer(node)?else{return Ok(None);};expression}else if let SemanticOriginalTypeSource::Expression(node)=source{*function.expressions.get(node).ok_or_else(||bad("original borrow expression is absent"))?}else{return Ok(None);};
+        let mut seen=BTreeSet::new();loop{
+            b.spend(1)?;if !seen.insert(expression.id){return Err(bad("original borrow source has a cyclic local initializer"));}
+            match &expression.kind{
+                CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=>expression=inner,
+                CoreExprKind::Name(_)=>{let Some(Binder::Local{definition,node,..})=self.value_bindings.get(&(owner,expression.id))else{return Ok(None);};if *definition!=owner{return Ok(None);}let Some(next)=initializer(*node)?else{return Ok(None);};expression=next;},
+                CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>return Ok(Some(operand.id)),
+                _=>return Ok(None),
+            }
+        }
     }
     pub(in crate::semantic) fn call_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<(SemanticDefinitionId,Vec<SemanticActualRecipe>)>{
         let target=*self.call_targets.get(&(definition,site)).ok_or_else(||bad("actual static Call has no original symbolically resolved target"))?;
