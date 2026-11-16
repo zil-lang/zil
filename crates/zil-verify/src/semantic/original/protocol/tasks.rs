@@ -174,6 +174,7 @@ impl<'a> Engine<'a> {
             } if root != destination.clone()
                 && state.owners.get(&root).is_some_and(|owner| owner.task) =>
             {
+                b.spend(source_width(&state.owner(&root,b)?.sources))?;
                 let owner = state.owner(&root, b)?.clone();
                 if !owner.owned {
                     return Err(bad(
@@ -457,6 +458,7 @@ impl<'a> Engine<'a> {
         let [Value::Owner { root, borrowed }] = values else {
             return Err(bad("Task operation has no exact original owner slot"));
         };
+        b.spend(source_width(&state.owner(root,b)?.sources))?;
         let owner = state.owner(root, b)?.clone();
         if !owner.task {
             return Err(bad(
@@ -770,6 +772,11 @@ pub(super) fn task_roots(value: &Value, roots: &mut Vec<(Place,bool)>, b: &mut B
 }
 
 impl Engine<'_>{
+    pub(super) fn invalidate_task_source(&self,state:&mut State,root:&Place,b:&mut Budget)->Check<()>{
+        let owner=state.owner(root,b)?;b.spend(source_width(&owner.sources))?;
+        if owner.task{state.owners.get_mut(root).ok_or_else(||bad("source invalidation lost its exact Task owner"))?.sources=unknown_sources();}
+        Ok(())
+    }
     pub(super) fn result_sources(&self,state:&State,value:&Value,b:&mut Budget)->Check<ResultSources>{
         fn walk(state:&State,value:&Value,path:&mut Vec<String>,out:&mut ResultSources,b:&mut Budget)->Check<()>{
             b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
@@ -825,52 +832,81 @@ impl CheckedOriginal{
     /// worker graph. It never specializes an abstract incoming Task from its
     /// concrete caller. More general retained/unknown input frames keep their
     /// existing Closed or Suspend obligation.
-    pub(super) fn synchronous_task_births(&self,_module:&TypedModule,_context:&CheckedContext,index:&index::Index<'_>,_active:&mut ActiveQueries,b:&mut Budget)->Check<BTreeSet<(SemanticDefinitionId,NodeId)>>{
+    pub(super) fn synchronous_task_births(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,active:&mut ActiveQueries,b:&mut Budget)->Check<BTreeSet<(SemanticDefinitionId,NodeId)>>{
         let mut out=BTreeSet::new();let mut workers=BTreeMap::new();
-        for((owner,site),use_)in &self.intrinsic_calls{
-            b.spend(1)?;
-            if !matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned){continue;}
+        let sites=self.intrinsic_calls.iter().filter(|(_,use_)|matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned)).map(|(key,use_)|(*key,*use_)).collect::<Vec<_>>();b.spend(sites.len())?;
+        for((owner,site),use_)in sites{
             let Some(worker)=use_.worker else{return Err(bad("original Task birth loses its exact worker source"));};
-            let function=index.definitions.get(owner).ok_or_else(||bad("original Task birth is outside the complete source inventory"))?;
-            let Some(index::Node::Expression(node))=function.nodes.get(site)else{return Err(bad("original Task birth has no exact source Call"));};
+            let function=index.definitions.get(&owner).ok_or_else(||bad("original Task birth is outside the complete source inventory"))?;
+            let Some(index::Node::Expression(node))=function.nodes.get(&site)else{return Err(bad("original Task birth has no exact source Call"));};
             let CoreExprKind::Call{arguments,..}=&node.kind else{return Err(bad("original Task birth selects a non-Call source occurrence"));};
             let prototype=self.prototypes.get(&worker).ok_or_else(||bad("original Task birth has no complete worker prototype"))?;
-            // No unknown retained input may be hidden by this restricted
-            // proof. Task creation's general input/failure rules remain intact.
-            if arguments.len()!=1||!prototype.parameters.is_empty()||self.free_values.get(&worker).is_some_and(|values|!values.is_empty()){continue;}
-            let proved=if let Some(proved)=workers.get(&worker){*proved}else{let proved=self.closed_source_worker(index,worker,b)?;workers.insert(worker,proved);proved};
-            if proved{out.insert((*owner,node.id));}
+            if arguments.len()!=prototype.parameters.len().saturating_add(1){return Err(bad("original Task birth changes its complete source inputs"));}
+            // Every source input and every physical field must be closed here;
+            // an abstract Task/registration or unknown callback is not a fact
+            // about its caller. Creation's failure/SyncDrop obligations remain.
+            let proved=if let Some(proved)=workers.get(&worker){*proved}else{let proved=self.closed_source_worker(module,context,index,worker,active,b)?;workers.insert(worker,proved);proved};
+            if proved{out.insert((owner,node.id));}
         }
         Ok(out)
     }
-    fn closed_source_worker(&self,index:&index::Index<'_>,root:SemanticDefinitionId,b:&mut Budget)->Check<bool>{
-        fn closed(ty:&Ty,pending:&mut Vec<SemanticDefinitionId>,b:&mut Budget,depth:usize)->Check<bool>{
-            b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original synchronous worker type depth exceeded"));}
-            Ok(match ty{
-                Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64)|Ty::SealedError(_)=>true,
-                Ty::Function(id)=>{pending.push(*id);true},
-                Ty::Tuple(fields)=>{for field in fields{if !closed(field,pending,b,depth+1)?{return Ok(false);}}true},
-                Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>closed(inner,pending,b,depth+1)?,
-                Ty::ErrorUnion(error,result)=>closed(error,pending,b,depth+1)?&&closed(result,pending,b,depth+1)?,
-                Ty::Code{parameters,result,..}=>{for parameter in parameters{if !closed(parameter,pending,b,depth+1)?{return Ok(false);}}closed(result,pending,b,depth+1)?},
-                // Abstract variables, opaque targets, nominal/retained carriers
-                // and erased callbacks do not supply a closed graph premise.
-                _=>false,
-            })
-        }
+    fn closed_source_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,pending:&mut Vec<SemanticDefinitionId>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+        b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original synchronous worker type depth exceeded"));}
+        let ty=self.resolved(ty,b)?;
+        Ok(match ty{
+            Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64|Type::ByteBuffer)|Ty::SealedError(_)=>true,
+            Ty::Function(id)=>{pending.push(id);true},
+            Ty::Tuple(fields)=>{for field in fields{if !self.closed_source_type(module,context,&field,pending,active,b,depth+1)?{return Ok(false);}}true},
+            Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>self.closed_source_type(module,context,&inner,pending,active,b,depth+1)?,
+            Ty::ErrorUnion(error,result)=>self.closed_source_type(module,context,&error,pending,active,b,depth+1)?&&self.closed_source_type(module,context,&result,pending,active,b,depth+1)?,
+            Ty::Code{parameters,result,..}=>{for parameter in parameters{if !self.closed_source_type(module,context,&parameter,pending,active,b,depth+1)?{return Ok(false);}}self.closed_source_type(module,context,&result,pending,active,b,depth+1)?},
+            Ty::Nominal(id,args)=>{
+                let nominal=context.definition(module,id,b)?;
+                let SemanticDefinitionBody::Nominal{body,..}=&nominal.body else{return Err(bad("synchronous source nominal has no original complete declaration"));};
+                let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=args;
+                match body{
+                    SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,pending,active,b,depth+1)?{return Ok(false);}},
+                    SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,pending,active,b,depth+1)?{return Ok(false);}}},
+                }
+                // A custom destructor's entire original dependency graph is
+                // part of default close, including scalar observer leaves.
+                let program=module.semantic.as_ref().ok_or_else(||bad("synchronous source Drop lacks its complete original directory"))?;
+                for scope in &program.definitions{b.spend(1)?;let SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{self_type,trait_kind:SemanticBuiltinTrait::Drop})=&scope.body else{continue;};let mut ty=self_type;while let SemanticTypeRecipe::Qualified{storage,..}=ty{b.spend(1)?;ty=storage;}
+                    if matches!(ty,SemanticTypeRecipe::Nominal{definition,..}if *definition==id){for method in &program.definitions{b.spend(1)?;if method.parent==Some(scope.id)&&method.kind==SemanticDefinitionKind::Method{pending.push(method.id);}}}
+                }
+                true
+            },
+            Ty::Opaque(owner,args)=>{let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;self.closed_source_type(module,context,&hidden,pending,active,b,depth+1)?},
+            Ty::Closure(owner,args,sealed)=>{
+                pending.push(owner);
+                for(_,capture)in self.closure_capture_fields(module,context,owner,&args,&sealed,b)?{if !self.closed_source_type(module,context,&capture,pending,active,b,depth+1)?{return Ok(false);}}true
+            },
+            // Abstract variables, retained Tasks/registrations and erased
+            // callbacks do not supply a universally closed graph premise.
+            _=>false,
+        })
+    }
+    fn closed_source_worker(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,root:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+        fn scalar(ty:&Ty)->bool{matches!(ty,Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64))}
         let mut pending=vec![root];let mut seen=BTreeSet::new();
         while let Some(id)=pending.pop(){
             b.spend(seen.len().saturating_add(1))?;if !seen.insert(id){continue;}
             let Some(function)=index.definitions.get(&id)else{return Ok(false);};
-            if !matches!(function.body,SemanticOriginalFunctionBody::Defined(_)){return Ok(false);}
             let prototype=self.prototypes.get(&id).ok_or_else(||bad("synchronous worker dependency lacks its original signature"))?;
-            for ty in prototype.parameters.iter().chain(std::iter::once(&prototype.result)){
-                if !closed(&self.resolved(ty,b)?,&mut pending,b,0)?{return Ok(false);}
+            let mut types=Vec::new();for ty in prototype.parameters.iter().chain(std::iter::once(&prototype.result)){types.push(self.resolved(ty,b)?);}
+            if !matches!(function.body,SemanticOriginalFunctionBody::Defined(_)){
+                // A scalar C observer cannot receive a Task/registration head,
+                // pointer, callback or environment. General foreign authority
+                // is not inferred from this finite leaf profile.
+                if !matches!(function.body,SemanticOriginalFunctionBody::External)||function.definition.kind!=SemanticDefinitionKind::Function||function.definition.parent.is_some()||prototype.call_kind!=CallKind::Direct||!types.iter().all(scalar){return Ok(false);}
+                continue;
             }
-            if self.free_values.get(&id).is_some_and(|values|!values.is_empty()){return Ok(false);}
+            for ty in &types{if !self.closed_source_type(module,context,ty,&mut pending,active,b,0)?{return Ok(false);}}
+            let captures=self.free_values.get(&id).map(|values|values.values().map(|value|self.resolved(&value.ty,b)).collect::<Check<Vec<_>>>()).transpose()?.unwrap_or_default();
+            for ty in captures{if !self.closed_source_type(module,context,&ty,&mut pending,active,b,0)?{return Ok(false);}}
             for node in function.expressions.values(){
                 b.spend(1)?;
-                if let Some(ty)=self.expressions.get(&(id,node.id)){if !closed(&self.resolved(ty,b)?,&mut pending,b,0)?{return Ok(false);}}
+                if let Some(ty)=self.expressions.get(&(id,node.id)){let ty=self.resolved(ty,b)?;if !self.closed_source_type(module,context,&ty,&mut pending,active,b,0)?{return Ok(false);}}
                 if !matches!(node.kind,CoreExprKind::Call{..}){continue;}
                 let(_,site)=self.original_call_site(id,node.id,b)?;
                 if let Some(use_)=self.intrinsic_calls.get(&(id,site)){

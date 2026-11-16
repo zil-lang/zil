@@ -456,8 +456,10 @@ impl Engine<'_> {
                 }
                 _ => {
                     for value in values {
-                        if let Value::Owner { root, .. } = value {
-                            self.update(state, root, LIVE, b)?;
+                        let mut roots=Vec::new();tasks::task_roots(value,&mut roots,b)?;
+                        for(root,_)in roots{
+                            self.invalidate_task_source(state,&root,b)?;
+                            self.update(state,&root,LIVE,b)?;
                         }
                     }
                     return Ok(Value::Plain);
@@ -487,6 +489,7 @@ impl Engine<'_> {
                 .get(&root)
                 .is_some_and(|owner| owner.states & DEAD == 0)
             {
+                self.invalidate_task_source(state,&root,b)?;
                 self.update(state, &root, LIVE, b)?;
             }
         }
@@ -667,6 +670,11 @@ impl Engine<'_> {
                 ));
             }
         }
+        for(ordinal,value)in values.iter().enumerate(){
+            if self.preserving_parameter_source(target,site,ordinal,b)?{continue;}
+            let mut roots=Vec::new();tasks::task_roots(value,&mut roots,b)?;
+            for(root,_)in roots{if pending.iter().any(|(changed,states,_)|*changed==root&&*states!=DEAD){self.invalidate_task_source(state,&root,b)?;}}
+        }
         let mut relations = Vec::new();
         for (root, states, conditional) in pending {
             let generation = self.update(state, &root, states, b)?;
@@ -691,6 +699,19 @@ impl Engine<'_> {
             }
             Ok(value)
         }
+    }
+    fn preserving_parameter_source(&self,target:SemanticDefinitionId,site:SemanticSiteId,ordinal:usize,b:&mut Budget)->Check<bool>{
+        let prototype=self.original.prototypes.get(&target).ok_or_else(||bad("source-preserving parameter lacks its original callee"))?;
+        let mode=*prototype.modes.get(ordinal).ok_or_else(||bad("source-preserving parameter omits its exact mode"))?;
+        if matches!(mode,PassingMode::Borrow|PassingMode::Copy){return Ok(true);}
+        if matches!(mode,PassingMode::BorrowMut|PassingMode::Describe){return Ok(false);}
+        let mut ty=self.original.resolved(prototype.parameters.get(ordinal).ok_or_else(||bad("source-preserving parameter omits its complete type"))?,b)?;
+        if let Ty::Variable(definition,formal)=ty{
+            if definition!=target{return Ok(false);}
+            let Some(Arg::Type(actual))=self.original.calls.get(&(self.current,site)).and_then(|args|args.get(formal as usize))else{return Ok(false);};
+            ty=self.original.resolved(actual,b)?;
+        }
+        Ok(matches!(ty,Ty::Address{mutable:false,..}))
     }
     fn observing_parameter(
         &self,
