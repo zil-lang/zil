@@ -1,0 +1,15 @@
+{
+  "archive_bytes": 864462054,
+  "files": 237208,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 35,
+  "raw_bytes": 4020068101,
+  "restore_dir": "/workspace/zil-recovery/restart-performance-native-full-fresh-01",
+  "scope": "Complete immutable current4a23 native window, all raw reports/logs/user caches/artifacts. Diagnostic is separately labelled, never formal timings. Raw paths relative to this window root. Original main ResourceLimit and error/recovery preserved. SDK18/native-link external fixedV32.",
+  "sha256": "7f55704b7bbc0309da4a41e730186cca6bf4a9cd5bb401a04363397f7dc69628",
+  "source_commits": {
+    "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+    "tools": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f"
+  },
+  "status": "verified"
+}
