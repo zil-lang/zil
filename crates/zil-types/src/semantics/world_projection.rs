@@ -449,7 +449,7 @@ pub(super) fn pointee(world: &mut World<'_, '_>, parent: &SemanticTypeValue) -> 
             ));
         }
     };
-    let shape = if matches!(inner, Type::Address { .. } | Type::Desc(_)) {
+    let shape = if matches!(inner.as_ref(), Type::Address { .. } | Type::Desc(_)) {
         let SemanticTypeValue::Resolved { life, .. } = parent else {
             return Err(bad("nested pointee has no complete parent scope"));
         };
