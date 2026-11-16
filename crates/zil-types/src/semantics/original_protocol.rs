@@ -5,6 +5,8 @@ use super::*;
 mod tasks;
 #[path = "original_protocol_consumption.rs"]
 mod consumption;
+#[path = "original_protocol_sources.rs"]
+mod sources;
 #[path = "original_type_cache.rs"]
 mod type_cache;
 pub(in crate::semantics) use type_cache::hash_into;
@@ -54,6 +56,7 @@ enum Root {
     Parameter(SemanticDefinitionId, u32),
     Created(SemanticDefinitionId, NodeId),
     Capture(SemanticDefinitionId, u32),
+    Projection(SemanticDefinitionId, u32),
     Result(SemanticDefinitionId, NodeId, u32),
 }
 #[derive(Clone, PartialEq, Eq)]
@@ -389,6 +392,8 @@ struct Engine<'a, 'b> {
     local_complete: BTreeSet<SemanticDefinitionId>,
     graph_requested: BTreeSet<SemanticDefinitionId>,
     graph_complete: BTreeSet<SemanticDefinitionId>,
+    projected_sources: Vec<sources::Projection>,
+    projected_ids: BTreeMap<sources::Projection, u32>,
     consuming_relevant: BTreeSet<SemanticDefinitionId>,
     consuming_exits: BTreeMap<SemanticDefinitionId, Option<BTreeSet<tasks::Requirement>>>,
     consuming_requirements: BTreeMap<SemanticDefinitionId, BTreeSet<tasks::Requirement>>,
@@ -3029,7 +3034,7 @@ impl<'a> Engine<'a, '_> {
                             }
                             values
                         }
-                        Value::Cleanup { owner, ty, .. } => {
+                        Value::Cleanup { owner, ty, source } => {
                             let fields = cleanup::variant(
                             self.program,
                             self.proof,
@@ -3045,8 +3050,12 @@ impl<'a> Engine<'a, '_> {
                             )
                         })?;
                             let mut values = Vec::with_capacity(fields.len());
-                            for ty in fields {
-                                values.push(self.typed(owner, &ty, Value::Plain, depth + 1)?);
+                            for (index, ty) in fields.into_iter().enumerate() {
+                                let mut value = self.typed(owner, &ty, Value::Plain, depth + 1)?;
+                                if let Some(source) = source {
+                                    self.variant_input_sources(&mut value, source, variant, index, depth + 1)?;
+                                }
+                                values.push(value);
                             }
                             values
                         }
@@ -4380,9 +4389,7 @@ impl<'a> Engine<'a, '_> {
                         } else {
                             self.typed(parent, &ty, Value::Plain, depth + 1)?
                         };
-                        if let Value::Cleanup { source, .. } = &mut value {
-                            *source = Some(Root::Capture(owner, index as u32));
-                        }
+                        self.input_sources(&mut value, Root::Capture(owner, index as u32), &mut Vec::new(), depth + 1)?;
                         if !moved {
                             value = self.view(value, depth + 1)?;
                         }
@@ -4445,9 +4452,7 @@ impl<'a> Engine<'a, '_> {
                         value
                     };
                     let mut value = self.typed(owner, &ty, value, depth + 1)?;
-                    if let Value::Cleanup { source, .. } = &mut value {
-                        *source = Some(Root::Parameter(owner, index as u32));
-                    }
+                    self.input_sources(&mut value, Root::Parameter(owner, index as u32), &mut Vec::new(), depth + 1)?;
                     state
                         .names
                         .entry(parameter.name.clone())
@@ -4629,6 +4634,8 @@ pub(super) fn check(
         local_complete: BTreeSet::new(),
         graph_requested: BTreeSet::new(),
         graph_complete: BTreeSet::new(),
+        projected_sources: Vec::new(),
+        projected_ids: BTreeMap::new(),
         consuming_relevant: BTreeSet::new(),
         consuming_exits: BTreeMap::new(),
         consuming_requirements: BTreeMap::new(),
@@ -4957,6 +4964,8 @@ mod plain_layout_tests {
         local_complete: BTreeSet::new(),
         graph_requested: BTreeSet::new(),
         graph_complete: BTreeSet::new(),
+        projected_sources: Vec::new(),
+        projected_ids: BTreeMap::new(),
         consuming_relevant: BTreeSet::new(),
         consuming_exits: BTreeMap::new(),
         consuming_requirements: BTreeMap::new(),

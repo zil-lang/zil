@@ -394,18 +394,14 @@ impl Engine<'_, '_> {
         let mut result = BTreeSet::new();
         for requirement in requirements {
             let (Requirement::Drop(root) | Requirement::Call(root) | Requirement::Consume(root)) = requirement;
-            let value = match root {
-                Root::Parameter(owner, ordinal) if *owner == target => arguments.get(*ordinal as usize),
-                Root::Capture(owner, ordinal) if *owner == target => self.proof.capture_names.get(&target)
-                    .and_then(|names| names.get(*ordinal as usize))
-                    .and_then(|name| captures.and_then(|captures| captures.get(name))),
-                _ => None,
+            let Some(value) = self.original_input(*root, target, arguments, captures, depth + 1)? else {
+                // A proved inactive sum alternative has no runtime invocation.
+                continue;
             };
-            let Some(value) = value else { return Ok(None); };
             let incoming = match requirement {
-                Requirement::Drop(_) => self.remaining_consumption(value, state, depth + 1)?,
-                Requirement::Call(_) => self.synchronous_callable_value(value, &[], state, active, depth + 1)?,
-                Requirement::Consume(_) => self.synchronous_consumption(value, &[], state, active, depth + 1)?,
+                Requirement::Drop(_) => self.remaining_consumption(&value, state, depth + 1)?,
+                Requirement::Call(_) => self.synchronous_callable_value(&value, &[], state, active, depth + 1)?,
+                Requirement::Consume(_) => self.synchronous_consumption(&value, &[], state, active, depth + 1)?,
             };
             let Some(incoming) = incoming else { return Ok(None); };
             self.pay(incoming.len().saturating_add(1), depth)?;
@@ -986,11 +982,10 @@ impl Engine<'_, '_> {
     ) -> R<Value> {
         self.pay(1, depth)?;
         Ok(match value {
-            Value::Cleanup { source: Some(Root::Parameter(owner, ordinal)), .. } if owner == target => {
-                let actual = arguments.get(ordinal as usize).ok_or_else(|| failure("callable result omits its actual incoming occurrence"))?;
-                self.value_copy(actual, depth + 1)?
+            Value::Cleanup { source: Some(source), .. } => {
+                self.original_input(source, target, arguments, None, depth + 1)?
+                    .ok_or_else(|| pending("returned callable source is in an inactive original input alternative"))?
             }
-            Value::Cleanup { source: Some(_), .. } => return Err(pending("callable result lacks its complete actual capture correspondence")),
             Value::Root(root, live, owning, prior) => Value::Root(
                 *roots.get(&root).ok_or_else(|| {
                     pending("Task return has an unmapped original owning projection")

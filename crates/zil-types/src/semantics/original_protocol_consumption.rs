@@ -212,7 +212,7 @@ impl Engine<'_, '_> {
         for requirement in &needed {
             let (Requirement::Drop(root) | Requirement::Call(root) | Requirement::Consume(root)) =
                 requirement;
-            if !matches!(root, Root::Parameter(domain, _) | Root::Capture(domain, _) if *domain == owner)
+            if !matches!(root, Root::Parameter(domain, _) | Root::Capture(domain, _) | Root::Projection(domain, _) if *domain == owner)
             {
                 return Err(self.consumption_failure());
             }
