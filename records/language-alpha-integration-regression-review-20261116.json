@@ -431,5 +431,66 @@
       ]
     },
     "alpha_accepted": false
+  },
+  "resumed_full_chain_checkpoint": {
+    "source": "2aab4a1e2238dad80bac71e87f9a980e82f7bc51",
+    "last_complete_source_candidate": "fef5783ab3c3c49b046693e948f0bfbece806d40",
+    "last_main_positive": {
+      "passed": 11,
+      "total": 13,
+      "regressions": [
+        "Task zero-context result directory producer mismatch",
+        "Mutex callee local-lock effect incorrectly required caller guard"
+      ]
+    },
+    "regression_repairs_saved": [
+      "f97e45c7b Mutex effect substitution",
+      "73fa92d17 all Task canonical result producers"
+    ],
+    "last_main_negative": {
+      "passed": 4,
+      "total": 4
+    },
+    "last_extra": {
+      "passed": 13,
+      "total": 14
+    },
+    "last_nearest": {
+      "passed": 35,
+      "total": 40
+    },
+    "last_task_suite": {
+      "passed": 1,
+      "failed": 25,
+      "not_accepted": "the lone reported negative pass lacks a passing unmutated baseline",
+      "inventory": "/tmp/task-fef-failure-inventory.json",
+      "groups": {
+        "Types": 17,
+        "Expand": 6,
+        "Verify": 2
+      }
+    },
+    "saved_full_batches": [
+      "A and independent V raw reference memory read/write/call after-state",
+      "exact callable receiver and input-bounded reference result transport",
+      "Source Task unsafe observer, FnMut, Managed source-class projection and Poll context",
+      "Types captured head, retirement, source-bound adapters, complete Task zero-domain and capture place emission",
+      "valid affine callable source forms preserving all observer branches and mutation assertions"
+    ],
+    "preflight": "all workspace all targets before codegen; no old CLI evidence after failed build",
+    "latest_preflight": "273ce6dfb caught two non-exhaustive V Reference-root consumers; owner closing these plus full raw type qualification consumers before next full build",
+    "open_coverage_beyond_case_catalogue": [
+      "payload-free None call with no wanted/other argument context requires whole-call lifetime inference; ignored case not counted",
+      "unknown code parameter and dynamic slot raw pointer-cell writes have no complete after-state contract and remain explicitly rejected"
+    ],
+    "source_inputs_preservation": "/tmp/alpha-task-positive-source-originals-preservation.json pins original illegal forms to 47b49ca4b; positive corrections independently reviewed without removing assertions",
+    "github_full_history_join": "e9b8903f0b905e87eb95182095901b358a0bbe6a",
+    "github_last_confirmed_source_push": "fef5783ab3c3c49b046693e948f0bfbece806d40",
+    "github_verified_wip": {
+      "commit": "8d29422ef25ab78e0ed8ea7526eb6cee1ade16a5",
+      "base": "50d553cb9eea763af3261e5c85f64b5c0eeca8dc",
+      "sha256": "1a5d1c616c2577926df4987bc376290ab6ba5c787fcc242b1cca5923ab66ea7c"
+    },
+    "alpha_accepted": false
   }
 }

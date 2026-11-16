@@ -22,6 +22,8 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
+2026-11-16 后续整链（此前13/13保留其版本证据）：fef5783ab最新完整Source正向11/13、原负例4/4、extra13/14、near35/40；Task26为1过25败，唯一negative pass缺合法base，不作接受。Task完整R目录与Mutex实际callee锁效果引出两旧正例回归，已分别保存73fa/f97修复但未同版复验。A/V独立raw读写、调用后状态与借用目录、Source/Types Task完整前后链已存至2aab；新V raw Reference先编拦两消费者漏match，原owner正连资格/全部接口收口。未约束None推断、未知代码/动态raw写after合同明确开放，不把ignored或Unsupported计Alpha。全源码Git历史已并到施工branch，普通快进push；WIP另archive逐字读回。Alpha仍未接受，详细范围/证据见integration-regression-review记录。
+
 2026-11-16 同版完整Source首次13/13：`3f591ec16`在CLI alpha-64m-v2下，核心正向工程13/13独立Verify成功，原缺SyncDrop负例4/4在实际语义阶段拒绝。不是完整Alpha交付：extra14仍11/14（三个V借用返回路径），nearest36为28/36（六个A借用/泛型/构造消费者、两个新正例输入模式语法需修）。Sol整链施工与A/V分离Astra审核并行；全核心回归及真实native继续。当前源码恢复已GitHub上传并读回至3f591ec16（archive固定a9dd246830）；不据阶段计数宣称发布。
 
 2026-11-16 继续施工（覆盖此前迁移暂停）：结果κ与外部来源分通道、完整provider父环境、已有header Invocation发布已保存至`0ca931d11`；该版本Types cargo check通过。c817 CLI预检拦截原query新增sources参数漏接，原负责人正在闭合所有消费者；未运行旧CLI充当新验收。d2a上一轮Source因磁盘满中断，不报整套计数；现改每例完成后校验并无损压缩phase。七处遗留A/Backend增量经owner亲核仅格式/挪位，备份后恢复精确HEAD。c817施工恢复包四片已GitHub逐片读回，索引固定`4b87db528`。Alpha仍未接受；见本轮integration-regression-review记录。
