@@ -493,14 +493,19 @@ impl Solver<'_, '_> {
                 hidden,
             } => {
                 let hidden = self.instantiate(hidden, owner, actuals, b, depth + 1)?;
-                self.term(
-                    Kind::CallResult {
-                        caller,
-                        node,
-                        hidden,
-                    },
-                    b,
-                )
+                if caller == owner {
+                    // This operation remains checked in its declaration's
+                    // complete body. Transport its instantiated result, not
+                    // its callee-local executable receipt into the caller's
+                    // lexical ancestry. The outer call keeps its own receipt.
+                    b.lookup(self.state.calls.len(), WORK)?;
+                    if !self.state.calls.contains_key(&(caller, node)) {
+                        return Err(fail("transported original result has no checked declaration call"));
+                    }
+                    Ok(hidden)
+                } else {
+                    self.term(Kind::CallResult { caller, node, hidden }, b)
+                }
             }
             Kind::Associated {
                 receiver,

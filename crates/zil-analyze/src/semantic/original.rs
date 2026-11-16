@@ -2025,6 +2025,17 @@ impl Solver<'_, '_> {
                     };
                     let mut prepared_arguments = BTreeMap::new();
                     let (parameters, result) = if let Some(local) = local {
+                        // The call path reads the callee as a place, without a
+                        // second owning expression evaluation. Preserve that
+                        // exact original node for Type/capture consumers too.
+                        // Thin code values already take the ordinary
+                        // expression path in code_call, exactly once.
+                        if !matches!(self.state.arena[self.type_root(local, b)?], Kind::Code { .. }) {
+                            b.lookup(frame.expressions.len(), WORK)?;
+                            if frame.expressions.insert(head.id, local).is_some() {
+                                return Err(fail("original callable head node is reused"));
+                            }
+                        }
                         if let CoreExprKind::Name(name) = &head.kind {
                             b.spend(
                                 frame
@@ -2036,10 +2047,12 @@ impl Solver<'_, '_> {
                             )?;
                             if let Some(index) =
                                 frame.locals.iter().rposition(|local| local.name == *name)
-                                && index < frame.inherited
                             {
-                                b.lookup(frame.captured.len(), WORK)?;
-                                frame.captured.insert(index, local);
+                                self.record_environment_read(frame, index, head.id, b)?;
+                                if index < frame.inherited {
+                                    b.lookup(frame.captured.len(), WORK)?;
+                                    frame.captured.insert(index, local);
+                                }
                             }
                         }
                         if !written.is_empty() {

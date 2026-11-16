@@ -1520,7 +1520,7 @@ impl Check<'_, '_> {
                 // address, active tag, owner or permission for an empty arm.
                 selected.ok_or_else(|| fail("class-bearing Sum constructor lacks its exact original occurrence"))
             }
-            InstructionKind::MakeAggregate { .. } => {
+            InstructionKind::MakeAggregate { fields } => {
                 let definition = self.inventory.definition(instance.definition, b)?;
                 let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } =
                     &definition.body
@@ -1551,13 +1551,49 @@ impl Check<'_, '_> {
                 let expected = selected.ok_or_else(|| {
                     fail("actual constructor has no exact original value occurrence")
                 })?;
-                if expected.ty != *ty
-                    || !expected.life.slots.is_empty()
-                    || !expected.life.retained.is_empty()
-                {
-                    return Err(unknown(
-                        "actual aggregate requires its complete retained child/data class transport",
-                    ));
+                if !geometry::same_type(&expected.ty, ty, b)? {
+                    return Err(fail("actual aggregate changes its complete original physical type"));
+                }
+                let storage = match &expected.ty {
+                    Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                    ty => ty,
+                };
+                let (count, nominal) = match storage {
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => (fields.len(), true),
+                    Type::Tuple(fields) => (fields.len(), false),
+                    Type::Array { length, .. } => (*length as usize, false),
+                    _ => return Err(fail("actual aggregate has another complete constructor layout")),
+                };
+                if count != fields.len() {
+                    return Err(fail("actual aggregate omits an original physical field"));
+                }
+                // The original whole value retains every mixed/phantom class.
+                // Each physical child is proved separately; field equality is
+                // never inferred from a shared image or the parent's head.
+                for (ordinal, operand) in fields.iter().enumerate() {
+                    operations::available_before(function,
+                        (block, index, SemanticSiteEdge::Before), *operand, b)?;
+                    let field = if nominal {
+                        self.actual_nominal_field(&expected, u32::try_from(ordinal)
+                            .map_err(|_| fail("actual aggregate field ordinal overflow"))?, b, depth + 1)?
+                    } else {
+                        let field = match storage {
+                            Type::Tuple(fields) => &fields[ordinal],
+                            Type::Array { element, .. } => element.as_ref(),
+                            _ => unreachable!(),
+                        };
+                        // Class-bearing structural tuples/arrays require their
+                        // own original embedding, rather than invented rows.
+                        self.zero_data(field, b, depth + 1)?;
+                        crate::dyn_metadata::ty(field, b)?;
+                        value::scalar(field.clone())
+                    };
+                    let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
+                    if !actual.equal_paid(&field, b)?
+                        && !self.outer_role(instance, function, &actual, &field, b, depth + 1)?
+                    {
+                        return Err(fail("actual aggregate child changes its complete original data or directed outer role"));
+                    }
                 }
                 Ok(expected)
             }

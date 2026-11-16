@@ -533,7 +533,63 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
-        let origin = self.projected_borrow_origin(function, id, b, depth + 1)?;
+        let mut origin = self.projected_borrow_origin(function, id, b, depth + 1)?;
+        if let Root::Local(local, block, index, true) = &origin.root
+            && matches!(source.anchor, Some(original::LocalAnchor::Environment(_)))
+            && !source.indirect
+        {
+            // A borrowed callable capture is spilled as Address<whole F>.
+            // Loading this compiler slot preserves the actual BorrowCapture;
+            // it is not a read of a pointer stored inside lexical F. The
+            // finite capture-origin proof checks every initialized CFG source.
+            let capture = self.capture_local_origin(function, *local, (*block, *index), b, depth + 1)?;
+            let closure = function.environment
+                .and_then(|id| self.module.closures.get(id.0 as usize))
+                .filter(|closure| closure.function == function.id)
+                .ok_or_else(|| fail("borrowed capture spill has another actual environment"))?;
+            let captured = closure.captures.get(capture as usize)
+                .ok_or_else(|| fail("borrowed capture spill leaves its actual capture directory"))?;
+            let local_type = &function.locals.get(local.0 as usize)
+                .filter(|item| item.id == *local)
+                .ok_or_else(|| fail("borrowed capture spill has no actual local"))?.ty;
+            if !geometry::same_type(captured, &source.root.ty, b)?
+                || !matches!(local_type, Type::Address { inner, .. }
+                    if inner.as_ref() == captured)
+            {
+                return Err(fail("borrowed capture spill changes its complete lexical value or physical pointer boundary"));
+            }
+            // Normalize only the canonical capture-borrow spill. A copied
+            // value subsequently borrowed from another local is another
+            // physical root even when its capture-origin image is the same.
+            let mut stores = 0usize;
+            for actual_block in &function.blocks {
+                for item in &actual_block.instructions {
+                    b.spend(1, WORK)?;
+                    match &item.kind {
+                        InstructionKind::Store { local: target, value } if target == local => {
+                            stores = stores.saturating_add(1);
+                            let (_, _, producer) = self.defining(function, *value, b)?;
+                            if actual_block.id != function.entry
+                                || !matches!(producer.kind, InstructionKind::BorrowCapture { index, .. }
+                                    if index == capture)
+                            {
+                                return Err(fail("borrowed capture spill is not its genuine entry capture borrow"));
+                            }
+                        }
+                        kind if matches!(crate::incremental::Operation::of(kind),
+                            crate::incremental::Operation::Store(target) if target == *local) => {
+                            return Err(fail("borrowed capture spill has another actual defining write"));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            if stores != 1 {
+                return Err(fail("borrowed capture spill has no unique genuine capture borrow"));
+            }
+            origin.root = Root::Capture(capture, false);
+            origin.fresh = true;
+        }
         b.spend(origin.path.len().saturating_add(source.path.len()), WORK)?;
         if origin.path != source.path || !(origin.fresh || outer_fresh) {
             return Err(fail(

@@ -121,6 +121,22 @@ impl Check<'_, '_> {
                 "actual shared projection changes its complete child type",
             ));
         }
+        let storage = match &parent.ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            ty => ty,
+        };
+        if let PlaceProjection::Field(field) = selector
+            && matches!(storage, Type::Record { .. } | Type::Package { .. })
+        {
+            // A stored child has its own complete intrinsic domain. Select it
+            // from the declaration's full mixed application, preserving its
+            // Pointee/phantom rows rather than borrowing the parent's head.
+            let selected = self.actual_nominal_field(&parent, field, b, depth + 1)?;
+            if !geometry::same_type(&selected.ty, output, b)? {
+                return Err(fail("actual nominal projection changes its complete original child"));
+            }
+            return Ok(selected);
+        }
         let Type::Address {
             mutable: false,
             inner,
