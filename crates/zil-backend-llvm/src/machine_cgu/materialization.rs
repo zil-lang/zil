@@ -160,6 +160,16 @@ impl Materialization {
         if !self.completed_roles || !self.grouping.as_ref()?.same_source_environment(grouping) {
             return None;
         }
+        // This adapter handles a changed class domain. An unrelated current
+        // call-graph change with the same classes still requires the original
+        // planner and cannot lend this recipe's role-to-slot associations.
+        if !self
+            .grouping
+            .as_ref()?
+            .class_inventory_changed(&self.source, classes)
+        {
+            return Some(None);
+        }
         Some(self.layout.adapt_classes(
             &self.source,
             self.graph()?,

@@ -150,6 +150,26 @@ struct SourceGrouping {
     calls: Vec<(usize, usize, zil_ir::FunctionId)>,
 }
 impl Grouping {
+    pub(super) fn class_inventory_changed(
+        &self,
+        source: &Module,
+        classes: &BTreeSet<String>,
+    ) -> bool {
+        if self.items.len() != source.items.len() {
+            return false;
+        }
+        let mut count = 0;
+        for ((_, _, class), item) in self.items.iter().zip(source.items.iter()) {
+            if *class {
+                count += 1;
+                if !matches!(item, Item::Function(f) if classes.contains(&f.name)) {
+                    return true;
+                }
+            }
+        }
+        count != classes.len()
+    }
+
     pub(super) fn same_source_environment(&self, current: &Self) -> bool {
         self.target == current.target
             && self.schema == current.schema

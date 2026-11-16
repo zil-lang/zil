@@ -47,6 +47,7 @@ fn fixture() -> VerifiedModule {
     }
     let mut changed = leaf.clone();
     changed.id = FunctionId(2);
+    changed.name = "changed_literal".into();
     changed.blocks[2].instructions[0].kind = InstructionKind::Constant(Constant::I32(11));
     checked(
         vec![leaf, second, changed],
