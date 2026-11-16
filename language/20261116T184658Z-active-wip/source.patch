@@ -1,0 +1,1031 @@
+diff --git a/crates/zil-driver/tests/task_owner_transport/once_cleanup.rs b/crates/zil-driver/tests/task_owner_transport/once_cleanup.rs
+index 4eaa32aea..0f6d40892 100644
+--- a/crates/zil-driver/tests/task_owner_transport/once_cleanup.rs
++++ b/crates/zil-driver/tests/task_owner_transport/once_cleanup.rs
+@@ -2,11 +2,16 @@ use super::*;
+ 
+ #[test]
+ fn consuming_call_requires_closed_remaining_captures_before_delivering_its_result() {
+-    let blocking = include_str!("../../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil")
+-        .replace("impl FnMut()->i32", "impl FnOnce()->i32");
+-    let polling = include_str!("../../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil")
+-        .replace("impl FnMut()->std.task.Poll<()>", "impl FnOnce()->std.task.Poll<()>")
+-        .replace("loop{match callback(){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}", "callback();");
++    // Keep the actual FnMut opaque interface. A declared FnOnce input selects
++    // consuming adaptation without relabelling the factory's returned kind.
++    let blocking = format!("fn consume<F:FnOnce()->i32>(callback:F)->i32{{return callback();}}\n{}",
++        include_str!("../../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil")
++            .replace("\n callback();", "\n consume(callback);"));
++    // As in the original consuming negative, invoke the polling body only once:
++    // its Pending result cannot be delivered after dropping a still-live Task.
++    let polling = format!("fn consume<F:FnOnce()->std.task.Poll<()>>(callback:F)->std.task.Poll<()>{{return callback();}}\n{}",
++        include_str!("../../../../tests/language-readiness/task-owner-transport/fnmut-async-poll-close.zil")
++            .replace("loop{match callback(){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}", "consume(callback);"));
+     let options = CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() };
+     let accepted = compile_source(&source(&blocking), &options);
+     assert_eq!(accepted.status, ResultCategory::Success, "{}", accepted.to_json());
+@@ -30,3 +35,20 @@ fn consuming_call_requires_closed_remaining_captures_before_delivering_its_resul
+             && d.notes.iter().any(|note| note.contains("original consuming entry remaining capture")))),
+         "{}", rejected.to_json());
+ }
++
++#[test]
++fn opaque_return_declaration_cannot_relabel_a_reusable_environment() {
++    // Preserve the former positive's complete source transformation as a
++    // precise negative: the body still retains its Task in a FnMut environment.
++    let original = include_str!("../../../../tests/language-readiness/task-owner-transport/fnmut-async-close.zil")
++        .replace("impl FnMut()->i32", "impl FnOnce()->i32");
++    let report = compile_source(&source(&original), &CompileOptions {
++        stop_after: Stage::Types, ..CompileOptions::default()
++    });
++    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
++    assert!(report.diagnostics.iter().any(|diagnostic|
++        diagnostic.phase == zil_base::Phase::Types
++            && diagnostic.code == "E-TYPE-MISMATCH"
++            && diagnostic.message == "opaque callable declaration differs from its actual environment invocation kind"
++    ), "{}", report.to_json());
++}
+diff --git a/crates/zil-types/src/retained.rs b/crates/zil-types/src/retained.rs
+index 4747380a4..c218631c0 100644
+--- a/crates/zil-types/src/retained.rs
++++ b/crates/zil-types/src/retained.rs
+@@ -748,9 +748,10 @@ impl Builder<'_, '_> {
+         }
+         pending.inference.expect_result(&bound.result, span)?;
+         if pending.callable_kind() != bound.kind {
+-            return Err(unsupported(
++            return Err(error(
++                "E-TYPE-MISMATCH",
+                 span,
+-                "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match",
++                "opaque callable declaration differs from its actual environment invocation kind",
+             ));
+         }
+         let mut cleanup = Vec::new();
+diff --git a/crates/zil-types/src/semantics/instantiate.rs b/crates/zil-types/src/semantics/instantiate.rs
+index 551509d97..825bef561 100644
+--- a/crates/zil-types/src/semantics/instantiate.rs
++++ b/crates/zil-types/src/semantics/instantiate.rs
+@@ -199,6 +199,65 @@ pub(super) fn requirement(
+         },
+     )
+ }
++
++/// Extract a checked callable signature into its real use domain. Captured
++/// actuals are already expressed there and are substituted atomically, while
++/// remaining lexical references must name the same original ancestor.
++pub(super) fn callable_signature(
++    program: &SemanticModule,
++    proof: &Proof,
++    value: &SemanticSignatureRecipe,
++    mapping: DomainMapping<'_>,
++    environment: Option<&[SemanticActualRecipe]>,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<SemanticSignatureRecipe> {
++    if let Some(actuals) = environment {
++        let source = definition(program, proof, mapping.source, left)?;
++        fee(left, source.environment.len().saturating_add(actuals.len()))?;
++        if source.kind != SemanticDefinitionKind::Closure
++            || source.environment.len() != actuals.len()
++        {
++            return Err(bad(
++                "callable extraction omits its complete closure environment",
++            ));
++        }
++        for (formal, actual) in source.environment.iter().zip(actuals) {
++            if !matches!(
++                (&formal.kind, actual),
++                (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(_))
++                    | (SemanticFormal::Lifetime, SemanticActualRecipe::Life(_))
++                    | (
++                        SemanticFormal::Const { .. },
++                        SemanticActualRecipe::Const { .. }
++                    )
++            ) {
++                return Err(bad("callable extraction changes a sealed environment kind"));
++            }
++        }
++    }
++    in_mapping(
++        program,
++        proof,
++        mapping,
++        None,
++        true,
++        limits,
++        left,
++        |base, scopes, _, left| {
++            let environments = environment.map(|actuals| [(0, actuals)]);
++            let substitution = substitute::Substitution {
++                frames: base.frames,
++                selves: base.selves,
++                environments: environments.as_ref().map_or(&[], |rows| rows.as_slice()),
++                implicit: base.implicit,
++                invocation: base.invocation,
++                shift: base.shift,
++            };
++            substitute::signature_in_domains(value, &substitution, scopes, limits, left)
++        },
++    )
++}
+ /// Map one declaration's complete obligation sequence under a single checked
+ /// lexical/actual correspondence. No obligation is assumed or discharged here.
+ /// The caller must prove every returned requirement in its own original Gamma.
+diff --git a/crates/zil-types/src/semantics/nominal_catalog.rs b/crates/zil-types/src/semantics/nominal_catalog.rs
+index 309c043e5..0a8ba26ac 100644
+--- a/crates/zil-types/src/semantics/nominal_catalog.rs
++++ b/crates/zil-types/src/semantics/nominal_catalog.rs
+@@ -177,7 +177,9 @@ impl<'a> Check<'a, '_> {
+             }
+             Type::Managed(inner)
+             | Type::OwnedStore { element: inner }
+-            | Type::Mutex { payload: inner } => self.domain(inner, depth + 1),
++            | Type::Mutex { payload: inner }
++            | Type::Registration { environment: inner }
++            | Type::AsyncRegistration { environment: inner } => self.domain(inner, depth + 1),
+             Type::Tuple(fields) => {
+                 for field in fields {
+                     if self.domain(field, depth + 1)? != 0 {
+diff --git a/crates/zil-types/src/semantics/original_calls.rs b/crates/zil-types/src/semantics/original_calls.rs
+index c9a27f9fc..6af2c65f7 100644
+--- a/crates/zil-types/src/semantics/original_calls.rs
++++ b/crates/zil-types/src/semantics/original_calls.rs
+@@ -966,6 +966,11 @@ impl Check<'_, '_> {
+         depth: usize,
+     ) -> R<Option<(CallableKind, SemanticSignatureRecipe)>> {
+         self.pay(1, depth)?;
++        let owner = self
++            .contexts
++            .last()
++            .copied()
++            .ok_or_else(|| bad("callable extraction has no actual lexical Gamma"))?;
+         match value {
+             SemanticTypeRecipe::Opaque {
+                 definition,
+@@ -978,20 +983,31 @@ impl Check<'_, '_> {
+                         "original opaque callable omits full explicit arguments",
+                     ));
+                 }
+-                let frames = [(0, arguments.as_slice())];
+-                let empty = BTreeMap::new();
+-                let substitution = substitute::Substitution {
+-                    frames: if arguments.is_empty() { &[] } else { &frames },
+-                    selves: &[],
+-                    environments: &[],
+-                    implicit: &empty,
+-                    invocation: &empty,
+-                    shift: 0,
++                // The hidden value belongs to this original definition, not
++                // the use's same-numbered lexical ancestors. First extract
++                // inside that sealed domain, then substitute all actuals and
++                // transport the signature through the genuine boundary.
++                self.contexts.push(*definition);
++                let extracted = self.concrete_callable(hidden, depth + 1);
++                self.contexts.pop();
++                let Some((kind, signature)) = extracted? else {
++                    return Ok(None);
+                 };
+-                // Enter the opaque definition's sealed body domain deliberately;
+-                // ordinary substitution never traverses this boundary itself.
+-                let hidden = substitute::ty(hidden, &substitution, self.limits, self.left)?;
+-                self.concrete_callable(&hidden, depth + 1)
++                let signature = super::super::instantiate::callable_signature(
++                    self.program,
++                    &self.proof,
++                    &signature,
++                    super::super::instantiate::DomainMapping {
++                        source: *definition,
++                        use_definition: owner,
++                        arguments,
++                        parent_call: None,
++                    },
++                    None,
++                    self.limits,
++                    self.left,
++                )?;
++                Ok(Some((kind, signature)))
+             }
+             SemanticTypeRecipe::Closure {
+                 definition,
+@@ -1024,20 +1040,22 @@ impl Check<'_, '_> {
+                 }
+                 signature.result =
+                     self.effective_result(*definition, &signature.result, depth + 1)?;
+-                let frames = [(0, arguments.as_slice())];
+-                let environments = [(0, environment.as_slice())];
+-                let empty = BTreeMap::new();
+-                let substitution = substitute::Substitution {
+-                    frames: &frames,
+-                    selves: &[],
+-                    environments: &environments,
+-                    implicit: &empty,
+-                    invocation: &empty,
+-                    shift: 0,
+-                };
+                 Ok(Some((
+                     kind,
+-                    substitute::signature(&signature, &substitution, self.limits, self.left)?,
++                    super::super::instantiate::callable_signature(
++                        self.program,
++                        &self.proof,
++                        &signature,
++                        super::super::instantiate::DomainMapping {
++                            source: *definition,
++                            use_definition: owner,
++                            arguments,
++                            parent_call: None,
++                        },
++                        Some(environment),
++                        self.limits,
++                        self.left,
++                    )?,
+                 )))
+             }
+             SemanticTypeRecipe::Code { signature, .. } => {
+diff --git a/crates/zil-types/src/semantics/original_protocol.rs b/crates/zil-types/src/semantics/original_protocol.rs
+index 1594000db..9091c0c4b 100644
+--- a/crates/zil-types/src/semantics/original_protocol.rs
++++ b/crates/zil-types/src/semantics/original_protocol.rs
+@@ -115,6 +115,9 @@ enum Value {
+     Cleanup {
+         owner: SemanticDefinitionId,
+         ty: CleanupType,
++        // Exact incoming occurrence, carried through moves and local aliases.
++        // It is a conditional graph obligation, never a capability of this Type.
++        source: Option<Root>,
+     },
+     Choice(Vec<Value>),
+     Variant {
+@@ -241,7 +244,7 @@ struct State {
+     // Per actual generation, a proved synchronous task graph may depend on
+     // still-symbolic incoming Task owners. Empty requirements are unconditional;
+     // missing entries grant nothing. This never establishes Closed.
+-    task_sync: BTreeMap<Root, BTreeSet<Root>>,
++    task_sync: BTreeMap<Root, BTreeSet<tasks::Requirement>>,
+     reachable: bool,
+     abrupt: Vec<State>,
+     // Stacks preserve hidden lexical binders, including their stale Polls.
+@@ -378,7 +381,9 @@ struct Engine<'a, 'b> {
+     task_exits: BTreeMap<SemanticDefinitionId, Vec<tasks::Exit>>,
+     task_exit_count: usize,
+     task_source_returns: BTreeSet<(SemanticDefinitionId, NodeId)>,
+-    synchronous_workers: BTreeMap<SemanticDefinitionId, bool>,
++    synchronous_workers: BTreeMap<SemanticDefinitionId, Option<BTreeSet<tasks::Requirement>>>,
++    graph_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<tasks::GraphCall>>,
++    graph_complete: BTreeSet<SemanticDefinitionId>,
+ }
+ impl<'a> Engine<'a, '_> {
+     fn record_cost(&mut self, name: &'static str, before: usize, children: usize) {
+@@ -491,6 +496,7 @@ impl<'a> Engine<'a, '_> {
+         Ok(Value::Cleanup {
+             owner,
+             ty: self.input_handle(owner, ty, depth)?,
++            source: None,
+         })
+     }
+     fn category<T: TypeInput + ?Sized>(
+@@ -1602,7 +1608,7 @@ impl<'a> Engine<'a, '_> {
+                 Value::Error { payload, .. } | Value::Boxed(payload) => {
+                     self.drop_value(payload, state, depth + 1)?
+                 }
+-                Value::Cleanup { owner, ty } => {
++                Value::Cleanup { owner, ty, .. } => {
+                     if !self.can_drop(*owner, ty, depth + 1)? {
+                         self.pay(128, depth)?;
+                         let mut error = error(
+@@ -2375,6 +2381,7 @@ impl<'a> Engine<'a, '_> {
+                     };
+                     let source = object.unwrap_or(callee.as_ref());
+                     let mut callee_value = self.observe(owner, source, state, depth + 1)?;
++                    let graph_callee = self.value_copy(&callee_value, depth + 1)?;
+                     let consume_receiver = if let Some((_, mode, ty)) = &receiver {
+                         matches!(mode, PassingMode::Give | PassingMode::Move)
+                             || *mode == PassingMode::Infer
+@@ -2420,6 +2427,9 @@ impl<'a> Engine<'a, '_> {
+                         values.insert(ordinal, value);
+                     }
+                     let result = if state.reachable {
++                        if let Some(site) = site {
++                            self.record_graph_call(owner, site, graph_callee, &values, state, depth + 1)?;
++                        }
+                         self.call(owner, expr, arguments, &values, state, depth + 1)?
+                     } else {
+                         Value::Plain
+@@ -2997,7 +3007,7 @@ impl<'a> Engine<'a, '_> {
+                             }
+                             values
+                         }
+-                        Value::Cleanup { owner, ty } => {
++                        Value::Cleanup { owner, ty, .. } => {
+                             let fields = cleanup::variant(
+                             self.program,
+                             self.proof,
+@@ -4344,6 +4354,9 @@ impl<'a> Engine<'a, '_> {
+                         } else {
+                             self.typed(parent, &ty, Value::Plain, depth + 1)?
+                         };
++                        if let Value::Cleanup { source, .. } = &mut value {
++                            *source = Some(Root::Capture(owner, index as u32));
++                        }
+                         if !moved {
+                             value = self.view(value, depth + 1)?;
+                         }
+@@ -4405,7 +4418,10 @@ impl<'a> Engine<'a, '_> {
+                     } else {
+                         value
+                     };
+-                    let value = self.typed(owner, &ty, value, depth + 1)?;
++                    let mut value = self.typed(owner, &ty, value, depth + 1)?;
++                    if let Value::Cleanup { source, .. } = &mut value {
++                        *source = Some(Root::Parameter(owner, index as u32));
++                    }
+                     state
+                         .names
+                         .entry(parameter.name.clone())
+@@ -4469,6 +4485,7 @@ impl<'a> Engine<'a, '_> {
+                 }
+             }
+             self.active.remove(&owner);
++            self.graph_complete.insert(owner);
+             self.proof.protocol_complete.insert(owner);
+             self.proof.cleanup_complete.insert(owner);
+             Ok(())
+@@ -4580,6 +4597,8 @@ pub(super) fn check(
+         task_exit_count: 0,
+         task_source_returns: BTreeSet::new(),
+         synchronous_workers: BTreeMap::new(),
++        graph_calls: BTreeMap::new(),
++        graph_complete: BTreeSet::new(),
+     };
+     let setup_before = *engine.left;
+     engine.pay(
+@@ -4877,6 +4896,8 @@ mod plain_layout_tests {
+             task_exit_count: 0,
+             task_source_returns: BTreeSet::new(),
+         synchronous_workers: BTreeMap::new(),
++        graph_calls: BTreeMap::new(),
++        graph_complete: BTreeSet::new(),
+         };
+         let recipe = SemanticTypeRecipe::ErrorUnion {
+             error: Box::new(SemanticTypeRecipe::Atom(Type::Unit)),
+diff --git a/crates/zil-types/src/semantics/original_protocol_tasks.rs b/crates/zil-types/src/semantics/original_protocol_tasks.rs
+index eab8d1226..18bbc8ca5 100644
+--- a/crates/zil-types/src/semantics/original_protocol_tasks.rs
++++ b/crates/zil-types/src/semantics/original_protocol_tasks.rs
+@@ -177,75 +177,120 @@ impl Engine<'_, '_> {
+     }
+ }
+ 
++#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
++pub(super) enum Requirement {
++    Drop(Root),
++    Call(Root),
++}
++
++#[derive(Clone, PartialEq, Eq)]
++pub(super) struct GraphCall {
++    callee: Value,
++    arguments: Vec<Value>,
++    state: State,
++}
++impl GraphCall {
++    fn work(&self) -> usize {
++        self.arguments.iter().fold(self.callee.work().saturating_add(self.state.work()).saturating_add(1),
++            |work, value| work.saturating_add(value.work()))
++    }
++}
++
+ #[derive(Clone, PartialEq, Eq)]
+ pub(super) struct Exit {
+     pub value: Value,
+     pub phases: BTreeMap<Root, u8>,
+-    pub synchronous: BTreeMap<Root, BTreeSet<Root>>,
++    pub synchronous: BTreeMap<Root, BTreeSet<Requirement>>,
+ }
+ impl Engine<'_, '_> {
+-    /// A finite original worker graph is independent of its actual Task input
+-    /// owners. Those owners are checked separately and carried as symbolic
+-    /// requirements through factories. Unknown calls and external providers
+-    /// cannot be hidden by a matching result type or a completed cleanup pass.
++    pub(super) fn record_graph_call(
++        &mut self,
++        owner: SemanticDefinitionId,
++        site: SemanticSiteId,
++        callee: Value,
++        arguments: &[Value],
++        state: &State,
++        depth: usize,
++    ) -> R<()> {
++        let mut snapshot = self.copy(state, depth + 1)?;
++        // The call's real generation facts are immutable evidence. Later
++        // replacement must never make an old occurrence synchronously closed.
++        snapshot.names.clear();
++        snapshot.temporaries.clear();
++        snapshot.abrupt.clear();
++        snapshot.returned = Value::Plain;
++        snapshot.task_sources = None;
++        let arguments = arguments.iter().map(|value| self.value_copy(value, depth + 1))
++            .collect::<R<Vec<_>>>()?;
++        let row = GraphCall { callee, arguments, state: snapshot };
++        self.pay(lookup_work(self.graph_calls.len()), depth)?;
++        if let Some(previous) = self.graph_calls.get(&(owner, site)) {
++            self.pay(previous.iter().fold(row.work(), |work, old|
++                work.saturating_add(old.work()).saturating_add(row.work())), depth)?;
++            if previous.contains(&row) { return Ok(()); }
++        }
++        self.pay(row.work().saturating_add(1), depth)?;
++        self.graph_calls.entry((owner, site)).or_default().push(row);
++        Ok(())
++    }
++
++    /// Summarize the complete original graph under its own Gamma. Invocation
++    /// of an incoming callable remains an occurrence requirement, discharged
++    /// only against the real argument/capture at a later construction boundary.
+     fn synchronous_task_worker(
+         &mut self,
+         owner: SemanticDefinitionId,
+         active: &mut BTreeSet<SemanticDefinitionId>,
+         depth: usize,
+-    ) -> R<bool> {
++    ) -> R<Option<BTreeSet<Requirement>>> {
+         self.pay(active.len().saturating_add(lookup_work(self.synchronous_workers.len())), depth)?;
+         if let Some(known) = self.synchronous_workers.get(&owner) {
+-            return Ok(*known);
++            self.pay(known.as_ref().map_or(1, |r| r.len().saturating_add(1)), depth)?;
++            return Ok(self.synchronous_workers[&owner].clone());
+         }
+-        if !active.insert(owner) {
+-            return Ok(false);
++        if self.active.contains(&owner) || !active.insert(owner) { return Ok(None); }
++        // A frozen cleanup result does not contain this Engine's call operand
++        // receipts. Rebuild those from the original body rather than trusting
++        // a concrete type or another occurrence's invocation graph.
++        if !self.graph_complete.contains(&owner) {
++            self.proof.protocol_complete.remove(&owner);
++            self.proof.cleanup_complete.remove(&owner);
++            self.function(owner, depth + 1)?;
+         }
+         let result = self.synchronous_task_worker_inner(owner, active, depth + 1)?;
+         active.remove(&owner);
+-        self.pay(1, depth)?;
+-        self.synchronous_workers.insert(owner, result);
++        self.pay(result.as_ref().map_or(1, |r| r.len().saturating_add(1)), depth)?;
++        self.synchronous_workers.insert(owner, result.clone());
+         Ok(result)
+     }
++
+     fn synchronous_task_worker_inner(
+         &mut self,
+         owner: SemanticDefinitionId,
+         active: &mut BTreeSet<SemanticDefinitionId>,
+         depth: usize,
+-    ) -> R<bool> {
++    ) -> R<Option<BTreeSet<Requirement>>> {
+         let definition = self.definition(owner)?;
+         let SemanticDefinitionBody::FunctionWithBody {
+             foreign: None, body: SemanticOriginalFunctionBody::Defined(_), sites, ..
+-        } = &definition.body else { return Ok(false); };
++        } = &definition.body else { return Ok(None); };
+         self.pay(sites.len().saturating_add(self.proof.types.len()), depth)?;
+-        // The complete local/parameter/result inventory also covers unused
+-        // branches and resource teardown, rather than just the worker's name.
+         let mut types = Vec::new();
+         for ((domain, _), ty) in &self.proof.types {
+-            if *domain == owner {
+-                types.push(copy_recipe(ty, self.limits, self.left)?);
+-            }
++            if *domain == owner { types.push(copy_recipe(ty, self.limits, self.left)?); }
+         }
+         for ty in types {
+-            if !self.synchronous_graph_type(owner, &ty, depth + 1)? {
+-                return Ok(false);
+-            }
++            if !self.synchronous_graph_type(owner, &ty, depth + 1)? { return Ok(None); }
+         }
++        let mut requirements = BTreeSet::new();
+         for site in sites {
+             self.pay(1, depth)?;
+-            if !matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) {
+-                continue;
+-            }
+-            if self.proof.compile_time_calls.contains(&(owner, site.id)) {
+-                continue;
+-            }
+-            if let Some(call) = self.proof.intrinsics.get(&(owner, site.id)) {
+-                let kind = call.kind.clone();
+-                match kind {
+-                    IntrinsicKind::TaskCreate { worker, .. } => {
+-                        if !self.synchronous_task_worker(worker, active, depth + 1)? { return Ok(false); }
+-                    }
+-                    IntrinsicKind::TaskYield | IntrinsicKind::TaskOperation(_)
++            if !matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)
++                || self.proof.compile_time_calls.contains(&(owner, site.id)) { continue; }
++            let intrinsic = self.proof.intrinsics.get(&(owner, site.id)).map(|call| call.kind.clone());
++            let (target, skip_provider) = match intrinsic {
++                Some(IntrinsicKind::TaskCreate { worker, .. }) => (Some(worker), true),
++                Some(IntrinsicKind::TaskYield | IntrinsicKind::TaskOperation(_)
+                     | IntrinsicKind::NominalConstructor { .. }
+                     | IntrinsicKind::MutexCreate | IntrinsicKind::MutexLock
+                     | IntrinsicKind::MutexValue | IntrinsicKind::MutexUnlock
+@@ -257,16 +302,108 @@ impl Engine<'_, '_> {
+                     | IntrinsicKind::BytesTruncate | IntrinsicKind::BytesPush
+                     | IntrinsicKind::BytesLen | IntrinsicKind::BytesCapacity
+                     | IntrinsicKind::BytesBorrow { .. } | IntrinsicKind::Length
+-                    | IntrinsicKind::Numeric { .. } => {}
+-                    _ => return Ok(false),
++                    | IntrinsicKind::Numeric { .. }) => continue,
++                Some(_) => return Ok(None),
++                None => (self.proof.call_targets.get(&(owner, site.id)).copied(), false),
++            };
++            self.pay(lookup_work(self.graph_calls.len()), depth)?;
++            let Some(rows) = self.graph_calls.get(&(owner, site.id)) else { return Ok(None); };
++            self.pay(rows.iter().fold(1usize, |work, row| work.saturating_add(row.work())), depth)?;
++            let rows = rows.clone();
++            for row in rows {
++                let incoming = if let Some(target) = target {
++                    let arguments = if skip_provider {
++                        let Some((Value::Plain, arguments)) = row.arguments.split_first() else { return Ok(None); };
++                        arguments
++                    } else { row.arguments.as_slice() };
++                    let Some(needed) = self.synchronous_task_worker(target, active, depth + 1)? else { return Ok(None); };
++                    let Some(mut incoming) = self.instantiate_graph_requirements(
++                        target, &needed, arguments, None, &row.state, active, depth + 1,
++                    )? else { return Ok(None); };
++                    if skip_provider {
++                        let Some(children) = self.synchronous_task_inputs(arguments, &row.state, depth + 1)? else { return Ok(None); };
++                        self.pay(children.len(), depth)?;
++                        incoming.extend(children);
++                    }
++                    Some(incoming)
++                } else if self.proof.callable_calls.contains_key(&(owner, site.id)) {
++                    self.synchronous_callable_value(&row.callee, &row.arguments, &row.state, active, depth + 1)?
++                } else { None };
++                let Some(incoming) = incoming else { return Ok(None); };
++                self.pay(incoming.len().saturating_add(1), depth)?;
++                requirements.extend(incoming);
++            }
++        }
++        Ok(Some(requirements))
++    }
++
++    fn synchronous_callable_value(
++        &mut self,
++        value: &Value,
++        arguments: &[Value],
++        state: &State,
++        active: &mut BTreeSet<SemanticDefinitionId>,
++        depth: usize,
++    ) -> R<Option<BTreeSet<Requirement>>> {
++        self.pay(value.work().saturating_add(arguments.len()), depth)?;
++        match value {
++            Value::Cleanup { source: Some(source), .. } => {
++                // The deferred invocation has no owning/callable input whose
++                // identity would need a further application environment.
++                if !arguments.iter().all(|value| matches!(value, Value::Plain | Value::Bool(_))) {
++                    return Ok(None);
++                }
++                Ok(Some(BTreeSet::from([Requirement::Call(*source)])))
++            }
++            Value::Closure { definition, captures } => {
++                let Some(needed) = self.synchronous_task_worker(*definition, active, depth + 1)? else { return Ok(None); };
++                self.instantiate_graph_requirements(*definition, &needed, arguments, Some(captures), state, active, depth + 1)
++            }
++            Value::Choice(values) => {
++                let mut requirements = BTreeSet::new();
++                for value in values {
++                    let Some(incoming) = self.synchronous_callable_value(value, arguments, state, active, depth + 1)? else { return Ok(None); };
++                    self.pay(incoming.len(), depth)?;
++                    requirements.extend(incoming);
+                 }
+-            } else if let Some(target) = self.proof.call_targets.get(&(owner, site.id)).copied() {
+-                if !self.synchronous_task_worker(target, active, depth + 1)? { return Ok(false); }
+-            } else {
+-                return Ok(false);
++                Ok(Some(requirements))
+             }
++            _ => Ok(None),
++        }
++    }
++
++    #[allow(clippy::too_many_arguments)]
++    fn instantiate_graph_requirements(
++        &mut self,
++        target: SemanticDefinitionId,
++        requirements: &BTreeSet<Requirement>,
++        arguments: &[Value],
++        captures: Option<&BTreeMap<String, Value>>,
++        state: &State,
++        active: &mut BTreeSet<SemanticDefinitionId>,
++        depth: usize,
++    ) -> R<Option<BTreeSet<Requirement>>> {
++        self.pay(requirements.len(), depth)?;
++        let mut result = BTreeSet::new();
++        for requirement in requirements {
++            let (Requirement::Drop(root) | Requirement::Call(root)) = requirement;
++            let value = match root {
++                Root::Parameter(owner, ordinal) if *owner == target => arguments.get(*ordinal as usize),
++                Root::Capture(owner, ordinal) if *owner == target => self.proof.capture_names.get(&target)
++                    .and_then(|names| names.get(*ordinal as usize))
++                    .and_then(|name| captures.and_then(|captures| captures.get(name))),
++                _ => None,
++            };
++            let Some(value) = value else { return Ok(None); };
++            let incoming = match requirement {
++                Requirement::Drop(_) => self.synchronous_task_value(value, state, depth + 1)?,
++                Requirement::Call(_) => self.synchronous_callable_value(value, &[], state, active, depth + 1)?,
++            };
++            let Some(incoming) = incoming else { return Ok(None); };
++            self.pay(incoming.len().saturating_add(1), depth)?;
++            result.extend(incoming);
+         }
+-        Ok(true)
++        Ok(Some(result))
+     }
+     fn synchronous_graph_type(
+         &mut self, owner: SemanticDefinitionId, ty: &SemanticTypeRecipe, depth: usize,
+@@ -289,7 +426,7 @@ impl Engine<'_, '_> {
+     }
+     fn synchronous_task_inputs(
+         &mut self, values: &[Value], state: &State, depth: usize,
+-    ) -> R<Option<BTreeSet<Root>>> {
++    ) -> R<Option<BTreeSet<Requirement>>> {
+         let mut requirements = BTreeSet::new();
+         for value in values {
+             let Some(incoming) = self.synchronous_task_value(value, state, depth + 1)? else { return Ok(None); };
+@@ -300,7 +437,7 @@ impl Engine<'_, '_> {
+     }
+     fn synchronous_task_value(
+         &mut self, value: &Value, state: &State, depth: usize,
+-    ) -> R<Option<BTreeSet<Root>>> {
++    ) -> R<Option<BTreeSet<Requirement>>> {
+         self.pay(1, depth)?;
+         match value {
+             Value::Root(root, true, _, None) if state.tasks.contains(root) => {
+@@ -311,7 +448,7 @@ impl Engine<'_, '_> {
+                 } else { Ok(None) }
+             }
+             Value::Root(..) => Ok(None),
+-            Value::Cleanup { owner, ty } => Ok(self.can_drop(*owner, ty, depth + 1)?.then(BTreeSet::new)),
++            Value::Cleanup { owner, ty, .. } => Ok(self.can_drop(*owner, ty, depth + 1)?.then(BTreeSet::new)),
+             Value::Error { payload, .. } | Value::Boxed(payload) => self.synchronous_task_value(payload, state, depth + 1),
+             Value::Tuple(values) | Value::Choice(values) | Value::Variant { fields: values, .. } => self.synchronous_task_inputs(values, state, depth + 1),
+             Value::Fields(fields) | Value::Closure { captures: fields, .. } => {
+@@ -328,20 +465,10 @@ impl Engine<'_, '_> {
+         }
+     }
+     fn instantiate_task_requirements(
+-        &mut self, target: SemanticDefinitionId, requirements: &BTreeSet<Root>,
++        &mut self, target: SemanticDefinitionId, requirements: &BTreeSet<Requirement>,
+         arguments: &[Value], state: &State, depth: usize,
+-    ) -> R<Option<BTreeSet<Root>>> {
+-        self.pay(requirements.len(), depth)?;
+-        let mut result = BTreeSet::new();
+-        for requirement in requirements {
+-            let Root::Parameter(owner, ordinal) = requirement else { return Ok(None); };
+-            if *owner != target { return Ok(None); }
+-            let argument = arguments.get(*ordinal as usize).ok_or_else(|| failure("Task cleanup graph omits its actual worker input"))?;
+-            let Some(incoming) = self.synchronous_task_value(argument, state, depth + 1)? else { return Ok(None); };
+-            self.pay(incoming.len().saturating_add(1), depth)?;
+-            result.extend(incoming);
+-        }
+-        Ok(Some(result))
++    ) -> R<Option<BTreeSet<Requirement>>> {
++        self.instantiate_graph_requirements(target, requirements, arguments, None, state, &mut BTreeSet::new(), depth + 1)
+     }
+     pub(super) fn task_head(
+         &mut self,
+@@ -367,7 +494,7 @@ impl Engine<'_, '_> {
+         state.roots.insert(root, UNKNOWN);
+         state.tasks.insert(root);
+         // A parameter is a symbolic requirement, never a type-level promise.
+-        state.task_sync.insert(root, BTreeSet::from([root]));
++        state.task_sync.insert(root, BTreeSet::from([Requirement::Drop(root)]));
+         Ok(Some(Value::Root(root, true, owning, None)))
+     }
+     pub(super) fn task_drop(
+@@ -457,11 +584,17 @@ impl Engine<'_, '_> {
+                 if *await_result {
+                     return self.task_return_call(owner, node, *worker, values, state, None, depth + 1);
+                 }
+-                let synchronous = if self.synchronous_task_worker(*worker, &mut BTreeSet::new(), depth + 1)? {
+-                    self.synchronous_task_inputs(values, state, depth + 1)?
+-                } else {
+-                    None
+-                };
++                let synchronous = if let Some(needed) = self.synchronous_task_worker(*worker, &mut BTreeSet::new(), depth + 1)? {
++                    match (self.instantiate_task_requirements(*worker, &needed, values, state, depth + 1)?,
++                        self.synchronous_task_inputs(values, state, depth + 1)?) {
++                        (Some(mut graph), Some(inputs)) => {
++                            self.pay(inputs.len(), depth)?;
++                            graph.extend(inputs);
++                            Some(graph)
++                        }
++                        _ => None,
++                    }
++                } else { None };
+                 let root = Root::Created(owner, node);
+                 self.change(state, root, OPEN, true, depth + 1)?;
+                 if let Some(requirements) = synchronous {
+@@ -693,6 +826,25 @@ impl Engine<'_, '_> {
+         self.task_exit_count += 1;
+         Ok(())
+     }
++    fn callable_return_value(&mut self, value: &Value, depth: usize) -> R<bool> {
++        self.pay(1, depth)?;
++        Ok(match value {
++            Value::Closure { .. } | Value::Cleanup { source: Some(_), .. } => true,
++            Value::Error { payload, .. } | Value::Boxed(payload) => self.callable_return_value(payload, depth + 1)?,
++            Value::Tuple(values) | Value::Choice(values) | Value::Variant { fields: values, .. } => {
++                let mut any = false;
++                for value in values { any |= self.callable_return_value(value, depth + 1)?; }
++                any
++            }
++            Value::Fields(values) => {
++                let mut any = false;
++                for value in values.values() { any |= self.callable_return_value(value, depth + 1)?; }
++                any
++            }
++            _ => false,
++        })
++    }
++
+     pub(super) fn task_return_call(
+         &mut self,
+         owner: SemanticDefinitionId,
+@@ -710,9 +862,6 @@ impl Engine<'_, '_> {
+         let Some(exits) = self.task_exits.get(&target) else {
+             return Ok(None);
+         };
+-        if !exits.iter().any(|exit| !exit.phases.is_empty()) {
+-            return Ok(None);
+-        }
+         let work = exits.iter().fold(exits.len(), |work, exit| {
+             work.saturating_add(exit.value.work())
+                 .saturating_add(exit.phases.len())
+@@ -720,6 +869,9 @@ impl Engine<'_, '_> {
+         });
+         self.pay(work, depth)?;
+         let exits = self.task_exits[&target].clone();
++        let mut transported = exits.iter().any(|exit| !exit.phases.is_empty());
++        for exit in &exits { transported |= self.callable_return_value(&exit.value, depth + 1)?; }
++        if !transported { return Ok(None); }
+         for exit in &exits {
+             self.charge_value(&exit.value, depth + 1)?;
+         }
+@@ -767,7 +919,7 @@ impl Engine<'_, '_> {
+                 roots.insert(*root, mapped);
+             }
+         }
+-        let mut synchronous: BTreeMap<Root, Option<BTreeSet<Root>>> = BTreeMap::new();
++        let mut synchronous: BTreeMap<Root, Option<BTreeSet<Requirement>>> = BTreeMap::new();
+         for exit in &exits {
+             for root in exit.phases.keys() {
+                 let mapped = roots[root];
+@@ -798,7 +950,7 @@ impl Engine<'_, '_> {
+         }
+         let mut values = Vec::with_capacity(exits.len());
+         for exit in exits {
+-            values.push(self.task_rehome(exit.value, &roots, depth + 1)?)
++            values.push(self.task_rehome(exit.value, &roots, target, arguments, depth + 1)?)
+         }
+         self.choice(values, depth + 1).map(Some)
+     }
+@@ -806,10 +958,17 @@ impl Engine<'_, '_> {
+         &mut self,
+         value: Value,
+         roots: &BTreeMap<Root, Root>,
++        target: SemanticDefinitionId,
++        arguments: &[Value],
+         depth: usize,
+     ) -> R<Value> {
+         self.pay(1, depth)?;
+         Ok(match value {
++            Value::Cleanup { source: Some(Root::Parameter(owner, ordinal)), .. } if owner == target => {
++                let actual = arguments.get(ordinal as usize).ok_or_else(|| failure("callable result omits its actual incoming occurrence"))?;
++                self.value_copy(actual, depth + 1)?
++            }
++            Value::Cleanup { source: Some(_), .. } => return Err(pending("callable result lacks its complete actual capture correspondence")),
+             Value::Root(root, live, owning, prior) => Value::Root(
+                 *roots.get(&root).ok_or_else(|| {
+                     pending("Task return has an unmapped original owning projection")
+@@ -820,34 +979,34 @@ impl Engine<'_, '_> {
+             ),
+             Value::Error { is_error, payload } => Value::Error {
+                 is_error,
+-                payload: Box::new(self.task_rehome(*payload, roots, depth + 1)?),
++                payload: Box::new(self.task_rehome(*payload, roots, target, arguments, depth + 1)?),
+             },
+             Value::Boxed(value) => {
+-                Value::Boxed(Box::new(self.task_rehome(*value, roots, depth + 1)?))
++                Value::Boxed(Box::new(self.task_rehome(*value, roots, target, arguments, depth + 1)?))
+             }
+             Value::Tuple(values) => Value::Tuple(
+                 values
+                     .into_iter()
+-                    .map(|value| self.task_rehome(value, roots, depth + 1))
++                    .map(|value| self.task_rehome(value, roots, target, arguments, depth + 1))
+                     .collect::<R<_>>()?,
+             ),
+             Value::Choice(values) => Value::Choice(
+                 values
+                     .into_iter()
+-                    .map(|value| self.task_rehome(value, roots, depth + 1))
++                    .map(|value| self.task_rehome(value, roots, target, arguments, depth + 1))
+                     .collect::<R<_>>()?,
+             ),
+             Value::Variant { name, fields } => Value::Variant {
+                 name,
+                 fields: fields
+                     .into_iter()
+-                    .map(|value| self.task_rehome(value, roots, depth + 1))
++                    .map(|value| self.task_rehome(value, roots, target, arguments, depth + 1))
+                     .collect::<R<_>>()?,
+             },
+             Value::Fields(values) => Value::Fields(
+                 values
+                     .into_iter()
+-                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, depth + 1)?)))
++                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, depth + 1)?)))
+                     .collect::<R<_>>()?,
+             ),
+             Value::Closure {
+@@ -857,7 +1016,7 @@ impl Engine<'_, '_> {
+                 definition,
+                 captures: captures
+                     .into_iter()
+-                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, depth + 1)?)))
++                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, depth + 1)?)))
+                     .collect::<R<_>>()?,
+             },
+             Value::Poll { .. } | Value::Valid { .. } => {
+diff --git a/crates/zil-types/src/semantics/original_resources.rs b/crates/zil-types/src/semantics/original_resources.rs
+index 9f3d09b05..51a547a62 100644
+--- a/crates/zil-types/src/semantics/original_resources.rs
++++ b/crates/zil-types/src/semantics/original_resources.rs
+@@ -884,6 +884,94 @@ impl Check<'_, '_> {
+         Ok(Some(solved.result))
+     }
+ 
++    // A Task owns its frame, but its complete declared retained domain can
++    // still name external input storage. Prove each original child separately;
++    // this capability neither erases that domain nor proves synchronous Drop.
++    fn closed_task_shape(
++        &mut self,
++        owner: SemanticDefinitionId,
++        shape: &SemanticRetainedShapeRecipe,
++        depth: usize,
++    ) -> R<Option<bool>> {
++        self.pay(
++            shape.ports.len().saturating_add(shape.retained.len())
++                .saturating_add(shape.nominal.len()).saturating_add(1),
++            depth,
++        )?;
++        let mut known = self.closed_class_sequence(owner, &shape.domain, depth + 1)?;
++        for port in &shape.ports {
++            let child = match port {
++                SemanticPortPart::FromType { ty, classes } => {
++                    let ty = self.sealed_capability(owner, ty, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?;
++                    let classes = self.closed_class_sequence(owner, classes, depth + 1)?;
++                    match (ty, classes) {
++                        (Some(a), Some(b)) => Some(a && b),
++                        _ => None,
++                    }
++                }
++                // A real borrowed port is not an owned child environment.
++                SemanticPortPart::One { .. } => Some(false),
++            };
++            known = match (known, child) {
++                (Some(a), Some(b)) => Some(a && b),
++                _ => None,
++            };
++        }
++        for row in &shape.retained {
++            let child = match row {
++                SemanticRetainedPart::All { parents, .. } =>
++                    self.closed_class_sequence(owner, parents, depth + 1)?,
++                SemanticRetainedPart::One { .. } => Some(false),
++            };
++            known = match (known, child) {
++                (Some(a), Some(b)) => Some(a && b),
++                _ => None,
++            };
++        }
++        for row in &shape.nominal {
++            let child = match row {
++                SemanticNominalPart::FromType { ty, classes, .. } => {
++                    let ty = self.sealed_capability(owner, ty, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?;
++                    let classes = self.closed_class_sequence(owner, classes, depth + 1)?;
++                    match (ty, classes) {
++                        (Some(a), Some(b)) => Some(a && b),
++                        _ => None,
++                    }
++                }
++                SemanticNominalPart::One { .. } => Some(false),
++            };
++            known = match (known, child) {
++                (Some(a), Some(b)) => Some(a && b),
++                _ => None,
++            };
++        }
++        Ok(known)
++    }
++
++    fn closed_class_sequence(
++        &mut self,
++        owner: SemanticDefinitionId,
++        sequence: &SemanticClassSequenceRecipe,
++        depth: usize,
++    ) -> R<Option<bool>> {
++        self.pay(sequence.parts.len().saturating_add(1), depth)?;
++        let mut known = Some(true);
++        for part in &sequence.parts {
++            let child = match part {
++                SemanticClassSequencePart::AllClasses { ty, path } if path.is_empty() =>
++                    self.sealed_capability(owner, ty, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?,
++                SemanticClassSequencePart::One(_) => Some(false),
++                // A projected domain requires its own complete child theorem.
++                SemanticClassSequencePart::AllClasses { .. } => None,
++            };
++            known = match (known, child) {
++                (Some(a), Some(b)) => Some(a && b),
++                _ => None,
++            };
++        }
++        Ok(known)
++    }
++
+     pub(super) fn sealed_capability(
+         &mut self,
+         owner: SemanticDefinitionId,
+@@ -946,6 +1034,24 @@ impl Check<'_, '_> {
+                 }
+                 _ => None,
+             },
++            SemanticTypeRecipe::OwnedStore(inner)
++            | SemanticTypeRecipe::Mutex(inner)
++            | SemanticTypeRecipe::Registration(inner)
++            | SemanticTypeRecipe::AsyncRegistration(inner)
++                if kind == SemanticBuiltinTrait::ClosedEnvironment =>
++            {
++                self.sealed_capability(owner, inner, kind, depth + 1)?
++            }
++            SemanticTypeRecipe::Task { result, retained }
++                if kind == SemanticBuiltinTrait::ClosedEnvironment =>
++            {
++                let result = self.sealed_capability(owner, result, kind, depth + 1)?;
++                let frame = self.closed_task_shape(owner, retained, depth + 1)?;
++                match (result, frame) {
++                    (Some(result), Some(frame)) => Some(result && frame),
++                    _ => None,
++                }
++            }
+             SemanticTypeRecipe::Tuple(fields) => {
+                 let mut all = true;
+                 for field in fields {
+diff --git a/crates/zil-types/src/semantics/original_substitute.rs b/crates/zil-types/src/semantics/original_substitute.rs
+index 15d36611f..76df7bad4 100644
+--- a/crates/zil-types/src/semantics/original_substitute.rs
++++ b/crates/zil-types/src/semantics/original_substitute.rs
+@@ -995,6 +995,41 @@ pub(crate) fn signature(
+     Ok(value)
+ }
+ 
++/// A callable's own Invocation/Bound frame survives extraction. Only free
++/// lexical references cross the independently proved source-to-use map.
++pub(crate) fn signature_in_domains(
++    value: &SemanticSignatureRecipe,
++    substitution: &Substitution<'_>,
++    scopes: &BTreeMap<u32, u32>,
++    limits: &Limits,
++    left: &mut usize,
++) -> R<SemanticSignatureRecipe> {
++    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
++    let mut value = value.clone();
++    Apply {
++        type_equations: &[],
++        local_equations: &[],
++        delayed: None,
++        substitution,
++        limits,
++        left,
++        bound_depth: 0,
++        bound_delta: 0,
++        bound_cutoff: 0,
++        invocation_depth: 0,
++        fresh_roles: false,
++        template: false,
++        template_implicit: false,
++        scopes: Some(scopes),
++        allow_root_invocation: true,
++        forall: None,
++        inference_seen: None,
++        nominal_filter: None,
++    }
++    .signature(&mut value, 1)?;
++    Ok(value)
++}
++
+ pub(crate) fn requirement(
+     value: &SemanticRequirementRecipe,
+     substitution: &Substitution<'_>,
