@@ -318,7 +318,7 @@ impl CheckedOriginal{
         }
         let actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
         let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
-        self.callable_goal_type(&actual,&wanted,&flexible,b)
+        self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))
     }
     fn callable_goal_source(&mut self,actual:&Prototype,wanted:&Prototype,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<(Prototype,BTreeSet<Life>)>{
         if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind{return Err(bad("original Callable requirement has different complete modes/kind"));}
@@ -333,10 +333,11 @@ impl CheckedOriginal{
         let source_shape=self.map_invocation_type(actual,&mut |life,b|{b.spend(1)?;sources.push(life.clone());Ok(Life::Static)},0,b)?;
         let goal_shape=self.map_invocation_type(wanted,&mut |life,b|{b.spend(1)?;goals.push(life.clone());Ok(Life::Static)},0,b)?;
         if sources.len()!=goals.len()||!self.same(&source_shape,&goal_shape,b)?{return Err(bad("original Callable requirement changes its complete rigid Type/Const structure"));}
-        for(source,goal)in sources.iter().zip(&goals){
+        for(ordinal,(source,goal))in sources.iter().zip(&goals).enumerate(){
             b.spend(flexible.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
             if flexible.contains(source){self.unify_life(source,goal,b)?;}
-            else if !self.same_life(source,goal,b)?{return Err(bad("original Callable requirement changes a rigid caller or retained lifetime"));}
+            else if !self.same_life(source,goal,b)?{return Err(bad("original Callable requirement changes a rigid caller or retained lifetime")
+                .with_note(format!("complete lifetime occurrence {ordinal}: source {:?}, required {:?}; private source roles {:?}; actual whole Type {:?}; required whole Type {:?}",source,goal,flexible,actual,wanted)));}
         }
         Ok(())
     }
