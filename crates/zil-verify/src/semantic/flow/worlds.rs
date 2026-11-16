@@ -107,9 +107,11 @@ impl CheckedContext {
                 for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){boundary.actual(self,&source.environment,a,z,b)?;}
                 match(&a.self_type,&z.self_type){(Some(a),Some(z))=>boundary.value(self,&source.environment,a,z,b)?,(None,None)=>{},_=>return Err(bad("nominal result completion changes complete Self"))}
             }
-            for key in &returns{
+            let mut values=returns.iter().map(|key|key.result).collect::<std::collections::BTreeSet<_>>();
+            for block in &function.blocks{b.spend(1)?;if let Terminator::Return(Some(value))=block.terminator{values.insert(value);}}
+            for value in values{
                 let occurrences=self.occurrences.borrow();
-                let actual=occurrences.get(&(ScopeKey::Instance(*id),OperandKey::Value(key.result))).ok_or_else(||bad("nominal result constructor has no completely checked actual SSA receipt"))?;
+                let actual=occurrences.get(&(ScopeKey::Instance(*id),OperandKey::Value(value))).ok_or_else(||bad("nominal result constructor has no completely checked actual SSA receipt"))?;
                 let actual=boundary.project_type(self,&source.environment,actual,b)?;
                 if !self.same_type(&source.environment,&actual,&source.actual_signature.result,b)?{return Err(bad("nominal result constructor changes the required complete intrinsic result"));}
                 let actual_signature=CheckedSignature{result:actual,..source.actual_signature.clone()};

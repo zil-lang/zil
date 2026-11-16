@@ -193,6 +193,7 @@ impl CheckedContext {
             if local.ty!=expected.ty {return Err(bad("actual parameter whole type differs from its original recipe"));}
             initial.locals[parameter.0 as usize]=Some(expected.clone());
             self.record(scope,OperandKey::Parameter(index as u32),expected,b)?;
+            self.record_address_validity(module,expected,environment,b)?;
         }
         self.prepare_local_roles(module,instance,environment,b)?;
         self.header(module,instance,f,signature,environment,b)?;
@@ -308,13 +309,18 @@ impl CheckedContext {
                     InstructionKind::Store{local,value}=>{
                         let actual=*value;
                         let value=value_at(&values,*value)?;
-                        let mut normalized=None;
+                        let mut normalized=None;let mut local_role=false;
                         if let Some(expected)=&constraints[local.0 as usize] {
-                            if !self.compatible(&environment,value,expected,b)? {return Err(bad("actual Store violates the declared rigid semantic class constraint"));}
-                            normalized=self.local_role_value(module,value,expected,&environment,active,b)?;
+                            if self.compatible(&environment,value,expected,b)?{
+                                normalized=self.local_role_value(module,value,expected,&environment,active,b)?;
+                                local_role=normalized.is_some();
+                            }else{
+                                normalized=self.stored_borrow_view(module,instance,actual,&values,expected,&environment,active,b)?;
+                                if normalized.is_none(){return Err(bad("actual Store violates the declared rigid semantic class constraint"));}
+                            }
                         }
                         if f.locals[local.0 as usize].ty!=value.ty {return Err(bad("actual Store changes its local complete type"));}
-                        if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}
+                        if local_role{if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}}
                         state.locals[local.0 as usize]=Some(match normalized{Some(value)=>value,None=>value.clone()});None
                     }
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{state.locals[local.0 as usize]=None;None},
@@ -400,6 +406,7 @@ impl CheckedContext {
                     if f.values.get(id.0 as usize)!=Some(&value.ty) {return Err(bad("actual SSA complete type differs from its original semantic value"));}
                     if let Some(old)=values.get(id.0 as usize).and_then(Option::as_ref) {if !self.same_type(&environment,old,&value,b)? {return Err(bad("actual SSA definition changes rigid classes across CFG visits"));}}
                     values[id.0 as usize]=Some(value.clone());self.record(scope,OperandKey::Value(id),&value,b)?;
+                    self.record_address_validity(module,&value,&environment,b)?;
                 }
                 for site in &sites {
                     if matches!(site.action,SemanticSiteAction::TypeUse{..})&&!input_uses.contains(&site.recipe) {
@@ -756,6 +763,7 @@ impl CheckedContext {
         for (index,((expected,_),argument)) in signature.parameters.iter().zip(arguments).enumerate() {
             if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
         }
+        self.check_call_input_wf(module,&signature,arguments,values,environment,b)?;
         if actual_function.return_type!=signature.result.ty {return Err(bad("actual Call specialization result whole type differs"));}
         Ok(if signature.result.ty==Type::Unit {None}else{Some(signature.result)})
     }

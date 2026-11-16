@@ -124,6 +124,25 @@ impl CheckedContext{
             self.complete_nominal_result(module,function,&record.source,worlds,&record.worlds,b)?;
         }Ok(())
     }
+    /// Query-domain source transport references only the completed exact
+    /// specialization. Existing input κ cannot become fresh query output κ.
+    pub(crate) fn checked_nominal_result_classes(&self,module:&TypedModule,function:&TypedFunction,parameters:&[&DynTypeValue],result:&DynTypeValue,b:&mut Budget)->Check<Vec<u32>>{
+        let Some(specialization)=&function.dyn_instance else{return Ok(vec![]);};
+        let mut common:Option<Vec<bool>>=None;
+        for record in self.static_members.borrow().iter().filter(|record|record.function==function.id){
+            dynamic_metadata::recipe(&record.specialization,b)?;dynamic_metadata::recipe(specialization,b)?;
+            if record.specialization!=*specialization{continue;}
+            if record.source.definition!=specialization.definition{return Err(bad("query nominal result changes its completed original definition"));}
+            let signature=&record.source.actual_signature;
+            b.spend(parameters.len().saturating_add(1))?;
+            if signature.parameters.len()!=parameters.len()||signature.result.ty!=result.ty||signature.result.life!=result.life{return Err(bad("query nominal result changes its completed whole signature domain"));}
+            for((value,_),actual)in signature.parameters.iter().zip(parameters){if value.ty!=actual.ty||value.life!=actual.life{return Err(bad("query nominal result changes a completed whole input domain"));}}
+            let fresh=self.nominal_result_sources(&record.source.environment,signature,b)?.map_or_else(||vec![false;result.life.binder_count as usize],|(_,fresh)|fresh);
+            if fresh.iter().any(|row|*row)&&self.nominal_result_constructors(module,function,b)?.is_none(){return Err(bad("query nominal result has no completed original/actual constructor sources"));}
+            if let Some(common)=&mut common{if common.len()!=fresh.len(){return Err(bad("completed nominal result worlds disagree on their full class cardinality"));}for(old,new)in common.iter_mut().zip(fresh){*old&=new;}}else{common=Some(fresh);}
+        }
+        Ok(common.unwrap_or_default().into_iter().enumerate().filter_map(|(index,fresh)|fresh.then_some(index as u32)).collect())
+    }
     pub(crate) fn checked_static_specialization(&self,module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<bool>{
         let Some(instance)=&function.dyn_instance else{return Ok(false);};
         for record in self.static_members.borrow().iter().filter(|record|record.function==function.id){

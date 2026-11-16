@@ -344,3 +344,68 @@ mod region_image_tests {
         for(parameter,_)in &signature.parameters{assert!(context.compatible(&env,&inputs[0],parameter,&mut b).unwrap());assert!(!context.same(&env,&sigma,&parameter.classes[0],&mut b).unwrap());}
     }
 }
+
+impl CheckedContext {
+    /// Match the implicit physical validity precondition of each real Address
+    /// parameter. These are directed outside-life obligations, not equalities
+    /// of the pointee's complete nominal or retained intrinsic classes.
+    pub(super) fn check_call_input_wf(&self,module:&TypedModule,signature:&CheckedSignature,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        if signature.parameters.len()!=arguments.len(){return Err(bad("call validity omits a complete input ordinal"));}
+        for((expected,_),argument)in signature.parameters.iter().zip(arguments){
+            if !matches!(expected.ty,Type::Address{..}){continue;}
+            let actual=value_at(values,*argument)?;
+            let mut heads=expected.life.slots.iter().filter(|row|row.path.is_empty());
+            let Some(head)=heads.next()else{continue;};if heads.next().is_some(){return Err(bad("call validity has ambiguous outer parameter heads"));}
+            let target=expected.classes.get(head.binder as usize).ok_or_else(||bad("call validity outer parameter class is absent"))?;
+            let child=self.child_value(module,actual,&[LifeTypeProjection::Pointee],b)?;
+            b.spend(child.life.slots.len())?;
+            for slot in &child.life.slots{
+                if !matches!(slot.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress){continue;}
+                let source=child.classes.get(slot.binder as usize).ok_or_else(||bad("call validity physical address source class is absent"))?;
+                if !self.outlives(environment,source,target,b)?{return Err(bad("call input has no proved physical-address validity bound for its borrow window"));}
+            }
+        }Ok(())
+    }
+}
+
+impl CheckedContext {
+    /// An actual Address formation (or a valid Address input) promises a live
+    /// physical pointee for its window. Preserve only the corresponding
+    /// physical Address bounds. This creates no target, permission or κ alias;
+    /// the real operation/entry and slot-loan kernels remain obligatory.
+    pub(super) fn record_address_validity(&self,module:&TypedModule,value:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        if !matches!(value.ty,Type::Address{..}){return Ok(());}
+        let mut heads=value.life.slots.iter().filter(|row|row.path.is_empty());
+        let Some(head)=heads.next()else{return Ok(());};if heads.next().is_some(){return Err(bad("actual Address validity has ambiguous outer heads"));}
+        let target=value.classes.get(head.binder as usize).ok_or_else(||bad("actual Address validity outer class is absent"))?;
+        let child=self.child_value(module,value,&[LifeTypeProjection::Pointee],b)?;
+        let mut edges=Vec::new();
+        b.spend(child.life.slots.len())?;
+        for slot in &child.life.slots{if matches!(slot.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress){
+            let source=child.classes.get(slot.binder as usize).ok_or_else(||bad("actual Address physical source class is absent"))?;
+            edges.push((source.clone(),target.clone()));
+        }}
+        if edges.is_empty(){return Ok(());}
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        let mut premises=self.premises.borrow_mut();let rows=premises.entry(frame.key).or_default();let mut changed=false;
+        for edge in edges{b.spend(rows.relations.outlives.len().saturating_add(1))?;if !rows.relations.outlives.contains(&edge){rows.relations.outlives.push(edge);changed=true;}}
+        drop(premises);if changed{self.invalidate_closed_frames();}Ok(())
+    }
+}
+
+impl CheckedContext {
+    /// A stored shared view may use the exact already-proved parent of its
+    /// real ReborrowAddress. The SSA loan keeps its own root; no global edge or
+    /// equality lengthens that root or changes a retained child κ.
+    pub(super) fn stored_borrow_view(&self,module:&TypedModule,caller:&SemanticInstance,argument:ValueId,values:&[Option<CheckedType>],expected:&CheckedType,environment:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
+        if !matches!(expected.ty,Type::Address{mutable:false,..}){return Ok(None);}
+        if !self.call_argument(module,caller,argument,values,expected,environment,true,b)?{return Ok(None);}
+        let mut heads=expected.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==StoredBorrowMode::SharedAddress);
+        let Some(head)=heads.next()else{return Ok(None);};if heads.next().is_some(){return Err(bad("stored shared view has ambiguous original outer roles"));}
+        let outer=expected.classes.get(head.binder as usize).ok_or_else(||bad("stored shared view original outer role is absent"))?.clone();
+        let child=self.child_value(module,value_at(values,argument)?,&[LifeTypeProjection::Pointee],b)?;
+        let view=dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(outer)},&[child],active,b)?;
+        if !self.same_type(environment,&view,expected,b)?{return Err(bad("stored shared view changes a complete original child domain"));}
+        Ok(Some(view))
+    }
+}

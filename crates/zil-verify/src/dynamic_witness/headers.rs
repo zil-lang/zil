@@ -374,7 +374,7 @@ pub(super) fn function(
     result: &terms::Value,
     b: &mut Budget,
 ) -> Check<requests::Header> {
-    checked_function(module, function, parameters, result, true, &[], b)
+    checked_function(module, function, parameters, result, true, &[], &[], b)
 }
 /// Compare occurrences in a different request domain. The returned map is
 /// actual header -> request image, induced by complete positions, never by
@@ -387,7 +387,7 @@ pub(super) fn rebased_function(
     result: &terms::Value,
     b: &mut Budget,
 ) -> Check<(requests::Header, Vec<DynLifeEmbedding>)> {
-    rebased_function_with_sources(module, function, parameters, result, &[], b)
+    rebased_function_with_sources(module, function, parameters, result, &[], &[], b)
 }
 
 /// Outside sources of fresh, original-and-actual constructor results. These
@@ -395,9 +395,9 @@ pub(super) fn rebased_function(
 /// they never change an intrinsic term or establish a class equality.
 pub(super) fn rebased_function_with_sources(
     module: &TypedModule, function: &TypedFunction, parameters: &[terms::Value],
-    result: &terms::Value, sources: &[(terms::LifeTerm, terms::LifeTerm)], b: &mut Budget,
+    result: &terms::Value, sources: &[(terms::LifeTerm, terms::LifeTerm)], borrows: &[(terms::LifeTerm, terms::LifeTerm)], b: &mut Budget,
 ) -> Check<(requests::Header, Vec<DynLifeEmbedding>)> {
-    let header = checked_function(module, function, parameters, result, false, sources, b)?;
+    let header = checked_function(module, function, parameters, result, false, sources, borrows, b)?;
     let Some(actual) = &function.storage_life else {
         return Ok((header, vec![]));
     };
@@ -455,6 +455,7 @@ fn checked_function(
     result: &terms::Value,
     own_domain: bool,
     sources: &[(terms::LifeTerm, terms::LifeTerm)],
+    borrows: &[(terms::LifeTerm, terms::LifeTerm)],
     b: &mut Budget,
 ) -> Check<requests::Header> {
     if function.parameters.len() != parameters.len() || function.foreign.is_some() {
@@ -568,7 +569,7 @@ fn checked_function(
             .iter()
             .find(|row| row.position == *position)
             .ok_or_else(|| bad("actual result class occurrence is absent"))?;
-        result_output(&mapping, row.binder, *term, sources, b).map_err(|error|error.with_note(format!("actual header result class: function {:?}, position {:?}, binder {:?}, required {:?}, input origins {:?}; own_domain {own_domain}; complete result {:?}",function.id,position,row.binder,term,mapping,result)))?;
+        result_output(&mapping, row.binder, *term, sources, &[], b).map_err(|error|error.with_note(format!("actual header result class: function {:?}, position {:?}, binder {:?}, required {:?}, input origins {:?}; own_domain {own_domain}; complete result {:?}",function.id,position,row.binder,term,mapping,result)))?;
     }
     for (position, term) in &directory.bindings {
         if position.base != StorageBase::Result || actual.static_bindings.contains(position) {
@@ -579,7 +580,7 @@ fn checked_function(
             .iter()
             .find(|row| row.position == *position)
             .ok_or_else(|| bad("actual result borrow occurrence is absent"))?;
-        result_output(&mapping, row.binder, *term, sources, b).map_err(|error|error.with_note(format!("actual header result borrow: function {:?}, position {:?}, binder {:?}, required {:?}, input origins {:?}; own_domain {own_domain}; complete result {:?}",function.id,position,row.binder,term,mapping,result)))?;
+        result_output(&mapping, row.binder, *term, sources, borrows, b).map_err(|error|error.with_note(format!("actual header result borrow: function {:?}, position {:?}, binder {:?}, required {:?}, input origins {:?}; own_domain {own_domain}; complete result {:?}",function.id,position,row.binder,term,mapping,result)))?;
     }
     if actual
         .classes
@@ -639,12 +640,16 @@ fn bind(
 }
 fn result_output(
     mapping: &[(StorageBinder, terms::LifeTerm)], binder: StorageBinder,
-    term: terms::LifeTerm, sources: &[(terms::LifeTerm, terms::LifeTerm)], b: &mut Budget,
+    term: terms::LifeTerm, sources: &[(terms::LifeTerm, terms::LifeTerm)], borrows: &[(terms::LifeTerm, terms::LifeTerm)], b: &mut Budget,
 ) -> Check<()> {
     b.spend(mapping.len().saturating_add(sources.len()))?;
     if mapping.contains(&(binder, term)) { return Ok(()); }
     let mut rows = sources.iter().filter(|(result, _)| *result == term);
-    let Some((_, source)) = rows.next() else { return output(mapping, binder, term, b); };
+    let Some((_, source)) = rows.next() else {
+        b.spend(borrows.len().saturating_mul(mapping.len().saturating_add(1)))?;
+        if borrows.iter().any(|(input,source)|*source==term&&mapping.contains(&(binder,*input))){return Ok(());}
+        return output(mapping, binder, term, b);
+    };
     if rows.any(|(_, other)| other != source) {
         return Err(bad("fresh nominal result has inconsistent outside source occurrences"));
     }

@@ -113,15 +113,36 @@ impl CheckedContext {
     /// pending result-source correspondence. Existing values keep exact κ.
     pub(crate) fn nominal_result_constructors(&self,module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<Option<Vec<Key>>>{
         let programme=module.semantic.as_ref().ok_or_else(||bad("nominal result has no original programme"))?;
-        let mut returns=Vec::new();
-        for(block_index,block)in function.blocks.iter().enumerate(){
-            b.spend(block.instructions.len().saturating_add(1))?;
+        let mut returns=BTreeSet::new();
+        for block in &function.blocks{
+            b.spend(1)?;
             let Terminator::Return(Some(value))=&block.terminator else{continue;};
-            let mut instructions=block.instructions.iter().enumerate().filter(|(_,row)|row.result==Some(*value));
-            let Some((index,instruction))=instructions.next() else{return Ok(None);};
-            if instructions.next().is_some(){return Err(bad("nominal result constructor repeats its actual SSA producer"));}
-            let variant=match instruction.kind{InstructionKind::MakeVariant{variant,..}=>Some(variant),InstructionKind::MakeAggregate{..}|InstructionKind::MakeOwnedTuple{..}=>None,_=>return Ok(None)};
-            let key=Key{function:function.id,block:BlockId(block_index as u32),instruction:index as u32,result:*value};
+            let use_=SitePoint{function:function.id,block:block.id,instruction:block.instructions.len() as u32,after:false};
+            let mut work=vec![(*value,use_,false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();
+            while let Some((value,use_,exit))=work.pop(){
+                b.spend(1)?;
+                if exit{active.remove(&value);proven.insert(value);continue;}
+                let mut producer=None;
+                for body in &function.blocks{b.spend(body.instructions.len())?;for(index,instruction)in body.instructions.iter().enumerate(){if instruction.result==Some(value){if producer.replace((body.id,index as u32,instruction)).is_some(){return Err(bad("nominal result repeats its actual SSA producer"));}}}}
+                let Some((block,index,instruction))=producer else{return Ok(None);};
+                if !closure_boundaries::creation_dominates(function,SitePoint{function:function.id,block,instruction:index,after:true},use_,b)?{return Ok(None);}
+                if proven.contains(&value){continue;}
+                if !active.insert(value){return Ok(None);}
+                work.push((value,use_,true));
+                let variant=match instruction.kind{
+                    InstructionKind::MakeVariant{variant,..}=>Some(variant),
+                    InstructionKind::MakeAggregate{..}|InstructionKind::MakeOwnedTuple{..}=>None,
+                    InstructionKind::Load(local)|InstructionKind::TakeLocal{local}=>{
+                        if function.parameters.contains(&local){return Ok(None);}
+                        let mut stores=0usize;
+                        // Every actual local source contributes. A convenient
+                        // last store or a same-shaped value is never selected.
+                        for body in &function.blocks{b.spend(body.instructions.len())?;for(at,row)in body.instructions.iter().enumerate(){if let InstructionKind::Store{local:target,value:source}=row.kind{if target==local{stores+=1;work.push((source,SitePoint{function:function.id,block:body.id,instruction:at as u32,after:false},false));}}}}
+                        if stores==0{return Ok(None);}continue;
+                    },
+                    _=>return Ok(None),
+                };
+                let key=Key{function:function.id,block,instruction:index,result:value};
             let mut worlds=0usize;
             for world in &programme.instances{
                 b.spend(1)?;
@@ -140,9 +161,10 @@ impl CheckedContext {
                 if !matched{return Ok(None);}
             }
             if worlds==0{return Ok(None);}
-            returns.push(key);
+                returns.insert(key);
+            }
         }
-        if returns.is_empty(){Ok(None)}else{Ok(Some(returns))}
+        if returns.is_empty(){Ok(None)}else{Ok(Some(returns.into_iter().collect()))}
     }
 
 }

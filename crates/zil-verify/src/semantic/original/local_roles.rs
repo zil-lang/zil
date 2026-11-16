@@ -2,7 +2,7 @@
 //! initializer/assignment contributes a directed dependency; none establishes
 //! equality between independent inputs or changes the referent's full type.
 use super::*;
-pub(super) struct LocalRole{ordinal:u32,sources:BTreeSet<Life>}
+pub(super) struct LocalRole{pub(super) ordinal:u32,pub(super) sources:BTreeSet<Life>}
 pub(in crate::semantic) struct LocalRoleRecipe{pub(in crate::semantic) ordinal:u32,pub(in crate::semantic) sources:Vec<SemanticOuterLifeRecipe>}
 impl CheckedOriginal{
     fn local_role_ordinal(&self,module:&TypedModule,context:&CheckedContext,owner:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<u32>{
@@ -52,7 +52,7 @@ impl CheckedOriginal{
         if !self.checked.contains(&definition){return Err(bad("shared local roles lack their completed original body"));}
         let mut rows=Vec::new();
         for((owner,_),role)in &self.local_roles{b.spend(1)?;if *owner!=definition{continue;}
-            let mut sources=Vec::new();for source in &role.sources{b.spend(1)?;sources.push(if *source==Life::Static{SemanticOuterLifeRecipe::Static}else{SemanticOuterLifeRecipe::Class(self.reify_life(module,source,env,b)?)});}
+            let mut sources=Vec::new();for source in &role.sources{if matches!(self.resolved_life(source,b)?,Life::ReceiverRole(..)){continue;}b.spend(1)?;sources.push(if *source==Life::Static{SemanticOuterLifeRecipe::Static}else{SemanticOuterLifeRecipe::Class(self.reify_life(module,source,env,b)?)});}
             rows.push(LocalRoleRecipe{ordinal:role.ordinal,sources});
         }Ok(rows)
     }

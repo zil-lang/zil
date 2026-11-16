@@ -66,7 +66,8 @@ pub(crate) fn check(
     let mut parameters=Vec::new();for(value,_)in &signature.parameters{parameters.push(domain.symbols.incoming(value,b)?);}
     let result=domain.symbols.incoming(&signature.result,b)?;
     let sources=result_sources(module,context,environment,function,signature,&mut domain,&result,b)?;
-    let(_,header)=headers::rebased_function_with_sources(module,function,&parameters,&result,&sources,b)?;
+    let borrows=input_borrow_sources(signature,&mut domain,b)?;
+    let(_,header)=headers::rebased_function_with_sources(module,function,&parameters,&result,&sources,&borrows,b)?;
     // Match all original mixed actuals and every header embedding jointly.
     // This also requires every lexical (including phantom) class to be
     // anchored; no single same-shaped header can select the provider/body.
@@ -92,6 +93,24 @@ fn result_sources(module:&TypedModule,context:&semantic::CheckedContext,environm
         sources.push((*term,*source));
     }
     Ok(sources)
+}
+
+/// A saved physical pointer has an outside σ in addition to its holder κ.
+/// This directory only authenticates borrow outputs; full input/class output
+/// domains and the actual LoadStoredBorrow/loan/parent proof stay independent.
+fn input_borrow_sources(signature:&semantic::CheckedSignature,domain:&mut Domain<'_>,b:&mut Budget)->Check<Vec<(terms::LifeTerm,terms::LifeTerm)>>{
+    let mut rows=Vec::new();
+    for(parameter,_)in &signature.parameters{
+        for origin in &parameter.origins{if let IntrinsicOrigin::Nominal{source,class}=origin{
+            b.spend(source.domain.slots.len())?;
+            if source.domain.slots.iter().any(|slot|slot.binder==*class){
+                if let Some(IntrinsicOrigin::DerivedClass{source})=source.class_sources.get(*class as usize){domain.key(source,false,b)?;}
+            }
+        }}
+        for(input,source,physical)in domain.symbols.nominal_sources(parameter,b)?{
+            if physical{b.spend(1)?;rows.push((input,source));}
+        }
+    }Ok(rows)
 }
 
 fn original_recipe<'a>(module:&'a TypedModule,owner:&SemanticDynOwner,b:&mut Budget)->Check<&'a DynSignatureRecipe>{
@@ -156,7 +175,8 @@ pub(crate) fn build_requests(
         dynamic_metadata::recipe(original,b)?;dynamic_metadata::recipe(recipe,b)?;
         if original.contract!=*recipe{return Err(bad("definition contract differs from its exact original signature"));}
         contracts::defaults::instantiate_definition(module,owner,original,&mut resolved,&receiver,domain.scope,b)?;
-        let(expected_header,embedding)=resolved.function(module,function,&sources,b)?;
+        let borrows=input_borrow_sources(signature,&mut domain,b)?;
+        let(expected_header,embedding)=resolved.function(module,function,&sources,&borrows,b)?;
         let leaves=inventory::self_leaves(module,&receiver,domain.scope,b)?;
         out.push(resolved.request(requests::Origin::Definition{owner:receipt.body_owner,
             member:receipt.body_member,definition:receipt.definition},function,domain.scope,

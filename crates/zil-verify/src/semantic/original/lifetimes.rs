@@ -53,7 +53,7 @@ impl CheckedOriginal {
                 // variable Life domain. An inferred formal still denotes this
                 // call's original region when all of its sources are Static.
                 let local_role=self.local_outer_sources(&first,b)?.is_some();
-                if equal&&!local_role&&!matches!(first,Life::Static|Life::Local(..)|Life::CallRegion(_)){self.life_substitutions.insert(*id,first);}
+                if equal&&!local_role&&!matches!(first,Life::Static|Life::Local(..)|Life::CallRegion(_)|Life::ReceiverRole(..)){self.life_substitutions.insert(*id,first);}
                 else{let owner=self.current.ok_or_else(||bad("original Call region has no caller"))?;b.spend(ordinal.len())?;self.call_regions.insert(*id,(owner,node,ordinal.clone(),unique));self.life_substitutions.insert(*id,Life::CallRegion(*id));}
             }else{for source in sources{self.relate_outer(&source,&target,b)?;}}
         }Ok(())
@@ -113,11 +113,12 @@ impl CheckedOriginal {
         if let Some(rows)=self.outer_flows.get(&owner){for(source,target)in rows{
             // These are directed outer dependencies, never exact equalities
             // or the intrinsic classes inside a complete child type.
+            if matches!(self.resolved_life(source,b)?,Life::ReceiverRole(..)){continue;}
             b.spend(1)?;result.push((self.reify_outer(module,source,env,b)?,self.reify_life(module,target,env,b)?));
         }}
         for(id,(definition,_,_,sources))in &self.call_regions{if *definition!=owner{continue;}
             let target=self.reify_life(module,&Life::CallRegion(*id),env,b)?;
-            for source in sources{b.spend(1)?;result.push((self.reify_outer(module,source,env,b)?,target.clone()));}
+            for source in sources{if matches!(self.resolved_life(source,b)?,Life::ReceiverRole(..)){continue;}b.spend(1)?;result.push((self.reify_outer(module,source,env,b)?,target.clone()));}
         }
         Ok(result)
     }
@@ -217,5 +218,64 @@ mod call_region_source_tests {
         }
         let Life::Infer(id)=checked.fresh_life(&mut b).unwrap()else{unreachable!()};checked.outer_inferences.insert(id,vec![input.clone(),input.clone()]);
         checked.finish_call_heads(&[(id,vec![1,0],false)],NodeId(12),&mut b).unwrap();assert_eq!(checked.resolved_life(&Life::Infer(id),&mut b).unwrap(),input);
+    }
+}
+
+impl CheckedOriginal {
+    /// Runtime receiver roles are resolved only at their exact checked call,
+    /// after the real receiver SSA exists. They cannot be serialized as a
+    /// declaration Life, nor selected by a same-numbered header image.
+    pub(in crate::semantic) fn receiver_role_flow_recipes(&self,module:&TypedModule,owner:SemanticDefinitionId,site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<Vec<(SemanticClassExpr,SemanticLifeRecipe)>>{
+        let mut flows=Vec::new();
+        if let Some(rows)=self.outer_flows.get(&owner){for(source,target)in rows{b.spend(1)?;flows.push((source.clone(),target.clone()));}}
+        for(id,(definition,_,_,sources))in &self.call_regions{if *definition==owner{for source in sources{b.spend(1)?;flows.push((source.clone(),Life::CallRegion(*id)));}}}
+        for((definition,_),role)in &self.local_roles{if *definition==owner{for source in &role.sources{b.spend(1)?;flows.push((source.clone(),Life::Implicit(owner,role.ordinal)));}}}
+        let mut result=Vec::new();
+        for(source,target)in flows{let Life::ReceiverRole(definition,node,mode)=self.resolved_life(&source,b)?else{continue;};
+            if definition!=owner||self.original_call_site(definition,node,b)?.1!=site{continue;}
+            result.push((self.receiver_role(module,definition,node,mode,env,b)?,self.reify_life(module,&target,env,b)?));
+        }Ok(result)
+    }
+}
+
+impl CheckedOriginal {
+    /// Physical address fields impose validity bounds on an enclosing Address
+    /// window. Nominal κ, phantom arguments, owners and dormant Desc do not.
+    fn physical_address_lives(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<Life>>{
+        let mut pending=vec![(ty.clone(),0usize)];let mut result=Vec::new();
+        while let Some((ty,depth))=pending.pop(){
+            b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original input physical address depth exceeded"));}
+            match self.resolved(&ty,b)?{
+                Ty::Address{life,..}=>result.push(self.resolved_life(&life,b)?),
+                Ty::Tuple(fields)=>for field in fields{pending.push((field,depth+1));},
+                Ty::Array(element,length)=>{if !matches!(length.value,ConstValue::Value(Constant::Usize(0))){pending.push((*element,depth+1));}},
+                Ty::ErrorUnion(error,result)=>{pending.push((*error,depth+1));pending.push((*result,depth+1));},
+                Ty::Nominal(id,arguments)=>{
+                    let definition=context.definition(module,id,b)?;
+                    let SemanticDefinitionBody::Nominal{body,..}=&definition.body else{return Err(bad("physical input nominal has another original declaration kind"));};
+                    let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=arguments;
+                    match body{
+                        SemanticNominalBody::Product{fields}=>for field in fields{pending.push((self.ty(module,context,&field.ty,&selected,active,b)?,depth+1));},
+                        SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{pending.push((self.ty(module,context,field,&selected,active,b)?,depth+1));}},
+                        _=>{},
+                    }
+                },
+                _=>{},
+            }
+        }Ok(result)
+    }
+    pub(super) fn assume_input_address_wf(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,owner:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let Ty::Address{life:head,inner,..}=self.resolved(ty,b)?else{return Ok(());};
+        for source in self.physical_address_lives(module,context,&inner,active,b)?{
+            let head=self.resolved_life(&head,b)?;
+            b.spend(1)?;self.life_outlives.entry(owner).or_default().push((source.clone(),head.clone()));
+            self.outer_flows.entry(owner).or_default().push((source,head));
+        }Ok(())
+    }
+    pub(super) fn require_input_address_wf(&mut self,module:&TypedModule,context:&CheckedContext,actual:&Ty,expected:&Ty,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let Ty::Address{inner,..}=self.resolved(actual,b)?else{return Ok(());};
+        let Ty::Address{life:head,..}=self.resolved(expected,b)?else{return Ok(());};
+        for source in self.physical_address_lives(module,context,&inner,active,b)?{self.relate_outer(&source,&head,b)?;}
+        Ok(())
     }
 }

@@ -166,7 +166,7 @@ impl CheckedOriginal {
             b.spend(1)?;self.expressions.insert((env.current()?,expression.id),effective.clone());
             return Ok(effective);
         }}
-        match mode{
+        let actual=match mode{
             PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe=>{
                 let (source,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&source,env,false,active,b)?;}let actual=self.contextual_borrow_value(&source,expected,b)?;self.relate_value(&actual,expected,b)?;Ok(actual)
             },
@@ -178,7 +178,9 @@ impl CheckedOriginal {
             },
             PassingMode::Give=>{let actual=self.expression(module,context,expression,env,bindings,Some(expected),active,b)?;if !self.transfer_operand(env.current()?,expression,b)?{return Err(bad("original owning resource argument omits explicit give"));}Ok(actual)},
             _=>self.expression(module,context,expression,env,bindings,Some(expected),active,b),
-        }
+        }?;
+        self.require_input_address_wf(module,context,&actual,expected,active,b)?;
+        Ok(actual)
     }
 }
 

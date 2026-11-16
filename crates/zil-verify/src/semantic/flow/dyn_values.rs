@@ -65,23 +65,32 @@ impl CheckedContext {
         let application=self.application(module,&original.application,env,external,active,b)?;
         b.spend(module.dyn_interfaces.len())?;let iface=module.dyn_interfaces.iter().find(|row|row.id==*interface).ok_or_else(||bad("dynamic call actual interface is absent"))?;let selected=iface.slots.get(*slot as usize).ok_or_else(||bad("dynamic call selects no exact actual slot"))?;
         if selected.member.ordinal!=original.member||!self.dyn_application_matches(module,&application,&selected.member.application,&receiver.classes,&receiver.origins,env,b)?{return Err(bad("dynamic call selects another complete original trait/member application"));}
+        self.prepare_receiver_role_flows(module,caller,site,env,b)?;
         let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,env,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,env,b)?),original::MethodActualRecipe::SourceType(sources)=>CheckedActual::Type(self.inferred_call_type(module,sources,env,external,active,b)?.ok_or_else(||bad("dynamic method inferred whole Type lacks its exact original sources"))?)});}
         let SemanticSiteAction::BodyCall{actuals:source_claims}=&site.action else{unreachable!()};if source_claims.len()!=actuals.len()||selected.actuals.len()!=actuals.len(){return Err(bad("dynamic call loses its complete mixed method actual vector"));}
         for(value,claim)in actuals.iter().zip(source_claims){self.actual_claim(module,claim,value,env,b)?;}
         let programme=module.semantic.as_ref().ok_or_else(||bad("dynamic call lacks its original programme"))?;b.spend(programme.dyn_scopes.len())?;let mut methods=programme.dyn_scopes.iter().filter(|row|row.owner==SemanticDynOwner::MethodSignature{declaration:application.declaration,member:original.member});let method=methods.next().ok_or_else(||bad("dynamic member lacks its exact original declaration scope"))?;if methods.next().is_some(){return Err(bad("dynamic member declaration scope is ambiguous"));}
         let mut selected_env=self.dynamic_member_environment(module,method.scope,&application,&receiver,&actuals,env,active,b)?;
         let definition=self.definition(module,method.scope,b)?;let (SemanticDefinitionBody::FunctionWithBody{signature,..}|SemanticDefinitionBody::Function{signature,..})=&definition.body else{return Err(bad("dynamic member original scope has no complete signature"));};
-        let signature=self.evaluate_signature(module,signature,&selected_env,external,active,b)?;
+        let mut signature=self.evaluate_signature(module,signature,&selected_env,external,active,b)?;
         selected_env.invocations=signature.invocation.clone();
         let mut boundary=trait_members::Boundary::default();
         for(value,recorded)in actuals.iter().zip(&selected.actuals){let checked=match recorded{DynGenericActual::Life(StorageBinder::Invocation(index))=>CheckedActual::Life(signature.invocation.get(*index as usize).ok_or_else(||bad("slot method Life escapes its invocation domain"))?.clone()),DynGenericActual::Life(StorageBinder::Fixed(index))=>CheckedActual::Life(receiver.classes.get(*index as usize).ok_or_else(||bad("slot method Life escapes its complete Context"))?.clone()),DynGenericActual::Type(ty)=>CheckedActual::Type(self.construct_value(module,ty,&empty_life(),vec![],b)?),DynGenericActual::QualifiedType(value)=>self.dyn_method_actual(module,value,&receiver.classes,&receiver.origins,&signature.invocation,b).map(CheckedActual::Type)?,DynGenericActual::Const(value)=>CheckedActual::Const{carrier:atomic(&value.ty(),b)?,value:value.clone()}};boundary.actual(self,env,&checked,value,b)?;}
         for(value,_)in &signature.parameters{dynamic_metadata::ty(&value.ty,b)?;}
         dynamic_metadata::ty(&signature.result.ty,b)?;
         if signature.parameters.len()!=arguments.len()+1||signature.parameters[0].1!=selected.receiver.mode||signature.parameters.iter().skip(1).map(|(_,mode)|*mode).collect::<Vec<_>>()!=selected.parameter_modes||signature.result_mode!=selected.result_mode||signature.call_kind!=selected.call_kind||signature.result.ty!=selected.result||signature.parameters.iter().skip(1).map(|(value,_)|&value.ty).ne(selected.parameters.iter()){return Err(bad("dynamic slot whole ABI differs from its exact original signature"));}
-        for((expected,_),actual)in signature.parameters.iter().zip(std::iter::once(callee).chain(arguments)){boundary.value(self,env,expected,value_at(values,*actual)?,b)?;}
+        for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,env,parameter,b)?;}
+        signature.result=boundary.project_type(self,env,&signature.result,b)?;
+        let operands=std::iter::once(*callee).chain(arguments.iter().copied()).collect::<Vec<_>>();
+        let key=selected_env.lexical.first().ok_or_else(||bad("dynamic call lacks its exact selected method frame"))?.key;
+        let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,&operands,values,env,external,active,b)?;
+        let inputs=source_inputs.iter().collect::<Vec<_>>();
+        self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,env,b)?;
+        for(index,((expected,_),actual))in signature.parameters.iter().zip(&operands).enumerate(){if !self.call_argument(module,caller,*actual,values,expected,env,source_checks[index],b)?{return Err(bad("dynamic call input changes its exact whole domain or original borrow view"));}}
+        self.check_call_input_wf(module,&signature,&operands,values,env,b)?;
         self.evaluate_requirements(module,&definition.requirements,&selected_env,RequirementMode::ActualObligation,external,active,b)?;
         for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&selected_env,RequirementMode::ActualObligation,external,active,b)?;}}
-        let result=boundary.project_type(self,env,&signature.result,b)?;
+        let result=signature.result;
         let raw=crate::dynamic_dispatch::instruction(module,f,instruction,b)?;if raw.as_ref()!=if result.ty==Type::Unit{None}else{Some(&result.ty)}{return Err(bad("dynamic call kernel result differs from original full result"));}
         Ok((result.ty!=Type::Unit).then_some(result))
     }

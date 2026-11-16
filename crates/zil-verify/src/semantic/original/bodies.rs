@@ -53,6 +53,7 @@ impl CheckedOriginal {
             for formal in &original.parameters {if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.collect_equalities(module,context,requirement,&lexical,&mut equalities,active,b)?;}}}
         }
         self.equalities.insert(id,equalities);
+        for parameter in &prototype.parameters{self.assume_input_address_wf(module,context,parameter,id,active,b)?;}
         self.check_names(module,context,definition,&prototype.environment,active,b)?;
         for(mode,ty)in prototype.modes.iter().zip(&prototype.parameters){if *mode==PassingMode::Copy{self.require_copy(module,context,ty,&prototype.environment,active,b)?;}}
         if prototype.result_mode==PassingMode::Copy{self.require_copy(module,context,&prototype.result,&prototype.environment,active,b)?;}

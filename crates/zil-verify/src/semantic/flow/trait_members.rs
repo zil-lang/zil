@@ -8,6 +8,7 @@ impl CheckedContext {
     pub(super) fn actual_trait_member(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let receiver=self.evaluate_type(module,&original.receiver,environment,external,active,b)?;
         let application=self.application(module,&original.application,environment,external,active,b)?;
+        self.prepare_receiver_role_flows(module,caller,site,environment,b)?;
         let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,environment,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,environment,b)?),original::MethodActualRecipe::SourceType(sources)=>CheckedActual::Type(self.inferred_call_type(module,sources,environment,external,active,b)?.ok_or_else(||bad("method inferred whole Type lacks its exact original sources"))?)});}
         let receipt=select_original_member(external,module,self,environment,&receiver,&application,original.member,&actuals,active,b)?;
         if receipt.member!=original.member||receipt.application!=application||receipt.receiver!=receiver{return Err(bad("actual member selection changes its complete requested identity"));}
@@ -31,6 +32,7 @@ impl CheckedContext {
             let local=function.locals.get(parameter.0 as usize).ok_or_else(||bad("actual member parameter local is absent"))?;
             if local.ty!=expected.ty||!self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)?{return Err(bad("actual member argument violates its complete invariant type/mode/class relation"));}
         }
+        self.check_call_input_wf(module,&signature,arguments,values,environment,b)?;
         // These are signatures and original identity only. All actual function
         // CFG/loans/cleanup and the pending universal relation must still pass;
         // raw trait/body contract uppers have supplied no permission here.

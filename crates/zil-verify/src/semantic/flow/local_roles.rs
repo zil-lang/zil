@@ -27,6 +27,16 @@ impl CheckedContext{
         }
         drop(premises);if changed{self.invalidate_closed_frames();}Ok(())
     }
+    pub(super) fn prepare_receiver_role_flows(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        let recipes=self.original.borrow().as_ref().ok_or_else(||bad("receiver flow lacks its complete original body"))?.receiver_role_flow_recipes(module,instance.definition,site.recipe,environment,b)?;
+        let mut edges=Vec::new();
+        for(source,target)in recipes{edges.push((self.class(module,&source,environment,b)?,self.life(module,&target,environment,b)?));}
+        if edges.is_empty(){return Ok(());}
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        let mut premises=self.premises.borrow_mut();let rows=premises.entry(frame.key).or_default();let mut changed=false;
+        for edge in edges{b.spend(rows.relations.outlives.len().saturating_add(1))?;if !rows.relations.outlives.contains(&edge){rows.relations.outlives.push(edge);changed=true;}}
+        drop(premises);if changed{self.invalidate_closed_frames();}Ok(())
+    }
     pub(super) fn local_role_value(&self,module:&TypedModule,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         if !matches!(expected.ty,Type::Address{mutable:false,..}){return Ok(None);}
         let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;

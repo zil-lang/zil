@@ -1341,8 +1341,10 @@ impl<'a> Graph<'a> {
             let (mut body,source_rows) = self.signature_with_sources(&mut body_env, &definition.signature, b)?;
             contracts::defaults::instantiate(self.module,&SemanticDynOwner::MethodDefinition(definition.id),&definition.signature,&mut body,interface,body_env.scope,b)?;
             declared.same_signature(&body, b)?;
-            let sources=semantic_patterns::checked_result_sources(self.module,actual,&body.result,&source_rows,b)?;
-            let (header, embedding) = body.function(self.module, actual, &sources, b)?;
+            let sources=semantic_patterns::checked_result_sources(self.module,actual,&body.parameters,&body.result,&source_rows,b)?;
+            b.spend(source_rows.len().saturating_mul(body.parameters.iter().fold(1usize,|n,value|n.saturating_add(value.terms.len()))))?;
+            let borrows=source_rows.iter().filter(|(term,_,physical)|*physical&&body.parameters.iter().any(|value|value.terms.contains(term))).map(|(term,source,_)|(*term,*source)).collect::<Vec<_>>();
+            let (header, embedding) = body.function(self.module, actual, &sources, &borrows, b)?;
             let images = signatures::specialization(
                 self.module,
                 actual,

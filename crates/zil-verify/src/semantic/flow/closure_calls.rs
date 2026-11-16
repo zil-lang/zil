@@ -107,6 +107,7 @@ impl CheckedContext {
             let inputs=source_inputs.iter().collect::<Vec<_>>();
             self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,call_key,environment,b)?;
             for(index,((expected,_),argument))in signature.parameters.iter().zip(arguments).enumerate(){if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)?{return Err(bad("closure call argument changes a complete original world/borrow/child occurrence"));}}
+            self.check_call_input_wf(module,&signature,arguments,values,environment,b)?;
             if let Some(expected)=&result{if !self.same_type(environment,expected,&signature.result,b)?{return Err(bad("closure entry worlds disagree on the complete actual result domain"));}}else{result=Some(signature.result);}
             worlds+=1;
         }

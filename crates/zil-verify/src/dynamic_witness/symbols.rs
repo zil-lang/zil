@@ -204,6 +204,31 @@ impl Symbols {
         let terms=self.incoming_terms(value,b)?;
         Ok(terms::Value{raw:DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:terms.iter().map(|term|term.image).collect()},terms})
     }
+    /// Extract immutable original nominal source relations in this exact
+    /// conversion. Neither channel replaces the nominal intrinsic terms.
+    pub(super) fn nominal_sources(&mut self,value:&CheckedType,b:&mut Budget)->Check<Vec<(terms::LifeTerm,terms::LifeTerm,bool)>>{
+        let result=self.incoming(value,b)?;
+        value.charge_clone(b)?;let mut descriptor=value.clone();let mut selected=Vec::new();
+        for(index,origin)in value.origins.iter().enumerate(){
+            let IntrinsicOrigin::Nominal{source,class}=origin else{continue;};
+            dynamic_metadata::life_shape(&source.domain,b)?;
+            if source.class_sources.len()!=source.domain.binder_count as usize{return Err(bad("semantic nominal source directory omits a complete intrinsic class"));}
+            let outside=source.class_sources.get(*class as usize).ok_or_else(||bad("semantic nominal class source is outside its complete domain"))?;
+            crate::semantic::charge_intrinsic_origin(outside,b)?;
+            descriptor.origins[index]=outside.clone();
+            b.spend(source.domain.slots.len())?;
+            selected.push((index,source.domain.slots.iter().any(|slot|slot.binder==*class)));
+        }
+        let outside=self.incoming(&descriptor,b)?;
+        let mut sources=Vec::new();
+        for(index,physical)in selected{
+            let term=*result.terms.get(index).ok_or_else(||bad("semantic nominal result loses its full class index"))?;
+            let source=*outside.terms.get(index).ok_or_else(||bad("semantic nominal outside source loses its full class index"))?;
+            if let IntrinsicOrigin::DerivedClass{source:key}=&descriptor.origins[index]{if self.class(key,b)?.image!=term.image{return Err(bad("semantic nominal outside source changes its independently resolved image"));}}
+            sources.push((term,source,physical));
+        }
+        Ok(sources)
+    }
     pub(super) fn incoming_terms(&mut self,value:&CheckedType,b:&mut Budget)->Check<Vec<terms::LifeTerm>>{
         let count = value.life.binder_count as usize;
         if count > b.limits.max_nodes

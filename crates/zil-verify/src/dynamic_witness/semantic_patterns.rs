@@ -209,35 +209,24 @@ fn value_inner(module:&TypedModule,scope:SemanticDefinitionId,recipe:&SemanticTy
     if !proofs.callable_shapes.is_empty()||!proofs.pending_statics.is_empty()||!proofs.pending_original_methods.is_empty()||!proofs.pending_original_method_relations.is_empty(){return Err(bad("semantic W recipe retains an undischarged external proof obligation"));}
     let result=symbols.incoming(&value,b)?;
     if !collect_sources{return Ok((result,vec![]));}
-    value.charge_clone(b)?;let mut descriptor=value.clone();let mut selected=Vec::new();
-    for(index,origin)in value.origins.iter().enumerate(){
-        let IntrinsicOrigin::Nominal{source,class}=origin else{continue;};
-        dynamic_metadata::life_shape(&source.domain,b)?;
-        if source.class_sources.len()!=source.domain.binder_count as usize{return Err(bad("semantic nominal source directory omits a complete intrinsic class"));}
-        let outside=source.class_sources.get(*class as usize).ok_or_else(||bad("semantic nominal class source is outside its complete domain"))?;
-        crate::semantic::charge_intrinsic_origin(outside,b)?;
-        descriptor.origins[index]=outside.clone();
-        b.spend(source.domain.slots.len())?;
-        selected.push((index,source.domain.slots.iter().any(|slot|slot.binder==*class)));
-    }
-    let outside=symbols.incoming(&descriptor,b)?;
-    let mut sources=Vec::new();
-    for(index,physical)in selected{
-        let term=*result.terms.get(index).ok_or_else(||bad("semantic nominal result loses its full class index"))?;
-        let source=*outside.terms.get(index).ok_or_else(||bad("semantic nominal outside source loses its full class index"))?;
-        if let IntrinsicOrigin::DerivedClass{source:key}=&descriptor.origins[index]{if symbols.class(key,b)?.image!=term.image{return Err(bad("semantic nominal outside source changes its independently resolved image"));}}
-        sources.push((term,source,physical));
-    }
+    let sources=symbols.nominal_sources(&value,b)?;
     Ok((result,sources))
 }
 
 /// Query signatures may use fresh nominal result provenance only from this
 /// already-completed immutable original/actual session and true Return ops.
-pub(super) fn checked_result_sources(module:&TypedModule,function:&TypedFunction,result:&terms::Value,rows:&[(terms::LifeTerm,terms::LifeTerm,bool)],b:&mut Budget)->Check<Vec<(terms::LifeTerm,terms::LifeTerm)>>{
+pub(super) fn checked_result_sources(module:&TypedModule,function:&TypedFunction,parameters:&[terms::Value],result:&terms::Value,rows:&[(terms::LifeTerm,terms::LifeTerm,bool)],b:&mut Budget)->Check<Vec<(terms::LifeTerm,terms::LifeTerm)>>{
     if !matches!(result.raw.ty,Type::BorrowedStorage{..}){return Ok(vec![]);}
     let session=b.semantic_checked.clone().ok_or_else(||bad("query nominal result has no completed original programme"))?;
     if session.module!=module as *const TypedModule as usize{return Err(bad("query nominal result belongs to another immutable programme"));}
-    if session.context.nominal_result_constructors(module,function,b)?.is_none(){return Ok(vec![]);}
-    b.spend(rows.len().saturating_mul(result.terms.len().saturating_add(1)))?;
-    Ok(rows.iter().filter(|(term,_,_)|result.terms.contains(term)).map(|(term,source,_)|(*term,*source)).collect())
+    let inputs=parameters.iter().map(|value|&value.raw).collect::<Vec<_>>();
+    let fresh=session.context.checked_nominal_result_classes(module,function,&inputs,&result.raw,b)?;
+    b.spend(rows.len().saturating_mul(fresh.len().saturating_add(1)))?;
+    let mut sources=Vec::new();
+    for class in fresh{
+        let term=result.term(class,b)?;
+        if parameters.iter().any(|value|value.terms.contains(&term)){continue;}
+        for(result,source,_)in rows{if *result==term{sources.push((*result,*source));}}
+    }
+    Ok(sources)
 }
