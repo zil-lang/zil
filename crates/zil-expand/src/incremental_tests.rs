@@ -65,6 +65,214 @@ fn checked(
     assert_eq!(expanded.modules, fresh(input, limits).unwrap());
     expanded
 }
+
+#[test]
+fn borrowed_scalar_headers_match_the_original_owned_projection() {
+    let original = "import dep; #[test] pub fn f(x:(i32))->i32=>x; extern \"C\" fn get()->i32;";
+    let inputs = [
+        parsed(0, original),
+        parsed(0, &format!("// moved\n{original}")),
+        parsed(1, original),
+        parsed(0, &original.replace("=>x", "=>x+1")),
+        parsed(0, &original.replace("i32", "i64")),
+        parsed(0, &original.replace("x:", "y:")),
+        parsed(0, &original.replace("pub ", "")),
+        parsed(0, &original.replace("#[test] ", "")),
+        parsed(0, &original.replace("import dep", "import other")),
+        parsed(0, &original.replace("fn get", "fn another")),
+    ];
+    for left in &inputs {
+        assert!(scalar(&left.parsed().module, &Limits::default()).0);
+        let left_owned = module_headers(&left.parsed().module);
+        let left_borrowed = HeaderInput(left.parsed_shared());
+        for right in &inputs {
+            let right_owned = module_headers(&right.parsed().module);
+            assert_eq!(
+                left_borrowed == HeaderInput(right.parsed_shared()),
+                left_owned == right_owned,
+                "{} / {}",
+                left.source().text,
+                right.source().text
+            );
+            assert_eq!(
+                namespace_headers(&left.parsed().module.items, &right.parsed().module.items),
+                namespace_headers(&left_owned, &right_owned)
+            );
+        }
+    }
+    assert_eq!(
+        HeaderInput(inputs[0].parsed_shared()),
+        HeaderInput(inputs[3].parsed_shared()),
+        "complete bodies stay on their parser owners but are not signature inputs"
+    );
+}
+
+#[test]
+fn scalar_recipe_environment_comparison_is_shared_by_all_current_consumers() {
+    let limits = Limits::default();
+    let mut original = String::from("fn changed(x:i32)->i32=>x;");
+    for n in 0..64 {
+        original.push_str(&format!("fn sibling{n}(x:i32)->i32=>x+{n};"));
+    }
+    let mut input = [parsed(0, &original), parsed(1, "fn other()->i32=>3;")];
+    let mut session = ExpandSession::default();
+    let before = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    let header_owner = session.entries[&ModuleId(0)].headers.0.clone();
+    assert!(Arc::ptr_eq(&header_owner, &input[0].parsed_shared()));
+    input[0] = parsed(0, &original.replacen("x:i32)->i32", "x:i64)->i64", 1));
+    let after = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert_ne!(
+        before.change_batch().context(),
+        after.change_batch().context()
+    );
+    assert_eq!(
+        before.change_batch().namespace_context(),
+        after.change_batch().namespace_context()
+    );
+    assert_eq!(session.last_stats().normalized_recipe_hits, 65);
+    assert_eq!(session.last_stats().normalized_environment_comparisons, 1);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 1);
+    assert_eq!(session.last_stats().reused_lower_items, 64);
+    assert!(Arc::ptr_eq(
+        &before.program().modules[1].core,
+        &after.program().modules[1].core
+    ));
+    for entry in session.entries.values() {
+        for cached in entry.normalized.values() {
+            let NormalizedCache::Deferred(recipe) = cached else {
+                panic!("scalar Normalize retains its actual recipe");
+            };
+            assert!(Arc::ptr_eq(
+                &recipe.environment,
+                session.normalization_environment.as_ref().unwrap()
+            ));
+            assert!(recipe.parsed.same_revision(&entry.parsed));
+        }
+    }
+    checked(&mut session, &input, &limits);
+    assert_eq!(session.last_stats().normalized_environment_comparisons, 0);
+
+    // The request-local comparison cannot preserve receipts through a changed
+    // complete namespace, even when every sibling body is byte-identical.
+    input[0] = parsed(
+        0,
+        &input[0]
+            .source()
+            .text
+            .replacen("fn changed", "pub fn changed", 1),
+    );
+    let changed = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert_ne!(
+        after.change_batch().context(),
+        changed.change_batch().context()
+    );
+    assert_ne!(
+        after.change_batch().namespace_context(),
+        changed.change_batch().namespace_context()
+    );
+    assert_eq!(session.last_stats().normalized_recipe_hits, 0);
+    assert_eq!(session.last_stats().normalize_modules, 2);
+}
+
+#[test]
+fn borrowed_scalar_environment_preserves_raw_work_node_boundaries_and_first_errors() {
+    let limits = Limits::default();
+    let original = [parsed(
+        0,
+        "fn f(x:i32)->i32=>x;fn sibling()->i32{if true{return 1;}else{return 2;}}",
+    )];
+    let current = [parsed(
+        0,
+        &original[0]
+            .source()
+            .text
+            .replacen("x:i32)->i32", "x:i64)->i64", 1),
+    )];
+    let mut seed = ExpandSession::default();
+    checked(&mut seed, &original, &limits);
+    for nodes in [false, true] {
+        let allowance = |n| Limits {
+            max_nodes: if nodes { n } else { limits.max_nodes },
+            max_analysis_steps: if nodes { limits.max_analysis_steps } else { n },
+            ..limits.clone()
+        };
+        let mut low = 0;
+        let mut high = if nodes {
+            limits.max_nodes
+        } else {
+            limits.max_analysis_steps
+        };
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if fresh(&current, &allowance(mid)).is_ok() {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        assert!(low > 0);
+        for amount in [low - 1, low] {
+            let expected = fresh(&current, &allowance(amount));
+            assert_eq!(expected.is_ok(), amount == low);
+            for mut session in [ExpandSession::default(), seed.checkpoint()] {
+                let actual = match expand(&mut session, &current, &allowance(amount)) {
+                    Ok(Some(expanded)) => Ok(expanded.modules),
+                    Ok(None) => fresh(&current, &allowance(amount)),
+                    Err(errors) => Err(errors),
+                };
+                assert_eq!(actual, expected, "nodes={nodes}, amount={amount}");
+            }
+        }
+    }
+}
+
+#[test]
+fn scalar_environment_comparison_never_replaces_current_source_or_recipe_binding() {
+    let limits = Limits::default();
+    let input = [parsed(0, "fn f()->i32=>1;fn g()->i32=>2;")];
+    let different = parsed(0, "fn f()->i32=>9;fn g()->i32=>9;");
+    let mut seed = ExpandSession::default();
+    checked(&mut seed, &input, &limits);
+    for change in 0..7 {
+        let mut session = seed.checkpoint();
+        let mut environment = session.environment.clone().unwrap();
+        match change {
+            0 => environment.context.push_str(":different"),
+            1 => environment.target.checked_arithmetic = !environment.target.checked_arithmetic,
+            2 => environment.sources[0].2.push_str(".renamed"),
+            _ => {}
+        }
+        let environment = Arc::new(environment);
+        let entry = session.entries.get_mut(&ModuleId(0)).unwrap();
+        for cached in Arc::make_mut(&mut entry.normalized).values_mut() {
+            let NormalizedCache::Deferred(recipe) = cached else {
+                panic!("scalar recipe fixture");
+            };
+            let recipe = Arc::make_mut(recipe);
+            recipe.environment = environment.clone();
+            match change {
+                3 => recipe.parsed = different.clone(),
+                4 => recipe.ordinal += 1,
+                5 => recipe.span.end -= 1,
+                6 => recipe.module = ModuleId(9),
+                _ => {}
+            }
+        }
+        // Both recipes share one accepted/rejected environment comparison.
+        // The independent original source/slot/span/module tests still reject
+        // each mismatched recipe, then execute the original Normalize path.
+        checked(&mut session, &input, &limits);
+        assert_eq!(session.last_stats().normalized_environment_comparisons, 1);
+        assert_eq!(session.last_stats().normalized_recipe_hits, 0);
+        assert_eq!(session.last_stats().normalized_item_deep_clones, 2);
+    }
+}
 #[test]
 fn producer_shares_complete_core_and_maps_across_unchanged_modules() {
     let limits = Limits::default();
@@ -597,6 +805,7 @@ fn producer_lower_demands_fail_closed_before_reusing_a_local_product() {
     let mut scalar_inventory = None;
     let mut reuse = Reuse {
         normalization_environment: Arc::new(session.environment.clone().unwrap()),
+        normalized_environment_checks: BTreeMap::new(),
         scalar_inventory: &mut scalar_inventory,
         prior_entries: &session.entries,
         item_reuse: false,
@@ -1081,7 +1290,7 @@ fn function_input_environment_rejects_every_nearby_import_identity_change() {
     current.sources[1].2.push_str(".renamed");
     changes.push(current);
     let mut current = relocated.clone();
-    current.headers[0][1].public = true;
+    Arc::make_mut(&mut current.headers[0].0).module.items[1].public = true;
     changes.push(current);
     let mut current = relocated.clone();
     current.context.push_str(":changed");

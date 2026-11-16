@@ -90,6 +90,15 @@ def history(epochs):
                request('recovery', epochs+1, broad=True), request('restore'), request('warm-restart')])
 
 
+def rust_compiler_scope(directory):
+    messages = rc.cargo_messages(directory/'stdout.bin')
+    artifacts = [message for message in messages if message.get('reason') == 'compiler-artifact'
+                 and message.get('target', {}).get('name') == rc.PACKAGE]
+    stderr = (directory/'stderr.bin').read_text()
+    invoked = any('Running' in line and 'rustc' in line for line in stderr.splitlines())
+    return {'rustc_invoked': invoked, 'crate_artifacts_fresh': [message['fresh'] for message in artifacts]}
+
+
 def edit_delta(request, i, j, _modules, _functions):
     return int(request['broad']) + (request['epoch'] if i == j == 0 else 0)
 
@@ -350,6 +359,10 @@ def run_and_report(args, workloads, manifest):
     manifest.update(pin_inputs(args, pins, env))
     environments = {arm: native.llvm_environment(pins[arm]['llvm_library_path'], env) for arm in ARMS[:2]}
     requests = history(args.epochs)
+    if args.restart_scope_audit:
+        require(args.mode == 'check', 'restart scope audit is a check window')
+        requests.append(dict(name='compiler-restart', epoch=0, broad=False, positions=False))
+    manifest['history'] = requests
     rows, pair_records, failure = [], [], None
     context = {}
     try:
@@ -361,6 +374,7 @@ def run_and_report(args, workloads, manifest):
                 (project/'Cargo.toml').write_text(rc.manifest_text(16))
                 (project/'Cargo.lock').write_text(rc.lock_text())
                 workers, previous_inventory, published_llvm = {}, {}, {}
+                generation = 0
                 for arm in ARMS[:2]:
                     (user/arm).mkdir(parents=True)
                 def start(arm, generation):
@@ -390,10 +404,18 @@ def run_and_report(args, workloads, manifest):
                         source_meta = rc.write_files(source, fixtures['zil'], '.zil')
                         # Snapshot generation/hashing, source writes and disk
                         # observation all finish outside each request timer.
-                        if current == 'warm-restart':
+                        if current == 'compiler-restart':
+                            # Same source bytes and caches. Cargo must see a
+                            # changed input mtime and actually invoke rustc.
+                            # File writes in rust_request preserve equal bytes.
+                            rc.write_files(project, fixtures['rust'], '.rs')
+                            for path in (source/'main.zil', project/'src/main.rs'):
+                                os.utime(path, None)
+                        if current in ('warm-restart', 'compiler-restart'):
+                            generation += 1
                             for arm in ARMS[:2]:
                                 workers[arm].close()
-                                workers[arm] = start(arm, 1)
+                                workers[arm] = start(arm, generation)
                         leaf = args.out/'requests'/f'block-{block:02d}'/f'{index:03d}-{current}'
                         leaf.mkdir(parents=True)
                         rc.save(leaf/'equivalence.json', equality)
@@ -407,6 +429,13 @@ def run_and_report(args, workloads, manifest):
                                 if arm == 'rust':
                                     row = matched.rust_request(args, adapter, {current: fixtures}, current, project, target, directory, env, previous_inventory)
                                     previous_inventory = row['inventory']
+                                    row['compiler_scope'] = rust_compiler_scope(directory)
+                                    if args.restart_scope_audit and current in ('warm-restart', 'compiler-restart'):
+                                        invoked = current == 'compiler-restart'
+                                        require(row['compiler_scope']['rustc_invoked'] == invoked,
+                                                'restart control did not select the intended rustc invocation')
+                                        require(row['compiler_scope']['crate_artifacts_fresh'] == [not invoked],
+                                                'restart control Cargo artifact freshness mismatch')
                                 else:
                                     row = matched.zil_request(args, adapter, {current: fixtures}, current, source, source_meta,
                                                               user, arm, workers, published_llvm, directory, environments, cold=index == 0)
@@ -466,6 +495,11 @@ def run_and_report(args, workloads, manifest):
     valid = failure is None and len(rows) == expected and len(pair_records) == expected//3
     summary = {'valid': valid, 'mode': args.mode, 'expected_rows': expected, 'actual_rows': len(rows),
                'failure': failure, 'unexecuted_rows': expected-len(rows), 'comparisons': []}
+    summary['restart_scope'] = {'enabled': args.restart_scope_audit,
+        'warm-restart': 'Cargo Fresh workflow; rustc not invoked; ZIL current independent Verify',
+        'compiler-restart': 'timestamp-only change; same bytes and caches; rustc invocation required; new ZIL process',
+        'compiler_equivalence': False,
+        'profile': 'check: Cargo dev/default opt0, CGU16, jobs1; native: release O2, CGU16, jobs1'}
     if valid:
         for request in requests:
             current = request['name']
@@ -515,6 +549,8 @@ def main():
     parser.add_argument('--blocks', type=int, choices=(2, 6), default=2)
     parser.add_argument('--mode', choices=('check', 'o2'), default='check')
     parser.add_argument('--candidate-policy', choices=('push', 'stock'), default='push')
+    parser.add_argument('--restart-scope-audit', action='store_true',
+                        help='check only: retain Fresh workflow and append timestamp-only forced rustc/new ZIL process')
     parser.add_argument('--cargo', default='cargo')
     parser.add_argument('--rustc', default='rustc')
     parser.add_argument('--nm', default='nm')
@@ -536,6 +572,9 @@ def main():
     for path in implementation:
         shutil.copyfile(path, args.out/('implementation-'+path.name))
     requests = history(args.epochs)
+    if args.restart_scope_audit:
+        require(args.mode == 'check', 'restart scope audit is a check window')
+        requests.append(dict(name='compiler-restart', epoch=0, broad=False, positions=False))
     manifest = {'schema': 'large-scalar-three-arm-disk-v1', 'generated_only': args.action == 'gen',
                 'arguments': {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
                 'implementation_sha256': {path.name: matched.file_hash(path) for path in implementation},

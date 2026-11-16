@@ -279,6 +279,7 @@ macro_rules! statistics {
 // reports consumption of that exact parser-owner fact, not a free new scan.
 statistics!(
     admission_classifier_hits,
+    normalized_environment_comparisons,
     classification_preflight_reuses,
     classification_preflight_nodes,
     fused_distributed_items,
@@ -353,22 +354,16 @@ statistics!(
     allowance_nodes_decrease
 );
 #[derive(Clone, Debug)]
-struct HeaderInput(Arc<Vec<s::Item>>);
+struct HeaderInput(Arc<zil_syntax::ParseResult>);
 impl PartialEq for HeaderInput {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+        Arc::ptr_eq(&self.0, &other.0) || scalar_headers(self, other)
     }
 }
 impl std::ops::Deref for HeaderInput {
     type Target = [s::Item];
     fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[cfg(test)]
-impl std::ops::DerefMut for HeaderInput {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        Arc::make_mut(&mut self.0).as_mut_slice()
+        &self.0.module.items
     }
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -437,7 +432,7 @@ impl Environment {
                 .headers
                 .iter()
                 .zip(&current.headers)
-                .all(|(a, b)| namespace_headers(a, b));
+                .all(|(a, b)| Arc::ptr_eq(&a.0, &b.0) || namespace_headers(a, b));
         self.projected_inputs_compatible(current, headers)
     }
     fn projected_inputs_compatible(&self, current: &Self, same_headers: bool) -> bool {
@@ -868,6 +863,9 @@ impl ExpandSession {
                         (scalar, nodes, preflight)
                     }
                 };
+                if !scalar {
+                    return Ok(None);
+                }
                 Entry {
                     parsed: parsed.clone(),
                     headers: if placements.contains_key(&module.id) {
@@ -875,17 +873,16 @@ impl ExpandSession {
                         // signature and attribute inputs of this projection.
                         self.entries[&module.id].headers.clone()
                     } else {
-                        let current = if scalar {
-                            module_headers(module)
-                        } else {
-                            Vec::new()
-                        };
+                        // Keep the real immutable parser tree. Comparing the
+                        // header projection borrows it; no function/parameter/
+                        // type tree is cloned or rewritten to erase spans.
+                        let current = HeaderInput(parsed.parsed_shared());
                         self.entries
                             .get(&module.id)
                             .map(|old| &old.headers)
-                            .filter(|old| old.0.as_ref() == &current)
+                            .filter(|old| *old == &current)
                             .cloned()
-                            .unwrap_or_else(|| HeaderInput(Arc::new(current)))
+                            .unwrap_or(current)
                     },
                     scalar,
                     scalar_nodes: nodes,
@@ -946,15 +943,22 @@ impl ExpandSession {
             self.stats
                 .environment_change(self.environment.as_ref(), &environment);
         }
-        if self
+        // These are predicates on two immutable complete inputs. Compute them
+        // once per request, then use the same results through invalidation,
+        // placement, lowering and publication. No result survives a request.
+        let same_scalar_products = self
             .environment
             .as_ref()
-            .is_none_or(|previous| !previous.scalar_products_compatible(&environment))
-        {
-            let preserve_function_inputs = self
-                .environment
-                .as_ref()
-                .is_some_and(|previous| previous.namespace_compatible(&environment));
+            .is_some_and(|previous| previous.scalar_products_compatible(&environment));
+        let same_namespace = self
+            .environment
+            .as_ref()
+            .is_some_and(|previous| previous.namespace_compatible(&environment));
+        let same_function_inputs = self
+            .environment
+            .as_ref()
+            .is_some_and(|previous| previous.function_inputs_compatible(&environment));
+        if !same_scalar_products {
             for entry in entries.values_mut() {
                 entry.receipts = Arc::default();
                 entry.normalized = Arc::default();
@@ -966,16 +970,12 @@ impl ExpandSession {
                 entry.lower = None;
                 entry.relocated_lower = false;
                 entry.revision = ModuleRevision(Arc::new(()));
-                if !preserve_function_inputs {
+                if !same_namespace {
                     entry.functions = Arc::default();
                 }
             }
         }
-        if self
-            .environment
-            .as_ref()
-            .is_some_and(|old| old.scalar_products_compatible(&environment))
-        {
+        if same_scalar_products {
             for (module_id, entry) in &mut entries {
                 let Some(old) = self.entries.get(module_id) else {
                     continue;
@@ -1051,12 +1051,11 @@ impl ExpandSession {
             .collect();
         // Keep tentative publication local. Errors/fallback never replace the
         // last successful inventory or pair it with a different environment.
-        let mut scalar_inventory = self
-            .environment
-            .as_ref()
-            .filter(|old| old.scalar_products_compatible(&environment))
-            .and(self.scalar_inventory.as_ref())
-            .cloned();
+        let mut scalar_inventory = if same_scalar_products {
+            self.scalar_inventory.clone()
+        } else {
+            None
+        };
         // Share the exact immutable complete environment binding across warm
         // requests; no per-item deep Environment comparison on an exact hit.
         let normalization_environment = self
@@ -1068,10 +1067,7 @@ impl ExpandSession {
         // This is a separate sealed producer proof, not function-input identity
         // authorizing old output. All declaration bytes/order, parser context,
         // complete semantic environment and every emitted position must bind.
-        if self.environment.as_ref().is_some_and(|old| {
-            old.function_inputs_compatible(&environment)
-                || old.scalar_products_compatible(&environment)
-        }) {
+        if same_function_inputs || same_scalar_products {
             for (module, placement) in placements {
                 let Some(old) = self.entries.get(&module) else {
                     continue;
@@ -1134,12 +1130,10 @@ impl ExpandSession {
         }
         let mut reuse = Reuse {
             normalization_environment: normalization_environment.clone(),
+            normalized_environment_checks: BTreeMap::new(),
             scalar_inventory: &mut scalar_inventory,
             prior_entries: &self.entries,
-            item_reuse: self.environment.as_ref().is_some_and(|old| {
-                old.function_inputs_compatible(&environment)
-                    || old.scalar_products_compatible(&environment)
-            }),
+            item_reuse: same_function_inputs || same_scalar_products,
             entries: &mut entries,
             files,
             stats: &mut self.stats,
@@ -1152,22 +1146,16 @@ impl ExpandSession {
         else {
             return Ok(None);
         };
-        let same_legacy_context = self
-            .environment
-            .as_ref()
-            .is_some_and(|old| old.function_inputs_compatible(&environment));
         let namespace_context = self
-            .environment
+            .namespace_context
             .as_ref()
-            .filter(|old| old.namespace_compatible(&environment))
-            .and(self.namespace_context.as_ref())
+            .filter(|_| same_namespace)
             .cloned()
             .unwrap_or_else(|| NamespaceContext(Arc::new(())));
         let input_context = self
-            .environment
+            .input_context
             .as_ref()
-            .filter(|old| old.function_inputs_compatible(&environment))
-            .and(self.input_context.as_ref())
+            .filter(|_| same_function_inputs)
             .cloned()
             .unwrap_or_else(|| InputContext(Arc::new(())));
         let epoch = ExpansionEpoch(Arc::new(()));
@@ -1239,7 +1227,7 @@ impl ExpandSession {
                 // Preserve the legacy absolute/raw input contract exactly.
                 // The new private body projection above has a distinct domain.
                 let previous =
-                    same_body.filter(|previous| same_legacy_context && previous.id == function.id);
+                    same_body.filter(|previous| same_function_inputs && previous.id == function.id);
                 let previous_interface = declaration.and_then(|old_input| {
                     let old_module = self
                         .entries
@@ -1352,30 +1340,96 @@ impl ExpandSession {
         }))
     }
 }
-fn namespace_headers(left: &[s::Item], right: &[s::Item]) -> bool {
-    fn function(left: &s::Function, right: &s::Function) -> bool {
-        let s::Function {
-            name,
-            generics,
-            params: _,
-            return_type: _,
-            where_clause,
-            contract,
-            body: _,
-            span: _,
-        } = left;
-        let s::Function {
-            name: rn,
-            generics: rg,
-            params: _,
-            return_type: _,
-            where_clause: rw,
-            contract: rc,
-            body: _,
-            span: _,
-        } = right;
-        name == rn && generics == rg && where_clause == rw && contract == rc
+// This is the existing header projection, read from the complete parser owner.
+// Only the spans previously cleared by module_headers/header are ignored.
+// In particular, attribute arguments and generic/contract inputs retain their
+// full original equality. Admission, not this projection, excludes rich ASTs.
+fn header_attributes(left: &[s::Attribute], right: &[s::Attribute]) -> bool {
+    left.len() == right.len()
+        && left.iter().zip(right).all(|(left, right)| {
+            let s::Attribute {
+                path,
+                arguments,
+                string_value,
+                span: _,
+            } = left;
+            let s::Attribute {
+                path: rp,
+                arguments: ra,
+                string_value: rv,
+                span: _,
+            } = right;
+            path == rp && arguments == ra && string_value == rv
+        })
+}
+fn header_type(left: &s::TypeRef, right: &s::TypeRef) -> bool {
+    let s::TypeRef { kind, span: _ } = left;
+    let s::TypeRef { kind: rk, span: _ } = right;
+    match (kind, rk) {
+        (s::TypeKind::Group(left), s::TypeKind::Group(right)) => header_type(left, right),
+        _ => kind == rk,
     }
+}
+fn header_function(left: &s::Function, right: &s::Function, namespace: bool) -> bool {
+    let s::Function {
+        name,
+        generics,
+        params,
+        return_type,
+        where_clause,
+        contract,
+        body: _,
+        span: _,
+    } = left;
+    let s::Function {
+        name: rn,
+        generics: rg,
+        params: rparams,
+        return_type: rreturn,
+        where_clause: rw,
+        contract: rc,
+        body: _,
+        span: _,
+    } = right;
+    name == rn
+        && generics == rg
+        && where_clause == rw
+        && contract == rc
+        && (namespace
+            || (params.len() == rparams.len()
+                && params.iter().zip(rparams).all(|(left, right)| {
+                    let s::Param {
+                        name,
+                        ty,
+                        give,
+                        attributes,
+                        span: _,
+                    } = left;
+                    let s::Param {
+                        name: rn,
+                        ty: rt,
+                        give: rg,
+                        attributes: ra,
+                        span: _,
+                    } = right;
+                    name == rn
+                        && give == rg
+                        && header_type(ty, rt)
+                        && header_attributes(attributes, ra)
+                })
+                && match (return_type, rreturn) {
+                    (Some(left), Some(right)) => header_type(left, right),
+                    (None, None) => true,
+                    _ => false,
+                }))
+}
+fn scalar_headers(left: &[s::Item], right: &[s::Item]) -> bool {
+    projected_headers(left, right, false)
+}
+fn namespace_headers(left: &[s::Item], right: &[s::Item]) -> bool {
+    projected_headers(left, right, true)
+}
+fn projected_headers(left: &[s::Item], right: &[s::Item], namespace: bool) -> bool {
     left.len() == right.len()
         && left.iter().zip(right).all(|(left, right)| {
             let s::Item {
@@ -1390,20 +1444,19 @@ fn namespace_headers(left: &[s::Item], right: &[s::Item]) -> bool {
                 public: rp,
                 span: _,
             } = right;
-            attributes == ra
+            header_attributes(attributes, ra)
                 && public == rp
                 && match (kind, rk) {
-                    (s::ItemKind::Function(a), s::ItemKind::Function(b)) => function(a, b),
+                    (s::ItemKind::Function(a), s::ItemKind::Function(b)) => {
+                        header_function(a, b, namespace)
+                    }
                     (
+                        s::ItemKind::Extern { abi, function: a },
                         s::ItemKind::Extern {
-                            abi: _,
-                            function: a,
-                        },
-                        s::ItemKind::Extern {
-                            abi: _,
+                            abi: rb,
                             function: b,
                         },
-                    ) => function(a, b),
+                    ) => (namespace || abi == rb) && header_function(a, b, namespace),
                     (s::ItemKind::Import(a), s::ItemKind::Import(b)) => a == b,
                     _ => false,
                 }
@@ -1478,6 +1531,7 @@ fn same_function_interface(left: &CoreFunction, right: &CoreFunction) -> bool {
             name == rn && ty == rt && mode == rm
         })
 }
+#[cfg(test)]
 fn module_headers(module: &s::Module) -> Vec<s::Item> {
     let mut module_headers = Vec::new();
     for item in &module.items {
@@ -1515,6 +1569,7 @@ fn module_headers(module: &s::Module) -> Vec<s::Item> {
 // All emitted spans therefore come from the current module. Complete semantic
 // headers still bind the public InputContext; scalar product reuse projects the
 // namespace while the local parser owner/bytes bind each consumed signature.
+#[cfg(test)]
 fn header(function: &s::Function) -> s::Function {
     fn ty(value: &mut s::TypeRef) {
         value.span = Span::default();
@@ -1547,6 +1602,10 @@ fn header(function: &s::Function) -> s::Function {
 }
 pub(crate) struct Reuse<'a> {
     normalization_environment: Arc<Environment>,
+    // One result per actual prior environment owner, shared by all its recipes
+    // in this request. Keep a strong owner so pointer keys cannot be recycled.
+    // The current complete environment is immutable for Reuse's whole lifetime.
+    normalized_environment_checks: BTreeMap<usize, (Arc<Environment>, bool)>,
     scalar_inventory: &'a mut Option<Arc<modules::ScalarInventory>>,
     prior_entries: &'a BTreeMap<ModuleId, Entry>,
     item_reuse: bool,
@@ -1805,19 +1864,20 @@ impl Reuse<'_> {
         ordinal: usize,
     ) -> Option<NormalizedCache> {
         let environment = self.normalization_environment.clone();
-        let entry = self.entry(span.file);
-        let cached = entry.normalized.get(&span.start)?.clone();
+        let cached = self.entry(span.file).normalized.get(&span.start)?.clone();
         match cached {
             NormalizedCache::Shared(item) => Some(NormalizedCache::Shared(item)),
             NormalizedCache::Deferred(recipe) => {
+                if !self.normalized_environment_matches(&recipe.environment) {
+                    return None;
+                }
+                let entry = self.entry(span.file);
                 let current = entry.parsed.parsed().module.items.get(ordinal)?;
                 if recipe.ordinal != ordinal
                     || recipe.span != span
                     || current.span != span
                     || recipe.module != entry.parsed.source().module_id
                     || span.file != entry.parsed.source().file_id
-                    || (!Arc::ptr_eq(&recipe.environment, &environment)
-                        && !recipe.environment.scalar_products_compatible(&environment))
                     || (!recipe.parsed.same_revision(&entry.parsed)
                         && (!recipe.parsed.same_attribute_context(&entry.parsed)
                             || recipe
@@ -1849,6 +1909,20 @@ impl Reuse<'_> {
                 Some(NormalizedCache::Deferred(recipe))
             }
         }
+    }
+    fn normalized_environment_matches(&mut self, previous: &Arc<Environment>) -> bool {
+        if Arc::ptr_eq(previous, &self.normalization_environment) {
+            return true;
+        }
+        let key = Arc::as_ptr(previous) as usize;
+        if let Some((_, compatible)) = self.normalized_environment_checks.get(&key) {
+            return *compatible;
+        }
+        self.stats.normalized_environment_comparisons += 1;
+        let compatible = previous.scalar_products_compatible(&self.normalization_environment);
+        self.normalized_environment_checks
+            .insert(key, (previous.clone(), compatible));
+        compatible
     }
     pub(crate) fn save_normalized_recipe(
         &mut self,

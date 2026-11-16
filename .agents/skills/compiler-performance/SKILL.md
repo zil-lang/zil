@@ -25,7 +25,9 @@ description: Optimize ZIL compilation against Rust, prioritizing actual user wai
 
 ## 验收与比较
 
-只比较实际 main、当前候选和 Rust；同 O2/CGU16/compiler jobs1，check/native 分开。源码、二进制和数字严格绑定；不将旧版本、跨窗口漂移或 profile 诊断转记为新版本正式收益。
+只比较实际 main、当前候选和 Rust；native 同 O2/CGU16/compiler jobs1，check/native 分开。`cargo check` 的 dev/default opt0 要明确记录，不把原生 O2 标签套在 check 上。源码、二进制和数字严格绑定；不将旧版本、跨窗口漂移或 profile 诊断转记为新版本正式收益。
+
+重启无修改必须检查 Cargo 的真实 rustc 命令和 compiler-artifact.fresh。Cargo Fresh 与 ZIL 当前独立 Verify 的耗时可比较实际用户等待，不能解释为同等编译器工作量的倍率。另加保留缓存、源码字节不变、仅更新时间戳的对照，要求 rustc 确实执行；不得用清缓存、换 flags 或清理 target 强制失效。真实重启首改仍单独验收，不能被该对照替代。
 
 至少观察冷编译、无修改、连续私改、接口/广改、缓存进程重启及紧接着的首次修改。重启与首改按真实连续流程合计，不拼接不相邻请求。按绝对等待和区块差额判断，不只看倍率。
 
