@@ -89,7 +89,7 @@ impl CheckedContext{
             let mut members=declaration.members.iter().enumerate().filter(|(_,row)|row.name==member.name&&row.kind==member.kind);
             let(member,_)=members.next().ok_or_else(||bad("static definition has no exact original trait member"))?;
             if members.next().is_some(){return Err(bad("static definition original trait member is ambiguous"));}
-            let source=dynamic_witness::semantic_external::select_original_member(external,module,self,environment,receiver,&application,member as u32,&current.actuals,active,b)?;
+            let source=dynamic_witness::semantic_external::select_definition_member(external,module,self,environment,receiver,&application,member as u32,&current.actuals,&parent_environment,active,b)?;
             if source.definition!=specialization.definition||source.body!=world.definition||source.body_owner!=body_owner.id||source.body_member!=body.member||source.source!=body.scope{return Err(bad("static definition selection changes its exact original body/domain"));}
             dynamic_witness::semantic_external::check_static_member_instance(module,self,environment,function,&source,active,b)?;
             let requests=dynamic_witness::semantic_external::static_member_requests(external,module,self,function,&source,active,b)?;

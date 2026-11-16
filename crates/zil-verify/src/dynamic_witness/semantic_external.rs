@@ -165,6 +165,16 @@ pub(crate) fn select_original_member(
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<OriginalMemberReceipt> {
+    select_member_in(proofs,module,context,environment,receiver,application,member,method_actuals,None,active,b)
+}
+/// Definition execution has an independently checked complete original parent.
+/// It supplies exact original actuals, never an inferred equality of Self κ.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn select_definition_member(proofs:&mut Proofs,module:&TypedModule,context:&semantic::CheckedContext,environment:&EvalEnv,receiver:&CheckedType,application:&CheckedApplication,member:u32,method_actuals:&[CheckedActual],parent:&EvalEnv,active:&mut semantic::ActiveQueries,b:&mut Budget)->Check<OriginalMemberReceipt>{
+    select_member_in(proofs,module,context,environment,receiver,application,member,method_actuals,Some(parent),active,b)
+}
+#[allow(clippy::too_many_arguments)]
+fn select_member_in(proofs:&mut Proofs,module:&TypedModule,context:&semantic::CheckedContext,environment:&EvalEnv,receiver:&CheckedType,application:&CheckedApplication,member:u32,method_actuals:&[CheckedActual],parent:Option<&EvalEnv>,active:&mut semantic::ActiveQueries,b:&mut Budget)->Check<OriginalMemberReceipt>{
     charge_type(receiver, b)?;
     for actual in application.arguments.iter().chain(method_actuals) {
         charge_actual(actual, b)?;
@@ -213,6 +223,7 @@ pub(crate) fn select_original_member(
                 application,
                 member,
                 method_actuals,
+                parent,
                 active,
                 b,
             )
