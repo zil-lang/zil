@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-16T04:47:47.577477+00:00",
+  "updated_at_utc": "2026-11-16T06:00:27.843257+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -14,8 +14,8 @@
     "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "e3d5f0cd1941d5eb550850b9cfebab971b648aba",
-  "current_candidate_under_validation": "fc6d2eac35444f9f0893d1d20fc817797d63bb61",
+  "latest_ready_source": "3f6d1bb5804a2d54a26a629180f17e1afa2a6c7f",
+  "current_candidate_under_validation": "640cf3879dca9a7ee854542191ae2068e1f9528a",
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -114,7 +114,7 @@
     "root_correction": "Overbroad type-occurrence cleanup ABI upper reverted in full, 3c24419bd."
   },
   "execution_state": "RESUMED BY USER; complete functional chains under personal audit constraints",
-  "last_completed_candidate": "fc6d2eac35444f9f0893d1d20fc817797d63bb61",
+  "last_completed_candidate": "640cf3879dca9a7ee854542191ae2068e1f9528a",
   "personal_workflow_audit": {
     "reviewer": "root personally",
     "subagent_review_used": false,
@@ -227,29 +227,52 @@
     ]
   },
   "latest_actual_checkpoint": {
-    "candidate": "fc6d2eac35444f9f0893d1d20fc817797d63bb61",
+    "candidate": "640cf3879dca9a7ee854542191ae2068e1f9528a",
     "source_positive_passed": 10,
     "source_positive_total": 13,
     "expected_negatives_passed": 4,
-    "source_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-immutable-child-inputs-and-qualified-static-query-consumers/core-coverage/receipt.json",
+    "source_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/core-coverage/receipt.json",
     "remaining_foundation": {
-      "ownership": "Verify original partial-move/field-reinitialization consumer",
-      "owning-collections": "Analyze default 10M work bound",
-      "iteration": "Verify complete static trait member dynamic-specialization bridge; old work bound passed to this functional rejection, not whole-program acceptance"
+      "ownership": "Verify legacy pure Copy selector incorrectly sees owning ErrorUnion whole payload at ErrorTag/TakeErrorUnion; full owning/resource ledger batch ba96 already integrated",
+      "owning-collections": "Analyze default 10M work bound; full input-Type geometry and Source producer fixes saved for next candidate",
+      "iteration": "All original43 and actual15 worlds complete; Verify default10M exhausted during subsequent typed-shape preflight"
     },
-    "ordinary_application": "Source and all 62 Types worlds complete; Analyze still default work bound",
     "extra_original_sources": {
-      "passed_independent_verify": 2,
+      "passed_independent_verify": 4,
       "total": 12,
       "successes": [
         "two-addresses",
+        "nested-borrowed",
+        "wrapped-borrowed",
         "loan_control"
       ],
-      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-immutable-child-inputs-and-qualified-static-query-consumers/complete-original-checks/receipt.json",
-      "native_evidence": "Prior exact e17 candidate only: both sources x two backends x O0/O2. two-addresses exit0; loan_control correct empty-view bounds trap SIGILL -4. No fallback."
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/complete-original-checks/receipt.json",
+      "remaining": "Holder/owned-projected old stored composition; Dyn composition/static literal sources; loop signature role relation"
+    },
+    "native_new_returned_closure_chains": {
+      "candidate": "640cf3879dca9a7ee854542191ae2068e1f9528a",
+      "cases": [
+        "nested-borrowed",
+        "wrapped-borrowed"
+      ],
+      "requested_backends": [
+        "clang",
+        "llvm-api"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "builds": 8,
+      "executions": 8,
+      "passed": 8,
+      "all_exit": 0,
+      "independent_verify_required": true,
+      "fallback": false,
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/fresh-original-native/receipt.json"
     },
     "core_units": {
-      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-immutable-child-inputs-and-qualified-static-query-consumers/core-unit-regressions/receipt.json",
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/core-unit-regressions/receipt.json",
       "ir": [
         103,
         0
@@ -263,34 +286,45 @@
         0
       ],
       "analyze": [
-        294,
-        7
+        301,
+        3
       ],
       "verify": [
-        759,
-        35
+        779,
+        19
       ],
       "ignored": 0,
-      "analysis_failures": "Six old exact work pins plus one direct-role exact quota pin; prior forward receiver semantic failure now passes complete positive/stale controls"
+      "analysis_failures": "Two raw qualified physical-slot fixture/semantic regressions assigned to A owner; one exact work pin measured12574 after full N/N-1/fresh/warm controls"
+    },
+    "explicit_budget_diagnostic": {
+      "authority": "DIAGNOSTIC_ONLY_NOT_ACCEPTANCE",
+      "candidate": "f850fe52d10cc2c53c99006bd5581dab7c3ade82",
+      "default_budget": 10000000,
+      "diagnostic_budget": 20000000,
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-static-executable-audit-and-captured-root-equations/diagnostic-explicit-20m/receipt.json",
+      "iteration": "Complete original Source Success/Verify1 under explicit20M; formal10M remains failed",
+      "application_and_collections": "All original/actual semantic worlds and publication passed, then old Direct-only stored ABI guard blocked run/main. Source original KeyHash/KeyEq declarations are Direct; store_at lost scoped element return, inferred false Suspend. Complete producer fix saved83aa1204b, not yet run."
     },
     "integrated_unvalidated": [
-      "20bf807fd complete independent static trait specialization/call bridge",
-      "e3d5f0cd1 current Source-produced two-addresses/loan-control/revival Wire with unchanged original source and exact mutations"
+      "af3185f37 immutable input Type roots and full fresh shape reuse",
+      "83aa1204b complete Store/owned_dyn scoped result effect inference",
+      "3f6d1bb58 full scoped synchronous ABI/resource/returned-source consumers"
     ],
     "github_crates_recovery": {
-      "commit": "1ca028adbef2fad8f002eb9177bcdabfb6ab50db",
-      "source_head": "20bf807fd43190306487fa4e8ff44a6bc3ec8423",
-      "path": "language/20261116T044352Z-approved-source-recovery/recovery.tar.gz.base64",
-      "decoded_sha256": "2834db6010e1ed40c8281057733b232cc085942573ca34fa9374ae67b5922ed5",
-      "decoded_bytes": 729629,
+      "commit": "982f1324969a00d8befac2b8a23b6e7cdcfa5870",
+      "source_head": "d638ad2a80d4fa8ca00a6e8695bef83beb4a0b6c",
+      "path": "language/20261116T052700Z-approved-source-recovery/recovery.tar.gz.base64",
+      "decoded_bytes": 830245,
+      "decoded_sha256": "13a5472da0384d9766612175e29f8d3b1e654125456f1d3476941fa2c45d47a5",
       "readback_equal": true,
-      "restore": "Decode base64 once before extracting gzip archive; crates-only scope plus same-scope live WIP"
+      "method": "Exact raw public file readback; contents API omits files over1MiB"
     },
     "full_local_recovery": {
-      "path": "/workspace/.zil-env/alpha-local-recovery-20261116T044352Z/language-alpha-recovery.tar.gz",
-      "sha256": "b06b376228517560608298b01aacd52fd4ec9b82b480da8655459ec5d3a3c719"
+      "path": "/workspace/.zil-env/alpha-local-recovery-20261116T052700Z/language-alpha-recovery.tar.gz",
+      "sha256": "2665580b4bc969fb92e9b485ba40a8021301d8f9bcc97b8a52c788b5d6352407"
     },
-    "publication_limitation": "Formal task/language-alpha remote ref remains old; expanded tests/tools/Cargo.lock archive and goal publication previously rejected by automatic approval review, preserved locally. Crates-only approved recovery read back verified; no new user input required for ongoing implementation.",
+    "infrastructure": "ef37 core build failed ENOSPC before unit execution; original failure retained. Reproducible incremental caches pruned, compiled artifacts/source/logs preserved; subsequent f850 and640 core executed completely.",
+    "publication_limitation": "Formal task/language-alpha remote ref remains old; expanded tests/tools/Cargo.lock and goal publication previously rejected by auto-review, retained locally. Approved crates-only recoveries verified. Ongoing implementation requires no new user input.",
     "acceptance": "NOT ACCEPTED; no Alpha PR/merge/release"
   },
   "chain_lessons": "records/language-alpha-chain-lessons-20261116.md",
@@ -300,5 +334,6 @@
     "list_threads_status": "active",
     "pending_user_input_required": false,
     "ui_banner": "Observed user report conflicts with current backend active status. Historical async approval cards or stale UI sync are possible causes; no pending-input cancellation capability exposed. Root cause is not confirmed; no claim of UI repair."
-  }
+  },
+  "workflow_diagnostic_improvement": "One immutable default CLI identity, independent cases4-way, single heavy build lock. External runner links the exact default driver artifact and binds source/CLI/library SHA; explicit larger work quota exposes later functional blockers without modifying repository defaults or formal gates. Diagnostic results are never acceptance."
 }

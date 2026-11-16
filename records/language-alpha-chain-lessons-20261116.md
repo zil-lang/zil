@@ -22,3 +22,8 @@
 - 以实际原工程和最近安全反例作为验收单位。完整逻辑修改后集中测试，不按辅助函数累计交付；无完整收据不宣称 Alpha。
 
 源码与恢复包分开记录；仅有恢复归档不代表正式功能分支已同步。公开扩展范围的备份及 goal 发布曾被自动审批拒绝，当前只执行已获准的 crates 范围归档，其余完整恢复包保留本地。
+
+
+2026-11-16 新验证的完整借入返回链：候选640cf3879，nested-borrowed与wrapped-borrowed原Source均经独立Verify，再分别运行clang/LLVM API的O0/O2，8构建/8执行exit0且无fallback。前者原callee是Closure全域，而借入捕获的实际调用头是Address<Closure>：只有精确原Call/捕获/有序投影和loan核齐后才能分开外地址与完整pointee。后者σ一致但原κ被原opaque/closure cursor标成Receiver来源，actual claim曾仅按Implicit外部image造Derived来源；修复以完整私有cursor和实际seal的joint单射Boundary运输canonical原κ，保全mixed/sealed/source且最终必须discharge，未以同image合并。另旧Store资格将Known N0且pending sources误看作Unknown域；现在仅元数据路由辨明两者，构造、loan、cleanup证明仍原消费者逐项完成。
+
+执行改进：默认预算屏障不能替代对后续功能的调查。新外部诊断runner通过公开Driver API、同候选确切rlib/CLI/SHA，显式选择20M，仅用定位默认10M后还有无功能错误。它揭出两个规模工程末端错误Direct/Suspend推断的真实producer根因；正式13/12及费用边界仍按默认10M，不将诊断Success算交付。
