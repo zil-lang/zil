@@ -2573,10 +2573,30 @@ impl Check<'_, '_, '_> {
             member: MemberName::Name(member) | MemberName::Constrained { name: member, .. },
         } = &operand.kind
         else {
-            return Err(unsupported(
+            let mut diagnostic = unsupported(
                 operand.span,
                 "generic managed give requires a direct Package manages field",
+            );
+            self.budget.text(self.definition, operand.span)?;
+            self.budget.text(&self.source_definition.name, operand.span)?;
+            diagnostic.notes.push(format!(
+                "original give scope {:?}, source {:?}, factory depth {}",
+                self.definition, self.source_definition.name, self.factory_scopes.len(),
             ));
+            if let ExprKind::Name(name) = &direct.kind {
+                self.budget.text(name, operand.span)?;
+                diagnostic.notes.push(match state.locals.get(name) {
+                    Some(local) => {
+                        self.budget.ty(&local.ty)?;
+                        format!(
+                            "original give local {:?}, id {}, type {:?}, owned {}, declaration resource {}",
+                            name, local.id, local.ty, local.owned_resource, local.declaration_resource,
+                        )
+                    }
+                    None => format!("original give name {:?} is absent from the current local scope", name),
+                });
+            }
+            return Err(diagnostic);
         };
         let Some(owner) = self.package_local(object, state) else {
             return Err(unsupported(
