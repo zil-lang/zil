@@ -1966,7 +1966,19 @@ impl Check<'_, '_> {
                             InstructionKind::Load(source)
                             | InstructionKind::TakeLocal { local: source } => {
                                 b.spend(1, WORK)?;
-                                pending.push((source, source_block, source_index));
+                                // The source local may have a distinct, fully
+                                // checked mutable-reference declaration role.
+                                // Copying its saved pointer keeps that sigma;
+                                // following only its initializer would replace
+                                // the role by an earlier RHS's lifetime image.
+                                if let Some(value) = self.reference_local_value(
+                                    instance, function, source,
+                                    (source_block, source_index), b, depth + 1,
+                                )? {
+                                    origin = Some(value);
+                                } else {
+                                    pending.push((source, source_block, source_index));
+                                }
                             }
                             _ => {
                                 origin =
