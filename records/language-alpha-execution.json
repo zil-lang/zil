@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-16T11:09:28.807689+00:00",
+  "updated_at_utc": "2026-11-16T18:32:20.084255+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -14,8 +14,8 @@
     "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "55726391a9c48f69f889f5af64a161441877c904",
-  "current_candidate_under_validation": "5efb8ea85c3b350bffb4dc89fe8d78fee3957483",
+  "latest_ready_source": "5f224ec6bfc3a9e1e3436f8b1ab073054a484d9f",
+  "current_candidate_under_validation": "5f224ec6bfc3a9e1e3436f8b1ab073054a484d9f",
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -39,7 +39,13 @@
     "Capture TypeUse Expression representation must be consumed independently by A/V original lexical Name and actual capture checks",
     "All-exit cleanup and actual call-world requester receipts are still active WIP"
   ],
-  "last_full_component_regression": "b014a37bc workspace alltargets compile0; 9e58f60c0 Types semantic14/0 and Verify semantic29/0. Each exact version and narrow stated scope.",
+  "last_full_component_regression": {
+    "candidate": "4cbffb05415fb952109d7165a25407dc63509969",
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-raw-shape-and-task-forest-real-ids/core-libraries/receipt.json",
+    "passed": 1542,
+    "failed": 1,
+    "only_failure": "Analyze exact request-budget pin; do not raise budget; final fee boundary still pending"
+  },
   "task_stage_review": [
     "Private inference PendingTask keeps exact worker/call/input Terms until actual closure/worker domain formed; cannot become Typed/Wire/runtime pending",
     "Task domain identity is original scope/Life formal/whole Type-domain class index; actual worker header is a bridge, not authority to merge caller images. Preserve F.N2 and outer versus intrinsic pointee classes.",
@@ -283,5 +289,55 @@
     "ui_banner": "Observed user report conflicts with current backend active status. Historical async approval cards or stale UI sync are possible causes; no pending-input cancellation capability exposed. Root cause is not confirmed; no claim of UI repair."
   },
   "workflow_diagnostic_improvement": "One immutable default CLI identity, independent cases4-way, single heavy build lock. External runner links the exact default driver artifact and binds source/CLI/library SHA; explicit larger work quota exposes later functional blockers without modifying repository defaults or formal gates. Diagnostic results are never acceptance.",
-  "integration_regression_review": "records/language-alpha-integration-regression-review-20261116.json"
+  "integration_regression_review": "records/language-alpha-integration-regression-review-20261116.json",
+  "latest_complete_source_validation": {
+    "candidate": "c21f9fce3b673d81ec88c75115567ec911fdef21",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-contexts-none-and-exit-scopes-mechanical",
+    "foundation_positive": [
+      13,
+      13
+    ],
+    "foundation_expected_semantic_negative": [
+      4,
+      4
+    ],
+    "extra_source": [
+      14,
+      14
+    ],
+    "nearest": [
+      36,
+      40
+    ],
+    "task_reported_pass_fail_ignored": [
+      2,
+      24,
+      0
+    ],
+    "task_validated_native_cases": 0,
+    "task_failure_phases": {
+      "types": 20,
+      "analyze": 2,
+      "verify": 2
+    },
+    "option_source_pass_fail_ignored": [
+      4,
+      2,
+      0
+    ],
+    "task_callable_source_pass_fail_ignored": [
+      3,
+      0,
+      0
+    ],
+    "acceptance": "NOT ACCEPTED; unsupported, ignored and rejection without a valid positive base are not safety passes"
+  },
+  "latest_compiler_build": {
+    "candidate": "1ac9ae32c1c8a04a59008032aa69ad6ad2ea4cfe",
+    "workspace_alltargets_precheck": 0,
+    "cli_build": 0,
+    "cli_sha256": "48c59976787e92ecdaa6678726601b6893070eeb1b2c163a46086039dd394b0d",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-actual-task-head-capture-transport",
+    "runtime": "Not run; superseded by aggregate candidate5f224 before repeated validation"
+  }
 }
