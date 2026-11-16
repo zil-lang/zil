@@ -267,14 +267,72 @@ fn same_products(left: &ScalarProducts, right: &ScalarProducts) -> bool {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TransformProduct {
     pub(crate) input: ScalarIdentity,
+    pub(crate) policy: TransformPolicy,
     /// This optional pass depends on flags beyond the raw lowering identity.
     pub(crate) call_classes_enabled: bool,
     pub(crate) call_classes: Option<crate::machine_call_classes::Stats>,
     pub(crate) machine: crate::machine_output::MachineOutput,
 }
+
+/// Actual transform strategy and current protected roles, beyond raw lowering
+/// equality. Output/cache paths do not select these machine passes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TransformPolicy {
+    backend: crate::NativeBackend,
+    optimization: crate::Optimization,
+    incremental_o2: bool,
+    closed_executable: bool,
+    function_merging: crate::FunctionMerging,
+    emit: crate::EmitOptions,
+    pub(crate) protected: std::collections::BTreeSet<String>,
+}
+impl TransformPolicy {
+    pub(crate) fn new(
+        options: &BuildOptions,
+        protected: std::collections::BTreeSet<String>,
+    ) -> Self {
+        Self {
+            backend: options.backend,
+            optimization: options.optimization,
+            incremental_o2: options.incremental_o2,
+            closed_executable: options.closed_executable,
+            function_merging: options.function_merging,
+            emit: options.emit,
+            protected,
+        }
+    }
+}
+
+/// A completed downstream chain owned by one of the existing four lower
+/// machine epochs. No separate history or native-product retention allowance.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MachineProducts {
+    pub(crate) transformed: Arc<TransformProduct>,
+    pub(crate) partition: Arc<PartitionProduct>,
+    pub(crate) keys: Vec<Arc<KeyProduct>>,
+}
+impl BackendSession {
+    pub(crate) fn remember_machine_products(&mut self) {
+        let (Some(transformed), Some(partition)) = (&self.transformed, &self.partition) else {
+            return;
+        };
+        let keys = self
+            .key_partition
+            .as_ref()
+            .filter(|previous| Arc::ptr_eq(previous, partition))
+            .map_or_else(Vec::new, |_| self.keys.clone());
+        self.lower
+            .remember_completed_machine_products(Arc::new(MachineProducts {
+                transformed: transformed.clone(),
+                partition: partition.clone(),
+                keys,
+            }));
+    }
+}
 #[derive(Clone, Debug)]
 pub(crate) struct PartitionInput {
     options: BuildOptions,
+    transform_policy: Option<TransformPolicy>,
     names: Option<Vec<(FunctionId, String)>>,
     collected: bool,
     closures: Vec<FunctionId>,
@@ -328,6 +386,7 @@ impl PartitionInput {
         });
         Self {
             options,
+            transform_policy: None,
             names: names.map(<[_]>::to_vec),
             collected,
             closures: lir
@@ -348,6 +407,10 @@ impl PartitionInput {
     }
 }
 impl PartitionInput {
+    pub(crate) fn with_transform_policy(mut self, policy: TransformPolicy) -> Self {
+        self.transform_policy = Some(policy);
+        self
+    }
     pub(crate) fn same_completed_output(&self, other: &Self) -> bool {
         self.same_recipe_environment(other)
             && matches!((&self.scalar, &other.scalar), (Some((_, left)), Some((_, right)))
@@ -356,10 +419,11 @@ impl PartitionInput {
             && self.output.same_values(&other.output)
     }
     pub(crate) fn same_build_options(&self, other: &Self) -> bool {
-        self.options == other.options
+        self.options == other.options && self.transform_policy == other.transform_policy
     }
     pub(crate) fn same_recipe_environment(&self, other: &Self) -> bool {
         self.options == other.options
+            && self.transform_policy == other.transform_policy
             && self.names == other.names
             && self.collected == other.collected
             && self.closures == other.closures
@@ -369,6 +433,7 @@ impl PartitionInput {
 impl PartialEq for PartitionInput {
     fn eq(&self, other: &Self) -> bool {
         if self.options != other.options
+            || self.transform_policy != other.transform_policy
             || self.names != other.names
             || self.collected != other.collected
             || self.closures != other.closures

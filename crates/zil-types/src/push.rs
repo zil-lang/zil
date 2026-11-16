@@ -1348,13 +1348,12 @@ mod tests {
         let text = text.as_str();
         let mut sizing = ExpandSession::default();
         let sized = produced(&mut sizing, &[parse(0, text, &defaults)], &defaults);
-        let sized = fresh(&prepared(&sized, &defaults), &defaults).unwrap();
-        let blocks = sized
-            .module
-            .functions
-            .iter()
-            .map(|f| f.blocks.len())
-            .sum::<usize>();
+        let mut sizing_push = TypesPushSession::default();
+        apply(&mut sizing_push, &prepared(&sized, &defaults), &defaults).unwrap();
+        let ledger = sizing_push.current.as_ref().unwrap();
+        // Allocation accounting includes blocks discarded from the final CFG,
+        // including the foreign declaration's initial Builder block.
+        let blocks = ledger.context_cost[0] + ledger.rows.total().unwrap().cfg[0];
         let limits = Limits {
             max_blocks: blocks,
             ..defaults
@@ -1410,6 +1409,75 @@ mod tests {
         );
         assert_eq!(update.program.as_ref(), &fresh(&recovery, &limits).unwrap());
         assert!(session.checkpoint_for(&update.program).is_some());
+    }
+
+    #[test]
+    fn restored_explicit_life_uses_one_current_builder_and_exact_work_boundary() {
+        let defaults = Limits::default();
+        let target = TargetProfile::default();
+        let parsed = parse(
+            0,
+            "fn scalar<life a,life b>(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}",
+            &defaults,
+        );
+        let core = zil_expand::expand(parsed.source(), &parsed.parsed().module).unwrap();
+        let source = CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core: core.into(),
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        // Find the actual ordinary Types boundary, independently of cache fees.
+        // Upstream inputs are unchanged and their own budgets are not renewed.
+        let check = |work| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..defaults.clone()
+            };
+            let input = infer_program_for_ct(&source, &limits)?.into_prepared();
+            fresh(&input, &limits)
+        };
+        let (mut low, mut high) = (0, defaults.max_analysis_steps);
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            if check(middle).is_ok() {
+                high = middle;
+            } else {
+                low = middle;
+            }
+        }
+        for work in [high, low] {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..defaults.clone()
+            };
+            let input = infer_program_for_ct(&source, &limits)
+                .unwrap()
+                .into_prepared();
+            let expected = fresh(&input, &limits);
+            let mut cache = FunctionSession::default();
+            if expected.is_ok() {
+                let mut writer = FunctionSession::default();
+                writer
+                    .check_prepared_program(&input, &target, &limits)
+                    .unwrap();
+                let bytes = writer.encode_work_products(&target, &limits).unwrap();
+                assert!(cache.restore_work_products(&bytes, &target, &limits));
+            }
+            let mut push = TypesPushSession::default();
+            let actual = push.apply_with_function_cache(&input, &target, &limits, None, &mut cache);
+            assert_eq!(
+                actual.map(|update| update.program.as_ref().clone()),
+                expected
+            );
+            if work == high {
+                assert_eq!(cache.last_stats().reused_functions, 0);
+                assert_eq!(cache.last_stats().executed_functions, 1);
+            }
+        }
     }
 
     #[test]

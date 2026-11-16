@@ -91,9 +91,9 @@ impl ModuleInput {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MachineProduct {
-    module: ModuleInput,
+    module: Arc<ModuleInput>,
     functions: zil_ir::PersistentVec<TypedFunction>,
-    layouts: Vec<ScalarLayout>,
+    layouts: Arc<[ScalarLayout]>,
     limits: zil_base::Limits,
     options: WholeOptions,
     before: usize,
@@ -101,6 +101,7 @@ pub(super) struct MachineProduct {
     machine: crate::machine_output::MachineOutput,
     collected: bool,
     epoch: LowerEpoch,
+    completed: Option<Arc<crate::incremental::MachineProducts>>,
 }
 
 /// Raw function and downstream-identity roots from exactly this successful
@@ -153,6 +154,45 @@ fn reference_planner() -> bool {
 }
 
 impl Session {
+    /// Only the current lower identity may borrow completed downstream values.
+    /// Their original transform/partition conditions are checked by each caller.
+    pub(crate) fn completed_machine_products(
+        &self,
+    ) -> Option<&Arc<crate::incremental::MachineProducts>> {
+        let identity = self.identity()?;
+        let product = self.machine_history.front()?;
+        let previous = (
+            product.epoch.context_identity.clone(),
+            product.epoch.products.clone(),
+        );
+        crate::incremental::same_identity(&identity, &previous)
+            .then_some(product.completed.as_ref())
+            .flatten()
+    }
+
+    pub(crate) fn remember_completed_machine_products(
+        &mut self,
+        completed: Arc<crate::incremental::MachineProducts>,
+    ) {
+        let Some(identity) = self.identity() else {
+            return;
+        };
+        let Some(product) = self.machine_history.front_mut() else {
+            return;
+        };
+        let previous = (
+            product.epoch.context_identity.clone(),
+            product.epoch.products.clone(),
+        );
+        if crate::incremental::same_identity(&identity, &previous)
+            && crate::incremental::same_identity(&completed.transformed.input, &identity)
+        {
+            // Copy only the shared epoch/header when a driver checkpoint owns
+            // the old product; never mutate its successful history in place.
+            Arc::make_mut(product).completed = Some(completed);
+        }
+    }
+
     pub(in crate::emit) fn begin_machine_request(&mut self) {
         self.hits = 0;
         self.misses = 0;
@@ -184,7 +224,7 @@ impl Session {
                 || product.limits != *verified.limits()
                 || product.before != before
                 || !product.module.matches(verified.module())
-                || product.layouts.as_slice() != lir.layouts.as_ref()
+                || product.layouts.as_ref() != lir.layouts.as_ref()
                 || product.functions.len() != lir.functions.len()
             {
                 continue;
@@ -266,9 +306,9 @@ impl Session {
             return;
         };
         let product = Arc::new(MachineProduct {
-            module: ModuleInput::new(verified.module()),
+            module: Arc::new(ModuleInput::new(verified.module())),
             functions: lir.functions.clone(),
-            layouts: lir.layouts.to_vec(),
+            layouts: lir.layouts.as_ref().into(),
             limits: verified.limits().clone(),
             options,
             before,
@@ -283,6 +323,7 @@ impl Session {
                 output_bodies: self.output_bodies.clone(),
                 admitted: self.admitted.clone(),
             },
+            completed: None,
         });
         self.machine_history.push_front(product);
         self.machine_history.truncate(MACHINE_HISTORY_EPOCHS);

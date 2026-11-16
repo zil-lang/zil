@@ -970,6 +970,12 @@ impl Reuse<'_> {
         state: &mut closures::State,
         limits: &Limits,
     ) -> R<Option<TypedFunction>> {
+        // A failed speculative life-header check could spend work before the
+        // ordinary Builder retries it. Recording a new push ledger must never
+        // inherit that double charge: this domain executes its Builder once.
+        if self.signature_reads.is_some() && function.life.is_some() {
+            return Ok(None);
+        }
         // Array billing is request state beyond the legacy scalar cost row.
         // Scalar-only cached CFGs cannot create an array; once an actual array
         // has appeared, rebuild instead of replaying a different billing mode.

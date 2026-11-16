@@ -418,15 +418,42 @@ pub fn build_view_with_cancellation_and_session(
         && options.backend == NativeBackend::LlvmApi
         && options.optimization == Optimization::O2
         && options.function_merging == FunctionMerging::Disabled;
+    let mut protected = std::collections::BTreeSet::new();
+    if call_classes_enabled {
+        protected.extend(["main".to_owned(), "zil.pe.entry".to_owned()]);
+        for function in lir.functions {
+            let entry = match options.emit.entry {
+                EntryPoint::Main => function.name == "main",
+                EntryPoint::ReturnValue(id) | EntryPoint::Test(id) => function.id == id,
+                EntryPoint::None => false,
+            };
+            if entry
+                || verified.is_task_export(function.id)
+                || verified.is_suspend(function.id)
+                || verified.task_worker_ids().contains(&function.id)
+            {
+                protected.insert(format!("zil.fn.{}", function.id.0));
+                protected.insert(format!("zil.fn.{}.lc1", function.id.0));
+            }
+        }
+    }
+    let transform_policy = crate::incremental::TransformPolicy::new(options, protected);
     let transform_input = session
         .as_ref()
         .and_then(|session| session.lower.identity());
+    let completed = session
+        .as_ref()
+        .and_then(|session| session.lower.completed_machine_products())
+        .cloned();
     let mut call_classes = None;
     let reused_transform = session
         .as_ref()
         .and_then(|session| session.transformed.as_ref())
-        .filter(|cached| {
+        .into_iter()
+        .chain(completed.as_ref().map(|products| &products.transformed))
+        .find(|cached| {
             cached.call_classes_enabled == call_classes_enabled
+                && cached.policy == transform_policy
                 && transform_input
                     .as_ref()
                     .is_some_and(|input| crate::incremental::same_identity(&cached.input, input))
@@ -439,6 +466,7 @@ pub fn build_view_with_cancellation_and_session(
         machine.fingerprint = fingerprint;
         if let Some(session) = session.as_deref_mut() {
             session.summary.reused_machine_transforms = true;
+            session.transformed = Some(cached);
         }
     } else {
         if options.optimization == Optimization::O2 && options.incremental_o2 {
@@ -450,27 +478,11 @@ pub fn build_view_with_cancellation_and_session(
                 // The class pass reads and stages a complete model. A source
                 // capability or a hash is not its machine admission proof.
                 zil_llvm_api::validate_module(&flat).map_err(api_error)?;
-                let mut protected = std::collections::BTreeSet::from([
-                    "main".to_owned(),
-                    "zil.pe.entry".to_owned(),
-                ]);
-                for function in lir.functions {
-                    let entry = match options.emit.entry {
-                        EntryPoint::Main => function.name == "main",
-                        EntryPoint::ReturnValue(id) | EntryPoint::Test(id) => function.id == id,
-                        EntryPoint::None => false,
-                    };
-                    if entry
-                        || verified.is_task_export(function.id)
-                        || verified.is_suspend(function.id)
-                        || verified.task_worker_ids().contains(&function.id)
-                    {
-                        protected.insert(format!("zil.fn.{}", function.id.0));
-                        protected.insert(format!("zil.fn.{}.lc1", function.id.0));
-                    }
-                }
-                call_classes =
-                    crate::machine_call_classes::canonicalize(&mut flat, &protected, cancelled);
+                call_classes = crate::machine_call_classes::canonicalize(
+                    &mut flat,
+                    &transform_policy.protected,
+                    cancelled,
+                );
                 check_cancelled(cancelled)?;
             }
             machine = flat.into();
@@ -478,6 +490,7 @@ pub fn build_view_with_cancellation_and_session(
         if let (Some(session), Some(input)) = (session.as_deref_mut(), transform_input) {
             session.transformed = Some(std::sync::Arc::new(crate::incremental::TransformProduct {
                 input,
+                policy: transform_policy.clone(),
                 call_classes_enabled,
                 call_classes,
                 machine: machine.clone(),
@@ -522,11 +535,14 @@ pub fn build_view_with_cancellation_and_session(
             &machine,
             session.lower.identity(),
         )
+        .with_transform_policy(transform_policy.clone())
     });
     let cached_partition = session
         .as_ref()
         .and_then(|session| session.partition.as_ref())
-        .filter(|cached| {
+        .into_iter()
+        .chain(completed.as_ref().map(|products| &products.partition))
+        .find(|cached| {
             std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).is_none()
                 && cached.closed_prune_removed.is_some() == call_classes_enabled
                 && partition_input.as_ref().is_some_and(|input| {
@@ -545,6 +561,14 @@ pub fn build_view_with_cancellation_and_session(
         if let Some(session) = session.as_deref_mut() {
             session.summary.reused_partition = true;
             session.summary.reused_partition_units = cached.units.len();
+            if let Some(products) = &completed
+                && std::sync::Arc::ptr_eq(&products.partition, &cached)
+                && !products.keys.is_empty()
+            {
+                session.keys = products.keys.clone();
+                session.key_partition = Some(cached.clone());
+            }
+            session.partition = Some(cached.clone());
         }
         (
             crate::machine_cgu::Plan {
@@ -1056,6 +1080,7 @@ pub fn build_view_with_cancellation_and_session(
         session.preflights = preflights;
         session.final_product = Some(product);
         session.summary.reused_link = true;
+        session.remember_machine_products();
         codegen.final_artifact = Some(crate::FinalArtifactSummary {
             reused_program: true,
             retained_files: retained,
@@ -1460,6 +1485,9 @@ pub fn build_view_with_cancellation_and_session(
     let artifact_reuse = final_product.as_ref().map(|product| product.token(None));
     timings.link_execution_ns += crate::object_cache::elapsed_ns(capture_started);
     if let Some(session) = session {
+        // Attach only a complete successful chain to the existing lower LRU.
+        // Failed/cancelled builds never publish this historical association.
+        session.remember_machine_products();
         if let Some(product) = final_product {
             session.final_product = Some(product);
         }

@@ -869,6 +869,18 @@ impl CompilationSession {
             {
                 self.push_types = push.clone();
             }
+            if options.push_reuse
+                && let Some(previous) = epoch.analysis.get()
+                && let Some(candidate) = previous.candidate.upgrade()
+                && let Some(analysis) = previous
+                    .session
+                    .product_checkpoint_for(owner.program(), &candidate)
+            {
+                // Activate the genuine owner-bound provider before Analyze.
+                // Its raw query slot may have been evicted independently; the
+                // ordinary query still publishes its current Types dependency.
+                self.analysis = analysis;
+            }
             self.semantic_publication = epoch.publication.get().cloned().unwrap_or_default();
         }
     }

@@ -721,22 +721,143 @@ fn whole_machine_history_has_four_successful_lru_epochs_and_checkpoint_isolation
 #[cfg(all(feature = "llvm-api", target_os = "linux"))]
 #[test]
 fn whole_machine_native_history_restore_and_next_private_edit_match_fresh_outputs() {
-    let directory = TestDirectory::new();
-    let mut options = BuildOptions::new(directory.0.join("program"));
-    options.backend = NativeBackend::LlvmApi;
-    options.optimization = Optimization::O2;
-    options.incremental_o2 = true;
-    options.codegen.units = 2;
-    options.object_cache = Some(directory.0.join("objects"));
-    options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
-    let mut session = BackendSession::default();
-    for (index, (first, sibling)) in [(42, 99), (100, 200), (42, 99), (43, 99)]
-        .into_iter()
-        .enumerate()
-    {
-        let current = history_fixture(first, sibling);
+    for closed in [false, true] {
+        let directory = TestDirectory::new();
+        let mut options = BuildOptions::new(directory.0.join("program"));
+        options.backend = NativeBackend::LlvmApi;
+        options.optimization = Optimization::O2;
+        options.closed_executable = closed;
+        options.incremental_o2 = true;
+        options.codegen.units = 2;
+        options.object_cache = Some(directory.0.join("objects"));
+        options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
+        let mut session = BackendSession::default();
+        for (index, (first, sibling)) in [(42, 99), (100, 200), (42, 99), (43, 99)]
+            .into_iter()
+            .enumerate()
+        {
+            let current = history_fixture(first, sibling);
+            let raw = lir(&current);
+            let mut actual = build_view_with_cancellation_and_session(
+                &current,
+                &raw.as_view(),
+                &options,
+                &|| false,
+                None,
+                Some(&mut session),
+            )
+            .unwrap();
+            actual.commit_object_cache();
+            assert_eq!(session.summary().reused_machine_module, index == 2);
+            if index == 2 {
+                assert_eq!(
+                    (
+                        session.summary().lowered_functions,
+                        session.summary().reused_functions
+                    ),
+                    (0, 0)
+                );
+                assert!(
+                    session.summary().reused_machine_transforms,
+                    "restore the completed transform belonging to the actual lower epoch"
+                );
+                assert!(session.summary().reused_partition);
+                assert_eq!(session.summary().rendered_diagnostic_items, 0);
+                assert_eq!(
+                    session.summary().reused_object_keys,
+                    actual.codegen.actual_units
+                );
+            } else if index == 3 {
+                assert_eq!(
+                    (
+                        session.summary().lowered_functions,
+                        session.summary().reused_functions
+                    ),
+                    (1, 1)
+                );
+            }
+            let actual_ir = fs::read(&actual.llvm_ir).unwrap();
+            let actual_executable = fs::read(&actual.executable).unwrap();
+            let run = Command::new(&actual.executable).output().unwrap();
+            let mut fresh_options = options.clone();
+            fresh_options.object_cache = None;
+            let fresh = build_view_with_cancellation_and_session(
+                &current,
+                &raw.as_view(),
+                &fresh_options,
+                &|| false,
+                None,
+                None,
+            )
+            .unwrap();
+            assert_eq!(actual_ir, fs::read(&fresh.llvm_ir).unwrap());
+            assert_eq!(actual_executable, fs::read(&fresh.executable).unwrap());
+            assert!(run.status.success());
+            assert_eq!(run.stdout, format!("{first}\n").as_bytes());
+            assert!(run.stderr.is_empty());
+        }
+
+        // Same machine input, incompatible transform strategy: current options
+        // must select the original O0 path rather than an O2 historical product.
+        let current = history_fixture(43, 99);
         let raw = lir(&current);
-        let mut actual = build_view_with_cancellation_and_session(
+        let mut incompatible = options.clone();
+        incompatible.optimization = Optimization::O0;
+        incompatible.incremental_o2 = false;
+        let actual = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &incompatible,
+            &|| false,
+            None,
+            Some(&mut session),
+        )
+        .unwrap();
+        assert!(!session.summary().reused_machine_transforms);
+        assert!(!session.summary().reused_partition);
+        let actual_ir = fs::read(&actual.llvm_ir).unwrap();
+        let actual_executable = fs::read(&actual.executable).unwrap();
+        let fresh = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &incompatible,
+            &|| false,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(actual_ir, fs::read(&fresh.llvm_ir).unwrap());
+        assert_eq!(actual_executable, fs::read(&fresh.executable).unwrap());
+
+        // Model the existing driver transaction: cancel after current lower has
+        // completed, discard its pending session, then restore the real O2 chain.
+        let checkpoint = session.clone();
+        let mut pending = checkpoint.clone();
+        let changed = history_fixture(77, 88);
+        let polls = std::sync::atomic::AtomicUsize::new(0);
+        let cancelled = || polls.fetch_add(1, std::sync::atomic::Ordering::Relaxed) != 0;
+        let failure = build_view_with_cancellation_and_session(
+            &changed,
+            &lir(&changed).as_view(),
+            &options,
+            &cancelled,
+            None,
+            Some(&mut pending),
+        )
+        .unwrap_err();
+        assert!(
+            failure
+                .iter()
+                .all(|error| error.category == zil_base::ResultCategory::Cancelled)
+        );
+        assert!(polls.load(std::sync::atomic::Ordering::Relaxed) >= 2);
+        assert!(pending.lower.completed_machine_products().is_none());
+        assert_eq!(
+            session, checkpoint,
+            "pending cancellation cannot mutate successful history"
+        );
+        drop(pending);
+        let mut recovered = build_view_with_cancellation_and_session(
             &current,
             &raw.as_view(),
             &options,
@@ -745,51 +866,13 @@ fn whole_machine_native_history_restore_and_next_private_edit_match_fresh_output
             Some(&mut session),
         )
         .unwrap();
-        actual.commit_object_cache();
-        assert_eq!(session.summary().reused_machine_module, index == 2);
-        if index == 2 {
-            assert_eq!(
-                (
-                    session.summary().lowered_functions,
-                    session.summary().reused_functions
-                ),
-                (0, 0)
-            );
-            assert!(
-                !session.summary().reused_machine_transforms,
-                "the last transformed product belongs to broad, not the restored cold epoch"
-            );
-        } else if index == 3 {
-            assert_eq!(
-                (
-                    session.summary().lowered_functions,
-                    session.summary().reused_functions
-                ),
-                (1, 1)
-            );
-        }
-        let mut fresh_options = options.clone();
-        fresh_options.object_cache = None;
-        let fresh = build_view_with_cancellation_and_session(
-            &current,
-            &raw.as_view(),
-            &fresh_options,
-            &|| false,
-            None,
-            None,
-        )
-        .unwrap();
-        assert_eq!(
-            fs::read(&actual.llvm_ir).unwrap(),
-            fs::read(&fresh.llvm_ir).unwrap()
-        );
-        assert_eq!(
-            fs::read(&actual.executable).unwrap(),
-            fs::read(&fresh.executable).unwrap()
-        );
-        let run = Command::new(&actual.executable).output().unwrap();
+        recovered.commit_object_cache();
+        assert!(session.summary().reused_machine_module);
+        assert!(session.summary().reused_machine_transforms);
+        assert!(session.summary().reused_partition);
+        let run = Command::new(&recovered.executable).output().unwrap();
         assert!(run.status.success());
-        assert_eq!(run.stdout, format!("{first}\n").as_bytes());
+        assert_eq!(run.stdout, b"43\n");
         assert!(run.stderr.is_empty());
     }
 }
@@ -841,10 +924,10 @@ fn closed_call_class_policy_switch_cannot_reuse_another_transform_policy() {
         );
         if merging == FunctionMerging::Disabled {
             let (checked, cached, removed, retained) = actual.codegen.closed_prune.unwrap();
-            if index == 1 {
+            if matches!(index, 1 | 3) {
                 assert_eq!((checked, cached, removed), (0, 2, 0));
                 assert!(retained > 0);
-            } else if matches!(index, 2 | 3) {
+            } else if index == 2 {
                 assert_eq!((checked, cached, removed), (1, 1, 1));
                 assert!(
                     retained > 0,
@@ -869,7 +952,10 @@ fn closed_call_class_policy_switch_cannot_reuse_another_transform_policy() {
             session.transformed.as_ref().unwrap().call_classes_enabled,
             merging == FunctionMerging::Disabled
         );
-        assert_eq!(session.summary().reused_machine_transforms, index == 1);
+        assert_eq!(
+            session.summary().reused_machine_transforms,
+            matches!(index, 1 | 3)
+        );
         let ir = fs::read(&actual.llvm_ir).unwrap();
         let elf = fs::read(&actual.executable).unwrap();
         let mut fresh = options.clone();

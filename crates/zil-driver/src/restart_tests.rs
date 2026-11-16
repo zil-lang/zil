@@ -319,6 +319,34 @@ fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
 }
 
 #[test]
+fn retained_types_reactivates_analysis_before_replacing_its_evicted_query_slot() {
+    let dir = TempDir::new();
+    let (path, options) = dir.fixture(1);
+    let mut session = CompilationSession::default();
+    let cold = session.compile_path(&path, &options);
+    success(&cold);
+    let analyze = session
+        .raw
+        .iter()
+        .find_map(|(key, raw)| matches!(raw, RawSnapshot::Candidate(_)).then(|| key.clone()))
+        .unwrap();
+    session.raw.remove(&analyze);
+    session.analysis = zil_analyze::AnalysisSession::default();
+    let restored = session.compile_path(&path, &options);
+    success(&restored);
+    assert!(restored.types_push_work.is_none());
+    let work = restored.initialization_work.as_ref().unwrap();
+    assert_eq!(work.shared_program_reuses, 1);
+    assert_eq!(work.product_function_queries_executed, 0);
+    assert!(restored.query_events.contains(&QueryEvent {
+        phase: Phase::Analyze,
+        disposition: QueryDisposition::Executed,
+    }));
+    epochs(&session, &restored, 3);
+    compare(&session, &restored, &path, &options);
+}
+
+#[test]
 fn restart_revalidates_namespace_signature_positions_flags_and_limits() {
     for mutation in ["namespace", "signature", "positions", "flags", "limits"] {
         let dir = TempDir::new();
