@@ -837,13 +837,11 @@ impl FunctionStore {
             maximum: self.store.maximum,
             max_items: options.limits.max_functions,
         };
-        let Some(maximum) = (if self.items {
+        let maximum = (if self.items {
             bounds.manifest_maximum()
         } else {
             Some(self.store.maximum)
-        }) else {
-            return None;
-        };
+        })?;
         let mut decoding = zil_ir::wire::RawFunctionDecodingStats::default();
         if let Ok(CacheRead::Candidate(bytes)) =
             ArtifactCache::with_limit(&self.store.root, maximum).inspect_candidate(self.store.key)
@@ -851,11 +849,8 @@ impl FunctionStore {
             if self.items {
                 if packed::is_packed(&bytes) {
                     let root = self.store.root.join("packs-v1");
-                    let Some(mut reader) =
-                        packed::Reader::new(&root, &bytes, bounds, &options.cancellation)
-                    else {
-                        return None;
-                    };
+                    let mut reader =
+                        packed::Reader::new(&root, &bytes, bounds, &options.cancellation)?;
                     let logical = reader.take_logical();
                     if session.restore_item_products_with_decoded(
                         &logical,

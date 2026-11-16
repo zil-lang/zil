@@ -22,7 +22,7 @@ pub struct RawFunctionDecodingStats {
 /// validates the fragment nor associates it with a decoded owner. Unknown
 /// versions/profiles simply use the ordinary complete decoder.
 pub fn raw_scalar_function_id(bytes: &[u8]) -> Option<FunctionId> {
-    if WIRE_VERSION != 47 || *bytes.first()? > 1 || bytes.get(1..6)? != &[0; 5] {
+    if WIRE_VERSION != 47 || *bytes.first()? > 1 || bytes.get(1..6)? != [0; 5] {
         return None;
     }
     Some(FunctionId(u32::from_le_bytes(

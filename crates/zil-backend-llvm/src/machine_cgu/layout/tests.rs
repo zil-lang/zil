@@ -749,10 +749,10 @@ fn retained_class_layout_rebinds_renamed_classes_and_rejects_changed_grouping() 
     let mut renamed = module.clone();
     // Even equal old callers must resolve symbols in the current table.
     for item in &mut renamed.items {
-        if let Item::Function(function) = item {
-            if function.name == *old_name {
-                function.name = new_name.clone();
-            }
+        if let Item::Function(function) = item
+            && function.name == *old_name
+        {
+            function.name = new_name.clone();
         }
     }
     assert!(CurrentGraph::read(&renamed, previous.graph()).is_none());
