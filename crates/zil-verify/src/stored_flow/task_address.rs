@@ -1158,7 +1158,7 @@ mod captured_port_tests {
         assert!(environment_task_leaf(&module,ClosureId(0),&wrong,&leaf,&mut b).is_err());
         let mut cold=Budget::new(&Limits::default());
         assert!(environment_task_leaf(&module,ClosureId(0),&position,&leaf,&mut cold).is_err());
-        let mut other=module.clone();other.closures[0].captures[0]=Type::OwnedDyn{interface:DynInterfaceId(99)};
+        let mut other=module.clone();other.closures[0].captures[0]=Type::OwnedDyn{interface:DynInterfaceId{module:ModuleId(0),index:99}};
         assert!(!environment_task_leaf(&other,ClosureId(0),&position,&leaf,&mut cold).unwrap(),"actual endpoint kind is selected before any Task feature state");
     }
     #[test]
