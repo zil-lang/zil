@@ -543,7 +543,7 @@ fn checked_function(
             .iter()
             .find(|row| row.position == *position)
             .ok_or_else(|| bad("actual result class occurrence is absent"))?;
-        output(&mapping, row.binder, *term, b)?;
+        output(&mapping, row.binder, *term, b).map_err(|error|error.with_note(format!("actual header result class: function {:?}, position {:?}, binder {:?}, required {:?}, input origins {:?}; own_domain {own_domain}; complete result {:?}",function.id,position,row.binder,term,mapping,result)))?;
     }
     for (position, term) in &directory.bindings {
         if position.base != StorageBase::Result || actual.static_bindings.contains(position) {
@@ -554,7 +554,7 @@ fn checked_function(
             .iter()
             .find(|row| row.position == *position)
             .ok_or_else(|| bad("actual result borrow occurrence is absent"))?;
-        output(&mapping, row.binder, *term, b)?;
+        output(&mapping, row.binder, *term, b).map_err(|error|error.with_note(format!("actual header result borrow: function {:?}, position {:?}, binder {:?}, required {:?}, input origins {:?}; own_domain {own_domain}; complete result {:?}",function.id,position,row.binder,term,mapping,result)))?;
     }
     if actual
         .classes
