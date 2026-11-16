@@ -652,10 +652,10 @@ impl Solver<'_, '_> {
         self.step(depth, b)?;
         match &self.state.arena[self.type_root(term, b)?] {
             Kind::Atom(_) | Kind::ConstValue(_) => Ok(()),
-            Kind::Code { .. } | Kind::Rigid(..) => {
+            Kind::Code { .. } | Kind::Rigid(..) | Kind::Closure { .. } => {
                 if !self.capability(term, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)? {
                     return Err(unknown(
-                        "Task code/abstract input needs its complete nonzero class inventory",
+                        "Task callable input needs its complete nonzero class inventory",
                     ));
                 }
                 Ok(())

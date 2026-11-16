@@ -216,6 +216,7 @@ struct Need {
     predicate: Predicate,
 }
 struct CallableNeed {
+    declaration: Option<SemanticDefinitionId>,
     term: Term,
     kind: CallableKind,
     parameters: Vec<Term>,
@@ -225,6 +226,7 @@ struct CallableNeed {
     result_mode: PassingMode,
 }
 struct Literal {
+    owner: SemanticDefinitionId,
     term: Term,
     text: String,
     float: bool,
@@ -1220,7 +1222,7 @@ impl Solver<'_, '_> {
         );
         Ok(())
     }
-    fn scalar_literal(&mut self, text: &str, float: bool, b: &mut Budget) -> CompileResult<Term> {
+    fn scalar_literal(&mut self, owner: SemanticDefinitionId, text: &str, float: bool, b: &mut Budget) -> CompileResult<Term> {
         b.spend(text.len(), WORK)?;
         let suffix = if float {
             [("f32", Type::F32), ("f64", Type::F64)]
@@ -1252,6 +1254,7 @@ impl Solver<'_, '_> {
         Self::push(
             &mut self.literals,
             Literal {
+                owner,
                 term: ty,
                 text: text.to_owned(),
                 float,
@@ -1433,6 +1436,65 @@ impl Solver<'_, '_> {
         }
     }
 
+    // Opaque results are selected only after their independent declaration
+    // has completed. Its private captured literals need their declaration's
+    // callable constraints before defaulting, rather than a caller's actual
+    // Type image or the eventual end of the whole program.
+    fn settle_opaque_declaration(
+        &mut self,
+        owner: SemanticDefinitionId,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let mut scopes = BTreeSet::new();
+        scopes.insert(owner);
+        loop {
+            let before = scopes.len();
+            for definition in &self.program.definitions {
+                b.spend(1, WORK)?;
+                if definition.parent.is_some_and(|parent| scopes.contains(&parent)) {
+                    b.lookup(scopes.len(), WORK)?;
+                    scopes.insert(definition.id);
+                }
+            }
+            if scopes.len() == before {
+                break;
+            }
+        }
+        for scope in &scopes {
+            b.lookup(self.active.len(), WORK)?;
+            if self.active.contains(scope) {
+                return Err(unknown("opaque result inference still has an active original lexical body"));
+            }
+        }
+        let pending = std::mem::take(&mut self.callable_needs);
+        let mut callers = Vec::new();
+        for need in pending {
+            b.lookup(scopes.len(), WORK)?;
+            if need.declaration.is_some_and(|owner| scopes.contains(&owner)) {
+                Self::push(&mut self.callable_needs, need, b)?;
+            } else {
+                Self::push(&mut callers, need, b)?;
+            }
+        }
+        let checked = self.check_callables(b);
+        // Keep caller obligations independent, including on a failed proof.
+        for need in callers {
+            Self::push(&mut self.callable_needs, need, b)?;
+        }
+        checked?;
+        for literal in &self.literals {
+            b.lookup(scopes.len(), WORK)?;
+            if !scopes.contains(&literal.owner) {
+                continue;
+            }
+            let root = self.type_root(literal.term, b)?;
+            if matches!(self.state.arena[root], Kind::Infer(None)) {
+                self.state.arena[root] = Kind::Atom(if literal.float { Type::F64 } else { Type::I32 });
+            }
+        }
+        Ok(())
+    }
+
     fn scheme(
         &mut self,
         caller: &Frame,
@@ -1514,6 +1576,7 @@ impl Solver<'_, '_> {
                 }
                 self.function(target, None, b, depth + 1)?;
             }
+            self.settle_opaque_declaration(target, b)?;
             let checked = self
                 .state
                 .frames
@@ -1646,8 +1709,8 @@ impl Solver<'_, '_> {
                 return Ok(term);
             }
             let ty = match &value.kind {
-                CoreExprKind::Integer(text) => self.scalar_literal(text, false, b)?,
-                CoreExprKind::Float(text) => self.scalar_literal(text, true, b)?,
+                CoreExprKind::Integer(text) => self.scalar_literal(frame.definition, text, false, b)?,
+                CoreExprKind::Float(text) => self.scalar_literal(frame.definition, text, true, b)?,
                 CoreExprKind::Literal(value) if value.ty().is_b0_scalar() => {
                     self.atom(value.ty(), b)?
                 }

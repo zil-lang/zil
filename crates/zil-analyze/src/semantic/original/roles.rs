@@ -159,6 +159,10 @@ impl Solver<'_, '_> {
             }
             let result = self.recipe(frame, &signature.result, b, depth + 1)?;
             Ok(CallableNeed {
+                // Signature instantiations also use a callee-named Frame.
+                // Only an active original body owns declaration constraints;
+                // a caller's pending actuals must keep their later check.
+                declaration: self.active.contains(&frame.definition).then_some(frame.definition),
                 term,
                 kind,
                 parameters,

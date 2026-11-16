@@ -509,7 +509,7 @@ impl Solver<'_, '_> {
                 Ok(false)
             }
             CorePatternKind::Integer(text) => {
-                let ty = self.scalar_literal(text, false, b)?;
+                let ty = self.scalar_literal(frame.definition, text, false, b)?;
                 self.unify(subject, ty, depth + 1, b)?;
                 Ok(false)
             }
