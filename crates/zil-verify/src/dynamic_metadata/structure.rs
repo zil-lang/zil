@@ -30,6 +30,7 @@ pub(crate) struct Structure{
     resource_success:BTreeMap<(usize,Profile),usize>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
+    type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
 }
 impl Structure{
     /// The root checker keeps this exact module immutably borrowed until this
@@ -41,7 +42,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),
+            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -51,7 +52,10 @@ impl Structure{
         }
         for closure in &module.closures{for ty in closure.captures.iter().chain(&closure.parameters).chain(std::iter::once(&closure.result)){result.ty(ty,b)?;}}
         for resource in &module.resources{result.ty(&resource.payload,b)?;}
-        for instance in &module.life_instances{result.ty(&instance.ty,b)?;}
+        for instance in &module.life_instances{
+            result.ty(&instance.ty,b)?;
+            for actual in &instance.arguments{b.spend(1)?;match actual{LifeNominalActual::Type(ty)|LifeNominalActual::QualifiedType{ty,..}=>result.ty(ty,b)?,_=>{}}}
+        }
         for declaration in &module.dyn_declarations{
             b.spend(lookup(result.declaration_nodes.len()).saturating_add(2))?;
             result.declaration_nodes.insert(declaration as *const DynDeclaration as usize);
@@ -234,11 +238,11 @@ pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&m
 pub(crate) fn adopt_type_cell(cell:&std::rc::Rc<crate::semantic::CheckedTypeData>,b:&mut Budget)->Check<()>{
     let Some(state)=&b.structural else{return Ok(());};
     let ptr=&cell.ty as *const Type as usize;
-    b.spend(lookup(state.shared_types.len()).saturating_add(1))?;
-    if b.structural.as_ref().unwrap().shared_types.get(&ptr).is_some_and(|known|std::rc::Rc::ptr_eq(known,cell)){return Ok(());}
-    b.spend(lookup(b.structural.as_ref().unwrap().shared_types.len()).saturating_add(2))?;
+    b.spend(lookup(state.type_owners.len()).saturating_add(1))?;
+    if b.structural.as_ref().unwrap().type_owners.get(&ptr).is_some_and(|known|std::rc::Rc::ptr_eq(known,cell)){return Ok(());}
+    b.spend(lookup(b.structural.as_ref().unwrap().type_owners.len()).saturating_add(2))?;
     let mut state=b.structural.take().unwrap();
-    state.shared_types.insert(ptr,cell.clone());
+    state.type_owners.insert(ptr,cell.clone());
     let result=state.ty(&cell.ty,b);
     b.structural=Some(state);result
 }
@@ -248,19 +252,21 @@ pub(crate) fn adopt_type_cell(cell:&std::rc::Rc<crate::semantic::CheckedTypeData
 pub(crate) fn shared_type(ty:&Type,b:&mut Budget)->Check<Option<std::rc::Rc<crate::semantic::CheckedTypeData>>>{
     let Some(state)=&b.structural else{return Ok(None);};
     let ptr=ty as *const Type as usize;
-    let fee=lookup(state.types.len()).saturating_add(lookup(state.shared_types.len())).saturating_add(1);
+    let fee=lookup(state.types.len()).saturating_add(lookup(state.shared_types.len())).saturating_add(lookup(state.type_owners.len())).saturating_add(1);
     b.spend(fee)?;
     let state=b.structural.as_ref().unwrap();
     if !state.types.contains(&ptr){return Ok(None);}
+    if let Some(shared)=state.type_owners.get(&ptr){return Ok(Some(shared.clone()));}
     if let Some(shared)=state.shared_types.get(&ptr){return Ok(Some(shared.clone()));}
     super::ty(ty,b)?;
     let shared=crate::semantic::CheckedTypeData::new(ty.clone());
-    b.spend(lookup(b.structural.as_ref().unwrap().shared_types.len()).saturating_add(2))?;
+    b.spend(lookup(b.structural.as_ref().unwrap().shared_types.len()).saturating_add(lookup(b.structural.as_ref().unwrap().type_owners.len())).saturating_add(4))?;
     let mut state=b.structural.take().unwrap();
     // The scope itself keeps every registered copied node alive. Registering
     // its child pointers permits the same immutable payload directory to be
     // borrowed by resource/metadata consumers, without re-cloning the tree.
     state.shared_types.insert(ptr,shared.clone());
+    state.type_owners.insert(&shared.ty as *const Type as usize,shared.clone());
     let result=state.ty(&shared.ty,b);
     b.structural=Some(state);
     result?;
@@ -282,6 +288,19 @@ mod tests{
     fn budget(module:&TypedModule)->Budget{
         let mut b=Budget::new(&Limits::default());
         b.structural=Some(Structure::register(module,&mut b).unwrap());b
+    }
+    #[test]
+    fn adopting_source_cells_keeps_every_copied_tree_alive(){
+        let module=fixture();let root=&module.functions[0].locals.last().unwrap().ty;
+        let mut b=budget(&module);
+        let first=shared_type(root,&mut b).unwrap().unwrap();
+        let next=shared_type(&first.ty,&mut b).unwrap().unwrap();
+        let weak=std::rc::Rc::downgrade(&next);
+        drop(next);
+        adopt_type_cell(&first,&mut b).unwrap();
+        assert!(weak.upgrade().is_some(),"adoption cannot drop the last owner of a registered snapshot tree");
+        let again=shared_type(&first.ty,&mut b).unwrap().unwrap();
+        assert!(std::rc::Rc::ptr_eq(&first,&again),"an owned immutable root is already its own snapshot");
     }
     #[test]
     fn immutable_type_memo_keeps_each_depth_quota_and_temporary_cold_walk(){

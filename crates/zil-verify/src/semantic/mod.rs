@@ -151,7 +151,7 @@ impl CheckedContext {
 
     /// Share only an exact live allocation, or an exact registered immutable
     /// module node. A fresh temporary Type is always copied and paid cold.
-    pub(super) fn shared_type_cell(&self,ty:&Type,b:&mut Budget)->Check<std::rc::Rc<CheckedTypeData>>{
+    pub(crate) fn shared_type_cell(&self,ty:&Type,b:&mut Budget)->Check<std::rc::Rc<CheckedTypeData>>{
         let ptr=ty as *const Type as usize;
         let profile=(b.limits.max_nodes,b.limits.max_call_depth.min(128));
         let fee=self.shared_types.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2);

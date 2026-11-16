@@ -433,7 +433,7 @@ impl Inference<'_> {
                 if !self.outer(lifetime, value, mode, b)? {
                     return Ok(false);
                 }
-                let child = child(self.module, value, ty, LifeTypeProjection::Pointee, b)?;
+                let child = child(self.module,self.context, value, ty, LifeTypeProjection::Pointee, b)?;
                 self.ty(inner, &child, b, depth + 1)
             }
             SemanticTypeRecipe::Desc { lifetime, inner } => {
@@ -443,7 +443,7 @@ impl Inference<'_> {
                 if !self.outer(lifetime, value, StoredBorrowMode::ReadOnlyDescription, b)? {
                     return Ok(false);
                 }
-                let child = child(self.module, value, ty, LifeTypeProjection::Pointee, b)?;
+                let child = child(self.module,self.context, value, ty, LifeTypeProjection::Pointee, b)?;
                 self.ty(inner, &child, b, depth + 1)
             }
             SemanticTypeRecipe::Managed(inner) => {
@@ -452,7 +452,7 @@ impl Inference<'_> {
                 };
                 self.ty(
                     inner,
-                    &child(self.module, value, ty, LifeTypeProjection::Pointee, b)?,
+                    &child(self.module,self.context, value, ty, LifeTypeProjection::Pointee, b)?,
                     b,
                     depth + 1,
                 )
@@ -467,8 +467,7 @@ impl Inference<'_> {
                 for (index, (p, v)) in patterns.iter().zip(fields).enumerate() {
                     if !self.ty(
                         p,
-                        &child(
-                            self.module,
+                        &child(self.module,self.context,
                             value,
                             v,
                             LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
@@ -491,9 +490,9 @@ impl Inference<'_> {
                 else {
                     return Ok(false);
                 };
-                let carrier = closed(self.module, &Type::Usize, b)?;
+                let carrier = closed(self.module,self.context, &Type::Usize, b)?;
                 Ok(
-                    self.ty(element, &closed(self.module, ty, b)?, b, depth + 1)?
+                    self.ty(element, &closed(self.module,self.context, ty, b)?, b, depth + 1)?
                         && self.constant(length, &carrier, &Constant::Usize(u64::from(*n)), b)?,
                 )
             }
@@ -503,7 +502,7 @@ impl Inference<'_> {
                     | (Type::OwnedStore { element }, SemanticTypeRecipe::OwnedStore(_)) => element,
                     _ => return Ok(false),
                 };
-                self.ty(p, &closed(self.module, ty, b)?, b, depth + 1)
+                self.ty(p, &closed(self.module,self.context, ty, b)?, b, depth + 1)
             }
             // Deferred equations/qualified shapes do not determine a provider.
             // They must independently agree with the complete reconstructed key.
@@ -535,9 +534,9 @@ impl Inference<'_> {
     }
 }
 
-fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<CheckedType> {
+fn closed(module: &TypedModule, context:&semantic::CheckedContext, ty: &Type, b: &mut Budget) -> Check<CheckedType> {
     values::closed(module, ty, b)?;
-    Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),
+    Ok(CheckedType {type_cell: context.shared_type_cell(ty,b)?,
         life: StorageLifeShape {
             binder_count: 0,
             slots: vec![],
@@ -554,11 +553,13 @@ fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<CheckedType>
 /// images coincide. Full child occurrences select each class exactly once.
 fn child(
     module: &TypedModule,
+    context:&semantic::CheckedContext,
     parent: &CheckedType,
     ty: &Type,
     path: LifeTypeProjection,
     b: &mut Budget,
 ) -> Check<CheckedType> {
+    dynamic_metadata::adopt_type_cell(&parent.type_cell,b)?;
     let count = values::intrinsic(module, ty, b)?.count;
     b.spend(count as usize)?;
     let mut indices = vec![];
@@ -621,6 +622,7 @@ fn child(
     // Stored child metadata is authoritative for its own intrinsic selectors;
     // their outside images still come solely from the parent's whole child map.
     if let Type::BorrowedStorage { life: original, .. } = ty {
+        dynamic_metadata::life_shape(original,b)?;
         life = original.clone();
         if life.binder_count != count {
             return Err(bad("provider child intrinsic domain differs"));
@@ -653,6 +655,7 @@ fn child(
         } = row
         {
             if prefix.first() == Some(&path) {
+                b.spend(prefix.len().saturating_add(1))?;dynamic_metadata::ty(leaf,b)?;
                 statics.push(StaticOccurrence::Direct {
                     path: prefix[1..].to_vec(),
                     leaf: leaf.clone(),
@@ -661,7 +664,7 @@ fn child(
             }
         }
     }
-    Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),
+    Ok(CheckedType {type_cell: context.shared_type_cell(ty,b)?,
         life,
         classes,
         origins,
@@ -689,8 +692,7 @@ fn nominal_arguments(
             b.spend(1)?;
             actuals.push(match actual {
                 LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } => {
-                    CheckedActual::Type(child(
-                        module,
+                    CheckedActual::Type(child(module,context,
                         value,
                         ty,
                         LifeTypeProjection::TypeArgument(ordinal as u32),
@@ -698,7 +700,7 @@ fn nominal_arguments(
                     )?)
                 }
                 LifeNominalActual::Const(v) => CheckedActual::Const {
-                    carrier: closed(module, &v.ty(), b)?,
+                    carrier: closed(module,context, &v.ty(), b)?,
                     value: v.clone(),
                 },
                 LifeNominalActual::Lifetime(class) => {
@@ -756,7 +758,7 @@ fn nominal_arguments(
                                 "zero nominal actual retains an unanchored intrinsic domain",
                             ));
                         }
-                        CheckedActual::Type(closed(module, ty, b)?)
+                        CheckedActual::Type(closed(module,context, ty, b)?)
                     }
                     SemanticActual::Const { ty, value } => {
                         let (carrier, life, classes) = semantic::resolved(ty)?;
@@ -764,7 +766,7 @@ fn nominal_arguments(
                             return Err(bad("provider nominal constant carrier differs"));
                         }
                         CheckedActual::Const {
-                            carrier: closed(module, carrier, b)?,
+                            carrier: closed(module,context, carrier, b)?,
                             value: value.clone(),
                         }
                     }
@@ -2936,4 +2938,29 @@ fn associated(
     proofs.available_original.pop();
     checked?;
     Ok(value)
+}
+
+#[cfg(test)]
+mod shared_provider_projection_tests{
+    use super::*;
+    #[test]
+    fn repeated_provider_actuals_and_children_borrow_their_exact_input_nodes(){
+        let limits=Limits::default();
+        let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../semantic/fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        module.functions[0].values.push(Type::Managed(Box::new(Type::Record{name:"provider_payload_".repeat(32),fields:vec![("value".into(),Type::I32)]})));
+        let ty=module.functions[0].values.last().unwrap();
+        let mut b=Budget::new(&limits);b.structural=Some(dynamic_metadata::Structure::register(&module,&mut b).unwrap());
+        let context=semantic::CheckedContext::catalogue(&module,&mut b).unwrap();
+        let first=closed(&module,&context,ty,&mut b).unwrap();
+        let second=closed(&module,&context,ty,&mut b).unwrap();
+        assert!(std::rc::Rc::ptr_eq(&first.type_cell,&second.type_cell));
+        let Type::Managed(inner)=&first.ty else{unreachable!()};
+        let a=child(&module,&context,&first,inner,LifeTypeProjection::Pointee,&mut b).unwrap();
+        let z=child(&module,&context,&first,inner,LifeTypeProjection::Pointee,&mut b).unwrap();
+        assert!(std::rc::Rc::ptr_eq(&a.type_cell,&z.type_cell));
+        assert_eq!(a.life,z.life);assert_eq!(a.classes,z.classes);assert_eq!(a.origins,z.origins);
+        // A new same-shaped temporary remains cold, independent of the source.
+        let detached=ty.clone();let copy=closed(&module,&context,&detached,&mut b).unwrap();
+        assert!(!std::rc::Rc::ptr_eq(&first.type_cell,&copy.type_cell));
+    }
 }
