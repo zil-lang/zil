@@ -515,6 +515,11 @@ struct SsaDefinition {
 }
 struct InitializationCache {
     module: usize,
+    // Completed immutable helper-frame graphs, partitioned by every helper
+    // traversal limit and by the caller's actual driver mode. Live resource,
+    // class, loan and cleanup ledgers never enter this directory.
+    task_helper_graphs: std::collections::BTreeMap<([usize; 5], FunctionId, bool), [bool; 3]>,
+    task_helper_scope: Option<std::sync::Arc<()>>,
     definitions: std::collections::BTreeMap<usize, std::sync::Arc<Vec<Option<SsaDefinition>>>>,
     functions:
         std::collections::BTreeMap<usize, (FunctionId, Option<std::sync::Arc<Initialization>>)>,
@@ -543,6 +548,8 @@ fn bind_initialization(module: &TypedModule, budget: &mut Budget) -> CompileResu
     }
     budget.initialization = Some(InitializationCache {
         module: owner,
+        task_helper_graphs: std::collections::BTreeMap::new(),
+        task_helper_scope: None,
         functions,
         definitions: std::collections::BTreeMap::new(),
     });

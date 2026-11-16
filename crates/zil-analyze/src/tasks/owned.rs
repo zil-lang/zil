@@ -960,6 +960,94 @@ fn helper_graph(
     span: Option<zil_base::Span>,
     driver_root: bool,
 ) -> CompileResult<()> {
+    let owner = module as *const TypedModule as usize;
+    let key = (
+        [
+            budget.partial_depth,
+            budget.helper_nodes,
+            budget.helper_calls,
+            budget.helper_edges,
+            budget.helper_depth,
+        ],
+        first,
+        driver_root,
+    );
+    let scoped = budget
+        .initialization
+        .as_ref()
+        .is_some_and(|cache| cache.module == owner);
+    if scoped {
+        helper_scope(budget);
+        let width = budget
+            .initialization
+            .as_ref()
+            .unwrap()
+            .task_helper_graphs
+            .len();
+        budget.lookup(width, "immutable helper frame graph query")?;
+        if let Some([nested, options, heads]) = budget
+            .initialization
+            .as_ref()
+            .unwrap()
+            .task_helper_graphs
+            .get(&key)
+            .copied()
+        {
+            budget.nested_store_windows |= nested;
+            budget.store_option_results |= options;
+            budget.head_descriptions |= heads;
+            return Ok(());
+        }
+    }
+    helper_graph_uncached(module, first, budget, span, driver_root)?;
+    // Publish only after the entire transitive graph succeeds. A request
+    // without a bound immutable module always executes the complete cold walk.
+    if scoped {
+        helper_scope(budget);
+        let flags = [
+            budget.nested_store_windows,
+            budget.store_option_results,
+            budget.head_descriptions,
+        ];
+        let width = budget
+            .initialization
+            .as_ref()
+            .unwrap()
+            .task_helper_graphs
+            .len();
+        budget.lookup(width, "immutable helper frame graph publication")?;
+        budget
+            .initialization
+            .as_mut()
+            .unwrap()
+            .task_helper_graphs
+            .insert(key, flags);
+    }
+    Ok(())
+}
+fn helper_scope(budget: &mut Budget) {
+    let scope = budget
+        .task_input_scopes
+        .as_ref()
+        .map(|table| table.identity());
+    let cache = budget.initialization.as_mut().unwrap();
+    let same = match (&cache.task_helper_scope, &scope) {
+        (Some(old), Some(current)) => std::sync::Arc::ptr_eq(old, current),
+        (None, None) => true,
+        _ => false,
+    };
+    if !same {
+        cache.task_helper_graphs.clear();
+        cache.task_helper_scope = scope;
+    }
+}
+fn helper_graph_uncached(
+    module: &TypedModule,
+    first: FunctionId,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+    driver_root: bool,
+) -> CompileResult<()> {
     let mut pending = vec![(first, driver_root)];
     let mut seen = BTreeSet::new();
     while let Some((id, driving)) = pending.pop() {

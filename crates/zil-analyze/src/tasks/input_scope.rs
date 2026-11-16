@@ -11,8 +11,14 @@ pub(crate) enum Domain {
     Known(u32),
 }
 pub(crate) struct Table {
+    identity: std::sync::Arc<()>,
     definitions: Vec<ClosureDefinition>,
     domains: Vec<Domain>,
+}
+impl Table {
+    pub(super) fn identity(&self) -> std::sync::Arc<()> {
+        std::sync::Arc::clone(&self.identity)
+    }
 }
 
 fn conjunction(domains: impl IntoIterator<Item = Domain>) -> Domain {
@@ -306,6 +312,7 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Co
         )?;
     }
     Ok(Table {
+        identity: std::sync::Arc::new(()),
         definitions,
         domains,
     })
