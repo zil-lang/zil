@@ -189,7 +189,7 @@ impl Engine<'_> {
                         "inferred record changes its declaration field identity",
                     )
                 })?;
-            let hint = substituted(&original.ty, &found, &mut self.budget)?;
+            let hint = enums::substituted(&original.ty, &found, &mut self.budget)?;
             let hint = (!check::dependent(&hint, &variables)
                 && !self.qualified_actual_syntax(&hint, depth + 1)?)
             .then_some(hint);
