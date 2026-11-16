@@ -10,7 +10,8 @@
     "native": "previous7e only: releaseO2/CGU16/jobs1; not reattributed to current source",
     "clock": "ZIL resident request excludes process startup; Cargo request includes startup. Both restart controls use new ZIL processes. No OS cache flush or OS-cold claim.",
     "scope": "Cargo Fresh workflow is actual end-user waiting, not equal rustc work. Forced rustc control changes mtimes only, retains identical bytes/flags/caches; remains different compiler obligations.",
-    "disk": "explicit user semantic/object caches and outputs/Rust target, request-boundary st_blocks peaks; source/SDK/evidence/host target excluded; not transient peaks"
+    "disk": "explicit user semantic/object caches and outputs/Rust target, request-boundary st_blocks peaks; source/SDK/evidence/host target excluded; not transient peaks",
+    "cli_clock": "Separate12request/4cell CLI control: all arms Popen through exit, ordinary ZIL CLI defaultsession32; matrix residentcapacity256 stays separate."
   },
   "changes": [
     "Current header projection compares by borrowing; retained projection contains no body. Complete immutable environment comparison memoized once per owner/request.",
@@ -999,8 +1000,114 @@
   },
   "full_run_archives_created": false,
   "legacy_runtime_identity_snapshots_preserved_local": true,
+  "cli_restart_control": {
+    "valid": true,
+    "rows": 12,
+    "quality_cells": 4,
+    "tool_source": "c0bae7d02721b660939831768e85aec90bd117e2",
+    "tool_sha256": "2d994bbf4db5f18afead49fdf1f6b256175b54e0ca6c12ad61d924089df87441",
+    "candidate_source": "54a0258ab9e081085254084e4b081309dc06eda9",
+    "candidate_binary_sha256": "b9fa49c46353d327b4272efc86c19d54045f2985398f961ebad7287cc03af0e3",
+    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+    "parent_window": "/workspace/zil-push-main/out/runs/function-first-performance-check-5000-wide-06",
+    "clock": "Popen through process exit for all arms; includes startup/compile/teardown",
+    "profile": "check/dev default opt0, CGU16/jobs1; complete retained post-history caches; identical bytes",
+    "same_compiler_obligations": false,
+    "comparisons": [
+      {
+        "request": "fresh",
+        "wall_ms_by_block": {
+          "baseline": [
+            135.302813,
+            80.591146
+          ],
+          "candidate": [
+            1767.155697,
+            1722.154423
+          ],
+          "rust": [
+            36.029193,
+            15.808443
+          ]
+        },
+        "median_ms": {
+          "baseline": 107.9469795,
+          "candidate": 1744.65506,
+          "rust": 25.918818
+        }
+      },
+      {
+        "request": "forced-rustc",
+        "wall_ms_by_block": {
+          "baseline": [
+            69.13426,
+            63.196388
+          ],
+          "candidate": [
+            996.155627,
+            1105.770359
+          ],
+          "rust": [
+            465.337584,
+            399.597753
+          ]
+        },
+        "median_ms": {
+          "baseline": 66.165324,
+          "candidate": 1050.962993,
+          "rust": 432.4676685
+        }
+      }
+    ],
+    "scope_proofs": [
+      {
+        "block": 0,
+        "request": "fresh",
+        "rustc_invoked": false,
+        "crate_artifacts_fresh": [
+          true
+        ]
+      },
+      {
+        "block": 0,
+        "request": "forced-rustc",
+        "rustc_invoked": true,
+        "crate_artifacts_fresh": [
+          false
+        ]
+      },
+      {
+        "block": 1,
+        "request": "fresh",
+        "rustc_invoked": false,
+        "crate_artifacts_fresh": [
+          true
+        ]
+      },
+      {
+        "block": 1,
+        "request": "forced-rustc",
+        "rustc_invoked": true,
+        "crate_artifacts_fresh": [
+          false
+        ]
+      }
+    ],
+    "invocation": "ordinary nonresident CLI default session32; main matrix resident capacity256; do not interpret difference as startup alone",
+    "window": "out/runs/function-first-cli-restart-control-01"
+  },
   "goal_read_sha": "53e397f07340242c82bda2e78aa8d45a0c83b464",
-  "source_result_commit": "4c1481b3f652139a7c5afafeab012f6b4e99c7b1",
-  "source_result": "https://github.com/zil-lang/zil/blob/4c1481b3f652139a7c5afafeab012f6b4e99c7b1/tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.md",
-  "previous_record": "https://github.com/zil-lang/zil/blob/53e397f07340242c82bda2e78aa8d45a0c83b464/records/compiler-incremental-demand-continuation.json"
+  "source_result_commit": "a7f499e8ce27dc43b4f3ae41c5c10977a97f03c7",
+  "source_result": "https://github.com/zil-lang/zil/blob/a7f499e8ce27dc43b4f3ae41c5c10977a97f03c7/tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.md",
+  "previous_record": "https://github.com/zil-lang/zil/blob/53e397f07340242c82bda2e78aa8d45a0c83b464/records/compiler-incremental-demand-continuation.json",
+  "task_delta": {
+    "G10.5.1": {
+      "before": "\u8fdb\u884c\u4e2d",
+      "after": "\u8fdb\u884c\u4e2d"
+    },
+    "G10.5.1.15": {
+      "before": "\u76f4\u63a5\u9996\u6539\u6574\u94fe\u5df2\u6d4b\u00b7\u5168\u9762\u95e8\u5f00\u653e",
+      "after": "\u53e3\u5f84\u5df2\u6838\u00b7\u51fd\u6570\u6062\u590d\u5df2\u6539\u00b7\u5168\u9762\u95e8\u5f00\u653e"
+    }
+  }
 }
