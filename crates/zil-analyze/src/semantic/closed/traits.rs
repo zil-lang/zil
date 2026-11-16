@@ -446,10 +446,9 @@ impl Check<'_, '_> {
             let head = *arguments
                 .first()
                 .ok_or_else(|| fail("actual trait call omits its receiver"))?;
-            let anchored = self.anchored_local(instance, function, anchor, b)?;
             if let Some(source) = &boundary.receiver_place {
                 self.checked_borrow_place(instance, function, head, source, false, false, b, 0)?;
-            } else if self.receiver_local(function, head, b, 0)? != anchored {
+            } else if !self.anchored_value(instance, function, anchor, head, b, 0)? {
                 return Err(fail(
                     "actual trait invocation takes another original receiver head",
                 ));
@@ -522,21 +521,32 @@ impl Check<'_, '_> {
                 "actual trait method result differs from its independently instantiated original member",
             ));
         }
-        if !boundary.result.classes.is_empty() {
-            return Err(unknown(
-                "trait result needs its complete concrete entry result-role substitution",
-            ));
-        }
+        let output = if boundary.result.classes.is_empty() {
+            boundary.result
+        } else {
+            self.call_output_from_entry(
+                instance,
+                function,
+                (block, index),
+                callee,
+                arguments,
+                &boundary.parameters,
+                &boundary.result.ty,
+                Some(boundary.result.copy(b)?),
+                b,
+                0,
+            )?
+        };
         if let Some(result) = instruction.result {
-            if function.values.get(result.0 as usize) != Some(&boundary.result.ty) {
+            if function.values.get(result.0 as usize) != Some(&output.ty) {
                 return Err(fail(
                     "actual trait call result SSA has another complete type",
                 ));
             }
-        } else if boundary.result.ty != Type::Unit {
+        } else if output.ty != Type::Unit {
             return Err(fail("actual trait call omits its promised result value"));
         }
-        Ok(Some(boundary.result))
+        Ok(Some(output))
     }
     pub(super) fn trait_result(
         &self,

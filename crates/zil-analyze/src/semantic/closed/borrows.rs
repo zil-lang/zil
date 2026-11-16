@@ -117,6 +117,38 @@ impl Check<'_, '_> {
         }
     }
 
+    // Bind a whole original Name to this actual operand without inventing a
+    // local for a physical capture. Owning Package places keep their stronger
+    // BindPackageCapture obligation in anchored_local/checked_borrow_place.
+    pub(super) fn anchored_value(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        anchor: original::LocalAnchor,
+        operand: ValueId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        b.spend(1, WORK)?;
+        if let original::LocalAnchor::Environment(ordinal) = anchor {
+            let expected = self.environment_capture(instance, function, ordinal, b)?;
+            return Ok(self.capture_value_origin(function, operand, b, depth + 1)? == expected);
+        }
+        let (_, _, read) = self.defining(function, operand, b)?;
+        if !matches!(
+            read.kind,
+            InstructionKind::Load(_)
+                | InstructionKind::TakeLocal { .. }
+                | InstructionKind::BorrowLocal { .. }
+                | InstructionKind::BorrowLocalMut { .. }
+                | InstructionKind::ReborrowAddress { .. }
+        ) {
+            return Ok(false);
+        }
+        let local = self.anchored_local(instance, function, anchor, b)?;
+        Ok(self.receiver_local(function, operand, b, depth + 1)? == local)
+    }
+
     pub(super) fn receiver_local(
         &self,
         function: &TypedFunction,
@@ -206,11 +238,35 @@ impl Check<'_, '_> {
         selected.ok_or_else(|| fail("call output has no exact original receipt"))
     }
 
-    // Independent physical header slots may denote the same declared
-    // original lifetime. Prove that equation in every actual world, rather
-    // than requiring equal slot numbers or equating their runtime loans.
-    pub(super) fn call_result_input_binders(&self, callee: &TypedFunction,
-        result: StorageBinder, b: &mut Budget) -> CompileResult<Vec<StorageBinder>> {
+    // The concrete entry header supplies result-to-input occurrences; the
+    // caller's independently instantiated original signature supplies the
+    // complete class images. Neither the emitted result nor its Type is a
+    // premise for a missing class or a call-local region.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn call_output_from_entry(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        at: (BlockId, usize),
+        callee: &TypedFunction,
+        arguments: &[ValueId],
+        expected_parameters: &[Value],
+        ty: &Type,
+        original_output: Option<Value>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "concrete call result exceeds its complete role depth",
+            ));
+        }
+        let (block, index) = at;
+        // instances() already checked every complete original function world
+        // and its full header_relation before any site is interpreted. The
+        // occurrence mapping below still independently checks this call's
+        // actual arguments and its original adapter classes.
         let contract = callee.storage_life.as_ref()
             .ok_or_else(|| fail("call class source has no complete actual header"))?;
         let mut candidates = Vec::new();

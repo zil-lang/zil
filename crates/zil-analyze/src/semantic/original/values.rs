@@ -21,7 +21,9 @@ impl Checked {
         }
         let node = node.ok_or_else(|| fail("call output has no original expression"))?;
         b.lookup(self.calls.len(), WORK)?;
-        if !self.calls.contains_key(&(context.definition, node)) {
+        let ordinary = self.calls.contains_key(&(context.definition, node));
+        b.lookup(self.trait_calls.len(), WORK)?;
+        if !ordinary && !self.trait_calls.contains_key(&(context.definition, node)) {
             return Err(fail("call output has no independently checked original call"));
         }
         self.source_value(context, SemanticScopeRef::Ancestor(0),

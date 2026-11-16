@@ -74,12 +74,8 @@ impl Check<'_, '_> {
                 // equal Types or lifetime uppers never select this identity.
                 for node in &nodes {
                     if let Some(anchor) = self.original.call_input_anchor(instance.definition, *node, b)? {
-                        let (_, _, read) = self.defining(function, source_operand, b)?;
-                        if matches!(read.kind, InstructionKind::Load(_) | InstructionKind::TakeLocal { .. }
-                            | InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
-                            | InstructionKind::ReborrowAddress { .. }) {
-                            let local = self.anchored_local(instance, function, anchor, b)?;
-                            if self.receiver_local(function, source_operand, b, depth + 1)? == local { return Ok(true); }
+                        if self.anchored_value(instance, function, anchor, source_operand, b, depth + 1)? {
+                            return Ok(true);
                         }
                     }
                 }
