@@ -2692,6 +2692,25 @@ impl<'a> Engine<'a> {
                     self.bind_resource_access(pattern, value, ty.as_ref(), env)?;
                     self.bind_semantic_source(pattern, env)?;
                 }
+                // The exact original local annotation and its scoped class
+                // recipe are already in the semantic body/emission directory,
+                // and the environment above keeps the full Source type. Erase
+                // only this physical root label after those consumers record
+                // it; nested domains continue through their normal producer.
+                if self.products.semantic.is_some() && let Some(annotation) = ty
+                    && matches!(annotation.kind, TypeKind::Reference { lifetime: Some(_), .. } | TypeKind::Group(_))
+                {
+                    fn erase_root(ty: &mut TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<()> {
+                        budget.node(ty.span, depth)?;
+                        match &mut ty.kind {
+                            TypeKind::Group(inner) => erase_root(inner, budget, depth + 1)?,
+                            TypeKind::Reference { lifetime, .. } => *lifetime = None,
+                            _ => {}
+                        }
+                        Ok(())
+                    }
+                    erase_root(annotation, &mut self.budget, depth + 1)?;
+                }
             }
             StmtKind::Return(Some(e)) => {
                 if self.source_enum_return_active
@@ -3946,6 +3965,25 @@ fn unify_argument_scoped(
     let mut actual = actual;
     while let TypeKind::Group(inner) = &actual.kind {
         actual = inner;
+    }
+    if let TypeKind::Named { path, args } = &pattern.kind
+        && path.len() == 1 && args.is_empty() && variables.contains(&path[0])
+        && let Some(prior) = found.get(&path[0])
+        && let (
+            TypeKind::Reference { mutable: false, inner: expected, .. },
+            TypeKind::Reference { mutable: true, inner: available, .. },
+        ) = (&grouped(prior).kind, &actual.kind)
+    {
+        // The wanted complete T already selects a shared root view. Retain T
+        // unchanged and compare the entire pointee invariantly; only the real
+        // argument operation may create the shared reborrow later in Types.
+        // Neither a nested address mode nor a nominal/phantom class can change.
+        if source_unification_key(expected, source, budget)?
+            != source_unification_key(available, source, budget)?
+        {
+            return Err(error(span, "conflicting generic argument constraints"));
+        }
+        return Ok(());
     }
     if let (
         TypeKind::Reference {

@@ -267,13 +267,26 @@ impl Engine<'_> {
         } = &mut ty.kind
         {
             let class = self.source_life(name, ty.span)?;
-            self.closed_stored_actual(inner, depth + 1)?;
-            self.ty(inner, depth + 1)?;
-            self.closed_stored_actual(inner, depth + 1)?;
+            // The pointee may already have a complete qualified domain. Keep
+            // that entire type and every intrinsic index when this whole
+            // Address is a function Type actual; its outer occurrence is a
+            // separate root role, not the pointee's class zero.
+            let child = self.qualified_type_actual(inner, depth + 1)?;
+            let (pointee, mut children) = if let Some(child) = child {
+                *inner = Box::new(child.physical);
+                (child.ty, child.classes)
+            } else {
+                self.closed_stored_actual(inner, depth + 1)?;
+                self.ty(inner, depth + 1)?;
+                self.closed_stored_actual(inner, depth + 1)?;
+                (super::super::type_ref(inner), Vec::new())
+            };
             self.budget.text(name, ty.span)?;
             self.budget.ty(inner)?;
-            self.budget
-                .lineage_bytes(std::mem::size_of::<LexicalLife>(), ty.span)?;
+            let mut classes = Vec::new();
+            self.budget.lineage_push(&mut classes, class, ty.span)?;
+            for child in children.drain(..) { self.budget.lineage_push(&mut classes, child, ty.span)?; }
+            self.budget.drop_lineage_vec(children, ty.span)?;
             return Ok(Some(stored_types::QualifiedActual {
                 physical: TypeRef {
                     span: ty.span,
@@ -285,9 +298,9 @@ impl Engine<'_> {
                 },
                 ty: zil_ir::Type::Address {
                     mutable: *mutable,
-                    inner: Box::new(super::super::type_ref(inner)),
+                    inner: Box::new(pointee),
                 },
-                classes: vec![class],
+                classes,
             }));
         }
         if let TypeKind::Tuple(fields) = &mut ty.kind {

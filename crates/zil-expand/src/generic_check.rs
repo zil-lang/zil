@@ -3616,9 +3616,42 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         borrowing: bool,
     ) -> R<TypeRef> {
+        fn reference_local(expression: &Expr, budget: &mut Budget<'_>, depth: usize) -> R<bool> {
+            budget.node(expression.span, depth)?;
+            match &expression.kind {
+                ExprKind::Name(_) => Ok(true),
+                ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } => reference_local(inner, budget, depth + 1),
+                _ => Ok(false),
+            }
+        }
+        let shared_view = if !borrowing
+            && let Some(expected) = expected
+            && let TypeKind::Reference { mutable: false, inner: wanted, .. } = &group(expected).kind
+            && reference_local(e, self.budget, 0)?
+            && let Some(available) = self.value_hint(e, state, 0, false)?
+            && let TypeKind::Reference { mutable: true, inner, .. } = &group(&available).kind
+        {
+            if source_unification_key(wanted, Some(self.source_definition), self.budget)?
+                != source_unification_key(inner, Some(self.source_definition), self.budget)?
+            {
+                return Err(error(e.span, "shared view changes its complete invariant pointee type"));
+            }
+            true
+        } else { false };
         self.aliases.result.clear();
         let base = self.alias_call_start();
-        let ty = self.expr_inner(e, state, expected, borrowing)?;
+        let mut ty = self.expr_inner(e, state, expected, borrowing || shared_view)?;
+        if shared_view {
+            self.budget.ty(&ty)?;
+            ty = group(&ty).clone();
+            let TypeKind::Reference { mutable, .. } = &mut ty.kind else {
+                return Err(error(e.span, "shared view expression changed its original reference constructor"));
+            };
+            *mutable = false;
+            // This is a child window of the actual input reference, not a
+            // copy of its exclusive value or a borrow of its pointer slot.
+            self.alias_borrow(e, state, false)?;
+        }
         self.finish_expr(e, state, base, ty)
     }
 

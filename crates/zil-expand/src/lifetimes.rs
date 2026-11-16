@@ -189,6 +189,23 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.ordinary_type_argument = old_ordinary_type_argument;
             result
         }
+        fn statement(&mut self, statement: &s::Stmt, depth: usize) -> CompileResult<()> {
+            // A local annotation is interpreted in this actual lexical life
+            // frame. Its immutable body recipe is retained before layout
+            // lowering, just as the complete function header is retained.
+            let mark = self.headers.len();
+            if let s::StmtKind::Binding { ty: Some(ty), .. } = &statement.kind
+                && matches!(reference(ty).kind, s::TypeKind::Reference { lifetime: Some(_), .. })
+            {
+                self.budget.node(ty.span, depth).map_err(|error| vec![error])?;
+                self.budget.note_stored_lifetimes();
+                self.budget.note_source_identity();
+                self.headers.push(std::ptr::from_ref(reference(ty)));
+            }
+            let result = ct_selection::walk_statement(self, statement, depth);
+            self.headers.truncate(mark);
+            result
+        }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
             // Inferred generic actuals need the same source-class machinery as
             // an explicit Tuple TypeApply. This only selects bounded producer
@@ -874,6 +891,30 @@ mod tests {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "nested-header.zil", source);
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
         super::super::expand(&source, &syntax).unwrap().functions.into_iter().find(|function| function.name == name).unwrap()
+    }
+
+    #[test]
+    fn explicit_local_shared_annotations_keep_the_exclusive_input_available() {
+        let function = header("fn run<life a>(value:&'a mut i32)->i32{let first:&'a i32=value;let second:&'a i32=value;return *first+*second}fn main()->i32{var n:i32=6;return run(&mut n)-12}", "run");
+        assert!(matches!(function.parameters[0].ty, Type::Address { mutable: true, .. }));
+        let views = function.body.statements.iter().filter(|statement| matches!(&statement.kind,
+            CoreStatementKind::Binding { ty: Some(Type::Address { mutable: false, .. }), .. })).count();
+        assert_eq!(views, 2);
+    }
+
+    #[test]
+    fn wanted_whole_type_shared_view_keeps_both_pointee_classes() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "whole-shared-view.zil",
+            "struct Pair<life a,life b>{first:&'a i32,second:&'b i32}fn pair<life a,life b>(first:&'a i32,second:&'b i32)->Pair<'a,'b>{return Pair::<'a,'b>{first:first,second:second}}fn identity<T:Copy>(value:T)->T{return value}fn share<life s,life a,life b>(value:&'s mut Pair<'a,'b>)->&'s Pair<'a,'b>{return identity(value)}fn main()->i32{let n:i32=5;var value=pair(&n,&n);let pointer=&mut value;let result=share(pointer);return *result.first+*result.second-10}");
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = super::super::expand(&source, &syntax).unwrap();
+        let identity = core.functions.iter().find(|function| function.name.contains("identity")).unwrap();
+        assert!(matches!(identity.parameters[0].ty, Type::Address { mutable: false, .. }));
+        let life = identity.storage_life.as_ref().unwrap();
+        for base in [zil_ir::StorageBase::Parameter(0), zil_ir::StorageBase::Result] {
+            assert_eq!(life.classes.iter().filter(|row| row.position.base == base
+                && row.position.path == [zil_ir::LifeTypeProjection::Pointee]).count(), 2);
+        }
     }
 
     #[test]
