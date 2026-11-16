@@ -588,6 +588,13 @@ pub fn build_view_with_cancellation_and_session(
                 }
                 check_cancelled(cancelled)?;
             }
+            if options.bounded_class_imports {
+                crate::machine_integer_ranges::mark_purity(
+                    &mut flat,
+                    &transform_policy.protected,
+                    &mut machine_preflight,
+                );
+            }
             machine = flat.into();
         }
         if let (Some(session), Some(input)) = (session.as_deref_mut(), transform_input) {
@@ -793,6 +800,13 @@ pub fn build_view_with_cancellation_and_session(
                 cancelled,
             );
             check_cancelled(cancelled)?;
+            if options.bounded_class_imports {
+                crate::machine_integer_ranges::mark_purity(
+                    &mut flat,
+                    &transform_policy.protected,
+                    &mut machine_preflight,
+                );
+            }
             class_symbols.clear();
             class_cache = None;
             machine = flat.into();
@@ -1220,7 +1234,7 @@ pub fn build_view_with_cancellation_and_session(
         closed_prune,
         partition_layout_key,
         class_import_requested: if options.bounded_class_imports {
-            Some("bounded-classes-512-v2")
+            Some("bounded-classes-128-v3")
         } else {
             call_classes_enabled.then_some("complete")
         },
@@ -1228,7 +1242,7 @@ pub fn build_view_with_cancellation_and_session(
             Some("complete")
         } else {
             (!class_symbols.is_empty()).then_some(if options.bounded_class_imports {
-                "bounded-classes-512-v2"
+                "bounded-classes-128-v3"
             } else {
                 "complete"
             })

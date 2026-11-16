@@ -95,6 +95,10 @@ pub enum Attr {
     /// Function-level optimization boundary; never a language permission.
     NoInline,
     SignExt,
+    /// Current machine-effect facts, never ZIL verification capabilities.
+    NoUnwind,
+    WillReturn,
+    MemoryNone,
 }
 impl Attr {
     pub fn name(self) -> &'static str {
@@ -103,6 +107,9 @@ impl Attr {
             Self::SignExt => "signext",
             Self::NonLazyBind => "nonlazybind",
             Self::NoInline => "noinline",
+            Self::NoUnwind => "nounwind",
+            Self::WillReturn => "willreturn",
+            Self::MemoryNone => "memory(none)",
         }
     }
 }

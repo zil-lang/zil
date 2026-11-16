@@ -2,6 +2,243 @@ use super::super::tests::{loader, prepared, products, session};
 use super::*;
 use zil_ir::wire::{FunctionEncodingStats, WireSegment, raw_scalar_function_id};
 
+fn replace_raw_item(
+    items: &mut FunctionItemProducts,
+    index: usize,
+    function: &TypedFunction,
+    limits: &Limits,
+) {
+    let encoding = zil_ir::wire::encode_raw_function(function, limits).unwrap();
+    let item = &mut items.items[index];
+    item.bytes = encoding.shared_bytes();
+    item.wire_nodes = encoding.node_cost();
+    item.content_fingerprint = encoding.content_fingerprint();
+    let row = HEADER + index * ROW;
+    items.manifest[row + 80..row + 88].copy_from_slice(&(item.wire_nodes as u64).to_le_bytes());
+    items.manifest[row + 88..row + 120].copy_from_slice(&item.content_fingerprint.0);
+    items.manifest[row + 120..row + 128].copy_from_slice(&(item.bytes.len() as u64).to_le_bytes());
+}
+
+fn header_siblings(limits: &Limits, same_id: bool) -> (FunctionItemProducts, Vec<TypedFunction>) {
+    let mut items = products(&session(), limits);
+    assert_eq!(items.items.len(), 2);
+    let (first, _) = zil_ir::wire::decode_raw_function(&items.items[0].bytes, limits).unwrap();
+    let (second, _) = zil_ir::wire::decode_raw_function(&items.items[1].bytes, limits).unwrap();
+    let mut sibling = first.clone();
+    if !same_id {
+        assert_ne!(first.id, second.id);
+        sibling.id = second.id;
+    }
+    sibling.name = "a-different-current-diagnostic-name".into();
+    replace_raw_item(&mut items, 1, &sibling, limits);
+    (items, vec![first, sibling])
+}
+
+#[test]
+fn local_scalar_header_memo_shares_bodies_with_actual_current_ids_names_and_bytes() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    for same_id in [false, true] {
+        let (items, functions) = header_siblings(&limits, same_id);
+        let mut restored = FunctionSession::default();
+        let mut stats = RawFunctionDecodingStats::default();
+        let mut hints = 0;
+        assert!(restored.restore_item_products_with_decoded(
+            &items.manifest,
+            &mut |key| loader(&items.items, key),
+            &mut |_| {
+                hints += 1;
+                None
+            },
+            &target,
+            &limits,
+            &mut stats,
+        ));
+        assert_eq!(hints, 2);
+        assert_eq!((stats.decode_attempts, stats.decoded_functions), (1, 1));
+        assert_eq!(stats.reused_decoded_functions, 1);
+        assert_eq!(stats.relabeled_decoded_functions, usize::from(same_id));
+        let first = &restored.entries[&items.items[0].input_key];
+        let second = &restored.entries[&items.items[1].input_key];
+        assert!(!Arc::ptr_eq(&first.function, &second.function));
+        assert!(first.function.blocks.ptr_eq(&second.function.blocks));
+        assert!(first.function.locals.ptr_eq(&second.function.locals));
+        assert!(first.function.values.ptr_eq(&second.function.values));
+        for (item, function) in items.items.iter().zip(&functions) {
+            let entry = &restored.entries[&item.input_key];
+            assert_eq!(entry.function.as_ref(), function);
+            assert_eq!(entry.cost, item.cost);
+            let encoding = entry.encoding.get().unwrap();
+            assert!(Arc::ptr_eq(
+                encoding.decoded_function().unwrap(),
+                &entry.function
+            ));
+            assert!(Arc::ptr_eq(&encoding.shared_bytes(), &item.bytes));
+            assert_eq!(encoding.content_fingerprint(), item.content_fingerprint);
+        }
+        // Even an identical later restore gets a new local dictionary.
+        assert!(restored.restore_item_products_with_decoded(
+            &items.manifest,
+            &mut |key| loader(&items.items, key),
+            &mut |_| None,
+            &target,
+            &limits,
+            &mut stats,
+        ));
+        assert_eq!(
+            (stats.decoded_functions, stats.reused_decoded_functions),
+            (1, 1)
+        );
+    }
+}
+
+#[test]
+fn local_scalar_header_memo_declines_body_callee_span_abi_and_target_neighbors() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let (items, functions) = header_siblings(&limits, false);
+    let mut neighbors = Vec::new();
+    let mut changed = functions[1].clone();
+    changed.blocks[0].instructions[0].kind =
+        zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(71));
+    neighbors.push(changed);
+    let mut changed = functions[1].clone();
+    changed.blocks[0].instructions[0].kind = zil_ir::InstructionKind::Call {
+        function: FunctionId(73),
+        arguments: vec![],
+    };
+    neighbors.push(changed);
+    let mut changed = functions[1].clone();
+    changed.span.end += 1;
+    neighbors.push(changed);
+    let mut changed = functions[1].clone();
+    changed.return_type = zil_ir::Type::I64;
+    neighbors.push(changed);
+    for changed in neighbors {
+        let mut items = items.clone();
+        replace_raw_item(&mut items, 1, &changed, &limits);
+        let mut restored = FunctionSession::default();
+        let mut stats = RawFunctionDecodingStats::default();
+        assert!(restored.restore_item_products_with_decoded(
+            &items.manifest,
+            &mut |key| loader(&items.items, key),
+            &mut |_| None,
+            &target,
+            &limits,
+            &mut stats,
+        ));
+        assert_eq!((stats.decode_attempts, stats.decoded_functions), (2, 2));
+        assert_eq!(stats.reused_decoded_functions, 0);
+        assert_eq!(
+            restored.entries[&items.items[1].input_key]
+                .function
+                .as_ref(),
+            &changed
+        );
+    }
+    let mut restored = session();
+    let before = restored.entries.clone();
+    let mut manifest = items.manifest.clone();
+    manifest[8] ^= 1;
+    let mut loads = 0;
+    assert!(!restored.restore_item_products_with_decoded(
+        &manifest,
+        &mut |_| {
+            loads += 1;
+            None
+        },
+        &mut |_| None,
+        &target,
+        &limits,
+        &mut RawFunctionDecodingStats::default(),
+    ));
+    assert_eq!(loads, 0);
+    assert!(Arc::ptr_eq(&before, &restored.entries));
+}
+
+#[test]
+fn local_scalar_header_memo_preserves_aggregate_quotas_and_discards_failed_restore() {
+    let defaults = Limits::default();
+    let target = TargetProfile::default();
+    let (items, _) = header_siblings(&defaults, false);
+    let bytes = legacy_bytes(items.items.len(), &target, &defaults).unwrap()
+        + items
+            .items
+            .iter()
+            .map(|item| item.bytes.len())
+            .sum::<usize>();
+    let nodes = items.items.len()
+        + items
+            .items
+            .iter()
+            .map(|item| item.wire_nodes)
+            .sum::<usize>();
+    for (byte_limit, node_limit, accepted) in [
+        (bytes, nodes, true),
+        (bytes - 1, nodes, false),
+        (bytes, nodes - 1, false),
+    ] {
+        let limits = Limits {
+            max_source_bytes: byte_limit,
+            max_nodes: node_limit,
+            ..defaults.clone()
+        };
+        let mut restored = session();
+        let before = restored.entries.clone();
+        let mut stats = RawFunctionDecodingStats::default();
+        assert_eq!(
+            restored.restore_item_products_with_decoded(
+                &items.manifest,
+                &mut |key| loader(&items.items, key),
+                &mut |_| None,
+                &target,
+                &limits,
+                &mut stats,
+            ),
+            accepted
+        );
+        if accepted {
+            assert_eq!(
+                (stats.decoded_functions, stats.reused_decoded_functions),
+                (1, 1)
+            );
+        } else {
+            assert_eq!(stats.decode_attempts, 0);
+            assert!(Arc::ptr_eq(&before, &restored.entries));
+        }
+    }
+    let mut restored = session();
+    let before = restored.entries.clone();
+    let mut stats = RawFunctionDecodingStats::default();
+    let mut loads = 0;
+    assert!(!restored.restore_item_products_with_decoded(
+        &items.manifest,
+        &mut |key| {
+            loads += 1;
+            (loads == 1).then(|| loader(&items.items, key)).flatten()
+        },
+        &mut |_| None,
+        &target,
+        &defaults,
+        &mut stats,
+    ));
+    assert_eq!(loads, 2);
+    assert_eq!(stats.decoded_functions, 1);
+    assert!(Arc::ptr_eq(&before, &restored.entries));
+    assert!(restored.restore_item_products_with_decoded(
+        &items.manifest,
+        &mut |key| loader(&items.items, key),
+        &mut |_| None,
+        &target,
+        &defaults,
+        &mut stats,
+    ));
+    assert_eq!(
+        (stats.decoded_functions, stats.reused_decoded_functions),
+        (1, 1)
+    );
+}
+
 fn semantic_hints(
     source: &FunctionSession,
     limits: &Limits,

@@ -100,7 +100,14 @@ fn attrs(a: &[Attr], ty: Option<&Ty>) -> Result<()> {
         }
         match (x, ty) {
             (Attr::ZeroExt | Attr::SignExt, Some(Ty::Int(1 | 8 | 16 | 32 | 64))) => {}
-            (Attr::NonLazyBind | Attr::NoInline, None) => {}
+            (
+                Attr::NonLazyBind
+                | Attr::NoInline
+                | Attr::NoUnwind
+                | Attr::WillReturn
+                | Attr::MemoryNone,
+                None,
+            ) => {}
             _ => return fail("attribute is invalid for its machine ABI position"),
         }
     }

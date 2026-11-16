@@ -20,8 +20,8 @@ imports against the current diagnostic call graph. Imports grant optimization
 visibility, not canonical ownership or new exported definitions. Existing
 closed-only results and negatives retain their original schema and policy.
 
-bounded_class_imports explicitly selects bounded-classes-512-v2 instead: only
-the current closure of class bodies costing at most 512 is imported. Current
+bounded_class_imports explicitly selects bounded-classes-128-v3 instead: only
+the current closure of class bodies costing at most 128 is imported. Current
 body references, canonical cross-unit bindings and the original source-only
 total copy budget remain mandatory. A rejected strategy is not this profile.
 """
@@ -38,8 +38,8 @@ import elf_instruction_quality as late
 SCHEMA = 'closed-project-runtime-v1'
 IMPORT_SCHEMA = 'closed-import-project-runtime-v1'
 BOUNDED_SCHEMA = 'closed-bounded-class-project-runtime-v1'
-BOUNDED_POLICY = 'bounded-classes-512-v2'
-MAX_CLASS_IMPORT_COST = 512
+BOUNDED_POLICY = 'bounded-classes-128-v3'
+MAX_CLASS_IMPORT_COST = 128
 INPUTS = (b'', *(bytes([i]) for i in range(256)))
 RUNTIME_GATES = {'candidate_over_main_max_per_case': 1.10,
                  'rust_over_candidate_min_per_case': 0.90,
@@ -121,7 +121,7 @@ def layout_roles(units, items, model, complete_imports, bounded_class_imports=Fa
                 required.add(name)
                 pending.extend(model['calls'].get(name, set()))
             require(imported[index] == required,
-                    'bounded imports must equal the current nonowned class-only closure costing at most 512 per body')
+                    'bounded imports must equal the current nonowned class-only closure costing at most 128 per body')
             copied_cost += sum(costs[name] for name in imported[index])
             # scalar_model refuses all addresses/globals/indirect calls, so its
             # direct calls are the complete body-reference set, including the
@@ -256,14 +256,85 @@ def producer_receipt(args, item):
     return value
 
 
+def validate_pure_bodies(bodies, pure):
+    dependencies = {}
+    for name in pure:
+        body = bodies[name][3]
+        blocks, current = {}, 'implicit.entry'
+        for raw in body.splitlines():
+            line = raw.strip()
+            if not line: continue
+            label = re.fullmatch(r'([A-Za-z0-9_.]+):', line)
+            if label:
+                current = label[1]
+                require(current not in blocks, 'duplicate pure block label')
+                blocks[current] = []
+            else:
+                blocks.setdefault(current, []).append(line)
+        require(blocks, 'empty pure body')
+        entry = next(iter(blocks))
+        pending, reachable, edges, calls = [entry], set(), {}, set()
+        while pending:
+            block = pending.pop()
+            if block in reachable: continue
+            require(block in blocks and blocks[block], 'pure CFG target')
+            reachable.add(block)
+            lines = blocks[block]
+            for line in lines:
+                require(not re.search(r'\b(?:undef|poison|freeze)\b', line), 'undefined/frozen pure operand')
+                op = re.sub(r'^%[A-Za-z0-9_.]+ = ', '', line)
+                call = re.fullmatch(r'call i32 @([A-Za-z0-9_.]+)\([^\n]*\)', op)
+                if call:
+                    require(call[1] in pure, 'pure call must bind a current independently pure definition')
+                    calls.add(call[1])
+                elif re.match(r'(?:add|sub|mul|and|or|xor|icmp|phi|select|br|ret)\b', op):
+                    require(re.match(r'(?:(?:add|sub|mul|and|or|xor) i(?:1|32) |icmp \w+ i(?:1|32) |phi i(?:1|32) |select i1 |br |ret i32 )', op), 'unsupported pure scalar operation')
+                elif re.match(r'(?:srem|urem|sdiv|udiv)\b', op):
+                    divisor = re.fullmatch(r'(?:srem|urem|sdiv|udiv) i32 [^,]+, ([0-9]+)', op)
+                    require(divisor and 0 < int(divisor[1]) <= 2147483647, 'pure divisor must be defined and positive')
+                elif re.match(r'(?:shl|lshr|ashr)\b', op):
+                    shift = re.fullmatch(r'(?:shl|lshr|ashr) i(1|32) [^,]+, ([0-9]+)', op)
+                    require(shift and int(shift[2]) < int(shift[1]), 'pure shift width')
+                else:
+                    require(False, 'effect/trap/unknown operation in pure body')
+            term = lines[-1]
+            direct = re.fullmatch(r'br label %([A-Za-z0-9_.]+)', term)
+            branch = re.fullmatch(r'br i1 (?:%[A-Za-z0-9_.]+|true|false), label %([A-Za-z0-9_.]+), label %([A-Za-z0-9_.]+)', term)
+            if direct: outgoing = [direct[1]]
+            elif branch: outgoing = [branch[1], branch[2]]
+            else:
+                require(re.fullmatch(r'ret i32 .+', term), 'pure path must return')
+                outgoing = []
+            edges[block] = outgoing
+            pending.extend(outgoing)
+        degree = {block: 0 for block in reachable}
+        for outgoing in edges.values():
+            for target in outgoing: degree[target] += 1
+        ready, visited = [n for n, d in degree.items() if not d], 0
+        while ready:
+            node = ready.pop(); visited += 1
+            for target in edges[node]:
+                degree[target] -= 1
+                if not degree[target]: ready.append(target)
+        require(visited == len(reachable), 'pure CFG must terminate without a cycle')
+        dependencies[name] = calls
+    proved = set()
+    while True:
+        update = {n for n, calls in dependencies.items() if calls <= proved} - proved
+        if not update: break
+        proved |= update
+    require(proved == pure, 'pure calls cannot form a recursive cycle')
+
+
 def scalar_model(llvm):
     text = llvm.decode('ascii')
     require(not re.search(r'(?m)^[@%!]|\b(?:blockaddress|indirectbr|callbr|invoke|asm|alias|ifunc|personality|global|constant)\b', text),
             'globals/address/callback/exception LLVM outside scalar ABI scope')
-    headers = list(re.finditer(r'(?m)^(declare|define) (.+?) @([A-Za-z0-9_.]+)\(([^\n]*)\)([^\n]*)$', text))
+    headers = list(re.finditer(r'(?m)^(declare|define) (.+?) @([A-Za-z0-9_.]+)\(([^\n]*?)\)([^\n]*)$', text))
     require(headers and sum(line.startswith(('declare ', 'define ')) for line in text.splitlines()) == len(headers), 'unknown scalar function envelope')
     signatures, calls, definitions, bodies, function_costs = {}, {}, set(), {}, {}
     classes = set()
+    pure = set()
     intrinsics = {'llvm.trap': ('void', ''),
                   **{f'llvm.{op}.with.overflow.i32': ('{ i32, i1 }', 'i32, i32') for op in ('sadd', 'ssub', 'smul')}}
     for h in headers:
@@ -273,7 +344,10 @@ def scalar_model(llvm):
             require(kind == 'declare' and (result, params) == intrinsics[name] and not suffix, 'unknown scalar intrinsic ABI')
         else:
             require(result in ('i32', 'void') and all(re.fullmatch(r'i32(?: %[A-Za-z0-9_.]+)?', p) for p in params.split(', ') if p)
-                    and suffix in (' {', ' nonlazybind', ''), 'unknown scalar C integer ABI')
+                    and suffix in (' {', ' nonlazybind', '', ' nounwind willreturn memory(none) {'), 'unknown scalar C integer ABI')
+            if suffix == ' nounwind willreturn memory(none) {':
+                require(kind == 'define' and name.startswith(('zil.fn.', 'zil.class.')), 'purity only applies to generated current definitions')
+                pure.add(name)
             require((kind == 'declare' and name in ('getchar', 'putchar')) or
                     (kind == 'define' and (name == 'main' or re.fullmatch(r'zil\.fn\.\d+', name)
                                            or re.fullmatch(r'zil\.class\.[0-9a-f]{64}', name))),
@@ -304,6 +378,7 @@ def scalar_model(llvm):
     require(all(ref in signatures for refs in calls.values() for ref in refs), 'undeclared scalar call')
     # The spelling only locates candidates. Every class must be an exact clone
     # of a current source definition, including signature, SSA, blocks and calls.
+    validate_pure_bodies(bodies, pure)
     source_bodies = {}
     for name, body in bodies.items():
         if re.fullmatch(r'zil\.fn\.\d+', name):

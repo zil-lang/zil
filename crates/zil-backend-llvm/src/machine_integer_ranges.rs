@@ -6,6 +6,9 @@ use zil_llvm_api::model::{Attr, Function, Item, Linkage, Module, Op, Ty, Val};
 
 const MAX_WORK: usize = 2_000_000;
 const MAX_ROUNDS: usize = 4;
+mod compact;
+mod purity;
+pub(crate) use purity::mark as mark_purity;
 const MIN: i128 = i32::MIN as i128;
 const MAX: i128 = i32::MAX as i128;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,6 +106,7 @@ fn intrinsic(f: &Function) -> Option<Arithmetic> {
 struct World<'a> {
     intrinsics: BTreeMap<&'a str, Arithmetic>,
     returns: BTreeMap<&'a str, Range>,
+    arguments: BTreeMap<&'a str, Vec<Range>>,
 }
 fn overflow(op: &Op, world: &World<'_>, values: &Values<'_>) -> Option<Range> {
     let Op::Call {
@@ -205,8 +209,9 @@ fn operation(op: &Op, pairs: &HashMap<&str, &Op>, world: &World<'_>, values: &Va
 struct Facts {
     returned: Range,
     flags: Vec<(usize, usize)>,
+    calls: Vec<(String, Vec<Range>)>,
 }
-fn facts(f: &Function, world: &World<'_>, work: &mut usize) -> Option<Facts> {
+fn facts(f: &Function, world: &World<'_>, work: &mut usize, inputs: &[Range]) -> Option<Facts> {
     let blocks = f.blocks.as_ref()?;
     let count = blocks.iter().try_fold(f.signature.params.len(), |n, b| {
         n.checked_add(b.instructions.len())
@@ -218,6 +223,11 @@ fn facts(f: &Function, world: &World<'_>, work: &mut usize) -> Option<Facts> {
         .filter_map(|i| i.result.as_deref().map(|n| (n, &i.op)))
         .collect();
     let mut values = Values::new();
+    for (parameter, range) in f.signature.params.iter().zip(inputs) {
+        if parameter.ty == Ty::Int(32) {
+            values.insert(parameter.name.as_deref()?, *range);
+        }
+    }
     for _ in 0..MAX_ROUNDS {
         let mut changed = false;
         for inst in blocks.iter().flat_map(|b| &b.instructions) {
@@ -237,15 +247,35 @@ fn facts(f: &Function, world: &World<'_>, work: &mut usize) -> Option<Facts> {
     }
     let mut returned = None;
     let mut flags = Vec::new();
+    let mut calls = Vec::new();
     for (bi, b) in blocks.iter().enumerate() {
         for (ii, i) in b.instructions.iter().enumerate() {
             *work = work.checked_sub(1)?;
             if let Op::Return(Some(arg)) = &i.op {
-                if arg.ty != Ty::Int(32) {
-                    return None;
-                }
-                let r = value(&arg.value, &values);
+                let r = if arg.ty == Ty::Int(32) {
+                    value(&arg.value, &values)
+                } else {
+                    Range::TOP
+                };
                 returned = Some(returned.map_or(r, |old: Range| old.hull(r)));
+            }
+            if let Op::Call {
+                callee: Val::Global(name),
+                args,
+                vararg,
+                ..
+            } = &i.op
+                && let Some(parameters) = world.arguments.get(name.as_str())
+            {
+                let ranges = if vararg.is_none()
+                    && args.len() == parameters.len()
+                    && args.iter().all(|a| a.ty == Ty::Int(32))
+                {
+                    args.iter().map(|a| value(&a.value, &values)).collect()
+                } else {
+                    vec![Range::TOP; parameters.len()]
+                };
+                calls.push((name.clone(), ranges));
             }
             if let Op::Extract { arg, index: 1 } = &i.op
                 && arg.ty == Ty::Struct(vec![Ty::Int(32), Ty::Int(1)])
@@ -260,6 +290,7 @@ fn facts(f: &Function, world: &World<'_>, work: &mut usize) -> Option<Facts> {
     Some(Facts {
         returned: returned.unwrap_or(Range::TOP),
         flags,
+        calls,
     })
 }
 fn eligible(f: &Function, protected: &BTreeSet<String>) -> bool {
@@ -329,6 +360,7 @@ pub(crate) fn fold(
             })
             .collect(),
         returns: BTreeMap::new(),
+        arguments: BTreeMap::new(),
     };
     // Body-owner sharing is current-request only; exact signatures bind each use.
     type Cache<'a> = HashMap<usize, Vec<(&'a Function, Facts)>>;
@@ -351,7 +383,7 @@ pub(crate) fn fold(
             let r = if let Some(fs) = cached {
                 fs.returned
             } else {
-                let Some(fs) = facts(f, &world, &mut work) else {
+                let Some(fs) = facts(f, &world, &mut work, &[]) else {
                     return 0;
                 };
                 let r = fs.returned;
@@ -362,32 +394,121 @@ pub(crate) fn fold(
         }
     }
     world.returns.extend(summaries);
-    let mut plans = Vec::new();
-    let mut cache = Cache::new();
-    for (index, item) in module.items.iter().enumerate() {
+    // Only non-exported, non-address-taken generated definitions receive
+    // argument assumptions. All current body callers contribute, including
+    // protected entries and void/non-scalar callers. Missing incoming calls
+    // remain Top. Every iteration descends from a sound whole-program bound;
+    // recursive unknown callers therefore cannot bootstrap narrow arguments.
+    for item in &module.items {
         if let Item::Function(f) = item
             && eligible(f, &excluded)
+            && f.name.starts_with("zil.fn.")
+            && !f.signature.variadic
+            && f.signature.params.iter().all(|p| p.ty == Ty::Int(32))
         {
-            let blocks = f.blocks.as_ref().unwrap();
-            let key = blocks.as_ptr() as usize;
-            let cached = cache
-                .get(&key)
-                .and_then(|xs| {
-                    xs.iter().find(|(old, _)| {
-                        old.signature == f.signature && old.blocks.as_ref().unwrap().ptr_eq(blocks)
-                    })
-                })
-                .map(|(_, fs)| fs.clone());
-            let fs = if let Some(fs) = cached {
-                fs
-            } else {
-                let Some(fs) = facts(f, &world, &mut work) else {
+            world
+                .arguments
+                .insert(&f.name, vec![Range::TOP; f.signature.params.len()]);
+        }
+    }
+    type InputCache<'a> = HashMap<usize, Vec<(&'a Function, Vec<Range>, Facts)>>;
+    fn cached_facts<'a>(
+        f: &'a Function,
+        world: &World<'_>,
+        work: &mut usize,
+        cache: &mut InputCache<'a>,
+    ) -> Option<Facts> {
+        let blocks = f.blocks.as_ref()?;
+        let inputs = world
+            .arguments
+            .get(f.name.as_str())
+            .cloned()
+            .unwrap_or_default();
+        let key = blocks.as_ptr() as usize;
+        if let Some(fs) = cache.get(&key).and_then(|xs| {
+            xs.iter().find(|(old, bound, _)| {
+                old.signature == f.signature
+                    && *bound == inputs
+                    && old.blocks.as_ref().unwrap().ptr_eq(blocks)
+            })
+        }) {
+            return Some(fs.2.clone());
+        }
+        let fs = facts(f, world, work, &inputs)?;
+        cache.entry(key).or_default().push((f, inputs, fs.clone()));
+        Some(fs)
+    }
+    for _ in 0..MAX_ROUNDS {
+        let mut incoming: BTreeMap<String, Vec<Range>> = BTreeMap::new();
+        let mut cache = InputCache::new();
+        for item in &module.items {
+            if let Item::Function(f) = item
+                && f.blocks.is_some()
+            {
+                let Some(fs) = cached_facts(f, &world, &mut work, &mut cache) else {
                     return 0;
                 };
-                cache.entry(key).or_default().push((f, fs.clone()));
-                fs
+                for (name, ranges) in fs.calls {
+                    match incoming.entry(name) {
+                        std::collections::btree_map::Entry::Vacant(entry) => {
+                            entry.insert(ranges);
+                        }
+                        std::collections::btree_map::Entry::Occupied(mut entry) => {
+                            for (a, b) in entry.get_mut().iter_mut().zip(ranges) {
+                                *a = a.hull(b);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut changed = false;
+        for (name, ranges) in incoming {
+            let Some(old) = world.arguments.get_mut(name.as_str()) else {
+                return 0;
+            };
+            if old.len() != ranges.len() {
+                return 0;
+            }
+            for (a, b) in old.iter_mut().zip(ranges) {
+                let Some(new) = a.intersect(b) else {
+                    return 0;
+                };
+                changed |= new != *a;
+                *a = new;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    let mut plans = Vec::new();
+    let mut cache = InputCache::new();
+    for (index, item) in module.items.iter().enumerate() {
+        // Protected symbols retain their ABI and unknown entry arguments;
+        // universally safe arithmetic inside their bodies can still simplify.
+        if let Item::Function(f) = item
+            && f.blocks.is_some()
+            && f.linkage != Linkage::AvailableExternally
+            && !f.attrs.contains(&Attr::NoInline)
+        {
+            let Some(fs) = cached_facts(f, &world, &mut work, &mut cache) else {
+                return 0;
             };
             if !fs.flags.is_empty() {
+                let Some(cost) = f
+                    .blocks
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .try_fold(0usize, |n, b| n.checked_add(b.instructions.len() + 1))
+                else {
+                    return 0;
+                };
+                let Some(left) = work.checked_sub(cost) else {
+                    return 0;
+                };
+                work = left;
                 plans.push((index, fs.flags));
             }
         }
@@ -395,20 +516,54 @@ pub(crate) fn fold(
     if plans.is_empty() || preflight.check(module).is_err() {
         return 0;
     }
+    let intrinsics = world
+        .intrinsics
+        .iter()
+        .map(|(name, op)| ((*name).to_owned(), *op))
+        .collect();
     let mut changed = 0;
+    // Rewriting one actual body never destroys sharing for its current peers.
+    type Rewritten = HashMap<
+        usize,
+        Vec<(
+            Function,
+            Vec<(usize, usize)>,
+            zil_llvm_api::model::SharedVec<zil_llvm_api::model::Block>,
+        )>,
+    >;
+    let mut rewritten = Rewritten::new();
     for (index, flags) in plans {
         let Item::Function(f) = &mut module.items[index] else {
             unreachable!()
         };
-        let blocks = f.blocks.as_mut().unwrap();
-        for (b, i) in flags {
-            blocks[b].instructions[i].op = Op::Binary {
-                opcode: "or".into(),
-                ty: Ty::Int(1),
-                left: Val::Bool(false),
-                right: Val::Bool(false),
-            };
-            changed += 1;
+        let key = f.blocks.as_ref().unwrap().as_ptr() as usize;
+        let prior = rewritten
+            .get(&key)
+            .and_then(|xs| {
+                xs.iter().find(|(old, old_flags, _)| {
+                    old.signature == f.signature
+                        && old.attrs == f.attrs
+                        && old.linkage == f.linkage
+                        && old_flags == &flags
+                        && old
+                            .blocks
+                            .as_ref()
+                            .unwrap()
+                            .ptr_eq(f.blocks.as_ref().unwrap())
+                })
+            })
+            .map(|(_, _, blocks)| blocks.clone());
+        if let Some(blocks) = prior {
+            f.blocks = Some(blocks);
+            changed += flags.len();
+        } else {
+            let original = f.clone();
+            changed += compact::apply(f, &flags, &intrinsics);
+            rewritten.entry(key).or_default().push((
+                original,
+                flags,
+                f.blocks.as_ref().unwrap().clone(),
+            ));
         }
     }
     changed

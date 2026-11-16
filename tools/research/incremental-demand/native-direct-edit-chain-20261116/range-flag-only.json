@@ -1,0 +1,105 @@
+{
+  "schema": "zil.native.range-flag-only-negative.v1",
+  "source": "f8287f2a9fb0ad2c8e9329aa0dc3a57084175b4d",
+  "binary_sha256": "593013dafa9a08baf6982936f442641ed18c631b4175fed2de138a81e72b09b8",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "raw": "out/runs/direct-firstedit-performance-direct-12",
+  "completion": {
+    "execution_complete": true,
+    "accepted": false,
+    "candidate_rust_accepted": true,
+    "rows": 30,
+    "quality_cells": 10
+  },
+  "observations": {
+    "cold": {
+      "wall_ms_by_block": {
+        "candidate": [
+          4607.284914,
+          4256.209756
+        ],
+        "rust": [
+          7349.385251,
+          8849.433673
+        ]
+      },
+      "median_ms": {
+        "candidate": 4431.747335,
+        "rust": 8099.409462
+      },
+      "candidate_over_rust_paired_GM": 0.5490991865428992
+    },
+    "unchanged": {
+      "wall_ms_by_block": {
+        "candidate": [
+          31.814846,
+          29.37891
+        ],
+        "rust": [
+          32.143279,
+          17.349315
+        ]
+      },
+      "median_ms": {
+        "candidate": 30.596878,
+        "rust": 24.746297
+      },
+      "candidate_over_rust_paired_GM": 1.2946324754916931
+    },
+    "private-001": {
+      "wall_ms_by_block": {
+        "candidate": [
+          3704.480173,
+          3685.389245
+        ],
+        "rust": [
+          1276.305941,
+          1632.64325
+        ]
+      },
+      "median_ms": {
+        "candidate": 3694.934709,
+        "rust": 1454.4745955
+      },
+      "candidate_over_rust_paired_GM": 2.559659962876514
+    },
+    "recovery": {
+      "wall_ms_by_block": {
+        "candidate": [
+          2180.305117,
+          1737.932837
+        ],
+        "rust": [
+          6893.86439,
+          6132.982669
+        ]
+      },
+      "median_ms": {
+        "candidate": 1959.118977,
+        "rust": 6513.4235295
+      },
+      "candidate_over_rust_paired_GM": 0.29936973626557667
+    },
+    "error": {
+      "wall_ms_by_block": {
+        "candidate": [
+          1612.579893,
+          1739.633617
+        ],
+        "rust": [
+          2006.1181,
+          2273.806333
+        ]
+      },
+      "median_ms": {
+        "candidate": 1676.106755,
+        "rust": 2139.9622165
+      },
+      "candidate_over_rust_paired_GM": 0.7842138929184088
+    }
+  },
+  "runtime_quality_pass": true,
+  "runtime_rust_over_candidate_geomean": 26.424761042963038,
+  "folded_flags_observed_in_completed_llvm": 5586,
+  "decision": "No native compile win: flags folded but physical CFG and entry unit remain large. Do not adopt as achieved goal. Next complete chain compacts CFG, propagates actual closed arguments/pure call properties into CGU declarations, and shares exact scalar decode bodies."
+}

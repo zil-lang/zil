@@ -23,7 +23,7 @@ profile and adds the existing --incremental-o2 policy to the candidate only.
 Complete transitive imports retain the unchanged compiler budget and ordinary
 fallback; actual CGU16 is still mandatory. Source and runtime gates are identical.
 The closed-only profile's NoGo results remain bound to their original tool SHA.
-Explicit --bounded-class-imports instead selects bounded-classes-512-v2: the
+Explicit --bounded-class-imports instead selects bounded-classes-128-v3: the
 current eligible class-only closure is visible, ordinary source wrappers stay
 cross-unit calls. Full O2, original total copy cap and runtime gates remain.
 
@@ -306,7 +306,7 @@ def initialize(args, manifest):
     manifest['function_merging'] = args.function_merging
     manifest['incremental_o2_requested'] = args.complete_imports
     manifest['complete_imports'] = args.complete_imports and not args.bounded_class_imports
-    manifest['class_import_policy'] = ('bounded-classes-512-v2' if args.bounded_class_imports
+    manifest['class_import_policy'] = ('bounded-classes-128-v3' if args.bounded_class_imports
                                        else 'complete' if args.complete_imports else 'disabled')
     manifest['runtime_gate_authority'] = {
         'product': 'validation/product-gates.json:runtime',

@@ -1536,3 +1536,42 @@ int main(void) {
     }
     fs::remove_dir_all(scratch).unwrap();
 }
+
+#[test]
+fn function_effect_attributes_keep_native_text_and_declarations_in_agreement() {
+    let mut source = module(vec![function_item(
+        "pure",
+        vec![block("entry", vec![ret(Val::Int(7))])],
+    )]);
+    let Item::Function(f) = &mut source.items[0] else {
+        unreachable!()
+    };
+    f.attrs = vec![Attr::NoUnwind, Attr::WillReturn, Attr::MemoryNone];
+    assert_eq!(f.declaration().attrs, f.attrs);
+    accepted(&source);
+    assert!(
+        source
+            .to_text()
+            .contains("nounwind willreturn memory(none)")
+    );
+    #[cfg(feature = "text-reference")]
+    {
+        let config = crate::Config {
+            triple: "x86_64-unknown-linux-gnu",
+            optimization: crate::Optimization::O2,
+        };
+        let native = crate::compile_module(&source, &config, &|| false).unwrap();
+        let reference = crate::compile(&source.to_text(), &config, &|| false).unwrap();
+        assert!(!native.bytes.is_empty());
+        assert!(!reference.bytes.is_empty());
+    }
+    for attr in [Attr::NoUnwind, Attr::WillReturn, Attr::MemoryNone] {
+        let mut bad = source.clone();
+        let Item::Function(f) = &mut bad.items[0] else {
+            unreachable!()
+        };
+        f.signature.result_attrs = vec![attr];
+        assert!(validate_impl::<true>(&bad).is_err());
+        assert!(validate_impl::<false>(&bad).is_err());
+    }
+}

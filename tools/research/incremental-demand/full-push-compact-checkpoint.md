@@ -1,13 +1,7 @@
-# Full-push 精简恢复入口
+# 编译效率恢复入口
 
-唯一施工分支research/full-push-native；最新正式check源码 `54a0258ab9e081085254084e4b081309dc06eda9`（生产b530，54a只改断言）。
+唯一施工分支 `research/full-push-native`。本提交的新完整链为 **未测**：闭合调用实参范围→实际算术/CFG压缩→纯调用属性跨CGU声明，以及原始函数ID/诊断名之外逐字节相等的解码共享。接着先查gates33收据，缺失才集中补测，再跑native直接首改window13。研究默认关闭，独立Verify/原预算/完整O2保持。
 
-[当前重启口径与函数优先恢复](check-restart-scope-chain-20261116/summary.md)：check108请求/36格过；八私改0.814/R3.430s，用户边界峰13.641/R58.348MiB。Fresh重启0.657/R.043s，但Rust没启动；另同字节/缓存、仅mtime强制rustc对照1.152/R.326s仍输。check是dev opt0，native才O2；均CGU16/jobs1。
+最后正式结果属于 f8287f2a9 / window12，30请求/10功能格/4运行格完整且运行质量过，但首改仍输；5586恒假标志没有缩小实际大图，不能算优化成功。[精简负结果](native-direct-edit-chain-20261116/range-flag-only.json)。更早 e402/797/543及128运行退化见[结果](native-direct-edit-chain-20261116/summary.md)，数字不转记当前源码。check54a、原生7e、98fa/021997亦各归原版本。
 
-函数优先恢复省去整份Typed/Plan预解码/重基，保留manifest-only包定位和原当前检查/预算/Verify。driver232及最终多包无重写1/native发布2/strict/fmt/release过，未变收据按精确源复用。没有待完成构建或性能进程。
-
-最后正式原生仅属7e08aeefa：冷3.759/R6.327s，关闭→先改→新进程首编3.385/R1.099s仍输，不转记当前源码。下一短板是重启全量Expand/Types/缓存恢复与发布、最新稀疏函数项持久化，以及对象命中前整机/分区重建。全面/main/工业门开放。
-
-按[compiler-performance skill](../../../.agents/skills/compiler-performance/SKILL.md)，只保精简结论，不全量打包或LLVM重建。SDK18/native-link复用固定e85/V32；原Verify/预算/O2及研究默认关保持。175/98fa/021997数字各归原源，goal/archive不合main。
-
-另有普通CLI全进程12请求/4格：Fresh ZIL1.745/R.026s（Rust没启动）；同字节mtime强制rustc ZIL1.051/R.432s，仍输。普通CLI默认容量32，原resident256，两种模式不混算启动差；工具c0bae7d02，编译器仍54a。skill已记录完整进程时钟与调用模式规则。
+SDK18/native-link复用已安装版本，不重建LLVM，不全量打包。只比较实际main/当前/Rust，native O2/CGU16/jobs1；完整原5105输入、257域及原运行质量门不改。工业多crate/proc-macro/build.rs与分钟/GB级门未测，全面/main门开放，goal/archive不合main。

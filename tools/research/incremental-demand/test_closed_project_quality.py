@@ -205,7 +205,7 @@ class ClosedProjectTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             quality.object_abi(bytes(data), {'zil.fn.2'}, set(), model, {name})
 
-    def bounded_layout(self, class_cost=512, leaf_cost=2, extra_caller=False):
+    def bounded_layout(self, class_cost=128, leaf_cost=2, extra_caller=False):
         first, leaf = 'zil.class.'+'a'*64, 'zil.class.'+'b'*64
 
         def padded(prefix, value, count):
@@ -239,22 +239,22 @@ class ClosedProjectTests(unittest.TestCase):
         units[2]['definitions'].append(19)
         units[0]['prelude'] = [1]
         units[0]['declarations'] = [17]
-        if class_cost <= 512:
+        if class_cost <= 128:
             units[0]['imports'] = [18]
-            if leaf_cost <= 512:
+            if leaf_cost <= 128:
                 units[0]['imports'].append(19)
             else:
                 units[0]['declarations'].append(19)
         else:
             units[0]['declarations'].append(18)
-        if leaf_cost <= 512:
+        if leaf_cost <= 128:
             units[1]['imports'] = [19]
         else:
             units[1]['declarations'] = [19]
         if extra_caller:
-            if class_cost <= 512:
+            if class_cost <= 128:
                 units[3]['imports'] = [18]
-                if leaf_cost <= 512:
+                if leaf_cost <= 128:
                     units[3]['imports'].append(19)
                 else:
                     units[3]['declarations'] = [19]
@@ -268,7 +268,7 @@ class ClosedProjectTests(unittest.TestCase):
         args.bounded_class_imports = True
         quality.policy(args)
         self.assertEqual(quality.schema(args), quality.BOUNDED_SCHEMA)
-        self.assertEqual(quality.policy_identity(args), 'closed+off+bounded-classes-512-v2')
+        self.assertEqual(quality.policy_identity(args), 'closed+off+bounded-classes-128-v3')
         self.assertEqual(quality.runtime_decision([self.runtime_case()], args)['schema'], quality.BOUNDED_SCHEMA)
         for arm in ('baseline', 'candidate'):
             command = matrix.zil_command(args, arm, Path('/src/main.zil'), Path('/work')/arm)
@@ -288,8 +288,8 @@ class ClosedProjectTests(unittest.TestCase):
     def test_bounded_layout_class_closure_exact_cost_and_original_complete_policy(self):
         units, items, model, _ = self.bounded_layout()
         first, leaf = items[18][1], items[19][1]
-        self.assertEqual(model['function_costs']['zil.fn.1'], 512)
-        self.assertEqual(model['function_costs'][first], 512)
+        self.assertEqual(model['function_costs']['zil.fn.1'], 128)
+        self.assertEqual(model['function_costs'][first], 128)
         self.assertEqual(model['function_costs'][leaf], 2)
         expected, cross, imported = quality.layout_roles(units, items, model, True, True)
         self.assertTrue(imported)
@@ -305,8 +305,8 @@ class ClosedProjectTests(unittest.TestCase):
         self.assertEqual(quality.layout_roles(complete, items, model, True)[1], set())
         with self.assertRaises(ValueError):
             quality.layout_roles(complete, items, model, True, True)
-        large, items, model, _ = self.bounded_layout(class_cost=513)
-        self.assertEqual(model['function_costs'][first], 513)
+        large, items, model, _ = self.bounded_layout(class_cost=129)
+        self.assertEqual(model['function_costs'][first], 129)
         self.assertEqual(large[0]['imports'], [])
         self.assertIn(18, large[0]['declarations'])
         self.assertIn(first, quality.layout_roles(large, items, model, True, True)[1])
@@ -321,7 +321,7 @@ class ClosedProjectTests(unittest.TestCase):
             if change == 'prelude': bad[0]['prelude'] = []
             if change == 'declaration': bad[0]['declarations'] = []
             if change == 'extra_role': bad[0]['prelude'] = [0, 1]
-            if change == 'cost': current['function_costs'][items[18][1]] = 513
+            if change == 'cost': current['function_costs'][items[18][1]] = 129
             with self.subTest(change=change), self.assertRaises(ValueError):
                 quality.layout_roles(bad, items, current, True, True)
         over, items, model, _ = self.bounded_layout(extra_caller=True)
@@ -329,7 +329,7 @@ class ClosedProjectTests(unittest.TestCase):
             quality.layout_roles(over, items, model, True, True)
         # Empty imports must still validate all current physical declaration
         # roles; no has_imports shortcut may admit an incomplete bounded plan.
-        empty, items, model, _ = self.bounded_layout(class_cost=513, leaf_cost=513)
+        empty, items, model, _ = self.bounded_layout(class_cost=129, leaf_cost=129)
         self.assertFalse(quality.layout_roles(empty, items, model, True, True)[2])
         empty[0]['declarations'] = [17]
         with self.assertRaises(ValueError):
@@ -895,6 +895,21 @@ class ClosedProjectTests(unittest.TestCase):
                 reports[0]['cache']['action_key'], reports[1]['cache']['action_key'] = reports[1]['cache']['action_key'], reports[0]['cache']['action_key']
                 with self.assertRaises(ValueError):
                     quality.inventory(imports_args, report, cache, class_llvm, 'c'*64)
+
+
+
+class PureMachineFactsTests(unittest.TestCase):
+    def test_current_pure_call_and_cfg_proof_rejects_effects_and_nontermination(self):
+        attrs = ' nounwind willreturn memory(none)'
+        prefix = 'declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
+        main = 'define i32 @main() {\nentry:\n %x = call i32 @zil.fn.1(i32 1)\n ret i32 %x\n}\n'
+        def source(body): return (prefix+main+'define i32 @zil.fn.1(i32 %x)'+attrs+' {\n'+body+'\n}\n').encode()
+        quality.scalar_model(source('entry:\n %r = srem i32 %x, 251\n ret i32 %r'))
+        for body in ['entry:\n %r = call i32 @putchar(i32 %x)\n ret i32 %r',
+                     'entry:\n br label %entry', 'entry:\n ret i32 undef',
+                     'entry:\n %r = srem i32 %x, 0\n ret i32 %r',
+                     'entry:\n %r = call i32 @zil.fn.1(i32 %x)\n ret i32 %r']:
+            with self.subTest(body=body), self.assertRaises(ValueError): quality.scalar_model(source(body))
 
 
 if __name__ == '__main__':

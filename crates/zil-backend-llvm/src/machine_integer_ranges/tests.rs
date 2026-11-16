@@ -283,30 +283,52 @@ fn universal_return_hulls_remove_only_later_safe_flags_and_keep_all_calls_and_tr
     assert_eq!(apply(&mut m, &BTreeSet::new()), 3);
     zil_llvm_api::validate_module(&m).unwrap();
     assert_eq!(before.items.len(), m.items.len());
-    let mut differences = Vec::new();
-    for (a, b) in before.items.iter().zip(m.items.iter()) {
-        if let (Item::Function(a), Item::Function(b)) = (a, b) {
-            assert_eq!(
-                a.blocks.as_ref().map(|bs| bs.len()),
-                b.blocks.as_ref().map(|bs| bs.len())
-            );
-            assert_eq!(a.signature, b.signature);
-            assert_eq!(a.name, b.name);
-            for (x, y) in a.blocks.iter().flatten().zip(b.blocks.iter().flatten()) {
-                assert_eq!(x.instructions.len(), y.instructions.len());
-                assert_eq!(x.name, y.name);
-                for (i, j) in x.instructions.iter().zip(&y.instructions) {
-                    if i != j {
-                        differences.push(i.result.clone().unwrap());
-                        assert!(
-                            matches!(&j.op,Op::Binary {opcode,ty:Ty::Int(1),left:Val::Bool(false),right:Val::Bool(false)}if opcode=="or")
-                        );
-                    }
-                }
-            }
+    for (old, new) in before.items.iter().zip(m.items.iter()) {
+        if let (Item::Function(old), Item::Function(new)) = (old, new) {
+            assert_eq!(old.name, new.name);
+            assert_eq!(old.signature, new.signature);
+            assert_eq!(old.attrs, new.attrs);
+            assert_eq!(old.linkage, new.linkage);
+            let ordinary = |f: &Function| {
+                f.blocks
+                    .iter()
+                    .flatten()
+                    .flat_map(|b| &b.instructions)
+                    .filter_map(|i| match &i.op {
+                        Op::Call {
+                            callee: Val::Global(n),
+                            ..
+                        } if !n.starts_with("llvm.s") => Some(i.op.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(ordinary(old), ordinary(new));
         }
     }
-    assert_eq!(differences, vec!["flag1", "flag2", "flag3"]);
+    let caller = definition_mut(&mut m, "caller");
+    assert!(
+        caller.blocks.as_ref().unwrap().len()
+            < before
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    Item::Function(f) if f.name == "caller" => f.blocks.as_ref().map(|b| b.len()),
+                    _ => None,
+                })
+                .unwrap()
+    );
+    let remaining: Vec<_> = caller
+        .blocks
+        .iter()
+        .flatten()
+        .flat_map(|b| &b.instructions)
+        .filter_map(|i| match &i.op {
+            Op::Extract { index: 1, .. } => i.result.as_deref(),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(remaining, vec!["flag0"]);
 }
 #[test]
 fn changing_a_callee_to_unknown_or_freezing_it_never_lends_a_stale_range() {
@@ -385,6 +407,7 @@ fn wrapping_and_remainder_boundaries_are_conservative_for_extreme_i32_values() {
     let empty = World {
         intrinsics: BTreeMap::new(),
         returns: BTreeMap::new(),
+        arguments: BTreeMap::new(),
     };
     let pairs = HashMap::new();
     let values = Values::new();
@@ -430,4 +453,115 @@ fn wrapping_and_remainder_boundaries_are_conservative_for_extreme_i32_values() {
             Range::TOP
         );
     }
+}
+
+fn generated_with_bounded_root(unknown_caller: bool) -> Module {
+    let mut module = program();
+    for item in module.items.iter_mut() {
+        if let Item::Function(f) = item {
+            f.name = match f.name.as_str() {
+                "leaf" => "zil.fn.1".into(),
+                "caller" => "zil.fn.2".into(),
+                _ => f.name.clone(),
+            };
+            for inst in f
+                .blocks
+                .iter_mut()
+                .flatten()
+                .flat_map(|b| &mut b.instructions)
+            {
+                if let Op::Call {
+                    callee: Val::Global(name),
+                    ..
+                } = &mut inst.op
+                {
+                    if name == "leaf" {
+                        *name = "zil.fn.1".into();
+                    }
+                }
+            }
+        }
+    }
+    module.items.push(Item::Function(Function {
+        name: "unknown".into(),
+        linkage: Linkage::External,
+        signature: zil_llvm_api::model::Signature::new(Ty::Int(32), vec![]),
+        attrs: vec![],
+        blocks: None,
+    }));
+    let call_to = |name: &str, v| Op::Call {
+        result: Ty::Int(32),
+        result_attrs: vec![],
+        callee: Val::Global(name.into()),
+        args: vec![arg(v)],
+        vararg: None,
+    };
+    let mut root = function(
+        "root",
+        vec![block(
+            "entry",
+            vec![
+                inst(
+                    "input",
+                    Op::Call {
+                        result: Ty::Int(32),
+                        result_attrs: vec![],
+                        callee: Val::Global("unknown".into()),
+                        args: vec![],
+                        vararg: None,
+                    },
+                ),
+                inst("bounded", binary("srem", local("input"), Val::Int(251))),
+                inst("result", call_to("zil.fn.2", local("bounded"))),
+                ret(local("result")),
+            ],
+        )],
+    );
+    root.signature.params.clear();
+    module.items.push(Item::Function(root));
+    if unknown_caller {
+        module.items.push(Item::Function(function(
+            "opaque.root",
+            vec![block(
+                "entry",
+                vec![
+                    inst("result", call_to("zil.fn.2", local("x"))),
+                    ret(local("result")),
+                ],
+            )],
+        )));
+    }
+    module
+}
+#[test]
+fn closed_argument_ranges_reach_callees_and_all_unknown_callers_still_join() {
+    let mut narrow = generated_with_bounded_root(false);
+    zil_llvm_api::validate_module(&narrow).unwrap();
+    assert_eq!(apply(&mut narrow, &BTreeSet::from(["root".into()])), 6);
+    zil_llvm_api::validate_module(&narrow).unwrap();
+    for name in ["zil.fn.1", "zil.fn.2"] {
+        assert!(
+            !definition_mut(&mut narrow, name)
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.op, Op::Extract { index: 1, .. }))
+        );
+    }
+    let mut wide = generated_with_bounded_root(true);
+    zil_llvm_api::validate_module(&wide).unwrap();
+    assert_eq!(apply(&mut wide, &BTreeSet::from(["root".into()])), 3);
+    zil_llvm_api::validate_module(&wide).unwrap();
+    assert!(
+        definition_mut(&mut wide, "zil.fn.1")
+            .blocks
+            .iter()
+            .flatten()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.op, Op::Extract { index: 1, .. }))
+    );
+    let mut protected = program();
+    assert_eq!(apply(&mut protected, &BTreeSet::from(["caller".into()])), 3);
+    zil_llvm_api::validate_module(&protected).unwrap();
 }

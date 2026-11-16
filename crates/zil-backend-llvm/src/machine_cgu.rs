@@ -30,8 +30,8 @@ pub(crate) enum CallImportPolicy {
 
 // Instruction + block cost, using the same measure as the whole-plan copy cap.
 // A class identity alone never authorizes copying a large implementation.
-const MAX_CLASS_IMPORT_COST: usize = 512;
-const BOUNDED_CLASS_IMPORT_ID: &str = "bounded-classes-512-v2";
+const MAX_CLASS_IMPORT_COST: usize = 128;
+const BOUNDED_CLASS_IMPORT_ID: &str = "bounded-classes-128-v3";
 
 fn bounded_class_body(item: &Item, classes: &BTreeSet<String>) -> bool {
     matches!(item, Item::Function(function)

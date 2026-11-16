@@ -1,6 +1,185 @@
 use super::*;
 
 #[test]
+fn scalar_header_reuse_rebinds_real_owner_and_shares_only_equal_bodies() {
+    let (module, _) = fixture();
+    let limits = Limits::default();
+    let mut original = module.functions[0].clone();
+    original.blocks[0].instructions[0].kind = InstructionKind::Call {
+        function: FunctionId(7),
+        arguments: vec![],
+    };
+    let encoded = encode_raw_function(&original, &limits).unwrap();
+    let (owner, raw) =
+        decode_raw_function_shared_owner(encoded.shared_bytes(), &limits, limits.max_nodes)
+            .unwrap();
+    let selector =
+        RawFunctionEncoding::scalar_header_selector(&raw.shared_bytes(), &limits).unwrap();
+    for (id, name) in [
+        (original.id, "diagnostic-only"),
+        (FunctionId(99), original.name.as_str()),
+        (FunctionId(100), "当前诊断名字"),
+    ] {
+        let mut current = original.clone();
+        current.id = id;
+        current.name = name.into();
+        let bytes = encode_raw_function(&current, &limits)
+            .unwrap()
+            .shared_bytes();
+        assert_eq!(
+            RawFunctionEncoding::scalar_header_selector(&bytes, &limits),
+            Some(selector)
+        );
+        let (actual, rebound) = raw
+            .reuse_decoded_scalar_header(bytes.clone(), &limits, raw.node_cost())
+            .unwrap();
+        assert_eq!(actual.as_ref(), &current);
+        assert!(actual.blocks.ptr_eq(&owner.blocks));
+        assert!(actual.locals.ptr_eq(&owner.locals));
+        assert!(actual.values.ptr_eq(&owner.values));
+        assert!(Arc::ptr_eq(rebound.decoded_function().unwrap(), &actual));
+        assert!(Arc::ptr_eq(&rebound.shared_bytes(), &bytes));
+        assert_eq!(rebound.content_fingerprint(), Fingerprint::of(&bytes));
+        assert_eq!(rebound.node_cost(), raw.node_cost());
+        assert_eq!(
+            decode_raw_function(&bytes, &limits).unwrap(),
+            (current, raw.node_cost())
+        );
+        if id != original.id {
+            assert!(
+                raw.reuse_decoded_function(bytes.clone(), &limits, limits.max_nodes)
+                    .is_none()
+            );
+        }
+        assert!(
+            encoded
+                .reuse_decoded_scalar_header(bytes, &limits, limits.max_nodes)
+                .is_none()
+        );
+    }
+
+    let mut siblings = Vec::new();
+    let mut changed = original.clone();
+    changed.blocks[0].instructions[0].kind = InstructionKind::Constant(Constant::I32(7));
+    siblings.push(changed);
+    let mut changed = original.clone();
+    changed.blocks[0].instructions[0].kind = InstructionKind::Call {
+        function: FunctionId(8),
+        arguments: vec![],
+    };
+    siblings.push(changed);
+    let mut changed = original.clone();
+    changed.span.end += 1;
+    siblings.push(changed);
+    let mut changed = original.clone();
+    changed.blocks[0].instructions[0].span.end += 1;
+    siblings.push(changed);
+    let mut changed = original.clone();
+    changed.return_type = Type::I64;
+    siblings.push(changed);
+    let mut changed = original.clone();
+    changed.result_mode = PassingMode::Copy;
+    siblings.push(changed);
+    let mut changed = original.clone();
+    changed.call_kind = CallKind::Suspend;
+    siblings.push(changed);
+    let mut changed = original.clone();
+    changed.reference_return_bound = Some(vec![]);
+    siblings.push(changed);
+    for mut changed in siblings {
+        changed.id = FunctionId(99);
+        changed.name = "different-header".into();
+        let bytes = encode_raw_function(&changed, &limits)
+            .unwrap()
+            .shared_bytes();
+        assert_ne!(
+            RawFunctionEncoding::scalar_header_selector(&bytes, &limits),
+            Some(selector)
+        );
+        assert!(
+            raw.reuse_decoded_scalar_header(bytes, &limits, limits.max_nodes)
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn scalar_header_reuse_declines_bad_profiles_versions_strings_and_quotas() {
+    let (module, plan) = fixture();
+    let limits = Limits::default();
+    let encoded = encode_raw_function(&module.functions[0], &limits).unwrap();
+    let (owner, raw) =
+        decode_raw_function_shared_owner(encoded.shared_bytes(), &limits, limits.max_nodes)
+            .unwrap();
+    let bytes = raw.shared_bytes();
+    let range = raw.decoded.as_ref().unwrap().name.clone();
+    assert_eq!(
+        range.start, 10,
+        "actual Reader boundary for the guarded v47 profile"
+    );
+    assert_eq!(raw_scalar_function_id(&bytes), Some(owner.id));
+    assert!(
+        raw.reuse_decoded_scalar_header(bytes.clone(), &limits, raw.node_cost() - 1)
+            .is_none()
+    );
+    let changed_limits = Limits {
+        max_tokens: limits.max_tokens - 1,
+        ..limits.clone()
+    };
+    assert!(
+        raw.reuse_decoded_scalar_header(bytes.clone(), &changed_limits, limits.max_nodes)
+            .is_none()
+    );
+    let mut bad_utf8 = bytes.to_vec();
+    bad_utf8[range.start + 4] = 0xff;
+    let mut bad_length = bytes.to_vec();
+    bad_length[range.start..range.start + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+    let mut bad_profile = bytes.to_vec();
+    bad_profile[0] = 2;
+    for bad in [bytes[..9].to_vec(), bad_utf8, bad_length, bad_profile] {
+        assert!(RawFunctionEncoding::scalar_header_selector(&bad, &limits).is_none());
+        assert!(decode_raw_function(&bad, &limits).is_err());
+        assert!(
+            raw.reuse_decoded_scalar_header(bad.into(), &limits, limits.max_nodes)
+                .is_none()
+        );
+    }
+    let mut trailing = bytes.to_vec();
+    trailing.push(0);
+    assert!(decode_raw_function(&trailing, &limits).is_err());
+    assert!(
+        raw.reuse_decoded_scalar_header(trailing.into(), &limits, limits.max_nodes)
+            .is_none()
+    );
+    // Raw fragments have no embedded version: enclosing versioned records must
+    // never be interpreted as a current scalar header, including future ones.
+    let mut future = encode_module_candidate(&module, &plan, &limits).unwrap();
+    future[8..12].copy_from_slice(&(WIRE_VERSION + 1).to_le_bytes());
+    assert!(decode_module_candidate(&future, &limits).is_err());
+    assert!(RawFunctionEncoding::scalar_header_selector(&future, &limits).is_none());
+    assert!(
+        raw.reuse_decoded_scalar_header(future.into(), &limits, limits.max_nodes)
+            .is_none()
+    );
+    let tight = Limits {
+        max_source_bytes: bytes.len(),
+        ..limits.clone()
+    };
+    let (_, tight_raw) =
+        decode_raw_function_shared_owner(bytes.clone(), &tight, tight.max_nodes).unwrap();
+    let mut longer = owner.as_ref().clone();
+    longer.name.push('x');
+    let longer = encode_raw_function(&longer, &limits)
+        .unwrap()
+        .shared_bytes();
+    assert!(
+        tight_raw
+            .reuse_decoded_scalar_header(longer, &tight, tight.max_nodes)
+            .is_none()
+    );
+}
+
+#[test]
 fn decoded_owner_relabel_matches_real_writer_and_refuses_every_other_change() {
     let (module, _) = fixture();
     let limits = Limits::default();

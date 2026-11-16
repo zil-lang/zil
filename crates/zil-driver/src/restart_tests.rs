@@ -299,8 +299,13 @@ fn push_restart_ignores_whole_candidate_and_still_checks_current_unused_bodies()
         0
     );
     let decoding = restarted.function_cache_decoding.as_ref().unwrap();
-    assert_eq!(decoding.decode_attempts, functions);
-    assert_eq!(decoding.decoded_functions, functions);
+    assert_eq!(decoding.decode_attempts, decoding.decoded_functions);
+    assert!(decoding.decoded_functions > 0);
+    assert_eq!(
+        decoding.decoded_functions + decoding.reused_decoded_functions,
+        functions
+    );
+    assert!(decoding.relabeled_decoded_functions <= decoding.reused_decoded_functions);
     assert_eq!(
         session
             .function_types

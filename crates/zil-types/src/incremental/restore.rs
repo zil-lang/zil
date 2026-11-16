@@ -16,7 +16,8 @@ impl FunctionSession {
     /// A hint selects a candidate encoding only. Its private decoder owner must
     /// match the complete item bytes (apart from the actual diagnostic name),
     /// complete Limits and remaining aggregate node allowance before reuse.
-    /// Missing/incompatible hints run the same original decoder once.
+    /// A request-local scalar memo can additionally rebind only the outer ID.
+    /// Missing/incompatible owners run the same original decoder once.
     pub fn restore_item_products_with_decoded(
         &mut self,
         manifest: &[u8],
@@ -113,6 +114,10 @@ fn decode_items(
     let descriptors = descriptors(manifest, target, limits)?;
     let mut remaining_nodes = limits.max_nodes.checked_sub(descriptors.len())?;
     let mut entries = BTreeMap::new();
+    // At most one owner per accepted item, sharing its existing byte buffer.
+    // descriptors() already bounded their aggregate bytes/nodes and item count.
+    // This dictionary is discarded with the private entries on every failure.
+    let mut decoded = BTreeMap::<Fingerprint, RawFunctionEncoding>::new();
     for item in descriptors {
         let data = load(item.checksum)?;
         if data.len() != item.bytes || Fingerprint::of(&data) != item.checksum {
@@ -120,11 +125,26 @@ fn decode_items(
         }
         let hinted = hint(&data);
         let reused = hinted.as_ref().and_then(|encoding| {
-            encoding.reuse_decoded_function(data.clone(), limits, remaining_nodes)
+            let (function, current) =
+                encoding.reuse_decoded_function(data.clone(), limits, remaining_nodes)?;
+            let relabeled = encoding
+                .decoded_function()
+                .is_some_and(|prior| prior.id == function.id && prior.name != function.name);
+            Some((function, current, relabeled))
         });
-        let (function, raw_encoding) = if let Some((function, encoding)) = reused {
+        let selector = RawFunctionEncoding::scalar_header_selector(&data, limits);
+        let reused = reused.or_else(|| {
+            let encoding = decoded.get(&selector?)?;
+            let (function, current) =
+                encoding.reuse_decoded_scalar_header(data.clone(), limits, remaining_nodes)?;
+            let relabeled = encoding
+                .decoded_function()
+                .is_some_and(|prior| prior.id == function.id && prior.name != function.name);
+            Some((function, current, relabeled))
+        });
+        let (function, raw_encoding) = if let Some((function, encoding, relabeled)) = reused {
             stats.reused_decoded_functions += 1;
-            if hinted.as_ref()?.decoded_function()?.name != function.name {
+            if relabeled {
                 stats.relabeled_decoded_functions += 1;
             }
             (function, encoding)
@@ -145,6 +165,11 @@ fn decode_items(
             return None;
         }
         remaining_nodes = remaining_nodes.checked_sub(used_nodes)?;
+        if let Some(selector) = selector {
+            decoded
+                .entry(selector)
+                .or_insert_with(|| raw_encoding.clone());
+        }
         entries.insert(
             item.key,
             Arc::new(Entry {

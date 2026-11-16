@@ -30,7 +30,91 @@ pub fn raw_scalar_function_id(bytes: &[u8]) -> Option<FunctionId> {
     )))
 }
 
+// Writer::function and Reader::function_with_name_range put the outer ID
+// immediately after these six scalar-profile bytes. Read the name with the
+// actual Reader; neither a source identity nor a guessed body offset is used.
+fn scalar_header(bytes: &[u8], limits: &Limits) -> Option<(FunctionId, std::ops::Range<usize>)> {
+    let id = raw_scalar_function_id(bytes)?;
+    let mut reader = Reader::new(bytes, limits).ok()?;
+    reader.u8().ok()?;
+    for _ in 0..5 {
+        if reader.boolean().ok()? {
+            return None;
+        }
+    }
+    if reader.u32().ok()? != id.0 {
+        return None;
+    }
+    let start = reader.position;
+    let length = usize::try_from(reader.u32().ok()?).ok()?;
+    if length > limits.max_source_bytes {
+        return None;
+    }
+    std::str::from_utf8(reader.take(length).ok()?).ok()?;
+    Some((id, start..reader.position))
+}
+
 impl RawFunctionEncoding {
+    /// Request-local lookup only: hash every scalar-fragment byte except its
+    /// outer ID and diagnostic name. A match still requires the exact comparison
+    /// and real decoded owner in reuse_decoded_scalar_header.
+    pub fn scalar_header_selector(bytes: &[u8], limits: &Limits) -> Option<Fingerprint> {
+        let (_, name) = scalar_header(bytes, limits)?;
+        let mut state = zil_base::FingerprintBuilder::new();
+        state.update(b"ZIL-RAW-SCALAR-HEADER-v47\0");
+        state.update(bytes.get(..6)?);
+        state.update(bytes.get(10..name.start)?);
+        state.update(bytes.get(name.end..)?);
+        Some(state.digest())
+    }
+
+    /// Share only this successful Reader's immutable raw body, rebinding the
+    /// scalar outer ID/name to the actual current bytes. Callee IDs, contracts,
+    /// ABI, spans and every other byte must remain exactly equal. This conveys
+    /// no Source, Types or Verify authority and renews no aggregate allowance.
+    pub fn reuse_decoded_scalar_header(
+        &self,
+        bytes: Arc<[u8]>,
+        limits: &Limits,
+        remaining_nodes: usize,
+    ) -> Option<(Arc<TypedFunction>, Self)> {
+        if !self.matches_limits(limits) || self.nodes > remaining_nodes.min(limits.max_nodes) {
+            return None;
+        }
+        let decoded = self.decoded.as_ref()?;
+        let (id, name) = scalar_header(&bytes, limits)?;
+        let text_start = name.start.checked_add(4)?;
+        if raw_scalar_function_id(&self.bytes)? != decoded.function.id
+            || name.start != decoded.name.start
+            || bytes.get(..6)? != self.bytes.get(..6)?
+            || bytes.get(10..name.start)? != self.bytes.get(10..decoded.name.start)?
+            || bytes.get(name.end..)? != self.bytes.get(decoded.name.end..)?
+            || self.bytes.get(text_start..decoded.name.end)? != decoded.function.name.as_bytes()
+        {
+            return None;
+        }
+        if id == decoded.function.id {
+            return self.reuse_decoded_function(bytes, limits, remaining_nodes);
+        }
+        let mut function = decoded.function.as_ref().clone();
+        function.id = id;
+        function.name = std::str::from_utf8(bytes.get(text_start..name.end)?)
+            .ok()?
+            .to_owned();
+        let function = Arc::new(function);
+        let encoding = Self {
+            bytes,
+            limits: limits.clone(),
+            nodes: self.nodes,
+            fingerprint: OnceLock::new(),
+            decoded: Some(DecodedFunction {
+                function: function.clone(),
+                name,
+            }),
+        };
+        Some((function, encoding))
+    }
+
     /// Bind this real decoder's bytes to a complete equal current raw value.
     /// Only its recorded diagnostic-name field may differ. The caller's
     /// original Writer still enforces ordered node/byte quotas and first errors.

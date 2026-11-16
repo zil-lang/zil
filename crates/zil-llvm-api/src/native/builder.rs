@@ -336,7 +336,11 @@ impl<'a> Construction<'a> {
         call: bool,
     ) -> Result<(), Error> {
         for a in attrs {
-            let n = a.name();
+            let n = if *a == m::Attr::MemoryNone {
+                "memory"
+            } else {
+                a.name()
+            };
             // SAFETY: static attribute name and a live function/call handle from
             // this module; preflight checked the attribute position and type.
             unsafe {
