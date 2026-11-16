@@ -15,13 +15,13 @@ fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnOnce()->i32 {
   kept.value+=1;return kept.value;
  };
 }
-fn parent<F:FnOnce()->i32 + ClosedEnvironment>(give callback:F)->i32 {return 0;}
-fn close_callback<F:FnOnce()->i32 + ClosedEnvironment>(give callback:F)->i32 {return callback();}
+fn parent<F:FnOnce()->i32 + ClosedEnvironment>(callback:F)->i32 {return 0;}
+fn close_callback<F:FnOnce()->i32 + ClosedEnvironment>(callback:F)->i32 {return callback();}
 fn main()->TaskCreateError!i32 {
  let quiet=Quiet{value:7};let original=task_create(child)?;
  let callback=keep(give original,give quiet);
- match task_create_owned(parent,give callback){
-  .err(failure)=>{let reason=failure.reason;let (input,)=failure.inputs;close_callback(give input);return reason;},
+ match task_create_owned(parent,callback){
+  .err(failure)=>{let reason=failure.reason;let (input,)=failure.inputs;close_callback(input);return reason;},
   .ok(input)=>{var task=give input;task_poll(&mut task);return close(give task);}
  }
 }

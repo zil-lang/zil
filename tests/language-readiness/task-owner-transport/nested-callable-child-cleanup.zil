@@ -36,18 +36,18 @@ fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnMut()->i32 {
   kept.value+=1;return kept.value;
  };
 }
-fn parent<F:FnMut()->i32 + ClosedEnvironment>(give callback:F)->i32 {
+fn parent<F:FnMut()->i32 + ClosedEnvironment>(callback:F)->i32 {
  task_yield();return 0;
 }
-fn close_callback<F:FnMut()->i32 + ClosedEnvironment>(give original:F)->i32 {
- var callback=give original;return callback();
+fn close_callback<F:FnMut()->i32 + ClosedEnvironment>(original:F)->i32 {
+ var callback=original;return callback();
 }
 fn main()->TaskCreateError!i32 {
  let child=make_async_child()?;
  let quiet=Quiet{value:7};let callback=keep(give child,give quiet);
- match task_create_owned(parent,give callback){
+ match task_create_owned(parent,callback){
   .err(failure)=>{let reason=failure.reason;let (original,)=failure.inputs;
-   close_callback(give original);return reason;
+   close_callback(original);return reason;
   },
   .ok(original)=>{return close(give original);}
  }

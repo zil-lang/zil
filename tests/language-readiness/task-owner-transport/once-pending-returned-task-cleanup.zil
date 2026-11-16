@@ -36,10 +36,10 @@ package Packet {manages token:ResultToken}
 fn keep(give original:Task<i32>,give selected:Task<i32>,give quiet:Quiet)->impl FnOnce()->Managed<Task<i32>> {
  var task=give original;var kept=give quiet;
  return move()->Managed<Task<i32>>=>{
-  task_valid(&task);kept.value+=1;return give selected;
+  task_valid(task);kept.value+=1;return give selected;
  };
 }
-fn parent<F:FnOnce()->Managed<Task<i32>> + ClosedEnvironment>(give callback:F)->i32 {
+fn parent<F:FnOnce()->Managed<Task<i32>> + ClosedEnvironment>(callback:F)->i32 {
  task_yield();let answer=callback();close(give answer);unsafe{result_seen(17);}return 0;
 }
 fn run(give original:Task<i32>)->i32 {
@@ -57,8 +57,8 @@ fn main()->TaskCreateError!i32 {
   .ok(input)=>{
    var selected=give input;
    let quiet=Quiet{value:7};var callback=keep(give original,give selected,give quiet);
-   loop{match task_create_owned(parent,give callback){
-    .err(failure)=>{let (input,)=failure.inputs;callback=give input;continue;},
+   loop{match task_create_owned(parent,callback){
+    .err(failure)=>{let (input,)=failure.inputs;callback=input;continue;},
     .ok(input)=>{var task=give input;task_poll(&mut task);return run(give task);}
    }}
   }

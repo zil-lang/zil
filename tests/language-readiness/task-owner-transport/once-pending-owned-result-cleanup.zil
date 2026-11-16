@@ -36,10 +36,10 @@ package Packet {manages token:ResultToken}
 fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnOnce()->Packet {
  var task=give original;var kept=give quiet;
  return move()->Packet=>{
-  let alive=task_valid(&task);kept.value+=1;if alive{return Packet{token:ResultToken{code:17}};}return Packet{token:ResultToken{code:91}};
+  let alive=task_valid(task);kept.value+=1;if alive{return Packet{token:ResultToken{code:17}};}return Packet{token:ResultToken{code:91}};
  };
 }
-fn parent<F:FnOnce()->Packet + ClosedEnvironment>(give callback:F)->i32 {
+fn parent<F:FnOnce()->Packet + ClosedEnvironment>(callback:F)->i32 {
  task_yield();let answer=callback();unsafe{result_seen(answer.token.code);}return 0;
 }
 fn run(give original:Task<i32>)->i32 {
@@ -53,8 +53,8 @@ fn run(give original:Task<i32>)->i32 {
 fn main()->TaskCreateError!i32 {
  let original=make_async_child()?;
  let quiet=Quiet{value:7};var callback=keep(give original,give quiet);
- loop{match task_create_owned(parent,give callback){
-  .err(failure)=>{let (input,)=failure.inputs;callback=give input;continue;},
+ loop{match task_create_owned(parent,callback){
+  .err(failure)=>{let (input,)=failure.inputs;callback=input;continue;},
   .ok(input)=>{var task=give input;task_poll(&mut task);return run(give task);}
  }}
 }

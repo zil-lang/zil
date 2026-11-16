@@ -4,9 +4,10 @@ use super::*;
 fn direct_workers_keep_both_the_ordinary_and_task_adapter_cleanup_executable_native() {
     let original = include_str!("../../../../tests/language-readiness/task-owner-transport/direct-worker-owner-cleanup.zil");
     let direct_child = original
-        .replace("fn parent<F:FnOnce()->i32 + ClosedEnvironment>(give callback:F)", "fn parent(give callback:Task<i32>)")
+        .replace("fn parent<F:FnOnce()->i32 + ClosedEnvironment>(callback:F)", "fn parent(give callback:Task<i32>)")
         .replace("let callback=keep(give original,give quiet);", "let callback=give original;")
-        .replace("close_callback(give input);return reason;", "close(give input);return reason;");
+        .replace("task_create_owned(parent,callback)", "task_create_owned(parent,give callback)")
+        .replace("close_callback(input);return reason;", "close(give input);return reason;");
     for (name, text) in [("callable", original), ("child", direct_child.as_str())] {
         let typed = typed_original(text);
         assert!(typed.functions.iter().any(|function| function.name.starts_with("parent")
