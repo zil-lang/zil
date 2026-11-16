@@ -1,156 +1,137 @@
 {
-  "task": "G10.5.1.15",
-  "status": "305 complete chain implemented and formal04 measured;166candidate-Rustfunctional cells/61runtime pass existing gates. Native1k/5105andcheck5k completeflows bothblocks lead, native2500near tie. Restart and5105eightprivate remain slower; comprehensiveRust/main gates open.",
-  "updated_Asia_Shanghai": "2026-11-16T15:56:32.350652+08:00",
-  "read_goal": "99415a1c6937ec48d01dcb7422dff7fb1a24e1f0",
-  "source": "305175a125240f5dd7ae4d935352047d43992723",
-  "tree": "4adb25dc86d0f418f883f8ad72d46c303d1d4dc7",
-  "binary_sha256": "b051fa85d441394d7e698fd932fa638a09c707e5b5b05a780314c41ce873c7ce",
-  "delivery": "e85f819f0c23d4fdbaf52748a7a97dd0ab345f61",
+  "task": "G10.5.1/G10.5.1.15",
+  "status": "Rust定向整链已实施验收，全面超Rust门开放",
+  "updated_Asia_Shanghai": "2026-11-16T18:45:15.673888+08:00",
+  "read_goal": "d31282cb0dc481a9495cb1ebd099f614bf383510",
+  "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+  "tree": "6b844a4824681663e9420bde3334c8620467f3dd",
+  "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
+  "delivery": "e66c354be2cf16ea599275d8c45219693aefc45f",
   "branch": "research/full-push-native",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "report": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/stable-class-chain-20261116/report.md",
-  "results": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/stable-class-chain-20261116/results.json",
-  "stages": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/stable-class-chain-20261116/stages.json",
-  "acceptance": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/stable-class-chain-20261116/current-acceptance.json",
-  "review": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/stable-class-chain-20261116/stable-class-305-results-audit-04.md",
-  "exact_bindings": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/full-push-compact-checkpoint.json",
-  "recovery": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/evidence/stable-class-performance-core-20261116/RESTORE.json",
-  "counts": {
-    "original_requests_completed": 498,
-    "candidate_Rust_functional_cells": 166,
-    "source_bound_runtime_cases": 61,
-    "main_ResourceLimit_rows": 48,
-    "original_rows_valid": 450,
-    "all_candidate_Rust_quality_passed": true,
-    "global_accepted": false
-  },
+  "summary": "https://github.com/zil-lang/zil/blob/e66c354be2cf16ea599275d8c45219693aefc45f/tools/research/incremental-demand/cache-restart-chain-20261116/summary.md",
+  "skill": "https://github.com/zil-lang/zil/blob/e66c354be2cf16ea599275d8c45219693aefc45f/.agents/skills/compiler-performance/SKILL.md",
   "implementation": [
-    "Stable full-Function-Eq pure DAG implementations, complete currentimports/source-copybounds, current per-unitpruning and objectkeys; originaladdresses/ABI/protectedroles preserved.",
-    "CompletecurrentFunction/calleeclass memo andchecked-addcompletedplans in originalfourTFslots; tiny scalarCFG/currentcontext/originalsixfees restored; life/foreign remain fullBuilder.",
-    "Single originalboundedReader decode capturesactualconsumedwiresegments and realnodecosts; rawsemantic publication/crossStore reuse never grantsVerify permission.",
-    "Actual plannerPending key→PartitionProduct/fourMachineProducts→currentCodegenSummary→keyedinventory/retained/ELF/aggregate. HistoricalDCEphysicalambiguity no longer guessed; unknownrealproducer conservativelyrejects."
+    "Rust OnDiskCache-style shared metadata packs/offsets, CDC dedup/selective compaction under original aggregate bound",
+    "one actual wire decoded owner shared across semantic/function restore, current context/complete bytes/limits/sixfees remain",
+    "current graph/layout/materialization reuse; rejected recipe cannot lend old slots",
+    "resident closed frontier avoids redundant diskIR; current closed native spelling still from current parser owners"
   ],
   "current_gates": {
-    "actual305": {
-      "backend": 314,
-      "native_publication": 2,
-      "tool_tests": 22,
-      "strict": true,
-      "fmt": true,
-      "release": true
-    },
-    "unchanged_reuse": {
-      "proof": {
-        "crates/zil-ir": {
-          "same_blob_or_tree": "459fd84665c5ef40726922dd244f755df9fcab7b",
-          "prior": "cc0fe8182a2a8c1999bc9b2696859273c205025b"
-        },
-        "crates/zil-types": {
-          "same_blob_or_tree": "0afd18d6412ac6d22065268b3d366c06f597abe6",
-          "prior": "9ca0737d6874dd7035e16bbd2d78888550afe476"
-        },
-        "crates/zil-driver/src": {
-          "same_blob_or_tree": "bb5dd7883dbc3a44af326d4df861278d6faee20e",
-          "prior": "404aafdc7844ff3d85a08edb3fd0da0f2046816a"
-        },
-        "crates/zil-driver/tests/scalar_local_promotion.rs": {
-          "same_blob_or_tree": "3906220ae811b6d6fdb39f73cbd6b0ee035d350c",
-          "prior": "404aafdc7844ff3d85a08edb3fd0da0f2046816a"
-        },
-        "crates/zil-expand": {
-          "same_blob_or_tree": "cb6f04fc8ac1065275f807990acf7bcb7bd76c75",
-          "prior": "404aafdc7844ff3d85a08edb3fd0da0f2046816a"
-        },
-        "crates/zil-ct": {
-          "same_blob_or_tree": "8218fbfee7ca8d64877220a52bfc248d30382ed4",
-          "prior": "404aafdc7844ff3d85a08edb3fd0da0f2046816a"
-        },
-        "crates/zil-verify": {
-          "same_blob_or_tree": "735bed26f27f2c0cacaa841249397f2bb0b929aa",
-          "prior": "404aafdc7844ff3d85a08edb3fd0da0f2046816a"
-        },
-        "crates/zil-llvm-api": {
-          "same_blob_or_tree": "9418169aa3a66f14a3dd27dfb4f1d39ee73f63a6",
-          "prior": "404aafdc7844ff3d85a08edb3fd0da0f2046816a"
-        }
+    "IR89_Types115": "64e1fbcadea066ac755bb3426e5eda26a24d468b, followed only equivalent opref lint",
+    "backend325": "249cfb7a88e8efc15012198f71f98e2f06e5b4e1, production unchanged since; test-if lint only",
+    "driver228_native2_strict_fmt_release": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+    "first_failures": "Retained local IRsegmentationfixture, real32editdiskgrowth, rejectedlayoutslotreuse, strictlints. No relaxed assertions/limits."
+  },
+  "native_current": {
+    "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+    "original_requests": 36,
+    "functional_cells": 12,
+    "runtime_cases": 5,
+    "quality_passed": true,
+    "global_accepted": false,
+    "requests_ms": {
+      "cold": {
+        "candidate": 5186.129134500001,
+        "rust": 6723.5545995
       },
-      "IR87": "cc0 receipt gate03, exact IR tree unchanged",
-      "Types111": "9ca receipt gate04, exact Types tree unchanged",
-      "driver225": "747 gate05 224passed/1failed +8d gate06 exact remaining fixture1passed; da06 strict fixture-only fixes; driver src exact unchanged on305",
-      "Source9": "8d gate06 source integration, its source and driver production unchanged; separate real class/terminalSource integration2 rerun305",
-      "Expand124_CT76": "Unchanged original modules, old immutable receipts retained; no fresh execution claimed",
-      "prior_reuse_ledger07": "out/runs/stable-class-gate-reuse-07.json",
-      "prior_reuse_ledger08": "out/runs/stable-class-gate-reuse-08.json"
+      "unchanged": {
+        "candidate": 73.6591705,
+        "rust": 28.3271225
+      },
+      "warm-restart": {
+        "candidate": 3490.6389755,
+        "rust": 38.49144
+      },
+      "private-001": {
+        "candidate": 1150.151168,
+        "rust": 1295.1251525
+      },
+      "error": {
+        "candidate": 1857.5538065,
+        "rust": 1958.795429
+      },
+      "recovery": {
+        "candidate": 2452.7101445,
+        "rust": 5926.9394465
+      }
     },
-    "first_failures": "Allinitial8windows/gates/oldbinaries preserved complete85083filearchive atimmutable305; nativefresh04ENOSPC and verifiedretry05 retained in core.",
-    "review": "Astra/Peirce cross-review nonself-authored cache/wire work; exact305actual-keyreview and formal04readonlyresults audit. No independent review is represented as testing."
-  },
-  "native_full_flow_s": {
-    "1000": {
-      "baseline": 9.906079244,
-      "candidate": 7.970279252,
-      "rust": 9.520970906999999
+    "restart_plus_firstedit_ms": {
+      "candidate": 4640.7901435,
+      "rust": 1333.6165925
     },
-    "2500": {
-      "baseline": 13.6156354975,
-      "candidate": 10.4960660845,
-      "rust": 10.655058969000002
-    },
-    "5105": {
-      "candidate": 35.3479970405,
-      "rust": 37.7890014985
+    "disk": {
+      "candidate": {
+        "boundary_peak_MiB": 32.681640625,
+        "peak_bytes_by_block": [
+          34279424,
+          34258944
+        ],
+        "eight_private_growth_MiB": null
+      },
+      "rust": {
+        "boundary_peak_MiB": 58.69140625,
+        "peak_bytes_by_block": [
+          61542400,
+          61542400
+        ],
+        "eight_private_growth_MiB": null
+      }
     }
   },
-  "native5105_eight_private_s": {
-    "candidate": 12.129170815500002,
-    "rust": 11.808067836500001
-  },
-  "retain5105_real_restart_firstedit_s": {
-    "candidate": 5.806637742,
-    "rust": 1.4384278055
-  },
-  "check5000_full_flow_s": {
-    "baseline": 7.9222288605,
-    "candidate": 6.761674307500001,
-    "rust": 7.915956416499999
-  },
-  "disk_native5105": {
-    "scope": "Explicitusersemantic/objectcache/program/diagnosticIR versusRusttarget; boundarylstat/st_blocks andinode dedup, notinstantaneouspeak/equalquota/industrialGBworkspace. SDK/hosttarget/evidenceexcluded.",
-    "block_boundary_peak_median_MiB": {
-      "candidate": 38.546875,
-      "rust": 72.85546875
+  "check_previous_scoped": {
+    "source": "bee7ee218df3c673bc7660e1af8aea709505272d",
+    "original_requests": 102,
+    "functional_cells": 34,
+    "flow_ms": {
+      "baseline": 7119.669645,
+      "candidate": 5563.538215,
+      "rust": 8210.709403
     },
-    "observed_boundary_max_MiB": {
-      "candidate": 41.09765625,
-      "rust": 72.85546875
+    "cold_ms": {
+      "baseline": 420.7092725,
+      "candidate": 1177.0604265,
+      "rust": 1198.31992
     },
-    "eight_private_growth_MiB": {
-      "candidate": 3.208984375,
-      "rust": 28.48046875
-    }
+    "disk": {
+      "baseline": {
+        "boundary_peak_MiB": 45.3125,
+        "peak_bytes_by_block": [
+          47513600,
+          47513600
+        ],
+        "eight_private_growth_MiB": 29.40625
+      },
+      "candidate": {
+        "boundary_peak_MiB": 13.63671875,
+        "peak_bytes_by_block": [
+          14360576,
+          14237696
+        ],
+        "eight_private_growth_MiB": 1.0703125
+      },
+      "rust": {
+        "boundary_peak_MiB": 58.34765625,
+        "peak_bytes_by_block": [
+          61181952,
+          61181952
+        ],
+        "eight_private_growth_MiB": 15.140625
+      }
+    },
+    "not_reassigned_to_final_source": true
   },
-  "work_evidence": "All16native5105private requests:15objecthit/1miss,1lower/classinput rebuilt,2classkeys rebuilt,checked-add1checked. Restart4Builder/5101realCFGrestored+16objecthits, yetCT/Analyze5105queries andmachine/transform/partitionwholemiss.",
-  "largest_remaining_cost": "Retain5105restart codegen1.941s includesmachine1.009/partition.765/object.015; signedunclassifiedreport1.623s notassignedwire/IO. Eightprivatebackend9.552s includesobject4.494/machine2.928/partition1.608; notRuststageattribution.",
-  "next_weighted_priority": [
-    "Actualrestartbootstrap/currentfrontend/machine/partition work causes4.368sextrawait; prioritizewholechain absolute waits, not moreobjecthit cosmetics.",
-    "Native5105eightprivate still0.321s behindRust over8requests;15hit1miss doesnotcloseglobalbackend cost.",
-    "Industrialmulticrate/minutes/GB workloads remain unproved; currentclear/othergraphs notremeasured, old4a-only scope retained."
+  "diagnostic": "bee7 profile restart5101decoded-owner reuses/0seconddecoder; no-op355ms redundant semantic read found and then fixed. Private class split may still require planning. Do not attribute allremainingtime toI/O.",
+  "largest_remaining_cost": "Final native restart+firstedit4.641/R1.334s; restart3.491/R.038s is decisive. Preserve negative results; optimize real upstream bootstrap/machine pipeline by absolute waiting.",
+  "record_policy": "User2026-11-16: concise conclusion/version/commands/necessary failures only, no default full evidence packing/copy/upload. Localgeneratedarchive retired; raw remains. Source/skill/summary pushed.",
+  "runtime_recovery": "SDK18/stock/native-link fixede85 core; fullSDK dependency fixedV32, no LLVM rebuild",
+  "previous_record": "https://github.com/zil-lang/zil/blob/d31282cb0dc481a9495cb1ebd099f614bf383510/records/compiler-incremental-demand-continuation.json",
+  "previous_305_delivery": "e85f819f0c23d4fdbaf52748a7a97dd0ab345f61",
+  "negative_scope": [
+    "native restart and no-op still slower thanRust",
+    "checkcold narrow previous-source window lead, no broad or industrial claim",
+    "industrialmulticrate/proc_macro/build.rs/minutes/GB workloads unmeasured in currentcandidate"
   ],
-  "conditions": "Threeactualmain/candidate/Rust arms, O2/CGU16/compilerjobs1,twobalancedblocks;check/native separate. ZIL resident excludesstartup,Cargo includes; startup/cleanup separate; noOScacheflush. Main/SDK18DSOs differ, notfront-endonlyablation.",
-  "full_current_raw": {
-    "archives": 4,
-    "files": 287723,
-    "raw_bytes": 6443561528,
-    "archive_bytes": 1490307060,
-    "parts": 61,
-    "each_fresh_full_hash_verified": true,
-    "includes": "All3formalraw+coredirectbinaries/DSOs/native-link/proofs;initial8windowraw is separatefixed305 dependency."
-  },
-  "initial_progress_recovery": "https://github.com/zil-lang/zil/blob/305175a125240f5dd7ae4d935352047d43992723/tools/research/incremental-demand/evidence/stable-class-initial-progress-20261116/RESTORE.json",
-  "previous_record": "https://github.com/zil-lang/zil/blob/99415a1c6937ec48d01dcb7422dff7fb1a24e1f0/records/compiler-incremental-demand-continuation.json",
-  "previous4a23_delivery": "df06acabf33a76a723d1e92b1d7da71b41d4b7da",
-  "negative_scope": "Native2500flowandretain5105flow oneblockwins/oneblockloses;5105eightprivate andrealrestartpair bothblockslose. Checkcoldbothwin butdrift/twoonlysamples cannotprove crossversionalgorithmcausality. No old4a/404a/98fa/021997 numbers transferred.",
   "main_merge": false,
   "research_defaults_enabled": false,
   "independent_Verify_preserved": true,
