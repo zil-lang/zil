@@ -1,69 +1,121 @@
 {
   "schema": "zil.compiler-pain-continuation.v6",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "11078c56dc8450b8c47312577dd9918bcdf6d9a3",
-  "compiled_tree": "20620ad111efd02ff1975aaea949d6b7fbc1117a",
-  "binary_sha256": "d9bef5078b5b17b6c2f58fe500519ebdd284556ddbf5f88b87f185511a1437e6",
-  "binary": "out/binaries/11078c56dc8450b8c47312577dd9918bcdf6d9a3/zil",
+  "compiled_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+  "compiled_tree": "6b844a4824681663e9420bde3334c8620467f3dd",
+  "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
+  "binary": "out/binaries/480e7d6fe425ad9cce4d0e69b1cf3ca869572198/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "11078 measured. Restart+firstedit remains5.110/R1.478s. New Rust-directed restart restoration/partition chain in progress. User2026-11-16 requires concise receipts, no default whole-evidence packing/upload.",
+  "status": "Rust-directed full restart cache/decoded-owner/layout chain implemented, gates passed, finalnative36/12/5 measured; comprehensiveRustgoal remains open. Concise receipts only, no new archives.",
   "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
   "LLVM_rebuilt": false,
   "research_defaults_enabled": false,
   "main_merge": false,
   "current_acceptance": {
-    "compiled_source": "11078c56dc8450b8c47312577dd9918bcdf6d9a3",
-    "production_equivalent_test_source": "ab57a7405b28d1cb5662629bb9137b13d1fe8ead",
-    "driver": 227,
-    "backend": 322,
+    "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+    "driver": 228,
     "native_publication": 2,
-    "tools": 22,
-    "exact_reuse_reason": "Final11078only deletes uncalled cfg(test)adapter5lines. No production change.",
     "strict": true,
     "fmt": true,
     "release": true,
-    "first_strict_failure_retained": true
+    "reused_IR89_Types115_source": "64e1fbcadea066ac755bb3426e5eda26a24d468b",
+    "reused_backend325_source": "249cfb7a88e8efc15012198f71f98e2f06e5b4e1",
+    "gate_receipts": "out/runs/cache-restart-chain-gates-{02,04,07}-*",
+    "note": "Affected final gates fresh; unchanged subtrees and equivalent lint cleanup reuse original source-bound receipts. Failures preserved."
   },
   "current_recovery": "evidence/stable-class-performance-core-20261116/RESTORE.json",
-  "recovery_scope": "SDK18/native-link dependencies remain fixede85/V32; current11078 raw and completed local archive retained underout only, not uploaded. Source and concise measured summary are versioned. No new archive workflow by default.",
+  "recovery_scope": "Source and concise result inGit. SDK18/stock/native-link dependencies fixede85/V32. No new full raw evidence archive or SDK copies.",
   "last_measured": {
-    "source": "11078c56dc8450b8c47312577dd9918bcdf6d9a3",
-    "binary_sha256": "d9bef5078b5b17b6c2f58fe500519ebdd284556ddbf5f88b87f185511a1437e6",
-    "summary": "restart-layout-chain-20261116/summary.md",
-    "original_requests": 246,
-    "functional_cells": 82,
-    "runtime_cases": 22,
-    "main_resource_limit_rows": 48,
+    "native_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+    "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
+    "summary": "cache-restart-chain-20261116/summary.md",
+    "native_original_requests": 36,
+    "native_functional_cells": 12,
+    "native_runtime_cases": 5,
+    "native_restart_firstedit_ms": {
+      "candidate": 4640.7901435,
+      "rust": 1333.6165925
+    },
+    "native_requests_ms": {
+      "cold": {
+        "candidate": 5186.129134500001,
+        "rust": 6723.5545995
+      },
+      "unchanged": {
+        "candidate": 73.6591705,
+        "rust": 28.3271225
+      },
+      "warm-restart": {
+        "candidate": 3490.6389755,
+        "rust": 38.49144
+      },
+      "private-001": {
+        "candidate": 1150.151168,
+        "rust": 1295.1251525
+      },
+      "error": {
+        "candidate": 1857.5538065,
+        "rust": 1958.795429
+      },
+      "recovery": {
+        "candidate": 2452.7101445,
+        "rust": 5926.9394465
+      }
+    },
+    "native_user_disk": {
+      "candidate": {
+        "boundary_peak_MiB": 32.681640625,
+        "peak_bytes_by_block": [
+          34279424,
+          34258944
+        ],
+        "eight_private_growth_MiB": null
+      },
+      "rust": {
+        "boundary_peak_MiB": 58.69140625,
+        "peak_bytes_by_block": [
+          61542400,
+          61542400
+        ],
+        "eight_private_growth_MiB": null
+      }
+    },
+    "check_source": "bee7ee218df3c673bc7660e1af8aea709505272d",
+    "check_original_requests": 102,
+    "check_functional_cells": 34,
+    "check_flow_ms": {
+      "baseline": 7119.669645,
+      "candidate": 5563.538215,
+      "rust": 8210.709403
+    },
+    "check_user_disk": {
+      "baseline": {
+        "boundary_peak_MiB": 45.3125,
+        "peak_bytes_by_block": [
+          47513600,
+          47513600
+        ],
+        "eight_private_growth_MiB": 29.40625
+      },
+      "candidate": {
+        "boundary_peak_MiB": 13.63671875,
+        "peak_bytes_by_block": [
+          14360576,
+          14237696
+        ],
+        "eight_private_growth_MiB": 1.0703125
+      },
+      "rust": {
+        "boundary_peak_MiB": 58.34765625,
+        "peak_bytes_by_block": [
+          61181952,
+          61181952
+        ],
+        "eight_private_growth_MiB": 15.140625
+      }
+    },
     "all_candidate_Rust_quality_passed": true,
-    "global_accepted": false,
-    "native5105_flow_s": [
-      31.794,
-      35.568
-    ],
-    "native5105_eight_private_s": [
-      11.017,
-      11.198
-    ],
-    "retained5105_restart_firstedit_s": [
-      5.11,
-      1.478
-    ],
-    "check5000_flow_s": [
-      7.906,
-      7.763
-    ],
-    "check5000_cold_s": [
-      1.866,
-      0.827
-    ],
-    "native_disk_boundary_peak_median_MiB": [
-      36.02,
-      72.855
-    ],
-    "native8edit_growth_MiB": [
-      1.164,
-      28.48
-    ]
+    "global_accepted": false
   },
   "previous_f19": {
     "source": "f19fc847c5774a2472bd3af85019b5c937546010",
@@ -81,9 +133,9 @@
     "4c82 driver219/5: actual self.clear fallback destroyed successful producer/push/Verify epochs; fixed by disk-origin selection and isolated retry, original five assertions preserved"
   ],
   "next_priority": [
-    "Target actual restart+firstedit3.632s absolute deficit using Rust implementation; actual cache hits do not eliminate current restoration/machine/partition work.",
-    "Preserve checkcold1.039s deficit and narrow native8private win; do not assume fullRustlead.",
-    "Default concise receipts, no archive/hash/copy/push pipeline. Persist rule in .agents/skills/compiler-performance/SKILL.md."
+    "Restart+firstedit still behindRust: use actual current whole-request phase and absolute time to target upstream bootstrap and machine/transform/partition, not more object hits.",
+    "Real private edit can add/split class definitions; retained layout currently requires compatible grouping/current closure. Do not claim every private edit replays the layout.",
+    "Keep current files/namespace/limits/fees and independentVerify/fullO2/default budget; no persistentSourceMachineauthority. Industrial multictate/minutes/GB coverage remains open."
   ],
   "limits": [
     "Finite scalar102file one-crate coverage is not industrial workspace/generic/macro/async/debug/test/minute-scale coverage.",
@@ -93,7 +145,7 @@
     "Resident request excludes separately recorded startup; Cargo request includes startup. Two balanced blocks, no OS cold-cache flush.",
     "Main5105 resource failure and measured check/main regressions prevent universal acceptance or main merge."
   ],
-  "local_storage": "Published old305 blob/user/core staging duplicate copies retired after fullfresh and checksum verification; original reports remain. Current11078raw plus local archive kept inout. SDK/source binaries and unique bcf evidence untouched. No product disk-saving claim.",
+  "local_storage": "Original measurements remain local. User stopped full evidence workflow; generated1GB archive copy retired, raw/source/SDK kept. Only reproducible host Rust incremental state was reclaimed after final checks; compiled test libraries/release retained. Not product disk improvement.",
   "previous_checkpoint": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/full-push-compact-checkpoint.json",
   "previous_bcf": {
     "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
@@ -169,10 +221,10 @@
     "read_rule": "Read manifest/parts/receipt from the same immutable containing delivery commit. Exact archive hash is external to payload to avoid self-reference."
   },
   "active_implementation": {
-    "baseline": "11078c56dc8450b8c47312577dd9918bcdf6d9a3",
-    "scope": "Rust OnDiskCache-style shared decode and current restoration; class layout replay/materialization on restart and first edit",
-    "status": "source in progress; do not assign11078performance to unmeasured edits",
-    "gate_rule": "Finish whole chain, freeze then one affected batch; no per-edit full matrix."
+    "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+    "status": "complete whole chain; scoped measurement passed quality; broad performance goal open",
+    "scope": "batched metadata packs/selective compaction/shared raw decoder owner/current layout and graph/resident closed frontier preserving current syntax",
+    "archive_policy": "No full packing/upload; skill persisted, only concise identities/results/necessary failure logs."
   },
   "previous_4a23": {
     "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
@@ -284,5 +336,60 @@
       "largest_residual": "Retain5105restart codegen1.941s includesmachine1.009/partition.765/object.015; additional signed report residual1.623s remains unclassified, notassignedwireorIO.",
       "complete_original_raw": "Three complete formal archives plus used-runtime/core; initial8windows failures/progress completearchive immutable305. All companion fresh receipts and failed ENOSPC retry retained."
     }
+  },
+  "previous_11078": {
+    "source": "11078c56dc8450b8c47312577dd9918bcdf6d9a3",
+    "binary_sha256": "d9bef5078b5b17b6c2f58fe500519ebdd284556ddbf5f88b87f185511a1437e6",
+    "summary": "restart-layout-chain-20261116/summary.md",
+    "original_requests": 246,
+    "functional_cells": 82,
+    "runtime_cases": 22,
+    "main_resource_limit_rows": 48,
+    "all_candidate_Rust_quality_passed": true,
+    "global_accepted": false,
+    "native5105_flow_s": [
+      31.794,
+      35.568
+    ],
+    "native5105_eight_private_s": [
+      11.017,
+      11.198
+    ],
+    "retained5105_restart_firstedit_s": [
+      5.11,
+      1.478
+    ],
+    "check5000_flow_s": [
+      7.906,
+      7.763
+    ],
+    "check5000_cold_s": [
+      1.866,
+      0.827
+    ],
+    "native_disk_boundary_peak_median_MiB": [
+      36.02,
+      72.855
+    ],
+    "native8edit_growth_MiB": [
+      1.164,
+      28.48
+    ]
+  },
+  "previous_bee7": {
+    "source": "bee7ee218df3c673bc7660e1af8aea709505272d",
+    "original_requests": 138,
+    "functional_cells": 46,
+    "runtime_cases": 5,
+    "native_restart_firstedit_ms": {
+      "candidate": 4294.0973125,
+      "rust": 1444.1266070000001
+    },
+    "check_flow_ms": {
+      "baseline": 7119.669645,
+      "candidate": 5563.538215,
+      "rust": 8210.709403
+    },
+    "raw": "out/runs/cache-restart-performance-*-01"
   }
 }

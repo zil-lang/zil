@@ -1,9 +1,7 @@
 # Full-push 精简恢复入口
 
-唯一施工分支research/full-push-native。被测源码11078c56dc8450b8c47312577dd9918bcdf6d9a3，实际main9170bb4210554392e36eb7528596612596ebef80。
+唯一施工分支research/full-push-native；当前原生被测源码480e7d6fe425ad9cce4d0e69b1cf3ca869572198。
 
-[当前结论](restart-layout-chain-20261116/summary.md)：native完整31.794/R35.568s，但重启+首改5.110/R1.478s；check冷1.866/R.827s。246请求/82功能格/22运行质量通过；全面门开放。当前新Rust定向优化正在实施，不转记旧数字。
+[本轮精简结论](cache-restart-chain-20261116/summary.md)：原生36请求/12格/5运行质量；check102请求属于bee7版本，分开归属。当前完整质量门过，全面超Rust仍开放，独立Verify/原预算/完整O2保持，研究默认关。
 
-按[compiler-performance skill](../../../.agents/skills/compiler-performance/SKILL.md)执行：默认不打包、复制或上传全量证据，保留精简结论/身份/命令/必要失败；完整链修改后集中验收。
-
-SDK18/native-link/stock运行依赖仍可从固定e85core和V32恢复，优先恢复不重建LLVM。旧305/4a23/98fa/021997归属不变；goal/archive不合main。完整当前原始数据和此前生成包暂留本地out，未新增上传。
+按[compiler-performance skill](../../../.agents/skills/compiler-performance/SKILL.md)直接针对Rust实现修完整链，集中验收；默认不打包或上传全量证据。必要日志仍在本地out，精简结果随源码推送。SDK18/native-link依赖固定e85/V32，优先恢复，不重建LLVM。旧305/98fa/021997数字不转记；goal/archive不合main。
