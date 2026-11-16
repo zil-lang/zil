@@ -4189,6 +4189,34 @@ fn analyze_function_program(
     dependencies: Option<&summary_graph::Dependencies>,
     replacements: Option<&replacements::Program>,
 ) -> CompileResult<Effect> {
+    let before = budget.remaining();
+    analyze_function_program_inner(module, f, reachable, effects, check, budget, dependencies, replacements)
+        .map_err(|mut errors| {
+            if budget.cost_profiling() {
+                for error in &mut errors {
+                    if error.category == zil_base::ResultCategory::ResourceLimit {
+                        error.notes.push(format!(
+                            "resource flow function {} {:?} of {} actual functions, validation={}, invocation work={}, blocks={}, locals={}, values={}",
+                            f.id.0, f.name, module.functions.len(), check,
+                            before.saturating_sub(budget.remaining()), f.blocks.len(), f.locals.len(), f.values.len(),
+                        ));
+                    }
+                }
+            }
+            errors
+        })
+}
+#[allow(clippy::too_many_arguments)]
+fn analyze_function_program_inner(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+    dependencies: Option<&summary_graph::Dependencies>,
+    replacements: Option<&replacements::Program>,
+) -> CompileResult<Effect> {
     if f.foreign.is_some() {
         return Ok(Effect::default());
     }
