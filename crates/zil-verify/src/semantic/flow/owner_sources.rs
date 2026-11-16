@@ -162,6 +162,13 @@ impl CheckedContext{
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}|InstructionKind::DescribeAddress{address}=>value=*address,
                 InstructionKind::AddressField{address,index}=>{let ty=f.values.get(address.0 as usize).ok_or_else(||bad("field address operand is absent"))?;consume_field(ty,*index,&mut fields,b)?;value=*address;},
                 InstructionKind::ExtractField{aggregate,index}=>{let ty=f.values.get(aggregate.0 as usize).ok_or_else(||bad("field aggregate operand is absent"))?;consume_field(ty,*index,&mut fields,b)?;value=*aggregate;},
+                InstructionKind::BorrowPlaceLocal{local,path,..}=>{
+                    crate::check_instruction(module,f,instruction,b)?;
+                    let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("borrowed Place source local is absent"))?.ty;
+                    consume_place_fields(ty,path,&mut fields,b)?;
+                    if !fields.is_empty(){return Err(bad("borrowed Place omitted an original buffer field projection"));}
+                    return self.projected_local_root(module,caller,f,*local,root,node,b);
+                },
                 InstructionKind::DescribePackageField{local,index}|InstructionKind::ReadPackageField{local,index}|InstructionKind::TakePackageField{local,index}|InstructionKind::BorrowPackageField{local,index,..}=>{
                     consume_field(&f.locals.get(local.0 as usize).ok_or_else(||bad("package source local is absent"))?.ty,*index,&mut fields,b)?;
                     if !fields.is_empty(){return Err(unsupported("nested package observation requires its actual local-to-parent projection ledger",Some(instruction.span)));}
@@ -376,10 +383,62 @@ fn consume_field(ty:&Type,index:u32,fields:&mut Vec<String>,b:&mut Budget)->Chec
     if !correct{return Err(bad("actual field index differs from the original ordered nominal/tuple field"));}Ok(())
 }
 
+fn consume_place_fields(ty:&Type,path:&[PlaceProjection],fields:&mut Vec<String>,b:&mut Budget)->Check<()>{
+    if path.is_empty()||path.len()>b.limits.max_call_depth{return Err(bad("buffer Place must contain its complete bounded field path"));}
+    b.spend(path.len().saturating_mul(2))?;
+    let mut parents=Vec::with_capacity(path.len());
+    let mut current=ty;
+    for step in path{
+        let PlaceProjection::Field(index)=step else{return Err(bad("buffer Place field path adds another original projection kind"));};
+        parents.push((current,*index));
+        current=lifetimes::select(current,&[LifeTypeProjection::Place(*step)],b)?;
+    }
+    // One fused Place operation walks from the root to its leaf. The original
+    // field matcher consumes the same chain from leaf to root, just like the
+    // separate AddressField/ExtractField operations above.
+    for(parent,index)in parents.into_iter().rev(){consume_field(parent,index,fields,b)?;}
+    Ok(())
+}
+
 #[cfg(test)]
 mod pattern_source_tests {
     use super::*;
     mod fixture{include!(concat!(env!("CARGO_MANIFEST_DIR"),"/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"));}
+    #[test]
+    fn fused_owned_place_matches_every_original_field_raw_wire(){
+        let limits=Limits::default();let(mut module,plan)=crate::tests::baseline();
+        module.functions[0].locals[0].ty=Type::Package{name:"Entry".into(),fields:vec![
+            ("key".into(),Type::I32),
+            ("value".into(),Type::Package{name:"Value".into(),fields:vec![
+                ("bytes".into(),Type::Managed(Box::new(Type::ByteBuffer))),
+                ("id".into(),Type::I32),
+            ]}),
+        ]};
+        for wire in [false,true]{
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+            let(raw,_)=if wire{zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap()}else{(module.clone(),plan.clone())};
+            let ty=&raw.functions[0].locals[0].ty;
+            let original=vec!["value".into(),"bytes".into()];
+            let path=vec![PlaceProjection::Field(1),PlaceProjection::Field(0)];
+            let mut fields=original.clone();
+            consume_place_fields(ty,&path,&mut fields,&mut Budget::new(&limits)).unwrap();assert!(fields.is_empty());
+            // This is only the ordered projection sub-proof. The executable
+            // path still authenticates the original binding, actual opcode,
+            // initialized owner and independent description/loan window.
+            for attack in 0..6{
+                let mut fields=original.clone();let mut wrong=path.clone();
+                match attack{
+                    0=>wrong.reverse(),
+                    1=>wrong[1]=PlaceProjection::Field(1),
+                    2=>{wrong.remove(0);},
+                    3=>wrong.push(PlaceProjection::Field(0)),
+                    4=>fields[1]="other".into(),
+                    _=>wrong[0]=PlaceProjection::ErrorArm(false),
+                }
+                assert!(consume_place_fields(ty,&wrong,&mut fields,&mut Budget::new(&limits)).is_err(),"wire={wire} attack={attack}");
+            }
+        }
+    }
     #[test]
     fn pattern_subject_preserves_success_variant_pointee_and_exact_anchor(){
         // This isolates the private projection sub-proof with an already
