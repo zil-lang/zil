@@ -114,6 +114,9 @@ pub(super) struct Budget {
     // immutable actual coordinate. No classes, targets, loans or capabilities.
     pub(super) semantic_raw_value_shapes: BTreeMap<(FunctionId, ValueId), zil_ir::StorageLifeShape>,
     pub(super) semantic_raw_local_shapes: BTreeMap<(FunctionId, zil_ir::LocalId), zil_ir::StorageLifeShape>,
+    // Original concrete-Closure cleanup occurrences, still requiring the
+    // actual worker/frame/resource proof after complete raw preflight.
+    pub(super) semantic_cleanup_sites: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId, zil_ir::ClosureId)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -305,6 +308,7 @@ impl Budget {
             semantic_raw_writes: BTreeSet::new(),
             semantic_raw_value_shapes: BTreeMap::new(),
             semantic_raw_local_shapes: BTreeMap::new(),
+            semantic_cleanup_sites: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,

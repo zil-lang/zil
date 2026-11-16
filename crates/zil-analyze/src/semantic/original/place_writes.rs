@@ -193,14 +193,7 @@ impl Solver<'_, '_> {
             partial |= hole.starts_with(path);
         }
         if !partial {
-            return Self::push(
-                &mut self.needs,
-                Need {
-                    term,
-                    predicate: Predicate::SyncDrop,
-                },
-                b,
-            );
+            return Self::push(&mut self.cleanup_terms, term, b);
         }
         let fields = match &self.state.arena[self.type_root(term, b)?] {
             Kind::Tuple(fields) => {
@@ -642,14 +635,7 @@ impl Solver<'_, '_> {
                     self.cleanup_partial(place.selected, &place.path, &vacant, b, depth + 1)?;
                 }
             } else {
-                Self::push(
-                    &mut self.needs,
-                    Need {
-                        term: place.selected,
-                        predicate: Predicate::SyncDrop,
-                    },
-                    b,
-                )?;
+                Self::push(&mut self.cleanup_terms, place.selected, b)?;
             }
         }
         self.write_complete(frame, &place, b)?;

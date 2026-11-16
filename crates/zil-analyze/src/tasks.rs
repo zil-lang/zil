@@ -19,6 +19,14 @@ pub(crate) fn semantic_resource_scope(
     semantic_scope::complete(module, payload, limits, budget)
 }
 pub(super) use owned::once_cleanup_resumable;
+pub(super) fn cleanup_frame_profile(
+    module: &TypedModule,
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    owned::profile(module, function, budget, Some(function.span))?;
+    Ok(())
+}
 mod port_origins;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,

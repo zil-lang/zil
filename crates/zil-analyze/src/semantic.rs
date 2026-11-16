@@ -1060,3 +1060,7 @@ pub(super) fn pending(
     let original = original::check(module, program, &inventory, b).map_err(|errors| inventory.profile_errors(errors, b))?;
     closed::check(module, program, &inventory, &original, b).map_err(|errors| inventory.profile_errors(errors, b))
 }
+
+pub(super) fn finish_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    original::finish_cleanups(module, b)
+}

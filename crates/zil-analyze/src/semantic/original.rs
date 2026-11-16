@@ -9,6 +9,7 @@ mod borrow_roles;
 pub(super) mod borrow_places;
 mod buffers;
 mod capabilities;
+mod cleanup;
 mod call_regions;
 mod captures;
 mod constructors;
@@ -48,6 +49,9 @@ use constructors::Wrapper;
 use mixed::Life;
 
 type Term = usize;
+pub(super) fn finish_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    cleanup::finish(module, b)
+}
 pub(super) fn declaration_scope(
     program: &SemanticModule,
     declaration: LifeDeclarationId,
@@ -288,6 +292,7 @@ struct Solver<'a, 'i> {
     literals: Vec<Literal>,
     integers: Vec<Term>,
     needs: Vec<Need>,
+    cleanup_terms: Vec<Term>,
     callable_needs: Vec<CallableNeed>,
     mutating_closures: BTreeSet<SemanticDefinitionId>,
     role_frames: Vec<roles::RoleFrame>,
@@ -3021,14 +3026,7 @@ impl Solver<'_, '_> {
                 CoreStatementKind::Expression(value) => {
                     let discarded = self.expression(frame, value, b, depth + 1)?;
                     if frame.alive {
-                        Self::push(
-                            &mut self.needs,
-                            Need {
-                                term: discarded,
-                                predicate: Predicate::SyncDrop,
-                            },
-                            b,
-                        )?;
+                        Self::push(&mut self.cleanup_terms, discarded, b)?;
                     }
                 }
                 CoreStatementKind::Return(value) => {
@@ -4087,6 +4085,7 @@ pub(super) fn check(
         literals: Vec::new(),
         integers: Vec::new(),
         needs: Vec::new(),
+        cleanup_terms: Vec::new(),
         callable_needs: Vec::new(),
         mutating_closures: BTreeSet::new(),
         role_frames: Vec::new(),
@@ -4307,6 +4306,7 @@ pub(super) fn check(
             return Err(errors);
         }
     }
+    solver.check_cleanups(module, b)?;
     for frame in solver.state.frames.values() {
         for value in frame
             .parameters

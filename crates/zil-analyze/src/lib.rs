@@ -150,6 +150,7 @@ fn analyze_budgeted_context(
     budget.semantic_raw_writes.clear();
     budget.semantic_raw_value_shapes.clear();
     budget.semantic_raw_local_shapes.clear();
+    budget.semantic_cleanup_sites.clear();
     budget.stored_synchronous_abis.clear();
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
@@ -254,6 +255,18 @@ fn analyze_budgeted_context(
                 }
             }
             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
+        } else if !budget.semantic_cleanup_sites.is_empty() {
+            // A concrete original cleanup is not a structural SyncDrop
+            // theorem. Keep the stored source proof and continue through the
+            // ordinary Task graph and resource ledger before discharging it.
+            if !module.closures.is_empty() {
+                stored_callables::definitions(module, budget)?;
+                helpers::check(module, budget)?;
+            }
+            for f in &module.functions {
+                stored_flow::header(module, f, budget)?;
+            }
+            stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
         } else if ordinary_required && !synchronous_callbacks {
             let members = composition::partition(module, budget)?;
             if !members.iter().any(|member| *member) || !members.iter().any(|member| !*member) {
@@ -350,6 +363,7 @@ fn analyze_budgeted_context(
         }
     }
     resources::check_module(module, &hold_graphs, budget)?;
+    semantic::finish_cleanups(module, budget)?;
     let mut actual_holds = if let Some(rows) = early_holds {
         rows
     } else {
@@ -484,6 +498,9 @@ fn publish_holds(
     plan: &mut CandidatePlan,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if !budget.semantic_cleanup_sites.is_empty() {
+        return Err(bad("original concrete cleanup obligations remain undischarged at publication"));
+    }
     for position in 0..budget.description_values.len() {
         let (function, value) = budget.description_values[position];
         budget.spend(1, "weak description public projection lookup")?;
