@@ -24,11 +24,8 @@ impl CheckedContext {
                 "Nominal recipe selects another original definition kind",
             ));
         };
-        b.spend(module.life_declarations.len())?;
-        let mut declarations = module
-            .life_declarations
-            .iter()
-            .filter(|row| row.id == *declaration);
+        let rows=dynamic_metadata::nominal_declarations(module,*declaration,b)?;
+        let mut declarations=rows.into_iter();
         if let Some(actual) = declarations.next() {
             if declarations.next().is_some()
                 || actual.identity != definition.identity
@@ -175,11 +172,7 @@ impl CheckedContext {
             }
         };
         let mut selected = None;
-        b.spend(module.life_instances.len())?;
-        for instance in &module.life_instances {
-            if instance.declaration != *declaration {
-                continue;
-            }
+        for instance in dynamic_metadata::nominal_instances(module,*declaration,b)? {
             if let Some(candidate) = self.nominal_candidate(
                 module,
                 &instance.ty,
@@ -197,12 +190,8 @@ impl CheckedContext {
         // Known0 ordinary nominals may have no stored-life inventory. Their
         // real nominal scope instance supplies the exact original identity;
         // neither a type name nor a same-layout type search is accepted.
-        if let Some(program) = &module.semantic {
-            b.spend(program.instances.len())?;
-            for instance in &program.instances {
-                if instance.definition != id || instance.target != SemanticInstanceTarget::Scope {
-                    continue;
-                }
+        if module.semantic.is_some() {
+            for instance in dynamic_metadata::nominal_scope_instances(module,id,b)? {
                 let Some(value) = &instance.self_type else {
                     continue;
                 };

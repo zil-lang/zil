@@ -533,7 +533,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([5364, 5774, 7416][mode as usize]),
+                Some([5578, 5916, 7694][mode as usize]),
             )
         })
         .collect();
@@ -546,7 +546,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 19588 } else { 16494 }),
+            Some(if indirect { 20552 } else { 17359 }),
         ));
     }
     // Schema 48's retained_return_sources Option discriminant is checked
@@ -597,7 +597,8 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             minima.push(hi);
         }
         assert_eq!(minima[0], minima[1]);
-        // Pin actual verifier work after word liveness and sparse head rows.
+        // Pin measured work after immutable input registration, deterministic
+        // complete type-fact searches and explicit empty capture-source checks.
         // The same raw and Wire inputs retain complete N-1 rejection and
         // fresh N acceptance.
         if let Some(expected) = expected {

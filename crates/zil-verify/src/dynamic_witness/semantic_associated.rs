@@ -684,10 +684,9 @@ fn nominal_arguments(
     value: &CheckedType,
     b: &mut Budget,
 ) -> Check<Option<Vec<CheckedActual>>> {
-    b.spend(module.life_instances.len())?;
     let mut selected = None;
-    for instance in &module.life_instances {
-        if instance.declaration != declaration || instance.ty != value.ty {
+    for instance in dynamic_metadata::nominal_instances(module,declaration,b)? {
+        if instance.ty != value.ty {
             continue;
         }
         let mut actuals = vec![];
@@ -734,16 +733,8 @@ fn nominal_arguments(
         retain_actuals(context, env, &mut selected, actuals, b)?;
     }
     if value.life.binder_count == 0 {
-        let program = module
-            .semantic
-            .as_ref()
-            .ok_or_else(|| bad("provider nominal semantic inventory is absent"))?;
-        b.spend(program.instances.len())?;
-        for instance in &program.instances {
-            if instance.definition != definition || instance.target != SemanticInstanceTarget::Scope
-            {
-                continue;
-            }
+        if module.semantic.is_none(){return Err(bad("provider nominal semantic inventory is absent"));}
+        for instance in dynamic_metadata::nominal_scope_instances(module,definition,b)? {
             let Some(claim) = &instance.self_type else {
                 continue;
             };
@@ -1012,11 +1003,8 @@ fn scoped_type_recipe(
         }
         DynTypePattern::Nominal(p) => {
             let id = nominal_definition(module, p.declaration, b)?;
-            b.spend(module.life_declarations.len())?;
-            let mut rows = module
-                .life_declarations
-                .iter()
-                .filter(|r| r.id == p.declaration);
+            let declarations=dynamic_metadata::nominal_declarations(module,p.declaration,b)?;
+            let mut rows=declarations.into_iter();
             let d = rows
                 .next()
                 .ok_or_else(|| bad("nominal recipe has no original formal directory"))?;

@@ -475,6 +475,10 @@ pub(super) fn captured_profile(
             || matches!(ty, Type::Closure(child) if finite(module, *child))
             || inline_qualified_capture(module, ty, b)?)
         {
+            // Prove the real Fresh empty-source obligation before returning
+            // a profile limitation. This includes borrowed leaves hidden in
+            // nested child environments; it grants no capture admission.
+            super::retained::check_self_contained_sources(module,&b.limits.clone(),b)?;
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
                 None,

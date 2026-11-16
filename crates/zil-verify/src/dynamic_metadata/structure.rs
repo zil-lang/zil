@@ -13,6 +13,17 @@ fn owner_key(owner:&SemanticDynOwner)->OwnerKey{match owner{
     SemanticDynOwner::MethodSignature{declaration:id,member}=>(1,id.module,id.declaration,id.compiler,*member),
     SemanticDynOwner::MethodDefinition(id)=>(2,id.module,id.source,false,0),
 }}
+fn add_index<K:Ord>(directory:&mut BTreeMap<K,Vec<usize>>,key:K,index:usize,b:&mut Budget)->Check<()>{
+    b.spend(lookup(directory.len()).saturating_add(2))?;
+    let rows=directory.entry(key).or_default();
+    b.spend(1usize.saturating_add(if rows.len()==rows.capacity(){rows.len()}else{0}))?;
+    rows.push(index);Ok(())
+}
+fn index_rows<K:Ord>(directory:&BTreeMap<K,Vec<usize>>,key:&K,b:&mut Budget)->Check<Vec<usize>>{
+    b.spend(lookup(directory.len()))?;
+    let rows=directory.get(key);b.spend(rows.map_or(0,Vec::len))?;
+    Ok(rows.cloned().unwrap_or_default())
+}
 fn cacheable(ty:&Type)->bool{!matches!(ty,
     Type::ByteBuffer|Type::ForeignHandle|Type::SyncCell(_)|Type::TaskI32|Type::CWideString|Type::Closure(_)|Type::Dyn{..}|Type::OwnedDyn{..}
 )&&!ty.is_b0_scalar()}
@@ -50,6 +61,9 @@ pub(crate) struct Structure{
     stored_bounds:BTreeMap<(usize,usize),Vec<Limits>>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     lexical_scopes:BTreeMap<OwnerKey,Vec<SemanticDefinitionId>>,
+    nominal_declarations:BTreeMap<LifeDeclarationId,Vec<usize>>,
+    nominal_instances:BTreeMap<LifeDeclarationId,Vec<usize>>,
+    scope_instances:BTreeMap<SemanticDefinitionId,Vec<usize>>,
     shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
     type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
 }
@@ -63,7 +77,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
+            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),nominal_declarations:BTreeMap::new(),nominal_instances:BTreeMap::new(),scope_instances:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -73,7 +87,9 @@ impl Structure{
         }
         for closure in &module.closures{for ty in closure.captures.iter().chain(&closure.parameters).chain(std::iter::once(&closure.result)){result.ty(ty,b)?;}}
         for resource in &module.resources{result.ty(&resource.payload,b)?;}
-        for instance in &module.life_instances{
+        for(index,declaration)in module.life_declarations.iter().enumerate(){add_index(&mut result.nominal_declarations,declaration.id,index,b)?;}
+        for(index,instance)in module.life_instances.iter().enumerate(){
+            add_index(&mut result.nominal_instances,instance.declaration,index,b)?;
             result.ty(&instance.ty,b)?;
             for actual in &instance.arguments{b.spend(1)?;match actual{LifeNominalActual::Type(ty)|LifeNominalActual::QualifiedType{ty,..}=>result.ty(ty,b)?,_=>{}}}
         }
@@ -97,6 +113,10 @@ impl Structure{
         for table in &module.dyn_vtables{result.ty(&table.self_type,b)?;if let Some(rows)=&table.implementation_witnesses{for row in rows{result.visit(row,b)?;}}}
         if let Some(program)=&module.semantic{
             result.visit(program,b)?;
+            for(index,instance)in program.instances.iter().enumerate(){
+                b.spend(1)?;
+                if instance.target==SemanticInstanceTarget::Scope{add_index(&mut result.scope_instances,instance.definition,index,b)?;}
+            }
             for binding in &program.dyn_scopes{
                 b.spend(lookup(result.lexical_scopes.len()).saturating_add(2))?;
                 let rows=result.lexical_scopes.entry(owner_key(&binding.owner)).or_default();
@@ -244,6 +264,33 @@ pub(crate) fn lexical_scopes(module:&TypedModule,owner:&SemanticDynOwner,b:&mut 
     let state=b.structural.take().unwrap();
     let result=(||{let rows=state.lexical_scopes.get(&owner_key(owner));b.spend(rows.map_or(0,Vec::len))?;Ok(Some(rows.cloned().unwrap_or_default()))})();
     b.structural=Some(state);result
+}
+fn registered_rows(module:&TypedModule,b:&mut Budget,select:impl FnOnce(&Structure,&mut Budget)->Check<Vec<usize>>)->Check<Option<Vec<usize>>>{
+    let Some(state)=&b.structural else{return Ok(None);};
+    if state.module!=module as *const TypedModule as usize{return Ok(None);}
+    let state=b.structural.take().unwrap();
+    let result=select(&state,b).map(Some);b.structural=Some(state);result
+}
+/// Immutable candidate selection only: every matching row, in original order.
+/// The consumer still proves each full mixed actual, domain and physical value.
+pub(crate) fn nominal_declarations<'m>(module:&'m TypedModule,id:LifeDeclarationId,b:&mut Budget)->Check<Vec<&'m LifeNominalDeclaration>>{
+    let rows=if let Some(rows)=registered_rows(module,b,|state,b|index_rows(&state.nominal_declarations,&id,b))?{rows}else{
+        b.spend(module.life_declarations.len())?;module.life_declarations.iter().enumerate().filter_map(|(index,row)|(row.id==id).then_some(index)).collect()
+    };
+    b.spend(rows.len())?;Ok(rows.into_iter().map(|index|&module.life_declarations[index]).collect())
+}
+pub(crate) fn nominal_instances<'m>(module:&'m TypedModule,id:LifeDeclarationId,b:&mut Budget)->Check<Vec<&'m LifeNominalInstance>>{
+    let rows=if let Some(rows)=registered_rows(module,b,|state,b|index_rows(&state.nominal_instances,&id,b))?{rows}else{
+        b.spend(module.life_instances.len())?;module.life_instances.iter().enumerate().filter_map(|(index,row)|(row.declaration==id).then_some(index)).collect()
+    };
+    b.spend(rows.len())?;Ok(rows.into_iter().map(|index|&module.life_instances[index]).collect())
+}
+pub(crate) fn nominal_scope_instances<'m>(module:&'m TypedModule,id:SemanticDefinitionId,b:&mut Budget)->Check<Vec<&'m SemanticInstance>>{
+    let Some(program)=&module.semantic else{return Ok(vec![]);};
+    let rows=if let Some(rows)=registered_rows(module,b,|state,b|index_rows(&state.scope_instances,&id,b))?{rows}else{
+        b.spend(program.instances.len())?;program.instances.iter().enumerate().filter_map(|(index,row)|(row.definition==id&&row.target==SemanticInstanceTarget::Scope).then_some(index)).collect()
+    };
+    b.spend(rows.len())?;Ok(rows.into_iter().map(|index|&program.instances[index]).collect())
 }
 pub(crate) fn resource_known(module:&TypedModule,record:&Type,b:&mut Budget)->Check<Option<usize>>{
     let Some(state)=&b.structural else{return Ok(None);};
@@ -432,6 +479,30 @@ mod tests{
         assert_eq!(lexical_scopes(&module,&owners[0],&mut b).unwrap(),Some(vec![scope(0),scope(11)]));
         // Rows are merely untrusted claims; registration does not synthesize
         // an original definition or choose the first duplicate as authority.
+        assert!(module.semantic.as_ref().unwrap().definitions.is_empty());
+    }
+    #[test]
+    fn nominal_candidate_directories_preserve_order_duplicates_and_exact_identity(){
+        let mut module=fixture();
+        let id=LifeDeclarationId{module:zil_base::ModuleId(7),declaration:zil_base::NodeId(9),compiler:false};
+        let other=LifeDeclarationId{compiler:true,..id};
+        let declaration=LifeNominalDeclaration{id,identity:LifeDeclarationIdentity{package:"candidate_directory".into(),module_path:vec![],declaration_path:vec![],generation_path:vec![]},kind:LifeNominalKind::Record,parameters:vec![LifeParameterKind::Type]};
+        module.life_declarations=vec![declaration.clone(),LifeNominalDeclaration{id:other,..declaration.clone()},declaration];
+        module.life_instances=vec![LifeNominalInstance{declaration:id,ty:Type::I32,arguments:vec![]},LifeNominalInstance{declaration:other,ty:Type::Bool,arguments:vec![]},LifeNominalInstance{declaration:id,ty:Type::I64,arguments:vec![]}];
+        let definition=SemanticDefinitionId{module:id.module,index:4};
+        let scope=SemanticInstance{id:SemanticInstanceId{module:id.module,index:0},definition,target:SemanticInstanceTarget::Scope,lifetime_instantiation:SemanticLifetimeInstantiation::Rigid,parent:None,actuals:vec![],header_embedding:vec![],environment:None,self_type:None};
+        module.semantic=Some(SemanticModule{definitions:vec![],sites:vec![],dyn_scopes:vec![],instances:vec![scope.clone(),SemanticInstance{target:SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(FunctionId(0))),..scope.clone()},scope]});
+        let mut b=budget(&module);
+        for active in [&module,&module.clone()]{
+            let rows=nominal_declarations(active,id,&mut b).unwrap();assert_eq!(rows.len(),2);assert!(std::ptr::eq(rows[0],&active.life_declarations[0]));assert!(std::ptr::eq(rows[1],&active.life_declarations[2]));
+            let rows=nominal_instances(active,id,&mut b).unwrap();assert_eq!(rows.iter().map(|row|&row.ty).collect::<Vec<_>>(),vec![&Type::I32,&Type::I64]);
+            let rows=nominal_scope_instances(active,definition,&mut b).unwrap();assert_eq!(rows.len(),2);assert!(std::ptr::eq(rows[0],&active.semantic.as_ref().unwrap().instances[0]));assert!(std::ptr::eq(rows[1],&active.semantic.as_ref().unwrap().instances[2]));
+            assert!(nominal_scope_instances(active,SemanticDefinitionId{module:zil_base::ModuleId(8),..definition},&mut b).unwrap().is_empty());
+            assert_eq!(nominal_declarations(active,other,&mut b).unwrap().len(),1);
+        }
+        b.remaining=0;assert!(nominal_instances(&module,id,&mut b).is_err());assert!(b.structural.is_some());
+        // These deliberately duplicate and unresolved claims are just candidate
+        // rows. No declaration, actual argument or nominal proof was cached.
         assert!(module.semantic.as_ref().unwrap().definitions.is_empty());
     }
     #[test]
