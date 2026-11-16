@@ -24,6 +24,7 @@ mod code_calls;
 mod type_uses;
 mod callable_sources;
 mod local_roles;
+mod replacements;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -291,6 +292,7 @@ impl CheckedContext {
                     InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
+                    InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}|InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>self.replacement_instruction(module,instance,f,instruction,&mut state,&values,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
                         let Type::Address{..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};

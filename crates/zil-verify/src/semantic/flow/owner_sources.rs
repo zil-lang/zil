@@ -19,9 +19,14 @@ impl CheckedContext{
         self.original_projection_source(module,caller,f,value,definition,node,observed,b)
     }
     #[allow(clippy::too_many_arguments)]
-    pub(in crate::semantic::flow) fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
+    pub(in crate::semantic::flow) fn original_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,b:&mut Budget)->Check<()>{
+        self.original_projection_source_prefix(module,caller,f,value,definition,node,read_value,None,b)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn original_projection_source_prefix(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,definition:SemanticDefinitionId,node:NodeId,read_value:bool,prefix:Option<(&Type,&[PlaceProjection])>,b:&mut Budget)->Check<()>{
         if definition!=caller.definition{return Err(bad("indirect borrow selects another original lexical owner"));}
         let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("indirect borrow lacks its complete original body proof"))?.address_place(module,definition,node,b)?;
+        let skip=if let Some((ty,path))=prefix{consume_reserved_fields(ty,path,&projections,b)?}else{0};
         let mut seen=BTreeSet::new();
         let mut fused=None;
         // An implicit scalar capture read can have an empty original field
@@ -33,7 +38,7 @@ impl CheckedContext{
             if !seen.insert(value){return Err(bad("observed original root has a cyclic actual read/description chain"));}
             crate::check_instruction(module,f,instruction,b)?;value=address;
         }}
-        for(ordinal,projection)in projections.iter().enumerate(){
+        for(ordinal,projection)in projections.iter().enumerate().skip(skip){
             loop{
                 b.spend(1)?;if !seen.insert(value){return Err(bad("indirect borrow has a cyclic actual projection chain"));}
                 let(_,_,instruction)=producer(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
@@ -79,6 +84,30 @@ impl CheckedContext{
             AddressRoot::Place(node)=>self.projected_buffer_source(module,caller,f,value,definition,node,b),
             AddressRoot::Value(node)=>self.exact_expression_value(module,caller,f,value,node,b),
             AddressRoot::Parameter(ordinal)=>self.intrinsic_buffer_source(module,caller,f,value,BufferSource::Parameter{definition,ordinal},b),
+        }
+    }
+    pub(in crate::semantic::flow) fn replacement_target_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,place:&crate::place_replacements::Place,node:NodeId,b:&mut Budget)->Check<()>{
+        match place.origin{
+            crate::place_replacements::Origin::Address(address)=>{
+                let Type::Address{mutable:true,inner}=f.values.get(address.0 as usize).ok_or_else(||bad("reserved address source has no actual type"))? else{return Err(bad("reserved address source lacks exclusive authority"));};
+                self.original_projection_source_prefix(module,caller,f,address,caller.definition,node,false,Some((inner,&place.steps)),b)
+            },
+            crate::place_replacements::Origin::Local(local)=>{
+                let ty=&f.locals.get(local.0 as usize).ok_or_else(||bad("reserved local source is absent"))?.ty;
+                let(root,projections)=self.original.borrow().as_ref().ok_or_else(||bad("reserved local lacks its complete original Place"))?.address_place(module,caller.definition,node,b)?;
+                if consume_reserved_fields(ty,&place.steps,&projections,b)?!=projections.len(){return Err(bad("reserved local omits an original destination projection"));}
+                match root{
+                    AddressRoot::Place(root)=>{
+                        let(root,fields)=self.original.borrow().as_ref().ok_or_else(||bad("reserved local lacks its original binder"))?.buffer_place(caller.definition,root,b)?;
+                        if !fields.is_empty(){return Err(bad("reserved local changes its original root projection"));}
+                        self.projected_local_root(module,caller,f,local,root,node,b)
+                    },
+                    AddressRoot::Parameter(ordinal)=>{
+                        if self.buffer_source_local(module,caller,f,BufferSource::Parameter{definition:caller.definition,ordinal},b)?!=local{return Err(bad("reserved local selects another original parameter"));}Ok(())
+                    },
+                    AddressRoot::Value(_)=>Err(bad("reserved local replaces an original indirect value destination")),
+                }
+            },
         }
     }
     pub(super) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
@@ -400,10 +429,44 @@ fn consume_place_fields(ty:&Type,path:&[PlaceProjection],fields:&mut Vec<String>
     Ok(())
 }
 
+fn consume_reserved_fields(ty:&Type,path:&[PlaceProjection],original:&[AddressProjection],b:&mut Budget)->Check<usize>{
+    if path.len()>b.limits.max_call_depth{return Err(limit("reserved original projection exceeds depth"));}
+    b.spend(path.len().saturating_mul(2))?;
+    let mut parents=Vec::with_capacity(path.len());let mut current=ty;
+    for step in path{
+        let PlaceProjection::Field(index)=step else{return Err(bad("reserved inline path changes its original field projection kind"));};
+        parents.push((current,*index));current=lifetimes::select(current,&[LifeTypeProjection::Place(*step)],b)?;
+    }
+    for(index,(parent,field))in parents.into_iter().rev().enumerate(){
+        let Some(AddressProjection::Field(name))=original.get(index)else{return Err(bad("reserved field path differs from its complete original destination"));};
+        b.spend(name.len().saturating_add(1))?;let mut names=vec![name.clone()];consume_field(parent,field,&mut names,b)?;
+    }
+    Ok(path.len())
+}
+
 #[cfg(test)]
 mod pattern_source_tests {
     use super::*;
     mod fixture{include!(concat!(env!("CARGO_MANIFEST_DIR"),"/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"));}
+    #[test]
+    fn reserved_projection_uses_original_fields_not_same_typed_siblings_raw_wire(){
+        let limits=Limits::default();let(mut module,plan)=crate::tests::baseline();
+        let store=Type::Managed(Box::new(Type::OwnedStore{element:Box::new(Type::I64)}));
+        module.functions[0].locals[0].ty=Type::Package{name:"Map".into(),fields:vec![
+            ("entries".into(),store.clone()),("buckets".into(),store),
+        ]};
+        for wire in [false,true]{
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+            let(raw,_)=if wire{zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap()}else{(module.clone(),plan.clone())};
+            let ty=&raw.functions[0].locals[0].ty;
+            let original=[AddressProjection::Field("buckets".into())];
+            assert_eq!(consume_reserved_fields(ty,&[PlaceProjection::Field(1)],&original,&mut Budget::new(&limits)).unwrap(),1);
+            assert!(consume_reserved_fields(ty,&[PlaceProjection::Field(0)],&original,&mut Budget::new(&limits)).is_err(),"same payload type cannot select the sibling owner");
+            assert!(consume_reserved_fields(ty,&[PlaceProjection::Field(1)],&[],&mut Budget::new(&limits)).is_err());
+            assert!(consume_reserved_fields(ty,&[PlaceProjection::ErrorArm(false)],&original,&mut Budget::new(&limits)).is_err());
+            assert!(consume_reserved_fields(ty,&[PlaceProjection::Field(1),PlaceProjection::Field(0)],&original,&mut Budget::new(&limits)).is_err());
+        }
+    }
     #[test]
     fn fused_owned_place_matches_every_original_field_raw_wire(){
         let limits=Limits::default();let(mut module,plan)=crate::tests::baseline();
