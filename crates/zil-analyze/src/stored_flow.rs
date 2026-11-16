@@ -5681,6 +5681,7 @@ fn transfer(
                 | InstructionKind::AddressSlice { .. }
                 | InstructionKind::BorrowCapture { .. }
                 | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosure { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
                 | InstructionKind::CallClosureOnce { .. }

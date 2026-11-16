@@ -5,6 +5,7 @@ use super::*;
 
 pub(super) fn applies(d: &ClosureDefinition) -> bool {
     super::super::stored_callables::constant_result(d)
+        || super::super::stored_callables::invocation_result(d)
         || (super::super::stored_callables::lending(d)
             || super::super::stored_callables::transferred(d))
             && d.storage_life.as_ref().is_some_and(|life| {
@@ -70,7 +71,9 @@ pub(super) fn invoke(
         _ => return Err(failure("returned view invocation has no actual receiver")),
     };
     let mut out = Value::default();
-    if let Some(sources) = summaries[d.function.0 as usize].returned.get(&Vec::new()) {
+    let summary = summaries.get(d.function.0 as usize)
+        .ok_or_else(|| failure("returned address has no actual entry summary"))?;
+    if let Some(sources) = summary.returned.get(&Vec::new()) {
         for source in sources {
             let actual = if let HoldRoot::Capture(index) = source.base {
                 let ty = d
@@ -115,10 +118,20 @@ pub(super) fn invoke(
                     actual
                 }
             } else {
+                // Input-bounded results retain the complete actual argument
+                // permission. Public opaque source categories travel beside
+                // that permission and grant no target or loan of their own.
+                let category = dyn_address::upper_substitute(&Targets::from([source.clone()]),
+                    arguments, values, state, b)?;
+                dyn_address::upper_union(&mut out.source_upper, &category, b)?;
                 substitute(source, arguments, values, state, b)?
             };
             union(&mut out.pointer, &actual, b)?;
         }
+    }
+    if super::super::stored_callables::invocation_result(d) {
+        let upper = dyn_address::upper_substitute(&summary.returned_source_upper, arguments, values, state, b)?;
+        dyn_address::upper_union(&mut out.source_upper, &upper, b)?;
     }
     if needs_head {
         let retained = retain_slot(&head, i, u32::MAX - 2, &Vec::new(), ids, loans, b)?;

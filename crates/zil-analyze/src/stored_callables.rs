@@ -37,6 +37,15 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && d.kind != CallableKind::FnOnce
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
+/// Schedules a complete argument-bounded returned-address proof. A declared
+/// relation supplies no target: each actual Return and caller substitution
+/// must still retain the selected input permission and every parent loan.
+pub(super) fn invocation_result(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_some()
+        && d.lending_captures.is_empty()
+        && !result_is_receiver(d)
+        && super::borrowed_fp::invocation(&d.parameters, &d.result)
+}
 pub(super) fn constant_result(d: &ClosureDefinition) -> bool {
     matches!(&d.result,Type::Address{mutable:false,inner}if inner.is_address_pointee())
         && d.storage_life.as_ref().is_some_and(|life| {
@@ -198,6 +207,7 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
             || lending(d)
             || transferred(d)
             || constant_result(d)
+            || invocation_result(d)
             || borrowed_owned_candidate(d)
             || task_result(d)
     })
@@ -689,7 +699,7 @@ pub(super) fn types(
         && d.storage_life.is_some()
         && d.kind != CallableKind::FnOnce
         && (!matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || fixed_result(d))
+            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || fixed_result(d) || invocation_result(d))
             || !d.lending_captures.is_empty() && !fixed_result(d))
     {
         return Err(vec![Diagnostic::unsupported(
