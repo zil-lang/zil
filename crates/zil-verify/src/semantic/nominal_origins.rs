@@ -37,7 +37,7 @@ impl CheckedContext {
     pub(super) fn nominal_claim_origin(&self,raw:&IntrinsicOrigin,expected:&IntrinsicOrigin,expression:Option<&IntrinsicOrigin>,env:&EvalEnv,b:&mut Budget)->Check<Option<IntrinsicOrigin>>{
         let(IntrinsicOrigin::Nominal{source:a,class:x},IntrinsicOrigin::Nominal{source:z,class:y})=(raw,expected)else{return Ok(None);};
         charge_origin(raw,b)?;charge_origin(expected,b)?;
-        if x!=y||a.declaration!=z.declaration||a.domain!=z.domain||a.actuals.len()!=z.actuals.len()||a.environment.len()!=z.environment.len(){return Err(bad("nominal claim changes its complete original identity/domain/arguments"));}
+        if x!=y||a.declaration!=z.declaration||a.domain!=z.domain||a.actuals.len()!=z.actuals.len()||a.environment.len()!=z.environment.len(){return Err(bad("nominal claim changes its complete original identity/domain/arguments").with_note(format!("nominal claim at {:?}; actual class {x}, declaration {:?}, domain {:?}, actuals {:?}, sealed {:?}; original class {y}, declaration {:?}, domain {:?}, actuals {:?}, sealed {:?}",env.at,a.declaration,a.domain,a.actuals,a.environment,z.declaration,z.domain,z.actuals,z.environment)));}
         for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){
             let equal=match(a,z){
                 (CheckedActual::Life(a),CheckedActual::Life(z))=>self.same(env,a,z,b)?,

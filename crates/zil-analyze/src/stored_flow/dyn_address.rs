@@ -3,6 +3,25 @@
 use super::*;
 use zil_ir::ContractProjection;
 
+fn static_result_upper(
+    leaf: &Type,
+    mode: StoredBorrowMode,
+    result: &Type,
+    mutable: bool,
+    out: &mut Value,
+    b: &mut Budget,
+) -> CompileResult<Target> {
+    let target = dyn_return::static_target(leaf, mode, b)?;
+    b.type_work(result, false, "dynamic Static result complete leaf")?;
+    if mutable || leaf != result {
+        return Err(failure("dynamic Static result changes its full leaf or receiver result mode"));
+    }
+    // A public category supplies no actual target or loan. In particular it
+    // cannot ground an output-only class or erase a receiver parent.
+    out.static_upper = true;
+    Ok(target)
+}
+
 pub(super) fn work(value: &Value, b: &mut Budget) -> CompileResult<()> {
     if !b.dyn_contexts {
         return Ok(());
@@ -584,11 +603,7 @@ pub(super) fn transfer(
                 let mut complete = static_source.is_some();
                 for atom in sources {
                     if let StorageSource::Static { leaf, mode } = atom {
-                        let target = dyn_return::static_target(leaf, *mode, b)?;
-                        b.type_work(&selected.result, false, "dynamic Static result complete leaf")?;
-                        if *mutable || leaf != &selected.result {
-                            return Err(failure("dynamic Static result changes its full leaf or receiver result mode"));
-                        }
+                        let target = static_result_upper(leaf, *mode, &selected.result, *mutable, &mut out, b)?;
                         // An unused upper contributes no target. Unknown entry
                         // returns stay incomplete, rather than seeding an SCC.
                         if static_source == Some(true) { out.pointer.targets.insert(target); }
@@ -765,12 +780,15 @@ pub(super) fn propagate(
         InstructionKind::ReborrowAddress { address, .. } => {
             merge(out, get(*address)?, b)?;
         }
-        InstructionKind::AddressField { address, index } => projection(
-            out,
-            get(*address)?,
-            &[ContractProjection::Place(PlaceProjection::Field(*index))],
-            b,
-        )?,
+        InstructionKind::AddressField { address, index } => {
+            out.static_upper |= get(*address)?.static_upper;
+            projection(out, get(*address)?,
+                &[ContractProjection::Place(PlaceProjection::Field(*index))], b)?;
+        }
+        InstructionKind::AddressIndex { address, .. }
+        | InstructionKind::AddressSlice { address, .. } => {
+            out.static_upper |= get(*address)?.static_upper;
+        }
         InstructionKind::MakeAggregate { fields }
         | InstructionKind::MakePackage { fields }
         | InstructionKind::MakeOwnedTuple { fields } => {
@@ -835,6 +853,50 @@ pub(super) fn propagate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unused_static_category_survives_local_transport_without_actual_static_authority() {
+        let mut b = Budget::new(&Limits::default());
+        b.dyn_contexts = true;
+        let leaf = Type::Address { mutable: false, inner: Box::new(Type::I32) };
+        let mut call = Value::default();
+        let owner = Target { base: HoldRoot::Local(LocalId(4)), stored: vec![], place: vec![],
+            retained_port: None, heap_element: None, heap_parents: vec![] };
+        let external = Target { base: HoldRoot::Parameter(0), ..owner.clone() };
+        call.pointer = Permission { targets: Targets::from([owner.clone(), external.clone()]),
+            loans: Loans::from([7, 9]) };
+        let before = call.pointer.clone();
+        static_result_upper(&leaf, StoredBorrowMode::SharedAddress, &leaf, false, &mut call, &mut b).unwrap();
+        assert!(call.static_upper);
+        assert_eq!(call.pointer, before, "category cannot change data targets or parents");
+        // These are the same snapshots used by Store and Load. Reborrows and
+        // CFG joins use merge; neither may convert the category into a target.
+        let local = snapshot(&call, &mut b).unwrap();
+        let loaded = snapshot(&local, &mut b).unwrap();
+        let mut joined = Value::default();
+        assert!(super::super::merge(&mut joined, &loaded, &mut b).unwrap());
+        assert!(joined.static_upper);
+        assert_eq!(joined.pointer, before);
+        assert_eq!(roots(&joined, &mut b).unwrap(), Targets::from([owner, external]));
+        assert!(roots(&Value { static_upper: true, ..Value::default() }, &mut b).unwrap().is_empty(),
+            "an UpperOnly row cannot bootstrap an actual target");
+    }
+
+    #[test]
+    fn static_result_category_rejects_complete_leaf_or_mode_changes() {
+        let mut b = Budget::new(&Limits::default());
+        let leaf = Type::Address { mutable: false, inner: Box::new(Type::I32) };
+        for (actual, mode, mutable) in [
+            (Type::Address { mutable: false, inner: Box::new(Type::U32) }, StoredBorrowMode::SharedAddress, false),
+            (leaf.clone(), StoredBorrowMode::ExclusiveAddress, false),
+            (leaf.clone(), StoredBorrowMode::SharedAddress, true),
+        ] {
+            let mut out = Value::default();
+            assert!(static_result_upper(&leaf, mode, &actual, mutable, &mut out, &mut b).is_err());
+            assert!(!out.static_upper);
+            assert!(out.pointer.targets.is_empty());
+        }
+    }
+
     #[test]
     fn substitution_separates_same_numbered_task_and_dyn_ports_and_keeps_head_parents() {
         let mut b = Budget::new(&Limits::default());

@@ -232,7 +232,10 @@ impl CheckedOriginal {
             (Ty::ErrorUnion(a,r),Ty::ErrorUnion(c,s))=>{self.unify(a,c,b)?;self.unify(r,s,b)},
             (Ty::Array(a,n),Ty::Array(c,m)) if n==m=>self.unify(a,c,b),
             (Ty::Dyn(a),Ty::Dyn(z))=>self.unify_dyn(a,z,b),
-            (Ty::Carrier{kind:a,child:x,retained:ar},Ty::Carrier{kind:c,child:y,retained:cr}) if a==c&&ar==cr=>self.unify(x,y,b),
+            (Ty::Carrier{kind:a,child:x,retained:ar},Ty::Carrier{kind:c,child:y,retained:cr}) if a==c=>{
+                if ar!=cr{return Err(bad(&format!("original body relates independent rigid type/const identities without an original equality (actual {a:?}, expected {c:?})")).with_note(format!("original carrier complete retained recipes: actual {ar:?}; expected {cr:?}; result types actual {x:?}; expected {y:?}")));}
+                self.unify(x,y,b)
+            },
             (Ty::Nominal(a,aa),Ty::Nominal(c,ca)) | (Ty::Opaque(a,aa),Ty::Opaque(c,ca)) if a==c&&aa.len()==ca.len()=>{for(a,c)in aa.iter().zip(ca){match(a,c){(Arg::Type(a),Arg::Type(c))=>self.unify(a,c,b)?,(Arg::Life(a),Arg::Life(c))=>self.unify_life(a,c,b)?,_ if a==c=>{},_=>return Err(bad("original nominal actuals require a proved equality"))}}Ok(())},
             _=>Err(bad(&format!("original body relates independent rigid type/const identities without an original equality (actual {}, expected {})",type_category(&left),type_category(&right)))),
         }
