@@ -1013,6 +1013,55 @@ impl Builder<'_, '_, '_, '_> {
             application: self.application(bound, path, depth + 1)?,
         })
     }
+    fn function_result_elision(
+        &mut self,
+        function: &s::Function,
+        inputs: &[SemanticParameterRecipe],
+        receiver: Option<u32>,
+        result: &mut SemanticTypeRecipe,
+    ) -> R<()> {
+        let Some(mut written) = function.return_type.as_ref() else { return Ok(()); };
+        while let s::TypeKind::Group(inner) = &written.kind {
+            self.budget.node(written.span, 0)?;
+            written = inner;
+        }
+        if !matches!(written.kind, s::TypeKind::Reference { lifetime: None, .. }) {
+            return Ok(());
+        }
+        fn outer(parameter: &SemanticParameterRecipe) -> Option<&SemanticOuterLifeRecipe> {
+            match &parameter.ty {
+                SemanticTypeRecipe::Address { lifetime, .. } => Some(lifetime),
+                _ => None,
+            }
+        }
+        let mut selected = receiver.and_then(|ordinal| inputs.get(ordinal as usize)).and_then(outer);
+        if selected.is_none() {
+            for parameter in inputs {
+                self.budget.node(written.span, 0)?;
+                let Some(lifetime) = outer(parameter) else { continue; };
+                if let Some(previous) = selected {
+                    prepay_recipe_work(previous, self.budget, written.span, 0)?;
+                    prepay_recipe_work(lifetime, self.budget, written.span, 0)?;
+                    if previous != lifetime {
+                        return Err(error(written.span, "elided function result has several original input lifetime roles"));
+                    }
+                } else { selected = Some(lifetime); }
+            }
+        }
+        let selected = selected.ok_or_else(|| error(written.span,
+            "elided function result has no original receiver or unique address input lifetime"))?;
+        let SemanticTypeRecipe::Address { lifetime, .. } = result else {
+            return Err(error(written.span, "elided address result changed its original type constructor"));
+        };
+        // The result was normalized normally first: its original [2] syntax
+        // occurrence remains in the directory. Elision selects the existing
+        // input signature role, just as in an original Code signature. It does
+        // not equate data targets, bind a callee-local Call region or rewrite
+        // any pointee/nominal intrinsic class.
+        prepay_recipe(selected, self.budget, written.span, 0)?;
+        *lifetime = selected.clone();
+        Ok(())
+    }
     pub(super) fn definition(&mut self, index: usize) -> R<Option<SemanticDefinition>> {
         let row = &self.inventory.declarations[index];
         let mut parameters = Vec::new();
@@ -1075,11 +1124,29 @@ impl Builder<'_, '_, '_, '_> {
                         input.span,
                     )?;
                 }
+                let receiver_parameter = if row.parent.is_some() {
+                    function
+                        .params
+                        .iter()
+                        .position(|parameter| parameter.name == "self")
+                        .map(|ordinal| {
+                            u32::try_from(ordinal).map_err(|_| {
+                                error(
+                                    row.item.span,
+                                    "original receiver ordinal exceeds its representation",
+                                )
+                            })
+                        })
+                        .transpose()?
+                } else {
+                    None
+                };
                 let result_mode = self.result_mode(function)?;
-                let result = match &function.return_type {
+                let mut result = match &function.return_type {
                     Some(ty) => self.declared_mode_type(ty, result_mode, &mut vec![2], 0)?,
                     None => SemanticTypeRecipe::Atom(Type::Unit),
                 };
+                self.function_result_elision(function, &inputs, receiver_parameter, &mut result)?;
                 if let Some(s::TypeRef {
                     kind: s::TypeKind::Impl(bounds),
                     ..
@@ -1125,23 +1192,6 @@ impl Builder<'_, '_, '_, '_> {
                         input.span,
                     )?;
                 }
-                let receiver_parameter = if row.parent.is_some() {
-                    function
-                        .params
-                        .iter()
-                        .position(|parameter| parameter.name == "self")
-                        .map(|ordinal| {
-                            u32::try_from(ordinal).map_err(|_| {
-                                error(
-                                    row.item.span,
-                                    "original receiver ordinal exceeds its representation",
-                                )
-                            })
-                        })
-                        .transpose()?
-                } else {
-                    None
-                };
                 let value_names = match &body {
                     SemanticOriginalFunctionBody::Defined(body) => self.original_value_uses(
                         body,
@@ -1414,6 +1464,67 @@ mod self_header_tests {
     use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
     use std::collections::BTreeMap;
     use zil_base::{FileId, SourceUnit};
+
+    fn inventory(text: &str) -> CompileResult<Vec<SemanticDefinition>> {
+        let source = SourceUnit::new(FileId(0), ModuleId(2), "original-elision.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result()?;
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source), &[&parsed], SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id, aliases: &BTreeMap::new(), declarations: DeclarationPlacement::Original,
+            }, &limits)?;
+        let mut remaining = limits;
+        let inventory = collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)?;
+        Ok(inventory.modules.into_iter().next().unwrap().1.definitions)
+    }
+
+    #[test]
+    fn original_short_view_signatures_select_the_receiver_role_and_keep_occurrences() {
+        for text in [
+            include_str!("../../zil-verify/tests/fixtures/dyn-context/short-external-view.zil"),
+            include_str!("../../zil-verify/tests/fixtures/dyn-context/short-inline-view.zil"),
+        ] {
+            let definitions = inventory(text).unwrap();
+            let mut selected = 0;
+            for definition in &definitions {
+                if definition.identity.declaration_path.last().is_none_or(|name| name != "view") { continue; }
+                let SemanticDefinitionBody::FunctionWithBody { signature, receiver_parameter, .. } = &definition.body else { continue; };
+                assert_eq!(*receiver_parameter, Some(0));
+                let SemanticTypeRecipe::Address { lifetime: input, inner, .. } = &signature.parameters[0].ty else { panic!() };
+                let SemanticTypeRecipe::Address { lifetime: result, .. } = &signature.result else { panic!() };
+                assert_eq!(input, result);
+                assert!(matches!(inner.as_ref(), SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) }));
+                assert_eq!(signature.invocation_lifetimes, 0);
+                assert_eq!(signature.bound_lifetimes, 0);
+                let result_occurrence = definition.implicit_lifetimes.iter().find(|row| row.occurrence_path == [2]).unwrap();
+                assert!(!matches!(result, SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit { ordinal, .. }) if *ordinal == result_occurrence.ordinal));
+                selected += 1;
+            }
+            assert_eq!(selected, 2);
+        }
+    }
+
+    #[test]
+    fn function_elision_preserves_explicit_and_inner_lifetimes_and_rejects_ambiguity() {
+        let definitions = inventory("fn nested<life a,life b>(x:&'a &'b i32)->& &'b i32{return x}fn explicit<life a,life b>(x:&'a i32,y:&'b i32)->&'b i32{return y}fn unique(x:&i32)->&i32{return x}").unwrap();
+        for definition in &definitions {
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else { continue; };
+            let name = definition.identity.declaration_path.last().unwrap().as_str();
+            let SemanticTypeRecipe::Address { lifetime, inner, .. } = &signature.result else { panic!() };
+            match name {
+                "nested" => {
+                    assert!(matches!(lifetime, SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal: 0 }))));
+                    assert!(matches!(inner.as_ref(), SemanticTypeRecipe::Address { lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal: 1 })), .. }));
+                }
+                "explicit" => assert!(matches!(lifetime, SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal: 1 })))),
+                "unique" => assert!(matches!(&signature.parameters[0].ty, SemanticTypeRecipe::Address { lifetime: input, .. } if input == lifetime)),
+                _ => panic!(),
+            }
+            assert_eq!(signature.invocation_lifetimes, 0);
+        }
+        let diagnostics = inventory("fn ambiguous(x:&i32,y:&i32)->&i32{return x}").unwrap_err();
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains("several original input lifetime roles")));
+    }
 
     #[test]
     fn default_resource_self_has_its_own_header_description_occurrence() {
