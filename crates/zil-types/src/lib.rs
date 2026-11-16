@@ -2113,12 +2113,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 let value = if let Some(e) = e {
                     let infer_task = !self.task_return_inferred && task_factories::result_task(&wanted).is_some_and(|task| matches!(task, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()));
                     let (v, t) = if infer_task {
-                        let (v, t) = self.transfer_expr(e, None)?;
-                        self.complete_task_return(&t, e.span)?;
-                        self.closures
-                            .array_snapshot(self.function.result()?, 1, e.span)?;
-                        let complete = self.function.result()?.clone();
-                        self.inject_error_union(v, t, &complete, e.span)?
+                        self.inferred_task_return_expr(e)?
                     } else {
                         self.transfer_expr(e, Some(&wanted))?
                     };

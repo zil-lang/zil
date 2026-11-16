@@ -569,6 +569,33 @@ pub(super) fn add_definition(
     Ok(has_mutex)
 }
 impl Builder<'_, '_> {
+    /// Complete the real return expression only after its contextual union
+    /// injection. The payload's literal/call receipt remains independent, but
+    /// a TypeUse of this expression observes the same complete union as the
+    /// original all-return theorem, including the inferred Task Context.
+    pub(super) fn inferred_task_return_expr(&mut self, expression: &CoreExpr) -> R<(ValueId, Type)> {
+        let entered = self.closures.semantic_begin(self.function.id, expression)?;
+        let result = (|| {
+            let (value, ty) = self.transfer_expr(expression, None)?;
+            self.complete_task_return(&ty, expression.span)?;
+            self.closures.array_snapshot(self.function.result()?, 1, expression.span)?;
+            let complete = self.function.result()?.clone();
+            self.inject_error_union(value, ty, &complete, expression.span)
+        })();
+        self.closures.semantic_end(
+            self.function.id,
+            expression.id,
+            entered,
+            result.as_ref().ok().map(|value| value.0),
+            self.current.map(|block| crate::semantics::emission::Point {
+                block,
+                instruction: self.function.blocks[block.0 as usize].instructions.len(),
+            }),
+            expression.span,
+        )?;
+        result
+    }
+
     pub(super) fn complete_task_return(&mut self, actual: &Type, span: Span) -> R<()> {
         let Some(task) = task_factories::result_task(actual) else {
             return Ok(());

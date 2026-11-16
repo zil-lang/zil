@@ -8,6 +8,30 @@ struct SourceActual {
     recipe: SemanticActualRecipe,
 }
 impl<'a> Eval<'a, '_, '_> {
+    /// Recover a Static view only from the immutable original actual recipe.
+    /// A resolved physical address with an empty table is not such a source.
+    pub(super) fn source_static_outer(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticActualRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.node(depth)?;
+        let source = self.source_specialize(scope, recipe, &mut BTreeSet::new(), depth + 1)?;
+        match source.recipe {
+            SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType { scope, source: query }) => {
+                let expanded = self.original_type(source.scope, scope, &query, depth + 1)?;
+                self.source_static_outer(source.scope, &SemanticActualRecipe::Type(expanded), depth + 1)
+            }
+            SemanticActualRecipe::Type(SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime: SemanticOuterLifeRecipe::Static,
+                ..
+            }) => Ok(true),
+            _ => Ok(false),
+        }
+    }
+
     fn scope_source_instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
         // The publication materializes actuals in place. Their defining
         // recipes remain in the one immutable original request context.

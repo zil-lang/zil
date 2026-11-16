@@ -467,8 +467,15 @@ impl Eval<'_, '_, '_> {
         Ok(())
     }
 
-    fn closed_context_actual(&mut self, value: &SemanticActual) -> R<()> {
-        let shape = match value {
+    fn closed_context_actual(
+        &mut self,
+        creator: SemanticInstanceId,
+        recipe: &SemanticActualRecipe,
+        value: &SemanticActual,
+        depth: usize,
+    ) -> R<()> {
+        self.node(depth)?;
+        let (ty, shape) = match value {
             SemanticActual::Type(SemanticTypeValue::Resolved { ty, life, classes })
             | SemanticActual::Const {
                 ty: SemanticTypeValue::Resolved { ty, life, classes },
@@ -479,13 +486,7 @@ impl Eval<'_, '_, '_> {
                         "multiple opaque origins retain a free actual class",
                     ));
                 }
-                self.module.ordinary_zero(
-                    ty,
-                    self.limits,
-                    self.left,
-                    &self.ledger.ordinary_stats,
-                )?;
-                life
+                (ty, life)
             }
             _ => {
                 return Err(unknown(
@@ -503,6 +504,24 @@ impl Eval<'_, '_, '_> {
                 "multiple opaque origins retain a nonempty actual domain",
             ));
         }
+        // Static is an original source property, not N=0 of an erased
+        // pointer. Keep the view's exact Type and prove its whole child zero;
+        // ordinary addresses still require their actual free class domain.
+        let persistent = if let Type::Address { mutable: false, inner } = ty {
+            if self.source_static_outer(creator, recipe, depth + 1)? {
+                inner.as_ref()
+            } else {
+                ty
+            }
+        } else {
+            ty
+        };
+        self.module.ordinary_zero(
+            persistent,
+            self.limits,
+            self.left,
+            &self.ledger.ordinary_stats,
+        )?;
         Ok(())
     }
 
@@ -596,8 +615,8 @@ impl Eval<'_, '_, '_> {
         for (ordinal, (recipe, claim)) in arguments.iter().zip(&child.actuals).enumerate() {
             let expected = self.recipe_actual(creator, recipe, depth + 1)?;
             let actual = self.holder_actual(child.id, ordinal as u32, claim, depth + 1)?;
-            self.closed_context_actual(&expected)?;
-            self.closed_context_actual(&actual)?;
+            self.closed_context_actual(creator, recipe, &expected, depth + 1)?;
+            self.closed_context_actual(creator, recipe, &actual, depth + 1)?;
             crate::dyn_metadata::semantic_operand_snapshot(&expected, self.limits, self.left, 1)?;
             crate::dyn_metadata::semantic_operand_snapshot(&actual, self.limits, self.left, 1)?;
             if expected != actual {
@@ -609,8 +628,8 @@ impl Eval<'_, '_, '_> {
         for (recipe, claim) in environment.iter().zip(actual_environment) {
             let expected = self.recipe_actual(creator, recipe, depth + 1)?;
             let actual = self.actual(creator, claim, depth + 1)?;
-            self.closed_context_actual(&expected)?;
-            self.closed_context_actual(&actual)?;
+            self.closed_context_actual(creator, recipe, &expected, depth + 1)?;
+            self.closed_context_actual(creator, recipe, &actual, depth + 1)?;
             crate::dyn_metadata::semantic_operand_snapshot(&expected, self.limits, self.left, 1)?;
             crate::dyn_metadata::semantic_operand_snapshot(&actual, self.limits, self.left, 1)?;
             if expected != actual {
