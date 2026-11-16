@@ -163,8 +163,31 @@ impl<'a,'m> Walk<'a,'m> {
                 semantic.pop();
             }
             Type::Managed(inner) => {
+                let map = if semantic.is_empty() {
+                    None
+                } else {
+                    let domain = self.inventory.domain(ty, b)?;
+                    self.pending |= domain.pending_sources;
+                    Some(self.boundary(semantic, domain.count, b)?)
+                };
                 semantic.push(LifeTypeProjection::Pointee);
                 self.node(inner, physical, semantic, false, depth + 1, b)?;
+                if let Some(map) = map {
+                    // Managed contributes no lifetime of its own. Its whole
+                    // occurrence must transport exactly the intrinsic indices
+                    // of the real pointee, including phantom classes.
+                    for (class, binder) in map.into_iter().enumerate() {
+                        b.spend(self.life.retained.len().saturating_add(semantic.len()))?;
+                        let mut rows = self.life.retained.iter().filter(|row| {
+                            row.path == *semantic && row.class == class as u32
+                        });
+                        if rows.next().map(|row| row.binder) != Some(binder)
+                            || rows.next().is_some()
+                        {
+                            return Err(bad("owning wrapper changes its complete pointee class map"));
+                        }
+                    }
+                }
                 semantic.pop();
             }
             Type::Tuple(fields) => {

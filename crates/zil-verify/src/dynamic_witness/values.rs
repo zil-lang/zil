@@ -935,6 +935,13 @@ mod tests {
                 class: 0,
                 binder: 1,
             }];
+            if managed {
+                actual.life.retained.insert(0, StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Pointee],
+                    class: 0,
+                    binder: 1,
+                });
+            }
             actual.life.nominal_arguments = vec![NominalLifeArgument {
                 path: path.clone(),
                 declaration,
@@ -951,7 +958,7 @@ mod tests {
             let mut collapsed = actual.clone();
             collapsed.life.binder_count = 1;
             collapsed.classes.truncate(1);
-            collapsed.life.retained[0].binder = 0;
+            for row in &mut collapsed.life.retained { row.binder = 0; }
             collapsed.life.nominal_arguments[0].binder = 0;
             assert_eq!(run(&module, &collapsed).unwrap().count, 1);
             if managed {
@@ -1013,5 +1020,49 @@ mod tests {
         let mut bad = actual.clone();
         bad.life.slots[0].mode = StoredBorrowMode::ExclusiveAddress;
         assert!(run(&module, &bad).is_err());
+    }
+
+    #[test]
+    fn borrowed_owner_preserves_wrapper_and_opaque_child_maps_without_image_equality() {
+        let module = closure(2);
+        let task = Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: RetainedLifeShape {
+                binder_count: 2,
+                ports: vec![],
+                retained: (0..2).map(|class| StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Parameter(0)], class, binder: class,
+                }).collect(),
+                nominal_arguments: vec![],
+            },
+        };
+        for inner in [Type::Closure(ClosureId(0)), task] {
+            let ty = Type::Address { mutable: false, inner: Box::new(Type::Managed(Box::new(inner))) };
+            let mut actual = value(ty, 3);
+            actual.classes = vec![StorageBinder::Fixed(0); 3];
+            actual.life.slots.push(StorageLifeSlot { path: vec![], mode: StoredBorrowMode::SharedAddress, binder: 0 });
+            for depth in [1, 2] {
+                for class in 0..2 {
+                    actual.life.retained.push(StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Pointee; depth], class, binder: class + 1,
+                    });
+                }
+            }
+            let mut budget = Budget::new(&Limits::default());
+            assert_eq!(crate::tasks::frame_shape::declared_life(&module, &actual.ty, &mut budget).unwrap(), actual.life);
+            assert_eq!(run(&module, &actual).unwrap().count, 3);
+            let mut omitted = actual.clone(); omitted.life.retained.remove(0);
+            assert!(run(&module, &omitted).is_err());
+            let mut reordered = actual.clone();
+            reordered.life.retained[2].binder = 2;
+            reordered.life.retained[3].binder = 1;
+            assert!(run(&module, &reordered).is_err(), "equal images cannot swap the child intrinsic indices");
+            let mut coalesced = actual.clone(); coalesced.life.retained[3].binder = 1;
+            assert!(run(&module, &coalesced).is_err());
+            let mut head = actual.clone(); head.life.retained[0].binder = 0;
+            assert!(run(&module, &head).is_err(), "the owner domain cannot become the outer reference head");
+            let mut phantom = actual.clone(); phantom.life.binder_count += 1; phantom.classes.push(StorageBinder::Fixed(0));
+            assert!(run(&module, &phantom).is_err());
+        }
     }
 }

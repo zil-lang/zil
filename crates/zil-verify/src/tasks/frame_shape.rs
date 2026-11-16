@@ -337,6 +337,14 @@ fn type_life(
                     binder: class + offset,
                 });
             }
+            for row in &child.retained {
+                b.spend(row.path.len().saturating_add(1))?;
+                let mut row = row.clone();
+                row.path.insert(0, LifeTypeProjection::Pointee);
+                row.binder = row.binder.checked_add(offset)
+                    .ok_or_else(|| limit("raw Task descendant class domain overflow"))?;
+                parent.retained.push(row);
+            }
             for row in &child.nominal_arguments {
                 b.spend(row.path.len().saturating_add(1))?;
                 let mut row = row.clone();

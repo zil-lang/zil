@@ -39,12 +39,17 @@ impl Rows {
                 | Type::Dyn { .. }
                 | Type::OwnedDyn { .. }
         );
-        if boundary {
+        // An owning wrapper has its own complete occurrence in its parent,
+        // while retaining every descendant occurrence below that boundary.
+        // This adds selectors, never a new intrinsic class or an image alias.
+        let wrapper = matches!(child.ty, Type::Managed(_));
+        if boundary || wrapper {
             for (class, term) in child.terms.iter().enumerate() {
                 b.spend(semantic.len().saturating_add(1))?;
                 self.retained.push((semantic.to_vec(), class as u32, *term));
             }
-        } else {
+        }
+        if !boundary {
             for row in &child.life.retained {
                 b.spend(
                     semantic
@@ -290,8 +295,8 @@ mod tests {
             [LifeTypeProjection::Pointee, LifeTypeProjection::Pointee]
         );
         assert_eq!(
-            borrowed.life.retained[0].path,
-            [LifeTypeProjection::Pointee, LifeTypeProjection::Pointee]
+            borrowed.life.retained.iter().map(|row| row.path.clone()).collect::<Vec<_>>(),
+            vec![vec![LifeTypeProjection::Pointee], vec![LifeTypeProjection::Pointee, LifeTypeProjection::Pointee]]
         );
     }
 }
