@@ -934,6 +934,14 @@ fn relation_inputs<P:InputType>(
             continue;
         }
         match actual {
+            Type::Address{..}if pointee=>{
+                let count=crate::stored_flow::reference_domain(module,actual).ok_or_else(invalid)?;
+                for local in 0..count{
+                    let row=c.classes.get(class).ok_or_else(invalid)?;
+                    if row.position.base!=base||row.position.path!=[LifeTypeProjection::Pointee]||row.position.class!=local{return Err(invalid());}
+                    class+=1;visit(row.binder,if captures.is_some(){capture}else{!output},output&&pending.contains(&row.position))?;
+                }
+            },
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
                 let owner = module
                     .and_then(|m| m.dyn_interfaces.iter().find(|d| d.id == *interface))

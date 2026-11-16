@@ -153,7 +153,7 @@ pub(crate) fn frame(
         maps,
     })
 }
-fn image(
+pub(crate) fn image(
     f: &TypedFunction,
     base: StorageBase,
     life: &StorageLifeShape,

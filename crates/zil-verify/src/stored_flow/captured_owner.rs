@@ -322,6 +322,11 @@ pub(super) fn substitute(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Permission> {
+    if matches!(source.retained_port,Some(PortOrigin::Reference{..})){
+        source_work(std::slice::from_ref(source),b)?;let mut head=source.clone();head.retained_port=None;head.inline.clear();
+        let actual=substitute(module,f,&head,captures,receiver,arguments,values,state,b)?;
+        return reference_cells::follow(source,actual,state,b);
+    }
     let HoldRoot::Capture(index) = source.base else {
         return instantiate(module, f, source, arguments, values, state, b);
     };
@@ -550,6 +555,11 @@ pub(super) fn substitute_value(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Permission> {
+    if matches!(source.retained_port,Some(PortOrigin::Reference{..})){
+        source_work(std::slice::from_ref(source),b)?;let mut head=source.clone();head.retained_port=None;head.inline.clear();
+        let actual=substitute_value(module,f,&head,captures,environment,arguments,values,state,b)?;
+        return reference_cells::follow(source,actual,state,b);
+    }
     let HoldRoot::Capture(index) = source.base else {
         return instantiate(module, f, source, arguments, values, state, b);
     };

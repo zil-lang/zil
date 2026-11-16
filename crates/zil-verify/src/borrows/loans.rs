@@ -227,10 +227,17 @@ fn reconstruct(
                     .any(|part| matches!(part, ContractProjection::RetainedPort(_)))
         })
         .collect();
+    let reference_inputs=if task_covered {
+        let rows=&budget.task_stored_sources.as_ref().ok_or_else(||reject("E-VERIFY-REFERENCE",Some(f.span),"pointer contents lack their complete stored proof"))?[f.id.0 as usize].reference_inputs;
+        budget.spend(rows.len().saturating_mul(2))?;
+        budget.task_stored_sources.as_ref().unwrap()[f.id.0 as usize].reference_inputs.iter().map(|(source,exclusive)|(source.base,*exclusive)).collect::<Vec<_>>()
+    }else{Vec::new()};
+    let mut reference_loans=Vec::new();
     let mut parameter_loans = BTreeMap::new();
     let count = base
         .checked_add(incoming.len())
         .and_then(|n| n.checked_add(task_ports.len()))
+        .and_then(|n| n.checked_add(reference_inputs.len()))
         .and_then(|n| n.checked_add(ports.created.len()))
         .ok_or_else(|| limit("capture loan identity count overflow"))?;
     budget.spend(
@@ -265,7 +272,7 @@ fn reconstruct(
             .map(|(index, key)| {
                 (
                     key.clone(),
-                    base + incoming.len() + task_ports.len() + index,
+                    base + incoming.len() + task_ports.len() + reference_inputs.len() + index,
                 )
             })
             .collect(),
@@ -359,6 +366,12 @@ fn reconstruct(
                 ));
             }
         }
+    }
+    for(index,(origin,exclusive))in reference_inputs.iter().enumerate(){
+        let loan=base+incoming.len()+task_ports.len()+index;
+        flow.mutable[loan]=*exclusive;
+        flow.roots[loan]=vec![Root::Reference(*origin,u32::try_from(index).map_err(|_|limit("pointer-content loan namespace exceeded"))?)];
+        reference_loans.push(loan);
     }
     for (index, _) in f.parameters.iter().enumerate() {
         parameter_loans.insert(
@@ -780,7 +793,7 @@ fn reconstruct(
                                 crate::stored_flow::TaskLoanAnchor::Input(position) => {
                                     position.path.len()
                                 }
-                                crate::stored_flow::TaskLoanAnchor::Value(_) => 1,
+                                crate::stored_flow::TaskLoanAnchor::Value(_) | crate::stored_flow::TaskLoanAnchor::Reference(_) => 1,
                             })
                             .ok_or_else(|| limit("Task parent anchor work overflow"))
                         })?;
@@ -807,6 +820,9 @@ fn reconstruct(
                                         )
                                     })?;
                                     external.insert(*loan);
+                                }
+                                crate::stored_flow::TaskLoanAnchor::Reference(index)=>{
+                                    external.insert(*reference_loans.get(*index as usize).ok_or_else(||reject("E-VERIFY-REFERENCE",Some(instruction.span),"pointer-content parent has no independently reconstructed input loan"))?);
                                 }
                                 crate::stored_flow::TaskLoanAnchor::Value(value) => {
                                     if value.0 as usize != id {

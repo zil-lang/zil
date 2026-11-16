@@ -370,6 +370,14 @@ impl Equations {
                     class,
                 ));
             }
+        } else if matches!(ty,Type::Address{..}) {
+            // The raw referent is one complete constructor domain. Keep each
+            // inner class, including ghosts, before applying outside images.
+            crate::dynamic_metadata::ty(ty,b)?;
+            let count=crate::stored_flow::reference_domain(Some(module),ty).ok_or_else(||bad("raw pointer referent has no complete intrinsic domain"))?;
+            if count as usize>b.limits.max_nodes{return Err(limit("raw reference class domain exceeded"));}
+            b.spend(count as usize)?;direct=true;
+            for class in 0..count{keys.push((vec![LifeTypeProjection::Pointee],class));}
         } else if matches!(ty,Type::Managed(_)|Type::Desc(_)|Type::OwnedStore{..}|Type::Slice{..}|Type::Package{..})
             || !module.life_instances.is_empty()
             && matches!(
@@ -575,6 +583,15 @@ fn shape(ty: &Type) -> Option<&StorageLifeShape> {
     } else {
         None
     }
+}
+/// A real cell's pointer value has its own outer occurrence followed by all
+/// of its referent's complete classes. The cell-address outer is independent.
+fn raw_pointer_value(cell:&Ports,value:&Ports,e:&mut Equations,b:&mut Budget)->Check<()>{
+    b.spend(cell.classes.len().saturating_add(value.classes.len()).saturating_add(1))?;
+    if cell.classes.len()!=value.classes.len().saturating_add(1){return Err(bad("pointer-cell value loses its complete pointee class directory"));}
+    let outer=value.outer.ok_or_else(||bad("pointer-cell value has no actual address outer"))?;
+    e.equal(cell.classes[0],outer,b)?;
+    for(from,to)in cell.classes.iter().skip(1).zip(&value.classes){e.equal(*from,*to,b)?;}Ok(())
 }
 fn link_projection(
     parent_ty: &Type,
@@ -2046,6 +2063,13 @@ fn check_with(
                                 )?;
                             }
                         }
+                    }
+                    InstructionKind::ReadAddress{address}if matches!(&f.values[address.0 as usize],Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..}))=>{
+                        let result=out.ok_or_else(||bad("pointer-cell read has no actual result class directory"))?;
+                        raw_pointer_value(&values[address.0 as usize],result,&mut e,b)?;
+                    }
+                    InstructionKind::WriteAddress{address,value}if matches!(&f.values[address.0 as usize],Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..}))=>{
+                        raw_pointer_value(&values[address.0 as usize],&values[value.0 as usize],&mut e,b)?;
                     }
                     InstructionKind::ReadAddress { address } => {
                         if let Some(out) = out {

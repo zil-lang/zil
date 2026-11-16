@@ -468,6 +468,7 @@ pub(super) fn source_relation(
                 .chain(carrier.iter().copied()).collect::<Vec<_>>();
             dyn_returns::source_relation_at(module,f,base,&path,*port,b)
         }
+        Some(PortOrigin::Reference{..})=>reference_cells::relation(module,f,source,b),
         None => relation(f, base, &source.leaf, b),
     }
 }
@@ -839,6 +840,7 @@ fn anchors(
     current: ValueId,
     p: &Permission,
     loans: &[Loan],
+    references: &[(Source,bool)],
     b: &mut Budget,
 ) -> Check<Vec<TaskLoanAnchor>> {
     b.spend(p.loans.len())?;
@@ -869,6 +871,7 @@ fn anchors(
             continue;
         }
         for source in &loan.sources {
+            if let Some(index)=reference_cells::input_index(references,source,b)?{out.push(TaskLoanAnchor::Reference(index));continue;}
             let HoldRoot::Parameter(index) = source.base else {
                 if source.base == HoldRoot::Static {
                     continue;
@@ -909,6 +912,7 @@ pub(super) fn checked_sources(
         covered: true,
         ..TaskFunctionSources::default()
     };
+    out.reference_inputs=reference_cells::inputs(s,b)?;
     b.spend(f.values.len())?;
     for (id, p) in s.values.iter().enumerate() {
         let mut row = TaskValueSources::default();
@@ -916,6 +920,7 @@ pub(super) fn checked_sources(
         b.spend(p.leaves.len().saturating_add(p.task_ports.len()))?;
         for source in &p.address.sources {
             row.pointer.push(TaskPointerRoot {
+                reference:reference_cells::input_index(&out.reference_inputs,source,b)?,
                 base: source.base,
                 dynamic:matches!(source.retained_port,Some(PortOrigin::Dyn{..})),
                 carrier: match &source.retained_port {
@@ -933,19 +938,19 @@ pub(super) fn checked_sources(
                 },
                 port: match &source.retained_port {
                     Some(PortOrigin::Task { port, .. }|PortOrigin::Dyn{port,..}) => Some(*port),
-                    None => None,
+                    None | Some(PortOrigin::Reference{..}) => None,
                 },
             });
             row.public.push(source.base);
         }
-        row.pointer_parents = anchors(f, ValueId(id as u32), &p.address, &s.loans, b)?;
+        row.pointer_parents = anchors(f, ValueId(id as u32), &p.address, &s.loans, &out.reference_inputs, b)?;
         for (_, permission) in &p.leaves {
             permission_work(permission, b)?;
             for source in &permission.sources {
                 row.public.push(source.base);
             }
             row.payload_parents
-                .extend(anchors(f, ValueId(id as u32), permission, &s.loans, b)?);
+                .extend(anchors(f, ValueId(id as u32), permission, &s.loans, &out.reference_inputs, b)?);
         }
         for (path, permission) in p.task_ports.iter().map(|(path,permission)|(path,permission))
             .chain(p.dyn_ports.0.iter().map(|(path,port)|(path,&port.permission))) {
@@ -954,6 +959,7 @@ pub(super) fn checked_sources(
             for source in &permission.sources {
                 row.public.push(source.base);
                 targets.push(TaskPointerRoot {
+                    reference:reference_cells::input_index(&out.reference_inputs,source,b)?,
                     base: source.base,
                     dynamic:matches!(source.retained_port,Some(PortOrigin::Dyn{..})),
                     carrier: match &source.retained_port {
@@ -971,7 +977,7 @@ pub(super) fn checked_sources(
                     },
                     port: match &source.retained_port {
                         Some(PortOrigin::Task { port, .. }|PortOrigin::Dyn{port,..}) => Some(*port),
-                        None => None,
+                        None | Some(PortOrigin::Reference{..}) => None,
                     },
                 });
             }
@@ -983,7 +989,7 @@ pub(super) fn checked_sources(
             targets.sort();
             targets.dedup();
             row.retained.push((path.clone(), targets));
-            row.payload_parents.extend(anchors(f,ValueId(id as u32),permission,&s.loans,b)?);
+            row.payload_parents.extend(anchors(f,ValueId(id as u32),permission,&s.loans,&out.reference_inputs,b)?);
         }
         for count in [
             row.pointer.len(),

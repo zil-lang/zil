@@ -48,6 +48,8 @@ pub(crate) fn context_capture_type(module: &TypedModule, ty: &Type, b: &mut Budg
     Ok(true)
 }
 mod leaf_rows;
+mod reference_cells;
+pub(crate) fn reference_domain(module:Option<&TypedModule>,ty:&Type)->Option<u32>{reference_cells::domain(module,ty)}
 mod live_words;
 pub(super) mod owned_byte_views;
 mod qualified_heads;
@@ -122,6 +124,7 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
         .collect();
     while let Some(ty) = pending.pop() {
         b.spend(1)?;
+        if reference_cells::nested(ty){return Ok(true);}
         if shared_array_value(ty) {
             return Ok(true);
         }
@@ -502,6 +505,10 @@ type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 /// Typed opaque carrier namespace. A Task port never supplies a Dyn target.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
+    // An ordered sequence of real pointer-cell reads. Each path selects the
+    // physical cell before the next dereference. This is never a public
+    // RetainedPort/Class selector, an owning edge or a synthesized GEP.
+    Reference { steps: Vec<Path> },
     Task {
         carrier: Vec<zil_ir::ContractProjection>,
         port: u32,
@@ -594,6 +601,7 @@ struct Frame {
     /// Union of paths left vacant by any incoming branch.
     vacant: Vec<Source>,
     prepared: Vec<replacements::Prepared>,
+    reference_cells: reference_cells::Cells,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Loan {
@@ -624,6 +632,7 @@ struct Summary {
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     dyn_ports: dyn_ports::Rows,
     external_after: Vec<(u32, Path, Vec<Source>)>,
+    reference_after: reference_cells::After,
     external_stable: Vec<(u32, Path)>,
     capture_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
@@ -652,6 +661,7 @@ pub(super) struct DynStaticObligation {
 pub(super) enum TaskLoanAnchor {
     Value(ValueId),
     Input(zil_ir::StoragePosition),
+    Reference(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct TaskPointerRoot {
@@ -659,6 +669,7 @@ pub(super) struct TaskPointerRoot {
     pub(super) dynamic: bool,
     pub(super) port: Option<u32>,
     pub(super) carrier: Vec<ContractProjection>,
+    pub(super) reference: Option<u32>,
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct TaskValueSources {
@@ -673,6 +684,8 @@ pub(super) struct TaskFunctionSources {
     /// False denotes an ordinary function omitted from stored solving.
     pub(super) covered: bool,
     pub(super) values: Vec<TaskValueSources>,
+    // Exact incoming pointer-content coordinates, separate from slot heads.
+    pub(super) reference_inputs: Vec<(Source,bool)>,
 }
 struct Solution {
     values: Vec<Payload>,
@@ -718,6 +731,7 @@ pub(crate) fn task_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> C
 fn width(s: &Source) -> usize {
     let opaque = match &s.retained_port {
         Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => carrier.len(),
+        Some(PortOrigin::Reference{steps})=>steps.iter().fold(steps.len(),|n,path|n.saturating_add(path.len())),
         _ => 0,
     };
     s.leaf
@@ -794,6 +808,7 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
 fn frame_work(f: &Frame, b: &mut Budget) -> Check<()> {
     source_work(&f.vacant, b)?;
     replacements::frame_work(&f.prepared, b)?;
+    reference_cells::work(&f.reference_cells,b)?;
     b.spend(
         f.locals
             .len()
@@ -1021,6 +1036,7 @@ fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
     }
     add_sources(&mut to.vacant, &from.vacant, b)?;
     replacements::join(&mut to.prepared, &from.prepared, b)?;
+    reference_cells::join(&mut to.reference_cells,&from.reference_cells,b)?;
     b.spend(
         to.locals
             .len()
@@ -2818,6 +2834,7 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
         external: vec![Payload::default(); f.parameters.len()],
         vacant: Vec::new(),
         prepared: Vec::new(),
+        reference_cells: reference_cells::Cells::default(),
     })
 }
 fn seed(
@@ -2887,6 +2904,7 @@ fn seed(
             state.captures[index] = payload;
         }
     }
+    reference_cells::seed(module,f,&mut state,loans,b)?;
     Ok(state)
 }
 fn select(
@@ -3214,8 +3232,10 @@ fn instantiate(
         .get(position as usize)
         .and_then(|v| values.get(v.0 as usize))
         .ok_or_else(|| err("callee source has no actual argument"))?;
+    if matches!(source.retained_port,Some(PortOrigin::Reference{..})){return reference_cells::substitute(module,f,source,args,values,state,b);}
     let mut p = if let Some(port) = &source.retained_port {
         match port {
+            PortOrigin::Reference{..}=>unreachable!("raw reference handled before opaque selection"),
             PortOrigin::Task { carrier, port } => {
                 task_address::select_carrier(v, &source.leaf, carrier, *port, b)?
             }
@@ -3438,6 +3458,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let reference_updates=reference_cells::prepare_call(module,f,i,summaries,values,state,dyn_sites,loans,b)?;
     let dyn_capture_updates =
         dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let task_tags = enum_address::tags::transfer(f,i,state,values,b)?;
@@ -4316,7 +4337,7 @@ static_dependency: StaticProvenance::NotStatic,
                     add_leaf(&mut out, path, &p, b)?;
                 }
             }
-            if b.dyn_contexts || b.closure_receiver_borrows {
+            if b.raw_reference_cells || b.dyn_contexts || b.closure_receiver_borrows {
                 for parent in &summaries[function.0 as usize].dyn_result_parents {
                     let actual = instantiate(module, f, parent, arguments, values, state, b)?;
                     if b.closure_receiver_borrows && receiver::helper_head(callee, parent) {
@@ -4496,6 +4517,17 @@ static_dependency: StaticProvenance::NotStatic,
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
+        InstructionKind::ReadAddress { address } if reference_cells::nested(vt(f,*address)?)=>{
+            let result=i.result.ok_or_else(||err("pointer-cell read has no actual result"))?;
+            if !matches!(vt(f,result)?,Type::Address{mutable:false,..}){return Err(err("pointer-cell read cannot copy an exclusive pointer"));}
+            out.address=reference_cells::read(state,&val(*address)?.address,b)?;
+            if out.address.sources.is_empty(){state.pending_external_update=true;}
+        }
+        InstructionKind::WriteAddress{address,value}if reference_cells::nested(vt(f,*address)?)=>{
+            let Type::Address{mutable:true,inner}=vt(f,*address)?else{return Err(err("pointer-cell replacement lacks exclusive slot permission"));};
+            if !matches!(inner.as_ref(),Type::Address{mutable:false,..})||inner.as_ref()!=vt(f,*value)?{return Err(err("pointer-cell replacement changes its complete shared pointer type"));}
+            reference_cells::write(module,f,i,state,&val(*address)?.address,&val(*value)?.address,inner,dyn_sites,loans,b)?;
+        }
         InstructionKind::ReadAddress { address } => {
             let Type::Address { inner, .. } = vt(f, *address)? else {
                 return Err(err("array read lacks actual address"));
@@ -4569,6 +4601,7 @@ static_dependency: StaticProvenance::NotStatic,
     }
     captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
     dyn_captures::publish_after(state, dyn_capture_updates, b)?;
+    reference_cells::publish(state,reference_updates,b)?;
     if b.qualified_head_returns
         && let Some(id) = i.result
         && let Some(current) = qualified_heads::rows(vt(f, id)?, &out, state, b)?
@@ -5204,6 +5237,7 @@ fn live_loans(
             &state.locals[id - solution.values.len()]
         };
         loans.add(&payload.address.loans, b)?;
+        if b.raw_reference_cells{loans.add(&reference_cells::held(state,&payload.address,b)?,b)?;}
         if b.store_descriptions()||!payload.store_description.loans.is_empty(){
             loans.add(&payload.store_description.loans, b)?;
         }
@@ -5236,6 +5270,7 @@ fn live_loans(
             collect(id, b)?;
         }
     }
+    for row in &state.reference_cells.0{if matches!(row.location.base,HoldRoot::Parameter(_)|HoldRoot::Capture(_)){loans.add(&row.permission.loans,b)?;}}
     if b.task_sources() {
         // The actual frame retains its inputs until its owning carrier moves
         // or is discharged; dead SSA uses of a head do not discharge a frame.
@@ -5300,6 +5335,7 @@ fn live_loans_main_fullscan(
             &state.locals[id - solution.values.len()]
         };
         add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
+        if b.raw_reference_cells{add_loans_by_scan(&mut loans,&reference_cells::held(state,&payload.address,b)?,b)?;}
         if b.store_descriptions()||!payload.store_description.loans.is_empty(){
             add_loans_by_scan(&mut loans, &payload.store_description.loans, b)?;
         }
@@ -5318,6 +5354,7 @@ fn live_loans_main_fullscan(
             add_loans_by_scan(&mut loans, &p.loans, b)?;
         }
     }
+    for row in &state.reference_cells.0{if matches!(row.location.base,HoldRoot::Parameter(_)|HoldRoot::Capture(_)){add_loans_by_scan(&mut loans,&row.permission.loans,b)?;}}
     if b.task_sources() {
         // The actual frame retains its inputs until its owning carrier moves
         // or is discharged; dead SSA uses of a head do not discharge a frame.
@@ -6204,6 +6241,11 @@ fn windows(
                         }
                         checks.check(pointer(*value)?, exclusive, requirements, b)?;
                     }
+                    InstructionKind::CallIndirect{callee,arguments}if b.raw_reference_cells&&arguments.iter().any(|argument|matches!(f.values.get(argument.0 as usize),Some(Type::Address{mutable:true,inner})if matches!(inner.as_ref(),Type::Address{..})))=>{
+                        for target in reference_cells::code_targets(f,*callee,b)?{
+                            check_call(module,f,target,arguments,solution,&state,&mut checks,summaries,requirements,byte_flow.as_ref(),byte_point.as_ref(),head_accesses,b)?;
+                        }
+                    }
                     InstructionKind::CallIndirect { arguments, .. }
                     | InstructionKind::CallClosure { arguments, .. }
                     | InstructionKind::CallClosureBorrowed { arguments, .. }
@@ -6505,12 +6547,14 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    reference_cells::after_work(&s.reference_after,b)?;
     if replacements::heads(b) {
         b.spend(s.head_accesses.len())?;
         for (source, _) in &s.head_accesses {
             b.spend(width(source))?;
         }
     }
+    if b.raw_reference_cells&&!b.dyn_contexts{source_work(&s.dyn_result_parents,b)?;}
     if b.dyn_contexts {
         dyn_ports::work(&s.dyn_ports, b)?;
         dyn_providers::work(s, b)?;
@@ -6897,6 +6941,7 @@ fn summarize(
             }
         }
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
+            reference_cells::summarize(f,&solution.entry,&solution.outputs[bi],&solution.loans,&mut summary,b)?;
             dyn_returns::after(
                 module,
                 f,
@@ -6947,7 +6992,7 @@ fn summarize(
                 &solution.dyn_sites,
                 b,
             )?;
-            if (b.dyn_contexts || b.closure_receiver_borrows)
+            if (b.raw_reference_cells || b.dyn_contexts || b.closure_receiver_borrows)
                 && matches!(f.return_type, Type::Address { .. })
             {
                 let parents = dyn_returns::parents(&payload.address, &solution.loans, b)?;
@@ -7342,7 +7387,7 @@ fn solve_check(
                     && inventory.eligible(index)
                     && readonly_recursion::Inventory::lower_roots(f, &solution, b)?;
             }
-            if b.stored_slot_updates || b.dyn_contexts || b.replacements {
+            if b.raw_reference_cells || b.stored_slot_updates || b.dyn_contexts || b.replacements {
                 b.spend(f.blocks.len())?;
                 for block in &f.blocks {
                     b.spend(block.instructions.len())?;
@@ -7501,6 +7546,7 @@ fn solve_check(
                 checked.push(TaskFunctionSources {
                     covered: false,
                     values: vec![TaskValueSources::default(); f.values.len()],
+                    reference_inputs: Vec::new(),
                 });
             }
             continue;
@@ -7692,6 +7738,7 @@ fn solve_check(
                                         module, f, position, carrier, *port, b,
                                     )?
                                 }
+                                Some(PortOrigin::Reference { .. }) => reference_cells::relation(module,f,source,b)?,
                                 None => unreachable!(),
                             }
                         } else {

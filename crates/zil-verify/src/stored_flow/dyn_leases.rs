@@ -7,6 +7,7 @@ type ContractPath = Vec<ContractProjection>;
 pub(super) enum Destination {
     Result(ContractPath),
     After(StoragePosition),
+    Reference(Source),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Component {
@@ -57,6 +58,7 @@ fn key_work(destination: &Destination, component: &Component) -> usize {
     let to = match destination {
         Destination::Result(path) => path.len(),
         Destination::After(position) => position.path.len().saturating_add(1),
+        Destination::Reference(source)=>width(source),
     };
     let from = match component {
         Component::Summary(source) | Component::Head(source) => width(source),

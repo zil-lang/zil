@@ -18,6 +18,8 @@ pub(super) enum Root {
     // Second index is an interned complete metadata path, never a bare port ordinal.
     ParameterPort(u32, u32),
     ParameterCapture(u32, u32),
+    // Function-local index of an independently reconstructed incoming cell value.
+    Reference(HoldRoot,u32),
 }
 /// Intern one complete parameter-port selector after paying every candidate
 /// comparison. Equality of compact roots means equality of full carrier paths.
@@ -76,6 +78,7 @@ pub(super) fn task_source(
     source: &crate::stored_flow::TaskPointerRoot,
     budget: &mut Budget,
 ) -> Check<Root> {
+    if let Some(index)=source.reference{return Ok(Root::Reference(source.base,index));}
     let mut root=match (source.base, source.port) {
         (HoldRoot::Parameter(parameter), Some(port)) => {
             budget.spend(source.carrier.len().saturating_add(1))?;
@@ -109,7 +112,7 @@ impl Root {
             Self::Local(local) | Self::Field(local, _) | Self::Projection(local, ..) => {
                 HoldRoot::Local(local)
             }
-            Self::Window(root, ..) => root,
+            Self::Reference(root,_) | Self::Window(root, ..) => root,
             Self::StoreElementWindow(root, ..) => root,
             Self::Capture(index) | Self::CapturePort(index, _) => HoldRoot::Capture(index),
             Self::Parameter(index)
@@ -126,6 +129,7 @@ impl Root {
         // An incoming environment position is distinct from its externally
         // captured targets. Different capture slots are symbolic: the actual
         // caller must instantiate them before proving any separation.
+        if matches!(left, Self::Reference(..)) || matches!(right,Self::Reference(..)){return left==right;}
         if matches!(left, Self::ParameterCapture(..)) || matches!(right, Self::ParameterCapture(..))
         {
             return left == right;

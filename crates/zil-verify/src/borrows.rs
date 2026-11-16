@@ -1589,7 +1589,7 @@ fn check_module_mask(
                     // pointer away from its frame. Equal coarse origins retain
                     // ordinary field/window detail and its existing loans.
                     budget.spend(sources.pointer.len())?;
-                    if sources.pointer.iter().all(|source| source.port.is_none()) {
+                    if sources.pointer.iter().all(|source| source.port.is_none()&&source.reference.is_none()) {
                         let count = row.len().saturating_add(roots.len());
                         budget.spend(
                             count.saturating_mul(

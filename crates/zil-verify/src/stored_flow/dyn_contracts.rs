@@ -8,6 +8,7 @@ fn covers(upper:&StoragePosition,actual:&StoragePosition,b:&mut Budget)->Check<b
     Ok(upper.base==actual.base&&actual.path.starts_with(&upper.path)&&actual.path[upper.path.len()..].iter().all(|step|matches!(step,ContractProjection::Place(_))))
 }
 fn position(request:&ContractRequest,module:&TypedModule,source:&Source,b:&mut Budget)->Check<Option<StoragePosition>>{
+    if matches!(source.retained_port,Some(PortOrigin::Reference{..})){return Err(bad("raw pointer contents cannot be flattened into a physical or opaque contract selector"));}
     if let Origin::TableSlot{table,..}=request.origin{
         let table=module.dyn_vtables.iter().find(|row|row.id==table).ok_or_else(||bad("actual original contract table disappeared"))?;
         let mut position=super::dyn_providers::selected(table,source,b)?;
@@ -16,7 +17,7 @@ fn position(request:&ContractRequest,module:&TypedModule,source:&Source,b:&mut B
     let base=match source.base{HoldRoot::Parameter(index)=>StorageBase::Parameter(index),HoldRoot::Capture(index)=>{if matches!(request.origin,Origin::Callable{..}){let mut path=vec![ContractProjection::Capture(index)];path.extend(source.leaf.iter().copied().map(ContractProjection::Place));path.extend(source.inline.iter().copied().map(ContractProjection::Place));return Ok(Some(StoragePosition{base:StorageBase::Receiver,path}));}StorageBase::Capture(index)},HoldRoot::Static|HoldRoot::Local(_)=>return Ok(None)};
     if source.heap_element.is_some()||!source.heap_parents.is_empty(){return Err(bad("original contract actual source requires an explicit owned-region selector"));}
     let mut path=source.leaf.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();
-    if let Some(port)=&source.retained_port{let(carrier,port)=match port{PortOrigin::Task{carrier,port}|PortOrigin::Dyn{carrier,port}=>(carrier,*port)};path=carrier.clone();path.push(ContractProjection::RetainedPort(port));}
+    if let Some(port)=&source.retained_port{let(carrier,port)=match port{PortOrigin::Task{carrier,port}|PortOrigin::Dyn{carrier,port}=>(carrier,*port),PortOrigin::Reference{..}=>return Err(bad("raw pointer contents require their independent input lifetime relation, not an opaque contract position"))};path=carrier.clone();path.push(ContractProjection::RetainedPort(port));}
     path.extend(source.inline.iter().copied().map(ContractProjection::Place));b.spend(path.len())?;Ok(Some(StoragePosition{base,path}))
 }
 fn header(module:&TypedModule,request:&ContractRequest,b:&mut Budget)->Check<()>{

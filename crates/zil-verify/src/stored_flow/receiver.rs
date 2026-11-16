@@ -233,6 +233,12 @@ pub(super) fn receiver_result(
             }
         }
     }
+    if b.raw_reference_cells{
+        for source in &summary.dyn_result_parents{
+            let actual=if let Some(value)=consumed{captured_owner::substitute_value(module,f,source,&d.captures,&values[value.0 as usize],arguments,values,state,b)?}else{captured_owner::substitute(module,f,source,&d.captures,&receiver,arguments,values,state,b)?};
+            add_loans(&mut out.address.loans,&actual.loans,b)?;
+        }
+    }
     let life = d
         .storage_life
         .as_ref()

@@ -467,6 +467,7 @@ struct Budget {
     owning_address_captures: bool,
     head_descriptions: bool,
     stored_enum_addresses: bool,
+    raw_reference_cells: bool,
     task_borrowed_results: bool,
     task_retained_environments: bool,
     // Raw actual Task plus callback-header inventory schedules the complete
@@ -515,13 +516,13 @@ impl Budget {
         self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
     }
     fn task_sources(&self) -> bool {
-        self.task_borrowed_results
+        self.raw_reference_cells || self.task_borrowed_results
             || self.task_failure_carriers
             || self.task_retained_environments
             || self.task_scope_composition
     }
     fn masked_stored_tasks(&self) -> bool {
-        self.store_option_results || self.task_failure_carriers
+        self.raw_reference_cells || self.store_option_results || self.task_failure_carriers
     }
 
     fn new(limits: &Limits) -> Self {
@@ -591,6 +592,7 @@ impl Budget {
             owning_address_captures: false,
             head_descriptions: false,
             stored_enum_addresses: false,
+            raw_reference_cells: false,
             task_borrowed_results: false,
             task_retained_environments: false,
             task_scope_composition: false,
@@ -1668,6 +1670,7 @@ fn check_type_shape(
     let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        if matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})){budget.raw_reference_cells=true;budget.stored_borrows=true;}
         budget.actual_store_types |= matches!(ty, Type::OwnedStore { .. });
         budget.head_descriptions |= matches!(ty, Type::Mutex { .. } | Type::MutexGuard { .. });
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
