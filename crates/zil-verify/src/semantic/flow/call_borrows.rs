@@ -183,8 +183,7 @@ mod input_image_tests{
     // the scoped invocation substitution, never a Source or borrow authority.
     #[test]
     fn invocation_result_preserves_original_head_images_and_opaque_occurrences(){
-        let mut module=crate::resource_closure_tests::fixture(CallableKind::Fn,false,0);
-        module.semantic=Some(SemanticModule{definitions:vec![],instances:vec![],sites:vec![],dyn_scopes:vec![]});
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/phantom-closure-complete-creator.wire"),&Limits::default()).unwrap();
         let mut b=Budget::new(&Limits::default());
         let context=CheckedContext::catalogue(&module,&mut b).unwrap();
         let owner=SemanticDefinitionId{module:module.module_id,index:0};

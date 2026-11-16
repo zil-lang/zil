@@ -480,8 +480,13 @@ fn endpoint_fixture(bad_task: bool) -> TypedModule {
 
 #[test]
 fn slot_layout_actual_endpoint_mark_sum_rebuilds_and_keeps_task_context_rejection() {
-    for bad_task in [false, true] {
-        let module = endpoint_fixture(bad_task);
+    for (has_task,malformed) in [(false,false),(true,false),(true,true)] {
+        let mut module = endpoint_fixture(has_task);
+        if malformed{
+            let Type::Managed(payload)=&mut module.functions[0].locals.last_mut().unwrap().ty else{unreachable!()};
+            let Type::Task{retained_life,..}=payload.as_mut() else{unreachable!()};
+            retained_life.ports.push(zil_ir::RetainedBorrowPort{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress,binder:0});
+        }
         let gs = graphs(&module);
         let mut b = budget(ROOM);
         configure(&module, &mut b);
@@ -507,11 +512,11 @@ fn slot_layout_actual_endpoint_mark_sum_rebuilds_and_keeps_task_context_rejectio
         let old = captured(|| old_run(&module, &mut binding, &effects, false, None, &mut a, None));
         let new = captured(|| request.run(0, &effects, false, None));
         assert_eq!(old, new);
-        if bad_task {
+        if malformed {
             let error = new.result.unwrap_err();
             assert_eq!(error.category, zil_base::ResultCategory::SafeReject);
-            assert_eq!(error.code, "E-VERIFY-TASK-RESULT");
-            assert!(error.message.contains("shared Task result"));
+            assert_eq!(error.code, "E-VERIFY-TASK");
+            assert!(error.message.contains("port"));
             assert_eq!(snapshot_slots(request.slots(0).unwrap()), before);
         } else {
             old.result.unwrap();

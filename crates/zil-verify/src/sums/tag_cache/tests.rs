@@ -481,7 +481,17 @@ fn local_copy_index_keeps_false_distinct_from_shape_and_rejects_context_failures
             }],
         )],
     };
-    let invalid_f = function(vec![invalid]);
+    // Opaque Task metadata can have a complete zero domain with pending
+    // runtime sources. It is a non-Copy near control, never a Copy proof.
+    let deferred_f=function(vec![invalid.clone()]);let deferred_ty=&deferred_f.locals[0].ty;
+    let mut deferred_cache=Cache::new(&deferred_f);
+    let deferred_root=Arc::new(Content::Sum(BTreeMap::from([(0,vec![Content::Copy])]),None));
+    assert!(!budget(1,1_000_000).addressed_copy_sum(deferred_ty).unwrap());
+    assert!(!deferred_cache.known(0,&deferred_root,deferred_ty,&mut budget(1,1_000_000)).unwrap());
+    let Type::Enum{mut variants,name}=invalid else{unreachable!()};
+    let Type::Task{retained_life,..}=&mut variants[0].1[0] else{unreachable!()};
+    retained_life.ports.push(zil_ir::RetainedBorrowPort{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress,binder:0});
+    let invalid_f = function(vec![Type::Enum{name,variants}]);
     let invalid_ty = &invalid_f.locals[0].ty;
     let mut invalid_cache = Cache::new(&invalid_f);
     let root = Arc::new(Content::Sum(
@@ -662,6 +672,11 @@ fn static_tag_layout_index_keeps_actual_types_and_fresh_cost_boundaries() {
             nominal_arguments: vec![],
         },
     }]);
+    let mut deferred_cache=Cache::new(&invalid);
+    assert_eq!(deferred_cache.layout(0,&invalid.locals[0].ty,&mut budget(1,1_000_000)).unwrap(),0);
+    let mut invalid=invalid.clone();
+    let Type::Task{retained_life,..}=&mut invalid.locals[0].ty else{unreachable!()};
+    retained_life.ports.push(zil_ir::RetainedBorrowPort{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress,binder:0});
     let mut cache = Cache::new(&invalid);
     assert_eq!(
         cache

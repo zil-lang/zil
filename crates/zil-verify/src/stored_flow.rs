@@ -1308,7 +1308,8 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         match t {
             Type::Address { mutable, inner } => {
                 type_work(inner, limits, b)?;
-                if !inner.is_address_pointee() {
+                if !inner.is_address_pointee()
+                    && !(qualified(inner).is_some()&&physical(inner,limits,b)?){
                     return Err(err("stored shared leaf has invalid actual pointee"));
                 }
                 b.spend(path.len().saturating_add(1))?;

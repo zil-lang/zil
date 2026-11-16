@@ -695,12 +695,12 @@ mod tests {
                 nominal_arguments: vec![],
             },
         };
-        assert!(
-            run(&module, &value(task, 0))
-                .unwrap_err()
-                .message
-                .contains("worker/frame")
-        );
+        let domain=run(&module,&value(task.clone(),0)).unwrap();
+        assert_eq!(domain.count,0);assert!(domain.pending_sources,"a known shape cannot discharge an actual worker/result source");
+        let Type::Task{mut retained_life,result}=task else{unreachable!()};
+        retained_life.ports.push(RetainedBorrowPort{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress,binder:0});
+        let malformed=Type::Task{result,retained_life};
+        assert!(run(&module,&value(malformed,0)).is_err(),"a zero-domain Task cannot declare port binder zero");
     }
     #[test]
     fn two_same_opaque_children_keep_two_complete_occurrence_directories() {

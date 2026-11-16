@@ -1144,12 +1144,10 @@ pub(super) fn check_module(
                         Some(f.span),
                         budget,
                     )?;
-                    if life != actual {
-                        return Err(unsupported(
-                            "captured Fixed helper role needs its actual capture mapping",
-                            Some(f.span),
-                        ));
-                    }
+                    // Persistent captures remain rigid; each concrete call
+                    // independently checks the role's private invocation
+                    // equations against this entry and its actual operands.
+                    crate::signature_life::role_relation(module,definition,life,Some(f.span),budget)?;
                 } else {
                     borrowed_fp::relation(
                         &definition.parameters,
