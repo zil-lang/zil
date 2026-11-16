@@ -719,6 +719,28 @@ pub(in crate::stored_flow) fn cleanup_proof(
 mod access_tests {
     use super::*;
     #[test]
+    fn whole_provider_cleanup_consumes_owners_but_not_external_port_targets() {
+        let (mut module,_)=crate::tests::baseline();
+        let claim=DynCleanupContract{environment:true,positions:vec![],access:DynCallAccess{reads:vec![],writes:vec![]},effects:vec![]};
+        let shared=|inner|Type::Address{mutable:false,inner:Box::new(inner)};
+        // Even a borrowed head to an asynchronous owner is only a dependency.
+        // Destruction of the provider never destroys the borrowed target.
+        let borrowed=Type::Record{name:"cleanup.Provider".into(),fields:vec![("pointer".into(),shared(Type::Managed(Box::new(Type::TaskI32))))]};
+        assert!(cleanup_proof(&module,&borrowed,&claim,&mut Budget::new(&Limits::default())).is_ok());
+        let leaf=shared(Type::I32);
+        let product=Type::Record{name:"cleanup.Product".into(),fields:vec![("pointer".into(),leaf.clone()),("text".into(),shared(Type::Slice{element:Box::new(Type::U8)}))]};
+        let sum=Type::ErrorUnion{error:Box::new(Type::I32),result:Box::new(Type::Array{element:Box::new(product),length:2})};
+        assert!(cleanup_proof(&module,&sum,&claim,&mut Budget::new(&Limits::default())).is_ok());
+        let owned=Type::Managed(Box::new(Type::TaskI32));
+        assert!(cleanup_proof(&module,&owned,&claim,&mut Budget::new(&Limits::default())).is_err());
+        for kind in [CallableKind::Fn,CallableKind::FnMut,CallableKind::FnOnce]{
+            module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![owned.clone()],parameters:vec![],result:Type::I32,kind,storage_life:Some(StorageLifeContract{static_bindings:vec![],fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![]}),lending_captures:vec![]}];
+            assert!(cleanup_proof(&module,&Type::Closure(ClosureId(0)),&claim,&mut Budget::new(&Limits::default())).is_err(),"a callable bound cannot turn a captured asynchronous owner into SyncDrop");
+            module.closures[0].captures=vec![leaf.clone()];
+            assert!(cleanup_proof(&module,&Type::Closure(ClosureId(0)),&claim,&mut Budget::new(&Limits::default())).is_ok());
+        }
+    }
+    #[test]
     fn stored_pointer_access_observes_the_target_instead_of_the_pointer_slot() {
         let (module, _) = zil_ir::wire::decode_module_candidate(
             include_bytes!("../../tests/fixtures/dyn-context/context-read.typed.wire"),

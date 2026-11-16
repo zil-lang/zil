@@ -992,11 +992,7 @@ pub(super) fn type_owned(
 ) -> Check<()> {
     budget.spend(module.dyn_interfaces.len().saturating_add(1))?;
     let iface = interface(module, interface_id)?;
-    if iface.context.is_some() {
-        crate::dynamic_ports::validate_cleanup(iface, budget)?;
-    } else {
-        crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
-    }
+    crate::dynamic_cleanup::interface_bound(module,iface,budget)?;
     Ok(())
 }
 

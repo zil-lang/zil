@@ -203,7 +203,10 @@ pub(super) fn validate_cleanup(iface: &DynInterface, b: &mut Budget) -> Check<()
             previous = Some(*port);
         }
     }
-    if c.effects.iter().any(|effect| {
+    let mut effects=BTreeSet::new();
+    if c.effects.len()>6 || c.effects.iter().any(|effect| {
+        let rank=match effect{DynEffect::Alloc=>0,DynEffect::Io=>1,DynEffect::Block=>2,DynEffect::Ffi=>3,DynEffect::Reenter=>4,DynEffect::Panic=>5,_=>6};
+        !effects.insert(rank) ||
         !matches!(
             effect,
             DynEffect::Alloc

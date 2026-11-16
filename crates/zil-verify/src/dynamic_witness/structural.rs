@@ -149,7 +149,7 @@ fn walk(
                 }
                 // This upper has no Suspend/Spawn or asynchronous operation.
                 // Every real erasure still needs the payload/glue CFG proof.
-                dynamic_cleanup::bound(actual.owning_cleanup.as_ref(), b)?;
+                dynamic_cleanup::interface_bound(module,actual,b)?;
             }
             Ok(())
         }
