@@ -824,6 +824,8 @@ fn function<'a, const COLLECT_SCHEDULE: bool>(
     if f.blocks.is_none() {
         return Ok(Vec::new());
     }
+    #[cfg(test)]
+    BODY_VALIDATIONS.with(|count| count.set(count.get().saturating_add(1)));
     if reusable_function_scratch(f) {
         let result = function_in::<COLLECT_SCHEDULE>(world, f, reusable);
         // A single operand may contain nested values. Bound retained scratch,
@@ -1104,6 +1106,7 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
 #[cfg(test)]
 thread_local! {
     static VALIDATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static BODY_VALIDATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -1153,6 +1156,17 @@ fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -
     }
     let mut functions = BTreeMap::new();
     let mut scratch = FunctionScratch::default();
+    // A body can be shared by several current emitted functions. The whole
+    // immutable world above is identical for this one validation invocation;
+    // headers below still run in original order for every current function.
+    // Successful body checks depend on the exact signature and blocks, not
+    // the outer symbol spelling (used only when reporting a failed check).
+    // Keep borrowed owners, rather than importing a hash or an old-world proof.
+    struct CheckedBody<'a> {
+        function: &'a Function,
+        schedule: Vec<(usize, usize)>,
+    }
+    let mut checked_bodies: HashMap<usize, Vec<CheckedBody<'_>>> = HashMap::new();
     for item in items {
         match item {
             Item::NamedType(n, _) => world.check_ty(&Ty::Named(n.clone()), false)?,
@@ -1184,10 +1198,29 @@ fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -
                 {
                     return fail("local function without definition");
                 }
-                if COLLECT_SCHEDULE {
-                    functions.insert(f.name.clone(), function::<true>(&world, f, &mut scratch)?);
+                let schedule = if let Some(blocks) = &f.blocks {
+                    let key = blocks.as_ptr() as usize;
+                    let cached = checked_bodies.get(&key).and_then(|entries| {
+                        entries.iter().find(|entry| {
+                            entry.function.signature == f.signature
+                                && entry.function.blocks.as_ref().unwrap().ptr_eq(blocks)
+                        })
+                    });
+                    if let Some(cached) = cached {
+                        cached.schedule.clone()
+                    } else {
+                        let schedule = function::<COLLECT_SCHEDULE>(&world, f, &mut scratch)?;
+                        checked_bodies.entry(key).or_default().push(CheckedBody {
+                            function: f,
+                            schedule: schedule.clone(),
+                        });
+                        schedule
+                    }
                 } else {
-                    function::<false>(&world, f, &mut scratch)?;
+                    Vec::new()
+                };
+                if COLLECT_SCHEDULE {
+                    functions.insert(f.name.clone(), schedule);
                 }
             }
         }
@@ -1198,6 +1231,10 @@ fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -
 #[cfg(test)]
 #[path = "preflight_validate_only_tests.rs"]
 mod validate_only_tests;
+
+#[cfg(test)]
+#[path = "preflight_shared_body_tests.rs"]
+mod shared_body_tests;
 
 #[cfg(test)]
 mod named_layout_tests {
