@@ -1578,7 +1578,13 @@ impl World<'_, '_> {
                             };
                             let expected_field = self.ty(instance.id, &recipe, ty)?;
                             let value = self.get(values, *field)?;
-                            self.same(instance.id, &value, &expected_field, implicit)?;
+                            self.constructor_field_source(
+                                instance.id,
+                                *field,
+                                &value,
+                                &expected_field,
+                                implicit,
+                            )?;
                         }
                     }
                     (

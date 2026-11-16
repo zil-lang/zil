@@ -742,6 +742,16 @@ impl<'a> Check<'a, '_> {
                     .ok_or_else(|| bad("original Task comparison has no lexical Gamma"))?;
                 return self.same_task_shape(owner, al, bl, 0);
             }
+            (
+                SemanticTypeRecipe::Dyn {
+                    owned: a,
+                    interface: ai,
+                },
+                SemanticTypeRecipe::Dyn {
+                    owned: b,
+                    interface: bi,
+                },
+            ) if a == b => return self.same_dyn_interface(ai, bi, 0),
             (SemanticTypeRecipe::Managed(a), SemanticTypeRecipe::Managed(b))
             | (SemanticTypeRecipe::OwnedStore(a), SemanticTypeRecipe::OwnedStore(b))
             | (SemanticTypeRecipe::Mutex(a), SemanticTypeRecipe::Mutex(b))
@@ -2219,6 +2229,24 @@ impl<'a> Check<'a, '_> {
                     depth + 1,
                 )?;
             }
+            (
+                SemanticTypeRecipe::Dyn {
+                    owned: a,
+                    interface: ai,
+                },
+                SemanticTypeRecipe::Dyn {
+                    owned: b,
+                    interface: bi,
+                },
+            ) if a == b => self.unify_dyn_interface(
+                ai,
+                bi,
+                formals,
+                solutions,
+                implicit,
+                invocation,
+                depth + 1,
+            )?,
             (
                 SemanticTypeRecipe::ErrorUnion {
                     error: a,

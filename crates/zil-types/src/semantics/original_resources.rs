@@ -166,13 +166,111 @@ impl Check<'_, '_> {
                 self.left,
             )?;
             let actual = self.expr(owner, value, variables, Some(&expected), depth + 1)?;
-            self.same(&actual, &expected)?;
+            self.constructor_field_value(owner, &actual, &expected, depth + 1)?;
         }
         self.call_requirements(owner, original, arguments, depth + 1)?;
         if let Some(wanted) = wanted {
             self.same(&result, wanted)?;
         }
         Ok(result)
+    }
+    /// Constant shared storage may be shortened at this actual value
+    /// placement. This is a source-bound theorem, never a LifeEqual premise;
+    /// the complete referent and its intrinsic classes remain exact.
+    fn constructor_field_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        actual: &SemanticTypeRecipe,
+        expected: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(1, depth)?;
+        if let (
+            SemanticTypeRecipe::Address {
+                mutable: false,
+                lifetime,
+                inner: a,
+            },
+            SemanticTypeRecipe::Address {
+                mutable: false,
+                inner: b,
+                ..
+            },
+        ) = (actual, expected)
+        {
+            if self.static_outer_source(owner, lifetime, depth + 1)? {
+                return self.same(a, b);
+            }
+        }
+        self.same(actual, expected)
+    }
+    fn static_outer_source(
+        &mut self,
+        owner: SemanticDefinitionId,
+        lifetime: &SemanticOuterLifeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        let SemanticOuterLifeRecipe::Class(lifetime) = lifetime else {
+            return Ok(true);
+        };
+        self.pay(self.proof.local_roles.len(), depth)?;
+        let mut selected = None;
+        for ((scope, binding), role) in &self.proof.local_roles {
+            if *scope == owner && &role.lifetime == lifetime {
+                if selected.replace(*binding).is_some() {
+                    return Err(bad(
+                        "one original local region has ambiguous source declarations",
+                    ));
+                }
+            }
+        }
+        let Some(binding) = selected else {
+            return Ok(false);
+        };
+        self.static_role_sources(owner, binding, &mut BTreeSet::new(), depth + 1)
+    }
+    fn static_role_sources(
+        &mut self,
+        owner: SemanticDefinitionId,
+        binding: NodeId,
+        active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(active.len().saturating_add(1), depth)?;
+        if !active.insert((owner, binding)) {
+            return Err(bad("original static region has a cyclic source equation"));
+        }
+        let count = self
+            .proof
+            .local_roles
+            .get(&(owner, binding))
+            .ok_or_else(|| bad("original static region lost its actual declaration"))?
+            .sources
+            .len();
+        self.pay(count, depth)?;
+        let role = self
+            .proof
+            .local_roles
+            .get(&(owner, binding))
+            .ok_or_else(|| bad("original static region lost its actual declaration"))?;
+        let sources = role
+            .sources
+            .iter()
+            .map(|source| source.escape.clone())
+            .collect::<Vec<_>>();
+        let mut all = !sources.is_empty();
+        for source in sources {
+            all &= match source {
+                OriginalRoleEscape::Static => true,
+                OriginalRoleEscape::Role { owner, binding } => {
+                    self.static_role_sources(owner, binding, active, depth + 1)?
+                }
+                OriginalRoleEscape::Input { .. } | OriginalRoleEscape::LocalPlace { .. } => false,
+            };
+        }
+        active.remove(&(owner, binding));
+        Ok(all)
     }
 }
 

@@ -693,3 +693,36 @@ pub(super) fn call(
     }
     Ok(())
 }
+
+impl World<'_, '_> {
+    /// A real constant-source SSA or a checked local role retaining that
+    /// source can fill a shorter shared field. No type/nominal class equality
+    /// follows from this directed outer relation.
+    pub(super) fn constructor_field_source(
+        &mut self,
+        scope: SemanticInstanceId,
+        operand: ValueId,
+        actual: &SemanticTypeValue,
+        expected: &SemanticTypeValue,
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<()> {
+        self.pay(1)?;
+        if matches!(Self::type_of(actual)?, Type::Address { mutable: false, .. })
+            && matches!(
+                Self::type_of(expected)?,
+                Type::Address { mutable: false, .. }
+            )
+        {
+            let constant = matches!(
+                self.value_role_sources.get(&operand),
+                Some(roles::Source::Static)
+            ) || matches!(roles::outer(self, actual)?, roles::Source::Static);
+            if constant {
+                let a = self.pointee(actual)?;
+                let b = self.pointee(expected)?;
+                return self.same(scope, &a, &b, implicit);
+            }
+        }
+        self.same(scope, actual, expected, implicit)
+    }
+}

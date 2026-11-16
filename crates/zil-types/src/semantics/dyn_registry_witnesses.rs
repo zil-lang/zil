@@ -253,10 +253,18 @@ pub(super) fn complete(
                 left,
             )?;
         }
+        // Core may defer the complete Self shape to this materializer. The
+        // actual method's exact parent scope and full actuals above already
+        // determined receiver.life independently; no absent row means N=0.
         if let Some(life) = &table.self_life {
-            provider_fee(left, table.self_classes.len())?;
-            if life != &receiver.life || table.self_classes.len() != receiver.classes.len() {
+            if life != &receiver.life {
                 return Err(bad("Dyn impl table changes the complete Self domain"));
+            }
+        }
+        if table.self_life.is_some() || !table.self_classes.is_empty() {
+            provider_fee(left, table.self_classes.len())?;
+            if table.self_classes.len() != receiver.classes.len() {
+                return Err(bad("Dyn impl table changes the complete Self class vector"));
             }
             for (local, context) in receiver.classes.iter().zip(&table.self_classes) {
                 bind(
@@ -267,10 +275,6 @@ pub(super) fn complete(
                     left,
                 )?;
             }
-        } else if !table.self_classes.is_empty() {
-            return Err(bad(
-                "Dyn impl table has classes without a complete Self shape",
-            ));
         }
         let mut to_context = Vec::new();
         for (ordinal, image) in mapping.iter().enumerate() {

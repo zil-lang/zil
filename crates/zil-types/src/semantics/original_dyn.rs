@@ -303,3 +303,200 @@ impl Check<'_, '_> {
         Ok(Some(solved.result))
     }
 }
+
+impl Check<'_, '_> {
+    pub(super) fn same_dyn_interface(
+        &mut self,
+        left: &SemanticDynInterfaceRecipe,
+        right: &SemanticDynInterfaceRecipe,
+        depth: usize,
+    ) -> R<()> {
+        crate::dyn_metadata::semantic_operand_snapshot(left, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(right, self.limits, self.left, 1)?;
+        self.same_dyn_application(&left.application, &right.application, depth + 1)?;
+        match (&left.context, &right.context) {
+            (SemanticDynContextRecipe::Closed, SemanticDynContextRecipe::Closed) => {}
+            (SemanticDynContextRecipe::Type(a), SemanticDynContextRecipe::Type(b)) => {
+                self.same(a, b)?
+            }
+            (SemanticDynContextRecipe::Shape(a), SemanticDynContextRecipe::Shape(b)) => {
+                let owner = self
+                    .contexts
+                    .last()
+                    .copied()
+                    .ok_or_else(|| bad("original Dyn comparison has no lexical Gamma"))?;
+                self.same_task_shape(owner, a, b, depth + 1)?;
+            }
+            _ => return Err(bad("original Dyn changes its complete Context kind")),
+        }
+        self.pay(
+            left.associated.len().saturating_add(right.associated.len()),
+            depth,
+        )?;
+        if left.associated.len() != right.associated.len() {
+            return Err(bad(
+                "original Dyn changes its complete associated binding inventory",
+            ));
+        }
+        for (a, b) in left.associated.iter().zip(&right.associated) {
+            if a.member != b.member {
+                return Err(bad("original Dyn changes an associated member identity"));
+            }
+            self.same_dyn_application(&a.application, &b.application, depth + 1)?;
+            match (&a.value, &b.value) {
+                (SemanticAssociatedRecipe::Type(a), SemanticAssociatedRecipe::Type(b)) => {
+                    self.same(a, b)?
+                }
+                (
+                    SemanticAssociatedRecipe::Const {
+                        carrier: a,
+                        value: av,
+                    },
+                    SemanticAssociatedRecipe::Const {
+                        carrier: b,
+                        value: bv,
+                    },
+                ) => {
+                    self.same(a, b)?;
+                    if !self.same_const(a, av, bv)? {
+                        return Err(bad("original Dyn changes an associated Const payload"));
+                    }
+                }
+                _ => return Err(bad("original Dyn changes an associated binding kind")),
+            }
+        }
+        Ok(())
+    }
+    fn same_dyn_application(
+        &mut self,
+        left: &SemanticTraitRecipe,
+        right: &SemanticTraitRecipe,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(
+            left.arguments.len().saturating_add(right.arguments.len()),
+            depth,
+        )?;
+        if left.declaration != right.declaration || left.arguments.len() != right.arguments.len() {
+            return Err(bad(
+                "original Dyn changes its declaration or full mixed actual vector",
+            ));
+        }
+        for (a, b) in left.arguments.iter().zip(&right.arguments) {
+            self.same_actual(a, b)?;
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn unify_dyn_interface(
+        &mut self,
+        left: &SemanticDynInterfaceRecipe,
+        right: &SemanticDynInterfaceRecipe,
+        formals: &[SemanticFormal],
+        solutions: &mut [Option<SemanticActualRecipe>],
+        implicit: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        invocation: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        depth: usize,
+    ) -> R<()> {
+        crate::dyn_metadata::semantic_operand_snapshot(left, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(right, self.limits, self.left, 1)?;
+        self.unify_dyn_application(
+            &left.application,
+            &right.application,
+            formals,
+            solutions,
+            implicit,
+            invocation,
+            depth + 1,
+        )?;
+        match (&left.context, &right.context) {
+            (SemanticDynContextRecipe::Closed, SemanticDynContextRecipe::Closed) => {}
+            (SemanticDynContextRecipe::Type(a), SemanticDynContextRecipe::Type(b)) => {
+                self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?
+            }
+            (SemanticDynContextRecipe::Shape(a), SemanticDynContextRecipe::Shape(b)) => {
+                self.unify_task_shape(a, b, formals, solutions, implicit, invocation, depth + 1)?
+            }
+            _ => return Err(bad("original Dyn call changes its complete Context kind")),
+        }
+        self.pay(
+            left.associated.len().saturating_add(right.associated.len()),
+            depth,
+        )?;
+        if left.associated.len() != right.associated.len() {
+            return Err(bad(
+                "original Dyn call changes its complete associated binding inventory",
+            ));
+        }
+        for (a, b) in left.associated.iter().zip(&right.associated) {
+            if a.member != b.member {
+                return Err(bad(
+                    "original Dyn call changes an associated member identity",
+                ));
+            }
+            self.unify_dyn_application(
+                &a.application,
+                &b.application,
+                formals,
+                solutions,
+                implicit,
+                invocation,
+                depth + 1,
+            )?;
+            match (&a.value, &b.value) {
+                (SemanticAssociatedRecipe::Type(a), SemanticAssociatedRecipe::Type(b)) => {
+                    self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?
+                }
+                (
+                    SemanticAssociatedRecipe::Const {
+                        carrier: a,
+                        value: av,
+                    },
+                    SemanticAssociatedRecipe::Const {
+                        carrier: b,
+                        value: bv,
+                    },
+                ) => {
+                    crate::dyn_metadata::semantic_operand_snapshot(av, self.limits, self.left, 1)?;
+                    crate::dyn_metadata::semantic_operand_snapshot(bv, self.limits, self.left, 1)?;
+                    let a = SemanticActualRecipe::Const {
+                        carrier: copy_recipe(a, self.limits, self.left)?,
+                        value: av.clone(),
+                    };
+                    let b = SemanticActualRecipe::Const {
+                        carrier: copy_recipe(b, self.limits, self.left)?,
+                        value: bv.clone(),
+                    };
+                    self.unify_actual(&a, &b, formals, solutions, implicit, invocation, depth + 1)?;
+                }
+                _ => return Err(bad("original Dyn call changes an associated binding kind")),
+            }
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn unify_dyn_application(
+        &mut self,
+        left: &SemanticTraitRecipe,
+        right: &SemanticTraitRecipe,
+        formals: &[SemanticFormal],
+        solutions: &mut [Option<SemanticActualRecipe>],
+        implicit: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        invocation: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        depth: usize,
+    ) -> R<()> {
+        self.pay(
+            left.arguments.len().saturating_add(right.arguments.len()),
+            depth,
+        )?;
+        if left.declaration != right.declaration || left.arguments.len() != right.arguments.len() {
+            return Err(bad(
+                "original Dyn call changes its declaration or full mixed actual vector",
+            ));
+        }
+        for (a, b) in left.arguments.iter().zip(&right.arguments) {
+            self.unify_actual(a, b, formals, solutions, implicit, invocation, depth + 1)?;
+        }
+        Ok(())
+    }
+}
