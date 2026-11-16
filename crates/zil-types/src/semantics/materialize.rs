@@ -26,6 +26,87 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+/// Embed a real child's complete occurrence forest through its proved class
+/// map. Physical slots belong to the carrier's own layout and are transported
+/// separately; these rows describe type occurrences, never access permissions.
+pub(super) fn inherit_child_shape(
+    parent: &mut StorageLifeShape,
+    child: &StorageLifeShape,
+    prefix: LifeTypeProjection,
+    map: &[u32],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let retained_count = parent
+        .retained
+        .len()
+        .saturating_add(map.len())
+        .saturating_add(child.retained.len());
+    let nominal_count = parent
+        .nominal_arguments
+        .len()
+        .saturating_add(child.nominal_arguments.len());
+    if retained_count > limits.max_nodes || nominal_count > limits.max_nodes {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "complete child occurrence row limit exceeded",
+            None,
+        ));
+    }
+    let mut pay = |work: usize| -> R<()> {
+        *left = left.checked_sub(work).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "complete child occurrence transport exceeded",
+                None,
+            )
+        })?;
+        Ok(())
+    };
+    pay(map
+        .len()
+        .saturating_add(child.retained.len())
+        .saturating_add(child.nominal_arguments.len()))?;
+    if child.binder_count as usize != map.len()
+        || map.iter().any(|binder| *binder >= parent.binder_count)
+    {
+        return Err(bad("child occurrence map leaves its complete parent domain"));
+    }
+    let mapped = |class: u32| {
+        map.get(class as usize)
+            .copied()
+            .ok_or_else(|| bad("child occurrence leaves its complete intrinsic domain"))
+    };
+    for (class, binder) in map.iter().enumerate() {
+        parent.retained.push(StorageRetainedBinding {
+            path: vec![prefix],
+            class: class as u32,
+            binder: *binder,
+        });
+    }
+    for row in &child.retained {
+        pay(row.path.len().saturating_add(1))?;
+        let mut path = vec![prefix];
+        path.extend_from_slice(&row.path);
+        parent.retained.push(StorageRetainedBinding {
+            path,
+            class: row.class,
+            binder: mapped(row.binder)?,
+        });
+    }
+    for row in &child.nominal_arguments {
+        pay(row.path.len().saturating_add(1))?;
+        let mut path = vec![prefix];
+        path.extend_from_slice(&row.path);
+        parent.nominal_arguments.push(NominalLifeArgument {
+            path,
+            declaration: row.declaration,
+            argument: row.argument,
+            binder: mapped(row.binder)?,
+        });
+    }
+    Ok(())
+}
 #[path = "materialize_deferred.rs"]
 mod deferred;
 #[path = "materialize_dyn.rs"]
@@ -1181,19 +1262,21 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 }
                 let offset = classes.len() as u32;
                 self.fee(inner_classes.len().saturating_mul(2))?;
-                for (class, image) in inner_classes.into_iter().enumerate() {
-                    life.retained.push(StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Pointee],
-                        class: class as u32,
-                        binder: offset + class as u32,
-                    });
-                    classes.push(image);
-                }
+                classes.extend(inner_classes);
                 if inner_life.binder_count as usize + offset as usize != classes.len() {
                     return Err(bad("pointee complete class inventory is inconsistent"));
                 }
                 life.binder_count = u32::try_from(classes.len())
                     .map_err(|_| bad("outer class inventory overflows"))?;
+                let map = (offset..life.binder_count).collect::<Vec<_>>();
+                inherit_child_shape(
+                    &mut life,
+                    &inner_life,
+                    LifeTypeProjection::Pointee,
+                    &map,
+                    self.limits,
+                    self.left,
+                )?;
                 resolved(
                     if is_address {
                         Type::Address {
@@ -1219,13 +1302,15 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 self.fee(classes.len())?;
                 let mut life = empty();
                 life.binder_count = child.binder_count;
-                life.retained = (0..child.binder_count)
-                    .map(|class| StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Element],
-                        class,
-                        binder: class,
-                    })
-                    .collect();
+                let map = (0..child.binder_count).collect::<Vec<_>>();
+                inherit_child_shape(
+                    &mut life,
+                    &child,
+                    LifeTypeProjection::Element,
+                    &map,
+                    self.limits,
+                    self.left,
+                )?;
                 resolved(
                     Type::Slice {
                         element: Box::new(ty),
@@ -1335,18 +1420,19 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 } else {
                     LifeTypeProjection::Pointee
                 };
-                let life = StorageLifeShape {
+                let mut life = StorageLifeShape {
                     binder_count: child.binder_count,
-                    slots: Vec::new(),
-                    retained: (0..child.binder_count)
-                        .map(|class| StorageRetainedBinding {
-                            path: vec![projection],
-                            class,
-                            binder: class,
-                        })
-                        .collect(),
-                    nominal_arguments: Vec::new(),
+                    ..empty()
                 };
+                let map = (0..child.binder_count).collect::<Vec<_>>();
+                inherit_child_shape(
+                    &mut life,
+                    &child,
+                    projection,
+                    &map,
+                    self.limits,
+                    self.left,
+                )?;
                 let ty = match recipe {
                     SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(ty)),
                     SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {

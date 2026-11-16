@@ -686,29 +686,31 @@ impl<'a> World<'a, '_> {
         self.pay(classes.len().saturating_mul(2))?;
         let mut images = vec![image];
         images.extend(classes.iter().cloned());
-        self.resolved(
-            ty,
-            StorageLifeShape {
-                binder_count: child
-                    .binder_count
-                    .checked_add(1)
-                    .ok_or_else(|| bad("address domain overflows"))?,
-                slots: vec![StorageLifeSlot {
-                    path: Vec::new(),
-                    mode,
-                    binder: 0,
-                }],
-                retained: (0..child.binder_count)
-                    .map(|class| StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Pointee],
-                        class,
-                        binder: class + 1,
-                    })
-                    .collect(),
-                nominal_arguments: Vec::new(),
-            },
-            images,
-        )
+        let mut life = StorageLifeShape {
+            binder_count: child
+                .binder_count
+                .checked_add(1)
+                .ok_or_else(|| bad("address domain overflows"))?,
+            slots: vec![StorageLifeSlot {
+                path: Vec::new(),
+                mode,
+                binder: 0,
+            }],
+            ..empty()
+        };
+        // This map comes from the actual image vector just constructed. Child
+        // nominal occurrences follow it even when an outside image is equal
+        // to the new outer image; child intrinsic indices remain distinct.
+        let map = (1..life.binder_count).collect::<Vec<_>>();
+        super::materialize::inherit_child_shape(
+            &mut life,
+            child,
+            LifeTypeProjection::Pointee,
+            &map,
+            self.limits,
+            self.left,
+        )?;
+        self.resolved(ty, life, images)
     }
     fn address_projection(
         &mut self,
@@ -751,21 +753,20 @@ impl<'a> World<'a, '_> {
             return Err(bad("static projection changes its complete child type"));
         }
         self.pay(classes.len().saturating_mul(2))?;
-        self.resolved(
-            ty,
-            StorageLifeShape {
-                binder_count: life.binder_count,
-                retained: (0..life.binder_count)
-                    .map(|class| StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Pointee],
-                        class,
-                        binder: class,
-                    })
-                    .collect(),
-                ..empty()
-            },
-            classes.clone(),
-        )
+        let mut shape = StorageLifeShape {
+            binder_count: life.binder_count,
+            ..empty()
+        };
+        let map = (0..life.binder_count).collect::<Vec<_>>();
+        super::materialize::inherit_child_shape(
+            &mut shape,
+            life,
+            LifeTypeProjection::Pointee,
+            &map,
+            self.limits,
+            self.left,
+        )?;
+        self.resolved(ty, shape, classes.clone())
     }
     fn pointee(&mut self, value: &SemanticTypeValue) -> R<SharedType> {
         if !matches!(Self::type_of(value)?, Type::Address { .. } | Type::Desc(_)) {

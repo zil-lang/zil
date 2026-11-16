@@ -645,17 +645,16 @@ impl Eval<'_, '_, '_> {
                         binder: *binder,
                     });
                 }
-            } else {
-                for row in child.retained {
-                    self.fee(row.path.len().saturating_add(2))?;
-                    let mut path = vec![LifeTypeProjection::Place(PlaceProjection::Field(ordinal))];
-                    path.extend(row.path);
-                    life.retained.push(StorageRetainedBinding {
-                        path,
-                        class: row.class,
-                        binder: mapped(row.binder)?,
-                    });
-                }
+            }
+            for row in child.retained {
+                self.fee(row.path.len().saturating_add(2))?;
+                let mut path = vec![LifeTypeProjection::Place(PlaceProjection::Field(ordinal))];
+                path.extend(row.path);
+                life.retained.push(StorageRetainedBinding {
+                    path,
+                    class: row.class,
+                    binder: mapped(row.binder)?,
+                });
             }
             for row in child.nominal_arguments {
                 self.fee(row.path.len().saturating_add(2))?;

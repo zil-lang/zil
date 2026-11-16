@@ -188,18 +188,20 @@ pub(super) fn type_shape_at(
             } else {
                 LifeTypeProjection::Pointee
             };
-            StorageLifeShape {
+            let mut shape = StorageLifeShape {
                 binder_count: child.binder_count,
-                slots: Vec::new(),
-                retained: (0..child.binder_count)
-                    .map(|class| StorageRetainedBinding {
-                        path: vec![selector],
-                        class,
-                        binder: class,
-                    })
-                    .collect(),
-                nominal_arguments: Vec::new(),
-            }
+                ..empty()
+            };
+            let map = (0..child.binder_count).collect::<Vec<_>>();
+            super::super::materialize::inherit_child_shape(
+                &mut shape,
+                &child,
+                selector,
+                &map,
+                world.limits,
+                world.left,
+            )?;
+            shape
         }
         _ => world.zero_shape_at(ty, depth + 1)?,
     })
