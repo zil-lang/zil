@@ -181,6 +181,7 @@ impl Engine<'_, '_> {
 pub(super) enum Requirement {
     Drop(Root),
     Call(Root),
+    Consume(Root),
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -379,7 +380,7 @@ impl Engine<'_, '_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn instantiate_graph_requirements(
+    pub(super) fn instantiate_graph_requirements(
         &mut self,
         target: SemanticDefinitionId,
         requirements: &BTreeSet<Requirement>,
@@ -392,7 +393,7 @@ impl Engine<'_, '_> {
         self.pay(requirements.len(), depth)?;
         let mut result = BTreeSet::new();
         for requirement in requirements {
-            let (Requirement::Drop(root) | Requirement::Call(root)) = requirement;
+            let (Requirement::Drop(root) | Requirement::Call(root) | Requirement::Consume(root)) = requirement;
             let value = match root {
                 Root::Parameter(owner, ordinal) if *owner == target => arguments.get(*ordinal as usize),
                 Root::Capture(owner, ordinal) if *owner == target => self.proof.capture_names.get(&target)
@@ -402,8 +403,9 @@ impl Engine<'_, '_> {
             };
             let Some(value) = value else { return Ok(None); };
             let incoming = match requirement {
-                Requirement::Drop(_) => self.synchronous_task_value(value, state, depth + 1)?,
+                Requirement::Drop(_) => self.remaining_consumption(value, state, depth + 1)?,
                 Requirement::Call(_) => self.synchronous_callable_value(value, &[], state, active, depth + 1)?,
+                Requirement::Consume(_) => self.synchronous_consumption(value, &[], state, active, depth + 1)?,
             };
             let Some(incoming) = incoming else { return Ok(None); };
             self.pay(incoming.len().saturating_add(1), depth)?;
@@ -441,7 +443,7 @@ impl Engine<'_, '_> {
         }
         Ok(Some(requirements))
     }
-    fn synchronous_task_value(
+    pub(super) fn synchronous_task_value(
         &mut self, value: &Value, state: &State, depth: usize,
     ) -> R<Option<BTreeSet<Requirement>>> {
         self.pay(1, depth)?;
@@ -587,6 +589,7 @@ impl Engine<'_, '_> {
                     ));
                 }
                 let values = &values[1..];
+                self.check_consuming_target(*worker, values, None, state, depth + 1)?;
                 if *await_result {
                     return self.task_return_call(owner, node, *worker, values, state, None, depth + 1);
                 }

@@ -3,6 +3,8 @@
 use super::*;
 #[path = "original_protocol_tasks.rs"]
 mod tasks;
+#[path = "original_protocol_consumption.rs"]
+mod consumption;
 #[path = "original_type_cache.rs"]
 mod type_cache;
 pub(in crate::semantics) use type_cache::hash_into;
@@ -387,6 +389,9 @@ struct Engine<'a, 'b> {
     local_complete: BTreeSet<SemanticDefinitionId>,
     graph_requested: BTreeSet<SemanticDefinitionId>,
     graph_complete: BTreeSet<SemanticDefinitionId>,
+    consuming_relevant: BTreeSet<SemanticDefinitionId>,
+    consuming_exits: BTreeMap<SemanticDefinitionId, Option<BTreeSet<tasks::Requirement>>>,
+    consuming_requirements: BTreeMap<SemanticDefinitionId, BTreeSet<tasks::Requirement>>,
 }
 impl<'a> Engine<'a, '_> {
     fn record_cost(&mut self, name: &'static str, before: usize, children: usize) {
@@ -1612,7 +1617,10 @@ impl<'a> Engine<'a, '_> {
                     self.drop_value(payload, state, depth + 1)?
                 }
                 Value::Cleanup { owner, ty, .. } => {
-                    if !self.can_drop(*owner, ty, depth + 1)? {
+                    if !self.can_drop(*owner, ty, depth + 1)?
+                        && !(self.suspend_root(state.owner, depth + 1)?
+                            && cleanup::resumable_callable(self.program, self.proof, *owner, ty,
+                                self.limits, self.left)?) {
                         self.pay(128, depth)?;
                         let mut error = error(
                             "E-ORIGINAL-CLEANUP",
@@ -1902,6 +1910,9 @@ impl<'a> Engine<'a, '_> {
                 .get(&(owner, site))
                 .map(|c| c.kind.clone());
             if let Some(kind) = intrinsic {
+                if matches!(kind, IntrinsicKind::ThreadScope { .. }) {
+                    self.check_thread_consumption(values, state, depth + 1)?;
+                }
                 if let Some(value) =
                     self.task_call(owner, expression.id, site, &kind, values, state, depth + 1)?
                 {
@@ -2025,6 +2036,7 @@ impl<'a> Engine<'a, '_> {
                 }
                 return self.unknown_call(owner, expression.id, values, state, depth);
             };
+            self.check_consuming_target(target, values, None, state, depth + 1)?;
             let callee = self.definition(target)?;
             let SemanticDefinitionBody::FunctionWithBody {
                 protocol_contracts,
@@ -2431,6 +2443,7 @@ impl<'a> Engine<'a, '_> {
                         self.pay(values.len().saturating_add(1), depth)?;
                         values.insert(ordinal, value);
                     }
+                    let consuming_incoming = if once && state.reachable { Some(self.consumption_state(state, depth + 1)?) } else { None };
                     let result = if state.reachable {
                         if let (Some(site), Some(callee)) = (site, graph_callee) {
                             self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
@@ -2441,8 +2454,12 @@ impl<'a> Engine<'a, '_> {
                     };
                     if consume || temporary {
                         let callee = state.temporaries.remove(callee_slot);
-                        if !consume && state.reachable {
-                            self.drop_value(&callee, state, depth + 1)?;
+                        if state.reachable {
+                            if once {
+                                self.check_consuming_invocation(&callee, &values, consuming_incoming.as_ref().ok_or_else(|| failure("consuming call lost its actual prepared inputs"))?, depth + 1)?;
+                            } else if !consume {
+                                self.drop_value(&callee, state, depth + 1)?;
+                            }
                         }
                     }
                     Ok(result)
@@ -4444,7 +4461,8 @@ impl<'a> Engine<'a, '_> {
                             "original protocol loop control escaped its function",
                         ));
                     }
-                    if matches!(captured_mode, Some(CallableKind::Fn | CallableKind::FnMut)) {
+                    if definition.kind == SemanticDefinitionKind::Closure {
+                        let mut remaining = Some(BTreeSet::new());
                         for (name, expected) in &capture_inputs {
                             self.pay(
                                 name.len().saturating_add(lookup_work(state.names.len())),
@@ -4457,20 +4475,16 @@ impl<'a> Engine<'a, '_> {
                                 .ok_or_else(|| {
                                     failure("original reusable closure loses its captured binding")
                                 })?;
-                            if !self.present(expected, actual, depth + 1)? {
+                            if matches!(captured_mode, Some(CallableKind::Fn | CallableKind::FnMut))
+                                && !self.present(expected, actual, depth + 1)? {
                                 return Err(failure(
                                     "original reusable closure exits without refilling its captured owning responsibility",
                                 ));
                             }
-                            if self.proof.consuming_cleanup.contains(&owner) {
-                                // Adaptation consumes this exact environment
-                                // after the body, before its result is observable.
-                                // A Poll.Pending exit cannot borrow a later
-                                // caller branch to establish Closed here.
-                                self.drop_value(actual, &state, depth + 1).map_err(|mut diagnostic| {
-                                    diagnostic.notes.push(format!("original consuming entry remaining capture {:?} in {:?} is not synchronously settled at this body exit", name, owner));
-                                    diagnostic
-                                })?;
+                            let needed = self.remaining_consumption(actual, &state, depth + 1)?;
+                            match (&mut remaining, needed) {
+                                (Some(all), Some(needed)) => { self.pay(needed.len(), depth)?; all.extend(needed); }
+                                _ => remaining = None,
                             }
                             let stack = state.names.get_mut(name).ok_or_else(|| {
                                 failure("original closure handoff lost its captured binding")
@@ -4479,6 +4493,7 @@ impl<'a> Engine<'a, '_> {
                             stack.remove(0);
                         }
                         state.names.retain(|_, values| !values.is_empty());
+                        self.record_consuming_exit(owner, remaining, depth + 1)?;
                     }
                     for (name, values) in &state.names {
                         for value in values {
@@ -4614,7 +4629,33 @@ pub(super) fn check(
         local_complete: BTreeSet::new(),
         graph_requested: BTreeSet::new(),
         graph_complete: BTreeSet::new(),
+        consuming_relevant: BTreeSet::new(),
+        consuming_exits: BTreeMap::new(),
+        consuming_requirements: BTreeMap::new(),
     };
+    // Only callees whose original body can reach a consuming invocation need
+    // an application obligation. Unrelated ordinary recursion is unchanged.
+    engine.pay(engine.proof.callable_calls.len(), 0)?;
+    for ((owner, _), call) in &engine.proof.callable_calls {
+        if call.kind == CallableKind::FnOnce { engine.consuming_relevant.insert(*owner); }
+    }
+    engine.pay(engine.proof.intrinsics.len(), 0)?;
+    for ((owner, _), call) in &engine.proof.intrinsics {
+        if matches!(call.kind, IntrinsicKind::ThreadScope { .. }) { engine.consuming_relevant.insert(*owner); }
+    }
+    loop {
+        let mut changed = false;
+        engine.pay(engine.proof.call_targets.len().saturating_add(engine.proof.intrinsics.len()), 0)?;
+        for ((owner, _), target) in &engine.proof.call_targets {
+            if engine.consuming_relevant.contains(target) { changed |= engine.consuming_relevant.insert(*owner); }
+        }
+        for ((owner, _), call) in &engine.proof.intrinsics {
+            if let IntrinsicKind::TaskCreate { worker, .. } = call.kind {
+                if engine.consuming_relevant.contains(&worker) { changed |= engine.consuming_relevant.insert(*owner); }
+            }
+        }
+        if !changed { break; }
+    }
     let setup_before = *engine.left;
     engine.pay(
         program
@@ -4916,6 +4957,9 @@ mod plain_layout_tests {
         local_complete: BTreeSet::new(),
         graph_requested: BTreeSet::new(),
         graph_complete: BTreeSet::new(),
+        consuming_relevant: BTreeSet::new(),
+        consuming_exits: BTreeMap::new(),
+        consuming_requirements: BTreeMap::new(),
         };
         let recipe = SemanticTypeRecipe::ErrorUnion {
             error: Box::new(SemanticTypeRecipe::Atom(Type::Unit)),

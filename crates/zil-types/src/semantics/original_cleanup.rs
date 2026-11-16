@@ -67,6 +67,26 @@ pub(super) fn capability(
         check.cleanup_capability(owner, ty, 0)
     })
 }
+/// A sealed callable can be retained by a real Task continuation while its
+/// complete environment cleanup runs. This is not a SyncDrop theorem.
+pub(super) fn resumable_callable(
+    program: &SemanticModule, proof: &mut Proof, owner: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe, limits: &Limits, left: &mut usize,
+) -> R<bool> {
+    with_check(program, proof, owner, limits, left, |check| {
+        let value = check.observation_type(owner, ty, 0)?;
+        if !check.sealed_capability(owner, &value, SemanticBuiltinTrait::ClosedEnvironment, 1)? {
+            return Ok(false);
+        }
+        if check.concrete_callable(&value, 1)?.is_some() { return Ok(true); }
+        for requirement in check.original_requirements(owner, 1)?.iter() {
+            for (premise, _, _, _) in check.callable_premises(requirement, &value, &mut Vec::new(), 2)? {
+                if premise == &value { return Ok(true); }
+            }
+        }
+        Ok(false)
+    })
+}
 /// Exact product fields, in declaration order and in the use definition's
 /// original domain. None is an unknown/non-product, never an empty inventory.
 pub(super) fn fields(

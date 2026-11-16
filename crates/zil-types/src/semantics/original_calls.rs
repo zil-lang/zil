@@ -960,7 +960,7 @@ impl Check<'_, '_> {
         );
         Ok(Some(solved.result))
     }
-    fn concrete_callable(
+    pub(super) fn concrete_callable(
         &mut self,
         value: &SemanticTypeRecipe,
         depth: usize,
@@ -1283,34 +1283,6 @@ impl Check<'_, '_> {
         }
         self.same(actual, wanted)
     }
-    fn require_consuming_cleanup(
-        &mut self,
-        value: &SemanticTypeRecipe,
-        depth: usize,
-    ) -> R<bool> {
-        self.pay(1, depth)?;
-        match value {
-            SemanticTypeRecipe::Opaque { hidden, .. } => {
-                self.require_consuming_cleanup(hidden, depth + 1)
-            }
-            SemanticTypeRecipe::Closure { definition, .. } => {
-                if !self.proof.complete.contains(definition)
-                    || self.definition(*definition)?.kind != SemanticDefinitionKind::Closure
-                {
-                    return Ok(false);
-                }
-                self.pay(self.proof.consuming_cleanup.len().saturating_add(1), depth)?;
-                if self.proof.proof_mut()?.consuming_cleanup.insert(*definition) {
-                    // A frozen request may already have checked the reusable
-                    // entry. The new consuming boundary needs its own exits.
-                    self.proof.proof_mut()?.protocol_complete.remove(definition);
-                    self.proof.proof_mut()?.cleanup_complete.remove(definition);
-                }
-                Ok(true)
-            }
-            _ => Ok(false),
-        }
-    }
     pub(super) fn callable_requirement(
         &mut self,
         owner: SemanticDefinitionId,
@@ -1338,16 +1310,9 @@ impl Check<'_, '_> {
                 ));
             }
             self.compare_callable_under(&actual, wanted, universal, depth + 1)?;
-            if required == CallableKind::FnOnce
-                && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
-                && wanted.call_kind == CallKind::Direct
-                && !self.cleanup_capability(owner, &value, depth + 1)?
-                && !self.require_consuming_cleanup(&value, depth + 1)?
-            {
-                return Err(bad(
-                    "original Direct FnOnce adaptation lacks synchronous environment teardown",
-                ));
-            }
+            // Type compatibility does not settle a consuming invocation's
+            // environment. The original protocol pass checks each real call
+            // against its actual inputs and execution root.
             return Ok(());
         }
         for requirement in self.original_requirements(owner, depth + 1)?.iter() {
@@ -1356,15 +1321,6 @@ impl Check<'_, '_> {
             {
                 if premise == &value && compatible(kind, required) {
                     self.compare_callable_under(&signature, wanted, universal, depth + 1)?;
-                    if required == CallableKind::FnOnce
-                        && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
-                        && wanted.call_kind == CallKind::Direct
-                        && !self.cleanup_capability(owner, &value, depth + 1)?
-                    {
-                        return Err(bad(
-                            "original Direct FnOnce premise adaptation lacks synchronous environment teardown",
-                        ));
-                    }
                     return Ok(());
                 }
             }
@@ -1373,7 +1329,7 @@ impl Check<'_, '_> {
             "original caller lacks a complete callable role premise",
         ))
     }
-    fn callable_premises<'p>(
+    pub(super) fn callable_premises<'p>(
         &mut self,
         requirement: &'p SemanticRequirementRecipe,
         value: &SemanticTypeRecipe,
