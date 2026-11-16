@@ -1717,13 +1717,33 @@ fn check_with(
                         }
                     }
                 }
-                InstructionKind::Store { local, value } => array_outer::copy(
-                    &mut e,
-                    &locals[local.0 as usize],
-                    &values[value.0 as usize],
-                    outer.as_ref(),
-                    b,
-                )?,
+                InstructionKind::Store { local, value } => {
+                    b.lookup(b.semantic_reference_locals.len(), "original reference Store role")?;
+                    let local_region = b.initialization.as_ref().is_some_and(|cache| cache.module == module as *const TypedModule as usize)
+                        && b.semantic_reference_locals.contains(&(f.id, *local));
+                    if local_region {
+                        b.type_work(&f.locals[local.0 as usize].ty, true, "original reference Store full domain")?;
+                        b.type_work(&f.values[value.0 as usize], true, "original reference RHS full domain")?;
+                        let target = &locals[local.0 as usize];
+                        let source = &values[value.0 as usize];
+                        if target.outer.is_none() || source.outer.is_none()
+                            || target.keys != source.keys || target.classes.len() != source.classes.len()
+                            || target.array_elements.len() != source.array_elements.len() {
+                            return Err(bad("original reference Store changes its complete pointee domain"));
+                        }
+                        // The separately proved declaration region labels this
+                        // mutable shared slot. Actual Store RHS sources remain
+                        // alternatives, not equal rigid input classes. All child
+                        // classes stay invariant; loans remain in actual CFG flow.
+                        array_outer::copy_elements(&mut e, target, source, outer.as_ref(), b)?;
+                        for (a, z) in target.classes.iter().zip(&source.classes) {
+                            e.equal(*a, *z, b)?;
+                        }
+                    } else {
+                        array_outer::copy(&mut e, &locals[local.0 as usize],
+                            &values[value.0 as usize], outer.as_ref(), b)?;
+                    }
+                }
                 InstructionKind::BorrowPackageField { .. }
                     if super::stored_flow::ordinary_package_borrow(module, f, i, b)? =>
                 {

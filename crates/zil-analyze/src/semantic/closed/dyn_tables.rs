@@ -1449,7 +1449,7 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
-    fn standalone_value(
+    pub(super) fn standalone_value(
         &self,
         scope: DynInstantiationScope,
         actual: &DynTypeValue,
@@ -1476,7 +1476,7 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
-    fn standalone_actuals(
+    pub(super) fn standalone_actuals(
         &self,
         scope: DynInstantiationScope,
         actuals: &[DynGenericActual],
@@ -1869,7 +1869,7 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
-    fn dyn_context_arguments(
+    pub(super) fn dyn_context_arguments(
         &self,
         actuals: &[DynGenericActual],
         classes: &BTreeMap<StorageBinder, value::Class>,

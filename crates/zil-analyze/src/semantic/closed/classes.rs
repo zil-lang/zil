@@ -2188,6 +2188,37 @@ impl Check<'_, '_> {
         Ok(output)
     }
 
+    pub(super) fn original_static_header(&self, parameters: &[Value], result: &Value,
+        contract: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
+        // A class-free byte view is reconstructed here only from an
+        // independently checked Static original type/body, never from N = 0
+        // on the proposed executable header. Actual literal/return provenance
+        // is checked separately by the instruction and retained-source flows.
+        let mut static_positions = BTreeSet::new();
+        for (base, value) in parameters.iter().enumerate()
+            .map(|(index, value)| (StorageBase::Parameter(index as u32), value))
+            .chain(std::iter::once((StorageBase::Result, result)))
+        {
+            if original::strings::is_byte_type(&value.ty) && empty(&value.life)
+                && value.classes.is_empty()
+            {
+                b.lookup(static_positions.len(), WORK)?;
+                static_positions.insert(StoragePosition { base, path: Vec::new() });
+            }
+        }
+        if contract.static_bindings.len() != static_positions.len() {
+            return Err(fail("actual header changes its complete original Static occurrences"));
+        }
+        for position in &contract.static_bindings {
+            b.spend(position.path.len().saturating_add(1), WORK)?;
+            b.lookup(static_positions.len(), WORK)?;
+            if !static_positions.remove(position) {
+                return Err(fail("actual header repeats or invents an original Static occurrence"));
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn header_relation(
         &self,
         instance: &SemanticInstance,
@@ -2220,32 +2251,7 @@ impl Check<'_, '_> {
             return Ok(());
         };
         crate::signature_life::charge(contract, b)?;
-        // A class-free byte view is reconstructed here only from an
-        // independently checked Static original type/body, never from N = 0
-        // on the proposed executable header. Actual literal/return provenance
-        // is checked separately by the instruction and retained-source flows.
-        let mut static_positions = BTreeSet::new();
-        for (base, value) in parameters.iter().enumerate()
-            .map(|(index, value)| (StorageBase::Parameter(index as u32), value))
-            .chain(std::iter::once((StorageBase::Result, &result)))
-        {
-            if original::strings::is_byte_type(&value.ty) && empty(&value.life)
-                && value.classes.is_empty()
-            {
-                b.lookup(static_positions.len(), WORK)?;
-                static_positions.insert(StoragePosition { base, path: Vec::new() });
-            }
-        }
-        if contract.static_bindings.len() != static_positions.len() {
-            return Err(fail("actual header changes its complete original Static occurrences"));
-        }
-        for position in &contract.static_bindings {
-            b.spend(position.path.len().saturating_add(1), WORK)?;
-            b.lookup(static_positions.len(), WORK)?;
-            if !static_positions.remove(position) {
-                return Err(fail("actual header repeats or invents an original Static occurrence"));
-            }
-        }
+        self.original_static_header(&parameters, &result, contract, b)?;
         let total = (contract.fixed_binder_count as usize)
             .checked_add(contract.invocation_binder_count as usize)
             .ok_or_else(|| fail("actual header domain count overflow"))?;

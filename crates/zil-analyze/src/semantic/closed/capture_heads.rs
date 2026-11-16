@@ -132,7 +132,11 @@ impl Check<'_, '_> {
         let function = self
             .inventory
             .function(&SemanticFunctionTarget::Typed(closure.function), b)?;
-        let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
+        let SemanticDefinitionBody::FunctionWithBody {
+            sites: recipes,
+            signature,
+            ..
+        } = &definition.body
         else {
             return Err(fail("borrowed capture has no original closure body"));
         };
@@ -144,13 +148,24 @@ impl Check<'_, '_> {
                     StorageBase::Parameter(_) | StorageBase::Result
                 )
             })
-            || !life.static_bindings.is_empty()
             || function.storage_life.as_ref() != Some(life)
             || !closure.lending_captures.is_empty()
         {
             return Err(unknown(
                 "actual closure needs its full retained, lending or invocation context",
             ));
+        }
+        if !life.static_bindings.is_empty() {
+            let mut parameters = Vec::new();
+            for parameter in &signature.parameters {
+                self.push_value(
+                    &mut parameters,
+                    self.recipe_value(instance, &parameter.ty, b, 0)?,
+                    b,
+                )?;
+            }
+            let result = self.recipe_value(instance, &signature.result, b, 0)?;
+            self.original_static_header(&parameters, &result, life, b)?;
         }
         b.spend(
             (life.fixed_binder_count as usize).saturating_add(closure.captures.len()),
@@ -190,6 +205,27 @@ impl Check<'_, '_> {
                         return Err(fail("original implicit name has no actual emitted read"));
                     };
                     match self.instruction(function, value, b)? {
+                        InstructionKind::StaticUtf8 { bytes } => {
+                            let original = self.original.string_literal_at(instance, recipe.id, self.inventory, b)?
+                                .ok_or_else(|| fail("literal observation has no exact original String occurrence"))?;
+                            b.spend(bytes.len().saturating_add(original.len()), WORK)?;
+                            let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
+                                unreachable!()
+                            };
+                            let expected = self.recipe_value(instance, expected, b, 0)?;
+                            if original != bytes.as_slice()
+                                || !original::strings::is_byte_type(&expected.ty)
+                                || !empty(&expected.life)
+                                || !expected.classes.is_empty()
+                                || function.values.get(value.0 as usize) != Some(&expected.ty)
+                            {
+                                return Err(fail(
+                                    "literal observation changes its original bytes or complete Static type",
+                                ));
+                            }
+                            // An original literal observation is not a capture
+                            // and contributes no Fixed class or borrowed head.
+                        }
                         InstructionKind::ReadCapture { index }
                             if closure
                                 .captures
@@ -199,45 +235,75 @@ impl Check<'_, '_> {
                             self.captured_read(function, value, b)?;
                         }
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                            if let Some(anchor) = self.original.local_recipe_anchor(instance.definition, recipe, b)? {
+                            if let Some(anchor) =
+                                self.original
+                                    .local_recipe_anchor(instance.definition, recipe, b)?
+                            {
                                 if matches!(anchor, original::LocalAnchor::Environment(_))
                                     || self.anchored_local(instance, function, anchor, b)? != *local
                                 {
-                                    return Err(fail("implicit name read substitutes another actual local for its original binder"));
+                                    return Err(fail(
+                                        "implicit name read substitutes another actual local for its original binder",
+                                    ));
                                 }
-                            } else if let Some(ordinal) = self.original.capture_recipe_ordinal(instance.definition, recipe, b)? {
+                            } else if let Some(ordinal) = self.original.capture_recipe_ordinal(
+                                instance.definition,
+                                recipe,
+                                b,
+                            )? {
                                 // A moved Copy capture may be materialized in
                                 // an activation local. Follow its real producer;
                                 // matching names/types or slot order is not a
                                 // captured origin or an additional head loan.
-                                let capture = self.environment_capture(instance, function, ordinal, b)?;
+                                let capture =
+                                    self.environment_capture(instance, function, ordinal, b)?;
                                 if self.capture_value_origin(function, value, b, 0)? != capture {
-                                    return Err(fail("implicit spilled capture read changes its original environment source"));
+                                    return Err(fail(
+                                        "implicit spilled capture read changes its original environment source",
+                                    ));
                                 }
                             } else {
-                                return Err(fail("implicit name read lacks its exact original local or captured binder"));
+                                return Err(fail(
+                                    "implicit name read lacks its exact original local or captured binder",
+                                ));
                             }
                             let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
-                                return Err(fail("implicit local read has another original operation"));
+                                return Err(fail(
+                                    "implicit local read has another original operation",
+                                ));
                             };
                             let expected = self.recipe_value(instance, expected, b, 0)?;
-                            let actual_type = function.values.get(value.0 as usize)
+                            let actual_type = function
+                                .values
+                                .get(value.0 as usize)
                                 .ok_or_else(|| fail("implicit local read has no actual output"))?;
-                            let declaration = function.locals.get(local.0 as usize)
+                            let declaration = function
+                                .locals
+                                .get(local.0 as usize)
                                 .filter(|declaration| declaration.id == *local)
-                                .ok_or_else(|| fail("implicit local read has no actual declaration"))?;
+                                .ok_or_else(|| {
+                                    fail("implicit local read has no actual declaration")
+                                })?;
                             if !geometry::same_type(actual_type, &declaration.ty, b)?
                                 || !geometry::same_type(actual_type, &expected.ty, b)?
-                                || !self.ssa_value(instance, function, value, b, 0)?.equal_paid(&expected, b)?
+                                || !self
+                                    .ssa_value(instance, function, value, b, 0)?
+                                    .equal_paid(&expected, b)?
                             {
-                                return Err(fail("implicit local read changes its complete original value"));
+                                return Err(fail(
+                                    "implicit local read changes its complete original value",
+                                ));
                             }
                             // This read supplies no Fixed capture head. Its
                             // initialized occupant and consuming/Copy mode are
                             // checked independently by the actual CFG kernel.
                             let (block, index, _) = self.definition_at(function, value, b)?;
-                            operations::available_before(function,
-                                (block, index, SemanticSiteEdge::After), value, b)?;
+                            operations::available_before(
+                                function,
+                                (block, index, SemanticSiteEdge::After),
+                                value,
+                                b,
+                            )?;
                         }
                         _ => {
                             return Err(unknown(

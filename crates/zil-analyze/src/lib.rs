@@ -140,6 +140,10 @@ fn analyze_budgeted_context(
     context: Option<(&CoreProgram, &CtFrozenContext)>,
 ) -> CompileResult<CandidatePlan> {
     bind_initialization(module, budget)?;
+    // These declaration-role facts belong to this complete analysis run, even
+    // if a caller reuses Budget storage or a previous module address.
+    budget.semantic_reference_results.clear();
+    budget.semantic_reference_locals.clear();
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     match context {

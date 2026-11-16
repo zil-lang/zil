@@ -445,37 +445,78 @@ impl Check<'_, '_> {
                 ));
             }
         }
-        let provider = self.actual_provider(
-            &original.source,
-            interface.application.declaration,
-            &original.trait_actuals,
-            b,
-            0,
-        )?;
-        let definition = self.inventory.definition(provider.definition, b)?;
-        let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration, .. }) =
-            &definition.body
-        else {
-            return Err(fail(
-                "owning Dyn actual provider has no real original implementation scope",
-            ));
+        // The constructor and the implementation have distinct rigid worlds.
+        // The table's full Context is the explicit application map, not an
+        // equation between caller and provider classes.
+        let scope = DynInstantiationScope {
+            fixed_binder_count: interface.retained_life.binder_count,
+            invocation_binder_count: 0,
         };
-        if provider.definition != original.provider || *declaration != table.implementation {
-            return Err(fail(
-                "owning Dyn construction selects another original provider scope or implementation declaration",
-            ));
+        let raw_self = DynTypeValue {
+            ty: table.self_type.clone(),
+            life: life.clone(),
+            classes: table.self_classes.clone(),
+        };
+        let mut worlds_checked = 0usize;
+        for entry in &table.entries {
+            let worlds = self.function_worlds(entry.function, b)?;
+            if worlds.is_empty() {
+                return Err(fail("owning Dyn provider has no complete method world"));
+            }
+            for world in worlds {
+                let mut parent = world.parent;
+                let mut provider = None;
+                for _ in 0..=b.partial_depth {
+                    let Some(id) = parent else {
+                        break;
+                    };
+                    let current = self.inventory.instance(id, b)?;
+                    if current.definition == original.provider {
+                        provider = Some(current);
+                        break;
+                    }
+                    parent = current.parent;
+                }
+                let provider = provider.ok_or_else(|| {
+                    unknown("owning Dyn method omits its exact original provider ancestry")
+                })?;
+                let definition = self.inventory.definition(provider.definition, b)?;
+                let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                    declaration,
+                    trait_application,
+                    ..
+                }) = &definition.body
+                else {
+                    return Err(fail(
+                        "owning Dyn provider is not its original implementation scope",
+                    ));
+                };
+                if *declaration != table.implementation
+                    || trait_application.declaration != interface.application.declaration
+                {
+                    return Err(fail(
+                        "owning Dyn provider changes its original implementation or trait",
+                    ));
+                }
+                self.scope_arguments(provider, b)?;
+                let self_value = self.original_scope_self(provider, b, 0)?;
+                let mut images = BTreeMap::new();
+                self.standalone_value(scope, &raw_self, &self_value, &mut images, b)?;
+                self.standalone_actuals(scope, &table.actuals, provider, &mut images, b)?;
+                let trait_actuals = self.trait_actuals(provider, trait_application, b, 0)?;
+                let applied =
+                    self.dyn_context_arguments(&interface.application.actuals, &images, b)?;
+                if !super::traits::arguments_equal(&trait_actuals, &applied, b)? {
+                    return Err(fail(
+                        "owning Dyn Context changes its complete provider trait application",
+                    ));
+                }
+                worlds_checked += 1;
+            }
         }
-        let mut provider_actuals = Vec::new();
-        for actual in &provider.actuals {
-            self.push_value(
-                &mut provider_actuals,
-                self.actual_value(provider, actual, b, 0)?,
-                b,
-            )?;
-        }
-        if provider_actuals != original.actuals {
-            return Err(fail(
-                "owning Dyn provider changes its complete independent original mixed specialization",
+        if worlds_checked == 0 {
+            return Err(unknown(
+                "owning Dyn needs a complete original provider world",
             ));
         }
         self.dyn_owner_arguments(

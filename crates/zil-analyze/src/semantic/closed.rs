@@ -1075,6 +1075,26 @@ pub(super) fn check(
             }
         }
     }
+    for function in &module.functions {
+        b.spend(1, WORK)?;
+        if !matches!(function.return_type, Type::Closure(_)) { continue; }
+        let Some(header) = &function.storage_life else { continue; };
+        for row in &header.classes {
+            b.spend(row.position.path.len().saturating_add(1), WORK)?;
+            if row.position.base != StorageBase::Result || !row.position.path.is_empty()
+                || !matches!(row.binder, StorageBinder::Invocation(_)) { continue; }
+            if checker.reference_result_role(function, row.position.class, b, 0)? == Some(row.binder) {
+                b.lookup(b.semantic_reference_results.len(), WORK)?;
+                b.semantic_reference_results.insert((function.id, row.position.class, row.binder));
+            }
+        }
+    }
+    for function in &module.functions {
+        for local in checker.reference_local_regions(function, b)? {
+            b.lookup(b.semantic_reference_locals.len(), WORK)?;
+            b.semantic_reference_locals.insert((function.id, local));
+        }
+    }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.
     // No semantic context manufactures a target, loan, epoch or effect.
     Ok(())

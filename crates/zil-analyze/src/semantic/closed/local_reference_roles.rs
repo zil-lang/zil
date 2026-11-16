@@ -383,28 +383,51 @@ impl Check<'_, '_> {
         active.remove(&role.statement);
         Ok(())
     }
-    /// A declaration region exported through an opaque result is a new
-    /// invocation role, not an equation with one of its possible input lives.
-    /// The caller's original result supplies its occurrence; every callee world
-    /// must independently prove the same complete role/source construction.
-    pub(super) fn reference_call_result_class(
+    pub(super) fn reference_local_regions(
         &self,
-        caller: &SemanticInstance,
         function: &TypedFunction,
-        at: (BlockId, usize),
+        b: &mut Budget,
+    ) -> CompileResult<BTreeSet<LocalId>> {
+        let worlds = self.function_worlds(function.id, b)?;
+        let Some(first) = worlds.first() else {
+            return Ok(BTreeSet::new());
+        };
+        let mut locals = BTreeSet::new();
+        for statement in self.original.reference_bindings(first.definition, b)? {
+            let local = self.anchored_local(
+                first,
+                function,
+                original::LocalAnchor::Binding(statement),
+                b,
+            )?;
+            let mut complete = true;
+            for world in &worlds {
+                let Some(role) = self.reference_role_for_local(world, function, local, b)? else {
+                    complete = false;
+                    break;
+                };
+                self.reference_role_stores(world, function, local, &role, b, 0)?;
+            }
+            if complete {
+                b.lookup(locals.len(), WORK)?;
+                locals.insert(local);
+            }
+        }
+        Ok(locals)
+    }
+
+    pub(super) fn reference_result_role(
+        &self,
         callee: &TypedFunction,
         child: u32,
-        expected: &Value,
         b: &mut Budget,
         depth: usize,
-    ) -> CompileResult<Option<Class>> {
+    ) -> CompileResult<Option<StorageBinder>> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth {
-            return Err(unknown(
-                "reference call result exceeds its finite role depth",
-            ));
+            return Err(unknown("reference result proof exceeds finite depth"));
         }
-        let Type::Closure(closure) = &expected.ty else {
+        let Type::Closure(closure) = &callee.return_type else {
             return Ok(None);
         };
         let entry = self
@@ -417,9 +440,7 @@ impl Check<'_, '_> {
             .storage_life
             .as_ref()
             .ok_or_else(|| unknown("reference result closure domain is unknown"))?;
-        if child >= closure_life.fixed_binder_count
-            || expected.classes.len() != closure_life.fixed_binder_count as usize
-        {
+        if child >= closure_life.fixed_binder_count {
             return Err(fail("reference result omits an intrinsic closure class"));
         }
         let header = callee
@@ -551,6 +572,41 @@ impl Check<'_, '_> {
         // captures through CFG writes. Mutable memory leaves a mandatory
         // pending proof for stored-flow; no loan or cleanup is cached here.
         crate::retained::check_sources(self.module, callee, b)?;
+        Ok(Some(binder))
+    }
+
+    /// A declaration region exported through an opaque result is a new
+    /// invocation role, not an equation with one of its possible input lives.
+    /// The caller's original result supplies its occurrence; every callee world
+    /// must independently prove the same complete role/source construction.
+    pub(super) fn reference_call_result_class(
+        &self,
+        caller: &SemanticInstance,
+        function: &TypedFunction,
+        at: (BlockId, usize),
+        callee: &TypedFunction,
+        child: u32,
+        expected: &Value,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Class>> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "reference call result exceeds its finite role depth",
+            ));
+        }
+        if expected.ty != callee.return_type || child as usize >= expected.classes.len() {
+            return Err(fail(
+                "reference result changes its complete original caller value",
+            ));
+        }
+        if self
+            .reference_result_role(callee, child, b, depth + 1)?
+            .is_none()
+        {
+            return Ok(None);
+        }
         let original = self.static_call_result(caller, at.0, at.1, b)?;
         if !original.equal_paid(expected, b)?
             || function.values.get(

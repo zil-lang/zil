@@ -95,6 +95,11 @@ pub(super) struct Budget {
     // Exact actual method specializations whose original definition, every
     // full world and CFG correspondence completed. No vtable/effect authority.
     pub(super) semantic_dyn_functions_proven: BTreeSet<FunctionId>,
+    // Exact original declaration regions exported through actual closure
+    // results after all worlds, assignments and escaping source uppers check.
+    // This is a class-role fact, never a loan or terminal cleanup proof.
+    pub(super) semantic_reference_results: BTreeSet<(FunctionId, u32, zil_ir::StorageBinder)>,
+    pub(super) semantic_reference_locals: BTreeSet<(FunctionId, zil_ir::LocalId)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -278,6 +283,8 @@ impl Budget {
             semantic_declarations_proven: BTreeSet::new(),
             semantic_dyn_tables_proven: BTreeSet::new(),
             semantic_dyn_functions_proven: BTreeSet::new(),
+            semantic_reference_results: BTreeSet::new(),
+            semantic_reference_locals: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,

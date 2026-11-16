@@ -37,7 +37,7 @@ fn charge_arguments(arguments: &[Argument], b: &mut Budget) -> CompileResult<()>
     }
     Ok(())
 }
-fn arguments_equal(left: &[Argument], right: &[Argument], b: &mut Budget) -> CompileResult<bool> {
+pub(super) fn arguments_equal(left: &[Argument], right: &[Argument], b: &mut Budget) -> CompileResult<bool> {
     b.spend(left.len().saturating_add(right.len()), WORK)?;
     if left.len() != right.len() { return Ok(false); }
     let mut equal = true;
