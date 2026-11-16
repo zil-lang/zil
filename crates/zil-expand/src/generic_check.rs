@@ -2342,7 +2342,7 @@ impl Check<'_, '_, '_> {
         let expected = self.result.clone();
         let actual = self.expr(expression, state, Some(&expected), false)?;
         if matches!(group(&actual).kind, TypeKind::Reference { .. }) {
-            self.alias_return(state, expression.span)?;
+            self.alias_return(state, expression, &actual)?;
         }
         if self
             .callable
