@@ -559,12 +559,14 @@ fn signature_recipe(
                 StoredBorrowMode::SharedAddress
             };
             let mut sources = Vec::new();
-            let leaf = pattern(scope, &signature.result, budget, span)?;
-            budget.lineage_push(
-                &mut sources,
-                DynStorageSourceRecipe::Static { leaf, mode },
-                span,
-            )?;
+            if !*mutable {
+                let leaf = pattern(scope, &signature.result, budget, span)?;
+                budget.lineage_push(
+                    &mut sources,
+                    DynStorageSourceRecipe::Static { leaf, mode },
+                    span,
+                )?;
+            }
             for (index, parameter) in signature.parameters.iter().enumerate() {
                 if let SemanticTypeRecipe::Address {
                     lifetime: input, ..
