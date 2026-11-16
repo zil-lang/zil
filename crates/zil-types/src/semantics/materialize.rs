@@ -498,7 +498,17 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             .call_targets
             .get(&(owner, call))
             .ok_or_else(|| bad("inferred holder has no original resolved call target"))?;
-        if target == holder {
+        // A selected implementation method has a distinct declaration from
+        // its trait member. Their own mixed frames correspond only through
+        // the independently checked complete provider theorem; neither is the
+        // other's lexical parent Scope.
+        let provider = proof.providers.get(&holder) == Some(&target);
+        if target == holder || provider {
+            if provider && !proof.complete.contains(&holder) {
+                return Err(bad(
+                    "inferred provider holder lacks its complete original method proof",
+                ));
+            }
             return proof.call_actual(owner, call, formal, self.limits, self.left);
         }
         let target = self

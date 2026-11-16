@@ -1576,6 +1576,70 @@ fn source_class(
         Type::Address { inner, .. } => (inner.as_ref(), true),
         ty => (ty, false),
     };
+    if pointer && !source.path.is_empty() {
+        let mut selected = Some(ty);
+        for step in &source.path {
+            spend(left, 1, f.span)?;
+            let Some(parent) = selected else {
+                break;
+            };
+            selected = match (stored::physical(parent), step) {
+                (
+                    Type::Record { fields, .. } | Type::Package { fields, .. },
+                    ContractProjection::Place(PlaceProjection::Field(field)),
+                ) => fields.get(*field as usize).map(|(_, ty)| ty),
+                (Type::Tuple(fields), ContractProjection::Place(PlaceProjection::Field(field))) => {
+                    fields.get(*field as usize)
+                }
+                (
+                    Type::Array { element, length },
+                    ContractProjection::Place(PlaceProjection::Field(field)),
+                ) if field < length => Some(element.as_ref()),
+                (
+                    Type::Enum { variants, .. },
+                    ContractProjection::Place(PlaceProjection::Variant(field)),
+                ) => variants
+                    .get(field.variant as usize)
+                    .and_then(|(_, fields)| fields.get(field.index as usize)),
+                (
+                    Type::ErrorUnion { error, result },
+                    ContractProjection::Place(PlaceProjection::ErrorArm(error_arm)),
+                ) => Some(if *error_arm {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                }),
+                _ => None,
+            };
+        }
+        if selected.is_some_and(|ty| !matches!(ty, Type::Address { .. } | Type::Desc(_))) {
+            // A loan of inline scalar/product storage is a subview of this
+            // input Address. Reading a pointer stored at that path instead
+            // uses its separately qualified leaf domain below.
+            let root = StoragePosition {
+                base: source.base,
+                path: Vec::new(),
+            };
+            spend(left, life.bindings.len(), f.span)?;
+            let mut rows = life.bindings.iter().filter(|row| row.position == root);
+            let binder = rows
+                .next()
+                .ok_or_else(|| {
+                    unsupported(
+                        f.span,
+                        "projected input loan has no actual outer header occurrence",
+                    )
+                })?
+                .binder;
+            if rows.next().is_some() {
+                return Err(unsupported(
+                    f.span,
+                    "projected input loan has ambiguous actual outer header occurrences",
+                ));
+            }
+            return Ok(binder);
+        }
+    }
     if let Type::Closure(id) = ty {
         let class = capture_class(module, *id, &source.path, 0, left, f.span)?;
         return header_class(
