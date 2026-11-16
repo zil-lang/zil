@@ -885,6 +885,7 @@ impl Check<'_, '_> {
                             return Ok(());
                         }
                         id @ (original::sealed::Intrinsic::TaskCreate
+                        | original::sealed::Intrinsic::TaskCreateOwned
                         | original::sealed::Intrinsic::TaskPoll
                         | original::sealed::Intrinsic::TaskCancel
                         | original::sealed::Intrinsic::TaskPollClose

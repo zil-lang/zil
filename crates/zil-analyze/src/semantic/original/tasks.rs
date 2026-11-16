@@ -788,6 +788,57 @@ impl Solver<'_, '_> {
         }
     }
 
+    fn task_input_domain(
+        &self,
+        task: &mut TaskType,
+        inputs: &[Term],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        // Keep every original whole input, including its retained and phantom
+        // catalogue. A family qualification does not reconstruct this domain.
+        task.retained = Retained::default();
+        task.leaves.clear();
+        for (ordinal, input) in inputs.iter().enumerate() {
+            let ordinal = u32::try_from(ordinal).map_err(|_| resource("Task input ordinal overflow"))?;
+            let leaf = self.task_leaf(&mut task.leaves, *input, b)?;
+            Self::push(&mut task.retained.domain, Sequence::All(leaf, Vec::new()), b)?;
+            b.spend(3, WORK)?;
+            Self::push(&mut task.retained.ports, Port::From(leaf, vec![Sequence::All(leaf, Vec::new())]), b)?;
+            Self::push(&mut task.retained.retained, Retain::All(vec![LifeTypeProjection::Parameter(ordinal)], vec![Sequence::All(leaf, Vec::new())]), b)?;
+            Self::push(&mut task.retained.nominal, Nominal::From(vec![LifeTypeProjection::Parameter(ordinal)], leaf, vec![Sequence::All(leaf, Vec::new())]), b)?;
+        }
+        let result_leaf = self.task_leaf(&mut task.leaves, task.result, b)?;
+        b.spend(2, WORK)?;
+        Self::push(&mut task.retained.retained, Retain::All(vec![LifeTypeProjection::Result], vec![Sequence::All(result_leaf, Vec::new())]), b)
+    }
+
+    fn task_failure(
+        &mut self,
+        inputs: &[Term],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        let mut fields = Vec::new();
+        let mut record = true;
+        for input in inputs {
+            Self::push(&mut fields, *input, b)?;
+            // Shared and exclusive address carriers use the canonical record
+            // form; this classification grants neither Copy nor a new loan.
+            let address = matches!(self.state.arena[self.type_root(*input, b)?], Kind::Address { .. });
+            record &= address || self.satisfies(*input, Predicate::Copy, b, depth + 1)?;
+        }
+        let fields = self.term(Kind::Tuple(fields), b)?;
+        let unit = self.atom(Type::Unit, b)?;
+        let mut context = TaskType { result: unit, retained: Retained::default(), leaves: Vec::new() };
+        self.task_input_domain(&mut context, inputs, b)?;
+        let context = self.term(Kind::Task(context), b)?;
+        let identity = if record { zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD }
+            else { zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE };
+        let definition = self.inventory.protocol_task_definition(identity, b)?;
+        self.application(definition, vec![fields, context], b, depth + 1)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn task_call(
         &mut self,
@@ -806,7 +857,7 @@ impl Solver<'_, '_> {
             ));
         }
         let mut inputs = Vec::new();
-        let result = if intrinsic == sealed::Intrinsic::TaskCreate {
+        let result = if matches!(intrinsic, sealed::Intrinsic::TaskCreate | sealed::Intrinsic::TaskCreateOwned) {
             let (worker, arguments) = arguments
                 .split_first()
                 .ok_or_else(|| fail("Task creation omits its static worker"))?;
@@ -833,11 +884,13 @@ impl Solver<'_, '_> {
                 // releases borrowed ports; task_create_owned has a different
                 // complete input-return carrier. Neither operation makes Task
                 // itself SyncDrop, and an exclusive Address need not be Copy.
-                Self::push(
-                    &mut self.needs,
-                    Need { term: *parameter, predicate: Predicate::SyncDrop },
-                    b,
-                )?;
+                if intrinsic == sealed::Intrinsic::TaskCreate {
+                    Self::push(
+                        &mut self.needs,
+                        Need { term: *parameter, predicate: Predicate::SyncDrop },
+                        b,
+                    )?;
+                }
                 if *mode == PassingMode::Copy {
                     Self::push(
                         &mut self.needs,
@@ -860,20 +913,7 @@ impl Solver<'_, '_> {
             // whole domain and P_i mapping, including opaque/phantom children.
             // task_input_shape above still proves this input family's source
             // port qualification; it supplies no cleanup/Closed permission.
-            task.retained = Retained::default();
-            task.leaves.clear();
-            for (ordinal, input) in inputs.iter().enumerate() {
-                let ordinal = u32::try_from(ordinal).map_err(|_| resource("Task input ordinal overflow"))?;
-                let leaf = self.task_leaf(&mut task.leaves, *input, b)?;
-                Self::push(&mut task.retained.domain, Sequence::All(leaf, Vec::new()), b)?;
-                b.spend(3, WORK)?;
-                Self::push(&mut task.retained.ports, Port::From(leaf, vec![Sequence::All(leaf, Vec::new())]), b)?;
-                Self::push(&mut task.retained.retained, Retain::All(vec![LifeTypeProjection::Parameter(ordinal)], vec![Sequence::All(leaf, Vec::new())]), b)?;
-                Self::push(&mut task.retained.nominal, Nominal::From(vec![LifeTypeProjection::Parameter(ordinal)], leaf, vec![Sequence::All(leaf, Vec::new())]), b)?;
-            }
-            let result_leaf = self.task_leaf(&mut task.leaves, result, b)?;
-            b.spend(2, WORK)?;
-            Self::push(&mut task.retained.retained, Retain::All(vec![LifeTypeProjection::Result], vec![Sequence::All(result_leaf, Vec::new())]), b)?;
+            self.task_input_domain(&mut task, &inputs, b)?;
             b.lookup(self.state.native_targets.len(), WORK)?;
             if self
                 .state
@@ -903,12 +943,11 @@ impl Solver<'_, '_> {
             }
             let task = self.term(Kind::Task(task), b)?;
             let owner = self.term(Kind::Wrapped(Wrapper::Managed, task), b)?;
-            let error = self.task_builtin(
-                zil_ir::builtin_life::TASK_CREATE_ERROR,
-                Vec::new(),
-                b,
-                depth + 1,
-            )?;
+            let error = if intrinsic == sealed::Intrinsic::TaskCreateOwned {
+                self.task_failure(&inputs, b, depth + 1)?
+            } else {
+                self.task_builtin(zil_ir::builtin_life::TASK_CREATE_ERROR, Vec::new(), b, depth + 1)?
+            };
             self.term(
                 Kind::ErrorUnion {
                     error,

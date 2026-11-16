@@ -61,7 +61,7 @@ impl Check<'_, '_> {
             let SemanticSiteAction::BodyCall { actuals } = &site.action else { continue; };
             let intrinsic = self.original.intrinsic(instance, site.recipe, self.inventory, b)?
                 .ok_or_else(|| fail("Task result has no original intrinsic scheme"))?;
-            if intrinsic != original::sealed::Intrinsic::TaskCreate {
+            if !matches!(intrinsic, original::sealed::Intrinsic::TaskCreate | original::sealed::Intrinsic::TaskCreateOwned) {
                 return Err(fail("Task result replaces another original intrinsic"));
             }
             let ty = self.task_operation(instance, site.recipe, intrinsic, function, block, index, actuals, b)?;
@@ -85,7 +85,7 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Type> {
-        if intrinsic != original::sealed::Intrinsic::TaskCreate {
+        if !matches!(intrinsic, original::sealed::Intrinsic::TaskCreate | original::sealed::Intrinsic::TaskCreateOwned) {
             let expected_type =
                 self.original
                     .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
@@ -124,6 +124,10 @@ impl Check<'_, '_> {
                 InstructionKind::TaskCreate {
                     worker, arguments, ..
                 },
+            )
+            | (
+                original::sealed::Intrinsic::TaskCreateOwned,
+                InstructionKind::TaskCreateOwned { worker, arguments, .. },
             ) => {
                 self.task_worker_arguments(instance, site, *worker, actuals, b)?;
                 // The referenced worker's whole original declaration and its
@@ -131,10 +135,9 @@ impl Check<'_, '_> {
                 // Referencing it here does not execute its Suspend body.
                 arguments
             }
-            (original::sealed::Intrinsic::TaskCreate, InstructionKind::TaskCreateOwned { .. }) => {
-                return Err(unknown(
-                    "owning Task allocation failure needs the original complete input-return carrier",
-                ));
+            (original::sealed::Intrinsic::TaskCreate, InstructionKind::TaskCreateOwned { .. })
+            | (original::sealed::Intrinsic::TaskCreateOwned, InstructionKind::TaskCreate { .. }) => {
+                return Err(fail("actual Task creation changes its original input-return failure contract"));
             }
             (original::sealed::Intrinsic::TaskPoll, InstructionKind::TaskPoll { task })
             | (

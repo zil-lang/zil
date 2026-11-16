@@ -562,7 +562,8 @@ impl Proof<'_, '_> {
                         | sealed::Intrinsic::SliceLength,
                     ) => Ok(Data::default()),
                     sealed::Resolution::Intrinsic(
-                        sealed::Intrinsic::RegisterAsync | sealed::Intrinsic::TaskCreate,
+                        sealed::Intrinsic::RegisterAsync | sealed::Intrinsic::TaskCreate
+                            | sealed::Intrinsic::TaskCreateOwned,
                     ) => {
                         state.call_effect(&actuals, &[], b)?;
                         self.fresh_owner(state, value.id, b)
@@ -1144,6 +1145,7 @@ pub(super) fn check(
                             | sealed::Intrinsic::AsyncFinish
                             | sealed::Intrinsic::AsyncFinishChecked
                             | sealed::Intrinsic::TaskCreate
+                            | sealed::Intrinsic::TaskCreateOwned
                             | sealed::Intrinsic::TaskPoll
                             | sealed::Intrinsic::TaskCancel
                             | sealed::Intrinsic::TaskPollClose
