@@ -814,6 +814,97 @@ fn cleanup(
 ) -> CompileResult<()> {
     helper_graph(module, first, budget, span, false)
 }
+// Shared physical frame qualification for actual closure operations in a
+// Suspend root and its Direct helpers. This does not prove that a slot is live,
+// movable or synchronously droppable: resources::check_module still checks
+// those obligations at every actual instruction, including guarded cleanup.
+fn frame_closure_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &zil_ir::Instruction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let id = match &instruction.kind {
+        InstructionKind::MakeClosure { closure, .. } => *closure,
+        InstructionKind::DropClosure { local } => {
+            let Type::Closure(id) = local_type(f, *local, Some(instruction.span))? else {
+                return Err(fail(
+                    instruction.span,
+                    "frame closure cleanup has another actual local type",
+                ));
+            };
+            *id
+        }
+        InstructionKind::CallClosure { .. }
+        | InstructionKind::CallClosureShared { .. }
+        | InstructionKind::CallClosureMut { .. }
+        | InstructionKind::CallClosureBorrowed { .. }
+        | InstructionKind::CallClosureOnce { .. } => {
+            let (definition, _) = crate::stored_callables::called(module, f, &instruction.kind)
+                .ok_or_else(|| {
+                    fail(
+                        instruction.span,
+                        "frame callback has no exact actual mode and entry",
+                    )
+                })?;
+            definition.id
+        }
+        _ => return Ok(false),
+    };
+    budget.spend(2, "actual frame closure definition and entry")?;
+    let definition = module
+        .closures
+        .get(id.0 as usize)
+        .filter(|definition| definition.id == id)
+        .ok_or_else(|| fail(instruction.span, "frame closure identity is absent"))?;
+    let entry = module
+        .functions
+        .get(definition.function.0 as usize)
+        .filter(|entry| entry.id == definition.function)
+        .ok_or_else(|| fail(instruction.span, "frame closure actual entry is absent"))?;
+    if entry.environment != Some(id)
+        || entry.foreign.is_some()
+        || entry.call_kind != CallKind::Direct
+        || entry.parameters.len() != definition.parameters.len()
+    {
+        return Err(fail(
+            instruction.span,
+            "frame closure has another actual entry or call ABI",
+        ));
+    }
+    for (local, expected) in entry.parameters.iter().zip(&definition.parameters) {
+        let actual = local_type(entry, *local, Some(instruction.span))?;
+        budget.type_work(actual, false, "actual frame closure parameter")?;
+        budget.type_work(expected, false, "declared frame closure parameter")?;
+        if actual != expected {
+            return Err(fail(
+                instruction.span,
+                "frame closure entry changes a complete parameter",
+            ));
+        }
+    }
+    budget.type_work(&entry.return_type, false, "actual frame closure result")?;
+    budget.type_work(&definition.result, false, "declared frame closure result")?;
+    for contract in entry.storage_life.iter().chain(&definition.storage_life) {
+        crate::signature_life::charge(contract, budget)?;
+    }
+    if entry.return_type != definition.result
+        || entry.storage_life != definition.storage_life
+        || !pollable_storage(module, &Type::Closure(id), budget)?
+    {
+        return Err(fail(
+            instruction.span,
+            "frame closure needs its complete actual capture storage",
+        ));
+    }
+    // Exact capture operands/results, receiver mode and parameter types. The
+    // body/role kernels subsequently prove all actual call traces and loans;
+    // automatic Task/registration cleanup retains its separate origin/Closed
+    // proof in the live resource CFG, rather than a type-only permission here.
+    crate::stored_callables::types(module, f, instruction, budget)?;
+    Ok(true)
+}
+
 fn task_driver_signature(f: &TypedFunction) -> CompileResult<bool> {
     let mut found = false;
     // helper_graph already prepays this complete parameter inventory.
@@ -880,7 +971,9 @@ fn helper_graph(
             };
         if f.call_kind != CallKind::Direct
             || f.environment.is_some()
-            || f.callable_contract.is_some()
+            // A callable role is a checked input relation, not a different
+            // physical frame ABI. helpers::check validates its complete real
+            // occurrences after this layout pass; no role grants cleanup here.
             || f.callable_return_contract.is_some() && !handoff
             || !(record(&f.return_type, budget)?
                 || complete_aggregate(module, &f.return_type, budget)?
@@ -955,18 +1048,12 @@ fn helper_graph(
         for b in &f.blocks {
             for i in &b.instructions {
                 budget.spend(1, "actual owning task profile")?;
-                if frame_store_instruction(module, f, i, budget)? {
+                if frame_store_instruction(module, f, i, budget)?
+                    || frame_closure_instruction(module, f, i, budget)?
+                {
                     continue;
                 }
                 match &i.kind {
-                    InstructionKind::MakeClosure { closure, .. } if handoff => {
-                        if !pollable_storage(module, &Type::Closure(*closure), budget)? {
-                            return Err(fail(
-                                i.span,
-                                "Task environment handoff lacks its complete concrete capture frame",
-                            ));
-                        }
-                    }
                     InstructionKind::TaskPoll { .. }
                     | InstructionKind::TaskValid { .. }
                     | InstructionKind::TaskRequestCancel { .. }
@@ -1148,7 +1235,9 @@ pub(super) fn profile(
     for b in &f.blocks {
         for i in &b.instructions {
             budget.spend(1, "actual owning task profile")?;
-            if frame_store_instruction(module, f, i, budget)? {
+            if frame_store_instruction(module, f, i, budget)?
+                || frame_closure_instruction(module, f, i, budget)?
+            {
                 continue;
             }
             match &i.kind {
@@ -1169,32 +1258,6 @@ pub(super) fn profile(
                 InstructionKind::Call { function, .. }
                 | InstructionKind::ForeignCall { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
-                }
-                InstructionKind::CallClosure { .. }
-                | InstructionKind::CallClosureShared { .. }
-                | InstructionKind::CallClosureMut { .. }
-                | InstructionKind::CallClosureBorrowed { .. }
-                | InstructionKind::CallClosureOnce { .. } => {
-                    let (definition, _) = crate::stored_callables::called(module, f, &i.kind)
-                        .ok_or_else(|| {
-                            fail(i.span, "Task callback has no actual checked concrete entry")
-                        })?;
-                    let entry = module
-                        .functions
-                        .get(definition.function.0 as usize)
-                        .ok_or_else(|| fail(i.span, "Task callback entry is absent"))?;
-                    if entry.environment != Some(definition.id)
-                        || entry.call_kind != CallKind::Direct
-                        || !pollable_storage(module, &Type::Closure(definition.id), budget)?
-                    {
-                        return Err(fail(
-                            i.span,
-                            "Task callback needs complete actual frame storage",
-                        ));
-                    }
-                    // Helpers prove traces/actual operands; resources prove
-                    // ownership. NoExternal separately walks this entry and
-                    // every captured child/cleanup before automatic close.
                 }
                 InstructionKind::SuspendCall {
                     function,
@@ -1232,8 +1295,6 @@ pub(super) fn profile(
                 | InstructionKind::AsyncRegistrationPollClose { .. }
                 | InstructionKind::AsyncRegistrationFinishDestroy { .. }
                 | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
-                | InstructionKind::MakeClosure { .. }
-                | InstructionKind::DropClosure { .. }
                 | InstructionKind::UnsafeEnter { .. }
                 | InstructionKind::UnsafeExit { .. }
                 | InstructionKind::Constant(_)
