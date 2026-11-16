@@ -8,7 +8,7 @@ pub(super) struct AbstractCall {
     pub(super) subject: Term,
     receiver: Term,
     place: Option<Borrow>,
-    signature_owner: SemanticDefinitionId,
+    pub(super) signature_owner: SemanticDefinitionId,
     pub(super) signature: SemanticSignatureRecipe,
     pub(super) bounds: Vec<u32>,
     protected: Vec<Term>,
