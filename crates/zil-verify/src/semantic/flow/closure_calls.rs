@@ -87,6 +87,10 @@ impl CheckedContext {
             };
             let(instance,recipe,world)=candidate;
             let value=self.evaluate_signature(module,recipe,&world,external,active,b)?;
+            // Static output promises retain their existing actual least-root
+            // pending path. They have no variable P/R occurrence to transport
+            // through this intrinsic-class bridge.
+            if value.parameters.iter().any(|(value,_)|!value.statics.is_empty())||!value.result.statics.is_empty(){continue;}
             // Bind every original Fixed embedding to this exact receiver's
             // outside class; this does not replace its own Existing origins.
             let original=self.instance(module,instance,b)?;
