@@ -1005,7 +1005,10 @@ impl Check<'_, '_> {
                 && !matches!(ty,Type::BorrowedStorage {life,..} if life.slots.is_empty())
                 && !matches!(ty, Type::Address { .. } | Type::Desc(_))
             {
-                self.zero_data(ty, b, 0)?;
+                // Complete capture rows above already retain nonzero child
+                // domains. Classify that exact child without reinterpreting
+                // an opaque Closure/Package as a zero-domain environment.
+                self.ordinary_type(ty, b)?;
             }
         }
         if used_slots.len()
@@ -1368,6 +1371,31 @@ impl Check<'_, '_> {
                 .ok_or_else(|| {
                     unknown("borrowed callable result has no complete original invocation role")
                 }),
+            InstructionKind::LoadStoredBorrow { storage, path, mode } => {
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), *storage, b)?;
+                let root = self.ssa_value(instance, function, *storage, b, depth + 1)?;
+                let mut selected = if matches!(root.ty, Type::Address { .. }) {
+                    self.pointee(&root, b)?
+                } else { return Err(fail("stored reference read has no actual addressed aggregate source")); };
+                for projection in path {
+                    let PlaceProjection::Field(field) = projection else {
+                        return Err(unknown("stored reference read needs its complete active Sum/array child source"));
+                    };
+                    selected = self.actual_nominal_field(&selected, *field, b, depth + 1)?;
+                }
+                let valid = match mode {
+                    StoredBorrowLoad::CopyShared => matches!(selected.ty, Type::Address { mutable: false, .. }),
+                    StoredBorrowLoad::CopyDescription => matches!(selected.ty, Type::Desc(_)),
+                    StoredBorrowLoad::Take => matches!(selected.ty, Type::Address { .. } | Type::Desc(_)),
+                    StoredBorrowLoad::Reborrow { .. } => false,
+                };
+                if !valid || !geometry::same_type(&selected.ty, ty, b)? {
+                    return Err(unknown("stored reference read changes its full original type or requires its exact reborrow role"));
+                }
+                // Full actual stored-flow retains current cells, parent loans,
+                // shared/exclusive mode and consuming state independently.
+                Ok(selected)
+            }
             InstructionKind::ReadVariant { value: parent, variant, index: field } => {
                 self.projected_shared_value(instance, function, id, *parent,
                     PlaceProjection::Variant(zil_ir::VariantProjection { variant: *variant, index: *field }),
@@ -1448,6 +1476,36 @@ impl Check<'_, '_> {
             }
             InstructionKind::ReadCapture { index: capture } | InstructionKind::TakeCapture { index: capture } => {
                 self.capture_whole_value(instance, function, *capture, b, depth + 1)
+            }
+            InstructionKind::MakeVariant { variant, fields } => {
+                let mut selected = None;
+                for site in &self.program.sites {
+                    b.spend(1, WORK)?;
+                    if site.instance != instance.id
+                        || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
+                            if actual == block && instruction as usize == index)
+                    { continue; }
+                    let Some(constructor) = self.original.enum_constructor(instance, site.recipe,
+                        self.program, self.inventory, b)? else { continue; };
+                    if constructor.variant != *variant || constructor.payload.len() != fields.len()
+                        || !geometry::same_type(&constructor.result.ty, ty, b)?
+                    { return Err(fail("actual Sum construction changes its complete original variant or result domain")); }
+                    for (operand, expected) in fields.iter().zip(&constructor.payload) {
+                        operations::available_before(function, (block, index, SemanticSiteEdge::Before), *operand, b)?;
+                        if !geometry::same_type(function.values.get(operand.0 as usize)
+                            .ok_or_else(|| fail("actual Sum payload is absent"))?, &expected.ty, b)?
+                            || !self.ssa_value(instance, function, *operand, b, depth + 1)?.equal_paid(expected, b)?
+                        { return Err(fail("actual Sum payload changes its independently checked complete original class value")); }
+                    }
+                    if selected.as_ref().is_some_and(|old| old != &constructor.result) {
+                        return Err(fail("actual Sum constructor has competing original domain occurrences"));
+                    }
+                    selected = Some(constructor.result);
+                }
+                // Inactive alternatives still retain the complete original
+                // phantom/type-argument domain. This transports no payload
+                // address, active tag, owner or permission for an empty arm.
+                selected.ok_or_else(|| fail("class-bearing Sum constructor lacks its exact original occurrence"))
             }
             InstructionKind::MakeAggregate { .. } => {
                 let definition = self.inventory.definition(instance.definition, b)?;
@@ -1640,7 +1698,14 @@ impl Check<'_, '_> {
                 let contract = callee.storage_life.as_ref().ok_or_else(|| {
                     unknown("class-bearing call result has no complete callee header")
                 })?;
+                let original_output = if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+                    let output = self.static_call_result(instance, block, index, b)?;
+                    if !geometry::same_type(&output.ty, ty, b)? { return Err(fail("call output changes its complete original head Type")); }
+                    Some(output)
+                } else { None };
                 let count = match ty {
+                    Type::Address { .. } | Type::Desc(_) => u32::try_from(original_output.as_ref().unwrap().classes.len())
+                        .map_err(|_| fail("complete call output domain exceeds its ordinal carrier"))?,
                     Type::Closure(id) => {
                         self.module
                             .closures
@@ -1661,16 +1726,36 @@ impl Check<'_, '_> {
                 let mut classes = Vec::new();
                 for child in 0..count {
                     let mut result = None;
-                    for row in &contract.classes {
-                        b.spend(row.position.path.len() + 1, WORK)?;
-                        if row.position.base == StorageBase::Result
-                            && row.position.path.is_empty()
-                            && row.position.class == child
-                            && result.replace(row.binder).is_some()
-                        {
-                            return Err(fail(
-                                "callee result repeats an intrinsic class occurrence",
-                            ));
+                    if let Some(output) = &original_output {
+                        for slot in &output.life.slots {
+                            if slot.binder != child { continue; }
+                            for row in &contract.bindings {
+                                b.spend(row.position.path.len().saturating_add(slot.path.len() + 1), WORK)?;
+                                if row.position.base == StorageBase::Result
+                                    && row.position.path.len() == slot.path.len()
+                                    && row.position.path.iter().zip(&slot.path).all(|(actual, expected)| matches!(actual, ContractProjection::Place(step) if step == expected))
+                                {
+                                    if result.is_some_and(|old| old != row.binder) { return Err(fail("call outer result has competing complete header binders")); }
+                                    result = Some(row.binder);
+                                }
+                            }
+                        }
+                        for retained in &output.life.retained {
+                            if retained.binder != child { continue; }
+                            for row in &contract.classes {
+                                b.spend(row.position.path.len().saturating_add(retained.path.len() + 1), WORK)?;
+                                if row.position.base == StorageBase::Result && row.position.path == retained.path && row.position.class == retained.class {
+                                    if result.is_some_and(|old| old != row.binder) { return Err(fail("call child result has competing complete header binders")); }
+                                    result = Some(row.binder);
+                                }
+                            }
+                        }
+                    } else {
+                        for row in &contract.classes {
+                            b.spend(row.position.path.len() + 1, WORK)?;
+                            if row.position.base == StorageBase::Result && row.position.path.is_empty()
+                                && row.position.class == child && result.replace(row.binder).is_some()
+                            { return Err(fail("callee result repeats an intrinsic class occurrence")); }
                         }
                     }
                     let binder = result
@@ -1696,7 +1781,7 @@ impl Check<'_, '_> {
                         let expected = expected_parameters
                             .get(parameter as usize)
                             .ok_or_else(|| fail("callee outer role omits an original input"))?;
-                        if !matches!(expected.ty, Type::Address { .. })
+                        if !matches!(expected.ty, Type::Address { .. } | Type::Desc(_))
                             || expected.life.slots.len() != 1
                             || !expected.life.slots[0].path.is_empty()
                             || !self.outer_role(
@@ -1772,6 +1857,11 @@ impl Check<'_, '_> {
                     }
                     let class=source.ok_or_else(||unknown("callee result class has no independently proved input/static/role source"))?;
                     self.push_value(&mut classes, class, b)?;
+                }
+                if let Some(output) = original_output {
+                    b.spend(output.classes.len().saturating_add(classes.len()), WORK)?;
+                    if output.classes != classes { return Err(fail("call result header changes its independently proved original outer/child role")); }
+                    return output.with_classes(classes, b);
                 }
                 let shape = match ty {
                     Type::BorrowedStorage { life, .. } => life.clone(),

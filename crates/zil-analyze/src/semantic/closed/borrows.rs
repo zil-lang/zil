@@ -186,6 +186,22 @@ impl Check<'_, '_> {
         selected.ok_or_else(|| unknown("actual call has no complete original input role anchor"))
     }
 
+    pub(super) fn static_call_result(&self, instance: &SemanticInstance, block: BlockId, index: usize,
+        b: &mut Budget) -> CompileResult<Value> {
+        let mut selected = None;
+        for site in &self.program.sites {
+            b.spend(1, WORK)?;
+            if site.instance != instance.id
+                || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
+                    if actual == block && instruction as usize == index)
+                || !matches!(site.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. })
+            { continue; }
+            let value = self.original.call_output(instance, site.recipe, self.program, self.inventory, b)?;
+            if selected.replace(value).is_some() { return Err(fail("call output has competing original receipts")); }
+        }
+        selected.ok_or_else(|| fail("call output has no exact original receipt"))
+    }
+
     pub(super) fn outer_role(
         &self,
         instance: &SemanticInstance,

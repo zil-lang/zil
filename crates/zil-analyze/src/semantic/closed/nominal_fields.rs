@@ -4,6 +4,40 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Check<'_, '_> {
+    pub(super) fn actual_nominal_field(&self, parent: &Value, field: u32,
+        b: &mut Budget, depth: usize) -> CompileResult<Value> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth { return Err(unknown("actual stored field class path exceeds its finite depth")); }
+        let (definition, mut arguments) = self.nominal_inventory_source(&parent.ty, b)?;
+        // The inventory uses local directory atoms. Rebind every full mixed
+        // occurrence to this real whole value without merging its images.
+        let image = |class: &Class| -> CompileResult<Class> {
+            let Class::Nominal(_, binder) = class else {
+                return Err(fail("nominal field inventory has another original domain coordinate"));
+            };
+            parent.classes.get(*binder as usize).cloned()
+                .ok_or_else(|| fail("nominal field source omits its complete parent class"))
+        };
+        for argument in &mut arguments {
+            match argument {
+                Argument::Life(class) => { b.spend(1, WORK)?; *class = image(class)?; }
+                Argument::Type(value) => for class in &mut value.classes { b.spend(1, WORK)?; *class = image(class)?; },
+                Argument::Const { .. } => {}
+            }
+        }
+        let SemanticDefinitionBody::Nominal { body: SemanticNominalBody::Product { fields }, .. } =
+            &self.inventory.definition(definition, b)?.body else {
+                return Err(fail("actual stored field has another original product identity"));
+            };
+        let recipe = &fields.get(field as usize)
+            .ok_or_else(|| fail("actual stored field leaves its complete original product"))?.ty;
+        let value = self.nominal_field_value(definition, &arguments, recipe, b, depth + 1)?;
+        if !geometry::same_type(&value.ty, self.borrow_field_type(&parent.ty, &[field], b)?, b)? {
+            return Err(fail("actual stored field differs from its complete original substitution"));
+        }
+        Ok(value)
+    }
+
     fn nominal_life(
         &self,
         owner: SemanticDefinitionId,

@@ -4,6 +4,30 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Checked {
+    pub(in crate::semantic) fn call_output(&self, context: &SemanticInstance, site: SemanticSiteId,
+        program: &SemanticModule, inventory: &Inventory<'_>, b: &mut Budget) -> CompileResult<Value> {
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
+            &inventory.definition(context.definition, b)?.body else {
+                return Err(fail("call output omits its complete original body"));
+            };
+        let mut node = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site { continue; }
+            let SemanticOriginalNode::Expression(actual) = link.node else {
+                return Err(fail("call output changes its original expression role"));
+            };
+            if node.replace(actual).is_some() { return Err(fail("call output repeats its original anchor")); }
+        }
+        let node = node.ok_or_else(|| fail("call output has no original expression"))?;
+        b.lookup(self.calls.len(), WORK)?;
+        if !self.calls.contains_key(&(context.definition, node)) {
+            return Err(fail("call output has no independently checked original call"));
+        }
+        self.source_value(context, SemanticScopeRef::Ancestor(0),
+            &SemanticOriginalTypeSource::Expression(node), program, inventory, b)
+    }
+
     pub(in crate::semantic) fn description_source(
         &self,
         context: &SemanticInstance,
