@@ -7,7 +7,22 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         index: 0,
     };
     module.dyn_interfaces.push(DynInterface {
-        context: Some(Type::Unit),
+        context: Some(Type::BorrowedStorage {
+            storage: Box::new(Type::Tuple(vec![Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            }])),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![StorageLifeSlot {
+                    path: vec![PlaceProjection::Field(0)],
+                    binder: 0,
+                    mode: StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        }),
         owning_cleanup: None,
         id: interface,
         application: DynTraitApplication {

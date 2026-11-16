@@ -40,6 +40,14 @@ fn scan(
                 out.push((path.clone(), class));
             }
         }
+        // The address is a physical leaf; its referent's complete intrinsic
+        // domain is metadata at Pointee, never another physical target/GEP.
+        // In particular, phantom classes inside a qualified referent survive.
+        Type::Address { inner, .. } | Type::Desc(inner) => {
+            path.push(LifeTypeProjection::Pointee);
+            scan(inner, path, depth + 1, limits, b, out)?;
+            path.pop();
+        }
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             for (i, (_, child)) in fields.iter().enumerate() {
                 b.spend(1)?;
