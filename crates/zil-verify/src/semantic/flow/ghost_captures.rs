@@ -77,7 +77,7 @@ impl CheckedContext{
     pub(super) fn environment_capture_header(&self,module:&TypedModule,relation:&StorageLifeContract,child:&SemanticInstance,index:u32,ordinal:usize,value:&CheckedType,b:&mut Budget)->Check<()>{
         b.spend(value.classes.len().saturating_add(relation.bindings.len()).saturating_add(relation.classes.len()).saturating_add(relation.static_bindings.len()))?;
         let mut seen=vec![false;value.classes.len()];
-        let mut occurrence=|binder:StorageBinder,class:u32|->Check<()>{
+        let mut occurrence=|binder:StorageBinder,class:u32,b:&mut Budget|->Check<()>{
             let slot=seen.get_mut(class as usize).ok_or_else(||bad("captured header class escapes its complete original environment"))?;*slot=true;
             b.spend(child.header_embedding.len())?;
             let mut maps=child.header_embedding.iter().filter(|row|row.header==binder);
@@ -87,14 +87,14 @@ impl CheckedContext{
         };
         for row in relation.bindings.iter().filter(|row|row.position.base==StorageBase::Capture(index)){
             let (_,_,class)=task_domains::raw_input_port(module,&value.ty,&value.life,&row.position.path,b)?;
-            occurrence(row.binder,class)?;
+            occurrence(row.binder,class,b)?;
         }
         for row in relation.classes.iter().filter(|row|row.position.base==StorageBase::Capture(index)){
             let class=if row.position.path.is_empty(){row.position.class}else{
                 let mut rows=value.life.retained.iter().filter(|actual|actual.path==row.position.path&&actual.class==row.position.class);
                 let row=rows.next().ok_or_else(||bad("logical capture omits a full child class occurrence"))?;
                 if rows.next().is_some(){return Err(bad("logical capture child occurrence is duplicated"));}row.binder
-            };occurrence(row.binder,class)?;
+            };occurrence(row.binder,class,b)?;
         }
         if seen.iter().any(|seen|!*seen){return Err(bad("logical capture header omits an original intrinsic class including ghosts"));}
         for position in relation.static_bindings.iter().filter(|row|row.base==StorageBase::Capture(index)){

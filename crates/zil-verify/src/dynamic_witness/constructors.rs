@@ -329,8 +329,8 @@ mod wrapper_order_tests {
             life:StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],mode:StoredBorrowMode::SharedAddress,binder:0}],retained:vec![],nominal_arguments:vec![]},
             classes:vec![StorageBinder::Fixed(0)],
         },terms:vec![term(0)]};
-        let twice=address(&raw,term(1),StoredBorrowMode::SharedAddress,&mut b).unwrap();
-        let thrice=address(&twice,term(2),StoredBorrowMode::SharedAddress,&mut b).unwrap();
+        let twice=crate::dynamic_witness::constructors::address(&raw,term(1),StoredBorrowMode::SharedAddress,&mut b).unwrap();
+        let thrice=crate::dynamic_witness::constructors::address(&twice,term(2),StoredBorrowMode::SharedAddress,&mut b).unwrap();
         assert_eq!(thrice.terms,vec![term(2),term(1),term(0)]);
         assert_eq!(thrice.life.slots.len(),1,"pointee slots never become parent physical slots");
         assert_eq!(thrice.life.retained.iter().map(|row|(row.path.len(),row.class,row.binder)).collect::<Vec<_>>(),vec![(1,0,1),(1,1,2),(2,0,2)]);
