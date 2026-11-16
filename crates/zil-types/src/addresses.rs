@@ -545,6 +545,32 @@ impl Builder<'_, '_> {
             ty,
         ))
     }
+    pub(super) fn record_borrowed_capture_place(
+        &mut self,
+        local: LocalId,
+        capture: u32,
+        span: Span,
+    ) -> R<()> {
+        if self.closures.semantic_emission.frames.is_empty() {
+            return Ok(());
+        }
+        self.closures.snapshot(
+            self.borrowed_capture_places.len().saturating_add(1).ilog2() as usize + 1,
+            span,
+        )?;
+        if self
+            .borrowed_capture_places
+            .insert(local, capture)
+            .is_some()
+        {
+            return Err(error(
+                "E-SEMANTIC-EMISSION",
+                span,
+                "one borrowed capture activation local has several actual fields",
+            ));
+        }
+        Ok(())
+    }
     pub(super) fn semantic_local_place(&mut self, expression: &CoreExpr, local: LocalId) -> R<()> {
         if self.closures.semantic_emission.frames.is_empty() {
             return Ok(());
@@ -553,7 +579,8 @@ impl Builder<'_, '_> {
         self.closures.snapshot(
             lookup(self.stored_copy_captures.len())
                 .saturating_add(lookup(self.closure_captures.len()))
-                .saturating_add(lookup(self.borrowed_captures.len())),
+                .saturating_add(lookup(self.borrowed_captures.len()))
+                .saturating_add(lookup(self.borrowed_capture_places.len())),
             expression.span,
         )?;
         let Some(block) = self.current else {
@@ -564,6 +591,7 @@ impl Builder<'_, '_> {
             .get(&local)
             .copied()
             .or_else(|| self.closure_captures.get(&local).map(|row| row.0))
+            .or_else(|| self.borrowed_capture_places.get(&local).copied())
             .map(SemanticOperand::Capture)
             .or_else(|| {
                 (!self.borrowed_captures.contains_key(&local))

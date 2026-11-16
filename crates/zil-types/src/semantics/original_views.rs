@@ -814,6 +814,15 @@ impl Check<'_, '_> {
                 depth + 1,
             )?;
         }
+        let existing_local_role = if local_region && bound.lifetime.is_none() {
+            self.pay(self.proof.local_roles.len(), depth)?;
+            self.proof.local_roles.iter().any(|((role_owner, _), role)| {
+                *role_owner == owner
+                    && matches!(wanted, SemanticOuterLifeRecipe::Class(life) if life == &role.lifetime)
+            })
+        } else {
+            false
+        };
         let allowed = match (&bound.lifetime, wanted) {
             (
                 None,
@@ -822,10 +831,11 @@ impl Check<'_, '_> {
                     ..
                 }),
             ) if local_region
-                // Only a call region records this new unbounded place source
-                // before admission. An existing local role's old inputs cannot
-                // justify an unrecorded indirect write from a shorter local.
-                && region.is_some_and(|(region_owner, _)| region_owner == owner)
+                // A fresh direct annotation retains its existing lexical
+                // place proof. An already-declared local role cannot acquire
+                // an unrecorded indirect write through its old source bounds.
+                && (!existing_local_role
+                    || region.is_some_and(|(region_owner, _)| region_owner == owner))
                 && matches!(
                     bound.root,
                     ViewBorrowRoot::Local(_)

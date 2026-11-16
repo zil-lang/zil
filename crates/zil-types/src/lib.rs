@@ -901,6 +901,8 @@ struct Builder<'a, 'c> {
     defer_body: bool,
     defer_locals: std::collections::BTreeSet<LocalId>,
     borrowed_captures: BTreeMap<LocalId, Type>,
+    // Genuine capture field behind an activation-local borrowed view.
+    borrowed_capture_places: BTreeMap<LocalId, u32>,
     written_captures: BTreeMap<LocalId, u32>,
     stored_copy_captures: BTreeMap<LocalId, u32>,
     address_written_captures: BTreeMap<LocalId, u32>,
@@ -1151,6 +1153,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             defer_body: false,
             defer_locals: std::collections::BTreeSet::new(),
             borrowed_captures: BTreeMap::new(),
+            borrowed_capture_places: BTreeMap::new(),
             written_captures: BTreeMap::new(),
             stored_copy_captures: BTreeMap::new(),
             address_written_captures: BTreeMap::new(),
@@ -3967,6 +3970,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )?;
                     builder.store(local, value, capture.span)?;
                     builder.borrowed_captures.insert(local, stored);
+                    builder.record_borrowed_capture_place(local, index as u32, capture.span)?;
                 } else {
                     // FnMut takes the complete owner for this activation and
                     // refills its field on every exit. FnOnce consumes it.
@@ -4040,6 +4044,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )?;
                     builder.store(local, value, capture.span)?;
                     builder.borrowed_captures.insert(local, capture.ty.clone());
+                    builder.record_borrowed_capture_place(local, index as u32, capture.span)?;
                     continue;
                 }
                 let local =
@@ -4079,6 +4084,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )?;
                     builder.store(local, value, capture.span)?;
                     builder.borrowed_captures.insert(local, stored);
+                    builder.record_borrowed_capture_place(local, index as u32, capture.span)?;
                     continue;
                 }
                 // The hidden environment keeps the carrier. Each activation
@@ -4124,6 +4130,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;
             if capture.borrowed {
                 builder.borrowed_captures.insert(local, capture.ty.clone());
+                builder.record_borrowed_capture_place(local, index as u32, capture.span)?;
             }
             let take = capture.consumed
                 && builder.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce

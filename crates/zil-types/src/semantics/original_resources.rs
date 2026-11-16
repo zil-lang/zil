@@ -911,6 +911,16 @@ impl Check<'_, '_> {
                         Type::ByteBuffer | Type::ForeignHandle | Type::CWideString
                     ),
             ),
+            SemanticTypeRecipe::Address {
+                lifetime: SemanticOuterLifeRecipe::Static,
+                ..
+            }
+            | SemanticTypeRecipe::Desc {
+                lifetime: SemanticOuterLifeRecipe::Static,
+                ..
+            } if kind == SemanticBuiltinTrait::ClosedEnvironment => {
+                Some(self.original_zero_domain(owner, &ty, depth + 1)?)
+            }
             SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. } => Some(false),
             SemanticTypeRecipe::Formal(_)
             | SemanticTypeRecipe::SelfType { .. }

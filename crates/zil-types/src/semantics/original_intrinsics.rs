@@ -497,7 +497,8 @@ impl Check<'_, '_> {
                 SemanticTypeRecipe::Atom(Type::I64)
             }
             IntrinsicKind::Numeric { target } => {
-                if !matches!(&parameters[0], SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float())
+                let input = self.observation_type(owner, &parameters[0], depth + 1)?;
+                if !matches!(&input, SemanticTypeRecipe::Atom(ty) if ty.is_integer() || ty.is_float())
                 {
                     return Err(bad(
                         "original numeric intrinsic requires a primitive numeric input",

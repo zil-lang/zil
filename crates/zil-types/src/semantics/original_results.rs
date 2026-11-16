@@ -779,8 +779,87 @@ fn zero_original_domain_inner(
                 all
             }
         }
-        SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::OwnedStore(inner) => {
-            recurse(owner, inner, left, active)?
+        SemanticTypeRecipe::Managed(inner)
+        | SemanticTypeRecipe::OwnedStore(inner)
+        | SemanticTypeRecipe::Mutex(inner)
+        | SemanticTypeRecipe::Registration(inner)
+        | SemanticTypeRecipe::AsyncRegistration(inner)
+        | SemanticTypeRecipe::Slice(inner) => recurse(owner, inner, left, active)?,
+        SemanticTypeRecipe::Address {
+            lifetime: SemanticOuterLifeRecipe::Static,
+            inner,
+            ..
+        }
+        | SemanticTypeRecipe::Desc {
+            lifetime: SemanticOuterLifeRecipe::Static,
+            inner,
+        } => recurse(owner, inner, left, active)?,
+        SemanticTypeRecipe::Task { result, retained } => {
+            // Task's original domain includes every input segment. Only
+            // complete structural zero-domain proofs erase those segments;
+            // ClosedEnvironment or an equal actual image cannot do so.
+            let sequence = |parts: &SemanticClassSequenceRecipe,
+                            left: &mut usize,
+                            active: &mut Vec<_>|
+             -> R<bool> {
+                *left = left.checked_sub(parts.parts.len()).ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "original Task zero-domain sequence work exceeded",
+                        None,
+                    )
+                })?;
+                let mut all = true;
+                for part in &parts.parts {
+                    all &= match part {
+                        SemanticClassSequencePart::AllClasses { ty, path } if path.is_empty() => {
+                            recurse(owner, ty, left, active)?
+                        }
+                        _ => false,
+                    };
+                }
+                Ok(all)
+            };
+            *left = left
+                .checked_sub(
+                    retained
+                        .ports
+                        .len()
+                        .saturating_add(retained.retained.len())
+                        .saturating_add(retained.nominal.len()),
+                )
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "original Task zero-domain occurrence work exceeded",
+                        None,
+                    )
+                })?;
+            let mut all =
+                recurse(owner, result, left, active)? && sequence(&retained.domain, left, active)?;
+            for port in &retained.ports {
+                all &= match port {
+                    SemanticPortPart::FromType { ty, classes } => {
+                        recurse(owner, ty, left, active)? && sequence(classes, left, active)?
+                    }
+                    SemanticPortPart::One { .. } => false,
+                };
+            }
+            for row in &retained.retained {
+                all &= match row {
+                    SemanticRetainedPart::All { parents, .. } => sequence(parents, left, active)?,
+                    SemanticRetainedPart::One { .. } => false,
+                };
+            }
+            for row in &retained.nominal {
+                all &= match row {
+                    SemanticNominalPart::FromType { ty, classes, .. } => {
+                        recurse(owner, ty, left, active)? && sequence(classes, left, active)?
+                    }
+                    SemanticNominalPart::One { .. } => false,
+                };
+            }
+            all
         }
         SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
             let mut all = true;
@@ -858,7 +937,7 @@ fn zero_original_domain_inner(
             }
             all
         }
-        // Every unresolved or lifetime-bearing constructor remains unproved.
+        // Every other unresolved or variable-lifetime constructor remains unproved.
         // No empty claimed slots/ports, Closed bound, or actual type hint is a
         // zero-domain theorem for one of these constructors.
         _ => false,
