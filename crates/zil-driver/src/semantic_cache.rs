@@ -410,6 +410,21 @@ impl<'a> Reader<'a> {
 }
 
 fn decode(bytes: &[u8], limits: &Limits) -> Option<(TypedProgram, CandidatePlan)> {
+    let (program, candidate, _) = decode_with_encodings(bytes, limits, None)?;
+    Some((program, candidate))
+}
+
+type DecodedSemantic = (
+    TypedProgram,
+    CandidatePlan,
+    Option<zil_ir::wire::CandidateDecodingEncodings>,
+);
+
+fn decode_with_encodings(
+    bytes: &[u8],
+    limits: &Limits,
+    segments: Option<&[zil_ir::wire::WireSegment]>,
+) -> Option<DecodedSemantic> {
     if bytes.len() > limits.max_source_bytes {
         return None;
     }
@@ -423,8 +438,19 @@ fn decode(bytes: &[u8], limits: &Limits) -> Option<(TypedProgram, CandidatePlan)
         return None;
     }
     let size = input.number()?;
-    let (module, candidate) =
-        zil_ir::wire::decode_module_candidate(input.take(size)?, limits).ok()?;
+    let wire = input.take(size)?;
+    let (module, candidate, encodings) = match segments {
+        Some(segments) => {
+            let decoded =
+                zil_ir::wire::decode_module_candidate_with_encodings(wire, segments, limits)
+                    .ok()?;
+            (decoded.module, decoded.plan, decoded.encodings)
+        }
+        None => {
+            let (module, candidate) = zil_ir::wire::decode_module_candidate(wire, limits).ok()?;
+            (module, candidate, None)
+        }
+    };
     let n = input.count(limits.max_nodes, 72)?;
     let mut interfaces = Vec::with_capacity(n);
     for _ in 0..n {
@@ -480,6 +506,7 @@ fn decode(bytes: &[u8], limits: &Limits) -> Option<(TypedProgram, CandidatePlan)
             root_functions,
         },
         candidate,
+        encodings,
     ))
 }
 

@@ -314,6 +314,19 @@ fn deep_operand_in_same_function_is_bounded_and_unchanged() {
     assert!(
         matches!(&block(&mut module,"b0").instructions[0].op,Op::Call { args,.. } if args[1].value==Val::Int(1))
     );
+    // Even a populated cache must not compare or clone an unvalidated deep
+    // operand while selecting a retained output.
+    let mut cache = Cache::default();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut tiny(8, true, &[1, 2]), &mut cache),
+        1
+    );
+    let previous = cache.epoch.clone().unwrap();
+    reset_work();
+    assert_eq!(fold_checked_add_chains_cached(&mut module, &mut cache), 0);
+    assert_eq!(work(), (0, 0));
+    assert!(Arc::ptr_eq(&previous, cache.epoch.as_ref().unwrap()));
+    assert_eq!(validate_module(&module).unwrap_err(), before_error);
     // Test-created 10k-deep value must also be destroyed iteratively.
     let Op::Freeze(argument) = &mut block(&mut module, "unrelated_deep").instructions[0].op else {
         unreachable!()
@@ -542,4 +555,258 @@ fn separate_branch_checks_do_not_trigger_metadata_scan() {
         assert_eq!(work(), (0, 0));
         validate_module(&module).unwrap();
     }
+}
+
+fn two_cached_functions() -> Module {
+    let mut module = tiny(8, true, &[1, 2, 3]);
+    let mut other = function(&mut module).clone();
+    other.name = "other".into();
+    module.items.push(Item::Function(other));
+    module
+}
+
+#[test]
+fn cached_plans_reuse_complete_outputs_and_only_replan_changed_functions() {
+    let original = two_cached_functions();
+    let mut expected = original.clone();
+    let removed = fold_checked_add_chains(&mut expected);
+    let mut cache = Cache::default();
+    let mut cold = original.clone();
+    reset_work();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut cold, &mut cache),
+        removed
+    );
+    assert_eq!(cold, expected);
+    assert!(work().0 > 0 && work().1 > 0);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (2, 0));
+
+    let mut warm = original.clone();
+    warm.fingerprint = "another-current-diagnostic".into();
+    reset_work();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut warm, &mut cache),
+        removed
+    );
+    assert_eq!(work(), (0, 0));
+    assert_eq!((cache.checked_functions, cache.reused_functions), (0, 2));
+    expected.fingerprint = warm.fingerprint.clone();
+    assert_eq!(warm, expected);
+    validate_module(&warm).unwrap();
+
+    let mut edited = original;
+    let Op::Call { args, .. } = &mut block(&mut edited, "b1").instructions[0].op else {
+        unreachable!()
+    };
+    args[1].value = Val::Int(4);
+    let mut fresh = edited.clone();
+    let fresh_removed = fold_checked_add_chains(&mut fresh);
+    reset_work();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut edited, &mut cache),
+        fresh_removed
+    );
+    assert_eq!(edited, fresh);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 1));
+    assert_eq!(cache.retained_functions, 2);
+    assert!(work().0 > 0 && work().1 > 0);
+}
+
+#[test]
+fn cached_empty_plans_and_changed_trap_body_keep_the_original_result() {
+    let original = tiny(8, true, &[1, -1]);
+    let mut cache = Cache::default();
+    let mut cold = original.clone();
+    assert_eq!(fold_checked_add_chains_cached(&mut cold, &mut cache), 0);
+    assert_eq!(cold, original);
+    let mut warm = original.clone();
+    reset_work();
+    assert_eq!(fold_checked_add_chains_cached(&mut warm, &mut cache), 0);
+    assert_eq!(work(), (0, 0));
+    assert_eq!((cache.checked_functions, cache.reused_functions), (0, 1));
+    assert_eq!(warm, original);
+
+    let mut active = tiny(8, true, &[1, 2]);
+    let mut folded = active.clone();
+    assert_eq!(fold_checked_add_chains_cached(&mut folded, &mut cache), 1);
+    block(&mut active, "trap").instructions = vec![Inst::new(
+        None,
+        Op::Return(Some(Arg::new(Ty::Int(8), Val::Int(0)))),
+    )];
+    validate_module(&active).unwrap();
+    let before = active.clone();
+    assert_eq!(fold_checked_add_chains_cached(&mut active, &mut cache), 0);
+    assert_eq!(active, before);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 0));
+}
+
+#[test]
+fn cached_plans_bind_actual_declarations_and_target() {
+    let original = tiny(8, true, &[1, 2]);
+    let mut cache = Cache::default();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut original.clone(), &mut cache),
+        1
+    );
+
+    let mut changed = original.clone();
+    changed.items.insert(
+        0,
+        Item::Function(Function {
+            name: "current_declaration".into(),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Void, vec![]),
+            attrs: vec![],
+            blocks: None,
+        }),
+    );
+    let mut expected = changed.clone();
+    assert_eq!(fold_checked_add_chains(&mut expected), 1);
+    assert_eq!(fold_checked_add_chains_cached(&mut changed, &mut cache), 1);
+    assert_eq!(changed, expected);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 0));
+
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut original.clone(), &mut cache),
+        1
+    );
+    let mut changed = original.clone();
+    changed.triple = "x86_64-pc-windows-msvc".into();
+    let mut expected = changed.clone();
+    assert_eq!(fold_checked_add_chains(&mut expected), 1);
+    assert_eq!(fold_checked_add_chains_cached(&mut changed, &mut cache), 1);
+    assert_eq!(changed, expected);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 0));
+
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut original.clone(), &mut cache),
+        1
+    );
+    let mut header = original.clone();
+    function(&mut header).attrs.push(Attr::NoInline);
+    let mut expected = header.clone();
+    assert_eq!(fold_checked_add_chains(&mut expected), 1);
+    assert_eq!(fold_checked_add_chains_cached(&mut header, &mut cache), 1);
+    assert_eq!(header, expected);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 0));
+
+    let mut missing_trap = original;
+    missing_trap.items.remove(0);
+    let before = missing_trap.clone();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut missing_trap, &mut cache),
+        0
+    );
+    assert_eq!(missing_trap, before);
+    assert_eq!(cache.retained_functions, 0);
+}
+
+#[test]
+fn cached_outputs_cannot_hide_an_unrelated_invalid_current_item() {
+    let original = tiny(8, true, &[1, 2]);
+    let mut cache = Cache::default();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut original.clone(), &mut cache),
+        1
+    );
+    let previous = cache.epoch.clone().unwrap();
+    let mut invalid = original.clone();
+    invalid.items.push(Item::Function(Function {
+        name: "malformed_unused".into(),
+        linkage: Linkage::External,
+        signature: Signature::new(Ty::Int(7), vec![]),
+        attrs: vec![],
+        blocks: None,
+    }));
+    let before = invalid.clone();
+    let error = validate_module(&invalid).unwrap_err();
+    reset_work();
+    assert_eq!(fold_checked_add_chains_cached(&mut invalid, &mut cache), 0);
+    assert_eq!(invalid, before);
+    assert_eq!(validate_module(&invalid).unwrap_err(), error);
+    assert!(Arc::ptr_eq(&previous, cache.epoch.as_ref().unwrap()));
+    assert_eq!((cache.checked_functions, cache.reused_functions), (0, 0));
+    assert_eq!(work(), (0, 0));
+    let mut recovered = original;
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut recovered, &mut cache),
+        1
+    );
+    assert_eq!(cache.reused_functions, 1);
+}
+
+#[test]
+fn cache_reorders_by_full_function_and_retains_no_removed_or_previous_epoch() {
+    let original = two_cached_functions();
+    let mut cache = Cache::default();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut original.clone(), &mut cache),
+        4
+    );
+    let old_epoch = Arc::downgrade(cache.epoch.as_ref().unwrap());
+    let mut reordered = original.clone();
+    reordered.items.swap(2, 3);
+    let mut expected = reordered.clone();
+    assert_eq!(fold_checked_add_chains(&mut expected), 4);
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut reordered, &mut cache),
+        4
+    );
+    assert_eq!(reordered, expected);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (0, 2));
+    assert!(old_epoch.upgrade().is_none());
+
+    let checkpoint = cache.clone();
+    let mut reduced = original.clone();
+    reduced.items.pop();
+    assert_eq!(fold_checked_add_chains_cached(&mut reduced, &mut cache), 2);
+    assert_eq!(cache.retained_functions, 1);
+    assert_eq!(checkpoint.retained_functions, 2);
+    assert!(
+        !cache
+            .epoch
+            .as_ref()
+            .unwrap()
+            .functions
+            .contains_key("other")
+    );
+    assert!(
+        checkpoint
+            .epoch
+            .as_ref()
+            .unwrap()
+            .functions
+            .contains_key("other")
+    );
+    let mut restored = original;
+    assert_eq!(fold_checked_add_chains_cached(&mut restored, &mut cache), 4);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 1));
+}
+
+#[test]
+fn retention_bound_declines_cache_without_truncating_the_original_fold() {
+    let original = tiny(8, true, &[1, 2]);
+    let mut cache = Cache::default();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut original.clone(), &mut cache),
+        1
+    );
+    let mut large = original;
+    while large.items.len() <= MAX_CACHE_ITEMS {
+        large.items.push(Item::Function(Function {
+            name: format!("cache_bound_{}", large.items.len()),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Void, vec![]),
+            attrs: vec![],
+            blocks: None,
+        }));
+    }
+    assert!(!cacheable(&large));
+    let mut expected = large.clone();
+    assert_eq!(fold_checked_add_chains(&mut expected), 1);
+    assert_eq!(fold_checked_add_chains_cached(&mut large, &mut cache), 1);
+    assert_eq!(large, expected);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 0));
+    assert_eq!(cache.retained_functions, 0);
+    assert!(cache.epoch.is_none());
 }

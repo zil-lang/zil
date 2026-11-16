@@ -19,3 +19,10 @@ Astra按当前源码复核完整imports、碰撞、call-free、模型扩张和�
 资源准备只对固定df06完整远端归档、已fresh恢复且本次重新逐文件hash相等的旧blobs证据副本退役；原rows/response/summary/用户cache保留，SDK和源码不动。这不是产品盘量节省；具体ledger随本批证据保全。旧全量恢复仍在df06的8包。
 
 状态：源码链施工完成待冻结；尚无本批新正确性、release或比较性能结论。后续只对冻结源码统一运行受影响门、原生运行质量和actual-main/candidate/Rust同O2/CGU16/jobs1窗口；保留全部负结果，不合main，研究开关不默认启用。
+
+
+后续同批增加三条实际优化：checked-add按完整当前Function/声明/trap/triple复用已完成规划输出，仍做当前完整原模型preflight；call-class按当前完整header域、完整函数值、实际callee类名依赖复用地址/规范化/hash工作，selector仅定位、完整Eq定类，随原四槽有界保存；wire单次完整解码同时给出真正消费的函数/plan字节边界、共享编码和真实node费用，恢复不再逐函数重解码/整体probe，也不把解码留给首改。
+
+原62d第一次统一收据机械检查与backend305通过，Types108过/3失败已保留。三失败来自短体缓存覆盖变化后的旧调度计数，以及life域主动不入缓存后旧fixture强制unwrap；所有fresh结果、原始六费合计、预算错误、成功epoch保留断言不减。Life反例现在额外断言无CFG候选可编码，并继续精确高/低工作边界。尚未启动任何新性能矩阵。完整新增逻辑收齐后再统一验收，而非逐改测试。
+
+类域也显式绑定到PartitionInput；每unit裁剪只绑定该unit实际类声明位置，而非用全局类集变化否决所有单位，当前真实声明角色变化不能借旧prune产物跨域复用。

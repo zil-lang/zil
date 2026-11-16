@@ -469,11 +469,8 @@ impl MemoryPublication {
         bytes: &[u8],
         limits: &Limits,
         cancellation: &zil_db::CancellationToken,
-    ) -> Option<Self> {
-        if zil_ir::wire::WIRE_VERSION != MEMORY_WIRE_VERSION
-            || logical.get(..8)? != MANIFEST_MAGIC
-            || cancellation.is_cancelled()
-        {
+    ) -> Option<(TypedProgram, CandidatePlan, Option<Arc<Self>>)> {
+        if cancellation.is_cancelled() {
             return None;
         }
         let (total, count, start) = layout(logical, limits)?;
@@ -498,94 +495,80 @@ impl MemoryPublication {
                 return None;
             }
         }
-        // Validate the complete declared/actual volume BEFORE any flat/probe
-        // allocation. The caller's assemble performs this before item I/O too.
+        // assemble checks these declarations before item I/O/allocation too.
         if checked != total || bytes.len() != total {
             return None;
         }
-        let (mut raw, candidate) = decode(bytes, limits)?;
-        let count = raw.module.functions.len();
-        if count == 0
-            || segments.len()
-                != count
-                    .checked_add(candidate.functions.len())?
-                    .checked_add(6)?
-        {
-            return None;
-        }
-        let bindings: zil_ir::PersistentVec<_> = logical[start..]
-            .as_chunks::<BINDING_ROW>()
-            .0
-            .iter()
-            .map(binding)
-            .collect::<Option<Vec<_>>>()?
-            .into();
-        if bindings.len() != count {
-            return None;
-        }
-        let mut canonical = zil_ir::PersistentVec::default();
-        let mut slots = zil_ir::PersistentVec::default();
-        let mut expected = raw.clone();
-        let mut probe = Vec::with_capacity(total);
-        probe.extend_from_slice(bytes);
-        let mut offset = segments[0]
-            .bytes
-            .len()
-            .checked_add(segments[1].bytes.len())?;
-        for (index, function) in raw.module.functions.iter().enumerate() {
-            if cancellation.is_cancelled() {
+        // The one ordinary decoder establishes every consumed boundary and
+        // aggregate node receipt. Unexpected segmentation only disables slots;
+        // it never causes a second candidate/function/probe decode.
+        let wire_segments = segments
+            .get(1..segments.len().saturating_sub(1))
+            .unwrap_or(&[]);
+        let (mut raw, candidate, encodings) =
+            decode_with_encodings(bytes, limits, Some(wire_segments))?;
+        let hints = (|| {
+            if zil_ir::wire::WIRE_VERSION != MEMORY_WIRE_VERSION
+                || logical.get(..8)? != MANIFEST_MAGIC
+            {
                 return None;
             }
-            let fragment = &segments[index + 2].bytes;
-            let (decoded, encoding) = zil_ir::wire::decode_raw_function_shared(
-                fragment.clone(),
-                limits,
-                limits.max_nodes,
-            )
-            .ok()?;
-            if &decoded != function {
+            let encodings = encodings?;
+            let count = raw.module.functions.len();
+            if count == 0
+                || segments.len()
+                    != count
+                        .checked_add(candidate.functions.len())?
+                        .checked_add(6)?
+                || encodings.functions.len() != count
+                || encodings.plans.len() != candidate.functions.len()
+            {
                 return None;
             }
-            slots.push(Arc::new(OnceLock::from(encoding)));
-            canonical.push(
-                bindings[index]
-                    .canonical
-                    .then(|| raw.module.functions.owner(index).unwrap().clone()),
-            );
-            // Validate disk-provided boundaries by changing known v47 fields
-            // and decoding ONCE, then comparing all fields. Hashes/locator
-            // tables cannot authorize replacing a different part of the stream.
-            let file = function.span.file.0 ^ u32::MAX;
-            let position = offset.checked_add(fragment.len().checked_sub(20)?)?;
-            probe
-                .get_mut(position..position.checked_add(4)?)?
-                .copy_from_slice(&file.to_le_bytes());
-            expected.module.functions[index].span.file = FileId(file);
-            offset = offset.checked_add(fragment.len())?;
-        }
-        offset = offset.checked_add(segments[count + 2].bytes.len())?;
-        let mut expected_plan = candidate.clone();
-        expected_plan.module_fingerprint.0[0] ^= 1;
-        let position = offset.checked_add(4)?;
-        probe
-            .get_mut(position..position.checked_add(32)?)?
-            .copy_from_slice(&expected_plan.module_fingerprint.0);
-        let (observed, observed_plan) = decode(&probe, limits)?;
-        if observed != expected || observed_plan != expected_plan || cancellation.is_cancelled() {
-            return None;
-        }
+            let bindings: zil_ir::PersistentVec<_> = logical[start..]
+                .as_chunks::<BINDING_ROW>()
+                .0
+                .iter()
+                .map(binding)
+                .collect::<Option<Vec<_>>>()?
+                .into();
+            if bindings.len() != count {
+                return None;
+            }
+            let mut canonical = zil_ir::PersistentVec::default();
+            let mut slots = zil_ir::PersistentVec::default();
+            for (index, encoding) in encodings.functions.into_iter().enumerate() {
+                if cancellation.is_cancelled() {
+                    return None;
+                }
+                canonical.push(
+                    bindings[index]
+                        .canonical
+                        .then(|| raw.module.functions.owner(index).unwrap().clone()),
+                );
+                slots.push(Arc::new(OnceLock::from(encoding)));
+            }
+            let plans = encodings.plans.into_iter().map(Some).collect();
+            Some((canonical, bindings, slots, plans))
+        })();
         rebind(&mut raw, logical, limits)?;
-        let plans = (0..candidate.functions.len()).map(|_| None).collect();
-        Self::new(
-            Arc::new(raw),
-            candidate,
-            limits,
-            canonical,
-            bindings,
-            slots,
-            plans,
-            segments,
-        )
+        if cancellation.is_cancelled() {
+            return None;
+        }
+        let memory = hints.and_then(|(canonical, bindings, slots, plans)| {
+            Self::new(
+                Arc::new(raw.clone()),
+                candidate.clone(),
+                limits,
+                canonical,
+                bindings,
+                slots,
+                plans,
+                segments,
+            )
+            .map(Arc::new)
+        });
+        Some((raw, candidate, memory))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -640,7 +623,14 @@ impl MemoryPublication {
             return None;
         }
         for (index, plan) in candidate.functions.iter().enumerate() {
-            if segments[count + 4 + index].bytes.len() != plan_byte_length(plan)? {
+            let segment = &segments[count + 4 + index];
+            if let Some(raw) = &plan_slots[index] {
+                // Same-decoder receipts already establish the complete row's
+                // actual byte range; do not walk its blocks/holds a second time.
+                if !Arc::ptr_eq(&raw.shared_bytes(), &segment.bytes) {
+                    return None;
+                }
+            } else if segment.bytes.len() != plan_byte_length(plan)? {
                 return None;
             }
         }
@@ -730,13 +720,16 @@ impl MemoryPublication {
             };
             if !equal {
                 let current = body.as_deref().unwrap_or(function);
-                let old_body = self.canonical[index].as_deref().unwrap_or(old);
-                let (decoded, old_cost) =
-                    zil_ir::wire::decode_raw_function(&self.segments[index + 2].bytes, limits)
-                        .ok()?;
-                if &decoded != old_body {
+                // The slot was sealed by the current encoder or the same full
+                // decoder that produced this exact old body. No replay decode
+                // is needed on the first private edit after restart either.
+                let previous = self.slots[index].get()?;
+                if !previous.matches_limits(limits)
+                    || !Arc::ptr_eq(&previous.shared_bytes(), &self.segments[index + 2].bytes)
+                {
                     return None;
                 }
+                let old_cost = previous.node_cost();
                 attempts.functions += 1;
                 let encoding = zil_ir::wire::encode_raw_function(current, limits).ok()?;
                 // All other wire fields/plan rows are unchanged. A non-growing
@@ -1128,18 +1121,13 @@ impl Store {
                 });
                 Some(bytes.to_vec())
             })?;
-            let memory = MemoryPublication::restore(
+            let (program, candidate, memory) = MemoryPublication::restore(
                 &logical,
                 segments,
                 &bytes,
                 &options.limits,
                 &options.cancellation,
-            )
-            .map(Arc::new);
-            let result = match &memory {
-                Some(memory) => ((*memory.typed).clone(), memory.candidate.clone()),
-                None => decode_bound(&bytes, &logical, &options.limits)?,
-            };
+            )?;
             if options.cancellation.is_cancelled() {
                 return None;
             }
@@ -1147,7 +1135,7 @@ impl Store {
                 envelope: manifest.to_vec(),
                 memory,
             });
-            return Some(result);
+            return Some((program, candidate));
         }
         let root = self.root.join("items");
         if !private_directory(&root, false) {
@@ -2100,6 +2088,14 @@ mod tests {
         let mut publication = store.take_loaded_publication(&options).unwrap();
         assert!(publication.memory.is_some());
         assert!(publication.previous.is_none());
+        let memory = publication.memory.as_ref().unwrap();
+        for (index, slot) in memory.slots.iter().enumerate() {
+            assert!(Arc::ptr_eq(
+                &slot.get().unwrap().shared_bytes(),
+                &memory.segments[index + 2].bytes,
+            ));
+        }
+        assert!(memory.plan_slots.iter().all(Option::is_some));
         fs::rename(&held, &pack).unwrap();
         drop(cold);
         let current = Arc::new(decoded);
@@ -2169,6 +2165,37 @@ mod tests {
         let (segments, _, _) = publication
             .prepare(&current, &plan, &options.limits, true)
             .unwrap();
+        // A self-consistent manifest/hash table with shifted segment boundaries
+        // is still a raw candidate, but cannot restore any encoding slots.
+        let bytes = flatten(&segments);
+        let mut shifted = segments.clone();
+        let mut header = shifted[1].bytes.to_vec();
+        header.push(shifted[2].bytes[0]);
+        shifted[1] = wire_segment(header);
+        shifted[2] = wire_segment(shifted[2].bytes[1..].to_vec());
+        let forged = manifest(&shifted, &publication.bindings, &options.limits).unwrap();
+        let (bound, claims, memory) = MemoryPublication::restore(
+            &forged,
+            shifted,
+            &bytes,
+            &options.limits,
+            &options.cancellation,
+        )
+        .unwrap();
+        assert_eq!(bound, *current);
+        assert_eq!(claims, plan);
+        assert!(memory.is_none());
+        let valid = manifest(&segments, &publication.bindings, &options.limits).unwrap();
+        assert!(
+            MemoryPublication::restore(
+                &valid,
+                segments.clone(),
+                &bytes,
+                &options.limits,
+                &cancelled.cancellation,
+            )
+            .is_none()
+        );
         let mut logical = manifest(&segments, &publication.bindings, &options.limits).unwrap();
         logical[8..16].copy_from_slice(&1u64.to_le_bytes());
         let mut read_item = false;

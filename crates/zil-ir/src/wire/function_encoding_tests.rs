@@ -318,6 +318,207 @@ fn cached_plans(
 }
 
 #[test]
+fn complete_decode_restores_shared_function_and_plan_receipts_once() {
+    let (module, plan) = plans_fixture();
+    let limits = Limits::default();
+    let functions = slots(&module, &limits);
+    let inputs: Vec<_> = module.functions.iter().zip(&functions).collect();
+    let segments = encode_module_candidate_plan_segments(
+        &module,
+        &plan,
+        &inputs,
+        &mut vec![None; plan.functions.len()],
+        &limits,
+        &mut FunctionEncodingStats::default(),
+        &mut FunctionPlanEncodingStats::default(),
+    )
+    .unwrap();
+    let bytes: Vec<_> = segments
+        .iter()
+        .flat_map(|segment| segment.bytes.iter().copied())
+        .collect();
+    let decoded = decode_module_candidate_with_encodings(&bytes, &segments, &limits).unwrap();
+    assert_eq!(decoded.module, module);
+    assert_eq!(decoded.plan, plan);
+    let receipts = decoded.encodings.unwrap();
+    for (index, encoding) in receipts.functions.iter().enumerate() {
+        assert!(Arc::ptr_eq(
+            &encoding.shared_bytes(),
+            &segments[index + 1].bytes
+        ));
+        assert_eq!(
+            encoding.node_cost(),
+            functions[index].get().unwrap().node_cost()
+        );
+        assert!(encoding.matches_limits(&limits));
+    }
+    for (index, raw) in receipts.plans.iter().enumerate() {
+        assert!(Arc::ptr_eq(
+            &raw.shared_bytes(),
+            &segments[module.functions.len() + 3 + index].bytes
+        ));
+        assert!(Arc::ptr_eq(
+            raw,
+            &raw.bind_owner(decoded.plan.functions.owner(index).unwrap())
+                .unwrap()
+        ));
+        let mut writer = Writer::new(&limits);
+        writer
+            .function_plan(&decoded.plan.functions[index])
+            .unwrap();
+        assert_eq!(raw.encoding.node_cost(), limits.max_nodes - writer.nodes);
+        let mut changed_row = decoded.plan.functions[index].clone();
+        changed_row.holds[0].roots.push(HoldRoot::Static);
+        assert!(raw.bind_owner(&Arc::new(changed_row)).is_none());
+    }
+    let functions: Vec<_> = receipts.functions.into_iter().map(OnceLock::from).collect();
+    let inputs: Vec<_> = decoded.module.functions.iter().zip(&functions).collect();
+    let mut plans: Vec<_> = receipts.plans.into_iter().map(Some).collect();
+    let mut stats = FunctionEncodingStats::default();
+    let mut plan_stats = FunctionPlanEncodingStats::default();
+    let replay = encode_module_candidate_plan_segments(
+        &decoded.module,
+        &decoded.plan,
+        &inputs,
+        &mut plans,
+        &limits,
+        &mut stats,
+        &mut plan_stats,
+    )
+    .unwrap();
+    assert_eq!(stats.serialized_functions, 0);
+    assert_eq!(stats.reused_functions, module.functions.len());
+    assert_eq!(plan_stats.serialized_function_plans, 0);
+    assert_eq!(plan_stats.reused_function_plans, plan.functions.len());
+    assert_eq!(
+        replay
+            .iter()
+            .flat_map(|segment| segment.bytes.iter().copied())
+            .collect::<Vec<_>>(),
+        bytes
+    );
+    let mut changed = limits.clone();
+    changed.max_tokens -= 1;
+    stats = FunctionEncodingStats::default();
+    plan_stats = FunctionPlanEncodingStats::default();
+    encode_module_candidate_plan_segments(
+        &decoded.module,
+        &decoded.plan,
+        &inputs,
+        &mut plans,
+        &changed,
+        &mut stats,
+        &mut plan_stats,
+    )
+    .unwrap();
+    assert_eq!(stats.serialized_functions, module.functions.len());
+    assert_eq!(plan_stats.serialized_function_plans, plan.functions.len());
+
+    let mut writer = Writer::new(&limits);
+    writer.header(MODULE_MAGIC).unwrap();
+    writer.module(&module).unwrap();
+    writer.plan(&plan).unwrap();
+    let nodes = limits.max_nodes - writer.nodes;
+    for (maximum_nodes, maximum_bytes, success) in [
+        (nodes, bytes.len(), true),
+        (nodes - 1, bytes.len(), false),
+        (nodes, bytes.len() - 1, false),
+    ] {
+        let selected = Limits {
+            max_nodes: maximum_nodes,
+            max_source_bytes: maximum_bytes,
+            ..limits.clone()
+        };
+        let actual = decode_module_candidate_with_encodings(&bytes, &segments, &selected);
+        assert_eq!(actual.is_ok(), success);
+        assert_eq!(
+            actual.map(|decoded| (decoded.module, decoded.plan)),
+            decode_module_candidate(&bytes, &selected)
+        );
+        let replay = encode_module_candidate_plan_segments(
+            &decoded.module,
+            &decoded.plan,
+            &inputs,
+            &mut plans,
+            &selected,
+            &mut FunctionEncodingStats::default(),
+            &mut FunctionPlanEncodingStats::default(),
+        )
+        .map(|segments| {
+            segments
+                .iter()
+                .flat_map(|segment| segment.bytes.iter().copied())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(replay, encode_module_candidate(&module, &plan, &selected));
+    }
+}
+
+#[test]
+fn decoder_boundaries_and_bytes_override_forged_segment_tables() {
+    let (module, plan) = plans_fixture();
+    let limits = Limits::default();
+    let functions = slots(&module, &limits);
+    let inputs: Vec<_> = module.functions.iter().zip(&functions).collect();
+    let segments = encode_module_candidate_plan_segments(
+        &module,
+        &plan,
+        &inputs,
+        &mut vec![None; plan.functions.len()],
+        &limits,
+        &mut FunctionEncodingStats::default(),
+        &mut FunctionPlanEncodingStats::default(),
+    )
+    .unwrap();
+    let bytes: Vec<_> = segments
+        .iter()
+        .flat_map(|segment| segment.bytes.iter().copied())
+        .collect();
+    let mut shifted = segments.clone();
+    let mut header = shifted[0].bytes.to_vec();
+    header.push(shifted[1].bytes[0]);
+    shifted[0] = WireSegment {
+        fingerprint: Fingerprint::of(&header),
+        bytes: header.into(),
+    };
+    let fragment = shifted[1].bytes[1..].to_vec();
+    shifted[1] = WireSegment {
+        fingerprint: Fingerprint::of(&fragment),
+        bytes: fragment.into(),
+    };
+    assert_eq!(
+        shifted
+            .iter()
+            .flat_map(|segment| segment.bytes.iter().copied())
+            .collect::<Vec<_>>(),
+        bytes
+    );
+    let mut changed = segments.clone();
+    let mut fragment = changed[1].bytes.to_vec();
+    *fragment.last_mut().unwrap() ^= 1;
+    // Even retaining the original fingerprint cannot bind changed bytes.
+    changed[1].bytes = fragment.into();
+    for supplied in [&shifted[..], &changed[..], &segments[..1]] {
+        let decoded = decode_module_candidate_with_encodings(&bytes, supplied, &limits).unwrap();
+        assert_eq!(decoded.module, module);
+        assert_eq!(decoded.plan, plan);
+        assert!(decoded.encodings.is_none());
+    }
+    let mut unknown = bytes.clone();
+    unknown[8..12].copy_from_slice(&(WIRE_VERSION + 1).to_le_bytes());
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    for corrupt in [&unknown[..], &bytes[..bytes.len() - 1], &trailing[..]] {
+        let actual = decode_module_candidate_with_encodings(corrupt, &segments, &limits);
+        assert!(actual.is_err());
+        assert_eq!(
+            actual.map(|decoded| (decoded.module, decoded.plan)),
+            decode_module_candidate(corrupt, &limits)
+        );
+    }
+}
+
+#[test]
 fn plan_fragments_bind_exact_rows_and_reuse_equal_outputs_after_module_changes() {
     let (mut module, mut plan) = plans_fixture();
     let limits = Limits::default();

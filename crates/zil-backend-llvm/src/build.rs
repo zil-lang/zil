@@ -448,6 +448,16 @@ pub fn build_view_with_cancellation_and_session(
     let original_machine = machine.clone();
     let mut call_classes = None;
     let mut class_symbols = std::collections::BTreeSet::new();
+    let mut class_cache = None;
+    let mut class_work = None;
+    let mut checked_add_cache = session
+        .as_ref()
+        .and_then(|s| s.transformed.as_ref())
+        .filter(|old| old.policy == transform_policy)
+        .map_or_else(crate::machine_checked_add_chain::Cache::default, |old| {
+            old.checked_add_cache.clone()
+        });
+    let mut checked_add_work = (0usize, 0usize);
     let reused_transform = session
         .as_ref()
         .and_then(|session| session.transformed.as_ref())
@@ -464,6 +474,8 @@ pub fn build_view_with_cancellation_and_session(
     if let Some(cached) = reused_transform {
         call_classes = cached.call_classes;
         class_symbols = cached.class_symbols.clone();
+        class_cache = cached.class_cache.clone();
+        checked_add_cache = cached.checked_add_cache.clone();
         let fingerprint = machine.fingerprint.clone();
         machine = cached.machine.clone();
         machine.fingerprint = fingerprint;
@@ -474,25 +486,43 @@ pub fn build_view_with_cancellation_and_session(
     } else {
         if options.optimization == Optimization::O2 && options.incremental_o2 {
             let mut flat = machine.to_module();
-            crate::machine_checked_add_chain::fold_checked_add_chains(&mut flat);
+            crate::machine_checked_add_chain::fold_checked_add_chains_cached(
+                &mut flat,
+                &mut checked_add_cache,
+            );
+            checked_add_work.0 += checked_add_cache.checked_functions;
+            checked_add_work.1 += checked_add_cache.reused_functions;
             crate::machine_scalar::fold_known_leaf_calls(&mut flat, lir);
             if call_classes_enabled {
                 check_cancelled(cancelled)?;
                 // The class pass reads and stages a complete model. A source
                 // capability or a hash is not its machine admission proof.
                 zil_llvm_api::validate_module(&flat).map_err(api_error)?;
-                if let Some((stats, symbols)) = (!collected_closed)
+                let previous = session
+                    .as_ref()
+                    .and_then(|session| session.transformed.as_ref())
+                    .filter(|old| old.policy == transform_policy && old.call_classes_enabled)
+                    .and_then(|old| old.class_cache.as_deref());
+                if let Some((stats, symbols, cache)) = (!collected_closed)
                     .then(|| {
-                        crate::machine_call_classes::canonicalize_stable(
+                        crate::machine_call_classes::canonicalize_stable_cached(
                             &mut flat,
                             &transform_policy.protected,
                             cancelled,
+                            previous,
                         )
                     })
                     .flatten()
                 {
                     call_classes = Some(stats);
                     class_symbols = symbols;
+                    class_work = Some((
+                        cache.reused_inputs,
+                        cache.rebuilt_inputs,
+                        cache.reused_keys,
+                        cache.rebuilt_keys,
+                    ));
+                    class_cache = Some(std::sync::Arc::new(cache));
                 } else {
                     call_classes = crate::machine_call_classes::canonicalize(
                         &mut flat,
@@ -511,9 +541,19 @@ pub fn build_view_with_cancellation_and_session(
                 call_classes_enabled,
                 call_classes,
                 class_symbols: class_symbols.clone(),
+                class_cache: class_cache.clone(),
+                checked_add_cache: checked_add_cache.clone(),
                 machine: machine.clone(),
             }));
         }
+    }
+    if let (Some(session), Some((inputs, rebuilt, keys, new_keys))) =
+        (session.as_deref_mut(), class_work)
+    {
+        session.summary.reused_call_class_inputs = inputs;
+        session.summary.rebuilt_call_class_inputs = rebuilt;
+        session.summary.reused_call_class_keys = keys;
+        session.summary.rebuilt_call_class_keys = new_keys;
     }
     timings.machine_ns = crate::object_cache::elapsed_ns(machine_started);
     // Source grouping and call-import policy are dependencies in addition to
@@ -554,6 +594,7 @@ pub fn build_view_with_cancellation_and_session(
             session.lower.identity(),
         )
         .with_transform_policy(transform_policy.clone())
+        .with_class_symbols(&class_symbols)
     });
     let cached_partition = session
         .as_ref()
@@ -647,7 +688,12 @@ pub fn build_view_with_cancellation_and_session(
             // from the actual current original emitter output, not a partial
             // helper plan; this attempt remains inside the request's timing.
             let mut flat = original_machine.to_module();
-            crate::machine_checked_add_chain::fold_checked_add_chains(&mut flat);
+            crate::machine_checked_add_chain::fold_checked_add_chains_cached(
+                &mut flat,
+                &mut checked_add_cache,
+            );
+            checked_add_work.0 += checked_add_cache.checked_functions;
+            checked_add_work.1 += checked_add_cache.reused_functions;
             crate::machine_scalar::fold_known_leaf_calls(&mut flat, lir);
             zil_llvm_api::validate_module(&flat).map_err(api_error)?;
             call_classes = crate::machine_call_classes::canonicalize(
@@ -657,6 +703,7 @@ pub fn build_view_with_cancellation_and_session(
             );
             check_cancelled(cancelled)?;
             class_symbols.clear();
+            class_cache = None;
             machine = flat.into();
             if let Some(session) = session.as_deref_mut() {
                 session.summary.reused_machine_transforms = false;
@@ -668,6 +715,8 @@ pub fn build_view_with_cancellation_and_session(
                             call_classes_enabled,
                             call_classes,
                             class_symbols: class_symbols.clone(),
+                            class_cache: class_cache.clone(),
+                            checked_add_cache: checked_add_cache.clone(),
                             machine: machine.clone(),
                         }));
                 }
@@ -680,7 +729,8 @@ pub fn build_view_with_cancellation_and_session(
                         &machine,
                         session.lower.identity(),
                     )
-                    .with_transform_policy(transform_policy.clone()),
+                    .with_transform_policy(transform_policy.clone())
+                    .with_class_symbols(&class_symbols),
                 );
             }
         }
@@ -880,12 +930,28 @@ pub fn build_view_with_cancellation_and_session(
             let mut retained_removed = 0;
             let mut inputs = Vec::with_capacity(plan.units.len());
             let mut removals = Vec::with_capacity(plan.units.len());
+            let mut class_declarations = Vec::with_capacity(plan.units.len());
             for (index, unit) in plan.units.iter_mut().enumerate() {
                 check_cancelled(cancelled)?;
                 inputs.push(unit.clone());
+                let scope = unit
+                    .items
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, item)| {
+                        matches!(item, zil_llvm_api::model::Item::Function(f)
+                        if f.blocks.is_none() && class_symbols.contains(&f.name))
+                        .then_some(index)
+                    })
+                    .collect::<std::collections::BTreeSet<_>>();
+                class_declarations.push(scope);
                 let previous = previous_partition.as_ref().and_then(|old| {
                     let input = old.prune.as_ref()?.inputs.get(index)?;
-                    if unit.triple != input.triple || unit.items != input.items {
+                    if unit.triple != input.triple
+                        || unit.items != input.items
+                        || old.prune.as_ref()?.class_declarations.get(index)
+                            != class_declarations.last()
+                    {
                         return None;
                     }
                     Some((
@@ -940,6 +1006,7 @@ pub fn build_view_with_cancellation_and_session(
             check_cancelled(cancelled)?;
             closed_prune = Some((checked, reused, removed, retained_removed));
             prune = Some(crate::incremental::PruneProduct {
+                class_declarations,
                 inputs,
                 removed: removals,
             });
@@ -966,6 +1033,10 @@ pub fn build_view_with_cancellation_and_session(
             private_closures,
         )
     };
+    if let Some(session) = session.as_deref_mut() {
+        session.summary.checked_add_functions_checked = checked_add_work.0;
+        session.summary.checked_add_functions_reused = checked_add_work.1;
+    }
     timings.partition_ns =
         crate::object_cache::elapsed_ns(partition_started).saturating_sub(timings.diagnostic_ns);
     let object_setup_started = std::time::Instant::now();

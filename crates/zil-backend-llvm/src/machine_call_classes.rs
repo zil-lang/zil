@@ -15,6 +15,62 @@ pub(crate) struct Stats {
     pub(crate) rewritten_calls: usize,
 }
 
+/// One actual current class-analysis epoch, retained only with its existing
+/// bounded TransformProduct. Inputs and observed callee classes are complete
+/// values; selectors never authorize reuse on their own.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Cache {
+    triple: String,
+    context: Vec<(Function, bool)>,
+    functions: Vec<std::sync::Arc<FunctionReads>>,
+    pub(crate) reused_inputs: usize,
+    pub(crate) rebuilt_inputs: usize,
+    pub(crate) reused_keys: usize,
+    pub(crate) rebuilt_keys: usize,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FunctionReads {
+    input: Function,
+    addresses: BTreeSet<String>,
+    dependencies: Option<BTreeSet<usize>>,
+    cost: usize,
+    normalized: Option<Normalized>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Normalized {
+    callees: Vec<(usize, String)>,
+    function: Function,
+    selector: zil_base::Fingerprint,
+}
+
+fn function_addresses(
+    function: &Function,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Option<BTreeSet<String>> {
+    let mut addresses = BTreeSet::new();
+    for block in function.blocks.iter().flatten() {
+        for inst in &block.instructions {
+            match &inst.op {
+                Op::Call {
+                    callee: Val::Global(_),
+                    args,
+                    ..
+                } => {
+                    for arg in args {
+                        address_uses(&arg.value, &mut addresses, cancelled)?;
+                    }
+                }
+                _ => {
+                    for value in inst.op.values() {
+                        address_uses(value, &mut addresses, cancelled)?;
+                    }
+                }
+            }
+        }
+    }
+    Some(addresses)
+}
+
 fn integer(ty: &Ty) -> bool {
     matches!(ty, Ty::Int(1 | 8 | 16 | 32 | 64))
 }
@@ -77,8 +133,9 @@ fn address_uses(
     addresses: &mut BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<()> {
-    let mut pending = vec![value];
-    while let Some(value) = pending.pop() {
+    let mut pending = Vec::new();
+    let mut first = Some(value);
+    while let Some(value) = first.take().or_else(|| pending.pop()) {
         if cancelled() {
             return None;
         }
@@ -313,7 +370,7 @@ pub(crate) fn canonicalize(
     protected: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<Stats> {
-    canonicalize_inner(module, protected, cancelled, false).map(|(stats, _)| stats)
+    canonicalize_inner(module, protected, cancelled, false, None).map(|(stats, _, _)| stats)
 }
 
 /// Materialize a complete equal class under a content-derived private symbol.
@@ -321,12 +378,23 @@ pub(crate) fn canonicalize(
 /// classes, and a spelling collision rejects the entire staged optimization.
 /// Original definitions and every address operand survive unchanged.
 /// These actual new definitions, not a name-prefix heuristic, authorize imports.
+#[cfg(test)]
 pub(crate) fn canonicalize_stable(
     module: &mut Module,
     protected: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<(Stats, BTreeSet<String>)> {
-    canonicalize_inner(module, protected, cancelled, true)
+    canonicalize_stable_cached(module, protected, cancelled, None)
+        .map(|(stats, symbols, _)| (stats, symbols))
+}
+
+pub(crate) fn canonicalize_stable_cached(
+    module: &mut Module,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    previous: Option<&Cache>,
+) -> Option<(Stats, BTreeSet<String>, Cache)> {
+    canonicalize_inner(module, protected, cancelled, true, previous)
 }
 
 fn canonicalize_inner(
@@ -334,7 +402,8 @@ fn canonicalize_inner(
     protected: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
     stable: bool,
-) -> Option<(Stats, BTreeSet<String>)> {
+    previous: Option<&Cache>,
+) -> Option<(Stats, BTreeSet<String>, Cache)> {
     if cancelled() {
         return None;
     }
@@ -365,31 +434,56 @@ fn canonicalize_inner(
                     return None;
                 }
                 functions.push(function);
-                for block in function.blocks.iter().flatten() {
-                    for inst in &block.instructions {
-                        match &inst.op {
-                            Op::Call {
-                                callee: Val::Global(_),
-                                args,
-                                ..
-                            } => {
-                                for arg in args {
-                                    address_uses(&arg.value, &mut addresses, cancelled)?;
-                                }
-                            }
-                            _ => {
-                                for value in inst.op.values() {
-                                    address_uses(value, &mut addresses, cancelled)?;
-                                }
-                            }
-                        }
-                    }
-                }
             }
             Item::NamedType(..) => {}
         }
     }
     let count = functions.len();
+    let context = functions
+        .iter()
+        .map(|function| {
+            let defined = function.blocks.is_some();
+            let mut header = (*function).clone();
+            header.blocks = None;
+            (header, defined)
+        })
+        .collect::<Vec<_>>();
+    let compatible = stable
+        && previous.is_some_and(|previous| {
+            previous.triple == module.triple && previous.context == context
+        });
+    let mut cache = Cache {
+        triple: module.triple.clone(),
+        context,
+        ..Cache::default()
+    };
+    for (index, function) in functions.iter().enumerate() {
+        if cancelled() {
+            return None;
+        }
+        let old = previous
+            .and_then(|old| old.functions.get(index))
+            .filter(|old| old.input == **function);
+        let reads = if compatible { old.cloned() } else { None };
+        let reads = if let Some(reads) = reads {
+            cache.reused_inputs += 1;
+            reads
+        } else {
+            cache.rebuilt_inputs += 1;
+            std::sync::Arc::new(FunctionReads {
+                input: (*function).clone(),
+                addresses: match old {
+                    Some(old) => old.addresses.clone(),
+                    None => function_addresses(function, cancelled)?,
+                },
+                dependencies: dependencies(function, &functions, &names, cancelled),
+                cost: function.cost(),
+                normalized: None,
+            })
+        };
+        addresses.extend(reads.addresses.iter().cloned());
+        cache.functions.push(reads);
+    }
     let mut outstanding = vec![None; count];
     let mut parents = vec![Vec::new(); count];
     let mut ready = BTreeSet::new();
@@ -400,81 +494,113 @@ fn canonicalize_inner(
         if !generated(&function.name) || addresses.contains(&function.name) {
             continue;
         }
-        let Some(deps) = dependencies(function, &functions, &names, cancelled) else {
+        let Some(deps) = cache.functions[index].dependencies.as_ref() else {
             continue;
         };
         outstanding[index] = Some(deps.len());
         if deps.is_empty() {
             ready.insert(index);
         }
-        for callee in deps {
+        for &callee in deps {
             parents[callee].push(index);
         }
     }
     let mut representatives = vec![None; count];
     let mut stable_names = vec![None; count];
     let mut implementations = std::collections::BTreeMap::new();
-    let source_cost = functions
+    let source_cost = cache
+        .functions
         .iter()
-        .try_fold(0usize, |sum, f| sum.checked_add(f.cost()))?;
+        .try_fold(0usize, |sum, f| sum.checked_add(f.cost))?;
     let mut implementation_cost = 0usize;
-    // Hash is only the selector: HashMap resolves collisions with full Function
-    // Eq, including complete signature/attributes/linkage/blocks/SSA names.
-    let mut classes: HashMap<Function, usize> = HashMap::new();
+    // Cached selectors only locate a bucket. Complete normalized Function Eq
+    // still authorizes every class, including deliberate hash collisions.
+    let mut classes: HashMap<zil_base::Fingerprint, Vec<(Function, usize)>> = HashMap::new();
+    let mut class_count = 0usize;
     let mut stats = Stats::default();
     while !ready.is_empty() {
         let mut next = BTreeSet::new();
-        // Equal normalized DAGs have equal height. Finish an entire height in
-        // source order, so a later function can never become an earlier one's
-        // representative just because its callee was visited first.
         for index in ready {
             if cancelled() {
                 return None;
             }
-            let key = normalized_key_inner(
-                functions[index],
-                &functions,
-                &names,
-                &representatives,
-                stable.then_some(stable_names.as_slice()),
-                cancelled,
-            )?;
-            let rep = match classes.entry(key) {
-                std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    if stable {
-                        if entry.key().linkage != Linkage::External {
-                            return None;
-                        }
-                        use std::hash::Hash;
-                        let mut hash = crate::object_cache::BufferedHasher::new();
-                        b"ZIL-CLOSED-CALL-CLASS-v1".hash(&mut hash);
-                        entry.key().hash(&mut hash);
-                        let name = format!("zil.class.{}", hash.digest().to_hex());
-                        if all_symbols.contains(name.as_str())
-                            || implementations.contains_key(&name)
-                        {
-                            return None;
-                        }
-                        let mut implementation = entry.key().clone();
-                        implementation.name = name.clone();
-                        implementation_cost =
-                            implementation_cost.checked_add(implementation.cost())?;
-                        if implementation_cost > source_cost
-                            || module
-                                .items
-                                .len()
-                                .checked_add(implementations.len())?
-                                .checked_add(1)?
-                                > crate::machine_cgu::layout::MAX_ITEMS
-                        {
-                            return None;
-                        }
-                        implementations.insert(name.clone(), implementation);
-                        stable_names[index] = Some(name);
-                    }
-                    *entry.insert(index)
+            let callees = if stable {
+                cache.functions[index]
+                    .dependencies
+                    .as_ref()?
+                    .iter()
+                    .map(|&callee| Some((callee, stable_names[callee].as_ref()?.clone())))
+                    .collect::<Option<Vec<_>>>()?
+            } else {
+                Vec::new()
+            };
+            let cached = stable
+                .then(|| cache.functions[index].normalized.as_ref())
+                .flatten()
+                .filter(|old| old.callees == callees);
+            let normalized = if let Some(cached) = cached {
+                cache.reused_keys += 1;
+                cached.clone()
+            } else {
+                cache.rebuilt_keys += 1;
+                let function = normalized_key_inner(
+                    functions[index],
+                    &functions,
+                    &names,
+                    &representatives,
+                    stable.then_some(stable_names.as_slice()),
+                    cancelled,
+                )?;
+                use std::hash::Hash;
+                let mut hash = crate::object_cache::BufferedHasher::new();
+                b"ZIL-CLOSED-CALL-CLASS-v1".hash(&mut hash);
+                function.hash(&mut hash);
+                let normalized = Normalized {
+                    callees,
+                    function,
+                    selector: hash.digest(),
+                };
+                if stable {
+                    let mut reads = cache.functions[index].as_ref().clone();
+                    reads.normalized = Some(normalized.clone());
+                    cache.functions[index] = std::sync::Arc::new(reads);
                 }
+                normalized
+            };
+            let bucket = classes.entry(normalized.selector).or_default();
+            let rep = if let Some((_, rep)) =
+                bucket.iter().find(|(key, _)| *key == normalized.function)
+            {
+                *rep
+            } else {
+                if stable {
+                    if normalized.function.linkage != Linkage::External {
+                        return None;
+                    }
+                    let name = format!("zil.class.{}", normalized.selector.to_hex());
+                    if all_symbols.contains(name.as_str()) || implementations.contains_key(&name) {
+                        return None;
+                    }
+                    let mut implementation = normalized.function.clone();
+                    implementation.name = name.clone();
+                    implementation_cost =
+                        implementation_cost.checked_add(cache.functions[index].cost)?;
+                    if implementation_cost > source_cost
+                        || module
+                            .items
+                            .len()
+                            .checked_add(implementations.len())?
+                            .checked_add(1)?
+                            > crate::machine_cgu::layout::MAX_ITEMS
+                    {
+                        return None;
+                    }
+                    implementations.insert(name.clone(), implementation);
+                    stable_names[index] = Some(name);
+                }
+                bucket.push((normalized.function, index));
+                class_count += 1;
+                index
             };
             representatives[index] = Some(rep);
             if stable {
@@ -491,7 +617,7 @@ fn canonicalize_inner(
         }
         ready = next;
     }
-    stats.equivalence_classes = classes.len();
+    stats.equivalence_classes = class_count;
     let replacements: HashMap<String, String> = representatives
         .iter()
         .enumerate()
@@ -508,7 +634,7 @@ fn canonicalize_inner(
         })
         .collect();
     if replacements.is_empty() {
-        return (!cancelled()).then_some((stats, BTreeSet::new()));
+        return (!cancelled()).then_some((stats, BTreeSet::new(), cache));
     }
     // Stage all changes in a COW clone: cancellation at any point cannot leave
     // an incompletely transformed original module or publish partial classes.
@@ -548,7 +674,7 @@ fn canonicalize_inner(
     // Preserve the existing call-free closed DCE route. Unreferenced class
     // bodies would add only work, with no direct-call atom to stabilize.
     if stable && stats.rewritten_calls == 0 {
-        return Some((stats, BTreeSet::new()));
+        return Some((stats, BTreeSet::new(), cache));
     }
     let symbols = implementations.keys().cloned().collect();
     if stable {
@@ -559,7 +685,7 @@ fn canonicalize_inner(
     if stats.rewritten_calls != 0 || stable {
         *module = changed;
     }
-    Some((stats, symbols))
+    Some((stats, symbols, cache))
 }
 
 #[cfg(test)]
@@ -1093,5 +1219,63 @@ mod tests {
         let (_, symbols) = canonicalize_stable(&mut actual, &BTreeSet::new(), &|| false).unwrap();
         assert!(symbols.is_empty());
         assert_eq!(actual, before);
+    }
+    #[test]
+    fn memo_reuses_only_equal_inputs_and_current_callee_class_dependencies() {
+        let original = module(vec![
+            leaf("zil.fn.0", 7),
+            leaf("zil.fn.1", 7),
+            call("zil.fn.2", "zil.fn.0"),
+            call("zil.fn.3", "zil.fn.1"),
+            call("main", "zil.fn.3"),
+        ]);
+        let mut first = original.clone();
+        let (_, _, cache) =
+            canonicalize_stable_cached(&mut first, &BTreeSet::new(), &|| false, None).unwrap();
+        let mut source = original;
+        source.items[0] = Item::Function(leaf("zil.fn.0", 9));
+        let mut actual = source.clone();
+        let (stats, symbols, next) =
+            canonicalize_stable_cached(&mut actual, &BTreeSet::new(), &|| false, Some(&cache))
+                .unwrap();
+        let mut expected = source.clone();
+        let fresh = canonicalize_stable(&mut expected, &BTreeSet::new(), &|| false).unwrap();
+        assert_eq!((stats, symbols), fresh);
+        assert_eq!(actual, expected);
+        assert_eq!((next.reused_inputs, next.rebuilt_inputs), (4, 1));
+        assert_eq!((next.reused_keys, next.rebuilt_keys), (2, 2));
+        // A role change must reclassify actual membership and all its callers,
+        // even while every immutable function body is still equal.
+        let protected = BTreeSet::from(["zil.fn.1".to_owned()]);
+        let mut actual = source.clone();
+        canonicalize_stable_cached(&mut actual, &protected, &|| false, Some(&next)).unwrap();
+        let mut expected = source;
+        canonicalize_stable(&mut expected, &protected, &|| false).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(target(&actual, "zil.fn.3"), "zil.fn.1");
+    }
+
+    #[test]
+    fn cached_selector_collision_does_not_authorize_different_class_bodies() {
+        let original = module(vec![
+            leaf("zil.fn.0", 7),
+            leaf("zil.fn.1", 9),
+            call("main", "zil.fn.1"),
+        ]);
+        let mut first = original.clone();
+        let (_, _, mut cache) =
+            canonicalize_stable_cached(&mut first, &BTreeSet::new(), &|| false, None).unwrap();
+        let selector = cache.functions[0].normalized.as_ref().unwrap().selector;
+        std::sync::Arc::make_mut(&mut cache.functions[1])
+            .normalized
+            .as_mut()
+            .unwrap()
+            .selector = selector;
+        let mut actual = original.clone();
+        assert!(
+            canonicalize_stable_cached(&mut actual, &BTreeSet::new(), &|| false, Some(&cache))
+                .is_none()
+        );
+        assert_eq!(actual, original);
     }
 }

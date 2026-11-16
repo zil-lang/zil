@@ -611,13 +611,130 @@ pub fn decode_module_candidate(
     bytes: &[u8],
     limits: &Limits,
 ) -> CompileResult<(TypedModule, CandidatePlan)> {
+    decode_candidate(bytes, limits, None).map(|decoded| (decoded.module, decoded.plan))
+}
+
+/// Transport receipts from the same complete, bounded candidate decode. These
+/// slots belong to the returned raw function/plan owners, not to a digest, and
+/// confer no Verify authority. All supplied segment boundaries and bytes must
+/// match the decoder's actual consumption before any receipt is returned.
+pub struct CandidateDecodingEncodings {
+    pub functions: Vec<RawFunctionEncoding>,
+    pub plans: Vec<Arc<RawFunctionPlanEncoding>>,
+}
+
+pub struct DecodedModuleCandidate {
+    pub module: TypedModule,
+    pub plan: CandidatePlan,
+    /// Unknown segmentation is still decoded normally, without reusable slots.
+    pub encodings: Option<CandidateDecodingEncodings>,
+}
+
+/// Decode once and retain existing shared segments when their exact boundaries
+/// and complete bytes match the records consumed by that same Reader. Hashes
+/// and caller-supplied fragment lengths never establish those boundaries.
+pub fn decode_module_candidate_with_encodings(
+    bytes: &[u8],
+    segments: &[WireSegment],
+    limits: &Limits,
+) -> CompileResult<DecodedModuleCandidate> {
+    decode_candidate(bytes, limits, Some(segments))
+}
+
+#[derive(Default)]
+struct CandidateDecodingRanges {
+    function_start: usize,
+    functions: Vec<(std::ops::Range<usize>, usize)>,
+    module_end: usize,
+    plan_function_start: usize,
+    plans: Vec<(std::ops::Range<usize>, usize)>,
+    plan_function_end: usize,
+}
+
+impl CandidateDecodingRanges {
+    fn bind(
+        self,
+        bytes: &[u8],
+        segments: &[WireSegment],
+        plan: &CandidatePlan,
+        limits: &Limits,
+    ) -> Option<CandidateDecodingEncodings> {
+        // The ordinary segmented writer flushes these four metadata records
+        // around the function and plan rows. Empty modules have a combined
+        // header/suffix; leave that uncommon layout to the ordinary encoder.
+        if self.functions.is_empty()
+            || segments.len()
+                != self
+                    .functions
+                    .len()
+                    .checked_add(self.plans.len())?
+                    .checked_add(4)?
+        {
+            return None;
+        }
+        let function_end = self.functions.last()?.0.end;
+        let ranges = std::iter::once(0..self.function_start)
+            .chain(self.functions.iter().map(|(range, _)| range.clone()))
+            .chain(std::iter::once(function_end..self.module_end))
+            .chain(std::iter::once(self.module_end..self.plan_function_start))
+            .chain(self.plans.iter().map(|(range, _)| range.clone()))
+            .chain(std::iter::once(self.plan_function_end..bytes.len()));
+        for (range, segment) in ranges.zip(segments) {
+            if bytes.get(range)? != segment.bytes.as_ref() {
+                return None;
+            }
+        }
+        let encoding = |segment: &WireSegment, nodes| RawFunctionEncoding {
+            bytes: segment.bytes.clone(),
+            limits: limits.clone(),
+            nodes,
+            // The caller's supplied fingerprint is not the decoder receipt.
+            fingerprint: OnceLock::new(),
+        };
+        let functions = self
+            .functions
+            .iter()
+            .enumerate()
+            .map(|(index, (_, nodes))| encoding(&segments[index + 1], *nodes))
+            .collect();
+        let plans = self
+            .plans
+            .iter()
+            .enumerate()
+            .map(|(index, (_, nodes))| {
+                Some(Arc::new(RawFunctionPlanEncoding {
+                    function: plan.functions.owner(index)?.clone(),
+                    encoding: encoding(&segments[self.functions.len() + 3 + index], *nodes),
+                }))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(CandidateDecodingEncodings { functions, plans })
+    }
+}
+
+fn decode_candidate(
+    bytes: &[u8],
+    limits: &Limits,
+    segments: Option<&[WireSegment]>,
+) -> CompileResult<DecodedModuleCandidate> {
     public((|| {
         let mut reader = Reader::new(bytes, limits)?;
+        let mut ranges = segments.map(|_| CandidateDecodingRanges::default());
         reader.header(MODULE_MAGIC)?;
-        let module = reader.module()?;
-        let plan = reader.plan()?;
+        let module = reader.module_recorded(ranges.as_mut())?;
+        if let Some(ranges) = &mut ranges {
+            ranges.module_end = reader.position;
+        }
+        let plan = reader.plan_recorded(ranges.as_mut())?;
         reader.finish()?;
-        Ok((module, plan))
+        let encodings = ranges
+            .zip(segments)
+            .and_then(|(ranges, segments)| ranges.bind(bytes, segments, &plan, limits));
+        Ok(DecodedModuleCandidate {
+            module,
+            plan,
+            encodings,
+        })
     })())
 }
 
@@ -3780,6 +3897,12 @@ impl<'a> Reader<'a> {
         Ok(features)
     }
     fn module(&mut self) -> WireResult<TypedModule> {
+        self.module_recorded(None)
+    }
+    fn module_recorded(
+        &mut self,
+        mut recording: Option<&mut CandidateDecodingRanges>,
+    ) -> WireResult<TypedModule> {
         let schema_version = self.u32()?;
         let module_id = ModuleId(self.u32()?);
         let source_fingerprint = self.fingerprint()?;
@@ -3803,8 +3926,18 @@ impl<'a> Reader<'a> {
 
         let count = self.count(self.limits.max_functions, 4)?;
         let mut functions = Vec::with_capacity(count);
+        if let Some(recording) = &mut recording {
+            recording.function_start = self.position;
+        }
         for _ in 0..count {
+            let start = self.position;
+            let nodes = self.nodes;
             functions.push(self.function()?);
+            if let Some(recording) = &mut recording {
+                recording
+                    .functions
+                    .push((start..self.position, nodes - self.nodes));
+            }
         }
         let count = self.count(self.limits.max_functions, 22)?;
         let mut closures = Vec::with_capacity(count);
@@ -5096,12 +5229,23 @@ impl<'a> Reader<'a> {
         Ok(locals)
     }
     fn plan(&mut self) -> WireResult<CandidatePlan> {
+        self.plan_recorded(None)
+    }
+    fn plan_recorded(
+        &mut self,
+        mut recording: Option<&mut CandidateDecodingRanges>,
+    ) -> WireResult<CandidatePlan> {
         let schema_version = self.u32()?;
         let module_fingerprint = self.fingerprint()?;
         let target_fingerprint = self.fingerprint()?;
         let count = self.count(self.limits.max_functions, 8)?;
         let mut functions = Vec::with_capacity(count);
+        if let Some(recording) = &mut recording {
+            recording.plan_function_start = self.position;
+        }
         for _ in 0..count {
+            let start = self.position;
+            let nodes = self.nodes;
             let function = FunctionId(self.u32()?);
             let count = self.count(self.limits.max_blocks, 12)?;
             let mut blocks = Vec::with_capacity(count);
@@ -5134,6 +5278,14 @@ impl<'a> Reader<'a> {
                 blocks: blocks.into(),
                 holds: holds.into(),
             });
+            if let Some(recording) = &mut recording {
+                recording
+                    .plans
+                    .push((start..self.position, nodes - self.nodes));
+            }
+        }
+        if let Some(recording) = recording {
+            recording.plan_function_end = self.position;
         }
         let count = self.count(self.limits.max_nodes, 9)?;
         let mut origins = Vec::with_capacity(count);

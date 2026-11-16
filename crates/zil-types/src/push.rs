@@ -1239,15 +1239,15 @@ mod tests {
                 restored.stats.body_checks,
                 restored.stats.retained_functions
             ),
-            (2, 3)
+            (1, 4)
         );
         assert_eq!(
             cache.last_stats().executed_functions,
-            2,
-            "tiny and extern still execute"
+            1,
+            "only extern still executes; the tiny scalar now restores its actual CFG"
         );
-        assert_eq!(cache.last_stats().reused_functions, 3);
-        assert_eq!(cache.last_stats().restored_reused_functions, 3);
+        assert_eq!(cache.last_stats().reused_functions, 4);
+        assert_eq!(cache.last_stats().restored_reused_functions, 4);
         assert!(session.checkpoint_for(&restored.program).is_some());
         let context = session.current.as_ref().unwrap();
         let expected = cold_push.current.as_ref().unwrap();
@@ -1370,8 +1370,8 @@ mod tests {
         let bytes = writer.encode_work_products(&target, &limits).unwrap();
         let mut cache = FunctionSession::default();
         assert!(cache.restore_work_products(&bytes, &target, &limits));
-        // Change only an uncached body; all three cached CFGs fit individually.
-        // The request must still pay their actual summed fees before this body.
+        // Change one cached short body. Every retained CFG fits individually.
+        // The request must still pay their actual ordered aggregate fees.
         let changed = text.replace(
             "fn tiny()->i32=>4;",
             "fn tiny()->i32 {if true {return 4;}else{return 5;}}",
@@ -1396,7 +1396,7 @@ mod tests {
                 .unwrap_err(),
             fresh(&next, &limits).unwrap_err()
         );
-        assert_eq!(cache.last_stats().reused_functions, 3);
+        assert_eq!(cache.last_stats().reused_functions, 5);
         assert!(session.current.is_none());
         assert_eq!(cache.encode_work_products(&target, &limits).unwrap(), bytes);
         let recovery = produced(&mut expand, &[parse(0, text, &limits)], &limits);
@@ -1406,14 +1406,14 @@ mod tests {
             .unwrap();
         assert_eq!(
             (update.stats.body_checks, update.stats.retained_functions),
-            (6, 3)
+            (1, 8)
         );
         assert_eq!(update.program.as_ref(), &fresh(&recovery, &limits).unwrap());
         assert!(session.checkpoint_for(&update.program).is_some());
     }
 
     #[test]
-    fn restored_explicit_life_uses_one_current_builder_and_exact_work_boundary() {
+    fn explicit_life_bypasses_function_cache_and_uses_one_builder_at_exact_work_boundary() {
         let defaults = Limits::default();
         let target = TargetProfile::default();
         let parsed = parse(
@@ -1470,8 +1470,12 @@ mod tests {
                 writer
                     .check_prepared_program(&input, &target, &limits)
                     .unwrap();
-                let bytes = writer.encode_work_products(&target, &limits).unwrap();
-                assert!(cache.restore_work_products(&bytes, &target, &limits));
+                assert_eq!(writer.last_stats().executed_functions, 1);
+                assert!(
+                    writer.is_empty(),
+                    "life bodies never enter the CFG replay cache"
+                );
+                assert!(writer.encode_work_products(&target, &limits).is_none());
             }
             let mut push = TypesPushSession::default();
             let actual = push.apply_with_function_cache(&input, &target, &limits, None, &mut cache);

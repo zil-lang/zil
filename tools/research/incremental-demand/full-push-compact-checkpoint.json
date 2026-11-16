@@ -197,12 +197,13 @@
   },
   "active_implementation": {
     "baseline": "df06acabf33a76a723d1e92b1d7da71b41d4b7da",
-    "scope": "Stable class implementation symbols→complete imports→closed pruning→object keys; tiny scalar bodies through existing function cache/fees; current raw semantic encoding reuse.",
-    "status": "New source chain being frozen for one unified affected acceptance batch; not yet compiled or performance-measured. compiled_source and last_measured below remain4a23, never apply those numbers to new code.",
+    "scope": "Stable class symbols/fullimports/pruning/objectkeys plus actualperFunctionclass dependency/normalized-key memo; checked-add completed planning Cache in existing4TFslots; tiny ordinary scalar CFG/6fees; one-pass wire decode capture/rawsemantic encoding reuse includingcrossStore transport.",
+    "status": "Bulk complete logic frozen next; one unified affected batch will include new IR wire decoder and all native/backend/Types/driver/release gates. No new performance window yet;lastmeasured4a23 only.",
     "record": "stable-class-chain-20261116/implementation.md",
     "prior_raw_retirement": "stable-class-chain-20261116/prior-backed-blobs-retirement.json",
     "gate_rule": "No per-edit benchmark matrices; full-chain logic then affected native/backend/Types/driver correctness,quality,strict,release,then one comparison batch.",
     "research_defaults_enabled": false,
-    "main_merge": false
+    "main_merge": false,
+    "first_batch": "62d487d1:mechanical/backend305 passed;Types108pass3fail on changedtinycoverage counters/life cache fixture. Rawfirstfail preserved; alloriginalsemantic/aggregatefees/budget/error assertions remain."
   }
 }

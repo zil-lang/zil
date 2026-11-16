@@ -42,6 +42,12 @@ pub struct BackendSessionSummary {
     pub reused_partition_items: usize,
     pub rebuilt_partition_items: usize,
     pub reused_machine_transforms: bool,
+    pub reused_call_class_inputs: usize,
+    pub rebuilt_call_class_inputs: usize,
+    pub reused_call_class_keys: usize,
+    pub rebuilt_call_class_keys: usize,
+    pub checked_add_functions_checked: usize,
+    pub checked_add_functions_reused: usize,
     pub reused_object_keys: usize,
     pub reused_link: bool,
     pub rendered_diagnostic_items: usize,
@@ -272,6 +278,8 @@ pub(crate) struct TransformProduct {
     pub(crate) call_classes_enabled: bool,
     pub(crate) call_classes: Option<crate::machine_call_classes::Stats>,
     pub(crate) class_symbols: std::collections::BTreeSet<String>,
+    pub(crate) class_cache: Option<Arc<crate::machine_call_classes::Cache>>,
+    pub(crate) checked_add_cache: crate::machine_checked_add_chain::Cache,
     pub(crate) machine: crate::machine_output::MachineOutput,
 }
 
@@ -334,6 +342,7 @@ impl BackendSession {
 pub(crate) struct PartitionInput {
     options: BuildOptions,
     transform_policy: Option<TransformPolicy>,
+    class_symbols: std::collections::BTreeSet<String>,
     names: Option<Vec<(FunctionId, String)>>,
     collected: bool,
     closures: Vec<FunctionId>,
@@ -388,6 +397,7 @@ impl PartitionInput {
         Self {
             options,
             transform_policy: None,
+            class_symbols: Default::default(),
             names: names.map(<[_]>::to_vec),
             collected,
             closures: lir
@@ -412,6 +422,13 @@ impl PartitionInput {
         self.transform_policy = Some(policy);
         self
     }
+    pub(crate) fn with_class_symbols(
+        mut self,
+        symbols: &std::collections::BTreeSet<String>,
+    ) -> Self {
+        self.class_symbols = symbols.clone();
+        self
+    }
     pub(crate) fn same_completed_output(&self, other: &Self) -> bool {
         self.same_recipe_environment(other)
             && matches!((&self.scalar, &other.scalar), (Some((_, left)), Some((_, right)))
@@ -425,6 +442,7 @@ impl PartitionInput {
     pub(crate) fn same_recipe_environment(&self, other: &Self) -> bool {
         self.options == other.options
             && self.transform_policy == other.transform_policy
+            && self.class_symbols == other.class_symbols
             && self.names == other.names
             && self.collected == other.collected
             && self.closures == other.closures
@@ -435,6 +453,7 @@ impl PartialEq for PartitionInput {
     fn eq(&self, other: &Self) -> bool {
         if self.options != other.options
             || self.transform_policy != other.transform_policy
+            || self.class_symbols != other.class_symbols
             || self.names != other.names
             || self.collected != other.collected
             || self.closures != other.closures
@@ -469,6 +488,7 @@ pub(crate) struct PartitionProduct {
 /// kept together in one process-owned epoch. Never serialized as permission.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PruneProduct {
+    pub(crate) class_declarations: Vec<std::collections::BTreeSet<usize>>,
     pub(crate) inputs: Vec<Module>,
     pub(crate) removed: Vec<usize>,
 }

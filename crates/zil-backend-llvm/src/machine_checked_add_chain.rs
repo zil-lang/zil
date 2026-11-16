@@ -1,11 +1,76 @@
 //! Contract strict monotone checked-add chains in the explicit incremental O2 strategy.
 //! Each nonempty plan requires complete unchanged-model preflight before mutation.
 //! Canonical function definitions, trap behavior and the scalar evaluator remain intact.
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::sync::Arc;
 use zil_llvm_api::model::{Arg, Block, Function, Inst, Item, Module, Op, Ty, Val};
 
 const MAX_USE_SCAN_DEPTH: usize = 128;
 const MAX_USE_SCAN_VALUES: usize = 1_000_000;
+
+// These bounds only decline retention, never truncate the ordinary planner or
+// increase its per-function use-scan allowance.
+const MAX_CACHE_ITEMS: usize = 16_384;
+const MAX_CACHE_WORK: usize = MAX_USE_SCAN_VALUES;
+
+/// One completed raw planning epoch. The caller may retain this together with
+/// its existing bounded transform history; no predecessor is retained here.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Cache {
+    epoch: Option<Arc<CacheEpoch>>,
+    /// Current definition bodies passed to the original chain planner.
+    pub(crate) checked_functions: usize,
+    /// Current definition bodies matched by complete Function equality.
+    pub(crate) reused_functions: usize,
+    /// Definition entries in the last successfully installed current epoch.
+    pub(crate) retained_functions: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CacheContext {
+    triple: String,
+    // Retain complete actual declarations, including trap, signatures, attrs
+    // and linkage. The derived intrinsic-name map alone is not the context.
+    declarations: Vec<Function>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CacheEpoch {
+    context: CacheContext,
+    functions: BTreeMap<String, Arc<CachedFunction>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CachedFunction {
+    input: Function,
+    // None records a completed empty plan, not an unexecuted query.
+    output: Option<Function>,
+    removed_checks: usize,
+}
+
+fn cacheable(module: &Module) -> bool {
+    if module.items.len() > MAX_CACHE_ITEMS {
+        return false;
+    }
+    let mut remaining = MAX_CACHE_WORK;
+    for item in &module.items {
+        let Item::Function(function) = item else {
+            continue;
+        };
+        let Some(next) = remaining.checked_sub(function.signature.params.len()) else {
+            return false;
+        };
+        remaining = next;
+        for block in function.blocks.iter().flatten() {
+            let Some(next) = remaining.checked_sub(block.instructions.len().saturating_add(1))
+            else {
+                return false;
+            };
+            remaining = next;
+        }
+    }
+    true
+}
 
 #[cfg(test)]
 std::thread_local! {
@@ -585,22 +650,123 @@ pub(crate) fn fold_checked_add_chains(module: &mut Module) -> usize {
         let Item::Function(function) = &mut module.items[plan.item] else {
             unreachable!()
         };
-        let blocks = function.blocks.as_mut().expect("planned function");
-        let mut removed = vec![false; blocks.len()];
-        for chain in plan.chains {
-            blocks[chain.blocks[0]].instructions = chain.replacement;
-            for &id in &chain.blocks[1..] {
-                removed[id] = true;
-                removed_checks += 1;
-            }
-        }
-        let mut id = 0;
-        blocks.retain(|_| {
-            let keep = !removed[id];
-            id += 1;
-            keep
-        });
+        removed_checks += apply_chains(function, plan.chains);
     }
+    removed_checks
+}
+
+fn apply_chains(function: &mut Function, chains: Vec<Chain>) -> usize {
+    let blocks = function.blocks.as_mut().expect("planned function");
+    let mut removed = vec![false; blocks.len()];
+    let mut removed_checks = 0;
+    for chain in chains {
+        blocks[chain.blocks[0]].instructions = chain.replacement;
+        for &id in &chain.blocks[1..] {
+            removed[id] = true;
+            removed_checks += 1;
+        }
+    }
+    let mut id = 0;
+    blocks.retain(|_| {
+        let keep = !removed[id];
+        id += 1;
+        keep
+    });
+    removed_checks
+}
+
+/// Reuse only complete current raw inputs and their actually planned outputs.
+/// Every admitted call validates the COMPLETE unchanged original module before
+/// raw Function equality, planning or replay. In particular an unrelated bad
+/// declaration/global cannot hide behind a retained function result. This API
+/// has the same caller-owned cancellation boundary as the ordinary fold API.
+pub(crate) fn fold_checked_add_chains_cached(module: &mut Module, cache: &mut Cache) -> usize {
+    cache.checked_functions = 0;
+    cache.reused_functions = 0;
+    let (intrinsics, has_trap) = declarations(module);
+    if intrinsics.is_empty() || !has_trap {
+        cache.epoch = None;
+        cache.retained_functions = 0;
+        return 0;
+    }
+    if !cacheable(module) {
+        // Retention is optional. The ordinary planner executes once with its
+        // original budget; no partially planned prefix is restarted here.
+        cache.epoch = None;
+        cache.retained_functions = 0;
+        cache.checked_functions = module
+            .items
+            .iter()
+            .filter(|item| matches!(item, Item::Function(f) if f.blocks.is_some()))
+            .count();
+        return fold_checked_add_chains(module);
+    }
+    if zil_llvm_api::validate_module(module).is_err() {
+        // Keep the previous completed epoch on rejection, never install any
+        // tentative rows or modify the current raw model.
+        return 0;
+    }
+    let context = CacheContext {
+        triple: module.triple.clone(),
+        declarations: module
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(function) if function.blocks.is_none() => Some(function.clone()),
+                _ => None,
+            })
+            .collect(),
+    };
+    let previous = cache
+        .epoch
+        .as_ref()
+        .filter(|epoch| epoch.context == context);
+    let mut functions = BTreeMap::new();
+    let mut outputs = Vec::new();
+    let mut removed_checks = 0;
+    for (index, item) in module.items.iter().enumerate() {
+        let Item::Function(function) = item else {
+            continue;
+        };
+        if function.blocks.is_none() {
+            continue;
+        }
+        let prior = previous
+            .and_then(|epoch| epoch.functions.get(&function.name))
+            .filter(|entry| entry.input == *function);
+        let entry = if let Some(prior) = prior {
+            cache.reused_functions += 1;
+            prior.clone()
+        } else {
+            cache.checked_functions += 1;
+            let chains = function_chains(function, &intrinsics);
+            let mut removed = 0;
+            let output = if chains.is_empty() {
+                None
+            } else {
+                let mut output = function.clone();
+                removed = apply_chains(&mut output, chains);
+                Some(output)
+            };
+            Arc::new(CachedFunction {
+                input: function.clone(),
+                output,
+                removed_checks: removed,
+            })
+        };
+        if let Some(output) = &entry.output {
+            outputs.push((index, output.clone()));
+        }
+        removed_checks += entry.removed_checks;
+        functions.insert(function.name.clone(), entry);
+    }
+    // The whole original was checked above; all replacements are staged before
+    // any current item is touched. Cache entries only own this epoch's rows.
+    for (index, output) in outputs {
+        module.items[index] = Item::Function(output);
+    }
+    cache.retained_functions = functions.len();
+    cache.epoch = Some(Arc::new(CacheEpoch { context, functions }));
     removed_checks
 }
 
