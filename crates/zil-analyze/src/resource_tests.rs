@@ -1458,6 +1458,69 @@ fn append_entry(module: &mut TypedModule, kind: InstructionKind) {
         .instructions
         .push(inst(None, kind));
 }
+
+#[test]
+fn task_once_return_requires_actual_production_and_one_transferred_owner() {
+    // Isolate the resource ledger. Its incoming owning parameter is an entry
+    // assumption; construction, retained loans and Task ABI have separate
+    // whole-module checks. A declared Task result alone must not mint a debt.
+    let task = Type::Managed(Box::new(Type::Task {
+        result: Box::new(Type::I32),
+        retained_life: RetainedLifeShape {
+            binder_count: 0,
+            ports: vec![],
+            retained: vec![],
+            nominal_arguments: vec![],
+        },
+    }));
+    let mut caller = Body::new(0);
+    caller.0.return_type = task.clone();
+    caller.0.locals.push(LocalDecl {
+        id: LocalId(0), name: "input".into(), ty: task.clone(), mutable: false, span: s(),
+    });
+    caller.0.parameters.push(LocalId(0));
+    let input = caller.value(task.clone(), InstructionKind::TakeLocal { local: LocalId(0) });
+    let callback = caller.value(Type::Closure(ClosureId(0)), InstructionKind::MakeClosure {
+        closure: ClosureId(0), captures: vec![input],
+    });
+    let result = caller.value(task.clone(), InstructionKind::CallClosureOnce {
+        callee: callback, arguments: vec![],
+    });
+    let mut entry = Body::new(1);
+    entry.0.environment = Some(ClosureId(0));
+    entry.0.return_type = task.clone();
+    let returned = entry.value(task.clone(), InstructionKind::TakeCapture { index: 0 });
+    let mut module = fixture(CallableKind::FnOnce, false, 0);
+    module.functions = vec![caller.finish(result), entry.finish(returned)];
+    module.closures[0].captures = vec![task.clone()];
+    module.closures[0].result = task.clone();
+    module.resources.clear();
+    let graphs = vec![(vec![vec![]], vec![true]); 2];
+    let check = |module: &TypedModule| {
+        let mut budget = Budget::new(&Limits::default());
+        budget.task_callable_results = true;
+        resources::check_module(module, &graphs, &mut budget)
+    };
+    check(&module).unwrap();
+    let mut fabricated = module.clone();
+    // Keep the actual capture transfer, so the fake result cannot be rejected
+    // merely because an unknown Task remained in the environment.
+    fabricated.functions[1].values.push(task.clone());
+    fabricated.functions[1].blocks[0].instructions.push(inst(
+        Some(ValueId(1)), InstructionKind::Constant(Constant::I32(0)),
+    ));
+    fabricated.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    let errors = check(&fabricated).unwrap_err();
+    assert!(errors.iter().any(|error| error.message.contains(
+        "instruction cannot produce the claimed resource kind")), "{errors:?}");
+    let mut duplicated = module;
+    duplicated.functions[1].values.push(task);
+    duplicated.functions[1].blocks[0].instructions.push(inst(
+        Some(ValueId(1)), InstructionKind::TakeCapture { index: 0 },
+    ));
+    duplicated.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    assert!(check(&duplicated).is_err(), "one actual captured owner cannot be returned twice");
+}
 fn add_helper(module: &mut TypedModule, write: bool) {
     let mut helper = Body::new(2);
     helper.0.locals.push(LocalDecl {

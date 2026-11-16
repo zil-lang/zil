@@ -1589,6 +1589,63 @@ struct Flow<'a> {
     replacements: Option<&'a replacements::Program>,
 }
 impl Flow<'_> {
+    fn task_once_result(
+        &self,
+        definition: &ClosureDefinition,
+        instruction: &Instruction,
+        budget: &mut Budget,
+    ) -> CompileResult<Option<Fact>> {
+        if !budget.task_callable_results || !tasks::transfer::task_owner(&definition.result) {
+            return Ok(None);
+        }
+        let InstructionKind::CallClosureOnce { callee, arguments } = &instruction.kind else {
+            return Err(error("Task owner result requires its actual consuming closure call"));
+        };
+        let entry = self.module.functions.get(definition.function.0 as usize)
+            .filter(|entry| entry.id == definition.function)
+            .ok_or_else(|| error("Task owner result has no actual closure entry"))?;
+        let output = instruction.result
+            .ok_or_else(|| error("Task owner call omits its actual returned responsibility"))?;
+        budget.type_work(&definition.result, false, "Task consuming call complete declared result")?;
+        budget.type_work(&entry.return_type, false, "Task consuming call complete actual result")?;
+        if definition.kind != CallableKind::FnOnce
+            || !definition.parameters.is_empty() || !entry.parameters.is_empty() || !arguments.is_empty()
+            || entry.environment != Some(definition.id) || entry.foreign.is_some()
+            || entry.call_kind != CallKind::Direct
+            || !matches!(entry.result_mode, PassingMode::Infer | PassingMode::Give | PassingMode::Create)
+            || self.function.values.get(callee.0 as usize) != Some(&Type::Closure(definition.id))
+            || self.function.values.get(output.0 as usize) != Some(&definition.result)
+            || entry.return_type != definition.result
+        {
+            return Err(error("Task owner result changes its complete consuming entry or return ABI"));
+        }
+        for block in &entry.blocks {
+            budget.spend(1, "Task consuming call actual return operands")?;
+            if let Terminator::Return(returned) = block.terminator
+                && returned.and_then(|value| entry.values.get(value.0 as usize))
+                    != Some(&definition.result)
+            {
+                return Err(error("Task consuming entry has no complete actual owning return operand"));
+            }
+        }
+        // This is the normal-return responsibility of this exact actual call,
+        // not a Task constructor or a borrowed-port permission. The same
+        // module proof checks every callee producer, consumes every returned
+        // owner and rejects unpaid/duplicated responsibilities on every exit.
+        // Separate retained/port/debt/origin checks substitute the real
+        // transferred environment roots; callee-local Source labels cannot
+        // be copied into the caller's namespace.
+        Ok(Some(Fact {
+            life: BTreeSet::from([Life::Available]),
+            sources: BTreeSet::new(),
+            birth: BTreeSet::from([if entry.result_mode == PassingMode::Create {
+                Birth::Created
+            } else {
+                Birth::Incoming
+            }]),
+        }))
+    }
+
     fn package_source(
         &self,
         local: LocalId,
@@ -4064,6 +4121,11 @@ impl Flow<'_> {
                             });
                         }
                     }
+                    if produced.is_none()
+                        && matches!(i.kind, InstructionKind::CallClosureOnce { .. })
+                    {
+                        produced = self.task_once_result(definition, i, budget)?;
+                    }
                 }
                 _ => {}
             }
@@ -4127,8 +4189,15 @@ impl Flow<'_> {
                 }
             }
             if let (Some(place), Some(s)) = (output, out_shape) {
+                if produced.is_none() {
+                    budget.spend(f.name.len().saturating_add(128), "missing actual resource producer diagnostic")?;
+                }
                 let fact = produced
-                    .ok_or_else(|| error("instruction cannot produce the claimed resource kind"))?;
+                    .ok_or_else(|| {
+                        let mut errors = error("instruction cannot produce the claimed resource kind");
+                        errors[0].notes.push(format!("actual resource function {} {} block {} instruction {}, result {:?}, producer {:?}", f.id.0, f.name, b, position, i.result, std::mem::discriminant(&i.kind)));
+                        errors
+                    })?;
                 if check && s.owned && !exact(&fact, Life::Available) {
                     return Err(error("result does not carry a live responsibility"));
                 }
