@@ -863,6 +863,13 @@ pub(super) fn qualified_package_description(
     let Type::Managed(payload) = field else {
         return Err(err("description field is not an actual managed owner"));
     };
+    // The ordinary Package bridge selects the class-free Record description
+    // protocol. Store/ByteBuffer fields retain their separate description,
+    // allocation and owner-epoch consumers; an earlier classifier must not
+    // reject them as failed pure values before those consumers can run.
+    if matches!(parent, Type::Package { .. }) && !matches!(payload.as_ref(), Type::Record { .. }) {
+        return Ok(false);
+    }
     // Reuse the complete pure payload check, including every inactive arm.
     ordinary(payload, b, 0)?;
     let output = vt(
@@ -1073,6 +1080,43 @@ pub(super) fn complete_owned_value(module:&TypedModule,ty:&Type,b:&mut Budget)->
 #[cfg(test)]
 mod owned_observation_tests{
     use super::*;
+    #[test]
+    fn package_record_description_does_not_intercept_other_owner_protocols_raw_wire() {
+        let limits = Limits::default();
+        let (mut module, plan) = crate::tests::baseline();
+        let record = Type::Record { name: "Ticket".into(), fields: vec![("code".into(), Type::I32)] };
+        let store = Type::OwnedStore { element: Box::new(Type::I32) };
+        let hidden = Type::Record { name: "Borrowing".into(), fields: vec![("pointer".into(),
+            Type::Address { mutable: false, inner: Box::new(Type::I32) })] };
+        let payloads = [record, store, Type::ByteBuffer, hidden];
+        module.functions[0].locals[0].ty = Type::Package {
+            name: "Bag".into(),
+            fields: payloads.iter().enumerate().map(|(index, payload)|
+                (format!("field{index}"), Type::Managed(Box::new(payload.clone())))).collect(),
+        };
+        module.functions[0].values = payloads.iter().map(|payload|
+            Type::Desc(Box::new(payload.clone()))).chain(std::iter::once(Type::I32)).collect();
+        for wire in [false, true] {
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            let (raw, _) = if wire { zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap() }
+                else { (module.clone(), plan.clone()) };
+            let f = &raw.functions[0];
+            let describe = |index: u32, result: u32| Instruction {
+                result: Some(ValueId(result)),
+                kind: InstructionKind::DescribePackageField { local: LocalId(0), index },
+                span: f.span,
+            };
+            let mut b = Budget::new(&limits);
+            assert!(qualified_package_description(f, &describe(0, 0), &mut b).unwrap());
+            // False selects another consumer; it never authenticates a Store
+            // allocation, owner epoch, description or actual access window.
+            assert!(!qualified_package_description(f, &describe(1, 1), &mut b).unwrap());
+            assert!(!qualified_package_description(f, &describe(2, 2), &mut b).unwrap());
+            assert!(qualified_package_description(f, &describe(0, 4), &mut b).is_err());
+            assert!(qualified_package_description(f, &describe(3, 3), &mut b).is_err(),
+                "the complete Record payload must not hide an Address as Copy");
+        }
+    }
     // These test qualification and selected result identity, not an executed
     // Source body or a certificate for the synthetic module's resource state.
     #[test]
