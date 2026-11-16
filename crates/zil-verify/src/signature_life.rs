@@ -639,6 +639,29 @@ fn relation_inner(
 pub(super) fn function_relation_pending_views(module:&TypedModule,parameters:&[&Type],result:&Type,c:&StorageLifeContract,span:Option<Span>,allow_callback:bool,allow_byte_input:bool,pending:&[SignatureLifeClass])->Check<()>{
     relation_inputs(parameters,result,c,span,allow_callback,None,Some(module),allow_byte_input,None,pending,&[])
 }
+/// Complete occurrence rows below a raw wrapper. A qualified nominal is a
+/// domain boundary: its full N is listed once, and its own child map remains
+/// independently checked. Wrapper descendants retain every path and class.
+/// The last ordinal is the exact constructor embedding into the first N;
+/// it never identifies distinct classes because their outside images agree.
+pub(super) fn raw_reference_classes(
+    module:Option<&TypedModule>,ty:&Type,
+    mut row:impl FnMut(usize,u32,u32)->Check<()>,
+)->Check<u32>{
+    let invalid=||reject("E-VERIFY-SIGNATURE-CLASS",None,"raw reference lacks its complete constructor class domain");
+    let count=crate::stored_flow::reference_domain(module,ty).ok_or_else(invalid)?;
+    let(mut current,mut depth,mut offset,mut remaining)=(ty,1usize,0u32,count);
+    loop{
+        for class in 0..remaining{row(depth,class,offset.checked_add(class).ok_or_else(invalid)?)?;}
+        match current{
+            Type::Address{inner,..}|Type::Desc(inner)=>{offset=offset.checked_add(1).ok_or_else(invalid)?;remaining=remaining.checked_sub(1).ok_or_else(invalid)?;current=inner;},
+            Type::Managed(inner)=>current=inner,
+            _=>break,
+        }
+        depth=depth.checked_add(1).ok_or_else(invalid)?;
+    }
+    Ok(count)
+}
 fn relation_inputs<P:InputType>(
     parameters: &[P],
     result: &Type,
@@ -935,12 +958,14 @@ fn relation_inputs<P:InputType>(
         }
         match actual {
             Type::Address{..}if pointee=>{
-                let count=crate::stored_flow::reference_domain(module,actual).ok_or_else(invalid)?;
-                for local in 0..count{
+                let first=class;
+                raw_reference_classes(module,actual,|depth,local,parent|{
                     let row=c.classes.get(class).ok_or_else(invalid)?;
-                    if row.position.base!=base||row.position.path!=[LifeTypeProjection::Pointee]||row.position.class!=local{return Err(invalid());}
-                    class+=1;visit(row.binder,if captures.is_some(){capture}else{!output},output&&pending.contains(&row.position))?;
-                }
+                    if row.position.base!=base||row.position.path.len()!=depth||!row.position.path.iter().all(|step|*step==LifeTypeProjection::Pointee)||row.position.class!=local{return Err(invalid());}
+                    let parent=c.classes.get(first.checked_add(parent as usize).ok_or_else(invalid)?).ok_or_else(invalid)?;
+                    if parent.position.path!=[LifeTypeProjection::Pointee]||parent.binder!=row.binder{return Err(invalid());}
+                    class+=1;visit(row.binder,if captures.is_some(){capture}else{!output},output&&pending.contains(&row.position))
+                })?;
             },
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
                 let owner = module
@@ -1349,6 +1374,28 @@ mod input_view_tests{
             let actual=function_relation_resource_views(&module,&views,&Type::I32,&c,None,false,false,&mut Budget::new(&Limits::default()));
             assert_eq!(actual,expected,"complete input relation at attack {attack}");
             if attack==0{actual.unwrap();}else{assert_ne!(actual.unwrap_err().category,zil_base::ResultCategory::ResourceLimit);}
+        }
+    }
+}
+
+#[cfg(test)]
+mod raw_reference_directory_tests {
+    use super::*;
+    fn shared(inner:Type)->Type{Type::Address{mutable:false,inner:Box::new(inner)}}
+    #[test]
+    fn nested_header_keeps_whole_and_descendant_occurrences_and_exact_embedding(){
+        let(module,_)=crate::tests::baseline();
+        let parameters=[shared(shared(shared(Type::I32)))];
+        let contract=StorageLifeContract{fixed_binder_count:2,invocation_binder_count:1,bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(0),path:vec![]},binder:StorageBinder::Invocation(0)}],static_bindings:vec![],classes:vec![
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(0),path:vec![LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Fixed(0)},
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(0),path:vec![LifeTypeProjection::Pointee],class:1},binder:StorageBinder::Fixed(1)},
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(0),path:vec![LifeTypeProjection::Pointee,LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Fixed(1)},
+        ]};
+        function_relation(&module,&parameters,&Type::I32,&contract,None,false).unwrap();
+        for attack in 0..4{
+            let mut altered=contract.clone();
+            match attack{0=>{altered.classes.pop();},1=>altered.classes[2].binder=StorageBinder::Fixed(0),2=>altered.classes[2].position.path.push(LifeTypeProjection::Pointee),_=>altered.classes.push(altered.classes[2].clone())}
+            assert!(function_relation(&module,&parameters,&Type::I32,&altered,None,false).is_err(),"attack {attack} must not alter the complete raw child forest");
         }
     }
 }

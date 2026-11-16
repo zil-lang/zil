@@ -339,6 +339,7 @@ impl Equations {
         }
         let mut keys = Vec::new();
         let mut direct = false;
+        let mut raw_aliases=Vec::new();
         if let Type::Closure(id) = ty {
             let count = module
                 .closures
@@ -373,11 +374,19 @@ impl Equations {
         } else if matches!(ty,Type::Address{..}) {
             // The raw referent is one complete constructor domain. Keep each
             // inner class, including ghosts, before applying outside images.
-            crate::dynamic_metadata::ty(ty,b)?;
-            let count=crate::stored_flow::reference_domain(Some(module),ty).ok_or_else(||bad("raw pointer referent has no complete intrinsic domain"))?;
-            if count as usize>b.limits.max_nodes{return Err(limit("raw reference class domain exceeded"));}
-            b.spend(count as usize)?;direct=true;
-            for class in 0..count{keys.push((vec![LifeTypeProjection::Pointee],class));}
+            let actual=crate::tasks::frame_shape::declared_life(module,ty,b)?;
+            let count=super::signature_life::raw_reference_classes(Some(module),ty,|depth,class,parent|{
+                if depth>b.limits.max_call_depth||keys.len()>=b.limits.max_nodes{return Err(limit("raw reference class occurrence directory exceeded"));}
+                if depth>1{
+                    b.spend(actual.retained.len().saturating_mul(depth.saturating_add(1)))?;
+                    let mut rows=actual.retained.iter().filter(|row|row.path.len()==depth-1&&row.path.iter().all(|step|*step==LifeTypeProjection::Pointee)&&row.class==class);
+                    let row=rows.next().ok_or_else(||bad("raw descendant has no complete actual constructor embedding"))?;
+                    if rows.next().is_some()||row.binder!=parent{return Err(bad("raw descendant changes its complete constructor class map"));}
+                }
+                b.spend(depth.saturating_add(2))?;
+                keys.push((vec![LifeTypeProjection::Pointee;depth],class));raw_aliases.push(parent as usize);Ok(())
+            })?;
+            if actual.binder_count!=count{return Err(bad("raw referent changes its complete actual class count"));}
         } else if matches!(ty,Type::Managed(_)|Type::Desc(_)|Type::OwnedStore{..}|Type::Slice{..}|Type::Package{..})
             || !module.life_instances.is_empty()
             && matches!(
@@ -488,6 +497,13 @@ impl Equations {
         for _ in 0..count {
             classes.push(self.fresh(false, b)?);
         }
+        // Every descendant row remains present. Only the actual raw
+        // constructor's child-to-whole map supplies these alias equations.
+        for(index,parent)in raw_aliases.into_iter().enumerate(){
+            let from=*classes.get(index).ok_or_else(||bad("raw descendant class variable is absent"))?;
+            let to=*classes.get(parent).ok_or_else(||bad("raw descendant escapes its complete whole domain"))?;
+            self.equal(from,to,b)?;
+        }
         Ok(Ports {
             outer,
             classes,
@@ -587,11 +603,25 @@ fn shape(ty: &Type) -> Option<&StorageLifeShape> {
 /// A real cell's pointer value has its own outer occurrence followed by all
 /// of its referent's complete classes. The cell-address outer is independent.
 fn raw_pointer_value(cell:&Ports,value:&Ports,e:&mut Equations,b:&mut Budget)->Check<()>{
-    b.spend(cell.classes.len().saturating_add(value.classes.len()).saturating_add(1))?;
-    if cell.classes.len()!=value.classes.len().saturating_add(1){return Err(bad("pointer-cell value loses its complete pointee class directory"));}
+    fn position(ports:&Ports,path:&[LifeTypeProjection],class:u32,b:&mut Budget)->Check<usize>{
+        b.spend(ports.keys.len().saturating_mul(path.len().saturating_add(1)))?;
+        let mut rows=ports.keys.iter().enumerate().filter(|(_,key)|key.0==path&&key.1==class);
+        let(index,_)=rows.next().ok_or_else(||bad("pointer cell omits a complete actual child occurrence"))?;
+        if rows.next().is_some(){return Err(bad("pointer cell repeats an actual child occurrence"));}
+        ports.classes.get(index).copied().ok_or_else(||bad("pointer-cell class variable is absent"))
+    }
+    b.spend(cell.keys.len().saturating_add(value.keys.len()))?;
+    let whole=cell.keys.iter().filter(|(path,_)|path==&[LifeTypeProjection::Pointee]).count();
+    let inner=value.keys.iter().filter(|(path,_)|path==&[LifeTypeProjection::Pointee]).count();
+    if whole!=inner.checked_add(1).ok_or_else(||limit("pointer-cell complete domain overflow"))?{return Err(bad("pointer-cell value loses its complete pointee class directory"));}
     let outer=value.outer.ok_or_else(||bad("pointer-cell value has no actual address outer"))?;
-    e.equal(cell.classes[0],outer,b)?;
-    for(from,to)in cell.classes.iter().skip(1).zip(&value.classes){e.equal(*from,*to,b)?;}Ok(())
+    e.equal(position(cell,&[LifeTypeProjection::Pointee],0,b)?,outer,b)?;
+    for(index,(path,class))in value.keys.iter().enumerate(){
+        b.spend(path.len().saturating_add(1))?;let mut nested=vec![LifeTypeProjection::Pointee];nested.extend(path);
+        let from=position(cell,&nested,*class,b)?;
+        let to=*value.classes.get(index).ok_or_else(||bad("pointer-cell child class variable is absent"))?;e.equal(from,to,b)?;
+    }
+    Ok(())
 }
 fn link_projection(
     parent_ty: &Type,
@@ -1746,13 +1776,17 @@ fn check_with(
                         if let Some(out) = out {
                             e.ground_address(out.outer, b)?;
                             let stored = &locals[local.0 as usize];
-                            array_outer::copy_elements(&mut e, out, stored, outer.as_ref(), b)?;
-                            b.spend(out.classes.len().saturating_add(stored.classes.len()))?;
-                            if out.classes.len() != stored.classes.len() {
-                                return Err(bad("borrowed actual class arity differs"));
-                            }
-                            for (a, z) in out.classes.iter().zip(&stored.classes) {
-                                e.equal(*a, *z, b)?;
+                            if matches!(f.locals[local.0 as usize].ty,Type::Address{..}){
+                                raw_pointer_value(out,stored,&mut e,b)?;
+                            }else{
+                                array_outer::copy_elements(&mut e, out, stored, outer.as_ref(), b)?;
+                                b.spend(out.classes.len().saturating_add(stored.classes.len()))?;
+                                if out.classes.len() != stored.classes.len() {
+                                    return Err(bad("borrowed actual class arity differs"));
+                                }
+                                for (a, z) in out.classes.iter().zip(&stored.classes) {
+                                    e.equal(*a, *z, b)?;
+                                }
                             }
                         }
                     }
@@ -2727,4 +2761,31 @@ fn description_classes(parent:&Ports,child:&Ports,through_address:bool,e:&mut Eq
         e.equal(parent.classes[source],child.classes[index],b)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod raw_reference_equation_tests{
+    use super::*;
+    fn shared(inner:Type)->Type{Type::Address{mutable:false,inner:Box::new(inner)}}
+    fn equations()->Equations{Equations{representative:vec![],members:None,rigid:vec![],grounded:None,next_rigid:0}}
+    #[test]
+    fn borrowing_and_reading_raw_pointer_values_preserve_each_deeper_class(){
+        let(module,_)=crate::tests::baseline();let mut b=Budget::new(&Limits::default());b.raw_reference_cells=true;
+        let mut e=equations();let inner=e.ports(&module,&shared(Type::I32),&mut b).unwrap();
+        let middle=e.ports(&module,&shared(shared(Type::I32)),&mut b).unwrap();
+        let outer=e.ports(&module,&shared(shared(shared(Type::I32))),&mut b).unwrap();
+        raw_pointer_value(&middle,&inner,&mut e,&mut b).unwrap();raw_pointer_value(&outer,&middle,&mut e,&mut b).unwrap();
+        assert_eq!(outer.keys.len(),3,"whole referent N2 plus deeper N1 both remain");
+        assert_eq!(e.representative[outer.classes[1]],e.representative[outer.classes[2]],"only the actual constructor child map aliases these outside occurrences");
+        assert_eq!(e.representative[outer.classes[0]],e.representative[middle.outer.unwrap()]);
+        let mut missing=outer.clone();missing.keys.pop();missing.classes.pop();
+        assert!(raw_pointer_value(&missing,&middle,&mut e,&mut b).is_err(),"a missing descendant row cannot be replaced by its ancestor's equal image");
+    }
+    #[test]
+    fn raw_pointer_copy_cannot_equate_unrelated_rigid_classes(){
+        let(module,_)=crate::tests::baseline();let mut b=Budget::new(&Limits::default());let mut e=equations();
+        let mut value=e.ports(&module,&shared(Type::I32),&mut b).unwrap();let mut cell=e.ports(&module,&shared(shared(Type::I32)),&mut b).unwrap();
+        value.outer=Some(e.fresh(true,&mut b).unwrap());cell.classes[0]=e.fresh(true,&mut b).unwrap();
+        assert!(raw_pointer_value(&cell,&value,&mut e,&mut b).is_err());
+    }
 }

@@ -100,7 +100,20 @@ impl CheckedOriginal {
     fn declared_outer_outlives(&self,actual:&Life,expected:&Life,b:&mut Budget)->Check<bool>{
         let rows=self.current.and_then(|owner|self.life_outlives.get(&owner)).map(Vec::as_slice).unwrap_or(&[]);
         let mut pending=vec![actual.clone()];let mut seen=BTreeSet::new();
-        while let Some(source)=pending.pop(){b.spend(rows.len().saturating_add(1))?;if !seen.insert(source.clone()){continue;}if self.same_life(&source,expected,b)?{return Ok(true);}for(longer,shorter)in rows{if self.same_life(&source,longer,b)?{pending.push(self.resolved_life(shorter,b)?);}}}Ok(false)
+        while let Some(source)=pending.pop(){
+            b.spend(rows.len().saturating_add(self.local_roles.len()).saturating_add(1))?;
+            if !seen.insert(source.clone()){continue;}
+            if self.same_life(&source,expected,b)?{return Ok(true);}
+            for(longer,shorter)in rows{if self.same_life(&source,longer,b)?{b.spend(1)?;pending.push(self.resolved_life(shorter,b)?);}}
+            // A real initializer/assignment induces source -> local window.
+            // This direction neither makes the local window equal to its
+            // source nor exports it past every other inducing source.
+            for((owner,_),role)in &self.local_roles{
+                if Some(*owner)!=self.current{continue;}
+                b.spend(role.sources.len())?;
+                for actual in &role.sources{if self.same_life(&source,actual,b)?{b.spend(1)?;pending.push(Life::Implicit(*owner,role.ordinal));break;}}
+            }
+        }Ok(false)
     }
     pub(super) fn remember_borrow_parent(&mut self,module:&TypedModule,owner:SemanticDefinitionId,node:NodeId,operand:NodeId,b:&mut Budget)->Check<()> {
         let(root,projections)=self.address_place(module,owner,operand,b)?;
@@ -277,5 +290,27 @@ impl CheckedOriginal {
         let Ty::Address{life:head,..}=self.resolved(expected,b)?else{return Ok(());};
         for source in self.physical_address_lives(module,context,&inner,active,b)?{self.relate_outer(&source,&head,b)?;}
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod local_role_creation_flow_tests{
+    use super::*;
+    #[test]
+    fn real_shared_local_creation_is_directed_and_all_sources_still_bound_exports(){
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};let foreign=SemanticDefinitionId{module:zil_base::ModuleId(0),index:1};
+        let a=Life::Formal(owner,0);let z=Life::Formal(owner,1);let local=Life::Implicit(owner,7);
+        let mut original=CheckedOriginal::default();original.current=Some(owner);
+        original.local_roles.insert((owner,NodeId(3)),local_roles::LocalRole{ordinal:7,sources:BTreeSet::from([a.clone()])});
+        original.local_roles.insert((foreign,NodeId(3)),local_roles::LocalRole{ordinal:7,sources:BTreeSet::from([a.clone()])});
+        let mut b=Budget::new(&Limits::default());
+        original.relate_outer(&a,&local,&mut b).unwrap();
+        assert!(!original.same_life(&a,&local,&mut b).unwrap());
+        assert!(original.relate_outer(&z,&local,&mut b).is_err(),"an unrelated source has no creation edge");
+        assert!(original.relate_outer(&a,&Life::Implicit(foreign,7),&mut b).is_err(),"another owner's same-numbered role is not this local");
+        original.local_roles.get_mut(&(owner,NodeId(3))).unwrap().sources.insert(z.clone());
+        original.relate_outer(&z,&local,&mut b).unwrap();
+        assert!(original.relate_outer(&local,&a,&mut b).is_err(),"the second source remains mandatory when exporting the local window");
+        assert!(!original.same_life(&a,&z,&mut b).unwrap());
     }
 }
