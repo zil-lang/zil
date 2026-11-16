@@ -22,6 +22,23 @@ pub(crate) enum CallImportPolicy {
     Disabled,
     Complete,
     ResourceHelpers,
+    /// Explicit closed-class strategy: retain real cross-CGU calls and copy
+    /// one layer of small current generated helpers. Never selected by the
+    /// default O2 policy or used as a silent fallback from complete imports.
+    BoundedClasses,
+}
+
+// Instruction + block cost, using the same measure as the whole-plan copy cap.
+// A class identity alone never authorizes copying a large implementation.
+const MAX_CLASS_IMPORT_COST: usize = 128;
+
+fn bounded_class_body(item: &Item, classes: &BTreeSet<String>) -> bool {
+    matches!(item, Item::Function(function)
+        if classes.contains(&function.name)
+            && function.blocks.is_some()
+            && function.linkage == zil_llvm_api::model::Linkage::External
+            && !function.attrs.contains(&zil_llvm_api::model::Attr::NoInline)
+            && function.cost() <= MAX_CLASS_IMPORT_COST)
 }
 impl CallImportPolicy {
     pub(crate) fn for_incremental_o2(enabled: bool, merging: FunctionMerging) -> Self {
@@ -385,26 +402,46 @@ pub(crate) fn partition_classes_reusing(
     cache_root: Option<&std::path::Path>,
     previous: Option<&Materialization>,
 ) -> Option<ClassPartition> {
-    let previous = previous.filter(|previous| previous.has_completed_roles());
+    partition_classes_reusing_with_policy(
+        module,
+        lir,
+        entry,
+        count,
+        classes,
+        cache_root,
+        previous,
+        CallImportPolicy::Complete,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn partition_classes_reusing_with_policy(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    classes: &BTreeSet<String>,
+    cache_root: Option<&std::path::Path>,
+    previous: Option<&Materialization>,
+    imports: CallImportPolicy,
+) -> Option<ClassPartition> {
+    if !matches!(
+        imports,
+        CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+    ) {
+        return None;
+    }
+    let previous = previous
+        .filter(|previous| previous.has_completed_roles() && previous.import_policy() == imports);
     let observed = layout::CurrentGraph::read(&module, previous.and_then(Materialization::graph));
     // First requests have no retained grouping to compare. Capture the raw
     // persistent inputs below; build the reuse-only projection if a later
     // resident request actually asks for it.
-    let grouping = previous
-        .and(observed.as_ref())
-        .and_then(|observed| layout::Grouping::read(&module, lir, entry, count, classes, observed));
+    let grouping = previous.and(observed.as_ref()).and_then(|observed| {
+        layout::Grouping::read_with_policy(&module, lir, entry, count, classes, observed, imports)
+    });
     let cache = cache_root
-        .and_then(|root| {
-            layout::Cache::new(
-                root,
-                &module,
-                lir,
-                entry,
-                count,
-                true,
-                CallImportPolicy::Complete,
-            )
-        })
+        .and_then(|root| layout::Cache::new(root, &module, lir, entry, count, true, imports))
         .map(|cache| cache.with_classes(classes));
     // A body edit may change the exact disk key without changing grouping or
     // the complete current graph. Retain the actual plan, then revalidate all
@@ -416,7 +453,9 @@ pub(crate) fn partition_classes_reusing(
         .filter(|layout| {
             observed.as_ref().is_some_and(|observed| {
                 layout
-                    .valid_classes_observed(&module, lir, entry, count, classes, observed)
+                    .valid_classes_observed_with_policy(
+                        &module, lir, entry, count, classes, observed, imports,
+                    )
                     .is_some()
             })
         })
@@ -451,7 +490,9 @@ pub(crate) fn partition_classes_reusing(
     // named call/reference sets in the original full planner.
     let current_plan = if selected.is_none() && previous.is_none() {
         observed.as_ref().and_then(|observed| {
-            layout::Layout::plan_classes_current(&module, lir, entry, count, classes, observed)
+            layout::Layout::plan_classes_current(
+                &module, lir, entry, count, classes, observed, imports,
+            )
         })
     } else {
         None
@@ -471,6 +512,7 @@ pub(crate) fn partition_classes_reusing(
             observed.expect("checked current graph"),
             grouping,
         )
+        .with_import_policy(imports)
         .defer_grouping(lir, entry, count, classes);
         // A reused in-process recipe is published under the CURRENT complete
         // key. It must never report the previous module's disk layout key.
@@ -499,15 +541,15 @@ pub(crate) fn partition_classes_reusing(
     let source = module.clone();
     let mut layout = None;
     let mut reused = 0;
-    // A rejected stable-class closure returns to the original class strategy.
-    // Never keep the new helpers by quietly disabling complete imports.
+    // Rejection retains the selected strategy in the original planner. Never
+    // change import policy to make a failed candidate appear admissible.
     let plan = partition_view_once_observed(
         module,
         lir,
         entry,
         count,
         true,
-        true,
+        imports,
         &mut layout,
         previous,
         &mut reused,
@@ -533,9 +575,10 @@ pub(crate) fn partition_classes_reusing(
                 observed,
                 grouping,
             )
+            .with_import_policy(imports)
             .defer_grouping(lir, entry, count, classes)
         } else {
-            Materialization::new(source, layout, &plan.units, reused)
+            Materialization::new(source, layout, &plan.units, reused).with_import_policy(imports)
         }
     });
     Some(ClassPartition {
@@ -580,6 +623,18 @@ fn partition_view_cached_impl(
     let materialization_source = capture_materialization.then(|| module.clone());
     let recipe_source =
         (record_recipe && imports == CallImportPolicy::Disabled).then(|| module.clone());
+
+    if imports == CallImportPolicy::BoundedClasses {
+        return (
+            Plan {
+                units: vec![module],
+                fallback: Some("bounded class imports require the current class domain"),
+            },
+            None,
+            None,
+            None,
+        );
+    }
 
     // Shared helper code alone must not force otherwise independent resource
     // modules into one object. Keep full helper visibility, bounded small source
@@ -735,7 +790,11 @@ fn partition_view_once(
         entry,
         count,
         split_large_files,
-        import_complete_call_closures,
+        if import_complete_call_closures {
+            CallImportPolicy::Complete
+        } else {
+            CallImportPolicy::Disabled
+        },
         recorded,
         previous,
         reused_items,
@@ -751,7 +810,7 @@ fn partition_view_once_observed(
     entry: EntryPoint,
     count: usize,
     split_large_files: bool,
-    import_complete_call_closures: bool,
+    imports_policy: CallImportPolicy,
     recorded: &mut Option<layout::Layout>,
     previous: Option<&Materialization>,
     reused_items: &mut usize,
@@ -759,6 +818,7 @@ fn partition_view_once_observed(
     observed: Option<&layout::CurrentGraph>,
 ) -> Plan {
     let observed = observed.filter(|observed| observed.matches(&module));
+    let import_call_bodies = imports_policy != CallImportPolicy::Disabled;
     let fallback = |module, reason| Plan {
         units: vec![module],
         fallback: Some(reason),
@@ -794,7 +854,7 @@ fn partition_view_once_observed(
                     || std::borrow::Cow::Owned(f.references()),
                     |graph| std::borrow::Cow::Borrowed(graph.references(index)),
                 ),
-                calls: if import_complete_call_closures {
+                calls: if import_call_bodies {
                     observed.map_or_else(
                         || std::borrow::Cow::Owned(direct_calls(f)),
                         |graph| std::borrow::Cow::Borrowed(graph.direct_calls(index)),
@@ -833,7 +893,7 @@ fn partition_view_once_observed(
         entry,
         count,
         split_large_files,
-        import_complete_call_closures,
+        imports_policy == CallImportPolicy::Complete,
         &defs,
         &names,
     ) {
@@ -855,14 +915,15 @@ fn partition_view_once_observed(
     if !valid_declaration_prelude(&module) {
         return fallback(module, "invalid machine declaration prelude");
     }
-    // Import a complete direct-call closure, not a definition-ID prefix. Mere
-    // function addresses retain canonical declarations without copying a body.
+    // Complete copies the full direct-call closure. BoundedClasses copies only
+    // small helpers called by owned definitions, preserving all other external
+    // calls. Mere addresses retain canonical declarations without copying.
     // Every copy becomes a real private implementation below: its exact body
     // may participate in non-inlining IPO and must be emitted if not inlined.
     // Extra copies may consume at most one source graph's instruction/block
     // cost; exceeding that whole-plan guard falls back without truncation.
     let mut imports = BTreeMap::<usize, BTreeSet<usize>>::new();
-    if import_complete_call_closures {
+    if import_call_bodies {
         let source_functions = lir
             .functions
             .iter()
@@ -901,6 +962,17 @@ fn partition_view_once_observed(
                 if owners[id] == owner || !seen.insert(id) {
                     continue;
                 }
+                if imports_policy == CallImportPolicy::BoundedClasses
+                    && (!bounded_class_body(&module.items[defs[id].index], classes)
+                        || defs[id]
+                            .refs
+                            .iter()
+                            .any(|name| names.get(name.as_str()).is_some_and(|&id| defs[id].local)))
+                {
+                    // Keep the canonical external call. Its definition and
+                    // local-state component retain their actual current owner.
+                    continue;
+                }
                 if !importable.contains(&defs[id].name) {
                     return fallback(
                         module,
@@ -933,12 +1005,14 @@ fn partition_view_once_observed(
                 }
                 copied_cost = total;
                 imported.insert(id);
-                pending.extend(
-                    defs[id]
-                        .calls
-                        .iter()
-                        .filter_map(|name| names.get(name.as_str()).copied()),
-                );
+                if imports_policy == CallImportPolicy::Complete {
+                    pending.extend(
+                        defs[id]
+                            .calls
+                            .iter()
+                            .filter_map(|name| names.get(name.as_str()).copied()),
+                    );
+                }
             }
             imports.insert(owner, imported);
         }

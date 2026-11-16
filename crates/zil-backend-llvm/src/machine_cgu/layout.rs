@@ -177,6 +177,7 @@ pub(super) struct Grouping {
     triple: String,
     entry: EntryPoint,
     count: usize,
+    imports: CallImportPolicy,
     source: Vec<SourceGrouping>,
     items: Vec<(Item, usize, bool)>,
     reads: Vec<ClassReads>,
@@ -218,6 +219,7 @@ impl Grouping {
             && self.triple == current.triple
             && self.entry == current.entry
             && self.count == current.count
+            && self.imports == current.imports
             && self.source == current.source
             && self
                 .items
@@ -230,6 +232,7 @@ impl Grouping {
                     .filter(|(_, _, class)| !*class)
                     .map(|(item, _, _)| item))
     }
+    #[cfg(test)]
     pub(super) fn read(
         module: &Module,
         lir: &LirView<'_>,
@@ -237,6 +240,26 @@ impl Grouping {
         count: usize,
         classes: &BTreeSet<String>,
         observed: &CurrentGraph,
+    ) -> Option<Self> {
+        Self::read_with_policy(
+            module,
+            lir,
+            entry,
+            count,
+            classes,
+            observed,
+            CallImportPolicy::Complete,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn read_with_policy(
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+        imports: CallImportPolicy,
     ) -> Option<Self> {
         if !(2..=MAX_UNITS).contains(&count) {
             return None;
@@ -299,6 +322,7 @@ impl Grouping {
             triple: module.triple.clone(),
             entry,
             count,
+            imports,
             source,
             items,
             reads: graph.reads.clone(),
@@ -343,10 +367,15 @@ impl Layout {
         count: usize,
         classes: &BTreeSet<String>,
         observed: &CurrentGraph,
+        imports: CallImportPolicy,
     ) -> Option<Self> {
         if !old_graph.matches(old_source)
             || !observed.matches(module)
             || !(2..=MAX_UNITS).contains(&count)
+            || !matches!(
+                imports,
+                CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+            )
         {
             return None;
         }
@@ -358,11 +387,13 @@ impl Layout {
             classes,
             observed,
             Some((self, old_source, old_graph)),
+            imports,
         )
     }
 
     /// No prior machine or serialized role is needed for direct-restart edits.
     /// Derive the original policy from this request's actual raw graph once.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn plan_classes_current(
         module: &Module,
         lir: &LirView<'_>,
@@ -370,11 +401,18 @@ impl Layout {
         count: usize,
         classes: &BTreeSet<String>,
         observed: &CurrentGraph,
+        imports: CallImportPolicy,
     ) -> Option<Self> {
-        if !observed.matches(module) || !(2..=MAX_UNITS).contains(&count) {
+        if !observed.matches(module)
+            || !(2..=MAX_UNITS).contains(&count)
+            || !matches!(
+                imports,
+                CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+            )
+        {
             return None;
         }
-        Self::derive_classes(module, lir, entry, count, classes, observed, None)
+        Self::derive_classes(module, lir, entry, count, classes, observed, None, imports)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -386,6 +424,7 @@ impl Layout {
         classes: &BTreeSet<String>,
         observed: &CurrentGraph,
         previous: Option<(&Self, &Module, &CurrentGraph)>,
+        imports_policy: CallImportPolicy,
     ) -> Option<Self> {
         let graph = &observed.bound;
         let defs = module
@@ -415,8 +454,17 @@ impl Layout {
             .enumerate()
             .map(|(id, definition)| (definition.name.as_str(), id))
             .collect::<BTreeMap<_, _>>();
-        let assigned =
-            super::definition_owners(module, lir, entry, count, true, true, &defs, &names).ok()?;
+        let assigned = super::definition_owners(
+            module,
+            lir,
+            entry,
+            count,
+            true,
+            imports_policy == CallImportPolicy::Complete,
+            &defs,
+            &names,
+        )
+        .ok()?;
         let mut owners = vec![usize::MAX; module.items.len()];
         let mut members = BTreeMap::<usize, Vec<usize>>::new();
         for (definition, owner) in defs.iter().zip(assigned) {
@@ -476,10 +524,16 @@ impl Layout {
             .filter(|function| function.foreign.is_none())
         {
             let name = super::source_name(&graph.names, function.id);
-            importable[*graph.names.get(&name)?] = true;
+            importable[*graph.names.get(&name)?] = imports_policy == CallImportPolicy::Complete;
         }
         for name in classes {
-            importable[*graph.names.get(name)?] = true;
+            let index = *graph.names.get(name)?;
+            importable[index] = imports_policy == CallImportPolicy::Complete
+                || (super::bounded_class_body(&module.items[index], classes)
+                    && !graph.reads[index]
+                        .references
+                        .iter()
+                        .any(|&target| local(&module.items[target])));
         }
         let mut remaining = graph.remaining;
         let mut units = Vec::with_capacity(members.len());
@@ -553,6 +607,9 @@ impl Layout {
             }
             let mut imports = Vec::new();
             while let Some(index) = pending.pop() {
+                if imports_policy == CallImportPolicy::BoundedClasses && !importable[index] {
+                    continue;
+                }
                 if !importable[index]
                     || !matches!(&module.items[index], Item::Function(function)
                         if function.blocks.is_some() && function.linkage == Linkage::External)
@@ -565,15 +622,20 @@ impl Layout {
                 }
                 imported[index] = stamp;
                 imports.push(index);
-                enqueue_calls(
-                    &graph.reads[index].calls,
-                    &owners,
-                    owner,
-                    stamp,
-                    &mut seen,
-                    &mut pending,
-                    &mut remaining,
-                )?;
+                // One helper layer only. Its callees retain canonical external
+                // calls unless independently requested by this unit's owners.
+                // Small bodies must not recursively copy the reachable program.
+                if imports_policy == CallImportPolicy::Complete {
+                    enqueue_calls(
+                        &graph.reads[index].calls,
+                        &owners,
+                        owner,
+                        stamp,
+                        &mut seen,
+                        &mut pending,
+                        &mut remaining,
+                    )?;
+                }
             }
             imports.sort_unstable();
             let mut prelude = named.values().copied().collect::<Vec<_>>();
@@ -612,9 +674,23 @@ impl Layout {
         if previous.is_some() {
             // Retained roles are proposals. Recheck the complete current
             // closure/local-state/copy-budget contract before replay.
-            layout.valid_classes_observed(module, lir, entry, count, classes, observed)?;
-        } else if !layout.valid_in_domain(module, lir, count, Some(classes)) {
-            // Fresh roles already came from the complete current closure walk
+            layout.valid_classes_observed_with_policy(
+                module,
+                lir,
+                entry,
+                count,
+                classes,
+                observed,
+                imports_policy,
+            )?;
+        } else if !layout.valid_in_domain_with_policy(
+            module,
+            lir,
+            count,
+            Some(classes),
+            imports_policy,
+        ) {
+            // Fresh roles already came from the selected current graph walk
             // above. Still check every role, clone collision and the original
             // SOURCE-only total copy budget; class cost never enlarges it.
             return None;
@@ -882,6 +958,17 @@ impl Layout {
         count: usize,
         classes: Option<&BTreeSet<String>>,
     ) -> bool {
+        self.valid_in_domain_with_policy(module, lir, count, classes, CallImportPolicy::Complete)
+    }
+
+    fn valid_in_domain_with_policy(
+        &self,
+        module: &Module,
+        lir: &LirView<'_>,
+        count: usize,
+        classes: Option<&BTreeSet<String>>,
+        imports: CallImportPolicy,
+    ) -> bool {
         if module.items.len() > MAX_ITEMS || self.units.len() > count {
             return false;
         }
@@ -1027,6 +1114,13 @@ impl Layout {
                 {
                     return false;
                 }
+                if imports == CallImportPolicy::BoundedClasses
+                    && classes.is_none_or(|classes| {
+                        !super::bounded_class_body(&module.items[index], classes)
+                    })
+                {
+                    return false;
+                }
                 let Some(cost) = copied_cost.checked_add(function.cost()) else {
                     return false;
                 };
@@ -1059,6 +1153,7 @@ impl Layout {
         self.valid_classes_observed(module, lir, entry, count, classes, &graph)?;
         Some(graph)
     }
+    #[cfg(test)]
     pub(super) fn valid_classes_observed(
         &self,
         module: &Module,
@@ -1068,7 +1163,32 @@ impl Layout {
         classes: &BTreeSet<String>,
         observed: &CurrentGraph,
     ) -> Option<()> {
-        if !self.valid_in_domain(module, lir, count, Some(classes)) {
+        self.valid_classes_observed_with_policy(
+            module,
+            lir,
+            entry,
+            count,
+            classes,
+            observed,
+            CallImportPolicy::Complete,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn valid_classes_observed_with_policy(
+        &self,
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+        imports: CallImportPolicy,
+    ) -> Option<()> {
+        if !matches!(
+            imports,
+            CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+        ) || !self.valid_in_domain_with_policy(module, lir, count, Some(classes), imports)
+        {
             return None;
         }
         if !observed.matches(module) {
@@ -1086,7 +1206,7 @@ impl Layout {
         for function in lir.functions.iter().filter(|f| f.foreign.is_none()) {
             let name = super::source_name(&graph.names, function.id);
             let &index = graph.names.get(name.as_str())?;
-            importable[index] = true;
+            importable[index] = imports == CallImportPolicy::Complete;
             let selected = match entry {
                 EntryPoint::Main => function.name == "main",
                 EntryPoint::ReturnValue(wanted) | EntryPoint::Test(wanted) => function.id == wanted,
@@ -1101,7 +1221,13 @@ impl Layout {
             }
         }
         for name in classes {
-            importable[*graph.names.get(name.as_str())?] = true;
+            let index = *graph.names.get(name.as_str())?;
+            importable[index] = imports == CallImportPolicy::Complete
+                || (super::bounded_class_body(&module.items[index], classes)
+                    && !graph.reads[index]
+                        .references
+                        .iter()
+                        .any(|&target| local(&module.items[target])));
         }
         if let (Some(&main), Some(&pe)) = (graph.names.get("main"), graph.names.get("zil.pe.entry"))
             && owners[main] != usize::MAX
@@ -1137,6 +1263,9 @@ impl Layout {
             }
             let mut reached = 0usize;
             while let Some(index) = pending.pop() {
+                if imports == CallImportPolicy::BoundedClasses && !importable[index] {
+                    continue;
+                }
                 if imported[index] != stamp || !importable[index] {
                     return None;
                 }
@@ -1150,15 +1279,17 @@ impl Layout {
                     return None;
                 }
                 reached += 1;
-                enqueue_calls(
-                    &graph.reads[index].calls,
-                    &owners,
-                    owner,
-                    stamp,
-                    &mut seen,
-                    &mut pending,
-                    &mut remaining,
-                )?;
+                if imports == CallImportPolicy::Complete {
+                    enqueue_calls(
+                        &graph.reads[index].calls,
+                        &owners,
+                        owner,
+                        stamp,
+                        &mut seen,
+                        &mut pending,
+                        &mut remaining,
+                    )?;
+                }
             }
             if reached != unit.imports.len() {
                 return None;
@@ -1334,6 +1465,7 @@ impl Reader<'_> {
 pub(super) struct Cache {
     root: PathBuf,
     key: Fingerprint,
+    imports: CallImportPolicy,
 }
 impl Cache {
     pub(super) fn new(
@@ -1363,6 +1495,7 @@ impl Cache {
         Some(Self {
             root: root.into(),
             key,
+            imports,
         })
     }
     pub(super) fn load(&self, module: &Module, lir: &LirView<'_>, count: usize) -> Option<Layout> {
@@ -1392,7 +1525,15 @@ impl Cache {
         observed: &CurrentGraph,
     ) -> Option<Layout> {
         let layout = self.read()?;
-        layout.valid_classes_observed(module, lir, entry, count, classes, observed)?;
+        layout.valid_classes_observed_with_policy(
+            module,
+            lir,
+            entry,
+            count,
+            classes,
+            observed,
+            self.imports,
+        )?;
         Some(layout)
     }
     pub(super) fn key(&self) -> Fingerprint {
@@ -1466,6 +1607,9 @@ fn action_key(
     count.hash(&mut state);
     split.hash(&mut state);
     imports.hash(&mut state);
+    if imports == CallImportPolicy::BoundedClasses {
+        super::MAX_CLASS_IMPORT_COST.hash(&mut state);
+    }
     match entry {
         EntryPoint::None => 0u8.hash(&mut state),
         EntryPoint::Main => 1u8.hash(&mut state),

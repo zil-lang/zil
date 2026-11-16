@@ -136,11 +136,12 @@ pub struct CodegenSummary {
     /// Actual producer layout receipt, retained with its complete partition.
     /// This identifies raw provenance; it never authorizes replay or validation.
     pub partition_layout_key: Option<String>,
+    pub class_import_policy: Option<&'static str>,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{},\"closed_prune\":{},\"partition_layout_key\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{},\"closed_prune\":{},\"partition_layout_key\":{},\"class_import_policy\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.final_artifact
@@ -166,7 +167,8 @@ impl CodegenSummary {
             self.closed_prune.map_or_else(|| "null".into(), |(checked, reused, removed, retained)| format!(
                 "{{\"fresh_original_units_checked\":{checked},\"full_input_cached_units\":{reused},\"fresh_removed_definitions\":{removed},\"retained_removed_definitions\":{retained},\"scope\":\"post-internalization local pruning; current API preflight remains separate\"}}"
             )),
-            self.partition_layout_key.as_ref().map_or_else(|| "null".into(), |key| zil_base::json_string(key))
+            self.partition_layout_key.as_ref().map_or_else(|| "null".into(), |key| zil_base::json_string(key)),
+            self.class_import_policy.map_or_else(|| "null".into(), zil_base::json_string)
         )
     }
 }
@@ -185,6 +187,9 @@ pub struct BuildOptions {
     pub late_closed_executable: bool,
     /// Explicit stable O2 chunks with complete direct-call implementation copies.
     pub incremental_o2: bool,
+    /// Explicit closed-class strategy: import small helpers instead of the
+    /// entire reachable program. Full O2 still runs on every physical unit.
+    pub bounded_class_imports: bool,
     /// Explicit audited LLVM optimization/machine products; no default opt-in.
     pub native_products: bool,
     /// Explicit current-module post-O2 machine-body sharing. No default opt-in.
@@ -211,6 +216,7 @@ impl BuildOptions {
             closed_executable: false,
             late_closed_executable: false,
             incremental_o2: false,
+            bounded_class_imports: false,
             native_products: false,
             emission_reuse: false,
             function_merging: FunctionMerging::Disabled,
@@ -339,6 +345,19 @@ pub fn build_view_with_cancellation_and_session(
         return Err(infra(
             "E-CODEGEN-OPTIONS",
             "codegen units and jobs must be in 1..=64",
+        ));
+    }
+    if options.bounded_class_imports
+        && (!options.closed_executable
+            || !options.incremental_o2
+            || options.optimization != Optimization::O2
+            || options.backend != NativeBackend::LlvmApi
+            || options.function_merging != FunctionMerging::Disabled
+            || options.codegen.units < 2)
+    {
+        return Err(infra(
+            "E-CODEGEN-CLASS-IMPORTS",
+            "bounded class imports require closed LLVM API O2, incremental O2, merging off and at least two codegen units",
         ));
     }
     if options.function_merging != FunctionMerging::Disabled
@@ -696,15 +715,33 @@ pub fn build_view_with_cancellation_and_session(
                         .is_some_and(|input| old.input.same_build_options(input))
                 })
                 .and_then(|old| old.materialization.as_ref());
-            crate::machine_cgu::partition_classes_reusing(
-                machine.to_module(),
-                lir,
-                options.emit.entry,
-                options.codegen.units,
-                &class_symbols,
-                options.object_cache.as_deref(),
-                previous,
-            )
+            if options.bounded_class_imports {
+                // Whole-closure imports make the entry unit contain the whole
+                // reachable program again. A private edit then recompiles that
+                // large unit while the other cached objects are empty. Keep
+                // full O2 on every definition, but only copy small class bodies
+                // across units in this explicit research strategy.
+                crate::machine_cgu::partition_classes_reusing_with_policy(
+                    machine.to_module(),
+                    lir,
+                    options.emit.entry,
+                    options.codegen.units,
+                    &class_symbols,
+                    options.object_cache.as_deref(),
+                    previous,
+                    crate::machine_cgu::CallImportPolicy::BoundedClasses,
+                )
+            } else {
+                crate::machine_cgu::partition_classes_reusing(
+                    machine.to_module(),
+                    lir,
+                    options.emit.entry,
+                    options.codegen.units,
+                    &class_symbols,
+                    options.object_cache.as_deref(),
+                    previous,
+                )
+            }
         };
         if !class_symbols.is_empty() && class_plan.is_none() {
             check_cancelled(cancelled)?;
@@ -1157,6 +1194,13 @@ pub fn build_view_with_cancellation_and_session(
         }),
         closed_prune,
         partition_layout_key,
+        class_import_policy: (!class_symbols.is_empty()).then_some(
+            if options.bounded_class_imports {
+                "bounded-classes-128-v1"
+            } else {
+                "complete"
+            },
+        ),
     };
     timings.object_ns += crate::object_cache::elapsed_ns(object_setup_started);
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";

@@ -1379,6 +1379,7 @@ impl CompilationSession {
         build.closed_executable = options.closed_executable;
         build.late_closed_executable = options.late_closed_executable;
         build.incremental_o2 = options.incremental_o2;
+        build.bounded_class_imports = options.bounded_class_imports;
         let native_selection = select_native_products(lir.functions, options);
         build.native_products = native_selection.enabled;
         build.emission_reuse = options.push_reuse

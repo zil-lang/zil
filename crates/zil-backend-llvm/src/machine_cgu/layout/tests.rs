@@ -312,6 +312,7 @@ fn layout_cache_keeps_complete_and_resource_helper_policies_separate() {
     let (plan, layout) = planned(&module, &source);
     let cache = |imports| Cache {
         root: directory.0.clone(),
+        imports,
         key: action_key(
             &module,
             &source.as_view(),
@@ -345,6 +346,7 @@ fn layout_cache_publishes_only_on_commit_and_corruption_falls_back() {
     let cache = || Cache {
         root: directory.0.clone(),
         key: Fingerprint::of(b"exact-test-key"),
+        imports: CallImportPolicy::Complete,
     };
     let (plan, layout) = planned(&module, &source);
     let pending = cache().pending(&layout).unwrap().pin().unwrap();
@@ -1674,5 +1676,489 @@ fn class_cache_cannot_hide_invalid_unused_declarations_or_clone_collisions() {
         complete_ownership
             .valid_classes(&collision, &source.as_view(), EntryPoint::None, 2, &classes,)
             .is_none()
+    );
+}
+
+fn pad_cost(function: &mut Function, cost: usize) {
+    let mut next = 0;
+    while function.cost() < cost {
+        function.blocks.as_mut().unwrap()[0].instructions.insert(
+            0,
+            Inst::new(
+                Some(format!("padding{next}")),
+                Op::Binary {
+                    opcode: "add".into(),
+                    ty: Ty::Int(32),
+                    left: Val::Int(next),
+                    right: Val::Int(1),
+                },
+            ),
+        );
+        next += 1;
+    }
+}
+
+fn bounded_program(value: i128) -> (Module, LirModule, BTreeSet<String>) {
+    let (_, mut source) = fixture();
+    let seed = source.functions[0].clone();
+    source.functions = (0..16)
+        .map(|id| {
+            let mut function = seed.clone();
+            function.id = FunctionId(id);
+            function.name = format!("f{id}");
+            function.span.file = FileId(id);
+            function
+        })
+        .collect();
+    let helper = "zil.class.small";
+    let mut root = function("zil.fn.0", None);
+    let mut instructions = Vec::new();
+    let mut sum = Val::Int(0);
+    for id in 1..16 {
+        instructions.push(Inst::new(
+            Some(format!("call{id}")),
+            Op::Call {
+                result: Ty::Int(32),
+                result_attrs: vec![],
+                callee: Val::Global(format!("zil.fn.{id}")),
+                args: vec![],
+                vararg: None,
+            },
+        ));
+        instructions.push(Inst::new(
+            Some(format!("sum{id}")),
+            Op::Binary {
+                opcode: "add".into(),
+                ty: Ty::Int(32),
+                left: sum,
+                right: Val::Local(format!("call{id}")),
+            },
+        ));
+        sum = Val::Local(format!("sum{id}"));
+    }
+    instructions.push(Inst::new(
+        None,
+        Op::Return(Some(Arg::new(Ty::Int(32), sum))),
+    ));
+    root.blocks.as_mut().unwrap()[0].instructions = instructions;
+    let mut items = vec![Item::Function(root)];
+    for id in 1..16 {
+        let mut body = function(&format!("zil.fn.{id}"), Some(helper));
+        pad_cost(&mut body, super::super::MAX_CLASS_IMPORT_COST + 1);
+        if id == 7 {
+            body.blocks.as_mut().unwrap()[0]
+                .instructions
+                .last_mut()
+                .unwrap()
+                .op = Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(value))));
+        }
+        items.push(Item::Function(body));
+    }
+    items.push(Item::Function(function(helper, None)));
+    items.push(Item::Function(function("main", Some("zil.fn.0"))));
+    (
+        Module {
+            triple: source.target.triple.clone(),
+            fingerprint: "bounded-program".into(),
+            items: items.into(),
+        },
+        source,
+        BTreeSet::from([helper.into()]),
+    )
+}
+
+fn prune_bounded_program(mut units: Vec<Module>, classes: &BTreeSet<String>) -> Vec<Module> {
+    let mut candidates = classes.clone();
+    candidates.extend((0..16).map(|id| format!("zil.fn.{id}")));
+    super::super::internalize_closed_executable_names(&mut units, &candidates);
+    for unit in &mut units {
+        crate::machine_closed_prune::prune(unit, &|| false)
+            .unwrap()
+            .unwrap();
+        crate::machine_closed_prune::prune_class_declarations(unit, classes, &|| false)
+            .unwrap()
+            .unwrap();
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    units
+}
+
+#[test]
+fn bounded_first_edit_keeps_sixteen_live_units_and_entry_work_unchanged() {
+    use super::super::partition_classes_reusing_with_policy;
+    let directory = Directory::new();
+    let (module, source, classes) = bounded_program(7);
+    zil_llvm_api::validate_module(&module).unwrap();
+    let build = |module, previous| {
+        partition_classes_reusing_with_policy(
+            module,
+            &source.as_view(),
+            EntryPoint::ReturnValue(FunctionId(0)),
+            16,
+            &classes,
+            Some(&directory.0),
+            previous,
+            CallImportPolicy::BoundedClasses,
+        )
+        .unwrap()
+    };
+    let first = build(module.clone(), None);
+    let mut recorded = None;
+    let original = super::super::partition_view_once_observed(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::ReturnValue(FunctionId(0)),
+        16,
+        true,
+        CallImportPolicy::BoundedClasses,
+        &mut recorded,
+        None,
+        &mut 0,
+        &classes,
+        None,
+    );
+    assert!(original.fallback.is_none());
+    assert_eq!(first.plan.units, original.units);
+    let first_key = first.pending.as_ref().unwrap().key();
+    first.pending.unwrap().pin().unwrap().commit();
+    let first_units = prune_bounded_program(first.plan.units, &classes);
+    assert_eq!(first_units.len(), 16);
+    assert!(first_units.iter().all(|unit| {
+        unit.items
+            .iter()
+            .any(|item| matches!(item, Item::Function(f) if f.blocks.is_some()))
+    }));
+    let complete = super::super::partition_classes_reusing(
+        module,
+        &source.as_view(),
+        EntryPoint::ReturnValue(FunctionId(0)),
+        16,
+        &classes,
+        None,
+        None,
+    )
+    .unwrap();
+    let complete_units = prune_bounded_program(complete.plan.units, &classes);
+    assert_eq!(
+        complete_units
+            .iter()
+            .filter(|unit| unit
+                .items
+                .iter()
+                .any(|item| matches!(item, Item::Function(f) if f.blocks.is_some())))
+            .count(),
+        1
+    );
+
+    // Discard the process-local product. The next request already has the edit.
+    drop(first.materialization);
+    let (edited, _, _) = bounded_program(19);
+    let current = build(edited, None);
+    assert!(!current.reused_layout);
+    assert_ne!(current.pending.as_ref().unwrap().key(), first_key);
+    assert!(
+        !current
+            .materialization
+            .as_ref()
+            .unwrap()
+            .has_reuse_inventory()
+    );
+    let current_units = prune_bounded_program(current.plan.units, &classes);
+    let dirty = first_units
+        .iter()
+        .zip(&current_units)
+        .enumerate()
+        .filter_map(|(index, (a, b))| (a.items != b.items).then_some(index))
+        .collect::<Vec<_>>();
+    assert_eq!(dirty, [7]);
+    let entry = first_units
+        .iter()
+        .position(|unit| {
+            unit.items.iter().any(
+                |item| matches!(item, Item::Function(f) if f.name == "main" && f.blocks.is_some()),
+            )
+        })
+        .unwrap();
+    assert_eq!(first_units[entry].items, current_units[entry].items);
+}
+
+#[test]
+fn bounded_policy_cannot_reuse_complete_disk_or_materialization_roles() {
+    use super::super::partition_classes_reusing_with_policy;
+    let (module, source) = fixture();
+    let classes = BTreeSet::new();
+    let directory = Directory::new();
+    let complete = super::super::partition_classes_reusing(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        Some(&directory.0),
+        None,
+    )
+    .unwrap();
+    let old_key = complete.pending.as_ref().unwrap().key();
+    let old_layout = Layout::decode(&complete.pending.as_ref().unwrap().bytes).unwrap();
+    complete.pending.unwrap().pin().unwrap().commit();
+    let cache = Cache::new(
+        &directory.0,
+        &module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        CallImportPolicy::BoundedClasses,
+    )
+    .unwrap()
+    .with_classes(&classes);
+    assert_ne!(cache.key(), old_key);
+    assert!(cache.read().is_none());
+    // Even a correctly framed Complete recipe under the new key is rejected.
+    cache.pending(&old_layout).unwrap().pin().unwrap().commit();
+    assert!(
+        cache
+            .load_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+            .is_none()
+    );
+    let build = |previous| {
+        partition_classes_reusing_with_policy(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            previous,
+            CallImportPolicy::BoundedClasses,
+        )
+        .unwrap()
+    };
+    let current = build(complete.materialization.as_ref());
+    assert!(!current.reused_layout);
+    assert_eq!(current.materialization.as_ref().unwrap().reused_items, 0);
+    assert_ne!(current.plan.units, complete.plan.units);
+    let graph = CurrentGraph::read(&module, None).unwrap();
+    let grouping = Grouping::read_with_policy(
+        &module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        &graph,
+        CallImportPolicy::BoundedClasses,
+    )
+    .unwrap();
+    assert!(
+        complete
+            .materialization
+            .as_ref()
+            .unwrap()
+            .layout_for(&grouping)
+            .is_none()
+    );
+    current.pending.unwrap().pin().unwrap().commit();
+    let restarted = build(None);
+    assert!(restarted.reused_layout);
+    assert_eq!(restarted.plan.units, current.plan.units);
+    let reused = build(current.materialization.as_ref());
+    assert!(reused.reused_layout);
+    assert!(reused.materialization.as_ref().unwrap().reused_items > 0);
+    let complete_again = super::super::partition_classes_reusing(
+        module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        Some(&directory.0),
+        current.materialization.as_ref(),
+    )
+    .unwrap();
+    assert_eq!(
+        complete_again
+            .materialization
+            .as_ref()
+            .unwrap()
+            .reused_items,
+        0
+    );
+    assert_eq!(complete_again.plan.units, complete.plan.units);
+}
+
+#[test]
+fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
+    use super::super::{MAX_CLASS_IMPORT_COST, partition_classes_reusing_with_policy};
+    let (mut module, source) = fixture();
+    // Both helpers occupy bucket 1; the only direct user is in bucket 0.
+    let helper_name = |prefix: &str| {
+        (0..1000)
+            .map(|id| format!("zil.class.{prefix}.{id}"))
+            .find(|name| {
+                let bytes = Fingerprint::of(name.as_bytes()).0;
+                u64::from_le_bytes(bytes[..8].try_into().unwrap()) % 2 == 1
+            })
+            .unwrap()
+    };
+    let helper = helper_name("helper");
+    let tail = helper_name("tail");
+    let mut body = function(&helper, Some(&tail));
+    pad_cost(&mut body, MAX_CLASS_IMPORT_COST);
+    let Item::Function(source_body) = &mut module.items[4] else {
+        unreachable!()
+    };
+    pad_cost(source_body, MAX_CLASS_IMPORT_COST);
+    let mut caller = function("zil.fn.0", Some(&helper));
+    caller.blocks.as_mut().unwrap()[0].instructions.insert(
+        0,
+        Inst::new(
+            Some("canonical.address".into()),
+            Op::Cast {
+                opcode: "ptrtoint".into(),
+                arg: Arg::new(Ty::Ptr, Val::Global(helper.clone())),
+                to: Ty::Int(64),
+            },
+        ),
+    );
+    module.items[3] = Item::Function(caller);
+    let helper_index = module.items.len();
+    module.items.push(Item::Function(body));
+    let tail_index = module.items.len();
+    module.items.push(Item::Function(function(&tail, None)));
+    let classes = BTreeSet::from([helper.clone(), tail.clone()]);
+    let build = |module| {
+        partition_classes_reusing_with_policy(
+            module,
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            None,
+            None,
+            CallImportPolicy::BoundedClasses,
+        )
+    };
+    let graph = CurrentGraph::read(&module, None).unwrap();
+    let layout = Layout::plan_classes_current(
+        &module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        &graph,
+        CallImportPolicy::BoundedClasses,
+    )
+    .unwrap();
+    assert!(layout.units[0].imports.contains(&helper_index));
+    assert!(
+        !layout.units[0].imports.contains(&tail_index),
+        "no transitive import"
+    );
+    assert!(layout.units[0].declarations.contains(&tail_index));
+    let selected = build(module.clone()).unwrap();
+    for unit in &selected.plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    let caller = selected.plan.units[0]
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(f) if f.name == "zil.fn.0" => Some(f),
+            _ => None,
+        })
+        .unwrap();
+    assert!(super::super::direct_calls(caller).contains(&format!("zil.import.0.{helper}")));
+    assert!(caller.blocks.as_ref().unwrap()[0].instructions.iter().any(
+        |inst| matches!(&inst.op, Op::Cast { arg, .. } if arg.value == Val::Global(helper.clone()))
+    ));
+
+    let mut oversized = module.clone();
+    let Item::Function(f) = &mut oversized.items[helper_index] else {
+        unreachable!()
+    };
+    pad_cost(f, MAX_CLASS_IMPORT_COST + 1);
+    let mut noinline = module.clone();
+    let Item::Function(f) = &mut noinline.items[helper_index] else {
+        unreachable!()
+    };
+    f.attrs.push(Attr::NoInline);
+    let mut stateful = module.clone();
+    stateful.items.push(Item::Global(Global {
+        name: "helper.state".into(),
+        linkage: Linkage::Private,
+        ty: Ty::Int(32),
+        initializer: Some(Val::Int(11)),
+        constant: false,
+        unnamed_addr: false,
+        alignment: 4,
+    }));
+    let Item::Function(f) = &mut stateful.items[helper_index] else {
+        unreachable!()
+    };
+    f.blocks.as_mut().unwrap()[0].instructions.insert(
+        0,
+        Inst::new(
+            Some("local.state".into()),
+            Op::Load {
+                ty: Ty::Int(32),
+                ptr: Val::Global("helper.state".into()),
+                align: 4,
+            },
+        ),
+    );
+    // Keep cost at the admitted boundary; it is the local edge that forbids copying.
+    f.blocks.as_mut().unwrap()[0].instructions.remove(1);
+    for current in [oversized, noinline, stateful] {
+        zil_llvm_api::validate_module(&current).unwrap();
+        let graph = CurrentGraph::read(&current, None).unwrap();
+        assert!(
+            layout
+                .valid_classes_observed_with_policy(
+                    &current,
+                    &source.as_view(),
+                    EntryPoint::None,
+                    2,
+                    &classes,
+                    &graph,
+                    CallImportPolicy::BoundedClasses,
+                )
+                .is_none(),
+            "old imported roles must be refused"
+        );
+        let fresh = build(current.clone()).unwrap();
+        let mut recorded = None;
+        let original = super::super::partition_view_once_observed(
+            current,
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            true,
+            CallImportPolicy::BoundedClasses,
+            &mut recorded,
+            None,
+            &mut 0,
+            &classes,
+            None,
+        );
+        assert!(original.fallback.is_none());
+        assert_eq!(fresh.plan.units, original.units);
+        assert!(!recorded.unwrap().units[0].imports.contains(&helper_index));
+        for unit in &fresh.plan.units {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+    }
+    let mut budget = module.clone();
+    budget.items[4] = Item::Function(function("zil.fn.1", Some("foreign")));
+    assert!(
+        build(budget).is_none(),
+        "per-helper cap cannot enlarge the original source copy cap"
+    );
+    let mut bad_header = module;
+    let Item::Function(f) = &mut bad_header.items[2] else {
+        unreachable!()
+    };
+    f.linkage = Linkage::Internal;
+    assert!(
+        build(bad_header).is_none(),
+        "unused original headers still get preflight"
     );
 }

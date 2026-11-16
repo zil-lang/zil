@@ -110,6 +110,7 @@ pub struct CompileOptions {
     pub late_closed_executable: bool,
     /// Explicit O2 bounded complete imports; copy-cost overflow keeps ordinary units.
     pub incremental_o2: bool,
+    pub bounded_class_imports: bool,
     /// O2 function-merging policy, with address-preserving reference controls.
     pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
@@ -152,6 +153,7 @@ impl Default for CompileOptions {
             closed_executable: false,
             late_closed_executable: false,
             incremental_o2: false,
+            bounded_class_imports: false,
             function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,

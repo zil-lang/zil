@@ -272,6 +272,10 @@ def zil_command(args, arm, source, work):
                     '--function-merging', args.function_merging]
         if getattr(args, 'complete_imports', False):
             command += ['--incremental-o2']
+        if getattr(args, 'bounded_class_imports', False):
+            require(args.complete_imports and args.candidate_policy == 'closed' and args.function_merging == 'off',
+                    'bounded class imports require explicit closed incremental O2 with merging off')
+            command += ['--bounded-class-imports']
     return command
 
 
@@ -297,7 +301,10 @@ def initialize(args, manifest):
         require(path.read_bytes() == frozen, 'new protocol implementation differs from frozen tool source: '+str(relative))
     manifest['candidate_policy'] = args.candidate_policy
     manifest['function_merging'] = args.function_merging
-    manifest['complete_imports'] = args.complete_imports
+    manifest['incremental_o2_requested'] = args.complete_imports
+    manifest['complete_imports'] = args.complete_imports and not args.bounded_class_imports
+    manifest['class_import_policy'] = ('bounded-classes-128-v1' if args.bounded_class_imports
+                                       else 'complete' if args.complete_imports else 'disabled')
     manifest['runtime_gate_authority'] = {
         'product': 'validation/product-gates.json:runtime',
         'regression_and_sampling_precedent': 'goal:records/compiler-multi-edit-continuation.json:482-509',
@@ -573,6 +580,8 @@ def main(argv=None):
     parser.add_argument('--candidate-policy', choices=('closed', 'late'))
     parser.add_argument('--function-merging', choices=('off', 'after', 'before-and-after'))
     parser.add_argument('--complete-imports', action='store_true', help='explicit distinct profile using existing bounded incremental O2 imports')
+    parser.add_argument('--bounded-class-imports', action='store_true',
+                        help='distinct closed O2 profile: only small class implementations imported across units')
     parser.add_argument('--native-validation-jobs', type=int, choices=(1, 8), default=1,
                         help='functional oracles only; compilation and formal runtime samples remain serial')
     parser.add_argument('--epochs', type=int, choices=(8, 32), default=8)

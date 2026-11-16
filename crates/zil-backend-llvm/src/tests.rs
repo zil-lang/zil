@@ -202,6 +202,42 @@ fn checked_simple(function: TypedFunction) -> VerifiedModule {
     checked(vec![function], vec![boundaries])
 }
 
+#[test]
+fn bounded_class_imports_are_explicit_and_require_the_complete_closed_o2_domain() {
+    assert!(!BuildOptions::new("unused").bounded_class_imports);
+    let verified = checked_simple(returning(Constant::I32(1)));
+    let raw = lir(&verified);
+    let mut valid = BuildOptions::new("unused");
+    valid.backend = NativeBackend::LlvmApi;
+    valid.optimization = Optimization::O2;
+    valid.closed_executable = true;
+    valid.incremental_o2 = true;
+    valid.bounded_class_imports = true;
+    valid.codegen.units = 16;
+    for mutation in [
+        "closed",
+        "incremental",
+        "opt",
+        "backend",
+        "merging",
+        "units",
+    ] {
+        let mut options = valid.clone();
+        match mutation {
+            "closed" => options.closed_executable = false,
+            "incremental" => options.incremental_o2 = false,
+            "opt" => options.optimization = Optimization::O0,
+            "backend" => options.backend = NativeBackend::Clang,
+            "merging" => options.function_merging = FunctionMerging::AfterOptimization,
+            "units" => options.codegen.units = 1,
+            _ => unreachable!(),
+        }
+        let error = build_view_with_cancellation(&verified, &raw.as_view(), &options, &|| false)
+            .unwrap_err();
+        assert_eq!(error[0].code, "E-CODEGEN-CLASS-IMPORTS", "{mutation}");
+    }
+}
+
 fn checked_static_utf8(bytes: &[u8]) -> VerifiedModule {
     let mut module = checked_simple(returning(Constant::I64(0))).module().clone();
     module.functions = vec![function(

@@ -1,7 +1,7 @@
 //! Reuse actual partition items after their CURRENT layout roles are checked.
 //! Raw observations and the completed layout remain bounded by this product's
 //! lifetime. They are not a verification receipt or persisted machine authority.
-use super::{direct_calls, layout};
+use super::{CallImportPolicy, direct_calls, layout};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
 use zil_llvm_api::model::{Item, Module};
@@ -24,6 +24,7 @@ pub(crate) struct Materialization {
     graph: Option<Arc<layout::CurrentGraph>>,
     grouping: OnceLock<Option<Arc<layout::Grouping>>>,
     grouping_input: Option<Arc<GroupingInput>>,
+    imports: CallImportPolicy,
     // Only the production path that rendered these exact layout roles sets
     // this association. Raw test/candidate recipes cannot lend role slots.
     completed_roles: bool,
@@ -36,6 +37,7 @@ struct GroupingInput {
     entry: crate::EntryPoint,
     count: usize,
     classes: BTreeSet<String>,
+    imports: CallImportPolicy,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct UnitInputs {
@@ -73,8 +75,16 @@ impl Materialization {
             graph: None,
             grouping: OnceLock::new(),
             grouping_input: None,
+            imports: CallImportPolicy::Complete,
             completed_roles: false,
         }
+    }
+    pub(super) fn import_policy(&self) -> CallImportPolicy {
+        self.imports
+    }
+    pub(super) fn with_import_policy(mut self, imports: CallImportPolicy) -> Self {
+        self.imports = imports;
+        self
     }
     fn inputs(&self) -> &[UnitInputs] {
         self.inputs.get_or_init(|| {
@@ -152,6 +162,7 @@ impl Materialization {
                 entry,
                 count,
                 classes: classes.clone(),
+                imports: self.imports,
             }));
         }
         self
@@ -160,13 +171,14 @@ impl Materialization {
         self.grouping
             .get_or_init(|| {
                 let input = self.grouping_input.as_ref()?;
-                layout::Grouping::read(
+                layout::Grouping::read_with_policy(
                     &self.source,
                     &input.lir.as_view(),
                     input.entry,
                     input.count,
                     &input.classes,
                     self.graph()?,
+                    input.imports,
                 )
                 .map(Arc::new)
             })
@@ -241,6 +253,7 @@ impl Materialization {
             count,
             classes,
             graph,
+            self.imports,
         ))
     }
     pub(super) fn layout_for(&self, grouping: &layout::Grouping) -> Option<&layout::Layout> {
