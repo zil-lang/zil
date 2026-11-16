@@ -1161,6 +1161,17 @@ fn check_with(
             None
         }
     };
+    let local_roles=crate::dynamic_witness::semantic_patterns::local_role_transfers(module,f,b)?;
+    for role in &local_roles{
+        let actual=locals.get(role.local.0 as usize).and_then(|ports|ports.outer).ok_or_else(||bad("checked shared local role has no actual outer class"))?;
+        let mut target=None;
+        for output in &role.outputs{
+            let vars=header.as_ref().ok_or_else(||bad("checked shared local export has no complete actual header"))?;
+            let expected=select(vars,output.binder)?;
+            e.equal(actual,expected,b)?;target=Some(expected);
+        }
+        if target.is_none(){let own=e.fresh(true,b)?;e.equal(actual,own,b)?;}
+    }
     // Source structure first; capture-fixed substitution second; calls last.
     // A first call cannot pick an unconstrained capture's semantic class.
     for phase in 0..if environments { 3 } else { 1 } {
@@ -1649,13 +1660,23 @@ fn check_with(
                     InstructionKind::DescribePackageField{local,index}=>{
                         if let Some(out)=out{e.ground_address(out.outer,b)?;link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],out,LifeTypeProjection::Place(PlaceProjection::Field(*index)),&mut e,b)?;}
                     }
-                    InstructionKind::Store { local, value } => array_outer::copy(
-                        &mut e,
-                        &locals[local.0 as usize],
-                        &values[value.0 as usize],
-                        outer.as_ref(),
-                        b,
-                    )?,
+                    InstructionKind::Store { local, value } => {
+                        b.spend(local_roles.len())?;
+                        let role=local_roles.iter().find(|role|role.local==*local);
+                        let to=&locals[local.0 as usize];let from=&values[value.0 as usize];
+                        if let Some(role)=role{
+                            b.spend(role.stores.len())?;
+                            if !role.stores.contains(&(block.id,instruction_index as u32,*value)){return Err(bad("shared local Store lacks its exact completed original/actual transition"));}
+                            if !matches!(f.locals[local.0 as usize].ty,Type::Address{mutable:false,..})||!matches!(f.values[value.0 as usize],Type::Address{mutable:false,..}){return Err(bad("shared local transport changes actual address mode"));}
+                            // The exact checked Store transports only its
+                            // shared outer role. All complete referent classes
+                            // and per-ordinal array domains stay invariant.
+                            array_outer::copy_elements(&mut e,to,from,outer.as_ref(),b)?;
+                            b.spend(to.classes.len().saturating_add(from.classes.len()).saturating_add(1))?;
+                            if to.classes.len()!=from.classes.len(){return Err(bad("shared local Store changes its complete referent class domain"));}
+                            for(to,from)in to.classes.iter().zip(&from.classes){e.equal(*to,*from,b)?;}
+                        }else{array_outer::copy(&mut e,to,from,outer.as_ref(),b)?;}
+                    }
                     InstructionKind::StaticUtf8 { .. } if b.static_utf8 => {
                         if let Some(out) = out {
                             // This instruction is independently typed as a real

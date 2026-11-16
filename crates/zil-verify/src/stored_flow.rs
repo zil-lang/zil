@@ -2329,8 +2329,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         b.spend(parameters.len())?;
     }
     // Actual Capture sources prove targets separately. If a factory publishes
-    // output class rows, authenticate its complete Fixed class relation as well:
-    // the result can only refer to classes already supplied by actual inputs.
+    // output class rows, authenticate its complete Fixed class relation as well.
+    // A separately proved local result role retains all its input/static
+    // dependencies without equating independent input classes.
     let factory = matches!(f.return_type, Type::Closure(_)) && f.callable_return_contract.is_some();
     b.spend(c.classes.len())?;
     let output_classes = c
@@ -2342,7 +2343,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
-    let pending = dyn_returns::pending::register(module, f, b)?;
+    let mut pending = dyn_returns::pending::register(module, f, b)?;
+    for transfer in crate::dynamic_witness::semantic_patterns::local_role_transfers(module,f,b)?{
+        for output in transfer.outputs{
+            b.spend(pending.iter().fold(output.position.path.len().saturating_add(1),|fee,row|fee.saturating_add(row.path.len().saturating_add(output.position.path.len()).saturating_add(1))))?;
+            if !pending.contains(&output.position){pending.push(output.position);}
+        }
+    }
     if !pending.is_empty() {
         return crate::signature_life::function_relation_pending_views(
             module,

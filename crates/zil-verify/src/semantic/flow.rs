@@ -118,6 +118,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     }
     b.diagnostic_stage("actual constructor publication");
     context.publish_constructor_classes(module,&checked_worlds,b)?;
+    context.publish_local_role_transfers(module,&checked_worlds,b)?;
     b.spend(1)?;
     b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active)));
     Ok(())
@@ -294,6 +295,7 @@ impl CheckedContext {
                         if !self.compatible(&environment,value,&child,b)?{return Err(bad("actual address write changes its complete child type/domain"));}None
                     }
                     InstructionKind::Store{local,value}=>{
+                        let actual=*value;
                         let value=value_at(&values,*value)?;
                         let mut normalized=None;
                         if let Some(expected)=&constraints[local.0 as usize] {
@@ -301,6 +303,7 @@ impl CheckedContext {
                             normalized=self.local_role_value(module,value,expected,&environment,active,b)?;
                         }
                         if f.locals[local.0 as usize].ty!=value.ty {return Err(bad("actual Store changes its local complete type"));}
+                        if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}
                         state.locals[local.0 as usize]=Some(match normalized{Some(value)=>value,None=>value.clone()});None
                     }
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{state.locals[local.0 as usize]=None;None},

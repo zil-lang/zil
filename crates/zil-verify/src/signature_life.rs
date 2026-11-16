@@ -582,9 +582,9 @@ pub(super) fn role_relation(
     Ok(())
 }
 
-/// Only a concrete function's independently registered Dyn obligations may
-/// defer output-only persistent class grounding. Generic structural callers
-/// have no such context and continue using the strict entry points above.
+/// Concrete dynamic obligations and completed original result-role exports
+/// supply exact output positions. Generic structural callers have no such
+/// context and continue using the strict entry points above.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn function_relation_pending(
     module: &TypedModule,
@@ -995,7 +995,7 @@ fn relation_inputs<P:InputType>(
                     visit(
                         row.binder,
                         if captures.is_some() { capture } else { !output },
-                        false,
+                        output && pending.contains(&row.position),
                     )?;
                 }
             }
@@ -1023,7 +1023,7 @@ fn relation_inputs<P:InputType>(
                     visit(
                         row.binder,
                         if captures.is_some() { capture } else { !output },
-                        false,
+                        output && pending.contains(&row.position),
                     )?;
                 }
             }
@@ -1052,9 +1052,10 @@ fn relation_inputs<P:InputType>(
                         return Err(invalid());
                     }
                     class += 1;
-                    // Returned Fixed classes must already be grounded by an
-                    // input. A result row does not introduce retained storage.
-                    visit(row.binder, !output, false)?;
+                    // An output row cannot ground itself. Only an exact
+                    // independently proved export position may introduce a
+                    // local result role with all source dependencies intact.
+                    visit(row.binder, !output, output && pending.contains(&row.position))?;
                 }
             }
             t if pointee => {
@@ -1269,6 +1270,22 @@ mod tests {
 #[cfg(test)]
 mod input_view_tests{
     use super::*;
+    #[test]
+    fn local_callable_result_role_needs_its_exact_independent_export_position(){
+        let(mut module,_)=crate::tests::baseline();
+        let address=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![address.clone()],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,lending_captures:vec![],storage_life:Some(StorageLifeContract{fixed_binder_count:1,invocation_binder_count:0,bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![]},binder:StorageBinder::Fixed(0)}],static_bindings:vec![],classes:vec![]})});
+        let parameters=[address.clone(),address];let views=parameters.iter().collect::<Vec<_>>();
+        let position=SignatureLifeClass{base:StorageBase::Result,path:vec![],class:0};
+        let c=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:3,bindings:(0..2).map(|index|StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(index),path:vec![]},binder:StorageBinder::Invocation(index)}).collect(),static_bindings:vec![],classes:vec![SignatureLifeClassBinding{position:position.clone(),binder:StorageBinder::Invocation(2)}]};
+        let result=Type::Closure(ClosureId(0));
+        assert!(function_relation_resource_views(&module,&views,&result,&c,None,true,false,&mut Budget::new(&Limits::default())).is_err(),"raw output/header does not ground itself");
+        function_relation_pending_views(&module,&views,&result,&c,None,true,false,&[position.clone()]).unwrap();
+        let mut wrong=position.clone();wrong.path.push(LifeTypeProjection::Pointee);
+        assert!(function_relation_pending_views(&module,&views,&result,&c,None,true,false,&[wrong]).is_err());
+        let mut extra=c.clone();extra.invocation_binder_count+=1;
+        assert!(function_relation_pending_views(&module,&views,&result,&extra,None,true,false,&[position]).is_err(),"a completed output does not erase any other domain coordinate");
+    }
     #[test]
     fn borrowed_parameter_views_preserve_complete_header_and_hostile_domain_checks(){
         let(module,_)=crate::tests::baseline();

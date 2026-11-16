@@ -26,6 +26,16 @@ pub(crate) fn checked_static_specialization(module:&TypedModule,function:&TypedF
     session.context.checked_static_specialization(module,function,b)
 }
 
+/// Exact shared-local transitions from the completed original programme and
+/// every actual world. Raw headers/sites alone cannot create these rows.
+pub(crate) fn local_role_transfers(module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<Vec<semantic::local_roles::Transfer>>{
+    if module.semantic.is_none(){return Ok(Vec::new());}
+    b.spend(1)?;
+    let Some(session)=b.semantic_checked.clone()else{return Ok(Vec::new());};
+    if session.module!=module as *const TypedModule as usize{return Ok(Vec::new());}
+    session.context.checked_local_role_transfers(module,function,b)
+}
+
 /// Static source correspondence is recomputed against the immutable actual
 /// body. No cached W result or source class can activate an assignment loan.
 pub(crate) fn assignment_writes(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<ValueId>> {

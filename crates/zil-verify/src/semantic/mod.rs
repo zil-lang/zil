@@ -23,6 +23,7 @@ mod closures;
 mod opaque;
 mod method_obligations;
 mod static_members;
+pub(crate) mod local_roles;
 pub(crate) mod callable_obligations;
 pub(crate) mod task_domains;
 mod catalogue;
@@ -60,6 +61,8 @@ pub(crate) struct CheckedContext {
     premises_epoch:Cell<u64>,
     static_identity:std::rc::Rc<()>,
     static_members:RefCell<Vec<static_members::StaticMember>>,
+    local_role_writes:RefCell<BTreeMap<(SemanticInstanceId,LocalId),local_roles::Writes>>,
+    local_role_transfers:RefCell<BTreeMap<FunctionId,Vec<local_roles::Transfer>>>,
     closed_frames:RefCell<BTreeMap<(usize,SemanticInstanceId,u64,bool,bool),instances::ClosedFrames>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
