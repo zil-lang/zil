@@ -296,16 +296,41 @@ impl Check<'_, '_> {
                         return Err(fail("dynamic result repeats its original outer role"));
                     }
                 }
-                let Some(StorageBinder::Fixed(class)) = result_role else {
-                    return Err(unknown(
-                        "dynamic receiver-shortened result needs its original invocation occurrence",
-                    ));
-                };
-                if boundary.receiver.classes.get(class as usize) != boundary.result.classes.first()
-                {
-                    return Err(fail(
-                        "dynamic result changes the exact original persistent trait class",
-                    ));
+                match result_role {
+                    Some(StorageBinder::Fixed(class)) => {
+                        if boundary.receiver.classes.get(class as usize) != boundary.result.classes.first() {
+                            return Err(fail("dynamic result changes the exact original persistent trait class"));
+                        }
+                    }
+                    Some(StorageBinder::Invocation(invocation)) => {
+                        let mut receiver_role = None;
+                        for row in &life.bindings {
+                            b.spend(row.position.path.len().saturating_add(1), WORK)?;
+                            if row.position.base == StorageBase::Parameter(0) && row.position.path.is_empty()
+                                && receiver_role.replace(row.binder).is_some() {
+                                return Err(fail("dynamic receiver repeats its complete original invocation role"));
+                            }
+                        }
+                        if receiver_role != Some(StorageBinder::Invocation(invocation)) {
+                            return Err(fail("dynamic result changes its declared receiver invocation bound"));
+                        }
+                        let adapter = boundary.receiver_adapter.as_ref().ok_or_else(||
+                            fail("dynamic result omits its independently checked original receiver adapter"))?;
+                        let [slot] = adapter.life.slots.as_slice() else {
+                            return Err(fail("dynamic receiver adapter omits its complete outer occurrence"));
+                        };
+                        if !slot.path.is_empty()
+                            || adapter.classes.get(slot.binder as usize) != boundary.result.classes.first()
+                        {
+                            return Err(fail("dynamic result changes this original call's exact receiver occurrence"));
+                        }
+                        let actual = self.ssa_value(instance, function, *callee, b, 0)?;
+                        if !self.outer_call_role(instance, function, (block, index), 0, *callee,
+                            &actual, adapter, b, 0)? {
+                            return Err(fail("dynamic result lacks its exact original invocation and actual owner-head source"));
+                        }
+                    }
+                    None => return Err(fail("dynamic result has no complete original result role")),
                 }
                 let child = self.pointee(&boundary.result, b)?;
                 if !child.classes.is_empty() || !empty(&child.life) {

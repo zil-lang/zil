@@ -23,6 +23,7 @@ pub(in crate::semantic) struct TraitBoundary {
     pub(in crate::semantic) member: u32,
     pub(in crate::semantic) method: SemanticDefinitionId,
     pub(in crate::semantic) receiver: crate::semantic::value::Value,
+    pub(in crate::semantic) receiver_adapter: Option<crate::semantic::value::Value>,
     pub(in crate::semantic) receiver_anchor: Option<LocalAnchor>,
     pub(in crate::semantic) receiver_place: Option<borrow_places::Source>,
     pub(in crate::semantic) dynamic: Option<bool>,
@@ -101,6 +102,11 @@ impl Checked {
             member: call.member,
             method: call.method,
             receiver: self.value(call.receiver, context, program, inventory, b, 0)?,
+            receiver_adapter: if call.dynamic.is_some() {
+                Some(self.value(*call.parameters.first().ok_or_else(||
+                    fail("original dynamic call omits its complete receiver adapter"))?,
+                    context, program, inventory, b, 0)?)
+            } else { None },
             receiver_anchor: call.receiver_anchor,
             receiver_place: call
                 .receiver_place

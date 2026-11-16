@@ -141,6 +141,7 @@ impl Check<'_, '_> {
                 | InstructionKind::TakeLocal { .. }
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
+                | InstructionKind::BorrowDynOwned { .. }
                 | InstructionKind::ReborrowAddress { .. }
         ) {
             return Ok(false);
@@ -165,7 +166,8 @@ impl Check<'_, '_> {
             InstructionKind::Load(local)
             | InstructionKind::TakeLocal { local }
             | InstructionKind::BorrowLocal { local }
-            | InstructionKind::BorrowLocalMut { local } => Ok(local),
+            | InstructionKind::BorrowLocalMut { local }
+            | InstructionKind::BorrowDynOwned { local, .. } => Ok(local),
             InstructionKind::ReborrowAddress { address, .. } => {
                 self.receiver_local(function, address, b, depth + 1)
             }
@@ -580,6 +582,12 @@ impl Check<'_, '_> {
             return Ok(false);
         }
         let (block, index, instruction) = self.defining(function, *value, b)?;
+        // A Dyn-owner borrow is a real fresh head, not a reborrow from an
+        // Address operand. Its call-local shortening requires the exact
+        // original call receipt in outer_call_role, never this ancestry rule.
+        if matches!(instruction.kind, InstructionKind::BorrowDynOwned { .. }) {
+            return Ok(false);
+        }
         let InstructionKind::ReborrowAddress { address, .. } = instruction.kind else {
             return Err(fail("outer role child does not name a real reborrow"));
         };

@@ -250,7 +250,7 @@ impl Checked {
                     .trait_calls
                     .get(&(*owner, *node))
                     .ok_or_else(|| fail("receiver role has no independently checked trait call"))?;
-                if call.receiver_anchor.is_none() || call.dynamic.is_some() {
+                if call.receiver_anchor.is_none() {
                     return Err(fail(
                         "receiver role changes its original borrowed method kind",
                     ));
@@ -302,27 +302,49 @@ impl Checked {
                         .filter(|row| row.id == block)
                         .and_then(|row| row.instructions.get(instruction as usize))
                         .ok_or_else(|| fail("receiver role has no actual call operation"))?;
-                    let arguments = match &operation.kind {
+                    let head = match &operation.kind {
                         InstructionKind::Call { arguments, .. }
-                            if call.call_kind == CallKind::Direct =>
+                            if call.dynamic.is_none() && call.call_kind == CallKind::Direct =>
                         {
-                            arguments
+                            *arguments.first().ok_or_else(|| fail("receiver role omits its actual receiver"))?
                         }
                         InstructionKind::SuspendCall { arguments, .. }
-                            if call.call_kind == CallKind::Suspend
+                            if call.dynamic.is_none() && call.call_kind == CallKind::Suspend
                                 && function.call_kind == CallKind::Suspend =>
                         {
-                            arguments
+                            *arguments.first().ok_or_else(|| fail("receiver role omits its actual receiver"))?
                         }
-                        _ => {
-                            return Err(fail(
-                                "receiver role changes its original call ABI or operation",
-                            ));
+                        InstructionKind::CallDynSlot { callee, interface, slot, .. }
+                            if call.dynamic.is_some() && call.call_kind == CallKind::Direct =>
+                        {
+                            let receiver = self.value(call.receiver, scope, program, inventory, b, 0)?;
+                            if !matches!(receiver.ty, Type::Dyn { interface: original } if original == *interface) {
+                                return Err(fail("dynamic receiver role changes its complete original interface"));
+                            }
+                            let mut found = None;
+                            for candidate in &inventory.module.dyn_interfaces {
+                                b.spend(1, WORK)?;
+                                if candidate.id == *interface && found.replace(candidate).is_some() {
+                                    return Err(fail("dynamic receiver role repeats its actual interface"));
+                                }
+                            }
+                            let directory = found.ok_or_else(|| fail("dynamic receiver role has no complete actual interface"))?;
+                            let member = directory.slots.get(*slot as usize)
+                                .ok_or_else(|| fail("dynamic receiver role selects an absent method slot"))?;
+                            if directory.application.declaration != call.declaration
+                                || member.member.application != directory.application
+                                || member.member.ordinal != call.member
+                                || member.call_kind != call.call_kind
+                                || !matches!(function.values.get(callee.0 as usize),
+                                    Some(Type::Address { mutable: false, inner })
+                                    if matches!(inner.as_ref(), Type::Dyn { interface: actual } if actual == interface))
+                            {
+                                return Err(fail("dynamic receiver role changes its original member, application or actual head"));
+                            }
+                            *callee
                         }
+                        _ => return Err(fail("receiver role changes its original call ABI or operation")),
                     };
-                    let head = *arguments
-                        .first()
-                        .ok_or_else(|| fail("receiver role omits its actual receiver"))?;
                     if !matches!(
                         function.values.get(head.0 as usize),
                         Some(Type::Address { .. })
