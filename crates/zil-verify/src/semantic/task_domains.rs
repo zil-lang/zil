@@ -3,6 +3,7 @@
 use super::*;
 #[path = "task_domains/ports.rs"]
 mod ports;
+mod statics;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct FrameKey {
@@ -85,7 +86,7 @@ impl CheckedContext {
     /// pending on the exact FrameKey and is checked by the normal worker pass.
     pub(super) fn metadata_value(
         &self,
-        _module: &TypedModule,
+        module: &TypedModule,
         ty: &Type,
         life: &StorageLifeShape,
         classes: Vec<ClassKey>,
@@ -133,7 +134,7 @@ impl CheckedContext {
                 })
                 .collect(),
             classes,
-            statics: vec![],
+            statics: statics::pending(module,ty,b)?,
         })
     }
 
@@ -787,12 +788,9 @@ pub(super) fn input_ports(
     value: &CheckedType,
     b: &mut Budget,
 ) -> Check<Vec<(Type, StoredBorrowMode, u32, Vec<ContractProjection>)>> {
-    if !value.statics.is_empty() {
-        return Err(unsupported(
-            "Task constant-source frame input requires its complete source obligations",
-            None,
-        ));
-    }
+    // Pending static fields do not add variable ports or compress the joint
+    // class domain. Their real source proof is due at the final frame drain.
+    statics::validate(module,&value.ty,&value.statics,b)?;
     let _ = context;
     raw_input_ports(module, &value.ty, &value.life, b)
 }
@@ -1451,13 +1449,18 @@ pub(crate) fn drain(module: &TypedModule, b: &mut Budget) -> Check<()> {
             .len()
             .saturating_add(b.task_constructors.len()),
     )?;
-    for state in b.task_frames.values() {
-        if !matches!(state, FrameState::MetadataReady(_)) {
-            return Err(bad(
-                "Task metadata remains Building at the success boundary",
-            ));
-        }
-    }
+    // The static least-root validator has now checked every real constructor,
+    // write and Return in every actual function. A frame metadata cursor alone
+    // could never discharge these obligations during earlier port enumeration.
+    let frames=std::mem::take(&mut b.task_frames);
+    let completed=(||{
+        for state in frames.values(){
+            let FrameState::MetadataReady(frame)=state else{return Err(bad("Task metadata remains Building at the success boundary"));};
+            b.spend(frame.parameter_types.len().saturating_add(frame.parameters.len()).saturating_add(1))?;
+            for ty in frame.parameter_types.iter().chain(std::iter::once(&frame.result_type)){statics::discharge(module,ty,&[],b)?;}
+            for value in frame.parameters.iter().chain(frame.result.iter()){statics::discharge(module,&value.ty,&value.statics,b)?;}
+        }Ok(())
+    })();b.task_frames=frames;completed?;
     for obligation in b.task_constructors.values() {
         if !obligation.raw_checked
             || module.semantic.is_some() && !obligation.semantic_checked

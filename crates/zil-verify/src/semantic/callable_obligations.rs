@@ -60,7 +60,7 @@ pub(crate) fn drain(module:&TypedModule,b:&mut Budget)->Check<()> {
     }
     Ok(())
 }
-fn static_node(module:&TypedModule,id:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<()> {
+pub(super) fn static_node(module:&TypedModule,id:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<()> {
     dynamic_metadata::position(position,b)?;b.spend(b.proven_static_occurrences.len().saturating_add(module.closures.len()))?;
     if !module.closures.iter().any(|row|row.id==id&&row.storage_life.as_ref().is_some_and(|life|life.static_bindings.contains(position)))||!b.proven_static_occurrences.contains(&(id,position.clone())){return Err(bad("Callable Static occurrence has no completed actual least-root source proof"));}
     Ok(())

@@ -250,7 +250,7 @@ impl CheckedContext {
     }
 }
 
-fn static_leaf<'a>(
+pub(super) fn static_leaf<'a>(
     module: &'a TypedModule,
     mut ty: &'a Type,
     path: &[ContractProjection],
