@@ -1,142 +1,677 @@
 {
-  "task": "G10.5.1/G10.5.1.15",
-  "status": "Rust定向整链已实施验收，全面超Rust门开放",
-  "updated_Asia_Shanghai": "2026-11-16T18:45:15.673888+08:00",
-  "read_goal": "d31282cb0dc481a9495cb1ebd099f614bf383510",
-  "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-  "tree": "6b844a4824681663e9420bde3334c8620467f3dd",
-  "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
-  "delivery": "e66c354be2cf16ea599275d8c45219693aefc45f",
-  "branch": "research/full-push-native",
+  "schema": "zil.restart-bootstrap-chain.v1",
+  "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+  "binary_sha256": "1965c26f73a3a0bb2d42b3a43929c8207bd516a20e0dc9bb5a050fe7453f5936",
+  "tool_source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "summary": "https://github.com/zil-lang/zil/blob/e66c354be2cf16ea599275d8c45219693aefc45f/tools/research/incremental-demand/cache-restart-chain-20261116/summary.md",
-  "skill": "https://github.com/zil-lang/zil/blob/e66c354be2cf16ea599275d8c45219693aefc45f/.agents/skills/compiler-performance/SKILL.md",
-  "implementation": [
-    "Rust OnDiskCache-style shared metadata packs/offsets, CDC dedup/selective compaction under original aggregate bound",
-    "one actual wire decoded owner shared across semantic/function restore, current context/complete bytes/limits/sixfees remain",
-    "current graph/layout/materialization reuse; rejected recipe cannot lend old slots",
-    "resident closed frontier avoids redundant diskIR; current closed native spelling still from current parser owners"
-  ],
-  "current_gates": {
-    "IR89_Types115": "64e1fbcadea066ac755bb3426e5eda26a24d468b, followed only equivalent opref lint",
-    "backend325": "249cfb7a88e8efc15012198f71f98e2f06e5b4e1, production unchanged since; test-if lint only",
-    "driver228_native2_strict_fmt_release": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "first_failures": "Retained local IRsegmentationfixture, real32editdiskgrowth, rejectedlayoutslotreuse, strictlints. No relaxed assertions/limits."
+  "conditions": "O2/CGU16/compiler jobs1,2 balanced blocks; check/native separate, no OS cache flushing; ZIL resident request time excludes startup, Cargo request includes startup. Startup and cleanup stay separate. Formal native input validation jobs8, sustained runtime serial.",
+  "counts": {
+    "original_requests": 138,
+    "functional_cells": 46,
+    "runtime_cases": 5
   },
-  "native_current": {
-    "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "original_requests": 36,
-    "functional_cells": 12,
-    "runtime_cases": 5,
-    "quality_passed": true,
-    "global_accepted": false,
-    "requests_ms": {
-      "cold": {
-        "candidate": 5186.129134500001,
-        "rust": 6723.5545995
+  "windows": {
+    "retain": {
+      "size": "5105",
+      "original_requests": 36,
+      "functional_cells": 12,
+      "runtime_cases": 5,
+      "candidate_Rust_quality_passed": true,
+      "global_accepted": false,
+      "main_regression_accepted": null,
+      "main_resource_limit": true,
+      "flow_ms": {
+        "candidate": 10955.002844999999,
+        "rust": 15471.7876885
       },
-      "unchanged": {
-        "candidate": 73.6591705,
-        "rust": 28.3271225
+      "requests_ms": {
+        "cold": {
+          "candidate": 3972.533877,
+          "rust": 6901.1902425
+        },
+        "unchanged": {
+          "candidate": 38.618508500000004,
+          "rust": 25.836575500000002
+        },
+        "warm-restart": {
+          "candidate": 2535.4419955000003,
+          "rust": 21.652319499999997
+        },
+        "private-001": {
+          "candidate": 1032.6192925,
+          "rust": 1265.6950995000002
+        },
+        "error": {
+          "candidate": 1795.621028,
+          "rust": 1779.0988425
+        },
+        "recovery": {
+          "candidate": 1580.1681435,
+          "rust": 5478.314609
+        }
       },
-      "warm-restart": {
-        "candidate": 3490.6389755,
-        "rust": 38.49144
+      "restart_plus_firstedit_ms": {
+        "candidate": 3568.0612880000003,
+        "rust": 1287.3474190000002
       },
-      "private-001": {
-        "candidate": 1150.151168,
-        "rust": 1295.1251525
+      "eight_private_ms": null,
+      "disk": {
+        "candidate": {
+          "boundary_peak_MiB": 32.68359375,
+          "peak_bytes_by_block": [
+            34271232,
+            34271232
+          ],
+          "eight_private_growth_MiB": null
+        },
+        "rust": {
+          "boundary_peak_MiB": 58.69140625,
+          "peak_bytes_by_block": [
+            61542400,
+            61542400
+          ],
+          "eight_private_growth_MiB": null
+        }
       },
-      "error": {
-        "candidate": 1857.5538065,
-        "rust": 1958.795429
+      "stages_ms": {
+        "cold": {
+          "phase": {
+            "parse": 0.196639,
+            "expand": 465.72133,
+            "types": 386.67061249999995,
+            "analyze": 182.1522705,
+            "verify": 118.0079935,
+            "lower": 8.325339,
+            "codegen": 1710.023774,
+            "ct": 90.00577
+          },
+          "backend": {
+            "machine_ns": 551.8463425,
+            "machine_emit_ns": 242.3799775,
+            "machine_transform_ns": 253.860832,
+            "machine_preflight_ns": 43.335004,
+            "partition_ns": 503.74502,
+            "diagnostic_ns": 61.84124,
+            "object_ns": 429.89364750000004,
+            "link_key_ns": 126.22626699999999,
+            "link_execution_ns": 31.79558,
+            "other_ns": 4.557203,
+            "total_ns": 1709.9053
+          }
+        },
+        "warm-restart": {
+          "phase": {
+            "parse": 0.139756,
+            "expand": 291.6827,
+            "types": 417.895584,
+            "analyze": 295.8151255,
+            "verify": 78.780863,
+            "lower": 7.1741265,
+            "codegen": 884.6292965,
+            "ct": 82.8869675
+          },
+          "backend": {
+            "machine_ns": 402.3671785,
+            "machine_emit_ns": 163.383825,
+            "machine_transform_ns": 235.4031155,
+            "machine_preflight_ns": 44.501994499999995,
+            "partition_ns": 351.8624805,
+            "diagnostic_ns": 47.602984,
+            "object_ns": 11.1984945,
+            "link_key_ns": 27.568599499999998,
+            "link_execution_ns": 42.67558,
+            "other_ns": 1.317424,
+            "total_ns": 884.5927409999999
+          }
+        },
+        "private-001": {
+          "phase": {
+            "parse": 0.058146500000000004,
+            "expand": 16.938608,
+            "types": 0.20442950000000001,
+            "analyze": 0.1463465,
+            "verify": 33.391291,
+            "lower": 0.018318,
+            "codegen": 870.756211,
+            "ct": 17.359627500000002
+          },
+          "backend": {
+            "machine_ns": 121.58502949999999,
+            "machine_emit_ns": 46.864084,
+            "machine_transform_ns": 74.7079455,
+            "machine_preflight_ns": 38.212667499999995,
+            "partition_ns": 117.68894,
+            "diagnostic_ns": 23.269784,
+            "object_ns": 566.150228,
+            "link_key_ns": 0.560608,
+            "link_execution_ns": 40.3193625,
+            "other_ns": 1.107041,
+            "total_ns": 870.680993
+          }
+        },
+        "recovery": {
+          "phase": {
+            "parse": 0.0792755,
+            "expand": 13.1961355,
+            "types": 78.925978,
+            "analyze": 72.4206635,
+            "verify": 110.16641150000001,
+            "lower": 12.5442935,
+            "codegen": 970.6001845,
+            "ct": 10.998834500000001
+          },
+          "backend": {
+            "machine_ns": 277.7655025,
+            "machine_emit_ns": 119.6156955,
+            "machine_transform_ns": 151.1420525,
+            "machine_preflight_ns": 49.190338999999994,
+            "partition_ns": 345.2725835,
+            "diagnostic_ns": 59.607784499999994,
+            "object_ns": 266.776446,
+            "link_key_ns": 0.6883619999999999,
+            "link_execution_ns": 19.6569165,
+            "other_ns": 0.808739,
+            "total_ns": 970.576334
+          }
+        }
       },
-      "recovery": {
-        "candidate": 2452.7101445,
-        "rust": 5926.9394465
-      }
+      "raw": "out/runs/cache-restart-performance-retain-03"
     },
-    "restart_plus_firstedit_ms": {
-      "candidate": 4640.7901435,
-      "rust": 1333.6165925
-    },
-    "disk": {
-      "candidate": {
-        "boundary_peak_MiB": 32.681640625,
-        "peak_bytes_by_block": [
-          34279424,
-          34258944
-        ],
-        "eight_private_growth_MiB": null
+    "check-5000-wide": {
+      "size": "5000",
+      "original_requests": 102,
+      "functional_cells": 34,
+      "runtime_cases": 0,
+      "candidate_Rust_quality_passed": true,
+      "global_accepted": true,
+      "main_regression_accepted": null,
+      "main_resource_limit": false,
+      "flow_ms": {
+        "baseline": 6788.566467500001,
+        "candidate": 6832.098746,
+        "rust": 6832.386532500001
       },
-      "rust": {
-        "boundary_peak_MiB": 58.69140625,
-        "peak_bytes_by_block": [
-          61542400,
-          61542400
-        ],
-        "eight_private_growth_MiB": null
-      }
+      "requests_ms": {
+        "cold": {
+          "baseline": 412.00094,
+          "candidate": 1483.9480629999998,
+          "rust": 804.3461580000001
+        },
+        "unchanged": {
+          "baseline": 60.264073499999995,
+          "candidate": 8.3738475,
+          "rust": 17.3239065
+        },
+        "private-001": {
+          "baseline": 644.744516,
+          "candidate": 160.6868865,
+          "rust": 304.2594365
+        },
+        "private-002": {
+          "baseline": 358.50597200000004,
+          "candidate": 89.5057285,
+          "rust": 331.3124745
+        },
+        "private-003": {
+          "baseline": 568.9969575,
+          "candidate": 99.588444,
+          "rust": 250.8194905
+        },
+        "private-004": {
+          "baseline": 424.23545,
+          "candidate": 87.2780885,
+          "rust": 289.00208050000003
+        },
+        "private-005": {
+          "baseline": 663.2080595,
+          "candidate": 92.41225349999999,
+          "rust": 249.71119099999999
+        },
+        "private-006": {
+          "baseline": 451.2571835,
+          "candidate": 107.8918045,
+          "rust": 374.1625595
+        },
+        "private-007": {
+          "baseline": 569.6162285,
+          "candidate": 344.7860165,
+          "rust": 296.342315
+        },
+        "private-008": {
+          "baseline": 386.2506425,
+          "candidate": 86.2482435,
+          "rust": 266.021015
+        },
+        "unchanged-after-edits": {
+          "baseline": 70.0866335,
+          "candidate": 7.611644,
+          "rust": 15.402778999999999
+        },
+        "positions": {
+          "baseline": 626.619631,
+          "candidate": 607.1889255,
+          "rust": 855.1497135
+        },
+        "broad": {
+          "baseline": 749.5578285,
+          "candidate": 911.2307384999999,
+          "rust": 1119.755412
+        },
+        "error": {
+          "baseline": 254.543887,
+          "candidate": 67.709739,
+          "rust": 237.92210649999998
+        },
+        "recovery": {
+          "baseline": 380.5045365,
+          "candidate": 103.29510300000001,
+          "rust": 480.94804050000005
+        },
+        "restore": {
+          "baseline": 103.7148235,
+          "candidate": 729.9205075,
+          "rust": 921.2280205
+        },
+        "warm-restart": {
+          "baseline": 64.4591045,
+          "candidate": 1844.4227125,
+          "rust": 18.6798335
+        }
+      },
+      "restart_plus_firstedit_ms": null,
+      "eight_private_ms": {
+        "baseline": 4066.8150095,
+        "candidate": 1068.3974655000002,
+        "rust": 2361.6305624999995
+      },
+      "disk": {
+        "baseline": {
+          "boundary_peak_MiB": 45.3125,
+          "peak_bytes_by_block": [
+            47513600,
+            47513600
+          ],
+          "eight_private_growth_MiB": 29.40625
+        },
+        "candidate": {
+          "boundary_peak_MiB": 13.6015625,
+          "peak_bytes_by_block": [
+            14217216,
+            14307328
+          ],
+          "eight_private_growth_MiB": 1.03515625
+        },
+        "rust": {
+          "boundary_peak_MiB": 58.34765625,
+          "peak_bytes_by_block": [
+            61181952,
+            61181952
+          ],
+          "eight_private_growth_MiB": 15.140625
+        }
+      },
+      "stages_ms": {
+        "cold": {
+          "phase": {
+            "parse": 0.9812084999999999,
+            "expand": 355.102548,
+            "types": 173.0777825,
+            "analyze": 88.8875055,
+            "verify": 45.301245,
+            "ct": 43.258604
+          },
+          "backend": {}
+        },
+        "warm-restart": {
+          "phase": {
+            "parse": 0.133601,
+            "expand": 516.8569525,
+            "types": 121.2029555,
+            "analyze": 88.4303525,
+            "verify": 48.398773000000006,
+            "ct": 783.9679169999999
+          },
+          "backend": {}
+        },
+        "private-001": {
+          "phase": {
+            "parse": 0.096709,
+            "expand": 37.024615,
+            "types": 1.0057525,
+            "analyze": 0.186117,
+            "verify": 28.0933035,
+            "ct": 12.374020999999999
+          },
+          "backend": {}
+        },
+        "positions": {
+          "phase": {
+            "parse": 0.399507,
+            "expand": 239.31162949999998,
+            "types": 65.22342900000001,
+            "analyze": 32.6599445,
+            "verify": 51.5496505,
+            "ct": 40.291163499999996
+          },
+          "backend": {}
+        },
+        "broad": {
+          "phase": {
+            "parse": 0.438475,
+            "expand": 305.4006665,
+            "types": 103.54754,
+            "analyze": 86.9924975,
+            "verify": 74.038724,
+            "ct": 54.3948015
+          },
+          "backend": {}
+        },
+        "restore": {
+          "phase": {
+            "parse": 0.41569349999999994,
+            "expand": 203.400779,
+            "types": 112.27693500000001,
+            "analyze": 65.5556365,
+            "verify": 62.53353,
+            "ct": 69.5932115
+          },
+          "backend": {}
+        },
+        "recovery": {
+          "phase": {
+            "parse": 0.08801600000000001,
+            "expand": 14.9029475,
+            "types": 6.5604085,
+            "analyze": 0.306033,
+            "verify": 22.336317,
+            "ct": 11.247605499999999
+          },
+          "backend": {}
+        }
+      },
+      "raw": "out/runs/cache-restart-performance-check-5000-wide-03"
     }
   },
-  "check_previous_scoped": {
-    "source": "bee7ee218df3c673bc7660e1af8aea709505272d",
-    "original_requests": 102,
-    "functional_cells": 34,
-    "flow_ms": {
-      "baseline": 7119.669645,
-      "candidate": 5563.538215,
-      "rust": 8210.709403
+  "checks": {
+    "expand": {
+      "source": "9c839b2d8b2f3a6bd71151dc76b46683b3892dcf",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "125",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-09-9c839b2d8b2f/expand.json"
     },
-    "cold_ms": {
-      "baseline": 420.7092725,
-      "candidate": 1177.0604265,
-      "rust": 1198.31992
+    "backend": {
+      "source": "439edfec42b9ffc2d5109504235ac2fb32e9f509",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
+      "counts": [
+        [
+          "ok",
+          "329",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-10-439edfec42b9/backend.json"
     },
-    "disk": {
-      "baseline": {
-        "boundary_peak_MiB": 45.3125,
-        "peak_bytes_by_block": [
-          47513600,
-          47513600
-        ],
-        "eight_private_growth_MiB": 29.40625
-      },
-      "candidate": {
-        "boundary_peak_MiB": 13.63671875,
-        "peak_bytes_by_block": [
-          14360576,
-          14237696
-        ],
-        "eight_private_growth_MiB": 1.0703125
-      },
-      "rust": {
-        "boundary_peak_MiB": 58.34765625,
-        "peak_bytes_by_block": [
-          61181952,
-          61181952
-        ],
-        "eight_private_growth_MiB": 15.140625
-      }
+    "driver": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "230",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/driver.json"
     },
-    "not_reassigned_to_final_source": true
+    "publication": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--test",
+        "retained_native_publication",
+        "--",
+        "--ignored"
+      ],
+      "counts": [
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/publication.json"
+    },
+    "strict": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-cli",
+        "-p",
+        "zil-expand",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-driver",
+        "-p",
+        "zil-llvm-api",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "zil-cli/native-products,zil-driver/native-products,zil-llvm-api/text-reference",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/strict.json"
+    },
+    "fmt": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/fmt.json"
+    },
+    "release": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/release.json"
+    }
   },
-  "diagnostic": "bee7 profile restart5101decoded-owner reuses/0seconddecoder; no-op355ms redundant semantic read found and then fixed. Private class split may still require planning. Do not attribute allremainingtime toI/O.",
-  "largest_remaining_cost": "Final native restart+firstedit4.641/R1.334s; restart3.491/R.038s is decisive. Preserve negative results; optimize real upstream bootstrap/machine pipeline by absolute waiting.",
-  "record_policy": "User2026-11-16: concise conclusion/version/commands/necessary failures only, no default full evidence packing/copy/upload. Localgeneratedarchive retired; raw remains. Source/skill/summary pushed.",
-  "runtime_recovery": "SDK18/stock/native-link fixede85 core; fullSDK dependency fixedV32, no LLVM rebuild",
-  "previous_record": "https://github.com/zil-lang/zil/blob/d31282cb0dc481a9495cb1ebd099f614bf383510/records/compiler-incremental-demand-continuation.json",
-  "previous_305_delivery": "e85f819f0c23d4fdbaf52748a7a97dd0ab345f61",
-  "negative_scope": [
-    "native restart and no-op still slower thanRust",
-    "checkcold narrow previous-source window lead, no broad or industrial claim",
-    "industrialmulticrate/proc_macro/build.rs/minutes/GB workloads unmeasured in currentcandidate"
+  "first_failures": [
+    {
+      "source": "2a997d3694a151dd44e4da3e1296cde0d04e7f6a",
+      "run": "cache-restart-chain-gates-08",
+      "failure": "E0529 Vec/slice pattern; fixed as_slice, no semantics change"
+    },
+    {
+      "source": "9c839b2d8b2f3a6bd71151dc76b46683b3892dcf",
+      "run": "cache-restart-chain-gates-09",
+      "failure": "backend326/329: 2 duplicate fixture names, 1 old same-class changed-call refusal guard; fixed names and restrict adapter to actual inventory change, old refusal assertion retained"
+    },
+    {
+      "source": "439edfec42b9ffc2d5109504235ac2fb32e9f509",
+      "run": "cache-restart-chain-gates-10",
+      "failure": "driver228/230: old clones==3/2; all3 consumer assertions now require exact0, current execution/reuse/Types/Source assertions unchanged"
+    }
   ],
-  "main_merge": false,
-  "research_defaults_enabled": false,
+  "next_priority": "Direct restart-edit: Analyze product admission all5105 functions despite5initchecks; disk class layout proposal unavailable with empty previous Materialization. Fix complete chain before next unified acceptance. Checkcold1.484/R.804 and checkflow near tie are current negatives.",
+  "record_policy": "concise only, no SDK/raw archives/upload/fresh-restore",
+  "LLVM_rebuilt": false,
   "independent_Verify_preserved": true,
   "default_budgets_changed": false,
   "full_O2_preserved": true,
-  "LLVM_rebuilt": false,
+  "research_defaults_enabled": false,
+  "main_merge": false,
+  "source_delivery": "f6a3011d570de5c867d66ec36ba5cb979891e4b2",
+  "summary": "https://github.com/zil-lang/zil/blob/f6a3011d570de5c867d66ec36ba5cb979891e4b2/tools/research/incremental-demand/restart-bootstrap-chain-20261116/summary.md",
+  "direct_restart_edit": {
+    "formal_comparison": false,
+    "request_seconds": 3.714868462,
+    "native_oracles": 257,
+    "phase_ms": {
+      "parse": 0.142847,
+      "expand": 321.18194,
+      "types": 159.90018,
+      "analyze": 1168.919062,
+      "verify": 95.193819,
+      "lower": 8.217886,
+      "codegen": 1355.714626,
+      "ct": 85.644317
+    },
+    "backend_ms": {
+      "machine_ns": 325.35755,
+      "machine_emit_ns": 165.037545,
+      "machine_transform_ns": 156.436418,
+      "machine_preflight_ns": 42.231209,
+      "partition_ns": 447.42732,
+      "diagnostic_ns": 31.689687,
+      "object_ns": 492.485362,
+      "link_key_ns": 29.110434,
+      "link_execution_ns": 26.862771,
+      "other_ns": 2.670192,
+      "total_ns": 1355.603316
+    },
+    "backend_work": {
+      "lowered_functions": 5105,
+      "reused_functions": 0,
+      "reused_body_templates": 4857,
+      "produced_body_templates": 143,
+      "reused_machine_module": false,
+      "whole_machine_input_functions_compared": 0,
+      "reused_machine_transforms": false,
+      "reused_call_class_inputs": 0,
+      "rebuilt_call_class_inputs": 5109,
+      "reused_call_class_keys": 0,
+      "rebuilt_call_class_keys": 5100,
+      "machine_preflights_checked": 1,
+      "machine_preflights_reused": 1,
+      "checked_add_functions_checked": 5104,
+      "checked_add_functions_reused": 0,
+      "reused_partition_layout": false,
+      "reused_partition": false,
+      "reused_object_keys": 0,
+      "reused_link": false,
+      "rendered_diagnostic_items": 5266,
+      "reused_diagnostic_items": 0,
+      "reused_partition_recipe": false,
+      "reused_partition_units": 0,
+      "rebuilt_partition_units": 16,
+      "reused_partition_items": 0,
+      "rebuilt_partition_items": 9635,
+      "representation_functions_checked": 5105,
+      "representation_functions_reused": 0,
+      "scoped_thread_functions_checked": 5105,
+      "scoped_thread_functions_reused": 0,
+      "source_projection_traversals": 5105,
+      "source_projection_instruction_visits": 201772,
+      "source_projection_reuses": 0,
+      "native_history_restored_units": 0,
+      "native_history_retained_epochs": 0,
+      "native_history_payload_bytes": 0
+    },
+    "initialization": {
+      "executed_functions": 5,
+      "reused_functions": 5098,
+      "retained_queries": 5,
+      "candidate_reused_functions": 0,
+      "candidate_executed_functions": 5105,
+      "equal_function_results": 0,
+      "changed_function_results": 5105,
+      "shared_program_reuses": 0,
+      "initialization_inputs_built": 5103,
+      "candidate_inputs_built": 5101,
+      "dependency_signatures_checked": 5102,
+      "resource_transfers_executed": 0,
+      "resource_transfers_reused": 0,
+      "retained_candidate_queries": 5101,
+      "product_admission_functions_checked": 5105,
+      "product_function_queries_executed": 5105,
+      "product_function_queries_reused": 0,
+      "product_global_obligations_executed": 1,
+      "product_global_obligations_reused": 0,
+      "product_plan_rows_replaced": 0,
+      "product_semantic_functions_compared": 0,
+      "product_relocated_function_bindings": 0
+    },
+    "function_cache_decoding": {
+      "decode_attempts": 5101,
+      "decoded_functions": 5101,
+      "reused_decoded_functions": 0,
+      "relabeled_decoded_functions": 0
+    },
+    "raw": "out/runs/cache-restart-direct-edit-diagnostic-01/diagnostic/5105/block-00/requests/003-private-001/candidate"
+  },
+  "goal_read_sha": "c8a705e98b0605f53c46d5c88b51ea5e55e78e63",
+  "status": "8f measured; direct-restart edit followup chain implementing, no broad superiority claim",
+  "previous_record": "https://github.com/zil-lang/zil/blob/c8a705e98b0605f53c46d5c88b51ea5e55e78e63/records/compiler-incremental-demand-continuation.json",
   "goal_archive_never_merge_main": true
 }
