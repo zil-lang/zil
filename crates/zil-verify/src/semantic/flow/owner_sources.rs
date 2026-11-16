@@ -110,7 +110,7 @@ impl CheckedContext{
             },
         }
     }
-    pub(super) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+    pub(in crate::semantic::flow) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
         let definition=self.definition(module,caller.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("address source occurrence has no complete original body"));};
         let program=module.semantic.as_ref().ok_or_else(||bad("address source occurrence programme is absent"))?;
