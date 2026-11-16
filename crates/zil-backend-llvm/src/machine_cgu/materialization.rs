@@ -23,6 +23,9 @@ pub(crate) struct Materialization {
     layout: Arc<layout::Layout>,
     graph: Option<Arc<layout::CurrentGraph>>,
     grouping: Option<Arc<layout::Grouping>>,
+    // Only the production path that rendered these exact layout roles sets
+    // this association. Raw test/candidate recipes cannot lend role slots.
+    completed_roles: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct UnitInputs {
@@ -34,6 +37,8 @@ pub(super) struct Reuse<'a> {
     previous: &'a Materialization,
     reused_items: std::cell::Cell<usize>,
     same: Vec<bool>,
+    source_indices: Vec<Option<usize>>,
+    unit_indices: Vec<Option<usize>>,
     changed_names: Vec<BTreeSet<String>>,
 }
 impl Materialization {
@@ -107,6 +112,7 @@ impl Materialization {
             layout: Arc::new(layout.clone()),
             graph: None,
             grouping: None,
+            completed_roles: false,
         }
     }
     pub(super) fn with_graph(
@@ -125,6 +131,46 @@ impl Materialization {
     pub(super) fn graph(&self) -> Option<&layout::CurrentGraph> {
         self.graph.as_deref()
     }
+    pub(super) fn completed_with_graph(
+        source: Module,
+        layout: &layout::Layout,
+        units: &[Module],
+        reused_items: usize,
+        graph: layout::CurrentGraph,
+        grouping: Option<layout::Grouping>,
+    ) -> Self {
+        let mut product = Self::with_graph(source, layout, units, reused_items, graph, grouping);
+        product.completed_roles = true;
+        product
+    }
+    pub(super) fn has_completed_roles(&self) -> bool {
+        self.completed_roles
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn adapt_layout(
+        &self,
+        current: &Module,
+        lir: &zil_ir::LirView<'_>,
+        entry: crate::EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        graph: &layout::CurrentGraph,
+        grouping: &layout::Grouping,
+    ) -> Option<Option<layout::Layout>> {
+        if !self.completed_roles || !self.grouping.as_ref()?.same_source_environment(grouping) {
+            return None;
+        }
+        Some(self.layout.adapt_classes(
+            &self.source,
+            self.graph()?,
+            current,
+            lir,
+            entry,
+            count,
+            classes,
+            graph,
+        ))
+    }
     pub(super) fn layout_for(&self, grouping: &layout::Grouping) -> Option<&layout::Layout> {
         (self.grouping.as_deref() == Some(grouping)).then_some(self.layout.as_ref())
     }
@@ -133,22 +179,43 @@ impl Materialization {
         current: &Module,
         layout: &layout::Layout,
     ) -> Option<Reuse<'a>> {
-        if self.source.triple != current.triple || self.inputs.len() != layout.units.len() {
+        if self.source.triple != current.triple {
             return None;
         }
+        let mut old_names = BTreeMap::new();
+        for (index, item) in self.source.items.iter().enumerate() {
+            if old_names.insert(item_key(item), index).is_some() {
+                return None;
+            }
+        }
+        let source_indices = current
+            .items
+            .iter()
+            .map(|item| old_names.get(&item_key(item)).copied())
+            .collect::<Vec<_>>();
+        let unit_indices = layout
+            .units
+            .iter()
+            .map(|unit| self.inputs.iter().position(|old| old.owner == unit.owner))
+            .collect::<Vec<_>>();
         // Full values authorize raw item reuse; position and hashes alone do not.
         let same = current
             .items
             .iter()
             .enumerate()
-            .map(|(index, item)| self.source.items.get(index) == Some(item))
+            .map(|(index, item)| {
+                source_indices[index].is_some_and(|old| self.source.items.get(old) == Some(item))
+            })
             .collect();
         let changed_names = layout
             .units
             .iter()
-            .zip(&self.inputs)
-            .map(|(unit, old)| {
+            .enumerate()
+            .map(|(index, unit)| {
                 let names = import_names(current, unit);
+                let Some(old) = unit_indices[index].and_then(|index| self.inputs.get(index)) else {
+                    return names.into_keys().collect();
+                };
                 names
                     .keys()
                     .chain(old.names.keys())
@@ -161,6 +228,8 @@ impl Materialization {
             previous: self,
             reused_items: std::cell::Cell::new(0),
             same,
+            source_indices,
+            unit_indices,
             changed_names,
         })
     }
@@ -170,7 +239,22 @@ impl Reuse<'_> {
         self.reused_items.get()
     }
     pub(super) fn unit(&self, index: usize, unit: &layout::Unit) -> Option<Module> {
-        if self.previous.layout.units.get(index)? != unit
+        let prior = self.unit_indices.get(index).copied().flatten()?;
+        let old = self.previous.layout.units.get(prior)?;
+        if old.owner != unit.owner
+            || [
+                (&unit.prelude, &old.prelude),
+                (&unit.declarations, &old.declarations),
+                (&unit.imports, &old.imports),
+                (&unit.definitions, &old.definitions),
+            ]
+            .iter()
+            .any(|(current, old)| {
+                current.len() != old.len()
+                    || current.iter().zip(old.iter()).any(|(&current, &old)| {
+                        self.source_indices.get(current) != Some(&Some(old))
+                    })
+            })
             || !unit
                 .prelude
                 .iter()
@@ -183,7 +267,7 @@ impl Reuse<'_> {
         }
         // Every source value and every role/name binding is equal. Retain the
         // actual raw unit owner, including its declarations and import bodies.
-        let module = self.previous.units.get(index)?.clone();
+        let module = self.previous.units.get(prior)?.clone();
         self.reused_items
             .set(self.reused_items.get() + module.items.len());
         Some(module)
@@ -192,7 +276,9 @@ impl Reuse<'_> {
         if !self.same.get(index).copied()? {
             return None;
         }
-        let input = self.previous.inputs.get(unit)?;
+        let prior_unit = self.unit_indices.get(unit).copied().flatten()?;
+        let index = self.source_indices.get(index).copied().flatten()?;
+        let input = self.previous.inputs.get(prior_unit)?;
         if input.owner != owner {
             return None;
         }
@@ -217,12 +303,19 @@ impl Reuse<'_> {
         let item = self
             .previous
             .units
-            .get(unit)?
+            .get(prior_unit)?
             .items
             .get(*input.slots.get(&(index, role))?)?
             .clone();
         self.reused_items.set(self.reused_items.get() + 1);
         Some(item)
+    }
+}
+fn item_key(item: &Item) -> (u8, &str) {
+    match item {
+        Item::NamedType(name, _) => (0, name),
+        Item::Function(function) => (1, &function.name),
+        Item::Global(global) => (1, &global.name),
     }
 }
 fn import_names(module: &Module, unit: &layout::Unit) -> BTreeMap<String, String> {

@@ -196,6 +196,8 @@ impl Session {
     pub(in crate::emit) fn begin_machine_request(&mut self) {
         self.hits = 0;
         self.misses = 0;
+        self.reused_body_templates = 0;
+        self.produced_body_templates = 0;
         self.source_projection_traversals = 0;
         self.source_projection_instruction_visits = 0;
         self.source_projection_reuses = 0;

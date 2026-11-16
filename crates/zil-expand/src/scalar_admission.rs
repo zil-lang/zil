@@ -70,10 +70,62 @@ pub(crate) fn statement_shape(statement: &s::Stmt) -> bool {
 }
 
 #[derive(Clone)]
+pub(super) struct Preflight {
+    parsed: ParsedSource,
+    pub(super) nodes: usize,
+    work: usize,
+    depth: usize,
+}
+impl Preflight {
+    pub(super) fn classify(
+        parsed: &ParsedSource,
+        limits: &Limits,
+    ) -> (bool, u64, Option<Arc<Self>>) {
+        if let Some((scalar_nodes, nodes, work)) =
+            generics::Budget::scalar_preflight(&parsed.parsed().module, limits)
+        {
+            return (
+                true,
+                scalar_nodes,
+                Some(Arc::new(Self {
+                    parsed: parsed.clone(),
+                    nodes,
+                    work,
+                    depth: limits.max_call_depth,
+                })),
+            );
+        }
+        // A small work allowance can prevent precomputing Preflight while the
+        // old shape classifier still admits this input. Keep that exact
+        // eligibility/count and let formal Preflight produce its native error.
+        let (eligible, nodes) = super::scalar(&parsed.parsed().module, limits);
+        (eligible, nodes, None)
+    }
+    pub(super) fn replay(&self, parsed: &ParsedSource, budget: &mut generics::Budget<'_>) -> bool {
+        let mut remaining = budget.remaining_limits();
+        // Original-body Budget::item reads only node/work/depth in this closed
+        // side-effect-free domain. Module/source and current imports are checked
+        // separately, in their original positions, by the actual normalizer.
+        if !self.parsed.same_revision(parsed)
+            || remaining.max_call_depth != self.depth
+            || remaining.max_nodes < self.nodes
+            || remaining.max_analysis_steps < self.work
+        {
+            return false;
+        }
+        remaining.max_nodes -= self.nodes;
+        remaining.max_analysis_steps -= self.work;
+        budget.adopt_remaining(&remaining);
+        true
+    }
+}
+
+#[derive(Clone)]
 struct Classified {
     parsed: ParsedSource,
     nodes: u64,
     depth_limit: usize,
+    preflight: Option<Arc<Preflight>>,
 }
 
 #[derive(Clone, Default)]
@@ -107,7 +159,21 @@ impl AdmissionCache {
             && parsed.parsed().fits_limits(limits))
         .then_some(fact.nodes)
     }
-    pub(super) fn remember(&self, parsed: &ParsedSource, limits: &Limits, nodes: u64) {
+    pub(super) fn preflight(&self, parsed: &ParsedSource) -> Option<Arc<Preflight>> {
+        let state = self.lock();
+        let fact = state.modules.get(&parsed.source().module_id)?;
+        fact.parsed
+            .same_revision(parsed)
+            .then(|| fact.preflight.clone())
+            .flatten()
+    }
+    pub(super) fn remember(
+        &self,
+        parsed: &ParsedSource,
+        limits: &Limits,
+        nodes: u64,
+        preflight: Option<Arc<Preflight>>,
+    ) {
         let mut state = self.lock();
         if let Some(old) = state.modules.remove(&parsed.source().module_id) {
             state.retained_bytes -= retained_bytes(&old.parsed);
@@ -130,6 +196,7 @@ impl AdmissionCache {
                 parsed: parsed.clone(),
                 nodes,
                 depth_limit: limits.max_call_depth,
+                preflight,
             },
         );
     }

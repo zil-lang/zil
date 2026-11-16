@@ -128,6 +128,8 @@ fn fused_scalar_chain_executes_less_work_and_preserves_full_outputs_and_maps() {
     let cold = run(&mut session, &inputs, &imports, &aliases, &limits).unwrap();
     assert_eq!(cold, raw(&inputs, &imports, &limits).unwrap());
     assert_eq!(session.last_stats().admission_classifier_hits, 2);
+    assert_eq!(session.last_stats().classification_preflight_reuses, 2);
+    assert!(session.last_stats().classification_preflight_nodes > 0);
     assert_eq!(
         session.last_stats().classifier_nodes,
         0,
@@ -181,6 +183,105 @@ fn fused_scalar_chain_executes_less_work_and_preserves_full_outputs_and_maps() {
         cold
     );
     assert_eq!(session.last_stats().fused_distributed_items, 3);
+}
+
+#[test]
+fn original_scalar_classification_counts_and_preflight_fees_remain_distinct() {
+    let limits = Limits::default();
+    for text in [
+        "import a.b as dep; #[test] fn f(x:i32)->i32{return dep.f(dep.f(x+1));}",
+        "extern \"C\" fn get()->i32; fn f(x:(i32))->i32{let _=x;let y:i32=x+1;if y<8{return y;}else{return -x;}}",
+        "fn f(x:i32)->i32{while x<0{if x<1{break;}else{continue;}}loop{unsafe{return x;}}}",
+        "fn f(x:i32)->i32=>x |> f();",
+    ] {
+        let input = parsed(0, text);
+        let expected = scalar(&input.parsed().module, &limits);
+        let (eligible, nodes, proof) = scalar_admission::Preflight::classify(&input, &limits);
+        assert_eq!((eligible, nodes), expected, "{text}");
+        assert!(eligible && proof.is_some(), "{text}");
+        let proof = proof.unwrap();
+        for depth in 0..20 {
+            let current = Limits {
+                max_call_depth: depth,
+                ..limits.clone()
+            };
+            let (eligible, nodes, _) = scalar_admission::Preflight::classify(&input, &current);
+            assert_eq!(
+                (eligible, nodes),
+                scalar(&input.parsed().module, &current),
+                "depth={depth}: {text}"
+            );
+        }
+        for maximum in [
+            0,
+            1,
+            expected.1.saturating_sub(1) as usize,
+            expected.1 as usize,
+        ] {
+            let current = Limits {
+                max_nodes: maximum,
+                max_analysis_steps: 0,
+                ..limits.clone()
+            };
+            let (eligible, nodes, _) = scalar_admission::Preflight::classify(&input, &current);
+            assert_eq!(
+                (eligible, nodes),
+                scalar(&input.parsed().module, &current),
+                "nodes={maximum}: {text}"
+            );
+        }
+        let mut original = generics::Budget::new(&limits);
+        for item in &input.parsed().module.items {
+            original.item(item).unwrap();
+        }
+        let mut replayed = generics::Budget::new(&limits);
+        assert!(proof.replay(&input, &mut replayed));
+        assert_eq!(replayed.remaining_limits(), original.remaining_limits());
+        let remaining = original.remaining_limits();
+        for nodes_limit in [false, true] {
+            let exact = Limits {
+                max_nodes: if nodes_limit {
+                    limits.max_nodes - remaining.max_nodes
+                } else {
+                    limits.max_nodes
+                },
+                max_analysis_steps: if nodes_limit {
+                    limits.max_analysis_steps
+                } else {
+                    limits.max_analysis_steps - remaining.max_analysis_steps
+                },
+                ..limits.clone()
+            };
+            let mut exact_budget = generics::Budget::new(&exact);
+            assert!(proof.replay(&input, &mut exact_budget));
+            let mut low = exact.clone();
+            if nodes_limit {
+                low.max_nodes -= 1;
+            } else {
+                low.max_analysis_steps -= 1;
+            }
+            let mut low_budget = generics::Budget::new(&low);
+            assert!(!proof.replay(&input, &mut low_budget));
+            assert_eq!(
+                low_budget.remaining_limits(),
+                low,
+                "failed replay does not spend/reset the native visit"
+            );
+            let native = input
+                .parsed()
+                .module
+                .items
+                .iter()
+                .try_for_each(|item| low_budget.item(item));
+            assert!(native.is_err());
+            let (eligible, nodes, _) = scalar_admission::Preflight::classify(&input, &low);
+            assert_eq!((eligible, nodes), scalar(&input.parsed().module, &low));
+        }
+        let other = parsed(0, text);
+        let mut untouched = generics::Budget::new(&limits);
+        assert!(!proof.replay(&other, &mut untouched));
+        assert_eq!(untouched.remaining_limits(), limits);
+    }
 }
 
 #[test]

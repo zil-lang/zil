@@ -15,6 +15,9 @@ use zil_verify::{VerifiedModule, verify_module};
 
 use crate::*;
 
+#[path = "emission_templates_tests.rs"]
+mod emission_templates_tests;
+
 // The independent Verify fixture also exports its own negative controls.
 #[allow(dead_code)]
 #[path = "../../zil-verify/tests/support/foreign_scoped.rs"]

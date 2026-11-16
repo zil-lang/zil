@@ -44,10 +44,17 @@ impl CurrentGraph {
         let mut remaining = budget.checked_sub(module.items.len())?;
         let mut rows = Vec::with_capacity(module.items.len());
         for (index, item) in module.items.iter().enumerate() {
-            if let Some(old) = previous
-                .filter(|old| old.source.items.get(index) == Some(item))
-                .and_then(|old| old.rows.get(index))
-            {
+            if let Some(old) = previous.and_then(|old| {
+                let prior = match item {
+                    Item::Function(f) => *old.bound.names.get(&f.name)?,
+                    Item::Global(g) => *old.bound.names.get(&g.name)?,
+                    Item::NamedType(..) => index,
+                };
+                if old.source.items.get(prior) != Some(item) {
+                    return None;
+                }
+                old.rows.get(prior)
+            }) {
                 remaining = remaining.checked_sub(old.work)?;
                 rows.push(old.clone());
                 #[cfg(test)]
@@ -143,6 +150,25 @@ struct SourceGrouping {
     calls: Vec<(usize, usize, zil_ir::FunctionId)>,
 }
 impl Grouping {
+    pub(super) fn same_source_environment(&self, current: &Self) -> bool {
+        self.target == current.target
+            && self.schema == current.schema
+            && self.module == current.module
+            && self.triple == current.triple
+            && self.entry == current.entry
+            && self.count == current.count
+            && self.source == current.source
+            && self
+                .items
+                .iter()
+                .filter(|(_, _, class)| !*class)
+                .map(|(item, _, _)| item)
+                .eq(current
+                    .items
+                    .iter()
+                    .filter(|(_, _, class)| !*class)
+                    .map(|(item, _, _)| item))
+    }
     pub(super) fn read(
         module: &Module,
         lir: &LirView<'_>,
@@ -242,6 +268,253 @@ pub(super) struct Layout {
 }
 
 impl Layout {
+    /// Adapt a completed raw work product to the current class inventory. The
+    /// source environment was compared in full by Materialization; owners use
+    /// the very same current grouping routine as the original planner.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn adapt_classes(
+        &self,
+        old_source: &Module,
+        old_graph: &CurrentGraph,
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+    ) -> Option<Self> {
+        if !old_graph.matches(old_source)
+            || !observed.matches(module)
+            || !(2..=MAX_UNITS).contains(&count)
+        {
+            return None;
+        }
+        let graph = &observed.bound;
+        let defs = module
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                if !definition(item) {
+                    return None;
+                }
+                let name = match item {
+                    Item::Function(function) => &function.name,
+                    Item::Global(global) => &global.name,
+                    Item::NamedType(..) => return None,
+                };
+                Some(super::Definition {
+                    name: name.clone(),
+                    index,
+                    local: local(item),
+                    refs: std::borrow::Cow::Borrowed(observed.references(index)),
+                    calls: std::borrow::Cow::Borrowed(observed.direct_calls(index)),
+                })
+            })
+            .collect::<Vec<_>>();
+        let names = defs
+            .iter()
+            .enumerate()
+            .map(|(id, definition)| (definition.name.as_str(), id))
+            .collect::<BTreeMap<_, _>>();
+        let assigned =
+            super::definition_owners(module, lir, entry, count, true, true, &defs, &names).ok()?;
+        let mut owners = vec![usize::MAX; module.items.len()];
+        let mut members = BTreeMap::<usize, Vec<usize>>::new();
+        for (definition, owner) in defs.iter().zip(assigned) {
+            owners[definition.index] = owner;
+            members.entry(owner).or_default().push(definition.index);
+        }
+        if members.len() < 2 {
+            return None;
+        }
+        let mut old_owners = vec![usize::MAX; old_source.items.len()];
+        for unit in &self.units {
+            for &index in &unit.definitions {
+                *old_owners.get_mut(index)? = unit.owner;
+            }
+        }
+        let named = module
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                if let Item::NamedType(name, _) = item {
+                    Some((name.as_str(), index))
+                } else {
+                    None
+                }
+            })
+            .collect::<BTreeMap<_, _>>();
+        let remap = old_source
+            .items
+            .iter()
+            .map(|item| match item {
+                Item::NamedType(name, _) => named.get(name.as_str()).copied(),
+                Item::Function(function) => graph.names.get(&function.name).copied(),
+                Item::Global(global) => graph.names.get(&global.name).copied(),
+            })
+            .collect::<Vec<_>>();
+        let map_indices = |indices: &[usize]| -> Option<Vec<usize>> {
+            let mut mapped = indices
+                .iter()
+                .map(|&index| remap.get(index).copied().flatten())
+                .collect::<Option<Vec<_>>>()?;
+            mapped.sort_unstable();
+            if mapped.windows(2).any(|pair| pair[0] == pair[1]) {
+                return None;
+            }
+            Some(mapped)
+        };
+        let mut importable = vec![false; module.items.len()];
+        for function in lir
+            .functions
+            .iter()
+            .filter(|function| function.foreign.is_none())
+        {
+            let name = super::source_name(&graph.names, function.id);
+            importable[*graph.names.get(&name)?] = true;
+        }
+        for name in classes {
+            importable[*graph.names.get(name)?] = true;
+        }
+        let mut remaining = graph.remaining;
+        let mut units = Vec::with_capacity(members.len());
+        let mut seen = vec![0usize; module.items.len()];
+        let mut imported = vec![0usize; module.items.len()];
+        let mut referenced = vec![0usize; module.items.len()];
+        let mut pending = Vec::new();
+        for (owner, definitions) in members {
+            let mut exhausted = false;
+            let retained = self
+                .units
+                .iter()
+                .find(|unit| unit.owner == owner)
+                .and_then(|old| {
+                    let unit = Unit {
+                        owner,
+                        definitions: map_indices(&old.definitions)?,
+                        imports: map_indices(&old.imports)?,
+                        prelude: map_indices(&old.prelude)?,
+                        declarations: map_indices(&old.declarations)?,
+                    };
+                    if unit.definitions != definitions {
+                        return None;
+                    }
+                    // A body-only change preserves roles; a changed edge, removed
+                    // symbol or moved callee owner rebuilds this unit's closure.
+                    for &index in old.definitions.iter().chain(&old.imports) {
+                        remaining = match remaining.checked_sub(1) {
+                            Some(left) => left,
+                            None => {
+                                exhausted = true;
+                                return None;
+                            }
+                        };
+                        let current = remap[index]?;
+                        let before = &old_graph.rows[index];
+                        let after = &observed.rows[current];
+                        if before.references != after.references || before.calls != after.calls {
+                            return None;
+                        }
+                        for &target in &old_graph.bound.reads[index].references {
+                            remaining = match remaining.checked_sub(1) {
+                                Some(left) => left,
+                                None => {
+                                    exhausted = true;
+                                    return None;
+                                }
+                            };
+                            if old_owners[target] != owners[remap[target]?] {
+                                return None;
+                            }
+                        }
+                    }
+                    Some(unit)
+                });
+            if exhausted {
+                return None;
+            }
+            if let Some(unit) = retained {
+                units.push(unit);
+                continue;
+            }
+            let stamp = units.len() + 1;
+            for &index in &definitions {
+                enqueue_calls(
+                    &graph.reads[index].calls,
+                    &owners,
+                    owner,
+                    stamp,
+                    &mut seen,
+                    &mut pending,
+                    &mut remaining,
+                )?;
+            }
+            let mut imports = Vec::new();
+            while let Some(index) = pending.pop() {
+                if !importable[index]
+                    || !matches!(&module.items[index], Item::Function(function)
+                        if function.blocks.is_some() && function.linkage == Linkage::External)
+                    || graph.reads[index]
+                        .references
+                        .iter()
+                        .any(|&target| local(&module.items[target]))
+                {
+                    return None;
+                }
+                imported[index] = stamp;
+                imports.push(index);
+                enqueue_calls(
+                    &graph.reads[index].calls,
+                    &owners,
+                    owner,
+                    stamp,
+                    &mut seen,
+                    &mut pending,
+                    &mut remaining,
+                )?;
+            }
+            imports.sort_unstable();
+            let mut prelude = named.values().copied().collect::<Vec<_>>();
+            let mut declarations = Vec::new();
+            for &index in definitions.iter().chain(&imports) {
+                for &target in &graph.reads[index].references {
+                    remaining = remaining.checked_sub(1)?;
+                    if referenced[target] == stamp {
+                        continue;
+                    }
+                    referenced[target] = stamp;
+                    if owners[target] == usize::MAX {
+                        prelude.push(target);
+                    } else if owners[target] != owner {
+                        if local(&module.items[target]) {
+                            return None;
+                        }
+                        if imported[target] != stamp {
+                            declarations.push(target);
+                        }
+                    }
+                }
+            }
+            prelude.sort_unstable();
+            prelude.dedup();
+            declarations.sort_unstable();
+            units.push(Unit {
+                owner,
+                definitions,
+                imports,
+                prelude,
+                declarations,
+            });
+        }
+        let layout = Self { units };
+        // Recheck the entire result, including untouched units: complete imports,
+        // current class definitions, local state and the ORIGINAL source-only
+        // total copy budget. An adaptation never grants additional allowance.
+        layout.valid_classes_observed(module, lir, entry, count, classes, observed)?;
+        Some(layout)
+    }
     /// Both the original planner and a checked receipt use this exact emitter.
     #[cfg(test)]
     pub(super) fn replay(&self, module: Module) -> Vec<Module> {

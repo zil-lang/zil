@@ -675,7 +675,7 @@ impl Materializer<'_, '_> {
         }
         Ok(bytes as u64)
     }
-    pub(super) fn self_constants(&mut self, module: &mut s::Module) -> CompileResult<()> {
+    pub(super) fn self_constants_needed(&mut self, module: &s::Module) -> CompileResult<bool> {
         // This prepass runs before any item deletion/generation. Its immutable
         // input and all Source ordinals remain fixed until every job completes.
         self.reject_external_self_defaults(module)?;
@@ -703,7 +703,10 @@ impl Materializer<'_, '_> {
                 }
             }
         }
-        if !found {
+        Ok(found)
+    }
+    pub(super) fn self_constants(&mut self, module: &mut s::Module) -> CompileResult<()> {
+        if !self.self_constants_needed(module)? {
             return Ok(());
         }
         self.environment

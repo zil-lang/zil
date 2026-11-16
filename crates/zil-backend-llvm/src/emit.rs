@@ -26,6 +26,7 @@ mod registration;
 mod replacements;
 mod resource_closures;
 mod resources;
+mod scalar_bodies;
 mod scalar_leaf;
 mod scalar_locals;
 mod scalar_summaries;
@@ -360,55 +361,75 @@ pub(crate) fn lower_output_with_session(
         (prepared && (jobs == 1 || session.eligible)).then_some(session)
     });
     let batches = if let Some(session) = session.as_deref_mut() {
+        // Equal current scalar CFGs need one producer execution, even on the
+        // first request after process restart. This cache cannot outlive this
+        // invocation or authorize any source, verification or native-cache hit.
+        let mut scalar_bodies = scalar_bodies::Cache::default();
         let mut batches = Vec::with_capacity(lir.functions.len().max(1));
         for function in lir.functions {
+            let share_body = session.admits(function.id)
+                && !verified.task_worker_ids().contains(&function.id)
+                && !verified.is_suspend(function.id)
+                && !verified.is_task_export(function.id)
+                && verified.task_ownership(function.id).is_none()
+                && collected
+                    .as_ref()
+                    .is_none_or(|needed| needed.contains(&function.id))
+                && summaries
+                    .as_ref()
+                    .is_none_or(|facts| !facts.contains_key(&function.id));
+            let reserve_current = || {
+                // Reproduce the original early exits before the common
+                // current reservation consumer. A cached body grants no
+                // budget, task-role or ownership authorization.
+                if function.foreign.is_some()
+                    || collected
+                        .as_ref()
+                        .is_some_and(|needed| !needed.contains(&function.id))
+                    || summaries
+                        .as_ref()
+                        .is_some_and(|facts| facts.contains_key(&function.id))
+                    || (incremental_scalar_policy && scalar_leaf::prepare(function).is_some())
+                {
+                    return Ok(());
+                }
+                reserve_function_emission(
+                    function,
+                    lir,
+                    &closures,
+                    &functions,
+                    verified,
+                    &task_meter,
+                )
+                .map(|_| ())
+            };
             batches.push(session.lower(
                 function,
                 summaries.as_ref(),
                 collected.as_ref(),
+                reserve_current,
                 || {
-                    // Reproduce the original early exits before the common
-                    // current reservation consumer. A cached body grants no
-                    // budget, task-role or ownership authorization.
-                    if function.foreign.is_some()
-                        || collected
-                            .as_ref()
-                            .is_some_and(|needed| !needed.contains(&function.id))
-                        || summaries
-                            .as_ref()
-                            .is_some_and(|facts| facts.contains_key(&function.id))
-                        || (incremental_scalar_policy && scalar_leaf::prepare(function).is_some())
-                    {
-                        return Ok(());
-                    }
-                    reserve_function_emission(
-                        function,
-                        lir,
-                        &closures,
-                        &functions,
-                        verified,
-                        &task_meter,
-                    )
-                    .map(|_| ())
-                },
-                || {
-                    lower_function_batch(
-                        std::slice::from_ref(function).iter(),
-                        lir,
-                        options,
-                        incremental_scalar_policy,
-                        &functions,
-                        &closures,
-                        summaries.as_ref(),
-                        collected.as_ref(),
-                        None,
-                        &copy_plans,
-                        verified,
-                        &task_meter,
-                    )
+                    scalar_bodies.lower(function, share_body, reserve_current, || {
+                        lower_function_batch(
+                            std::slice::from_ref(function).iter(),
+                            lir,
+                            options,
+                            incremental_scalar_policy,
+                            &functions,
+                            &closures,
+                            summaries.as_ref(),
+                            collected.as_ref(),
+                            None,
+                            &copy_plans,
+                            verified,
+                            &task_meter,
+                        )
+                    })
                 },
             )?);
         }
+        session.reused_body_templates = scalar_bodies.hits;
+        session.produced_body_templates = scalar_bodies.produced;
         if batches.is_empty() {
             batches.push(FunctionBatch {
                 body: Vec::new().into(),

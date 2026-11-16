@@ -475,8 +475,13 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
                 "source and syntax module identities differ",
             ));
         }
-        for item in &module.items {
-            budget.item(item)?;
+        if !reuse
+            .as_deref_mut()
+            .is_some_and(|reuse| reuse.replay_classification_preflight(module.span, &mut budget))
+        {
+            for item in &module.items {
+                budget.item(item)?;
+            }
         }
         for edge in edges {
             budget.node(edge.span, 0)?;

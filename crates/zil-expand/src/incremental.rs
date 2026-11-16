@@ -279,6 +279,8 @@ macro_rules! statistics {
 // reports consumption of that exact parser-owner fact, not a free new scan.
 statistics!(
     admission_classifier_hits,
+    classification_preflight_reuses,
+    classification_preflight_nodes,
     fused_distributed_items,
     classified_modules,
     rebound_scalar_modules,
@@ -676,6 +678,7 @@ struct Entry {
     scalar: bool,
     scalar_nodes: u64,
     scalar_depth_limit: usize,
+    preflight: Option<Arc<scalar_admission::Preflight>>,
     receipts: Arc<BTreeMap<(Stage, usize), Receipt>>,
     normalized: Arc<BTreeMap<usize, NormalizedCache>>,
     scalar_headers: Arc<BTreeMap<usize, ScalarHeaderOutcome>>,
@@ -734,15 +737,16 @@ impl ExpandSession {
                         && parsed.parsed().fits_limits(limits)
                         && scalar_placement::Placement::between(&entry.parsed, parsed).is_some()))
         }) {
-            self.admission.remember(parsed, limits, entry.scalar_nodes);
+            self.admission
+                .remember(parsed, limits, entry.scalar_nodes, entry.preflight.clone());
             return true;
         }
         if self.admission.classified(parsed, limits).is_some() {
             return true;
         }
-        let (eligible, nodes) = scalar(&syntax.module, limits);
+        let (eligible, nodes, preflight) = scalar_admission::Preflight::classify(parsed, limits);
         if eligible {
-            self.admission.remember(parsed, limits, nodes);
+            self.admission.remember(parsed, limits, nodes, preflight);
         }
         eligible
     }
@@ -848,19 +852,20 @@ impl ExpandSession {
                         scalar_placement::Placement::between(&old.parsed, parsed)
                             .map(|placement| (placement, old.scalar_nodes))
                     });
-                let (scalar, nodes) = if let Some((placement, nodes)) = placement {
+                let (scalar, nodes, preflight) = if let Some((placement, nodes)) = placement {
                     placements.insert(module.id, placement);
                     self.stats.rebound_scalar_modules += 1;
-                    (true, nodes)
+                    (true, nodes, None)
                 } else {
                     if let Some(nodes) = self.admission.classified(parsed, limits) {
                         self.stats.admission_classifier_hits += 1;
-                        (true, nodes)
+                        (true, nodes, self.admission.preflight(parsed))
                     } else {
                         self.stats.classified_modules += 1;
-                        let (scalar, nodes) = scalar(module, limits);
+                        let (scalar, nodes, preflight) =
+                            scalar_admission::Preflight::classify(parsed, limits);
                         self.stats.classifier_nodes += nodes;
-                        (scalar, nodes)
+                        (scalar, nodes, preflight)
                     }
                 };
                 Entry {
@@ -885,6 +890,7 @@ impl ExpandSession {
                     scalar,
                     scalar_nodes: nodes,
                     scalar_depth_limit: limits.max_call_depth,
+                    preflight,
                     receipts: Arc::default(),
                     normalized: Arc::default(),
                     scalar_headers: Arc::default(),
@@ -1679,6 +1685,27 @@ impl Reuse<'_> {
     fn entry(&mut self, file: FileId) -> &mut Entry {
         let id = self.files[&file];
         self.entries.get_mut(&id).expect("sealed module")
+    }
+    pub(crate) fn replay_classification_preflight(
+        &mut self,
+        span: Span,
+        budget: &mut generics::Budget<'_>,
+    ) -> bool {
+        let clock = self.clock();
+        let entry = self.entry(span.file);
+        let nodes = entry
+            .preflight
+            .as_ref()
+            .filter(|proof| proof.replay(&entry.parsed, budget))
+            .map(|proof| proof.nodes);
+        if let Some(nodes) = nodes {
+            self.stats.classification_preflight_reuses += 1;
+            self.stats.classification_preflight_nodes += nodes as u64;
+        }
+        if let Some(start) = clock {
+            self.stats.reuse_ns += nanos(start);
+        }
+        nodes.is_some()
     }
     pub(crate) fn replay(
         &mut self,

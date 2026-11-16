@@ -4,6 +4,9 @@ use super::*;
 use zil_ct::CtExecutionBudget;
 use zil_syntax::ParsedSource;
 
+#[path = "scalar_materialization_readonly.rs"]
+mod readonly;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScalarMaterializationStats {
     pub executed_modules: usize,
@@ -89,6 +92,8 @@ impl ScalarMaterialization {
 pub(crate) struct ScalarMaterializationSession {
     entries: BTreeMap<ModuleId, Arc<Entry>>,
     stats: ScalarMaterializationStats,
+    #[cfg(test)]
+    cloned_walk: bool,
 }
 impl ScalarMaterializationSession {
     pub(crate) fn checkpoint(&self) -> Self {
@@ -216,7 +221,12 @@ impl ScalarMaterializationSession {
                 self.stats.receipt_budget_misses += 1;
             }
             self.stats.executed_modules += 1;
-            self.stats.cloned_modules += 1;
+            #[cfg(test)]
+            let execute_module = if self.cloned_walk {
+                execute_module_cloned
+            } else {
+                execute_module
+            };
             let receipt = execute_module(&mut materializer, module)?;
             let Some(receipt) = receipt else {
                 return Ok(None);
@@ -265,12 +275,16 @@ fn execute_module(
     materializer: &mut Materializer<'_, '_>,
     original: &s::Module,
 ) -> CompileResult<Option<Receipt>> {
-    let starting_live_bytes = materializer.environment.budget.live_temporary_bytes();
-    let mut segment = CtExecutionBudget::new(materializer.environment.budget.remaining());
-    segment.reserve_temporary_bytes(starting_live_bytes)?;
-    let prior = std::mem::replace(&mut materializer.environment.budget, segment);
-    let mut output = original.clone();
-    let result: CompileResult<()> = (|| {
+    execute_module_using(materializer, original, readonly::execute)
+}
+
+#[cfg(test)]
+fn execute_module_cloned(
+    materializer: &mut Materializer<'_, '_>,
+    original: &s::Module,
+) -> CompileResult<Option<Receipt>> {
+    execute_module_using(materializer, original, |materializer, original| {
+        let mut output = original.clone();
         materializer.bind_source_items(
             original,
             &output.items,
@@ -279,8 +293,21 @@ fn execute_module(
         materializer.self_constants(&mut output)?;
         materializer.items(output.id, &mut output.items, None, 0, false)?;
         materializer.release_bound_source_sites();
+        assert_eq!(output, *original);
         Ok(())
-    })();
+    })
+}
+
+fn execute_module_using(
+    materializer: &mut Materializer<'_, '_>,
+    original: &s::Module,
+    execute: impl FnOnce(&mut Materializer<'_, '_>, &s::Module) -> CompileResult<()>,
+) -> CompileResult<Option<Receipt>> {
+    let starting_live_bytes = materializer.environment.budget.live_temporary_bytes();
+    let mut segment = CtExecutionBudget::new(materializer.environment.budget.remaining());
+    segment.reserve_temporary_bytes(starting_live_bytes)?;
+    let prior = std::mem::replace(&mut materializer.environment.budget, segment);
+    let result = execute(materializer, original);
     let segment = std::mem::replace(&mut materializer.environment.budget, prior);
     result?;
     let usage = segment.usage();
@@ -299,7 +326,6 @@ fn execute_module(
         peak_live_bytes: usage.peak_temporary_bytes,
         ending_live_bytes: segment.live_temporary_bytes(),
     };
-    debug_assert_eq!(output, *original);
     debug_assert!(receipt.fits(&materializer.environment.budget));
     receipt.replay(&mut materializer.environment.budget)?;
     Ok(Some(receipt))
@@ -552,7 +578,7 @@ mod tests {
         let cold = original.run(&mut session, &limits).unwrap().unwrap();
         let fresh = original.fresh(&limits);
         same_current(&cold, &fresh);
-        assert_eq!(session.last_stats().cloned_modules, 3);
+        assert_eq!(session.last_stats().cloned_modules, 0);
         let warm = original.run(&mut session, &limits).unwrap().unwrap();
         same_current(&warm, &fresh);
         assert_eq!(session.last_stats().reused_modules, 3);
@@ -567,7 +593,7 @@ mod tests {
         let incremental = edited.run(&mut session, &limits).unwrap().unwrap();
         same_current(&incremental, &edited.fresh(&limits));
         assert_eq!(session.last_stats().reused_modules, 2);
-        assert_eq!(session.last_stats().cloned_modules, 1);
+        assert_eq!(session.last_stats().cloned_modules, 0);
         assert_ne!(
             incremental.usage().analysis_work,
             cold.usage().analysis_work
@@ -612,7 +638,7 @@ mod tests {
             if !nodes {
                 assert_eq!(n as u64, success.usage().analysis_work);
                 assert_eq!(session.last_stats().receipt_budget_misses, 1);
-                assert_eq!(session.last_stats().cloned_modules, 1);
+                assert_eq!(session.last_stats().cloned_modules, 0);
             }
             // A node-limit classifier decline is a real fallback; it cannot
             // be called a receipt hit or publish a partial scalar epoch.
@@ -663,7 +689,7 @@ mod tests {
         let actual = fixture.failure(&mut session, &insufficient);
         assert_eq!(actual, expected);
         assert_eq!(session.last_stats().receipt_budget_misses, 1);
-        assert_eq!(session.last_stats().cloned_modules, 1);
+        assert_eq!(session.last_stats().cloned_modules, 0);
         assert!(
             session
                 .entries
@@ -792,12 +818,128 @@ mod tests {
         assert_eq!(fresh.usage(), old.usage());
         assert_eq!(fresh.remaining(), old.remaining());
         assert_eq!(session.last_stats().executed_modules, 3);
-        assert_eq!(session.last_stats().cloned_modules, 3);
+        assert_eq!(session.last_stats().cloned_modules, 0);
         assert_eq!(session.last_stats().reused_modules, 0);
         current
             .run(&mut session, &Limits::default())
             .unwrap()
             .unwrap();
         assert_eq!(session.last_stats().reused_modules, 3);
+    }
+
+    #[test]
+    fn borrowed_scalar_walk_matches_original_outputs_all_six_fees_and_boundaries() {
+        let limits = Limits::default();
+        for body in [
+            "return left.emit(right.emit(2));",
+            "let x:i32=left.emit(1);if x<8{return x;}else if x<9{return 2;}else{return right.emit(3);}",
+            "let x=1;while x<0{if x<1{break;}else{continue;}}loop{unsafe{return left.emit(x);}}",
+            "let _=1;let x=2;x=3;return -(x+right.emit(2));",
+        ] {
+            let fixture = Fixture::new(body);
+            let input = fixture
+                .parsed
+                .iter()
+                .map(|p| p.module.clone())
+                .collect::<Vec<_>>();
+            let mut old = ScalarMaterializationSession {
+                cloned_walk: true,
+                ..Default::default()
+            };
+            let mut borrowed = ScalarMaterializationSession::default();
+            let expected = fixture
+                .run(&mut old, &limits)
+                .unwrap()
+                .expect("old scalar walk");
+            let actual = fixture
+                .run(&mut borrowed, &limits)
+                .unwrap()
+                .expect("borrowed scalar walk");
+            same_current(&actual, &expected);
+            assert_eq!(borrowed.last_stats().executed_modules, 3);
+            assert_eq!(borrowed.last_stats().cloned_modules, 0);
+            assert!(
+                fixture
+                    .parsed
+                    .iter()
+                    .zip(&input)
+                    .all(|(p, original)| p.module == *original)
+            );
+            for domain in 0..4 {
+                let allowance = |amount| {
+                    let mut value = limits.clone();
+                    match domain {
+                        0 => value.max_analysis_steps = amount,
+                        1 => value.max_nodes = amount,
+                        2 => value.max_source_bytes = amount,
+                        _ => value.max_call_depth = amount,
+                    }
+                    value
+                };
+                let maximum = match domain {
+                    0 => limits.max_analysis_steps,
+                    1 => limits.max_nodes,
+                    2 => limits.max_source_bytes,
+                    _ => limits.max_call_depth,
+                };
+                let n = fixture.boundary(maximum, allowance);
+                let exact = allowance(n);
+                let expected = fixture
+                    .run(
+                        &mut ScalarMaterializationSession {
+                            cloned_walk: true,
+                            ..Default::default()
+                        },
+                        &exact,
+                    )
+                    .unwrap()
+                    .unwrap();
+                let actual = fixture.run(&mut borrowed, &exact).unwrap().unwrap();
+                same_current(&actual, &expected);
+                let checkpoint = borrowed.checkpoint();
+                let low = allowance(n - 1);
+                let expected = fixture.failure(
+                    &mut ScalarMaterializationSession {
+                        cloned_walk: true,
+                        ..Default::default()
+                    },
+                    &low,
+                );
+                assert_eq!(fixture.failure(&mut borrowed, &low), expected);
+                assert!(
+                    borrowed
+                        .entries
+                        .iter()
+                        .all(|(id, entry)| Arc::ptr_eq(entry, &checkpoint.entries[id]))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rewriting_self_constants_cannot_enter_the_borrowed_scalar_executor() {
+        let limits = Limits::default();
+        let mut fixture = Fixture::new("return left.emit(1)+right.emit(2);");
+        let mut session = ScalarMaterializationSession::default();
+        fixture.run(&mut session, &limits).unwrap().unwrap();
+        let checkpoint = session.checkpoint();
+        let mut source = fixture.sources[1].clone();
+        source.text.push_str(
+            "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=41;}",
+        );
+        let input = ParsedSource::parse(Arc::new(source), &limits, &Default::default());
+        assert!(input.parsed().is_ok());
+        let producer = zil_expand::ExpandSession::default();
+        assert!(!producer.parsed_scalar(&input, &limits));
+        fixture.inputs[1] = input;
+        let fixture = Fixture::from_inputs(fixture.inputs);
+        assert!(fixture.run(&mut session, &limits).unwrap().is_none());
+        assert_eq!(session.last_stats().executed_modules, 0);
+        assert!(
+            session
+                .entries
+                .iter()
+                .all(|(id, entry)| Arc::ptr_eq(entry, &checkpoint.entries[id]))
+        );
     }
 }

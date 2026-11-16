@@ -556,7 +556,7 @@ fn class_disk_restart_replays_current_values_and_restores_materialization() {
     );
     assert_eq!(
         restored.materialization,
-        Some(super::super::Materialization::with_graph(
+        Some(super::super::Materialization::completed_with_graph(
             current.clone(),
             &layout,
             &restored.plan.units,
@@ -857,6 +857,216 @@ fn current_graph_reuse_charges_original_observation_budget() {
     for previous in [None, Some(&graph)] {
         assert!(CurrentGraph::read_bounded(&module, previous, required).is_some());
         assert!(CurrentGraph::read_bounded(&module, previous, required - 1).is_none());
+    }
+}
+
+fn split_class_fixture(value: i128) -> (Module, LirModule, BTreeSet<String>) {
+    let (_, seed, _) = stable_fixture();
+    let mut source = seed.clone();
+    source.functions = (0..24)
+        .map(|id| {
+            let mut function = seed.functions[0].clone();
+            function.id = FunctionId(id);
+            function.name = format!("f{id}");
+            function.span.file = FileId(id % 16);
+            function
+        })
+        .collect();
+    let items = (0..24)
+        .map(|id| {
+            let callee = match id {
+                0 => Some("zil.fn.1"),
+                3 => Some("zil.fn.2"),
+                _ => None,
+            };
+            let mut body = function(&format!("zil.fn.{id}"), callee);
+            if callee.is_none() {
+                let constant = match id {
+                    1 => value,
+                    2 => 7,
+                    _ => id * 4 + 11,
+                };
+                body.blocks.as_mut().unwrap()[0].instructions[0].op =
+                    Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(constant))));
+            }
+            Item::Function(body)
+        })
+        .collect();
+    let mut module = Module {
+        triple: source.target.triple.clone(),
+        fingerprint: format!("split-{value}"),
+        items,
+    };
+    let (_, classes) =
+        crate::machine_call_classes::canonicalize_stable(&mut module, &BTreeSet::new(), &|| false)
+            .unwrap();
+    zil_llvm_api::validate_module(&module).unwrap();
+    (module, source, classes)
+}
+
+#[test]
+fn real_class_split_merge_rebuilds_only_changed_units_after_disk_restart() {
+    let directory = Directory::new();
+    let (original, source, classes) = split_class_fixture(7);
+    let build = |module: Module,
+                 classes: &BTreeSet<String>,
+                 previous: Option<&super::super::Materialization>| {
+        super::super::partition_classes_reusing(
+            module,
+            &source.as_view(),
+            EntryPoint::None,
+            16,
+            classes,
+            Some(&directory.0),
+            previous,
+        )
+        .unwrap()
+    };
+    let cold = build(original.clone(), &classes, None);
+    let original_key = cold.layout_key.clone();
+    cold.pending.unwrap().pin().unwrap().commit();
+    drop(cold.materialization);
+    let restored = build(original.clone(), &classes, None);
+    assert!(restored.reused_layout);
+    assert_eq!(restored.plan.units.len(), 16);
+    let (changed, _, split) = split_class_fixture(19);
+    assert!(split.len() > classes.len());
+    GRAPH_WORK.with(|work| work.set((0, 0)));
+    let edited = build(changed.clone(), &split, restored.materialization.as_ref());
+    assert!(edited.reused_layout);
+    GRAPH_WORK.with(|work| {
+        let (fresh, reused) = work.get();
+        assert!(fresh < changed.items.len() / 2);
+        assert!(reused > changed.items.len() / 2);
+    });
+    assert_ne!(edited.layout_key, original_key);
+    assert_eq!(
+        edited.layout_key.as_deref(),
+        Some(edited.pending.as_ref().unwrap().key().to_hex().as_str())
+    );
+    let fresh = build(changed.clone(), &split, None);
+    assert_eq!(edited.plan.units, fresh.plan.units);
+    let unchanged = edited
+        .plan
+        .units
+        .iter()
+        .filter(|unit| {
+            restored
+                .plan
+                .units
+                .iter()
+                .any(|old| unit.items.ptr_eq(&old.items))
+        })
+        .count();
+    assert!(unchanged > 0 && unchanged < edited.plan.units.len());
+    assert!(edited.materialization.as_ref().unwrap().reused_items > 0);
+    for unit in &edited.plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    // Publication is still a successful-request transaction. Dropping this
+    // pending receipt leaves the restored epoch and the current disk key alone.
+    let changed_key = edited.pending.as_ref().unwrap().key();
+    drop(edited.pending);
+    let current_cache = Cache::new(
+        &directory.0,
+        &changed,
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        true,
+        CallImportPolicy::Complete,
+    )
+    .unwrap()
+    .with_classes(&split);
+    assert_eq!(current_cache.key(), changed_key);
+    assert!(current_cache.read().is_none());
+    let merged = build(original, &classes, edited.materialization.as_ref());
+    assert!(merged.reused_layout);
+    assert_eq!(merged.layout_key, original_key);
+    assert_eq!(merged.plan.units, restored.plan.units);
+}
+
+#[test]
+fn class_adaptation_preserves_source_grouping_and_original_copy_budget() {
+    let (original, source, classes) = split_class_fixture(7);
+    let first = super::super::partition_classes_reusing(
+        original,
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        &classes,
+        None,
+        None,
+    )
+    .unwrap();
+    let (changed, _, split) = split_class_fixture(19);
+    let mut moved = source.clone();
+    moved.functions[4].span.file = FileId(6);
+    let actual = super::super::partition_classes_reusing(
+        changed.clone(),
+        &moved.as_view(),
+        EntryPoint::None,
+        16,
+        &split,
+        None,
+        first.materialization.as_ref(),
+    )
+    .unwrap();
+    let fresh = super::super::partition_classes_reusing(
+        changed,
+        &moved.as_view(),
+        EntryPoint::None,
+        16,
+        &split,
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(!actual.reused_layout);
+    assert_eq!(actual.plan.units, fresh.plan.units);
+
+    let (mut oversized, _, split) = split_class_fixture(7);
+    let target = if let Item::Function(caller) = &oversized.items[0] {
+        super::super::direct_calls(caller).first().unwrap().clone()
+    } else {
+        unreachable!()
+    };
+    let body = oversized
+        .items
+        .iter_mut()
+        .find_map(|item| match item {
+            Item::Function(function) if function.name == target => Some(function),
+            _ => None,
+        })
+        .unwrap();
+    let instructions = &mut body.blocks.as_mut().unwrap()[0].instructions;
+    let last = instructions.pop().unwrap();
+    for index in 0..128 {
+        instructions.push(Inst::new(
+            Some(format!("extra{index}")),
+            Op::Binary {
+                opcode: "add".into(),
+                ty: Ty::Int(32),
+                left: Val::Int(index),
+                right: Val::Int(1),
+            },
+        ));
+    }
+    instructions.push(last);
+    zil_llvm_api::validate_module(&oversized).unwrap();
+    for previous in [first.materialization.as_ref(), None] {
+        assert!(
+            super::super::partition_classes_reusing(
+                oversized.clone(),
+                &source.as_view(),
+                EntryPoint::None,
+                16,
+                &split,
+                None,
+                previous,
+            )
+            .is_none()
+        );
     }
 }
 

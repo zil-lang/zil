@@ -23,6 +23,8 @@ pub(crate) struct Session {
     entries: EntryTable,
     pub(crate) hits: usize,
     pub(crate) misses: usize,
+    pub(crate) reused_body_templates: usize,
+    pub(crate) produced_body_templates: usize,
     pub(crate) source_projection_traversals: usize,
     pub(crate) source_projection_instruction_visits: usize,
     pub(crate) source_projection_reuses: usize,
@@ -215,6 +217,12 @@ fn scalar_abi(id: FunctionId, plans: &large_copy_abi::Plans) -> bool {
 // escaping the dependency proof. Source locations only affect diagnostics;
 // fresh binding/eligibility run before this successful machine-value lookup.
 fn same_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
+    previous.id == current.id && previous.name == current.name && same_body_input(previous, current)
+}
+
+// For request-local call-free scalar production, only the outer defined symbol
+// changes with id/name. Every executable input below remains compared in full.
+pub(super) fn same_body_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
     let TypedFunction {
         storage_life,
         call_kind,
@@ -222,8 +230,8 @@ fn same_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
         callable_return_contract,
         callable_contract,
         protocol_contract,
-        id,
-        name,
+        id: _,
+        name: _,
         foreign,
         environment,
         parameters,
@@ -241,8 +249,6 @@ fn same_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
         && previous.callable_return_contract == *callable_return_contract
         && previous.callable_contract == *callable_contract
         && previous.protocol_contract == *protocol_contract
-        && previous.id == *id
-        && previous.name == *name
         && previous.foreign == *foreign
         && previous.environment == *environment
         && previous.parameters == *parameters
@@ -284,6 +290,9 @@ fn same_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
                 })))
 }
 impl Session {
+    pub(super) fn admits(&self, id: FunctionId) -> bool {
+        self.admitted.contains_key(&id)
+    }
     pub(super) fn prepare(
         &mut self,
         lir: &LirView<'_>,

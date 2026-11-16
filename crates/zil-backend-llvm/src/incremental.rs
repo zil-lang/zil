@@ -35,6 +35,9 @@ pub struct BackendSessionSummary {
     pub whole_machine_input_functions_compared: usize,
     pub lowered_functions: usize,
     pub reused_functions: usize,
+    /// Same-request equal scalar CFGs share one successful producer execution.
+    pub reused_body_templates: usize,
+    pub produced_body_templates: usize,
     pub reused_partition: bool,
     pub reused_partition_recipe: bool,
     pub reused_partition_units: usize,

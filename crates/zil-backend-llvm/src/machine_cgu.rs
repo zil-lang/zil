@@ -39,12 +39,12 @@ pub(crate) struct Plan {
     pub units: Vec<Module>,
     pub fallback: Option<&'static str>,
 }
-struct Definition {
+struct Definition<'a> {
     name: String,
     index: usize,
     local: bool,
-    refs: BTreeSet<String>,
-    calls: BTreeSet<String>,
+    refs: std::borrow::Cow<'a, BTreeSet<String>>,
+    calls: std::borrow::Cow<'a, BTreeSet<String>>,
 }
 
 // Resolve the actual current generated ABI, including its explicit version.
@@ -67,7 +67,7 @@ fn source_name<K: std::borrow::Borrow<str> + Ord>(
 fn small_caller_components(
     module: &Module,
     lir: &LirView<'_>,
-    defs: &[Definition],
+    defs: &[Definition<'_>],
     names: &BTreeMap<&str, usize>,
     roots: &[usize],
     entry: Option<usize>,
@@ -131,7 +131,7 @@ fn small_caller_components(
         if selected_count > 256 || selected_cost > 4096 {
             return None;
         }
-        for callee in &definition.calls {
+        for callee in definition.calls.iter() {
             remaining = remaining.checked_sub(1)?;
             if let Some(&callee) = names.get(callee.as_str())
                 && !selected.contains(&roots[callee])
@@ -143,6 +143,120 @@ fn small_caller_components(
         }
     }
     (selected_cost.checked_mul(16)? <= total_cost).then_some(selected)
+}
+
+// Shared by the full planner and class-inventory adaptation. Preserve the
+// original source chunks, local-state components and small-caller policy.
+#[allow(clippy::too_many_arguments)]
+fn definition_owners(
+    module: &Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    import_complete_call_closures: bool,
+    defs: &[Definition<'_>],
+    names: &BTreeMap<&str, usize>,
+) -> Result<Vec<usize>, &'static str> {
+    let mut sets = Sets((0..defs.len()).collect());
+    // File boundaries are not linkage boundaries. Fixed-size O0 chunks make
+    // body-only edits local without moving unaffected chunks as the body grows.
+    // The explicit O2 strategy also copies complete call implementations below.
+    const FUNCTIONS_PER_CHUNK: usize = 256;
+    let mut ordinals = BTreeMap::<FileId, usize>::new();
+    let mut source_ids = Vec::new();
+    let mut entry_id = None;
+    for function in lir.functions {
+        if function.foreign.is_some() {
+            continue;
+        }
+        let name = source_name(names, function.id);
+        let Some(&id) = names.get(name.as_str()) else {
+            return Err("source grouping missing machine definition");
+        };
+        let ordinal = ordinals.entry(function.span.file).or_default();
+        let chunk = if split_large_files {
+            *ordinal / FUNCTIONS_PER_CHUNK
+        } else {
+            0
+        };
+        *ordinal += 1;
+        source_ids.push(((function.span.file.0, chunk), id));
+        let selected = match entry {
+            EntryPoint::Main => function.name == "main",
+            EntryPoint::ReturnValue(wanted) | EntryPoint::Test(wanted) => function.id == wanted,
+            EntryPoint::None => false,
+        };
+        if selected {
+            entry_id = Some(id);
+            if let Some(&wrapper) = names.get("main") {
+                sets.join(id, wrapper);
+            }
+        }
+    }
+    if let (Some(&main), Some(&pe)) = (names.get("main"), names.get("zil.pe.entry")) {
+        sets.join(main, pe);
+    }
+    for (id, d) in defs.iter().enumerate() {
+        for name in d.refs.iter() {
+            if let Some(&target) = names.get(name.as_str())
+                && defs[target].local
+            {
+                sets.join(id, target);
+            }
+        }
+    }
+    // Determine mandatory local-state components before optional source chunk
+    // grouping. A component belongs wholly to the caller group or wholly outside.
+    let local_roots = (0..defs.len()).map(|id| sets.root(id)).collect::<Vec<_>>();
+    let caller_components = if split_large_files && import_complete_call_closures {
+        entry_id.and_then(|entry| {
+            small_caller_components(module, lir, defs, names, &local_roots, Some(entry))
+        })
+    } else {
+        None
+    };
+    let mut files = BTreeMap::new();
+    for &(group, id) in &source_ids {
+        if let Some(&first) = files.get(&group) {
+            sets.join(first, id);
+        } else {
+            files.insert(group, id);
+        }
+    }
+    let roots = (0..defs.len()).map(|id| sets.root(id)).collect::<Vec<_>>();
+    let mut source_keys = BTreeMap::<usize, (u32, usize)>::new();
+    for (file, id) in source_ids {
+        source_keys
+            .entry(roots[id])
+            .and_modify(|key| *key = (*key).min(file))
+            .or_insert(file);
+    }
+    let mut buckets = BTreeMap::new();
+    for (id, d) in defs.iter().enumerate() {
+        buckets.entry(roots[id]).or_insert_with(|| {
+            source_keys.get(&roots[id]).map_or_else(
+                || {
+                    let hash = Fingerprint::of(d.name.as_bytes()).0;
+                    u64::from_le_bytes(hash[..8].try_into().expect("eight bytes")) as usize % count
+                },
+                |(file, chunk)| (*file as usize % count + chunk % count) % count,
+            )
+        });
+    }
+    let mut owners = roots.iter().map(|r| buckets[r]).collect::<Vec<_>>();
+    if let (Some(callers), Some(entry)) = (caller_components, entry_id) {
+        let entry_owner = owners[entry];
+        // Keep every ordinary definition's original owner, including chunks
+        // joined indirectly by local state. Only the small caller components
+        // move, together, to the existing entry bucket; no bucket is reserved.
+        for (id, owner) in owners.iter_mut().enumerate() {
+            if callers.contains(&local_roots[id]) {
+                *owner = entry_owner;
+            }
+        }
+    }
+    Ok(owners)
 }
 
 #[cfg(test)]
@@ -271,6 +385,7 @@ pub(crate) fn partition_classes_reusing(
     cache_root: Option<&std::path::Path>,
     previous: Option<&Materialization>,
 ) -> Option<ClassPartition> {
+    let previous = previous.filter(|previous| previous.has_completed_roles());
     let observed = layout::CurrentGraph::read(&module, previous.and_then(Materialization::graph));
     let grouping = observed
         .as_ref()
@@ -303,9 +418,21 @@ pub(crate) fn partition_classes_reusing(
             })
         })
         .cloned();
+    let adapted = if candidate.is_none() {
+        previous
+            .zip(observed.as_ref())
+            .zip(grouping.as_ref())
+            .and_then(|((previous, observed), grouping)| {
+                previous.adapt_layout(&module, lir, entry, count, classes, observed, grouping)
+            })
+    } else {
+        None
+    };
+    let attempted = candidate.is_some() || adapted.is_some();
+    let retained = retained.or(adapted.flatten());
     // Refusing a retained recipe also refuses its role-to-slot associations.
     // They cannot supply items to the fallback planner after admission failed.
-    let previous = previous.filter(|_| candidate.is_none() || retained.is_some());
+    let previous = previous.filter(|_| !attempted || retained.is_some());
     let retained_layout = retained.is_some();
     let selected = retained.or_else(|| {
         cache
@@ -320,7 +447,7 @@ pub(crate) fn partition_classes_reusing(
     {
         let source = module.clone();
         let (units, reused) = cached.replay_reusing_counted(module, previous);
-        let materialization = Materialization::with_graph(
+        let materialization = Materialization::completed_with_graph(
             source,
             &cached,
             &units,
@@ -381,7 +508,14 @@ pub(crate) fn partition_classes_reusing(
     let layout_key = pending.as_ref().map(|pending| pending.key().to_hex());
     let materialization = layout.as_ref().map(|layout| {
         if let Some(observed) = observed {
-            Materialization::with_graph(source, layout, &plan.units, reused, observed, grouping)
+            Materialization::completed_with_graph(
+                source,
+                layout,
+                &plan.units,
+                reused,
+                observed,
+                grouping,
+            )
         } else {
             Materialization::new(source, layout, &plan.units, reused)
         }
@@ -638,15 +772,17 @@ fn partition_view_once_observed(
                 name: f.name.clone(),
                 index,
                 local: f.linkage.is_local(),
-                refs: observed
-                    .map_or_else(|| f.references(), |graph| graph.references(index).clone()),
+                refs: observed.map_or_else(
+                    || std::borrow::Cow::Owned(f.references()),
+                    |graph| std::borrow::Cow::Borrowed(graph.references(index)),
+                ),
                 calls: if import_complete_call_closures {
                     observed.map_or_else(
-                        || direct_calls(f),
-                        |graph| graph.direct_calls(index).clone(),
+                        || std::borrow::Cow::Owned(direct_calls(f)),
+                        |graph| std::borrow::Cow::Borrowed(graph.direct_calls(index)),
                     )
                 } else {
-                    BTreeSet::new()
+                    std::borrow::Cow::Owned(BTreeSet::new())
                 },
             }),
             Item::Global(g) if g.initializer.is_some() => {
@@ -660,8 +796,8 @@ fn partition_view_once_observed(
                     name: g.name.clone(),
                     index,
                     local: g.linkage.is_local(),
-                    refs,
-                    calls: BTreeSet::new(),
+                    refs: std::borrow::Cow::Owned(refs),
+                    calls: std::borrow::Cow::Owned(BTreeSet::new()),
                 });
             }
             _ => prelude.push(index),
@@ -673,104 +809,19 @@ fn partition_view_once_observed(
             return fallback(module, "duplicate machine definition");
         }
     }
-    let mut sets = Sets((0..defs.len()).collect());
-    // File boundaries are not linkage boundaries. Fixed-size O0 chunks make
-    // body-only edits local without moving unaffected chunks as the body grows.
-    // The explicit O2 strategy also copies complete call implementations below.
-    const FUNCTIONS_PER_CHUNK: usize = 256;
-    let mut ordinals = BTreeMap::<FileId, usize>::new();
-    let mut source_ids = Vec::new();
-    let mut entry_id = None;
-    for function in lir.functions {
-        if function.foreign.is_some() {
-            continue;
-        }
-        let name = source_name(&names, function.id);
-        let Some(&id) = names.get(name.as_str()) else {
-            return fallback(module, "source grouping missing machine definition");
-        };
-        let ordinal = ordinals.entry(function.span.file).or_default();
-        let chunk = if split_large_files {
-            *ordinal / FUNCTIONS_PER_CHUNK
-        } else {
-            0
-        };
-        *ordinal += 1;
-        source_ids.push(((function.span.file.0, chunk), id));
-        let selected = match entry {
-            EntryPoint::Main => function.name == "main",
-            EntryPoint::ReturnValue(wanted) | EntryPoint::Test(wanted) => function.id == wanted,
-            EntryPoint::None => false,
-        };
-        if selected {
-            entry_id = Some(id);
-            if let Some(&wrapper) = names.get("main") {
-                sets.join(id, wrapper);
-            }
-        }
-    }
-    if let (Some(&main), Some(&pe)) = (names.get("main"), names.get("zil.pe.entry")) {
-        sets.join(main, pe);
-    }
-    for (id, d) in defs.iter().enumerate() {
-        for name in &d.refs {
-            if let Some(&target) = names.get(name.as_str())
-                && defs[target].local
-            {
-                sets.join(id, target);
-            }
-        }
-    }
-    // Determine mandatory local-state components before optional source chunk
-    // grouping. A component belongs wholly to the caller group or wholly outside.
-    let local_roots = (0..defs.len()).map(|id| sets.root(id)).collect::<Vec<_>>();
-    let caller_components = if split_large_files && import_complete_call_closures {
-        entry_id.and_then(|entry| {
-            small_caller_components(&module, lir, &defs, &names, &local_roots, Some(entry))
-        })
-    } else {
-        None
+    let owners = match definition_owners(
+        &module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        import_complete_call_closures,
+        &defs,
+        &names,
+    ) {
+        Ok(owners) => owners,
+        Err(reason) => return fallback(module, reason),
     };
-    let mut files = BTreeMap::new();
-    for &(group, id) in &source_ids {
-        if let Some(&first) = files.get(&group) {
-            sets.join(first, id);
-        } else {
-            files.insert(group, id);
-        }
-    }
-    let roots = (0..defs.len()).map(|id| sets.root(id)).collect::<Vec<_>>();
-    let mut source_keys = BTreeMap::<usize, (u32, usize)>::new();
-    for (file, id) in source_ids {
-        source_keys
-            .entry(roots[id])
-            .and_modify(|key| *key = (*key).min(file))
-            .or_insert(file);
-    }
-    let mut buckets = BTreeMap::new();
-    for (id, d) in defs.iter().enumerate() {
-        buckets.entry(roots[id]).or_insert_with(|| {
-            source_keys.get(&roots[id]).map_or_else(
-                || {
-                    let hash = Fingerprint::of(d.name.as_bytes()).0;
-                    u64::from_le_bytes(hash[..8].try_into().expect("eight bytes")) as usize % count
-                },
-                |(file, chunk)| (*file as usize % count + chunk % count) % count,
-            )
-        });
-    }
-    let mut owners = roots.iter().map(|r| buckets[r]).collect::<Vec<_>>();
-    if let (Some(callers), Some(entry)) = (caller_components, entry_id) {
-        let entry_owner = owners[entry];
-        // Keep every ordinary definition's original owner, including chunks
-        // joined indirectly by local state. Only the small caller components
-        // move, together, to the existing entry bucket; no bucket is reserved.
-        for (id, owner) in owners.iter_mut().enumerate() {
-            if callers.contains(&local_roots[id]) {
-                *owner = entry_owner;
-            }
-        }
-    }
     let mut members = BTreeMap::<usize, Vec<usize>>::new();
     for (id, &owner) in owners.iter().enumerate() {
         members.entry(owner).or_default().push(id);

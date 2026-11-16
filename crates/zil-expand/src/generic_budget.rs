@@ -24,6 +24,9 @@ pub(crate) struct Budget<'a> {
     shared_enum_addresses: bool,
     task_result_worker: bool,
     static_task_create: bool,
+    scalar_check: bool,
+    scalar_nodes: usize,
+    scalar_depth_bias: usize,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -49,7 +52,75 @@ impl<'a> Budget<'a> {
             shared_enum_addresses: false,
             task_result_worker: false,
             static_task_create: false,
+            scalar_check: false,
+            scalar_nodes: 0,
+            scalar_depth_bias: 0,
         }
+    }
+    /// The real original-body Preflight doubles as closed scalar discovery.
+    /// Rich paths never enable these conservative shape checks. A successful
+    /// result has no feature/context side effects to reproduce at consumption.
+    pub(crate) fn scalar_preflight(
+        module: &Module,
+        limits: &'a Limits,
+    ) -> Option<(u64, usize, usize)> {
+        let mut budget = Self::new(limits);
+        budget.scalar_check = true;
+        for item in &module.items {
+            budget.item(item).ok()?;
+        }
+        if budget.primitive_binders
+            || budget.anonymous_sums
+            || budget.borrowed_keys
+            || budget.type_member_patterns
+            || budget.reference_patterns
+            || budget.generic_methods
+            || budget.dynamic_interfaces
+            || budget.stored_lifetimes
+            || budget.source_identity
+            || budget.shared_enum_addresses
+            || budget.task_result_worker
+            || budget.static_task_create
+            || !budget.enum_profiles.is_empty()
+            || budget.enum_header.is_some()
+            || budget.temporary_bytes.is_some()
+            || budget.lineage_bytes != 0
+        {
+            return None;
+        }
+        Some((
+            budget.scalar_nodes as u64,
+            limits.max_nodes - budget.nodes,
+            limits.max_analysis_steps - budget.work,
+        ))
+    }
+    fn scalar_shape(&self, shape: impl FnOnce() -> bool, span: Span) -> R<()> {
+        if self.scalar_check && !shape() {
+            return Err(Diagnostic::unsupported(
+                Phase::Expand,
+                "closed scalar input",
+                Some(span),
+            ));
+        }
+        Ok(())
+    }
+    // Classification's legacy ct_selection node/depth domain is deliberately
+    // separate from the formal Preflight node/work receipt. Named path parts
+    // and argument wrappers are classification nodes but not Budget::nodes.
+    fn scalar_node(&mut self, span: Span, depth: usize) -> R<()> {
+        if self.scalar_check {
+            self.scalar_nodes += 1;
+            if self.scalar_nodes > self.limits.max_nodes
+                || depth.saturating_add(self.scalar_depth_bias) > self.limits.max_call_depth
+            {
+                return Err(Diagnostic::limit(
+                    Phase::Expand,
+                    "producer inventory budget exceeded",
+                    Some(span),
+                ));
+            }
+        }
+        Ok(())
     }
     pub(crate) fn has_dynamic(&self) -> bool {
         self.dynamic_interfaces
@@ -236,6 +307,7 @@ impl<'a> Budget<'a> {
         self.enum_profiles.contains(&span)
     }
     pub(crate) fn node(&mut self, span: Span, depth: usize) -> R<()> {
+        self.scalar_node(span, depth)?;
         let node_bytes = std::mem::size_of::<Item>()
             .saturating_add(std::mem::size_of::<Expr>())
             .saturating_add(std::mem::size_of::<TypeRef>())
@@ -389,6 +461,15 @@ impl<'a> Budget<'a> {
         substitutions: Option<&BTreeMap<String, TypeRef>>,
         slice_element: bool,
     ) -> R<()> {
+        self.scalar_shape(
+            || {
+                matches!(&ty.kind,
+            TypeKind::Named { path, args } if path.len() == 1 && args.is_empty()
+                && (crate::integer_name(&path[0]) || matches!(path[0].as_str(), "bool" | "void")))
+                    || matches!(ty.kind, TypeKind::Group(_))
+            },
+            ty.span,
+        )?;
         self.node(ty.span, depth)?;
         if let Some(substitutions) = substitutions
             && super::trait_bounds::associated::parts(ty).is_some()
@@ -457,6 +538,7 @@ impl<'a> Budget<'a> {
         match &ty.kind {
             TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
                 for name in path {
+                    self.scalar_node(ty.span, depth + 1)?;
                     self.text(name, ty.span)?;
                 }
                 for arg in args {
@@ -581,6 +663,7 @@ impl<'a> Budget<'a> {
         for a in attrs {
             self.node(a.span, depth)?;
             for s in &a.path {
+                self.scalar_node(a.span, depth + 1)?;
                 self.text(s, a.span)?;
             }
             if let Some(s) = &a.string_value {
@@ -714,6 +797,10 @@ impl<'a> Budget<'a> {
         depth: usize,
         subs: Option<&BTreeMap<String, TypeRef>>,
     ) -> R<()> {
+        self.scalar_shape(
+            || crate::incremental::scalar_admission::item_shape(item),
+            item.span,
+        )?;
         self.node(item.span, depth)?;
         self.attrs(&item.attributes, depth + 1, subs)?;
         match &item.kind {
@@ -797,6 +884,7 @@ impl<'a> Budget<'a> {
             }
             ItemKind::Import(i) => {
                 for s in &i.path {
+                    self.scalar_node(item.span, depth + 1)?;
                     self.text(s, item.span)?;
                 }
                 if let Some(s) = &i.alias {
@@ -936,6 +1024,10 @@ impl<'a> Budget<'a> {
         depth: usize,
         subs: Option<&BTreeMap<String, TypeRef>>,
     ) -> R<()> {
+        self.scalar_shape(
+            || crate::incremental::scalar_admission::statement_shape(s),
+            s.span,
+        )?;
         self.node(s.span, depth)?;
         match &s.kind {
             StmtKind::Binding {
@@ -1014,6 +1106,10 @@ impl<'a> Budget<'a> {
         }
     }
     fn expr(&mut self, e: &Expr, depth: usize, subs: Option<&BTreeMap<String, TypeRef>>) -> R<()> {
+        self.scalar_shape(
+            || crate::incremental::scalar_admission::expression_shape(e),
+            e.span,
+        )?;
         self.node(e.span, depth)?;
         if let ExprKind::Member {
             object,
@@ -1238,7 +1334,11 @@ impl<'a> Budget<'a> {
                 {
                     self.expr(callee, depth + 1, subs)?;
                     for a in arguments {
-                        self.expr(&a.value, depth + 1, subs)?;
+                        self.scalar_node(a.span, depth + 1)?;
+                        self.scalar_depth_bias += usize::from(self.scalar_check);
+                        let result = self.expr(&a.value, depth + 1, subs);
+                        self.scalar_depth_bias -= usize::from(self.scalar_check);
+                        result?;
                     }
                     self.note_static_task_create(e);
                 };
