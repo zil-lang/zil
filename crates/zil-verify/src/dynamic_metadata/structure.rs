@@ -28,6 +28,7 @@ pub(crate) struct Structure{
     recipe_success:BTreeSet<(RecipeKey,Profile)>,
     declaration_success:BTreeSet<(usize,Option<SemanticDefinitionId>,Profile)>,
     resource_success:BTreeMap<(usize,Profile),usize>,
+    store_success:BTreeMap<(usize,bool,bool),Vec<Limits>>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
     type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
@@ -42,7 +43,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
+            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -233,6 +234,40 @@ pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&m
     b.structural.as_mut().unwrap().resource_success.insert(key,index);Ok(())
 }
 
+// Only complete static Store-element admission is retained. This table has
+// no value, owner epoch, address window, cleanup state or Store permission.
+pub(crate) fn store_element_known(module:&TypedModule,ty:&Type,product:bool,b:&mut Budget)->Check<bool>{
+    let Some(state)=&b.structural else{return Ok(false);};
+    if state.module!=module as *const TypedModule as usize{return Ok(false);}
+    let fee=lookup(state.store_success.len());b.spend(fee)?;
+    let state=b.structural.as_ref().unwrap();
+    if let Some(profiles)=state.store_success.get(&(ty as *const Type as usize,product,b.nested_store_windows)){
+        for limits in profiles {b.spend(12)?;if *limits==b.limits{return Ok(true);}}
+    }Ok(false)
+}
+pub(crate) fn store_element_success(module:&TypedModule,ty:&Type,product:bool,b:&mut Budget)->Check<()>{
+    let Some(state)=&b.structural else{return Ok(());};
+    if state.module!=module as *const TypedModule as usize{return Ok(());}
+    let ptr=ty as *const Type as usize;b.spend(lookup(state.types.len()))?;
+    if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
+    // Exclude all late-bound environments and address/κ carriers. Their
+    // qualification still runs in its actual request on every occurrence.
+    let mut pending=vec![ty];
+    while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
+        Type::Managed(inner)|Type::Array{element:inner,..}=>{b.spend(1)?;pending.push(inner);},
+        Type::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields);},
+        Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|(_,ty)|ty));},
+        Type::Enum{variants,..}=>for(_,fields)in variants{b.spend(fields.len().saturating_add(1))?;pending.extend(fields);},
+        Type::ErrorUnion{error,result}=>{b.spend(2)?;pending.push(error);pending.push(result);},
+        Type::ByteBuffer|Type::ForeignHandle|Type::CWideString|Type::SyncCell(_)=>{},
+        ty if ty.is_b0_scalar()=>{},
+        _=>return Ok(()),
+    }}
+    b.spend(lookup(b.structural.as_ref().unwrap().store_success.len()).saturating_add(14))?;
+    let key=(ptr,product,b.nested_store_windows);let limits=b.limits.clone();
+    b.structural.as_mut().unwrap().store_success.entry(key).or_default().push(limits);Ok(())
+}
+
 /// Adopt an already formed immutable physical type. Strong ownership covers
 /// every registered child address until this exact module scope is restored.
 pub(crate) fn adopt_type_cell(cell:&std::rc::Rc<crate::semantic::CheckedTypeData>,b:&mut Budget)->Check<()>{
@@ -288,6 +323,22 @@ mod tests{
     fn budget(module:&TypedModule)->Budget{
         let mut b=Budget::new(&Limits::default());
         b.structural=Some(Structure::register(module,&mut b).unwrap());b
+    }
+    #[test]
+    fn store_element_static_success_keeps_mode_limits_module_and_temporary_separate(){
+        let mut module=fixture();let owner=&mut module.functions[0].locals.last_mut().unwrap().ty;
+        *owner=Type::Package{name:"checked_store_item".into(),fields:vec![("owner".into(),owner.clone()),("data".into(),Type::I32)]};
+        let ty=&module.functions[0].locals.last().unwrap().ty;let mut b=budget(&module);
+        crate::dynamic_store::check_store_element(&module,ty,None,&mut b).unwrap();
+        assert!(store_element_known(&module,ty,true,&mut b).unwrap());
+        assert!(!store_element_known(&module,ty,false,&mut b).unwrap());
+        let temporary=ty.clone();assert!(!store_element_known(&module,&temporary,true,&mut b).unwrap());
+        let other=module.clone();assert!(!store_element_known(&other,ty,true,&mut b).unwrap());
+        b.nested_store_windows=!b.nested_store_windows;assert!(!store_element_known(&module,ty,true,&mut b).unwrap());b.nested_store_windows=!b.nested_store_windows;
+        let limits=b.limits.clone();b.limits.max_nodes=1;assert!(!store_element_known(&module,ty,true,&mut b).unwrap());
+        let actual=crate::dynamic_store::check_store_element(&module,ty,None,&mut b);
+        let expected=crate::dynamic_store::check_store_element(&module,ty,None,&mut Budget::new(&b.limits));assert_eq!(actual,expected);
+        b.limits=limits;assert!(store_element_known(&module,ty,true,&mut b).unwrap());
     }
     #[test]
     fn adopting_source_cells_keeps_every_copied_tree_alive(){

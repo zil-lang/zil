@@ -57,6 +57,7 @@ pub(crate) struct CheckedContext {
     instances: BTreeMap<SemanticInstanceId, usize>,
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
     premises_epoch:Cell<u64>,
+    static_identity:std::rc::Rc<()>,
     closed_frames:RefCell<BTreeMap<(usize,SemanticInstanceId,u64,bool,bool),instances::ClosedFrames>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
@@ -110,6 +111,7 @@ pub(crate) struct ActiveQueries {
     next_token: u64,
 }
 impl ActiveQueries {
+    pub(crate) fn depth(&self)->usize { self.frames.len() }
     pub(crate) fn new() -> Self {
         Self {
             frames: Vec::new(),
@@ -145,6 +147,13 @@ impl ActiveQueries {
 }
 
 impl CheckedContext {
+    pub(crate) fn static_identity(&self)->std::rc::Rc<()>{self.static_identity.clone()}
+    pub(crate) fn same_static_identity(&self,identity:&std::rc::Rc<()>)->bool{std::rc::Rc::ptr_eq(&self.static_identity,identity)}
+    /// A reentrant source-method proof must continue cold.
+    pub(crate) fn completed_original_epoch(&self)->Option<u64>{
+        if self.domain_only.get(){return None;}
+        self.original.try_borrow().ok().and_then(|original|original.as_ref().map(|_|self.premises_epoch.get()))
+    }
     fn invalidate_closed_frames(&self){
         if let Some(next)=self.premises_epoch.get().checked_add(1){self.premises_epoch.set(next);}else{self.closed_frames.borrow_mut().clear();self.premises_epoch.set(0);}
     }
@@ -238,7 +247,7 @@ pub(crate) fn resolved(
     }
 }
 
-fn empty_life() -> StorageLifeShape {
+pub(crate) fn empty_life() -> StorageLifeShape {
     StorageLifeShape { binder_count:0, slots:vec![], retained:vec![], nominal_arguments:vec![] }
 }
 

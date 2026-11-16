@@ -9,6 +9,7 @@ pub(super) struct LocalDomain {
     scope: ScopeKey,
     rows: Vec<(ClassKey, ClassKey, IntrinsicOrigin)>,
 }
+pub(super) fn empty_domain(proofs:&Proofs)->bool{proofs.original_domain.as_ref().is_none_or(|domain|domain.rows.is_empty())}
 impl LocalDomain {
     pub(super) fn new(scope: ScopeKey) -> Self {
         Self {
@@ -1641,6 +1642,8 @@ pub(super) fn query(
     context: &semantic::CheckedContext,
     caller: &EvalEnv,
     request: &ExternalRequest,
+    completed: &mut Vec<(ExternalRequest,ExternalValue)>,
+    collect: bool,
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<ExternalValue> {
@@ -1708,7 +1711,16 @@ pub(super) fn query(
                 member,
             },
         };
-        let value = query_inner(proofs, module, context, caller, &request, active, b)?;
+        let mut members=Vec::new();
+        let value = query_inner(proofs, module, context, caller, &request, &mut members, collect, active, b)?;
+        for(request,value)in members {
+            let value=match value {
+                ExternalValue::Type(value)=>ExternalValue::Type(map_type(proofs,context,caller,&value,wants_local,b)?),
+                ExternalValue::Const{carrier,value}=>ExternalValue::Const{carrier:map_type(proofs,context,caller,&carrier,wants_local,b)?,value},
+                ExternalValue::Proved=>ExternalValue::Proved,
+            };
+            b.spend(1)?;completed.push((request,value));
+        }
         Ok(match value {
             ExternalValue::Type(value) => {
                 ExternalValue::Type(map_type(proofs, context, caller, &value, wants_local, b)?)
@@ -1732,6 +1744,8 @@ fn query_inner(
     context: &semantic::CheckedContext,
     caller: &EvalEnv,
     request: &ExternalRequest,
+    completed: &mut Vec<(ExternalRequest,ExternalValue)>,
+    collect: bool,
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<ExternalValue> {
@@ -1787,7 +1801,7 @@ fn query_inner(
         for (ordinal, member) in trait_decl.members.iter().enumerate() {
             match member.kind {
                 DynMemberKind::Type => {
-                    associated(
+                    let value=associated(
                         proofs,
                         module,
                         context,
@@ -1800,9 +1814,10 @@ fn query_inner(
                         active,
                         b,
                     )?;
+                    if collect {charge_type(receiver,b)?;for actual in &application.arguments{charge_actual(actual,b)?;}b.spend(1)?;completed.push((ExternalRequest::AssociatedType{receiver:receiver.clone(),application:application.clone(),member:ordinal as u32},value));}
                 }
                 DynMemberKind::Constant => {
-                    associated(
+                    let value=associated(
                         proofs,
                         module,
                         context,
@@ -1815,6 +1830,7 @@ fn query_inner(
                         active,
                         b,
                     )?;
+                    if collect {charge_type(receiver,b)?;for actual in &application.arguments{charge_actual(actual,b)?;}b.spend(1)?;completed.push((ExternalRequest::AssociatedConst{receiver:receiver.clone(),application:application.clone(),member:ordinal as u32},value));}
                 }
                 DynMemberKind::Method(_) => {}
             }

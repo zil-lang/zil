@@ -4,6 +4,8 @@ use super::*;
 use crate::semantic::{self, api::*};
 #[path = "semantic_associated.rs"]
 mod associated;
+#[path = "semantic_completed.rs"]
+mod completed;
 
 pub(crate) fn original_scope<'a>(
     module: &'a TypedModule,
@@ -217,6 +219,7 @@ pub(crate) fn select_original_member(
 
 #[derive(Default)]
 pub(crate) struct Proofs {
+    completed_original: completed::Completed,
     pub(crate) callable_shapes: Vec<requests::CallableShapeRequest>,
     pub(crate) pending_statics: Vec<(StorageBase, StaticOccurrence)>,
     pub(crate) pending_original_methods: Vec<SemanticDefinitionId>,
@@ -225,6 +228,10 @@ pub(crate) struct Proofs {
     available_original: Vec<(ExternalRequest, ExternalValue)>,
     original_domain: Option<associated::LocalDomain>,
     active_members: Vec<OriginalMemberKey>,
+}
+impl Proofs{
+    pub(crate) fn original_relation_completed(&self,module:&TypedModule,context:&semantic::CheckedContext,relation:&OriginalMethodRelation,active:&semantic::ActiveQueries,b:&mut Budget)->Check<bool>{self.completed_original.relation_known(module,context,relation,active,b)}
+    pub(crate) fn remember_original_relation(&mut self,module:&TypedModule,context:&semantic::CheckedContext,relation:&OriginalMethodRelation,active:&semantic::ActiveQueries,b:&mut Budget)->Check<()>{self.completed_original.relation_success(module,context,relation,active,b)}
 }
 
 /// One request-local representation of already checked semantic identities.
@@ -576,8 +583,15 @@ impl ExternalProofs for Proofs {
                 if self.active_original.contains(request) {
                     return Err(bad("original trait/associated query forms a cycle"));
                 }
+                let epoch=context.completed_original_epoch();
+                let reusable=associated::empty_domain(self)&&self.available_original.is_empty()
+                    &&epoch.is_some()&&completed::pure_environment(environment,b)?&&completed::pure_request(request,b)?;
+                if reusable {
+                    if let Some(value)=self.completed_original.get(module,context,environment,request,active,b)?{return Ok(value);}
+                }
                 let token = active.fresh(b)?;
                 self.active_original.push(request.clone());
+                let mut members=Vec::new();
                 let result = active.with_query(
                     semantic::DependencyKey {
                         kind: semantic::QueryKind::External,
@@ -585,11 +599,22 @@ impl ExternalProofs for Proofs {
                     },
                     b,
                     |active, b| {
-                        associated::query(self, module, context, environment, request, active, b)
+                        associated::query(self, module, context, environment, request, &mut members, reusable, active, b)
                     },
                 );
                 self.active_original.pop();
-                result
+                let value=result?;
+                if reusable&&associated::empty_domain(self)&&epoch==context.completed_original_epoch()&&self.callable_shapes.is_empty()&&self.pending_statics.is_empty(){
+                    context.finish_external_methods(module,self,active,b)?;
+                    if associated::empty_domain(self)&&epoch==context.completed_original_epoch()&&self.callable_shapes.is_empty()&&self.pending_statics.is_empty()
+                        &&self.pending_original_methods.is_empty()&&self.pending_original_method_relations.is_empty(){
+                        self.completed_original.insert(module,context,environment,request,&value,active,b)?;
+                        for(request,value)in members{
+                            self.completed_original.insert(module,context,environment,&request,&value,active,b)?;
+                        }
+                    }
+                }
+                Ok(value)
             }
             ExternalRequest::Dyn { .. } => Err(bad(
                 "semantic external query requires the complete original FullW instance graph",
