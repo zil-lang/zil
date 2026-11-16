@@ -191,9 +191,16 @@ fn check(module: TypedModule, mut plan: CandidatePlan) -> CompileResult<Verified
     )
 }
 fn rejected(mutator: impl FnOnce(&mut TypedModule), code: &str) {
-    let (mut module, plan) = candidate();
+    let (mut module, mut plan) = candidate();
     mutator(&mut module);
-    assert_eq!(check(module, plan).unwrap_err()[0].code, code);
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    let target = module.target.clone();
+    for result in [check(module, plan), verify_module_bytes(&bytes, &target, &Limits::default())] {
+        let diagnostics = result.unwrap_err();
+        assert_eq!(diagnostics[0].code, code, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].category, ResultCategory::SafeReject);
+    }
 }
 
 #[test]
@@ -266,7 +273,9 @@ fn orphaned_and_crossed_entry_identities_are_rejected() {
     );
     rejected(
         |m| m.closures[0].function = FunctionId(99),
-        "E-VERIFY-CLOSURE-ENTRY",
+        // The complete definition inventory resolves this exact entry before
+        // comparing its ABI. A missing entry is rejected at that earlier gate.
+        "E-VERIFY-CLOSURE",
     );
     rejected(|m| m.closures[0].id = ClosureId(1), "E-VERIFY-CLOSURE");
     rejected(
@@ -442,7 +451,9 @@ fn closure_proof_rejects_false_call_permissions_resources_and_unsupported_kinds(
                 inner: Box::new(Type::I32),
             };
         },
-        "E-VERIFY-CLOSURE-CALL",
+        // The actual MakeClosure still supplies I32. Reject that exact input
+        // mismatch before the callable capability can be consulted.
+        "E-VERIFY-CAPTURE",
     );
     // FnMut is admitted only through its real-place calling instruction.
     let (mut mutable, plan) = candidate();

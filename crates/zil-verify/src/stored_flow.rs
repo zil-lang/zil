@@ -8866,6 +8866,45 @@ mod tests {
         }
     }
     #[test]
+    fn owning_fixed_complete_unused_definitions_and_owner_heads_keep_real_ledger_checks() {
+        for unused_head in [false, true] {
+            let mut m = fixture::captured_owned_fixed(false);
+            if unused_head {
+                let f = &mut m.functions[0];
+                let id = f.values.len() as u32;
+                f.values.push(Type::Address {
+                    mutable: false,
+                    inner: Box::new(f.values[7].clone()),
+                });
+                // The actual owner has been taken and stored by these two
+                // instructions. This unused head has no pointee access and no
+                // escape; the later owner cleanup is independently checked.
+                f.blocks[0].instructions.insert(2, fixture::instruction(
+                    Some(id), InstructionKind::BorrowLocal { local: LocalId(1) },
+                ));
+            } else {
+                // A complete class-free resource definition need not be used
+                // by this closure. It supplies no cleanup or capture authority.
+                m.resources.push(ResourceDefinition {
+                    name: "Other".into(),
+                    payload: Type::Record {
+                        name: "Other".into(),
+                        fields: vec![("n".into(), Type::I32)],
+                    },
+                    teardown: None,
+                });
+            }
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                result.unwrap();
+            }
+        }
+    }
+    #[test]
     fn owning_fixed_actual_owner_epochs_and_metadata_never_come_from_classes() {
         for case in 0..14 {
             let mut m = fixture::captured_owned_fixed(false);
@@ -8950,14 +8989,9 @@ mod tests {
                         .result = Some(ValueId(id));
                 }
                 8 => {
-                    m.resources.push(ResourceDefinition {
-                        name: "Other".into(),
-                        payload: Type::Record {
-                            name: "Other".into(),
-                            fields: vec![("n".into(), Type::I32)],
-                        },
-                        teardown: None,
-                    });
+                    // Extra complete declarations are legal (near control
+                    // above); duplicating a sealed identity is not.
+                    m.resources.push(m.resources[0].clone());
                 }
                 9 => {
                     let f = &mut m.functions[0];
@@ -8966,13 +9000,13 @@ mod tests {
                         mutable: false,
                         inner: Box::new(f.values[7].clone()),
                     });
-                    // A real well-typed but unused owner-head address must not
-                    // bypass the finite profile through Copy-value fallback.
+                    // Keep the same claimed owner-head type while selecting
+                    // the scalar parameter local instead of the owner local.
                     f.blocks[0].instructions.insert(
                         2,
                         fixture::instruction(
                             Some(id),
-                            InstructionKind::BorrowLocal { local: LocalId(1) },
+                            InstructionKind::BorrowLocal { local: LocalId(0) },
                         ),
                     );
                 }
@@ -8998,8 +9032,8 @@ mod tests {
                 super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
                 super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
             ] {
-                let error = result.unwrap_err();
-                if case <= 2 {
+                let error = result.expect_err(&format!("hostile owner case {case} must fail"));
+                if case <= 2 || case == 8 {
                     assert!(
                         error.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
                         "case{case}: {error:?}"
@@ -9014,6 +9048,8 @@ mod tests {
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"),
                         "case{case}: {error:?}"
                     );
+                } else if case == 9 {
+                    assert!(error.iter().any(|d| d.code == "E-VERIFY-TYPE"), "case{case}: {error:?}");
                 } else if case == 10 {
                     assert!(
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"

@@ -182,7 +182,7 @@ pub fn request(scenario: Scenario) -> (TypedModule, CandidatePlan) {
     let inner = b.value(
         desc(leaf()),
         InstructionKind::DescribeLocal { local: LocalId(0) },
-        Some(0),
+        None,
     );
     let one = b.value(Type::I64, InstructionKind::Constant(Constant::I64(1)), None);
     b.value(
@@ -228,7 +228,7 @@ pub fn request(scenario: Scenario) -> (TypedModule, CandidatePlan) {
     let outer = b.value(
         desc(row()),
         InstructionKind::DescribeLocal { local: LocalId(1) },
-        Some(1),
+        None,
     );
     b.value(
         Type::Bool,
@@ -289,7 +289,7 @@ pub fn request(scenario: Scenario) -> (TypedModule, CandidatePlan) {
     let nested = b.value(
         desc(leaf()),
         InstructionKind::DescribeAddress { address: header },
-        Some(1),
+        None,
     );
     if scenario.reserve_before {
         let kind = if scenario.through_helper {
@@ -436,7 +436,9 @@ pub fn request(scenario: Scenario) -> (TypedModule, CandidatePlan) {
             holds: vec![
                 ValueHold {
                     value: ValueId(0),
-                    roots: vec![HoldRoot::Parameter(0)],
+                    // Description management roots are checked independently;
+                    // the loaded Desc carries no Address lifetime Hold.
+                    roots: vec![],
                 },
                 ValueHold {
                     value: ValueId(1),

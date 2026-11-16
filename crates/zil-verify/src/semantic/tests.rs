@@ -300,7 +300,7 @@ fn actual_default_capture_cannot_substitute_another_head_or_previous_reborrow() 
         }
         let error=check_program(&module,&mut Budget::new(&limits)).unwrap_err();
         assert_eq!(error.code,"E-VERIFY-SEMANTIC","attack {attack}: {error:?}");
-        if attack==0{assert!(error.message.contains("differs from its original free-value binding"),"{error:?}");}
+        if attack==0{assert!(error.message.contains("captured head differs from its exact original creator free-value binder"),"{error:?}");}
         if attack==1{assert!(error.message.contains("site complete type/class claim differs"),"{error:?}");}
         let bytes=zil_ir::wire::encode_module_candidate(&module,&empty_plan,&limits).unwrap();
         let (decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
