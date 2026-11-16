@@ -9,6 +9,9 @@ enum Target {
     Definition(usize),
     AppliedDefinition { owner: usize, application: usize },
     Kind(CallKind),
+    StoreBorrow,
+    OwnedDynFactory,
+    StoreReceiver(usize),
     TraitReceiver(LifeDeclarationId),
     NominalReceiver(usize),
     FormalReceiver { owner: usize, ordinal: u32 },
@@ -44,6 +47,7 @@ struct Scan<'a, 'd, 'b, 'l> {
     locals: Vec<(&'a str, Target)>,
     captures: &'b mut Vec<(usize, Vec<(&'a str, Target)>)>,
     applications: &'b mut Vec<Application<'a>>,
+    store_elements: &'b mut Vec<Target>,
     vertex: &'b mut Vertex,
     budget: &'b mut Budget<'l>,
 }
@@ -68,7 +72,7 @@ fn declaration_index(
 impl<'a> Scan<'a, '_, '_, '_> {
     fn edge(&mut self, target: Target, span: Span) -> R<()> {
         match target {
-            Target::Kind(CallKind::Direct) => {}
+            Target::Kind(CallKind::Direct) | Target::StoreBorrow | Target::OwnedDynFactory => {}
             Target::Kind(CallKind::Suspend)
             | Target::Unknown
             | Target::TraitReceiver(_)
@@ -78,6 +82,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
             | Target::FallibleNominal(_)
             | Target::LengthReceiver
             | Target::CodeSequence { .. } => self.vertex.suspend = true,
+            Target::StoreReceiver(_) => self.vertex.suspend = true,
             Target::Definition(index) | Target::AppliedDefinition { owner: index, .. } => {
                 self.budget.identity_work(self.vertex.edges.len(), span)?;
                 if !self.vertex.edges.contains(&index) {
@@ -202,6 +207,15 @@ impl<'a> Scan<'a, '_, '_, '_> {
             | SemanticTypeRecipe::Qualified { storage: inner, .. }
             | SemanticTypeRecipe::Opaque { hidden: inner, .. } => {
                 self.bound_type(owner, inner, context, depth + 1, span)?
+            }
+            SemanticTypeRecipe::OwnedStore(element) => {
+                // Keep the original element's complete nominal application
+                // and rigid owner. A Store read changes no caller premise.
+                let element = self.bound_type(owner, element, context, depth + 1, span)?;
+                let index = self.store_elements.len();
+                self.budget
+                    .lineage_push(self.store_elements, element, span)?;
+                Target::StoreReceiver(index)
             }
             SemanticTypeRecipe::Closure { definition, .. } => {
                 declaration_index(self.definitions, *definition, self.budget, span)?
@@ -591,18 +605,21 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     _ => Target::Unknown,
                 });
             }
-            CoreExprKind::Call { callee, .. } => {
-                if let CoreExprKind::GenericApply {
-                    callee: factory,
-                    arguments,
-                } = &callee.kind
-                    && matches!(&factory.kind,CoreExprKind::Name(name) if name=="owned_dyn")
-                    && let [CoreGenericArgument::Type(SemanticTypeRecipe::Dyn { interface, .. })] =
-                        arguments.as_slice()
-                {
-                    return Ok(Target::FallibleTrait(interface.application.declaration));
+            CoreExprKind::Call { callee, arguments } => {
+                let called = self.target(callee, depth + 1)?;
+                if called == Target::StoreBorrow && arguments.len() == 2 {
+                    return Ok(match self.target(&arguments[0], depth + 1)? {
+                        Target::StoreReceiver(index) => {
+                            self.budget.identity_work(1, expression.span)?;
+                            self.store_elements[index]
+                        }
+                        _ => Target::Unknown,
+                    });
                 }
-                let (owner, context) = match self.target(callee, depth + 1)? {
+                if called == Target::OwnedDynFactory {
+                    return self.owned_factory_result(callee, depth + 1);
+                }
+                let (owner, context) = match called {
                     Target::Definition(owner) => (owner, None),
                     Target::AppliedDefinition { owner, application } => (owner, Some(application)),
                     _ => return Ok(Target::Unknown),
@@ -714,11 +731,17 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     .map_or(Target::Unknown, Target::Definition)
             } else if let [name] = path.as_slice() {
                 if crate::primitive_name(name) {
-                    Target::Kind(if matches!(*name, "task_yield" | "task_await") {
-                        CallKind::Suspend
+                    if binding.is_none() && matches!(*name, "store_at" | "store_at_mut") {
+                        Target::StoreBorrow
+                    } else if binding.is_none() && *name == "owned_dyn" {
+                        Target::OwnedDynFactory
                     } else {
-                        CallKind::Direct
-                    })
+                        Target::Kind(if matches!(*name, "task_yield" | "task_await") {
+                            CallKind::Suspend
+                        } else {
+                            CallKind::Direct
+                        })
+                    }
                 } else {
                     Target::Unknown
                 }
@@ -730,6 +753,40 @@ impl<'a> Scan<'a, '_, '_, '_> {
         };
         self.budget.drop_lineage_vec(path, expression.span)?;
         Ok(target)
+    }
+    fn owned_factory_result(
+        &mut self,
+        callee: &'a SemanticOriginalExpr,
+        depth: usize,
+    ) -> R<Target> {
+        self.budget.node(callee.span, depth)?;
+        let interface = match &callee.kind {
+            CoreExprKind::Group(inner) => return self.owned_factory_result(inner, depth + 1),
+            CoreExprKind::GenericApply { arguments, .. } => {
+                self.budget.identity_work(arguments.len(), callee.span)?;
+                match arguments.as_slice() {
+                    [CoreGenericArgument::Type(SemanticTypeRecipe::Dyn { interface, .. })]
+                    | [
+                        CoreGenericArgument::Type(SemanticTypeRecipe::Dyn { interface, .. }),
+                        CoreGenericArgument::Type(_),
+                    ] => Some(interface),
+                    _ => None,
+                }
+            }
+            CoreExprKind::TypeApply { type_arguments, .. } => {
+                self.budget
+                    .identity_work(type_arguments.len(), callee.span)?;
+                match type_arguments.as_slice() {
+                    [SemanticTypeRecipe::Dyn { interface, .. }]
+                    | [SemanticTypeRecipe::Dyn { interface, .. }, _] => Some(interface),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        Ok(interface.map_or(Target::Unknown, |interface| {
+            Target::FallibleTrait(interface.application.declaration)
+        }))
     }
     fn method_scope(
         &mut self,
@@ -1034,9 +1091,17 @@ impl<'a> Scan<'a, '_, '_, '_> {
         self.edge(Target::Unknown, callee.span)
     }
     fn pattern(&mut self, pattern: &'a SemanticOriginalPattern, depth: usize) -> R<()> {
+        self.pattern_value(pattern, Target::Unknown, depth)
+    }
+    fn pattern_value(
+        &mut self,
+        pattern: &'a SemanticOriginalPattern,
+        target: Target,
+        depth: usize,
+    ) -> R<()> {
         self.budget.node(pattern.span, depth)?;
         match &pattern.kind {
-            CorePatternKind::Name(name) => self.bind(name, Target::Unknown, pattern.span)?,
+            CorePatternKind::Name(name) => self.bind(name, target, pattern.span)?,
             CorePatternKind::Tuple(fields)
             | CorePatternKind::Variant { fields, .. }
             | CorePatternKind::Constructor { fields, .. } => {
@@ -1050,8 +1115,21 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     self.pattern(field, depth + 1)?
                 }
             }
-            CorePatternKind::Reference { pattern, .. }
-            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
+            CorePatternKind::Reference { pattern, .. } => {
+                self.pattern_value(pattern, target, depth + 1)?
+            }
+            CorePatternKind::ErrorArm { pattern, is_error } => {
+                let target = if *is_error {
+                    Target::Unknown
+                } else {
+                    match target {
+                        Target::FallibleTrait(id) => Target::TraitReceiver(id),
+                        Target::FallibleNominal(id) => Target::NominalReceiver(id),
+                        _ => Target::Unknown,
+                    }
+                };
+                self.pattern_value(pattern, target, depth + 1)?;
+            }
             CorePatternKind::Wildcard
             | CorePatternKind::Integer(_)
             | CorePatternKind::Bool(_)
@@ -1098,7 +1176,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 ..
             } => {
                 self.expression(initializer, depth + 1)?;
-                self.pattern(pattern, depth + 1)?;
+                let target = self.target(initializer, depth + 1)?;
+                self.pattern_value(pattern, target, depth + 1)?;
             }
             S::Assign { target, value } => {
                 self.expression(target, depth + 1)?;
@@ -1152,7 +1231,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
             } => {
                 self.expression(value, depth + 1)?;
                 let base = self.locals.len();
-                self.pattern(pattern, depth + 1)?;
+                let target = self.target(value, depth + 1)?;
+                self.pattern_value(pattern, target, depth + 1)?;
                 self.block(then_body, depth + 1)?;
                 self.locals.truncate(base);
                 if let Some(body) = else_body {
@@ -1171,7 +1251,12 @@ impl<'a> Scan<'a, '_, '_, '_> {
             } => {
                 self.expression(value, depth + 1)?;
                 let base = self.locals.len();
-                self.pattern(pattern, depth + 1)?;
+                let target = if matches!(statement.kind, S::WhileLet { .. }) {
+                    self.target(value, depth + 1)?
+                } else {
+                    Target::Unknown
+                };
+                self.pattern_value(pattern, target, depth + 1)?;
                 self.block(body, depth + 1)?;
                 self.locals.truncate(base);
                 // The source spelling `for pattern in start..end` has the
@@ -1203,9 +1288,10 @@ impl<'a> Scan<'a, '_, '_, '_> {
             }
             S::Match { value, arms } => {
                 self.expression(value, depth + 1)?;
+                let target = self.target(value, depth + 1)?;
                 for arm in arms {
                     let base = self.locals.len();
-                    self.pattern(&arm.pattern, depth + 1)?;
+                    self.pattern_value(&arm.pattern, target, depth + 1)?;
                     self.block(&arm.body, depth + 1)?;
                     self.locals.truncate(base);
                 }
@@ -1446,6 +1532,7 @@ pub(super) fn propose(
     order.sort_unstable();
     let mut captures: Vec<(usize, Vec<(&str, Target)>)> = Vec::new();
     let mut applications = Vec::new();
+    let mut store_elements = Vec::new();
     for &(_, index) in &order {
         let definition = definitions[index];
         if let SemanticDefinitionBody::FunctionWithBody {
@@ -1468,6 +1555,7 @@ pub(super) fn propose(
                 locals,
                 captures: &mut captures,
                 applications: &mut applications,
+                store_elements: &mut store_elements,
                 vertex: &mut vertices[index],
                 budget,
             };
@@ -1496,6 +1584,7 @@ pub(super) fn propose(
     }
     budget.drop_lineage_vec(captures, Span::default())?;
     budget.drop_lineage_vec(applications, Span::default())?;
+    budget.drop_lineage_vec(store_elements, Span::default())?;
     // Monotone propagation reaches a fixed point after at most one promotion
     // per vertex. Closed recursive SCCs without a Suspend edge remain Direct.
     loop {
