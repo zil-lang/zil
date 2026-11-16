@@ -1,0 +1,366 @@
+diff --git a/crates/zil-expand/src/generic_check.rs b/crates/zil-expand/src/generic_check.rs
+index c1a3980bb..7102385c7 100644
+--- a/crates/zil-expand/src/generic_check.rs
++++ b/crates/zil-expand/src/generic_check.rs
+@@ -77,6 +77,11 @@ pub(super) fn validate_parametric_with_bounds<'l>(
+     let mut parameter_names = BTreeSet::new();
+     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
+     let callable = callable::template(function, budget)?;
++    // Ordinary Type/Const/Life factories have no callable input role. Their
++    // opaque output still belongs to the existing closure/body checker; it
++    // must not enter an ordinary monomorphization key as an erased Impl.
++    let value_factory = callable.is_none()
++        && function.return_type.as_ref().is_some_and(|ty| callable::opaque_signature(ty).is_some());
+     let nominal_lending = super::super::lifetimes::nominal_life(function, budget)?;
+     let nominal_classes =
+         source_life::qualified_signature(function, nominals, budget, nominal_lending)?;
+@@ -85,7 +90,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
+         // A computed CT nominal retains its original definition's full life
+         // ordinals. Compare those symbolic classes locally; they never become
+         // an ordinary monomorphization cache key or a runtime permission.
+-        callable.is_some() || ct_types.is_some() || nominal_classes,
++        callable.is_some() || value_factory || ct_types.is_some() || nominal_classes,
+         budget,
+     )?;
+     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
+@@ -122,7 +127,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
+                 "nested generic addresses are not supported",
+             ));
+         }
+-        if owned_factory {
++        if owned_factory || value_factory {
+             budget.ty(t)?;
+         } else {
+             role_check::key(t, class_scope, budget)?;
+@@ -153,6 +158,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
+         definition_bound_context,
+         callable,
+         owned_dispatch,
++        value_factory,
+         definition: &function.name,
+         source_definition: source_definition.unwrap_or(function),
+         definition_equations,
+@@ -410,11 +416,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
+             }
+         }
+     }
+-    if check
+-        .callable
+-        .as_ref()
+-        .is_some_and(|bounds| bounds.owned_factory)
+-    {
++    if value_factory {
++        check.value_factory_header(function)?;
++    } else if owned_factory {
+         check.factory_header(function)?;
+     }
+     if let Some(profile) = check.callable.as_ref().and_then(|b| b.state_replacement) {
+@@ -561,7 +565,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
+         FunctionBody::Expression(value) => {
+             let result = check.result.clone();
+             let actual = check.return_expression(value, &mut state)?;
+-            if owned_factory {
++            if owned_factory || value_factory {
+                 check.factory_same_result(&actual, &result, value.span)?;
+             } else if check.callable.is_some()
+                 || matches!(group(&result).kind, TypeKind::Error { .. })
+@@ -1114,6 +1118,7 @@ struct Check<'s, 'b, 'l> {
+     callable: Option<callable::CallableTemplates>,
+     higher_rank: bool,
+     owned_dispatch: bool,
++    value_factory: bool,
+     definition: &'s str,
+     dependencies: &'b mut helper_graph::Dependencies,
+     bounds: trait_bounds::Bounds,
+@@ -1747,6 +1752,10 @@ impl Check<'_, '_, '_> {
+         }
+         expected
+     }
++    fn opaque_factory(&self) -> bool {
++        self.value_factory || self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory)
++    }
++
+     fn known_copy(&mut self, ty: &TypeRef) -> R<bool> {
+         match known_copy(ty, &self.variables, self.nominals) {
+             Some(true) => return Ok(true),
+@@ -2413,12 +2422,7 @@ impl Check<'_, '_, '_> {
+                 "callable forwarding must return the actual input instance, not a fresh factory environment",
+             ));
+         }
+-        if self.factory_scopes.is_empty()
+-            && self
+-                .callable
+-                .as_ref()
+-                .is_some_and(|bounds| bounds.owned_factory)
+-        {
++        if self.factory_scopes.is_empty() && self.opaque_factory() {
+             self.factory_result_identity(expression, state)?;
+         }
+         if registration_owner == Some(false) {
+@@ -5968,10 +5972,7 @@ impl Check<'_, '_, '_> {
+                 let aliases_a = self.alias_result_copy(e.span)?;
+                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;
+                 let aliases_b = self.alias_result_copy(e.span)?;
+-                if self
+-                    .callable
+-                    .as_ref()
+-                    .is_some_and(|bounds| bounds.owned_factory)
++                if self.opaque_factory()
+                     && callable::opaque_signature(&lhs).is_some()
+                     && callable::opaque_signature(&rhs).is_some()
+                 {
+@@ -6199,14 +6200,11 @@ impl Check<'_, '_, '_> {
+                 return_type,
+                 body,
+                 ..
+-            } if self
+-                .callable
+-                .as_ref()
+-                .is_some_and(|bounds| bounds.owned_factory)
++            } if self.opaque_factory()
+                 || self.scoped_body_closure(e.span)?
+                 || self.callable.is_some() =>
+             {
+-                let scoped_body = !self.callable.as_ref().is_some_and(|b| b.owned_factory);
++                let scoped_body = !self.opaque_factory();
+                 let saved_cleanup = std::mem::replace(&mut self.defer_body, false);
+                 let checked = self.factory_closure(
+                     *move_capture,
+@@ -6779,11 +6777,7 @@ impl Check<'_, '_, '_> {
+                         Some(e) => self.return_expression(e, state)?,
+                         None => unit(statement.span),
+                     };
+-                    if self
+-                        .callable
+-                        .as_ref()
+-                        .is_some_and(|bounds| bounds.owned_factory)
+-                    {
++                    if self.opaque_factory() {
+                         self.factory_same_result(&actual, &expected, statement.span)?;
+                     } else if self.callable.is_some()
+                         || matches!(group(&expected).kind, TypeKind::Error { .. })
+diff --git a/crates/zil-expand/src/generic_factory.rs b/crates/zil-expand/src/generic_factory.rs
+index 99694859e..8d971098d 100644
+--- a/crates/zil-expand/src/generic_factory.rs
++++ b/crates/zil-expand/src/generic_factory.rs
+@@ -56,6 +56,14 @@ impl Check<'_, '_, '_> {
+     }
+ 
+     fn factory_signature(&mut self, parameters: &[TypeRef], result: &TypeRef) -> R<()> {
++        if self.value_factory {
++            for ty in parameters.iter().chain(std::iter::once(result)) {
++                self.traits.value_bound(
++                    ty, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget,
++                )?;
++            }
++            return Ok(());
++        }
+         for parameter in parameters {
+             self.tick(parameter.span)?;
+             let value = match &group(parameter).kind {
+@@ -303,6 +311,33 @@ impl Check<'_, '_, '_> {
+         Ok(true)
+     }
+ 
++    pub(super) fn value_factory_header(&mut self, function: &Function) -> R<()> {
++        let (_, parameters, result) = function.return_type.as_ref()
++            .and_then(callable::opaque_signature)
++            .ok_or_else(|| error(function.span, "ordinary value factory lacks its original callable result"))?;
++        self.factory_signature(parameters, result)?;
++        for parameter in &function.params {
++            // A give formal owns its resource; an ordinary Task formal is
++            // only a description. This wrapper is a Value obligation, never
++            // a captured-owner fact or a synchronous cleanup permission.
++            if parameter.give {
++                self.budget.ty(&parameter.ty)?;
++                self.budget.node(parameter.span, 0)?;
++                let owner = TypeRef {
++                    kind: TypeKind::Named {
++                        path: vec!["Managed".into()],
++                        args: vec![GenericArg::Type(parameter.ty.clone())],
++                    },
++                    span: parameter.span,
++                };
++                self.traits.value_bound(&owner, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget)?;
++            } else {
++                self.traits.value_bound(&parameter.ty, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget)?;
++            }
++        }
++        Ok(())
++    }
++
+     pub(super) fn factory_header(&mut self, function: &Function) -> R<()> {
+         let bounds = self.callable.as_ref().expect("factory bound");
+         let [bound] = bounds.roles.as_slice() else {
+@@ -535,6 +570,9 @@ impl Check<'_, '_, '_> {
+             if concrete_local && (!move_capture || usage.consumed || !self.known_copy(&local.ty)?) {
+                 scoped_copy = false;
+             }
++            if self.value_factory {
++                self.traits.value_bound(&local.ty, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget)?;
++            }
+             if concrete_local && dependent(&local.ty, &self.variables) {
+                 return Err(error(
+                     span,
+@@ -670,12 +708,7 @@ impl Check<'_, '_, '_> {
+         expression: &Expr,
+         state: &State,
+     ) -> R<()> {
+-        if self.scoped_body_closures.is_none()
+-            && !self
+-                .callable
+-                .as_ref()
+-                .is_some_and(|bounds| bounds.owned_factory)
+-        {
++        if self.scoped_body_closures.is_none() && !self.opaque_factory() {
+             return Ok(());
+         }
+         if let Some(origin) = self.factory_origin(expression, state)? {
+diff --git a/crates/zil-verify/src/registration.rs b/crates/zil-verify/src/registration.rs
+index 29ed557e2..3ce68d169 100644
+--- a/crates/zil-verify/src/registration.rs
++++ b/crates/zil-verify/src/registration.rs
+@@ -121,10 +121,18 @@ fn closed(
+             }
+         }
+         code_queue.push(c.function);
+-        let mut fields = c.captures.iter().collect::<Vec<_>>();
+-        while let Some(t) = fields.pop() {
++        let mut fields=c.captures.iter().enumerate().map(|(index,ty)|(ty,Some(StoragePosition{base:StorageBase::Capture(index as u32),path:vec![]}),false)).collect::<Vec<_>>();
++        while let Some((t,position,static_pointee))=fields.pop(){
+             budget.spend(1)?;
+-            match t {
++            match t{
++                Type::Address{mutable:false,inner}if !static_pointee&&position.as_ref().is_some_and(|position|c.storage_life.as_ref().is_some_and(|header|header.static_bindings.contains(position)))=>{
++                    let header=c.storage_life.as_ref().ok_or_else(||error(span,"Static closed capture lacks its actual complete header"))?;
++                    if header.fixed_binder_count!=0{return Err(error(span,"Static ClosedEnvironment cannot erase free or phantom classes"));}
++                    signature_life::closure_relation_resource_scopes(module,&c.parameters,&c.captures,c.kind,stored_callables::life_result(c),header,span,budget)?;
++                    crate::semantic::task_domains::defer_static_capture(module,c.id,position.as_ref().unwrap(),budget)?;
++                    fields.push((inner,None,true));
++                },
++                Type::Slice{element}if static_pointee=>fields.push((element,None,true)),
+                 Type::AsyncRegistration { .. } => {
+                     return Err(unsupported(
+                         "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
+@@ -170,35 +178,21 @@ fn closed(
+                         }
+                     }
+                     budget.spend(1)?;
+-                    fields.push(p);
+-                }
+-                Type::BorrowedStorage { storage: p, .. }
+-                | Type::Opaque { hidden: p, .. }
+-                | Type::OwnedStore { element: p }
+-                | Type::Registration { environment: p }
+-                | Type::Array { element: p, .. } => {
+-                    budget.spend(1)?;
+-                    fields.push(p)
+-                }
+-                Type::Tuple(ts) => {
+-                    budget.spend(ts.len())?;
+-                    fields.extend(ts)
+-                }
+-                Type::Package { fields: fs, .. } | Type::Record { fields: fs, .. } => {
+-                    budget.spend(fs.len())?;
+-                    fields.extend(fs.iter().map(|(_, t)| t))
+-                }
+-                Type::Enum { variants, .. } => {
+-                    budget.spend(variants.len())?;
+-                    for (_, ts) in variants {
+-                        budget.spend(ts.len())?;
+-                        fields.extend(ts)
+-                    }
+-                }
+-                Type::ErrorUnion { error, result } => {
+-                    budget.spend(2)?;
+-                    fields.extend([error.as_ref(), result.as_ref()])
++                    fields.push((p,None,static_pointee));
+                 }
++                Type::BorrowedStorage{storage:p,life}=>{
++                    if life.binder_count!=0{return Err(error(span,"ClosedEnvironment retains an independent nominal or phantom class"));}
++                    budget.spend(1)?;fields.push((p,position,static_pointee));
++                },
++                Type::Opaque{hidden:p,..}|Type::OwnedStore{element:p}|Type::Registration{environment:p}=>{budget.spend(1)?;fields.push((p,None,static_pointee));},
++                Type::Array{element,length}=>{
++                    if *length as usize>budget.limits.max_nodes{return Err(limit("closed capture array directory exceeded"));}budget.spend(*length as usize)?;
++                    for index in 0..*length{fields.push((element,closed_field_position(&position,PlaceProjection::Field(index),budget)?,static_pointee));}
++                },
++                Type::Tuple(ts)=>{budget.spend(ts.len())?;for(index,t)in ts.iter().enumerate(){fields.push((t,closed_field_position(&position,PlaceProjection::Field(index as u32),budget)?,static_pointee));}},
++                Type::Package{fields:fs,..}|Type::Record{fields:fs,..}=>{budget.spend(fs.len())?;for(index,(_,t))in fs.iter().enumerate(){fields.push((t,closed_field_position(&position,PlaceProjection::Field(index as u32),budget)?,static_pointee));}},
++                Type::Enum{variants,..}=>{budget.spend(variants.len())?;for(variant,(_,ts))in variants.iter().enumerate(){budget.spend(ts.len())?;for(index,t)in ts.iter().enumerate(){fields.push((t,closed_field_position(&position,PlaceProjection::Variant(VariantProjection{variant:variant as u32,index:index as u32}),budget)?,static_pointee));}}},
++                Type::ErrorUnion{error,result}=>{budget.spend(2)?;fields.push((error,closed_field_position(&position,PlaceProjection::ErrorArm(true),budget)?,static_pointee));fields.push((result,closed_field_position(&position,PlaceProjection::ErrorArm(false),budget)?,static_pointee));}
+                 Type::BorrowedFunctionPointer { .. }
+                 | Type::FunctionPointer { .. }
+                 | Type::ForeignCallback { .. }
+@@ -266,6 +260,9 @@ fn closed(
+     }
+     Ok(())
+ }
++fn closed_field_position(parent:&Option<StoragePosition>,step:PlaceProjection,b:&mut Budget)->Check<Option<StoragePosition>>{
++    let Some(parent)=parent else{return Ok(None);};dynamic_metadata::position(parent,b)?;let mut child=parent.clone();child.path.push(ContractProjection::Place(step));Ok(Some(child))
++}
+ pub(super) fn instruction(
+     module: &TypedModule,
+     f: &TypedFunction,
+diff --git a/crates/zil-verify/src/semantic/callable_obligations.rs b/crates/zil-verify/src/semantic/callable_obligations.rs
+index b10a64e81..acfc9139f 100644
+--- a/crates/zil-verify/src/semantic/callable_obligations.rs
++++ b/crates/zil-verify/src/semantic/callable_obligations.rs
+@@ -10,7 +10,7 @@ pub(crate) struct PendingCallable {
+ }
+ impl CheckedContext {
+     pub(super) fn defer_callable_shapes(&self,module:&TypedModule,external:&mut dynamic_witness::semantic_external::Proofs,checked:&std::collections::BTreeSet<SemanticInstanceId>,b:&mut Budget)->Check<()> {
+-        if !external.pending_statics.is_empty(){return Err(unsupported("structural Static capability retains its complete actual source obligation",None));}
++        for(_,row)in std::mem::take(&mut external.pending_statics){task_domains::defer_static_occurrence(module,&row,b)?;}
+         let program=module.semantic.as_ref().ok_or_else(||bad("Callable entry obligation has no original programme"))?;
+         for request in std::mem::take(&mut external.callable_shapes){
+             charge(&request,b)?;let definition=closure(module,request.closure,request.function,b)?;
+diff --git a/crates/zil-verify/src/semantic/closures.rs b/crates/zil-verify/src/semantic/closures.rs
+index 4d395c5ad..a913473ed 100644
+--- a/crates/zil-verify/src/semantic/closures.rs
++++ b/crates/zil-verify/src/semantic/closures.rs
+@@ -274,6 +274,7 @@ pub(super) fn static_leaf<'a>(
+             (ContractProjection::Place(PlaceProjection::Field(i)), Type::Tuple(fields)) => fields
+                 .get(*i as usize)
+                 .ok_or_else(|| bad("static tuple occurrence is absent"))?,
++            (ContractProjection::Place(PlaceProjection::Field(i)),Type::Array{element,length})if *i<*length=>element.as_ref(),
+             (
+                 ContractProjection::Place(PlaceProjection::Variant(VariantProjection {
+                     variant,
+diff --git a/crates/zil-verify/src/semantic/task_domains.rs b/crates/zil-verify/src/semantic/task_domains.rs
+index 8cc49bd1a..eac772493 100644
+--- a/crates/zil-verify/src/semantic/task_domains.rs
++++ b/crates/zil-verify/src/semantic/task_domains.rs
+@@ -1505,3 +1505,19 @@ pub(super) fn defer_zero_header_statics(module:&TypedModule,value:&CheckedType,b
+     }
+     Ok(true)
+ }
++
++/// Queue a logical declaration for final grounding, never as an actual root or
++/// permission. Nonlogical Static values still need their own operand proof.
++pub(crate) fn defer_static_occurrence(module:&TypedModule,row:&StaticOccurrence,b:&mut Budget)->Check<()>{
++    let StaticOccurrence::Logical{closure,position,..}=row else{return Err(unsupported("direct Static capability requires its complete actual operand source proof",None));};
++    let declared=statics::occurrence(module,*closure,position,b)?;
++    if &declared!=row||!matches!(position.base,StorageBase::Capture(_)|StorageBase::Result){return Err(bad("logical Static capability changes its complete actual closure/slot/leaf/mode"));}
++    dynamic_metadata::position(position,b)?;
++    b.spend(b.semantic_static_occurrences.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
++    if b.semantic_static_occurrences.len()>=b.limits.max_nodes{return Err(limit("semantic logical Static occurrence inventory exceeded"));}
++    b.semantic_static_occurrences.insert((*closure,position.clone()));Ok(())
++}
++pub(crate) fn defer_static_capture(module:&TypedModule,closure:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<()>{
++    let row=statics::occurrence(module,closure,position,b)?;
++    defer_static_occurrence(module,&row,b)
++}
+diff --git a/crates/zil-verify/src/semantic/task_domains/statics.rs b/crates/zil-verify/src/semantic/task_domains/statics.rs
+index fbb1cc132..2127ce0d4 100644
+--- a/crates/zil-verify/src/semantic/task_domains/statics.rs
++++ b/crates/zil-verify/src/semantic/task_domains/statics.rs
+@@ -13,7 +13,7 @@ fn declared<'a>(module:&'a TypedModule,id:ClosureId,b:&mut Budget)->Check<&'a Cl
+     if entry.storage_life.as_ref()!=Some(header){return Err(bad("Task static occurrence changes its exact actual entry header"));}
+     Ok(definition)
+ }
+-fn occurrence(module:&TypedModule,id:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<StaticOccurrence>{
++pub(super) fn occurrence(module:&TypedModule,id:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<StaticOccurrence>{
+     let definition=declared(module,id,b)?;
+     let header=definition.storage_life.as_ref().unwrap();
+     b.spend(header.static_bindings.len().saturating_mul(position.path.len().saturating_add(1)))?;

@@ -1,0 +1,31 @@
+{
+  "source_base": "514d7ac0ff77f0c5ad36738113c1d1a747a5e70a",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261116T234444Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-expand/src/generic_check.rs": "e786b33540379ad7716e917c259b4c7493e6374476fc80e67e8ee0299798d614",
+    "crates/zil-expand/src/generic_factory.rs": "e07cacb0c475230686d0d44804050618f3b6a47578b7fe859e818d74ec674f9e",
+    "crates/zil-verify/src/registration.rs": "45607c8b5974391fa7f5d6b1fda0e973ab2f5d5608cc6dcf0a16133e6a54e2c0",
+    "crates/zil-verify/src/semantic/callable_obligations.rs": "b80fe09828052f647767b2f391c059ef429fcd9d85acb823e6889f629ab142cd",
+    "crates/zil-verify/src/semantic/closures.rs": "2d15736ceae32cfa1bae90e07a88e005b8784db73a5d445298d52edd9bb90620",
+    "crates/zil-verify/src/semantic/task_domains.rs": "ff736f8c2ca48a9d15e492e9d9b48b226fb8f0f097a737c85de6a0b810578cde",
+    "crates/zil-verify/src/semantic/task_domains/statics.rs": "71533b413fd1fb6eb5b40ae569d5e03dd1971dc159e2c64f843c09c79585e5f1"
+  },
+  "artifacts": {
+    "source.patch": "16ebb51458b7bad85ee38cb59b66a99f0347659579c177aa6d17b77793b8a768",
+    "supporting-tools/run-alpha-candidate.sh": "31fadc4b40984808371f8446781fad8888d738ab25850ae505f9180ff0f33f70",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "666bb3245e60f9299bca022cc87f727525bf5364c30fe4d2a133688304e6e0f8",
+    "supporting-tools/run-native-alpha-plan.json": "eacd70077354e42d48f7632c4ad88b1d303f76980a7f64bee035ba233d8d328e",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "4c2e76f9ec9bd2bb51343bbf89d48e6715d27504dcff52646c4725bd3de6d472",
+    "supporting-tools/check-all-task-helper-sources.py": "fb6110dd85a9fe355036b8390bab8fe3de1cc4c73f19cdbb196066cee1fe7982",
+    "supporting-tools/check-task-helper-native-cases.py": "3b3f484f8d15bf19f4cab9fffe6f8b39dfe27915546aa4e7f31cd1ca27dbe400",
+    "supporting-tools/check-task-frame-observer.py": "9f2eada808d337839a78ac7f0e2e0a1af20b21c7c8df661588fcbbf15a1892fa",
+    "supporting-tools/check-extra-originals.py": "b84d34aeaad8dead1fc3f1d93e319f3b4fdc944cf1a25821801dda1920932879",
+    "supporting-tools/check-alpha-nearest-complete.py": "df2a1d02e36ea066d27752073440a1be81956f800a20f0af493ca8ccf923ce44",
+    "supporting-tools/run-core-alpha-units.py": "964e56e67f6dbe5deebc655ca21c18418131339704c5a559c6bdf56e02b83ffe"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
