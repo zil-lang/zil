@@ -38,7 +38,9 @@ impl CheckedOriginal {
                     let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
                     if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
                     if let Some(place)=place{self.read_original(module,context,&place,&child,env,false,active,b)?;}
-                    self.remember_borrow_parent(module,id,expression.id,operand.id,b)?;
+                    let mut source=operand.as_ref();
+                    while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&source.kind{b.spend(1)?;source=inner;}
+                    self.remember_borrow_parent(module,id,expression.id,source.id,b)?;
                     Ty::Address{mutable,life:Life::Local(id,expression.id),inner:Box::new(child)}
                 },
                 CoreExprKind::Unary{op:UnaryOp::Dereference,..}|CoreExprKind::Member{..}|CoreExprKind::Index{..}|CoreExprKind::ReceiverMember(_)=>{

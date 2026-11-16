@@ -72,11 +72,14 @@ impl CheckedOriginal {
                     self.read_original(module,context,&Place{binder:receiver.identity.clone(),fields:vec![]},&receiver.ty,env,false,active,b)?;
                     let(storage,observed)=self.field_observation_storage(module,context,&receiver.ty,b)?;
                     if !observed{return Err(bad("original receiver shorthand lacks an actual resource or borrowed receiver"));}
-                    (self.field(module,context,&storage,member,env,active,b)?,None)
+                    let field=self.field(module,context,&storage,member,env,active,b)?;
+                    self.observe_projection_parent(expression.id,&receiver.ty,expression.id,env,b)?;
+                    (field,None)
                 },
-                CoreExprKind::Group(inner)=>self.place(module,context,inner,env,bindings,active,b)?,
+                CoreExprKind::Group(inner)=>{let result=self.place(module,context,inner,env,bindings,active,b)?;self.observe_projection_parent(inner.id,&result.0,expression.id,env,b)?;result},
                 CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
                     let (pointer,place)=self.place(module,context,operand,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&pointer,env,false,active,b)?;}
+                    self.observe_projection_parent(operand.id,&pointer,expression.id,env,b)?;
                     match self.resolved(&pointer,b)?{Ty::Address{inner,..}=>(*inner,None),_=>return Err(bad("original dereference requires a real Address"))}
                 },
                 CoreExprKind::Member{object:source_object,member,owner}=>{
@@ -85,7 +88,9 @@ impl CheckedOriginal {
                     if observed{if let Some(place)=&place{self.read_original(module,context,place,&object,env,false,active,b)?;}self.observed_argument(source_object,&object,env,b)?;place=None;}
                     else if let Some(place)=&place{self.read_original_parent(module,context,place,&object,env,active,b)?;}
                     if let Some(owner)=owner{let expected=self.ty(module,context,owner,env,active,b)?;self.unify(&storage,&expected,b)?;}
-                    let ty=self.field(module,context,&storage,member,env,active,b)?;if let Some(place)=&mut place{place.fields.push(member.clone());}(ty,place)
+                    let ty=self.field(module,context,&storage,member,env,active,b)?;
+                    self.observe_projection_parent(source_object.id,&object,expression.id,env,b)?;
+                    if let Some(place)=&mut place{place.fields.push(member.clone());}(ty,place)
                 },
                 CoreExprKind::Slice{object,start,end}=>{
                     let(parent,place)=self.place(module,context,object,env,bindings,active,b)?;
@@ -95,10 +100,11 @@ impl CheckedOriginal {
                     for bound in [start.as_deref(),end.as_deref()].into_iter().flatten(){let ty=self.expression(module,context,bound,env,bindings,None,active,b)?;if !matches!(self.resolved(&ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original slice endpoint lacks an actual integer carrier"));}}
                     // The projection observes the original whole parent root;
                     // range checks and the actual slice loan remain separate.
+                    self.observe_projection_parent(object.id,&parent,expression.id,env,b)?;
                     (Ty::Slice(element),place)
                 },
-                CoreExprKind::Index{object,index}=>{
-                    let (object,mut place)=self.place(module,context,object,env,bindings,active,b)?;let mut storage=self.resolved(&object,b)?;
+                CoreExprKind::Index{object:source_object,index}=>{
+                    let (object,mut place)=self.place(module,context,source_object,env,bindings,active,b)?;let mut storage=self.resolved(&object,b)?;
                     if let Some(place)=&place{self.read_original_parent(module,context,place,&object,env,active,b)?;place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(1usize,|n,field|n.saturating_add(field.len()).saturating_add(1)))?;}
                     let parent=place.clone();
                     if let Ty::Address{inner,..}=storage{storage=*inner;place=None;}
@@ -113,6 +119,7 @@ impl CheckedOriginal {
                     let child=match storage{Ty::Array(child,_)|Ty::Slice(child)=>*child,_=>return Err(bad("original indexed place is not an Array/Slice"))};
                     if let Some(whole)=&mut place{if let CoreExprKind::Integer(text)=&index.kind{let Ty::Atom(carrier)=self.resolved(&index_ty,b)? else{return Err(bad("original constant index has no integer carrier"));};b.spend(text.len())?;let value=scalar::closed(&DynConstPattern::IntegerLiteral(text.clone()),&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("original constant index unresolved"))?;let value=nonnegative_index(&value);if let Some(value)=value{b.spend(24)?;whole.fields.push(format!("[{value}]"));}else{place=None;}}else{place=None;}}
                     if place.is_none(){if let Some(parent)=&parent{self.read_original(module,context,parent,&object,env,false,active,b)?;}}
+                    self.observe_projection_parent(source_object.id,&object,expression.id,env,b)?;
                     (child,place)
                 },
                 _=>(self.expression(module,context,expression,env,bindings,None,active,b)?,None),
@@ -184,5 +191,52 @@ impl CheckedOriginal {
             },
             _=>return Ok((storage,observed)),
         }}
+    }
+}
+
+impl CheckedOriginal {
+    /// Observing an owned field through an existing borrowed product retains
+    /// that exact observer's lifetime. This records no movable Place, owner,
+    /// permission or equality, and does not change the selected child's type.
+    fn observe_projection_parent(&mut self,source:NodeId,source_type:&Ty,projection:NodeId,env:&Env,b:&mut Budget)->Check<()> {
+        let owner=env.current()?;
+        b.spend(self.borrow_parents.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        let parent=match self.resolved(source_type,b)? {
+            Ty::Address{life,..}|Ty::Desc{life,..}=>Some(life),
+            Ty::Managed(_)if source!=projection=>Some(Life::Local(owner,source)),
+            _=>self.borrow_parents.get(&(owner,source)).cloned(),
+        };
+        let Some(parent)=parent else{return Ok(());};
+        if parent==Life::Local(owner,projection){return Ok(());}
+        if let Some(previous)=self.borrow_parents.get(&(owner,projection)){
+            if !self.same_life(previous,&parent,b)?{return Err(bad("original storage projection has conflicting observer source roles"));}
+        }else{b.spend(1)?;self.borrow_parents.insert((owner,projection),parent);}
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod projection_source_tests {
+    use super::*;
+    #[test]
+    fn observed_owner_chain_preserves_the_exact_rigid_source_and_local_owner_boundary(){
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
+        let a=Life::Formal(owner,0);let z=Life::Formal(owner,1);
+        let env=Env{lexical:vec![Frame{definition:owner,actuals:vec![Arg::Life(a.clone()),Arg::Life(z.clone())],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let owned=Ty::Managed(Box::new(Ty::Store(Box::new(Ty::Variable(owner,2)))));
+        let product=Ty::Tuple(vec![owned.clone()]);
+        let address=|life|Ty::Address{mutable:false,life,inner:Box::new(product.clone())};
+        let mut checked=CheckedOriginal::default();checked.current=Some(owner);let mut b=Budget::new(&Limits::default());
+        checked.observe_projection_parent(NodeId(0),&address(a.clone()),NodeId(1),&env,&mut b).unwrap();
+        checked.observe_projection_parent(NodeId(1),&product,NodeId(2),&env,&mut b).unwrap();
+        checked.observe_projection_parent(NodeId(2),&owned,NodeId(3),&env,&mut b).unwrap();
+        checked.observe_projection_parent(NodeId(3),&owned,NodeId(4),&env,&mut b).unwrap();
+        assert!(checked.outer_outlives(&Life::Local(owner,NodeId(4)),&a,&mut BTreeSet::new(),&mut b).unwrap());
+        assert!(!checked.outer_outlives(&Life::Local(owner,NodeId(4)),&z,&mut BTreeSet::new(),&mut b).unwrap());
+        checked.observe_projection_parent(NodeId(10),&owned,NodeId(11),&env,&mut b).unwrap();
+        assert!(!checked.outer_outlives(&Life::Local(owner,NodeId(11)),&a,&mut BTreeSet::new(),&mut b).unwrap(),"a local manager cannot acquire an unrelated rigid output lifetime");
+        assert!(checked.observe_projection_parent(NodeId(5),&address(z.clone()),NodeId(2),&env,&mut b).is_err(),"one original projection cannot silently replace its observer source");
+        assert_eq!(checked.borrow_parents[&(owner,NodeId(2))],a);
+        assert!(!checked.same_life(&a,&z,&mut b).unwrap());
     }
 }
