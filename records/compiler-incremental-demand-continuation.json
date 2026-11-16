@@ -1,19 +1,19 @@
 {
   "task": "G10.5.1.15",
-  "status": "Complete restart cache/function/current-accounting/analysis/native-history chain implemented and affected gates/release passed. Direct logic optimization; no new performance matrix. Full Rust target and main merge remain open.",
-  "updated_Asia_Shanghai": "2026-11-16T11:25:04.563834+08:00",
-  "read_goal": "3f7bc64ecfb78160f227607a67c91be4271715af",
+  "status": "Current4a23 measured in six formal windows,774 original requests/258 functional cells/71 runtime cases pass existing candidate-Rust quality gates. Not all compile workloads beat Rust; restart/global backend/check large graph losses located. No source implementation this measurement turn; main Hold.",
+  "updated_Asia_Shanghai": "2026-11-16T12:39:30.502285+08:00",
+  "read_goal": "90f5bdec613ba79dc1895401b79e7d7308d25f50",
   "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
   "tree": "35116da8321766cf49106143bd699faada166dbc",
   "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
-  "delivery": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f",
+  "delivery": "df06acabf33a76a723d1e92b1d7da71b41d4b7da",
   "branch": "research/full-push-native",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "report": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/full-push-compact-checkpoint.md",
-  "exact_bindings": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/full-push-compact-checkpoint.json",
+  "report": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/restart-performance-20261116/report.md",
+  "exact_bindings": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/full-push-compact-checkpoint.json",
   "acceptance": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/restart-epoch-reviews-20261116/current-acceptance.json",
-  "review": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/restart-epoch-reviews-20261116/restart-cost-astra-design-02.md",
-  "recovery": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/evidence/restart-function-chain-20261116/RESTORE.json",
+  "review": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/restart-performance-20261116/restart-performance-results-astra-audit-01.md",
+  "recovery": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/evidence/restart-performance-core-20261116/RESTORE.json",
   "implementation": [
     "FunctionSession CFGs and original six fees replay in the same current Types recording, complete current Core/namespace/signature reads, fallback on incomplete metadata; no fabricated frontend epochs.",
     "Life speculation misses execute one current Builder before any speculative charge; sparse requests skip rewriting unchanged function-cache manifest.",
@@ -38,6 +38,76 @@
     "first_failures": "5a324 Types108/1 new fee-fixture; d7 E0616 new test; b197 Types109/1 N-1 inference fixture; 4c82 driver219/5 actual whole-session clear regression. All retained and original five assertions preserved."
   },
   "last_measured": {
+    "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+    "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
+    "tool_source": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f",
+    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+    "report": "restart-performance-20261116/report.md",
+    "results": "restart-performance-20261116/results.json",
+    "stages": "restart-performance-20261116/stages.json",
+    "original_requests": 774,
+    "functional_cells": 258,
+    "source_bound_runtime_cases": 71,
+    "all_candidate_Rust_quality_passed": true,
+    "global_accepted": false,
+    "main_regression_accepted": null,
+    "native_flow_s": {
+      "1000": {
+        "baseline": 8.550813806999999,
+        "candidate": 7.165743701499999,
+        "rust": 8.0466773415
+      },
+      "2500": {
+        "baseline": 13.1991478845,
+        "candidate": 10.082063722,
+        "rust": 10.0169925735
+      },
+      "5105": {
+        "candidate": 29.4765489805,
+        "rust": 31.581858628000003
+      }
+    },
+    "retained_5105_restart_plus_firstedit_s": {
+      "candidate": 4.4413706815,
+      "rust": 1.0083505325000002
+    },
+    "native_5105_eight_private_s": {
+      "candidate": 9.831954402,
+      "rust": 8.6884125585
+    },
+    "qualification": "Main5105 ResourceLimit never a fast successful build. Check5k wide also slower than Rust/main; check2500 chain slower than main. All negatives retained. Same-window comparisons only; do not claim bcf/f19 cross-window net algorithm gains.",
+    "diagnostic": "Separate36 candidate+36Rust requests with profiling, no formal ratio/runtime gate; Fresh Rust stderr can replay old time-passes.",
+    "complete_original_raw": "Seven complete archives: six formal windows plus diagnostic02, each fresh full hash verified. Core index includes setup failures, pins, commands, scripts, logs, Rust/Cargo source references and binaries."
+  },
+  "current_recovery": {
+    "archives": 8,
+    "bytes": 2198109601,
+    "files": 345244,
+    "raw_bytes": 9220793117,
+    "all_fresh_full_file_hash_verified": true,
+    "core_sha256": "5cc2a77e3629036c84c3f36ceffa07fb97279e9796b9178a3a3f72f85641bf6e",
+    "scope": "Complete six formal raw/cache/artifact windows and separate diag02; core contains actual used compiler binaries,twoLLVM DSOs,complete native-link runtime,metadata,pins,scripts,logs,first setup failures and read-only reviews. No auth files.",
+    "SDK18_native_link": "Actual used runtime dependencies included, no LLVM rebuild; full reconstruction SDK remains fixedV32; prior correctness/first gates failures remain immutable8bb."
+  },
+  "remaining": [
+    "Retained5105 restart+firstedit4.441/Rust1.008s loses3.433s; object16/16hit on restart, real upstream/currentkeys/CFG rebind/Analyze/machine/partition still execute. No fake epochs/hidden work.",
+    "Native5105 eightprivate9.832/Rust8.688s loses1.144s; eachTypes/Analyze/lower1function, backend8.272s dominates84.1%,124/128objects miss per block. Need actual transform/partition/CGU/object dependency stability.",
+    "Check5000wide complete7.574/Rust7.050/main6.671s; cold/restart/largechange costs inTypes/CT/Expand/driver residual, noLLVM. check2500chain also regressesmain9.55%.",
+    "Finite102file scalaronecrateO2/no-debug is not industrialworkspace/generic/macro/async/debug/test/minute-scale. Default token/wholeproject10000function capacity unchanged, no currentRSS benefit claim.",
+    "Disk boundarypeak5105native55.34/Rust72.86MiB,eightprivategrowth1.58/28.48MiB; promising only this finite workload, noindustrialGBclaim.",
+    "Two balanced blocks. Resident request excludes separately recordedstartup,Cargo includesstartup; noOS cacheflush. Diagnostics36+36 separate, RustFresh oldtimepass replay excluded.",
+    "Main5105ResourceLimit and measuredcheck/mainregressions retainglobalacceptedfalse/mainHold; no merge/defaultresearchswitch. Future full-chain logic changes then unified relevant acceptance; no furthercompilerchange/testthisturn."
+  ],
+  "main_merge": false,
+  "research_defaults_enabled": false,
+  "independent_verify_default_budgets_full_O2_preserved": true,
+  "previous_record": "https://github.com/zil-lang/zil/blob/90f5bdec613ba79dc1895401b79e7d7308d25f50/records/compiler-incremental-demand-continuation.json",
+  "previous_f19_delivery": "7b604bef1c4d1f665cffc1c42c2a43b60d92c928",
+  "original_98fa_measurement_binding": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628 only",
+  "results": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/restart-performance-20261116/results.json",
+  "stages": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/restart-performance-20261116/stages.json",
+  "secondary_review": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/restart-performance-20261116/restart-performance-secondary-losses-astra-01.md",
+  "previous_bcf_measurement": {
     "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
     "requests": 396,
     "quality_cells": 132,
@@ -65,27 +135,5 @@
     ],
     "earlier_f19_flow_5105_s": 24.823,
     "qualification": "Different windows, Rust control drift; bcf regression retained, no paired causal claim; none of these numbers belong to4a23. Original request receipt subset published, full bcf cache/artifact raw still local and not in the current recovery package."
-  },
-  "current_recovery": {
-    "parts": 1,
-    "bytes": 19598435,
-    "files": 96,
-    "raw_bytes": 61849972,
-    "fresh_full_file_hash_verified": true,
-    "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
-    "SDK18_native_link": "Fixed V32 dependency; no LLVM rebuild",
-    "scope": "Current exact source binaries/correctness/failures/reviews plus prior bcf original receipt subset, not a full bcf raw backup"
-  },
-  "remaining": [
-    "General private edits still trigger global machine transforms/CGU planning; implement actual local output/callee/DAG/class representative/address/protected dependencies before another full performance window.",
-    "Cold process actual upstream producer restoration is incomplete; do not infer epochs from terminal Typed/hash or hide baseline work outside timers.",
-    "New encoding/decoding/disk and bounded downstream RSS costs unmeasured; no current net performance or space claim.",
-    "Default token/whole-project10000function capacity remains; finite scalar single-crate coverage excludes industrial workspace/generic/macro/async/debug/test/minute-scale projects."
-  ],
-  "main_merge": false,
-  "research_defaults_enabled": false,
-  "independent_verify_default_budgets_full_O2_preserved": true,
-  "previous_record": "https://github.com/zil-lang/zil/blob/3f7bc64ecfb78160f227607a67c91be4271715af/records/compiler-incremental-demand-continuation.json",
-  "previous_f19_delivery": "7b604bef1c4d1f665cffc1c42c2a43b60d92c928",
-  "original_98fa_measurement_binding": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628 only"
+  }
 }
