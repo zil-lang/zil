@@ -1,7 +1,7 @@
-//! A native execution root for a fixed SABI body proved never to suspend.
-//! Use the actual worker frame and its existing protocol. No public calling
-//! convention is narrowed, no extra heap allocation is inserted, and no
-//! Pending result is silently driven or discarded.
+//! A native execution root for a checked, parameterless SABI worker.
+//! The root owns the actual worker frame until its complete poll/close
+//! protocol finishes. Pending preserves that frame and resumes the same
+//! operation; only Ready transfers the result to the native caller.
 use super::*;
 
 pub(in super::super) fn adapter(
@@ -11,7 +11,7 @@ pub(in super::super) fn adapter(
     meter: &Meter,
 ) -> CompileResult<(String, m::Code)> {
     let id = source.id;
-    if !verified.has_non_suspending_sabi_body(id)
+    if !verified.is_suspend(id)
         || !verified.task_worker_ids().contains(&id)
         || source.foreign.is_some()
         || source.environment.is_some()
@@ -58,15 +58,17 @@ pub(in super::super) fn adapter(
         m::global(name(id, "init_into")),
         inputs,
     );
+    branch(&mut entry, "poll");
+    let mut polling = vec![];
     call(
-        &mut entry,
+        &mut polling,
         Some("polled"),
         poll.clone(),
         m::global(name(id, "poll")),
         vec![m::Arg::new(m::Ty::Ptr, loc("frame"))],
     );
     push(
-        &mut entry,
+        &mut polling,
         Some("tag"),
         m::Op::Extract {
             arg: m::Arg::new(poll.clone(), loc("polled")),
@@ -74,18 +76,30 @@ pub(in super::super) fn adapter(
         },
     );
     compare(
-        &mut entry,
+        &mut polling,
         "ready",
         m::Ty::Int(32),
         loc("tag"),
         m::val(1),
         "eq",
     );
-    cond(&mut entry, "ready", "close", "task.trap");
-    let mut close = vec![];
+    cond(&mut polling, "ready", "receive.result", "not.ready");
+    let mut pending = vec![];
+    compare(
+        &mut pending,
+        "pending",
+        m::Ty::Int(32),
+        loc("tag"),
+        m::val(0),
+        "eq",
+    );
+    // Completed, Cancelled, and Invalid are protocol errors for this root:
+    // it owns a freshly initialized frame and takes Ready exactly once.
+    cond(&mut pending, "pending", "poll", "task.trap");
+    let mut ready = vec![];
     if returned != m::Ty::Void {
         push(
-            &mut close,
+            &mut ready,
             Some("result"),
             m::Op::Extract {
                 arg: m::Arg::new(poll, loc("polled")),
@@ -93,6 +107,8 @@ pub(in super::super) fn adapter(
             },
         );
     }
+    branch(&mut ready, "close");
+    let mut close = vec![];
     call(
         &mut close,
         Some("closed"),
@@ -100,7 +116,9 @@ pub(in super::super) fn adapter(
         m::global(name(id, "poll_close")),
         vec![m::Arg::new(m::Ty::Ptr, loc("frame"))],
     );
-    cond(&mut close, "closed", "done", "task.trap");
+    // The result remains owned by this invocation while children and any
+    // remaining resource owners drain. Never repeat poll after taking Ready.
+    cond(&mut close, "closed", "done", "close");
     let mut done = vec![];
     call(
         &mut done,
@@ -123,6 +141,9 @@ pub(in super::super) fn adapter(
     }));
     for block in [
         block("entry", entry),
+        block("poll", polling),
+        block("not.ready", pending),
+        block("receive.result", ready),
         block("close", close),
         block("done", done),
         trap_block(),

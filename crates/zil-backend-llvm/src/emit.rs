@@ -1219,7 +1219,12 @@ fn entry_wrapper(
             })?
         }
     };
-    if verified.is_suspend(function.id) && !verified.has_non_suspending_sabi_body(function.id) {
+    if verified.is_suspend(function.id)
+        && (!verified.task_worker_ids().contains(&function.id)
+            || function.foreign.is_some()
+            || function.environment.is_some()
+            || !function.parameters.is_empty())
+    {
         let mut error = invalid(
             "E-TASK-DIRECT-EXPORT",
             "Suspend function requires its SABI execution root",
