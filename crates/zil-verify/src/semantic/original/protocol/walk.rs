@@ -118,7 +118,13 @@ impl<'a> Engine<'a> {
                 self.bind_pattern(statement.id, &[], pattern, &value, &mut state, b)?;
             }
             Expression(value) => {
-                self.expression(value, &mut state, depth + 1, b)?;
+                let actual=self.expression(value, &mut state, depth + 1, b)?;
+                if tasks::owner_value(&actual){
+                    let binder=Binder::Local{definition:self.current,node:value.id,name:"$original_overwrite".into()};
+                    self.bind(&mut state,binder.clone(),actual,b)?;
+                    let actual=state.values.get(&binder).cloned().ok_or_else(||bad("discarded Task value loses its exact temporary responsibility"))?;
+                    self.task_cleanup_value(&mut state,&actual,None,b)?;state.values.remove(&binder);
+                }
             }
             Assign { target, value } => {
                 let place = self.task_place(target, b)?.ok_or_else(|| {

@@ -103,12 +103,12 @@ impl Engine<'_> {
                 }
             }
             Call { callee, arguments } => {
-                self.expression(callee, state, depth + 1, b)?;
+                let receiver=self.expression(callee, state, depth + 1, b)?;
                 let mut values = Vec::new();
                 for argument in arguments {
                     values.push(self.expression(argument, state, depth + 1, b)?);
                 }
-                self.call(node, &values, state, b)
+                self.call(node, &receiver, &values, state, b)
             }
             TypeApply { callee, .. } | GenericApply { callee, .. } => {
                 self.expression(callee, state, depth + 1, b)
@@ -286,7 +286,7 @@ impl Engine<'_> {
                     .closures
                     .get(&node.id)
                     .ok_or_else(|| bad("protocol closure has no exact original creator"))?;
-                self.task_capture(*child, state, b)?;
+                let captures=self.task_capture(*child, state, b)?;
                 if let Some(free) = self.original.free_values.get(child) {
                     for binding in free.values() {
                         b.spend(1)?;
@@ -298,7 +298,7 @@ impl Engine<'_> {
                         }
                     }
                 }
-                Ok(Value::Plain)
+                Ok(captures)
             }
             MakeDynBorrow { source, .. } | MakeDynOwned { source, .. } => {
                 let value = self.expression(source, state, depth + 1, b)?;
@@ -387,6 +387,7 @@ impl Engine<'_> {
     fn call(
         &mut self,
         node: &SemanticOriginalExpr,
+        receiver:&Value,
         values: &[Value],
         state: &mut State,
         b: &mut Budget,
@@ -471,8 +472,13 @@ impl Engine<'_> {
         }) {
             return self.static_call(target, site, node, values, state, b);
         }
-        // A callable's hidden environment is not a declared parameter. Without
-        // its exact owner transport, no old observation survives the call.
+        let role=self.callable_roles.get(&node.id).cloned();
+        if role.is_none()&&(tasks::owner_value(receiver)||values.iter().any(tasks::owner_value)){
+            return Err(unsupported("original callable owner transfer lacks its complete checked signature role",Some(node.span)));
+        }
+        // A nonconsuming activation borrows its persistent environment. The
+        // actual FnOnce role alone transfers all remaining affine subowners.
+        // Unknown body effects still invalidate old phase observations.
         b.spend(state.width())?;
         let roots = state.owners.keys().cloned().collect::<Vec<_>>();
         for root in roots {
@@ -484,9 +490,20 @@ impl Engine<'_> {
                 self.update(state, &root, LIVE, b)?;
             }
         }
-        self.result_value(node, b)
+        if let Some((kind,modes))=role{
+            if modes.len()!=values.len(){return Err(bad("original callable owner transfer changes its complete input modes"));}
+            if kind==CallableKind::FnOnce{self.task_transfer_value(state,receiver,b)?;}
+            for(value,mode)in values.iter().zip(modes){
+                if !matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe|PassingMode::Copy){self.task_transfer_value(state,value,b)?;}
+            }
+        }
+        self.result_value(node,state,b)
     }
-    fn result_value(&self, node: &SemanticOriginalExpr, b: &mut Budget) -> Check<Value> {
+    fn result_value(&mut self, node: &SemanticOriginalExpr,state:&mut State, b: &mut Budget) -> Check<Value> {
+        if let Some(shape)=self.result_shapes.get(&node.id).cloned(){
+            let binder=Binder::Local{definition:self.current,node:node.id,name:"$original_result".into()};
+            return self.task_entry(state,&root_place(&binder),&shape,b);
+        }
         let Some(ty) = self.original.expressions.get(&(self.current, node.id)) else {
             return Ok(Value::Plain);
         };
@@ -551,7 +568,7 @@ impl Engine<'_> {
                 }
                 let mut leaves = Vec::new();
                 tasks::task_roots(value, &mut leaves, b)?;
-                for root in leaves {
+                for(root,borrowed)in leaves {
                     if !seen.insert(root.clone()) {
                         return Err(bad(
                             "Task call aliases independently selected owner parameter roles",
@@ -566,7 +583,7 @@ impl Engine<'_> {
                     }
                     pending.push((
                         root,
-                        if self.observing_parameter(target, site, ordinal, b)? {
+                        if borrowed||self.observing_parameter(target, site, ordinal, b)? {
                             LIVE
                         } else {
                             DEAD
@@ -576,7 +593,7 @@ impl Engine<'_> {
                 }
                 continue;
             }
-            let Value::Owner { root, .. } = value else {
+            let Value::Owner { root, borrowed } = value else {
                 if protocol_contracts
                     .iter()
                     .any(|role| role.parameter as usize == ordinal)
@@ -639,7 +656,7 @@ impl Engine<'_> {
             } else {
                 pending.push((
                     root.clone(),
-                    if self.observing_parameter(target, site, ordinal, b)? {
+                    if *borrowed||self.observing_parameter(target, site, ordinal, b)? {
                         LIVE
                     } else {
                         DEAD
@@ -666,7 +683,7 @@ impl Engine<'_> {
                 tag: None,
             })
         } else {
-            self.result_value(node, b)
+            self.result_value(node,state,b)
         }
     }
     fn observing_parameter(
@@ -723,10 +740,9 @@ impl Engine<'_> {
         }
         match owner_type(&parameter) {
             Some(borrowed) => Ok(borrowed),
-            None => Err(unsupported(
-                "original owner argument has no independently resolved passing category",
-                None,
-            )),
+            // Ordinary affine products and callable environments transfer by
+            // value. Their Address/Desc views retain only a borrowed role.
+            None => Ok(matches!(parameter,Ty::Address{..}|Ty::Desc{..})),
         }
     }
 }

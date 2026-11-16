@@ -88,6 +88,18 @@ impl CheckedOriginal {
             Ty::Managed(inner) => {
                 self.task_shape(module, context, &inner, borrowed, active, b, depth + 1)?
             }
+            Ty::Opaque(owner,arguments)=>{
+                let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;
+                self.task_shape(module,context,&hidden,borrowed,active,b,depth+1)?
+            },
+            Ty::Closure(owner,arguments,sealed)=>{
+                let moves=self.creator_moves.get(&owner).copied().ok_or_else(||bad("Task closure shape lacks its original capture mode"))?;
+                let mut product=Vec::new();
+                for(name,ty)in self.closure_capture_fields(module,context,owner,&arguments,&sealed,b)?{
+                    product.push((name,self.task_shape(module,context,&ty,borrowed||!moves,active,b,depth+1)?));
+                }
+                Shape::Product(product)
+            },
             _ => Shape::Plain,
         })
     }
@@ -204,6 +216,9 @@ impl<'a> Engine<'a> {
         Ok(match shape {
             Shape::Plain => Value::Plain,
             Shape::Task { borrowed } => {
+                if state.owners.get(place).is_some_and(|owner|owner.states!=DEAD){
+                    return Err(bad("Task input/result entry reuses an unsettled owner generation"));
+                }
                 let generation = self.generation(b)?;
                 state.owners.insert(
                     place.clone(),
@@ -386,7 +401,12 @@ impl<'a> Engine<'a> {
         let roots = state
             .owners
             .iter()
-            .filter(|(_, owner)| owner.task && owner.owned && owner.states != DEAD)
+            .filter(|(root, owner)| owner.task && owner.owned && owner.states != DEAD
+                // Nonconsuming activations retain the persistent environment.
+                // Its owning slots still require real cleanup on replacement;
+                // only invocation exit leaves those same occupants in place.
+                && !(matches!(root.binder,Binder::Capture{definition,..}if definition==self.current)
+                    && self.original.prototypes.get(&self.current).is_some_and(|prototype|matches!(prototype.callable_kind,Some(CallableKind::Fn|CallableKind::FnMut)))))
             .map(|(root, _)| root.clone())
             .collect::<Vec<_>>();
         for root in roots {
@@ -641,18 +661,16 @@ impl<'a> Engine<'a> {
         child: SemanticDefinitionId,
         state: &mut State,
         b: &mut Budget,
-    ) -> Check<()> {
-        if !self
+    ) -> Check<Value> {
+        let moves=self
             .original
             .creator_moves
             .get(&child)
             .copied()
-            .unwrap_or(false)
-        {
-            return Ok(());
-        }
+            .ok_or_else(||bad("Task capture lacks its exact original capture mode"))?;
+        let mut fields=Vec::new();
         if let Some(free) = self.original.free_values.get(&child) {
-            for binding in free.values() {
+            for(name,binding)in free {
                 let captured = Binder::Capture {
                     definition: child,
                     source: Box::new(binding.identity.clone()),
@@ -665,14 +683,15 @@ impl<'a> Engine<'a> {
                 {
                     continue;
                 }
-                let Some(value) = state.values.get(&binding.identity).cloned() else {
-                    continue;
-                };
-                self.task_transfer_value(state, &value, b)?;
-                state.values.remove(&binding.identity);
+                let value=state.values.get(&binding.identity).cloned().unwrap_or(Value::Plain);
+                if moves{state.values.remove(&binding.identity);}
+                let value=if moves{value}else{task_borrow_value(value)};
+                fields.push((CheckedOriginal::capture_field(name,b)?,value));
             }
         }
-        Ok(())
+        // Binding, Return or consuming invocation transfers these exact live
+        // generations once. Do not kill them and manufacture fresh Open ones.
+        Ok(Value::Product(fields))
     }
 }
 
@@ -719,10 +738,10 @@ pub(super) fn owner_value(value: &Value) -> bool {
         _ => false,
     }
 }
-pub(super) fn task_roots(value: &Value, roots: &mut Vec<Place>, b: &mut Budget) -> Check<()> {
+pub(super) fn task_roots(value: &Value, roots: &mut Vec<(Place,bool)>, b: &mut Budget) -> Check<()> {
     b.spend(1)?;
     match value {
-        Value::Owner { root, .. } => {
+        Value::Owner { root, borrowed } => {
             b.spend(
                 root.fields
                     .iter()
@@ -730,7 +749,7 @@ pub(super) fn task_roots(value: &Value, roots: &mut Vec<Place>, b: &mut Budget) 
                     .sum::<usize>()
                     .saturating_add(1),
             )?;
-            roots.push(root.clone());
+            roots.push((root.clone(),*borrowed));
         }
         Value::Product(fields) => {
             for (_, value) in fields {

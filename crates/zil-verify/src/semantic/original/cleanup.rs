@@ -9,6 +9,12 @@ impl CheckedOriginal {
     /// Resolve each used free binder through its original NameAt row; neither
     /// equal physical types nor the order of the free-value map is evidence.
     pub(super) fn closure_capture_types(&self,module:&TypedModule,context:&CheckedContext,definition:SemanticDefinitionId,arguments:&[Arg],sealed:&[Arg],b:&mut Budget)->Check<Vec<Ty>>{
+        Ok(self.closure_capture_fields(module,context,definition,arguments,sealed,b)?.into_iter().map(|(_,ty)|ty).collect())
+    }
+    // Private responsibility paths use the original free name, never a
+    // physical capture-layout ordinal or an independently sorted Type list.
+    pub(super) fn capture_field(name:&str,b:&mut Budget)->Check<String>{b.spend(name.len().saturating_add(1))?;Ok(format!("$capture:{name}"))}
+    pub(super) fn closure_capture_fields(&self,module:&TypedModule,context:&CheckedContext,definition:SemanticDefinitionId,arguments:&[Arg],sealed:&[Arg],b:&mut Budget)->Check<Vec<(String,Ty)>>{
         let original=context.definition(module,definition,b)?;
         if original.kind!=SemanticDefinitionKind::Closure||!self.checked.contains(&definition){return Err(bad("closure cleanup lacks a completely checked original closure"));}
         if original.parameters.len()!=arguments.len()||original.environment.len()!=sealed.len(){return Err(bad("closure cleanup changes its complete mixed argument/environment domains"));}
@@ -45,7 +51,7 @@ impl CheckedOriginal {
             // type remains the subject. Absence grants no substitution or
             // capability to an abstract creator type such as F.
             let ty=selected.unwrap_or(&binding.ty);
-            captures.push(self.resolved(ty,b)?);
+            captures.push((Self::capture_field(name,b)?,self.resolved(ty,b)?));
         }
         Ok(captures)
     }
@@ -71,6 +77,10 @@ impl CheckedOriginal {
         b.spend(uses.moved.len().saturating_mul(place.fields.len().saturating_add(1)))?;
         if uses.definite.iter().any(|moved|moved.binder==place.binder&&place.fields.starts_with(&moved.fields)){return Ok(());}
         if self.is_copy(module,context,ty,env,active,b)?{return Ok(());}
+        if let Ty::Opaque(owner,arguments)=self.resolved(ty,b)?{
+            let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;
+            return self.remaining_drop(module,context,&hidden,place,uses,env,active,b);
+        }
         let partial=uses.definite.iter().any(|moved|moved.binder==place.binder&&moved.fields.starts_with(&place.fields));
         b.spend(self.task_closed_cleanups.len().saturating_add(self.task_async_cleanups.len()))?;
         let nested_task=self.task_closed_cleanups.iter().chain(&self.task_async_cleanups).any(|(definition,child)|Some(*definition)==env.lexical.first().map(|frame|frame.definition)&&child.binder==place.binder&&child.fields.len()>place.fields.len()&&child.fields.starts_with(&place.fields));
@@ -79,6 +89,10 @@ impl CheckedOriginal {
             let fields=match &ty{
                 Ty::Tuple(fields)=>fields.iter().enumerate().map(|(index,field)|(index.to_string(),field.clone())).collect::<Vec<_>>(),
                 Ty::Nominal(id,arguments)=>{if self.custom_drop(module,*id,b)?{if !partial&&self.sync_drop(module,context,&ty,env,active,b)?{return Ok(());}return Err(bad("original field cleanup cannot replace a custom whole Drop"));}let definition=context.definition(module,*id,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(unsupported("original partial cleanup requires exact finite product fields",None));};let mut selected=self.environment(module,context,*id,active,b)?;selected.lexical[0].actuals=arguments.clone();let mut result=Vec::new();for field in fields{result.push((field.name.clone(),self.ty(module,context,&field.ty,&selected,active,b)?));}result},
+                Ty::Closure(definition,arguments,sealed)=>{
+                    if !self.creator_moves.get(definition).copied().ok_or_else(||bad("closure owner cleanup lacks its exact capture mode"))?{return Ok(());}
+                    self.closure_capture_fields(module,context,*definition,arguments,sealed,b)?
+                },
                 _=>return Err(unsupported("original partial cleanup needs its complete value/array debt ledger",None)),
             };
             for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,active,b)?;}return Ok(());

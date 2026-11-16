@@ -22,6 +22,8 @@ struct Engine<'a> {
     async_tasks: BTreeSet<Place>,
     error_unwind: Vec<&'a SemanticOriginalBlock>,
     task_loop_keys: Vec<BTreeSet<Binder>>,
+    result_shapes:BTreeMap<NodeId,tasks::Shape>,
+    callable_roles:BTreeMap<NodeId,(CallableKind,Vec<PassingMode>)>,
 }
 
 impl CheckedOriginal {
@@ -46,6 +48,10 @@ impl CheckedOriginal {
             let prototype = self.prototypes.get(&id).cloned().ok_or_else(|| {
                 bad("original protocol replay has no universally checked signature")
             })?;
+            let previous=self.current.replace(id);
+            if function.definition.kind==SemanticDefinitionKind::Closure&&!matches!(prototype.callable_kind,Some(CallableKind::Fn|CallableKind::FnMut|CallableKind::FnOnce)){
+                return Err(bad("Task closure activation lacks its independently proved callable kind"));
+            }
             b.spend(prototype.parameters.len())?;
             let mut parameter_shapes = Vec::new();
             for ty in &prototype.parameters {
@@ -104,8 +110,31 @@ impl CheckedOriginal {
                     relevant = true;
                 }
             }
+            let mut result_shapes=BTreeMap::new();
+            for expression in function.expressions.values(){
+                let CoreExprKind::Call{..}=&expression.kind else{continue;};
+                if let Some(ty)=self.expressions.get(&(id,expression.id)).cloned(){
+                    let shape=self.task_shape(module,context,&ty,false,active,b,0)?;
+                    if shape.has_task(){result_shapes.insert(expression.id,shape);}
+                }
+            }
+            relevant|=!result_shapes.is_empty();
             if !relevant {
+                self.current=previous;
                 continue;
+            }
+            let mut callable_roles=BTreeMap::new();
+            for expression in function.expressions.values(){
+                let CoreExprKind::Call{callee,..}=&expression.kind else{continue;};
+                let Some(ty)=self.expressions.get(&(id,callee.id)).cloned()else{continue;};
+                let ty=match self.resolved(&ty,b)?{Ty::Address{inner,..}=>self.resolved(&inner,b)?,ty=>ty};
+                let role=match ty{
+                    Ty::Closure(owner,..)=>self.prototypes.get(&owner).map(|prototype|(prototype.callable_kind,prototype.modes.clone())),
+                    Ty::Code{modes,..}=>Some((Some(CallableKind::FunctionPointer),modes)),
+                    Ty::Function(_)=>None,
+                    ty=>self.callable_premise(module,context,&ty,&prototype.environment,active,b)?.map(|prototype|(prototype.callable_kind,prototype.modes)),
+                };
+                if let Some((Some(kind),modes))=role{b.spend(modes.len().saturating_add(1))?;callable_roles.insert(expression.id,(kind,modes));}
             }
             b.spend(protocol_contracts.iter().fold(1usize, |n, row| {
                 n.saturating_add(row.entry.len()).saturating_add(
@@ -127,11 +156,14 @@ impl CheckedOriginal {
                 async_tasks: BTreeSet::new(),
                 error_unwind: Vec::new(),
                 task_loop_keys: Vec::new(),
+                result_shapes,
+                callable_roles,
             };
             engine.poll = engine.poll_type(&prototype.result, b)?;
             engine.shape(b)?;
             let SemanticOriginalFunctionBody::Defined(body) = body else {
                 if protocol_contracts.is_empty() {
+                    drop(engine);self.current=previous;
                     continue;
                 }
                 return Err(bad(
@@ -239,6 +271,7 @@ impl CheckedOriginal {
                 b.spend(1)?;
                 self.task_async_cleanups.insert((id, root));
             }
+            self.current=previous;
         }
         Ok(())
     }
