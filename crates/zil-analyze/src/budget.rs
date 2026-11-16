@@ -123,6 +123,10 @@ pub(super) struct Budget {
         BTreeMap<(FunctionId, ValueId, u32), zil_ir::StorageBinder>,
     // Actual closed execution graph, not an ABI rewrite or a Task capability.
     pub(super) stored_synchronous_abis: BTreeSet<FunctionId>,
+    // Actual Task frame graph qualification, separate from synchronous ABI.
+    // Target/source/loan/resource proofs remain mandatory before publication.
+    pub(super) stored_task_frame_functions: BTreeSet<FunctionId>,
+    pub(super) stored_task_frame_pending: bool,
     pub(super) dyn_contexts: bool,
     // Concrete-function result occurrences awaiting actual CFG grounding.
     // Neither a signature nor its declared source upper proves these rows.
@@ -311,6 +315,8 @@ impl Budget {
             semantic_cleanup_sites: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
+            stored_task_frame_functions: BTreeSet::new(),
+            stored_task_frame_pending: false,
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,

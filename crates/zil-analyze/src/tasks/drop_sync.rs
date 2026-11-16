@@ -604,10 +604,8 @@ fn infer_origins(
                     InstructionKind::WithScopedThread { argument, .. } => {
                         values[argument.0 as usize].snapshot(budget)?
                     }
-                    InstructionKind::Call {
-                        function,
-                        arguments,
-                    } => {
+                    InstructionKind::Call { function, arguments }
+                    | InstructionKind::SuspendCall { function, arguments } => {
                         let summary = returned_origin(module, *function, budget, active, returned)?;
                         instantiate(&summary, arguments, &values, None, budget, 0)?
                     }

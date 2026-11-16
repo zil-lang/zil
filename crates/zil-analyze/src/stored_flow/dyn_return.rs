@@ -1136,7 +1136,7 @@ pub(super) fn sites(
         | InstructionKind::SuspendCall { function, .. }) = &instruction.kind else {
             return Ok(());
         };
-    if !synchronous_abi::ordinary_call(&instruction.kind, b)? { return Ok(()); }
+    if !task_calls::call(&instruction.kind, b)? { return Ok(()); }
     let callee = module
         .functions
         .get(function.0 as usize)

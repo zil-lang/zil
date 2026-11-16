@@ -252,7 +252,7 @@ pub(super) fn sites(module: &TypedModule, f: &TypedFunction, instruction: &Instr
             }
         }
         InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. }
-            if synchronous_abi::ordinary_call(&instruction.kind, b)? => {
+            if task_calls::call(&instruction.kind, b)? => {
             let callee = module.functions.get(function.0 as usize).ok_or_else(|| failure("raw write call has no actual callee"))?;
             for (parameter, local) in callee.parameters.iter().enumerate() {
                 let mut ty = &callee.locals[local.0 as usize].ty;

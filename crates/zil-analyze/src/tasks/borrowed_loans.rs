@@ -347,10 +347,8 @@ fn transfer(
                 Ok(returned)
             }).transpose()?
         }
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments } => {
             // Ownership arguments are discharged by the independently checked
             // callee. Its returned carrier starts with the actual return roots.
             let mut carried_exclusive = Roots::new();
@@ -649,9 +647,8 @@ fn access(
         | InstructionKind::MakePackage { fields: values }
         | InstructionKind::MakeOwnedTuple { fields: values }
         | InstructionKind::MakeAggregate { fields: values }
-        | InstructionKind::Call {
-            arguments: values, ..
-        } => {
+        | InstructionKind::Call { arguments: values, .. }
+        | InstructionKind::SuspendCall { arguments: values, .. } => {
             fee(b, values.len())?;
             consumed.extend_from_slice(values);
         }
@@ -993,10 +990,8 @@ fn prove_apart(
                                 "Task port separation cannot pass through an indirect function reference",
                             ));
                         }
-                        InstructionKind::Call {
-                            function,
-                            arguments,
-                        } => {
+                        InstructionKind::Call { function, arguments }
+                        | InstructionKind::SuspendCall { function, arguments } => {
                             let target = function.0 as usize;
                             let rows = apart
                                 .get(target)

@@ -33,6 +33,7 @@ mod mutex;
 mod nominal;
 mod nominal_zero;
 pub(crate) mod synchronous_abi;
+pub(crate) mod task_calls;
 pub(super) fn synchronous_callback_module(
     module: &TypedModule,
     b: &mut Budget,
@@ -486,7 +487,7 @@ fn package_return_candidates(
             let (function, arguments) = match &instruction.kind {
                 InstructionKind::Call { function, arguments }
                 | InstructionKind::SuspendCall { function, arguments }
-                    if synchronous_abi::ordinary_call(&instruction.kind, b)? => (function, arguments),
+                    if task_calls::call(&instruction.kind, b)? => (function, arguments),
                 _ => continue,
             };
             let callee = &module.functions[function.0 as usize];
@@ -4115,7 +4116,7 @@ fn slot_loan_ids(
                 }
                 InstructionKind::Call { function, .. }
                 | InstructionKind::SuspendCall { function, .. }
-                    if synchronous_abi::ordinary_call(&instruction.kind, b)? => {
+                    if task_calls::call(&instruction.kind, b)? => {
                     let callee = module
                         .functions
                         .get(function.0 as usize)
@@ -4783,7 +4784,7 @@ fn transfer(
         InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
         InstructionKind::Call { function, arguments }
         | InstructionKind::SuspendCall { function, arguments }
-            if synchronous_abi::ordinary_call(&i.kind, b)? => {
+            if task_calls::call(&i.kind, b)? => {
             let callee = module
                 .functions
                 .get(function.0 as usize)
@@ -5001,10 +5002,12 @@ fn transfer(
             }
             if callee.foreign.is_some()
                 || callee.environment.is_some()
-                || callee.call_kind != CallKind::Direct
+                || !matches!((&i.kind, callee.call_kind),
+                    (InstructionKind::Call { .. }, CallKind::Direct)
+                    | (InstructionKind::SuspendCall { .. }, CallKind::Suspend))
             {
                 return Err(failure(
-                    "stored call requires an independently checked ordinary direct body",
+                    "stored call changes its independently checked actual execution ABI",
                 ));
             }
         }
@@ -5704,7 +5707,7 @@ fn transfer(
             || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_package_borrow(module, f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?
-            || synchronous_abi::ordinary_call(&i.kind, b)?
+            || task_calls::call(&i.kind, b)?
             || mutex_operation)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -5746,7 +5749,7 @@ fn transfer(
         out.pointer.loans.insert(id);
     }
     if let Some(result) = i.result
-        && synchronous_abi::ordinary_call(&i.kind, b)?
+        && task_calls::call(&i.kind, b)?
         && carrier(value_type(f, result)?).is_some()
     {
         let mut next = f.values.len();
@@ -7165,7 +7168,7 @@ fn windows(
                     }
                     InstructionKind::Call { function, arguments }
                     | InstructionKind::SuspendCall { function, arguments }
-                        if synchronous_abi::ordinary_call(&i.kind, b)? => {
+                        if task_calls::call(&i.kind, b)? => {
                         let callee = &module.functions[function.0 as usize];
                         raw_references::call(callee, &summaries[function.0 as usize], arguments, values, &state, b)?;
                         if !summaries[function.0 as usize].head_accesses.is_empty() {
@@ -8074,7 +8077,7 @@ fn derive_cfg(
                             | InstructionKind::SuspendCall { function, .. }) = &instruction.kind else {
                                 continue;
                             };
-                        if !synchronous_abi::ordinary_call(&instruction.kind, b)? { continue; }
+                        if !task_calls::call(&instruction.kind, b)? { continue; }
                         let callee = module
                             .functions
                             .get(function.0 as usize)
@@ -8316,7 +8319,7 @@ pub(super) fn infer(
             && !crate::tasks::input_scope::provider(module, f, b)?)
             || f.call_kind != CallKind::Direct
                 && !(f.call_kind == CallKind::Suspend
-                    && (b.task_sources() || b.stored_synchronous_abis.contains(&f.id)))
+                    && (b.task_sources() || task_calls::body(f, b)?))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -8888,7 +8891,7 @@ fn actual_instructions(
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
                 && !pure_copy::ordinary_package_borrow(module, f, i, b)?
-                && !synchronous_abi::ordinary_call(&i.kind, b)?
+                && !task_calls::call(&i.kind, b)?
                 && !matches!(
                     &i.kind,
                     InstructionKind::StaticUtf8 { .. }
@@ -9387,7 +9390,7 @@ fn actual_instructions(
                 }
                 InstructionKind::Call { function, arguments }
                 | InstructionKind::SuspendCall { function, arguments }
-                    if synchronous_abi::ordinary_call(&i.kind, b)? => {
+                    if task_calls::call(&i.kind, b)? => {
                     let target = module
                         .functions
                         .get(function.0 as usize)

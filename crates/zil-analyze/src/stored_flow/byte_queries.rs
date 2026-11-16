@@ -112,12 +112,12 @@ fn zero_input_scalar(
     fee(b, 8)?;
     let from = module.functions.get(caller).ok_or_else(closed)?;
     let to = module.functions.get(callee).ok_or_else(closed)?;
-    Ok(synchronous_abi::ordinary_body(from, b)?
+    Ok(task_calls::body(from, b)?
         && from.environment.is_none()
         && from.foreign.is_none()
         && from.callable_contract.is_none()
         && from.callable_return_contract.is_none()
-        && synchronous_abi::ordinary_body(to, b)?
+        && task_calls::body(to, b)?
         && to.environment.is_none()
         && to.foreign.is_none()
         && to.callable_contract.is_none()
@@ -140,7 +140,7 @@ fn matches_edge(module: &TypedModule, edge: &PendingEdge, b: &mut Budget) -> Com
     let (function, arguments) = match &operation.kind {
         InstructionKind::Call { function, arguments }
         | InstructionKind::SuspendCall { function, arguments }
-            if synchronous_abi::ordinary_call(&operation.kind, b)? => (function, arguments),
+            if task_calls::call(&operation.kind, b)? => (function, arguments),
         _ => return Ok(false),
     };
     let target = &module.functions[edge.callee];
@@ -174,7 +174,7 @@ pub(super) fn inventory(
             for i in &block.instructions {
                 marked[index] |= operand(&i.kind).is_some();
                 if let (InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. }) = i.kind
-                    && synchronous_abi::ordinary_call(&i.kind, b)? {
+                    && task_calls::call(&i.kind, b)? {
                     fee(b, 2)?;
                     edges.push((index, function.0 as usize));
                 }
@@ -217,7 +217,7 @@ pub(super) fn inventory(
         fee(b, 1)?;
         if marked[index]
             && covered(&b.composition_stored, index)
-            && (f.foreign.is_some() || !synchronous_abi::ordinary_body(f, b)?)
+            && (f.foreign.is_some() || !task_calls::body(f, b)?)
         {
             return Err(closed());
         }
@@ -226,7 +226,7 @@ pub(super) fn inventory(
             fee(b, block.instructions.len())?;
             for (instruction_index, i) in block.instructions.iter().enumerate() {
                 if let (InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. }) = i.kind
-                    && synchronous_abi::ordinary_call(&i.kind, b)?
+                    && task_calls::call(&i.kind, b)?
                     && marked[function.0 as usize]
                     && covered(&b.composition_stored, index)
                         != covered(&b.composition_stored, function.0 as usize)
@@ -542,7 +542,7 @@ fn step(
                 }
                 InstructionKind::Call { function, arguments }
                 | InstructionKind::SuspendCall { function, arguments }
-                    if synchronous_abi::ordinary_call(&i.kind, b)? => {
+                    if task_calls::call(&i.kind, b)? => {
                     let summary = &summaries[function.0 as usize];
                     if summary.complete {
                         ordered(b, summary.returned.len(), 0)?;
@@ -803,7 +803,7 @@ impl Flow {
         let (function, arguments, closure) = match &i.kind {
             InstructionKind::Call { function, arguments }
             | InstructionKind::SuspendCall { function, arguments }
-                if synchronous_abi::ordinary_call(&i.kind, b)? => (*function, arguments.as_slice(), None),
+                if task_calls::call(&i.kind, b)? => (*function, arguments.as_slice(), None),
             _ => {
                 let Some((closure, arguments)) =
                     super::super::stored_callables::called(module, f, &i.kind)

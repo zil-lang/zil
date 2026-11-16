@@ -370,10 +370,8 @@ fn transfer(
             }
             None
         }
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments } => {
             let mut carrier = None;
             if let Some(value) = output {
                 let callee = function.0 as usize;

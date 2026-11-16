@@ -152,6 +152,8 @@ fn analyze_budgeted_context(
     budget.semantic_raw_local_shapes.clear();
     budget.semantic_cleanup_sites.clear();
     budget.stored_synchronous_abis.clear();
+    budget.stored_task_frame_functions.clear();
+    budget.stored_task_frame_pending = false;
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     match context {
@@ -235,8 +237,10 @@ fn analyze_budgeted_context(
     {
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
+        let task_frame_calls = stored_flow::task_calls::prepare(module, budget)?;
         let ordinary_required = budget.tasks || budget.registrations;
         let synchronous_callbacks = ordinary_required
+            && !task_frame_calls
             && !budget.task_sources()
             && !budget.masked_stored_tasks()
             && stored_flow::synchronous_callback_module(module, budget)?;
@@ -246,7 +250,16 @@ fn analyze_budgeted_context(
                 budget.composition_stored = module
                     .functions
                     .iter()
-                    .map(|function| stored_flow::qualified_function(function, budget))
+                    .map(|function| {
+                        let selected = stored_flow::qualified_function(function, budget)?;
+                        if task_frame_calls {
+                            budget.spend(budget.stored_task_frame_functions.len().saturating_add(1),
+                                "actual Task frame stored coverage")?;
+                            Ok(selected || budget.stored_task_frame_functions.contains(&function.id))
+                        } else {
+                            Ok(selected)
+                        }
+                    })
                     .collect::<CompileResult<Vec<_>>>()?;
             }
             for (index, function) in module.functions.iter().enumerate() {
@@ -255,7 +268,7 @@ fn analyze_budgeted_context(
                 }
             }
             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
-        } else if !budget.semantic_cleanup_sites.is_empty() {
+        } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() {
             // A concrete original cleanup is not a structural SyncDrop
             // theorem. Keep the stored source proof and continue through the
             // ordinary Task graph and resource ledger before discharging it.
@@ -482,6 +495,7 @@ fn analyze_budgeted_context(
     }
     dyn_dispatch::check_roots(module, &plan.functions, budget)?;
     tasks::loans(module, &plan, &hold_graphs, budget)?;
+    stored_flow::task_calls::finish(module, budget)?;
     retained::check_pending_sources(budget)?;
     helpers::finish_deferred(module, budget)?;
     publish_holds(module, &mut plan, budget)?;
@@ -500,6 +514,9 @@ fn publish_holds(
 ) -> CompileResult<()> {
     if !budget.semantic_cleanup_sites.is_empty() {
         return Err(bad("original concrete cleanup obligations remain undischarged at publication"));
+    }
+    if budget.stored_task_frame_pending {
+        return Err(bad("actual Task frame call obligations remain undischarged at publication"));
     }
     for position in 0..budget.description_values.len() {
         let (function, value) = budget.description_values[position];
