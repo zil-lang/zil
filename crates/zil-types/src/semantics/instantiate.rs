@@ -199,6 +199,65 @@ pub(super) fn requirement(
         },
     )
 }
+
+/// Extract a checked callable signature into its real use domain. Captured
+/// actuals are already expressed there and are substituted atomically, while
+/// remaining lexical references must name the same original ancestor.
+pub(super) fn callable_signature(
+    program: &SemanticModule,
+    proof: &Proof,
+    value: &SemanticSignatureRecipe,
+    mapping: DomainMapping<'_>,
+    environment: Option<&[SemanticActualRecipe]>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    if let Some(actuals) = environment {
+        let source = definition(program, proof, mapping.source, left)?;
+        fee(left, source.environment.len().saturating_add(actuals.len()))?;
+        if source.kind != SemanticDefinitionKind::Closure
+            || source.environment.len() != actuals.len()
+        {
+            return Err(bad(
+                "callable extraction omits its complete closure environment",
+            ));
+        }
+        for (formal, actual) in source.environment.iter().zip(actuals) {
+            if !matches!(
+                (&formal.kind, actual),
+                (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(_))
+                    | (SemanticFormal::Lifetime, SemanticActualRecipe::Life(_))
+                    | (
+                        SemanticFormal::Const { .. },
+                        SemanticActualRecipe::Const { .. }
+                    )
+            ) {
+                return Err(bad("callable extraction changes a sealed environment kind"));
+            }
+        }
+    }
+    in_mapping(
+        program,
+        proof,
+        mapping,
+        None,
+        true,
+        limits,
+        left,
+        |base, scopes, _, left| {
+            let environments = environment.map(|actuals| [(0, actuals)]);
+            let substitution = substitute::Substitution {
+                frames: base.frames,
+                selves: base.selves,
+                environments: environments.as_ref().map_or(&[], |rows| rows.as_slice()),
+                implicit: base.implicit,
+                invocation: base.invocation,
+                shift: base.shift,
+            };
+            substitute::signature_in_domains(value, &substitution, scopes, limits, left)
+        },
+    )
+}
 /// Map one declaration's complete obligation sequence under a single checked
 /// lexical/actual correspondence. No obligation is assumed or discharged here.
 /// The caller must prove every returned requirement in its own original Gamma.

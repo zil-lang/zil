@@ -89,6 +89,212 @@ fn actual_closures(
     Ok(result)
 }
 
+// Preparation needs the complete transitive closure of the actual input,
+// result and caller-capture Types. Other completed bodies remain mandatory at
+// finish, after their deferred nominal applications have been registered.
+fn needed_closure_type(
+    ty: &Type,
+    directory: &ActualDirectory<'_>,
+    needed: &mut BTreeSet<ClosureId>,
+    seen_interfaces: &mut BTreeSet<DynInterfaceId>,
+    seen_nominals: &mut BTreeSet<usize>,
+    limits: &Limits,
+    left: &mut usize,
+    depth: usize,
+) -> R<()> {
+    fee(left, 1)?;
+    if depth > limits.max_call_depth || needed.len() > limits.max_functions {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "Task preparation closure dependency limit exceeded",
+            None,
+        ));
+    }
+    // Nominal Type arguments can be phantom in the visible layout. Follow
+    // every exact application's complete actual vector as well as its fields.
+    if matches!(
+        ty,
+        Type::BorrowedStorage { .. }
+            | Type::Record { .. }
+            | Type::Package { .. }
+            | Type::Enum { .. }
+    ) {
+        fee(left, directory.life_instances.len())?;
+        for (position, row) in directory.life_instances.iter().enumerate() {
+            inference::charge_type_snapshot(ty, Span::default(), limits, left, 1)?;
+            inference::charge_type_snapshot(&row.ty, Span::default(), limits, left, 1)?;
+            if &row.ty != ty {
+                continue;
+            }
+            fee(
+                left,
+                seen_nominals.len().saturating_add(1).ilog2() as usize + 1,
+            )?;
+            if !seen_nominals.insert(position) {
+                continue;
+            }
+            fee(left, row.arguments.len())?;
+            for argument in &row.arguments {
+                if let LifeNominalActual::Type(child)
+                | LifeNominalActual::QualifiedType { ty: child, .. } = argument
+                {
+                    needed_closure_type(
+                        child,
+                        directory,
+                        needed,
+                        seen_interfaces,
+                        seen_nominals,
+                        limits,
+                        left,
+                        depth + 1,
+                    )?;
+                }
+            }
+        }
+    }
+    let mut visit = |child: &Type| {
+        needed_closure_type(
+            child,
+            directory,
+            needed,
+            seen_interfaces,
+            seen_nominals,
+            limits,
+            left,
+            depth + 1,
+        )
+    };
+    match ty {
+        Type::BorrowedStorage { storage: inner, .. }
+        | Type::OwnedStore { element: inner }
+        | Type::Mutex { payload: inner }
+        | Type::Registration { environment: inner }
+        | Type::AsyncRegistration { environment: inner }
+        | Type::Array { element: inner, .. }
+        | Type::Slice { element: inner }
+        | Type::Address { inner, .. }
+        | Type::Managed(inner)
+        | Type::Desc(inner)
+        | Type::Opaque { hidden: inner, .. } => visit(inner)?,
+        Type::Task {
+            result,
+            retained_life,
+        }
+        | Type::MutexGuard {
+            payload: result,
+            retained_life,
+        } => {
+            visit(result)?;
+            for port in &retained_life.ports {
+                visit(&port.leaf)?;
+            }
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        }
+        | Type::ForeignCallback { parameters, result } => {
+            for parameter in parameters {
+                visit(parameter)?;
+            }
+            visit(result)?;
+        }
+        Type::Tuple(fields) => {
+            for field in fields {
+                visit(field)?;
+            }
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (_, field) in fields {
+                visit(field)?;
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    visit(field)?;
+                }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            visit(error)?;
+            visit(result)?;
+        }
+        Type::Closure(id) => {
+            fee(left, needed.len().saturating_add(1).ilog2() as usize + 1)?;
+            if needed.insert(*id) {
+                fee(left, directory.closures.len())?;
+                let closure = directory
+                    .closures
+                    .iter()
+                    .find(|row| row.id == *id)
+                    .ok_or_else(|| {
+                        unknown("Task preparation dependency has no actual closure definition")
+                    })?;
+                for child in closure
+                    .captures
+                    .iter()
+                    .chain(&closure.parameters)
+                    .chain(std::iter::once(&closure.result))
+                {
+                    needed_closure_type(
+                        child,
+                        directory,
+                        needed,
+                        seen_interfaces,
+                        seen_nominals,
+                        limits,
+                        left,
+                        depth + 1,
+                    )?;
+                }
+            }
+        }
+        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+            fee(
+                left,
+                seen_interfaces.len().saturating_add(1).ilog2() as usize + 1,
+            )?;
+            if seen_interfaces.insert(*interface) {
+                fee(left, directory.dyn_interfaces.len())?;
+                let row = directory
+                    .dyn_interfaces
+                    .iter()
+                    .find(|row| row.id == *interface)
+                    .ok_or_else(|| {
+                        unknown("Task preparation dependency has no complete dyn interface")
+                    })?;
+                if let Some(context) = &row.context {
+                    needed_closure_type(
+                        context,
+                        directory,
+                        needed,
+                        seen_interfaces,
+                        seen_nominals,
+                        limits,
+                        left,
+                        depth + 1,
+                    )?;
+                }
+                for port in &row.retained_life.ports {
+                    needed_closure_type(
+                        &port.leaf,
+                        directory,
+                        needed,
+                        seen_interfaces,
+                        seen_nominals,
+                        limits,
+                        left,
+                        depth + 1,
+                    )?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 fn bind_instance(
     directory: &mut ActualDirectory<'_>,
     program: &SemanticModule,
@@ -258,6 +464,7 @@ fn emitter_directory<'m>(
     interfaces: &'m [DynInterface],
     program: &SemanticModule,
     caller_instance: SemanticInstanceId,
+    needed_types: impl IntoIterator<Item = &'m Type>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<(ActualDirectory<'m>, FormedHeaders)> {
@@ -300,6 +507,43 @@ fn emitter_directory<'m>(
         limits,
         left,
     )?;
+    let mut needed = BTreeSet::new();
+    let mut seen_interfaces = BTreeSet::new();
+    let mut seen_nominals = BTreeSet::new();
+    for ty in needed_types {
+        inference::charge_type_snapshot(ty, caller.span, limits, left, 1)?;
+        needed_closure_type(
+            ty,
+            &directory,
+            &mut needed,
+            &mut seen_interfaces,
+            &mut seen_nominals,
+            limits,
+            left,
+            0,
+        )?;
+    }
+    if let Some(id) = caller.environment {
+        fee(left, state.pending.len())?;
+        let pending = state
+            .pending
+            .iter()
+            .find(|row| row.id == id)
+            .ok_or_else(|| bad("Task preparation lost its actual caller capture directory"))?;
+        for capture in &pending.captures {
+            inference::charge_type_snapshot(&capture.ty, caller.span, limits, left, 1)?;
+            needed_closure_type(
+                &capture.ty,
+                &directory,
+                &mut needed,
+                &mut seen_interfaces,
+                &mut seen_nominals,
+                limits,
+                left,
+                0,
+            )?;
+        }
+    }
     bind_instance(
         &mut directory,
         program,
@@ -396,10 +640,17 @@ fn emitter_directory<'m>(
     // never assigned zero classes.
     for _ in 0..=directory.closures.len() {
         let mut progress = false;
+        fee(
+            left,
+            directory
+                .closures
+                .len()
+                .saturating_mul(needed.len().saturating_add(1).ilog2() as usize + 1),
+        )?;
         let candidates = directory
             .closures
             .iter()
-            .filter(|row| row.storage_life.is_none())
+            .filter(|row| needed.contains(&row.id) && row.storage_life.is_none())
             .map(|row| (row.id, row.function))
             .collect::<Vec<_>>();
         fee(left, candidates.len())?;
@@ -440,6 +691,18 @@ fn emitter_directory<'m>(
         install_callable_actuals(&mut directory, program, state, limits, left)?;
         if !progress {
             break;
+        }
+    }
+    for id in needed {
+        fee(left, directory.closures.len())?;
+        if !directory
+            .closures
+            .iter()
+            .any(|row| row.id == id && row.storage_life.is_some())
+        {
+            return Err(unknown(
+                "Task preparation closure dependency has no complete actual header",
+            ));
         }
     }
     Ok((directory, headers))
@@ -497,6 +760,7 @@ pub(crate) fn prepare_task(
         interfaces,
         &context.semantic,
         scheme.instance,
+        parameters.iter().chain(std::iter::once(result)),
         limits,
         left,
     )?;
@@ -753,6 +1017,7 @@ pub(crate) fn prepare_poll(
         interfaces,
         &context.semantic,
         scope,
+        std::iter::once(task),
         limits,
         left,
     )?;

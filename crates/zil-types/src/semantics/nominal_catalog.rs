@@ -177,7 +177,9 @@ impl<'a> Check<'a, '_> {
             }
             Type::Managed(inner)
             | Type::OwnedStore { element: inner }
-            | Type::Mutex { payload: inner } => self.domain(inner, depth + 1),
+            | Type::Mutex { payload: inner }
+            | Type::Registration { environment: inner }
+            | Type::AsyncRegistration { environment: inner } => self.domain(inner, depth + 1),
             Type::Tuple(fields) => {
                 for field in fields {
                     if self.domain(field, depth + 1)? != 0 {

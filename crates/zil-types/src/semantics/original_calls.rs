@@ -966,6 +966,11 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<Option<(CallableKind, SemanticSignatureRecipe)>> {
         self.pay(1, depth)?;
+        let owner = self
+            .contexts
+            .last()
+            .copied()
+            .ok_or_else(|| bad("callable extraction has no actual lexical Gamma"))?;
         match value {
             SemanticTypeRecipe::Opaque {
                 definition,
@@ -978,20 +983,31 @@ impl Check<'_, '_> {
                         "original opaque callable omits full explicit arguments",
                     ));
                 }
-                let frames = [(0, arguments.as_slice())];
-                let empty = BTreeMap::new();
-                let substitution = substitute::Substitution {
-                    frames: if arguments.is_empty() { &[] } else { &frames },
-                    selves: &[],
-                    environments: &[],
-                    implicit: &empty,
-                    invocation: &empty,
-                    shift: 0,
+                // The hidden value belongs to this original definition, not
+                // the use's same-numbered lexical ancestors. First extract
+                // inside that sealed domain, then substitute all actuals and
+                // transport the signature through the genuine boundary.
+                self.contexts.push(*definition);
+                let extracted = self.concrete_callable(hidden, depth + 1);
+                self.contexts.pop();
+                let Some((kind, signature)) = extracted? else {
+                    return Ok(None);
                 };
-                // Enter the opaque definition's sealed body domain deliberately;
-                // ordinary substitution never traverses this boundary itself.
-                let hidden = substitute::ty(hidden, &substitution, self.limits, self.left)?;
-                self.concrete_callable(&hidden, depth + 1)
+                let signature = super::super::instantiate::callable_signature(
+                    self.program,
+                    &self.proof,
+                    &signature,
+                    super::super::instantiate::DomainMapping {
+                        source: *definition,
+                        use_definition: owner,
+                        arguments,
+                        parent_call: None,
+                    },
+                    None,
+                    self.limits,
+                    self.left,
+                )?;
+                Ok(Some((kind, signature)))
             }
             SemanticTypeRecipe::Closure {
                 definition,
@@ -1024,20 +1040,22 @@ impl Check<'_, '_> {
                 }
                 signature.result =
                     self.effective_result(*definition, &signature.result, depth + 1)?;
-                let frames = [(0, arguments.as_slice())];
-                let environments = [(0, environment.as_slice())];
-                let empty = BTreeMap::new();
-                let substitution = substitute::Substitution {
-                    frames: &frames,
-                    selves: &[],
-                    environments: &environments,
-                    implicit: &empty,
-                    invocation: &empty,
-                    shift: 0,
-                };
                 Ok(Some((
                     kind,
-                    substitute::signature(&signature, &substitution, self.limits, self.left)?,
+                    super::super::instantiate::callable_signature(
+                        self.program,
+                        &self.proof,
+                        &signature,
+                        super::super::instantiate::DomainMapping {
+                            source: *definition,
+                            use_definition: owner,
+                            arguments,
+                            parent_call: None,
+                        },
+                        Some(environment),
+                        self.limits,
+                        self.left,
+                    )?,
                 )))
             }
             SemanticTypeRecipe::Code { signature, .. } => {

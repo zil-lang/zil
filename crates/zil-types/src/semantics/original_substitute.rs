@@ -995,6 +995,41 @@ pub(crate) fn signature(
     Ok(value)
 }
 
+/// A callable's own Invocation/Bound frame survives extraction. Only free
+/// lexical references cross the independently proved source-to-use map.
+pub(crate) fn signature_in_domains(
+    value: &SemanticSignatureRecipe,
+    substitution: &Substitution<'_>,
+    scopes: &BTreeMap<u32, u32>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut value = value.clone();
+    Apply {
+        type_equations: &[],
+        local_equations: &[],
+        delayed: None,
+        substitution,
+        limits,
+        left,
+        bound_depth: 0,
+        bound_delta: 0,
+        bound_cutoff: 0,
+        invocation_depth: 0,
+        fresh_roles: false,
+        template: false,
+        template_implicit: false,
+        scopes: Some(scopes),
+        allow_root_invocation: true,
+        forall: None,
+        inference_seen: None,
+        nominal_filter: None,
+    }
+    .signature(&mut value, 1)?;
+    Ok(value)
+}
+
 pub(crate) fn requirement(
     value: &SemanticRequirementRecipe,
     substitution: &Substitution<'_>,
