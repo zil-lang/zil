@@ -1852,6 +1852,138 @@ pub(super) fn shared_binding_view(
 }
 
 /// A directed call loan preserves the source's original complete sigma.
+fn original_read_value(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    node: NodeId,
+) -> R<Option<ValueId>> {
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Ok(None);
+    };
+    world.pay(site_nodes.len())?;
+    let recipes = site_nodes
+        .iter()
+        .filter(|row| row.node == SemanticOriginalNode::Expression(node))
+        .map(|row| row.site)
+        .collect::<Vec<_>>();
+    world.pay(
+        recipes
+            .len()
+            .saturating_add(index::search(world.index.sites.len())),
+    )?;
+    let Some(offsets) = world.index.sites.get(&instance.id) else {
+        return Ok(None);
+    };
+    index::pay(world.left, offsets.len())?;
+    let offsets = offsets.clone();
+    let program = world.program;
+    let mut selected = None;
+    for offset in offsets {
+        world.pay(recipes.len().saturating_add(1))?;
+        let site = &program.sites[offset];
+        if site.instance != instance.id || !recipes.contains(&site.recipe) {
+            continue;
+        }
+        let SemanticSiteAction::TypeUse {
+            subject: SemanticOperand::Value(value),
+            ..
+        } = site.action
+        else {
+            continue;
+        };
+        if selected.replace(value).is_some_and(|old| old != value) {
+            return Err(bad("one original loan read has different actual SSA mints"));
+        }
+    }
+    Ok(selected)
+}
+
+/// Source lowering can stage a field in a hygienic local. Authenticate every
+/// reaching Store/Load and real reborrow back to the exact original read;
+/// neither a temporary's name nor equality of pointer types is an origin.
+#[allow(clippy::too_many_arguments)]
+fn read_transport(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    function: &TypedFunction,
+    value: ValueId,
+    original_read: ValueId,
+    values: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+    active: &mut std::collections::BTreeSet<ValueId>,
+    depth: usize,
+) -> R<()> {
+    world.pay(index::search(active.len()).saturating_add(1))?;
+    if depth > world.limits.max_call_depth || active.len() > world.limits.max_nodes {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "original loan read transport limit exceeded",
+            None,
+        ));
+    }
+    let actual = world.get(values, value)?;
+    if value == original_read {
+        return Ok(());
+    }
+    if !active.insert(value) {
+        return Err(bad(
+            "original loan read has a cyclic actual alias transport",
+        ));
+    }
+    let (operation, block, instruction) = producer(world, function, value)?;
+    match operation {
+        InstructionKind::ReborrowAddress { address, mutable } => {
+            let incoming = world.get(values, *address)?;
+            places::address_mutable(world, &incoming, *mutable)?;
+            places::borrow_mode(Some(World::type_of(&actual)?), *mutable)?;
+            let source = world.pointee(&incoming)?;
+            let child = world.pointee(&actual)?;
+            world.same(instance.id, &source, &child, implicit)?;
+            read_transport(
+                world,
+                instance,
+                function,
+                *address,
+                original_read,
+                values,
+                implicit,
+                active,
+                depth + 1,
+            )?;
+        }
+        InstructionKind::Load(local) => {
+            for source in reaching_values(world, function, *local, (block, instruction))? {
+                let ActivationSource::Value(source) = source else {
+                    return Err(bad(
+                        "loan read transport substitutes a capture for its original SSA",
+                    ));
+                };
+                let incoming = world.get(values, source)?;
+                world.same(instance.id, &actual, &incoming, implicit)?;
+                read_transport(
+                    world,
+                    instance,
+                    function,
+                    source,
+                    original_read,
+                    values,
+                    implicit,
+                    active,
+                    depth + 1,
+                )?;
+            }
+        }
+        _ => {
+            return Err(bad(
+                "loan field value has no actual transport from its original read",
+            ));
+        }
+    }
+    active.remove(&value);
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn call_region_argument(
     world: &mut World<'_, '_>,
@@ -1874,7 +2006,7 @@ pub(super) fn call_region_argument(
     let original = world.definition(caller.definition)?;
     let parameter =
         u32::try_from(parameter).map_err(|_| bad("call region parameter ordinal overflows"))?;
-    let role = {
+    let (source_node, role) = {
         let ledger = world.ledger;
         let proof = ledger.original.borrow();
         let proof = proof
@@ -1952,15 +2084,40 @@ pub(super) fn call_region_argument(
                 _ => {}
             }
         }
-        role.clone()
+        (*node, role.clone())
     };
     let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = caller.target
     else {
         return Err(bad("call loan has no actual function"));
     };
     let function = world.function(function)?;
+    let staged_constructor = matches!(
+        world.original_recipe(original, site.recipe)?.kind,
+        SemanticSiteRecipeKind::Construct { .. }
+    );
+    let read = if staged_constructor {
+        original_read_value(world, caller, original, source_node)?
+    } else {
+        None
+    };
+    let source = if let Some(source) = read {
+        read_transport(
+            world,
+            caller,
+            function,
+            operand,
+            source,
+            values,
+            implicit,
+            &mut std::collections::BTreeSet::new(),
+            0,
+        )?;
+        source
+    } else {
+        operand
+    };
     trace(
-        world, caller, original, function, &role, operand, values, locals, implicit, false,
+        world, caller, original, function, &role, source, values, locals, implicit, false,
     )?;
     Ok(true)
 }
