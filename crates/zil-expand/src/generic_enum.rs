@@ -832,6 +832,106 @@ impl Engine<'_> {
         };
         let variant = variant.to_owned();
         let raw_fields = fields(decl, &variant, span)?;
+        // A caller's physical parameter context is already a complete nominal
+        // instance. Its private, lifetime-erased pattern hint must never be
+        // instantiated as a new source application in the caller's scope.
+        let physical_context = if let Some(expected) = expected
+            && let TypeKind::Named { path, args } = &grouped(expected).kind
+            && path.len() == 1
+            && args.is_empty()
+        {
+            self.stored_lookup_fee(self.stored_enum_layouts.len(), path[0].len(), span)?;
+            match self.stored_enum_layouts.get(&path[0]) {
+                Some((template, _)) => {
+                    self.budget.text(template, span)?;
+                    self.budget.text(&decl.name, span)?;
+                    if template != &decl.name {
+                        return Err(error(
+                            span,
+                            "enum constructor has a different nominal context",
+                        ));
+                    }
+                    self.budget.text(&path[0], span)?;
+                    Some(path[0].clone())
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+        if explicit.is_none()
+            && let Some(physical) = &physical_context
+        {
+            let (_, variants) = &self.stored_enum_layouts[physical];
+            for (name, _) in variants {
+                self.budget.text(name, span)?;
+            }
+            let (_, layout) = variants
+                .iter()
+                .find(|(name, _)| name == &variant)
+                .ok_or_else(|| error(span, "qualified enum context omits its variant"))?;
+            self.budget.identity_work(variants.len(), span)?;
+            for field in layout {
+                self.budget.ty(field)?;
+            }
+            self.budget.lineage_bytes(
+                layout.len().saturating_mul(std::mem::size_of::<TypeRef>()),
+                span,
+            )?;
+            let layout = layout.clone();
+            if arguments.as_ref().map_or(0, |values| values.len()) != raw_fields.len()
+                || layout.len() != raw_fields.len()
+            {
+                return Err(error(
+                    span,
+                    "qualified enum constructor payload arity mismatch",
+                ));
+            }
+            if let Some(values) = arguments {
+                for (value, field) in values.iter_mut().zip(&layout) {
+                    if value.spread {
+                        return Err(unsupported(value.span, "enum payload tuple spread"));
+                    }
+                    let actual =
+                        self.expr_expected(&mut value.value, env, Some(field), depth + 1)?;
+                    let mut actual = match actual {
+                        Some(actual) => actual,
+                        None => self
+                            .value_hint(&value.value, env, depth + 1, true)?
+                            .ok_or_else(|| {
+                                error(value.span, "enum payload type cannot be inferred")
+                            })?,
+                    };
+                    self.ty(&mut actual, depth + 1)?;
+                    if type_key(&actual, &mut self.budget)? != type_key(field, &mut self.budget)? {
+                        return Err(error(
+                            value.span,
+                            "enum payload differs from qualified context",
+                        ));
+                    }
+                }
+            }
+            self.budget.text(physical, span)?;
+            self.budget.text(physical, span)?;
+            callee.kind = ExprKind::Member {
+                object: Box::new(Expr {
+                    semantic: Default::default(),
+                    span,
+                    kind: ExprKind::Name(physical.clone()),
+                }),
+                member: MemberName::Name(variant),
+            };
+            // In particular None retains the complete instance and phantom N.
+            // This chooses layout only. The original constructor and its actual
+            // payload expressions remain the independent source of class roles.
+            return Ok(Some(TypeRef {
+                span,
+                kind: TypeKind::Named {
+                    path: vec![physical.clone()],
+                    args: Vec::new(),
+                },
+            }));
+        }
         let source_application = explicit.or_else(|| {
             expected.and_then(|ty| match &grouped(ty).kind {
                 TypeKind::Named { path, args } if path.as_slice() == [decl.name.as_str()] => {
@@ -978,6 +1078,15 @@ impl Engine<'_> {
             let mut actuals = source_arguments.clone();
             let (generated, classes) =
                 self.stored_nominal(&decl.name, &mut actuals, span, depth + 1)?;
+            if physical_context
+                .as_ref()
+                .is_some_and(|physical| physical != &generated)
+            {
+                return Err(error(
+                    span,
+                    "stored enum constructor differs from qualified context",
+                ));
+            }
             if let Some(expected) = expected
                 && let TypeKind::Named { path, args } = &grouped(expected).kind
                 && path.as_slice() == [decl.name.as_str()]
@@ -1513,8 +1622,30 @@ impl Engine<'_> {
             return Ok(None);
         }
         let provider = self.provider(name, callee.span)?;
-        let mut expected = expected.map(|ty| self.original_type(ty)).transpose()?;
-        if !self.stored_enum_layouts.is_empty()
+        let source_result = if self.stored_nominals {
+            self.signatures
+                .get(name)
+                .and_then(|f| f.return_type.as_ref())
+                .map(|result| {
+                    stored_option_source_hint(result, &self.instance_types, &mut self.budget)
+                })
+                .transpose()?
+                .flatten()
+        } else {
+            None
+        };
+        let expected_layout = expected
+            .map(|ty| stored_option_source_hint(ty, &self.instance_types, &mut self.budget))
+            .transpose()?
+            .flatten();
+        let physical_expected = expected_layout.is_some();
+        let mut expected = match expected_layout {
+            Some(layout) => Some(layout),
+            None => expected.map(|ty| self.original_type(ty)).transpose()?,
+        };
+        if !physical_expected
+            && source_result.is_none()
+            && !self.stored_enum_layouts.is_empty()
             && let Some(actual) = expected.as_mut()
         {
             let mut pending = vec![&*actual];
@@ -1564,17 +1695,6 @@ impl Engine<'_> {
                 found.insert(p.name.clone(), actual);
             }
         }
-        let source_result = if self.stored_nominals {
-            f.return_type
-                .as_ref()
-                .map(|result| {
-                    stored_option_source_hint(result, &self.instance_types, &mut self.budget)
-                })
-                .transpose()?
-                .flatten()
-        } else {
-            None
-        };
         if let (Some(result), Some(expected)) = (
             source_result.as_ref().or(f.return_type.as_ref()),
             expected.as_ref(),
@@ -1614,10 +1734,12 @@ impl Engine<'_> {
                 )?;
             }
         }
+        let mut contexts = BTreeMap::new();
         let parameters = f
             .params
             .iter()
-            .map(|p| {
+            .enumerate()
+            .map(|(index, p)| {
                 if self.traits.has_associated
                     && trait_bounds::associated::contains(&p.ty, &mut self.budget)?
                 {
@@ -1636,6 +1758,10 @@ impl Engine<'_> {
                     && let Some(source) =
                         stored_option_source_hint(&p.ty, &self.instance_types, &mut self.budget)?
                 {
+                    self.budget.ty(&p.ty)?;
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<(usize, TypeRef)>(), p.span)?;
+                    contexts.insert(index, p.ty.clone());
                     return Ok(source);
                 }
                 Ok(p.ty.clone())
@@ -1647,6 +1773,7 @@ impl Engine<'_> {
                 bounds.roles.into_iter().map(|role| role.index).collect()
             }),
             parameters,
+            contexts,
             variables,
             found,
         }))
@@ -1706,6 +1833,8 @@ pub(super) struct CallHints {
     pub(super) source_scope: Option<Function>,
     callable: Vec<usize>,
     parameters: Vec<TypeRef>,
+    // Complete physical contexts are distinct from pattern-only source hints.
+    contexts: BTreeMap<usize, TypeRef>,
     variables: BTreeSet<String>,
     found: BTreeMap<String, TypeRef>,
 }
@@ -1806,6 +1935,10 @@ impl CallHints {
     }
 
     pub(super) fn hint(&self, index: usize, budget: &mut Budget<'_>) -> R<Option<TypeRef>> {
+        if let Some(context) = self.contexts.get(&index) {
+            budget.ty(context)?;
+            return Ok(Some(context.clone()));
+        }
         let Some(parameter) = self.parameters.get(index) else {
             return Ok(None);
         };
