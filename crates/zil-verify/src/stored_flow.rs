@@ -6979,6 +6979,10 @@ pub(super) fn check(
 ) -> Check<()> {
     check_with_mask(module, graphs, plan, None, b)
 }
+pub(super) fn contract_dependencies(module:&TypedModule,function:FunctionId,b:&mut Budget)->Check<Vec<FunctionId>>{
+    let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||err("original contract dependency has no exact actual function"))?;
+    dyn_providers::dependencies(module,f,b)
+}
 pub(super) fn check_mixed(
     module: &TypedModule,
     graphs: &[FunctionGraph],
