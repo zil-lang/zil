@@ -395,9 +395,9 @@ impl CheckedContext {
                         if let Some(at)=&mut site_environment.at{at.after=matches!(instruction.kind,InstructionKind::MakeClosure{..})&&matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::After,..});}
                         let environment=&site_environment;
                         let required=self.site_expected(module,instance,site,environment,external,active,b)?;
-                        self.claim(module,expected,&required,&environment,b)?;
                         let value=self.type_use_operand(module,instance,f,subject,&state,&values,signature,environment,b)?;
                         self.bind_implicit_use(module,instance,site,subject,&value,&required,&environment,b)?;
+                        self.claim_type_use(module,expected,&required,environment,b)?;
                         if !self.compatible(&environment,&value,&required,b)? {return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}
                     }
                 }
@@ -746,7 +746,7 @@ impl CheckedContext {
         b.spend(arguments.len())?;
         let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
         let inputs=source_inputs.iter().collect::<Vec<_>>();
-        self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
+        self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for (index,((expected,_),argument)) in signature.parameters.iter().zip(arguments).enumerate() {
             if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
@@ -843,7 +843,12 @@ impl CheckedContext {
         b.spend(path.len().saturating_add(1))?;
         Ok(Some(IntrinsicOrigin::Existing{scope,operand,path:path.clone(),class:*class}))
     }
-    pub(super) fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+    pub(super) fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {self.claim_scoped(module,claim,expected,environment,false,b)}
+    fn claim_type_use(&self,module:&TypedModule,claim:&SemanticTypeValue,source:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {self.claim_scoped(module,claim,source,environment,true,b)}
+    /// A TypeUse may advertise an allowed outer view of this exact source.
+    /// The source occurrence has already been bound to its real SSA producer;
+    /// this comparison neither replaces that source nor adds any equality.
+    fn claim_scoped(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,root_view:bool,b:&mut Budget)->Check<()> {
         let (ty,life,expressions)=resolved(claim)?;
         let mut classes=Vec::new();for expression in expressions {classes.push(self.class(module,expression,environment,b)?);}
         // Metadata-only Task frame construction compares the same complete
@@ -868,9 +873,36 @@ impl CheckedContext {
             }
         }
         self.claim_static_obligations(&mut actual,expected,b)?;
-        if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe").with_note(format!("original {:?}, actual point {:?}; domains {}/{}, class images {:?}/{:?}",environment.lexical.first().map(|frame|frame.definition),environment.at,actual.life.binder_count,expected.life.binder_count,&actual.classes[..actual.classes.len().min(6)],&expected.classes[..expected.classes.len().min(6)])));}
+        let same=self.same_type(environment,&actual,expected,b)?;
+        let view=!same&&root_view&&self.compatible(environment,expected,&actual,b)?;
+        if !same&&!view {return Err(bad("site complete type/class claim differs from its original scoped recipe").with_note(format!("original {:?}, actual point {:?}; domains {}/{}, class images {:?}/{:?}",environment.lexical.first().map(|frame|frame.definition),environment.at,actual.life.binder_count,expected.life.binder_count,&actual.classes[..actual.classes.len().min(6)],&expected.classes[..expected.classes.len().min(6)])));}
         Ok(())
     }
 }
 fn value_at(values:&[Option<CheckedType>],id:ValueId)->Check<&CheckedType> {values.get(id.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual SSA use has no independent semantic definition"))}
 fn atomic(ty:&Type,b:&mut Budget)->Check<CheckedType> {b.spend(1)?;if !ty.is_b0_scalar() {return Err(bad("actual scalar instruction contains a borrowed/opaque semantic carrier"));}Ok(CheckedType{type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]})}
+
+#[cfg(test)]
+mod type_use_view_tests {
+    use super::*;
+    #[test]
+    fn type_use_views_follow_the_proved_source_direction_without_equating_roles(){
+        let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let instance=&module.semantic.as_ref().unwrap().instances[0];let scope=ScopeKey::Instance(instance.id);
+        let input=ClassKey::Formal{scope,ordinal:0};let source=ClassKey::Implicit{scope,ordinal:0};
+        // A scoped relation kernel control: these frames are not an admission
+        // proof for an SSA value, source expression, header or resource owner.
+        let env=EvalEnv{lexical:vec![LexicalFrame{definition:instance.definition,key:scope,actuals:vec![CheckedActual::Life(input.clone()),CheckedActual::Life(source.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let ty=Type::Address{mutable:false,inner:Box::new(Type::I32)};let life=StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]};
+        let value=|class:ClassKey|CheckedType{type_cell:CheckedTypeData::new(ty.clone()),life:life.clone(),origins:vec![IntrinsicOrigin::DerivedClass{source:class.clone()}],classes:vec![class],statics:vec![]};
+        let claim=|ordinal,ty:Type|SemanticTypeValue::Resolved{ty,life:life.clone(),classes:vec![SemanticClassExpr::Formal{scope:SemanticScopeRef::Ancestor(0),ordinal}]};
+        context.premises.borrow_mut().entry(scope).or_default().relations.outlives.push((source.clone(),input.clone()));
+        assert!(context.claim(&module,&claim(0,ty.clone()),&value(source.clone()),&env,&mut b).is_err(),"ordinary complete type claims remain exact");
+        context.claim_type_use(&module,&claim(0,ty.clone()),&value(source.clone()),&env,&mut b).unwrap();
+        assert!(!context.same(&env,&source,&input,&mut b).unwrap());
+        assert!(context.claim_type_use(&module,&claim(1,ty.clone()),&value(input.clone()),&env,&mut b).is_err());
+        assert!(context.claim_type_use(&module,&claim(0,Type::Address{mutable:false,inner:Box::new(Type::I64)}),&value(source.clone()),&env,&mut b).is_err());
+        context.premises.borrow_mut().entry(scope).or_default().relations.outlives=vec![(input,source.clone())];
+        assert!(context.claim_type_use(&module,&claim(0,ty.clone()),&value(source),&env,&mut b).is_err(),"an upper bound cannot be reversed into a root view");
+    }
+}

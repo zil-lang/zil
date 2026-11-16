@@ -41,7 +41,7 @@ impl CheckedOriginal {
         }Ok(roles)
     }
     pub(super) fn finish_call_heads(&mut self,ids:&[(u64,Vec<u32>,bool)],node:NodeId,b:&mut Budget)->Check<()> {
-        for (id,ordinal,formal) in ids {
+        for (id,ordinal,_formal) in ids {
             let Some(sources)=self.outer_inferences.remove(id)else{continue;};
             if sources.is_empty(){continue;}
             let target=self.resolved_life(&Life::Infer(*id),b)?;
@@ -52,7 +52,8 @@ impl CheckedOriginal {
                 // Static is an actual source obligation, not a value in the
                 // variable Life domain. An inferred formal still denotes this
                 // call's original region when all of its sources are Static.
-                if equal&&(!*formal||!matches!(first,Life::Static|Life::Local(..)|Life::CallRegion(_))){self.life_substitutions.insert(*id,first);}
+                let local_role=self.local_outer_sources(&first,b)?.is_some();
+                if equal&&!local_role&&!matches!(first,Life::Static|Life::Local(..)|Life::CallRegion(_)){self.life_substitutions.insert(*id,first);}
                 else{let owner=self.current.ok_or_else(||bad("original Call region has no caller"))?;b.spend(ordinal.len())?;self.call_regions.insert(*id,(owner,node,ordinal.clone(),unique));self.life_substitutions.insert(*id,Life::CallRegion(*id));}
             }else{for source in sources{self.relate_outer(&source,&target,b)?;}}
         }Ok(())
@@ -195,5 +196,26 @@ mod static_call_region_tests {
         assert!(original.outer_outlives(&region,&rigid,&mut BTreeSet::new(),&mut b).unwrap());
         assert!(!original.same_life(&region,&Life::Static,&mut b).unwrap());
         assert!(!original.same_life(&region,&rigid,&mut b).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod call_region_source_tests {
+    use super::*;
+    #[test]
+    fn every_registered_private_role_keeps_a_local_or_static_source_separate(){
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};let input=Life::Formal(owner,0);let local=Life::Local(owner,NodeId(11));
+        let mut checked=CheckedOriginal::default();checked.current=Some(owner);let mut b=Budget::new(&Limits::default());checked.borrow_parents.insert((owner,NodeId(11)),input.clone());
+        for role in [vec![0,2],vec![1,3],vec![2,0],vec![3,1],vec![4,0,1]]{
+            for source in [local.clone(),Life::Static]{
+                let Life::Infer(id)=checked.fresh_life(&mut b).unwrap()else{unreachable!()};checked.outer_inferences.insert(id,vec![source.clone()]);
+                checked.finish_call_heads(&[(id,role.clone(),false)],NodeId(12),&mut b).unwrap();
+                assert_eq!(checked.resolved_life(&Life::Infer(id),&mut b).unwrap(),Life::CallRegion(id));
+                assert_eq!(checked.call_regions[&id].2,role);assert_eq!(checked.call_regions[&id].3,vec![source]);
+                assert!(!checked.same_life(&Life::CallRegion(id),&input,&mut b).unwrap(),"a parent bound does not replace the source or equate its call region");
+            }
+        }
+        let Life::Infer(id)=checked.fresh_life(&mut b).unwrap()else{unreachable!()};checked.outer_inferences.insert(id,vec![input.clone(),input.clone()]);
+        checked.finish_call_heads(&[(id,vec![1,0],false)],NodeId(12),&mut b).unwrap();assert_eq!(checked.resolved_life(&Life::Infer(id),&mut b).unwrap(),input);
     }
 }

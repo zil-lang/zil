@@ -71,8 +71,10 @@ impl CheckedOriginal {
                 self.execute_effect(env,prototype.call_kind,b)?;
                 if prototype.parameters.len()!=arguments.len(){return Err(bad("original Call value arity differs from the declared signature"));}
                 if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
-                for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;}
+                b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());
+                for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
                 self.finish_call_heads(&outer_heads,call.id,b)?;
+                self.remember_call_region_parameters(&region_parameters,call.id,env,b)?;
                 let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
                 if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}
                 // Opaque result capabilities refer to the defining body's
@@ -156,7 +158,7 @@ impl CheckedOriginal {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    fn invoke(&mut self,module:&TypedModule,context:&CheckedContext,node:NodeId,outer_floor:u64,prototype:&Prototype,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{let outer_heads=self.defer_call_heads(prototype,&[],outer_floor,b)?;self.execute_effect(env,prototype.call_kind,b)?;if prototype.parameters.len()!=arguments.len(){return Err(bad("original Callable arity differs"));}for((argument,expected),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,expected,*mode,env,bindings,active,b)?;self.relate_value(&actual,expected,b)?;}self.finish_call_heads(&outer_heads,node,b)?;Ok(prototype.result.clone())}
+    fn invoke(&mut self,module:&TypedModule,context:&CheckedContext,node:NodeId,outer_floor:u64,prototype:&Prototype,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{let outer_heads=self.defer_call_heads(prototype,&[],outer_floor,b)?;self.execute_effect(env,prototype.call_kind,b)?;if prototype.parameters.len()!=arguments.len(){return Err(bad("original Callable arity differs"));}for((argument,expected),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,expected,*mode,env,bindings,active,b)?;self.relate_value(&actual,expected,b)?;}self.finish_call_heads(&outer_heads,node,b)?;self.remember_call_region_parameters(&prototype.parameters,node,env,b)?;Ok(prototype.result.clone())}
     pub(super) fn same_argument(&mut self,left:&Arg,right:&Arg,b:&mut Budget)->Check<()>{match(left,right){(Arg::Type(left),Arg::Type(right))=>self.unify(left,right,b),(Arg::Life(left),Arg::Life(right))=>self.unify_life(left,right,b),_ if left==right=>Ok(()),_=>Err(bad("original Call argument differs from its solved symbolic identity/carrier"))}}
     pub(super) fn callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
         if let Ty::Opaque(owner,arguments)=self.resolved(ty,b)?{return self.opaque_callable(module,context,owner,&arguments,active,b);}

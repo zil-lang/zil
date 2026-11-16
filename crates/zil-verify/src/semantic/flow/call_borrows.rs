@@ -51,6 +51,29 @@ impl CheckedContext {
         }
         Ok((checked,exact_sources))
     }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn instantiate_original_call_heads(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+        let regions=self.original.borrow().as_ref().ok_or_else(||bad("Call private heads lack their complete original region proof"))?.call_region_parameter_recipes(module,caller.definition,site.recipe,environment,b)?;
+        if regions.is_empty(){return self.instantiate_call_heads(signature,arguments,key,environment,b);}
+        let mut boundary=trait_members::Boundary::default();
+        for(ordinal,recipe)in regions{
+            let target=self.life(module,&recipe,environment,b)?;
+            let parameter=&signature.parameters.get(ordinal as usize).ok_or_else(||bad("Call region selects an absent full parameter ordinal"))?.0;
+            if !matches!(parameter.ty,Type::Address{..}|Type::Desc(_)){return Err(bad("Call region changed its exact original root borrow category"));}
+            let mut slots=parameter.life.slots.iter().filter(|slot|slot.path.is_empty());
+            let slot=slots.next().ok_or_else(||bad("Call region parameter lacks its complete variable outer occurrence"))?;
+            if slots.next().is_some(){return Err(bad("Call region parameter repeats its root occurrence"));}
+            b.spend(parameter.life.slots.len().saturating_add(parameter.life.retained.len()).saturating_add(parameter.life.nominal_arguments.len()))?;
+            if parameter.life.slots.iter().any(|row|!row.path.is_empty()&&row.binder==slot.binder)||parameter.life.retained.iter().any(|row|row.binder==slot.binder)||parameter.life.nominal_arguments.iter().any(|row|row.binder==slot.binder){return Err(bad("Call private outer role overlaps an existing child intrinsic domain"));}
+            let source=parameter.classes.get(slot.binder as usize).ok_or_else(||bad("Call region root class is absent"))?;
+            let private=signature.invocation.contains(source)||signature.bound.contains(source)||matches!(source,ClassKey::Implicit{scope,..}if *scope==key)||matches!(source,ClassKey::Outer{scope,operand:OperandKey::Parameter(index),path,mode}if *scope==key&&*index==ordinal&&path.is_empty()&&*mode==slot.mode);
+            if !private&&!self.same(environment,source,&target,b)?{return Err(bad("Call region cannot replace an existing rigid root identity"));}
+            boundary.class(self,environment,source,&target,b)?;
+        }
+        for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
+        signature.result=boundary.project_type(self,environment,&signature.result,b)?;
+        self.instantiate_call_heads(signature,arguments,key,environment,b)
+    }
     pub(super) fn instantiate_call_heads(&self,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()>{
         if arguments.len()!=signature.parameters.len(){return Err(bad("Call head substitution changes its actual arity"));}
         let mut invocation=Vec::<(ClassKey,Vec<ClassKey>)>::new();
@@ -293,5 +316,26 @@ mod shared_view_tests{
         let mut changed=view.clone();changed.origins.swap(0,1);assert!(!context.same_type(&env,&view,&changed,&mut b).unwrap());
         assert!(context.call_shared_view(&view,&mut b).is_err());
         assert!(context.reborrow_value(&view,scope,ValueId(2),true,&mut b).unwrap_err().message.contains("upgrades a shared address"));
+    }
+}
+
+#[cfg(test)]
+mod region_image_tests {
+    use super::*;
+    fn address(class:ClassKey)->CheckedType{CheckedType{type_cell:CheckedTypeData::new(Type::Address{mutable:false,inner:Box::new(Type::I32)}),life:StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]},origins:vec![IntrinsicOrigin::DerivedClass{source:class.clone()}],classes:vec![class],statics:vec![]}}
+    #[test]
+    fn original_call_regions_are_not_replaced_by_their_input_images(){
+        let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let instance=&module.semantic.as_ref().unwrap().instances[0];let caller=ScopeKey::Instance(instance.id);let call=ScopeKey::Witness{definition:instance.definition,frame:FrameToken(900)};
+        let env=EvalEnv{lexical:vec![LexicalFrame{definition:instance.definition,key:caller,actuals:vec![],environment:vec![],self_type:None}],assumptions:vec![caller],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let sigma=ClassKey::Implicit{scope:caller,ordinal:0};let fresh=[ClassKey::Implicit{scope:call,ordinal:0},ClassKey::Implicit{scope:call,ordinal:1}];let regions=[ClassKey::Implicit{scope:caller,ordinal:7},ClassKey::Implicit{scope:caller,ordinal:8}];
+        let origins=(0..2).map(|class|IntrinsicOrigin::Existing{scope:caller,operand:OperandKey::Receiver,path:vec![],class}).collect::<Vec<_>>();
+        // A scoped transport control, not an SSA or closure admission proof.
+        let mut signature=CheckedSignature{parameters:fresh.iter().cloned().map(|class|(address(class),PassingMode::Borrow)).collect(),result:CheckedType{type_cell:CheckedTypeData::new(Type::Closure(ClosureId(0))),life:StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:fresh.to_vec(),origins:origins.clone(),statics:vec![]},result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound:vec![],invocation:vec![]};
+        let mut boundary=trait_members::Boundary::default();for(source,target)in fresh.iter().zip(&regions){boundary.class(&context,&env,source,target,&mut b).unwrap();context.premises.borrow_mut().entry(caller).or_default().relations.outlives.push((sigma.clone(),target.clone()));}
+        for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(&context,&env,parameter,&mut b).unwrap();}signature.result=boundary.project_type(&context,&env,&signature.result,&mut b).unwrap();
+        let inputs=[address(sigma.clone()),address(sigma.clone())];context.instantiate_call_heads(&mut signature,&inputs.iter().collect::<Vec<_>>(),call,&env,&mut b).unwrap();
+        assert_eq!(signature.result.classes,regions);assert_eq!(signature.result.life.binder_count,2);assert_eq!(signature.result.origins,origins);assert_ne!(signature.result.origins[0],signature.result.origins[1]);
+        for(parameter,_)in &signature.parameters{assert!(context.compatible(&env,&inputs[0],parameter,&mut b).unwrap());assert!(!context.same(&env,&sigma,&parameter.classes[0],&mut b).unwrap());}
     }
 }

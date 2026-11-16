@@ -121,8 +121,10 @@ impl CheckedOriginal {
         if prototype.parameters.len()!=arguments.len(){return Err(bad("original static method argument arity differs"));}
         self.execute_effect(env,prototype.call_kind,b)?;
         if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;}
+        b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());
+        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
         self.finish_call_heads(&outer_heads,call.id,b)?;
+        self.remember_call_region_parameters(&region_parameters,call.id,env,b)?;
         for definition in [scope,original]{
             let depth=selected.lexical.iter().position(|frame|frame.definition==definition.id).ok_or_else(||bad("original static method obligation loses its declaration scope"))?;
             let mut obligation_env=selected.clone();obligation_env.lexical=obligation_env.lexical[depth..].to_vec();

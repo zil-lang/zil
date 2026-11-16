@@ -161,3 +161,20 @@ mod tests{
         assert!(checked.instantiate_prototype(&missing,None,&missing.environment,&mut budget).is_err());
     }
 }
+
+impl CheckedOriginal {
+    /// A region belongs to this exact Call and its original root parameter
+    /// occurrences. Parameter selectors avoid guessing a private Bound token
+    /// from a caller frame, and do not descend into an existing Type's κ.
+    pub(super) fn remember_call_region_parameters(&mut self,parameters:&[Ty],node:NodeId,env:&Env,b:&mut Budget)->Check<()> {
+        let owner=env.current()?;self.original_call_site(owner,node,b)?;let mut rows=Vec::new();
+        for(ordinal,parameter)in parameters.iter().enumerate(){
+            let life=match self.resolved(parameter,b)?{Ty::Address{life,..}|Ty::Desc{life,..}=>life,_=>continue};
+            let Life::CallRegion(id)=life else{continue;};
+            let Some((definition,call,_,_))=self.call_regions.get(&id)else{return Err(bad("original Call parameter selects an absent region"));};
+            if *definition!=owner||*call!=node{continue;}
+            b.spend(1)?;rows.push((u32::try_from(ordinal).map_err(|_|limit("original Call region parameter exceeds its full domain"))?,id));
+        }
+        if !rows.is_empty(){b.spend(rows.len())?;self.call_region_parameters.insert((owner,node),rows);}Ok(())
+    }
+}

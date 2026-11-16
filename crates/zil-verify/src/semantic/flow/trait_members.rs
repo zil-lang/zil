@@ -25,7 +25,7 @@ impl CheckedContext {
         let key=receipt.environment.lexical.first().ok_or_else(||bad("static member lacks its exact source method frame"))?.key;
         let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
         let inputs=source_inputs.iter().collect::<Vec<_>>();
-        self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
+        self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
         if signature.parameters.len()!=arguments.len()||function.parameters.len()!=arguments.len()||function.call_kind!=signature.call_kind||function.result_mode!=signature.result_mode||function.return_type!=signature.result.ty{return Err(bad("actual member whole function ABI differs from its exact source specialization"));}
         for(index,(((expected,_mode),argument),parameter))in signature.parameters.iter().zip(arguments).zip(&function.parameters).enumerate(){
             let local=function.locals.get(parameter.0 as usize).ok_or_else(||bad("actual member parameter local is absent"))?;

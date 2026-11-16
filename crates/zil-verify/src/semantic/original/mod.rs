@@ -91,6 +91,7 @@ pub(super) struct CheckedOriginal {
     outer_inferences:BTreeMap<u64,Vec<Life>>,
     call_regions:BTreeMap<u64,(SemanticDefinitionId,NodeId,Vec<u32>,Vec<Life>)>,
     call_head_roles:BTreeMap<u64,Vec<u32>>,
+    call_region_parameters:BTreeMap<(SemanticDefinitionId,NodeId),Vec<(u32,u64)>>,
     borrow_parents:BTreeMap<(SemanticDefinitionId,NodeId),Life>,
     outer_flows:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
     life_outlives:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,

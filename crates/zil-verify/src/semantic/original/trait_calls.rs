@@ -50,8 +50,10 @@ impl CheckedOriginal {
         if let Some(place)=&place{self.read_original(module,context,place,&object_type,env,!matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe),active,b)?;}
         let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:Life::ReceiverRole(env.current()?,call.id,receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:Life::ReceiverRole(env.current()?,call.id,StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
         self.relate_value(&actual_receiver,&prototype.parameters[0],b)?;
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;}
+        b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());region_parameters.push(self.resolved(&prototype.parameters[0],b)?);
+        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
         self.finish_call_heads(&outer_heads,call.id,b)?;
+        self.remember_call_region_parameters(&region_parameters,call.id,env,b)?;
         for requirement in &original.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
         for formal in &original.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}}}
         let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;

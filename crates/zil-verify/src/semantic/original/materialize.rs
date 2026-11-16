@@ -136,3 +136,12 @@ impl CheckedOriginal {
         Life::Infer(_)=>return Err(bad("original call lifetime remains unresolved at the Typed boundary")),
     })}
 }
+
+impl CheckedOriginal {
+    pub(in crate::semantic) fn call_region_parameter_recipes(&self,module:&TypedModule,owner:SemanticDefinitionId,site:SemanticSiteId,env:&EvalEnv,b:&mut Budget)->Check<Vec<(u32,SemanticLifeRecipe)>>{
+        let index=self.source_index(module,&[owner],b)?;let function=index.definitions.get(&owner).ok_or_else(||bad("Call region parameter owner has no original body"))?;
+        let Some(index::Node::Expression(call))=function.nodes.get(&site)else{return Err(bad("Call region parameter recipe is not an original Call"));};
+        if self.original_call_site(owner,call.id,b)?.1!=site{return Err(bad("Call region parameter selects another original operation site"));}
+        let mut result=Vec::new();if let Some(rows)=self.call_region_parameters.get(&(owner,call.id)){b.spend(rows.len())?;for(ordinal,id)in rows{result.push((*ordinal,self.reify_life(module,&Life::CallRegion(*id),env,b)?));}}Ok(result)
+    }
+}
