@@ -5420,7 +5420,7 @@ fn check_call(
     if arguments.len() != callee.parameters.len() {
         return Err(err("call arity differs from actual body signature"));
     }
-    if replacements::heads(b) {
+    {
         for (source, write) in &summaries[function.0 as usize].head_accesses {
             let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
             if *write {
@@ -5436,6 +5436,7 @@ fn check_call(
         // external data access or delegate an unrelated live child loan.
         for (source, write) in &summaries[function.0 as usize].dyn_accesses {
             let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
+            if *write{store_paths::writable(&actual,&solution.loans,b)?;}
             checks.check(&actual, *write, requirements, b)?;
         }
     }
@@ -5696,8 +5697,8 @@ fn windows(
                     let head = dynamic_store::access(&i.kind)
                         .or_else(|| byte_buffers::access(&i.kind))
                         .or(match i.kind {
-                            InstructionKind::ReadDesc { desc, .. } => Some((desc, false)),
-                            InstructionKind::WriteDesc { desc, .. } => Some((desc, true)),
+                            InstructionKind::ReadDesc{desc,..}if !f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>Some((desc,false)),
+                            InstructionKind::WriteDesc{desc,..}if !f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>Some((desc,true)),
                             _ => None,
                         });
                     if let Some((value, write)) = head {
@@ -5842,17 +5843,19 @@ fn windows(
                         };
                         checks.check(&actual, true, requirements, b)?;
                     }
-                    InstructionKind::WriteDesc{desc,..}=>{
-                        let payload=solution.values.get(desc.0 as usize).ok_or_else(||err("description write has no exact actual value"))?;
-                        let permission=if payload.store_description.sources.is_empty(){&payload.address}else{&payload.store_description};
-                        store_paths::writable(permission,&solution.loans,b)?;
-                        checks.check(permission,true,requirements,b)?;
-                        if !replacements::heads(b){store_paths::record(head_accesses,permission,true,b)?;}
+                    InstructionKind::WriteDesc{..}=>{
+                        let(permission,_)=description_access(f,i,&solution.values,b)?.ok_or_else(||err("description write lacks its exact finite scalar access"))?;
+                        store_paths::writable(&permission,&solution.loans,b)?;
+                        checks.check(&permission,true,requirements,b)?;
+                        store_paths::record(head_accesses,&permission,true,b)?;
                     }
                     InstructionKind::ReadDesc { desc, .. } => {
-                        let actual = pointer(*desc)?;
-                        if !actual.sources.is_empty() {
-                            checks.check(actual, false, requirements, b)?;
+                        if let Some((permission,_))=description_access(f,i,&solution.values,b)?{
+                            checks.check(&permission,false,requirements,b)?;
+                            store_paths::record(head_accesses,&permission,false,b)?;
+                        }else{
+                            let actual=pointer(*desc)?;
+                            if !actual.sources.is_empty(){checks.check(actual,false,requirements,b)?;}
                         }
                     }
                     InstructionKind::BorrowPackageField {
@@ -6441,17 +6444,25 @@ fn windows(
                                 }
                             }
                         }
+                        if let Some((definition,actuals))=stored_callables::called(module,f,&i.kind){
+                            for(source,write)in &summaries[definition.function.0 as usize].head_accesses{
+                                let permission=captured_owner::substitute_access(module,f,i,source,definition,actuals,&solution.values,&state,b)?;
+                                if *write{store_paths::writable(&permission,&solution.loans,b)?;}
+                                checks.check(&permission,*write,requirements,b)?;
+                                store_paths::record(head_accesses,&permission,*write,b)?;
+                            }
+                        }
                         if b.dyn_contexts
                             && let Some((definition, actuals)) =
                                 stored_callables::called(module, f, &i.kind)
                         {
                             let actual = &summaries[definition.function.0 as usize];
-                            if actual.dyn_operations {
+                            if !actual.dyn_accesses.is_empty() {
                                 // These are sequential actual body accesses,
                                 // not a list of mutually disjoint arguments.
                                 // Inferred apart obligations are checked above.
                                 for (source, write) in &actual.dyn_accesses {
-                                    let p = dyn_captures::substitute(
+                                    let p = captured_owner::substitute_access(
                                         module,
                                         f,
                                         i,
@@ -6462,6 +6473,7 @@ fn windows(
                                         &state,
                                         b,
                                     )?;
+                                    if *write{store_paths::writable(&p,&solution.loans,b)?;}
                                     checks.check(&p, *write, requirements, b)?;
                                 }
                             }
@@ -6563,7 +6575,7 @@ fn windows(
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
     reference_cells::after_work(&s.reference_after,b)?;
-    if replacements::heads(b) {
+    {
         b.spend(s.head_accesses.len())?;
         for (source, _) in &s.head_accesses {
             b.spend(width(source))?;
@@ -7978,6 +7990,34 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn scalar_description_helper_write_obligations_survive_without_store_profile_raw_wire(){
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+        let desc=Type::Desc(Box::new(Type::Record{name:"Scalar".into(),fields:vec![("value".into(),Type::I32)]}));
+        let caller=&mut module.functions[0];caller.parameters=vec![LocalId(0)];caller.locals=vec![LocalDecl{id:LocalId(0),name:"input".into(),ty:desc.clone(),mutable:false,span}];caller.values=vec![desc,Type::I32];caller.return_type=Type::Unit;
+        caller.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Load(LocalId(0)),span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::Constant(Constant::I32(1)),span}];caller.blocks[0].terminator=Terminator::Return(None);
+        let mut helper=caller.clone();helper.id=FunctionId(1);helper.name="scalar_write".into();
+        let write=Instruction{result:None,kind:InstructionKind::WriteDesc{desc:ValueId(0),index:0,value:ValueId(1)},span};helper.blocks[0].instructions.push(write.clone());module.functions.push(helper);let plan=CandidatePlan::empty_for(&module);
+        for wire in [false,true]{
+            let decoded;let current=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
+            for exclusive in [false,true]{
+                let root=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None};
+                let permission=Permission{sources:vec![root.clone()],loans:vec![0]};
+                let mut values=vec![Payload::default();2];values[0].store_description=permission;
+                let solution=Solution{values,outputs:vec![],entry:Frame::default(),loans:vec![Loan{receiver_head:false,sources:vec![root.clone()],parents:vec![],exclusive}],sites:vec![],dyn_sites:dyn_leases::Sites::default()};
+                let mut summaries=vec![Summary::default();2];let mut field=root;field.inline.push(PlaceProjection::Field(0));summaries[1].head_accesses=vec![(field.clone(),true)];
+                let mut b=Budget::new(&limits);assert!(!replacements::heads(&b));let mut accesses=access_candidates::Access::new(&[0],&solution.loans,&mut b).unwrap();let mut rows=vec![];
+                let result=check_call(current,&current.functions[0],FunctionId(1),&[ValueId(0)],&solution,&Frame::default(),&mut accesses,&summaries,&mut vec![],None,None,&mut rows,&mut b);
+                if exclusive{result.unwrap();assert_eq!(rows,vec![(field.clone(),true)]);}else{assert!(result.is_err(),"a helper cannot hide a write through a shared actual parent, wire {wire}");}
+                // Memory upper checks consume actual accesses even though a
+                // scalar description operation has no Dyn callback/effect.
+                b.dyn_contexts=true;let mut dyn_rows=vec![];
+                dyn_providers::observe(current,&current.functions[1],&write,&Frame::default(),&solution.values,&summaries,&mut dyn_rows,&mut b).unwrap();
+                assert_eq!(dyn_rows,vec![(field,true)]);assert!(!summaries[1].dyn_operations);
+            }
+        }
     }
 
     #[test]
@@ -9732,4 +9772,19 @@ mod tests {
             "{error:?}"
         );
     }
+}
+
+/// Exact scalar field access of a real description. The opaque ownership head
+/// and its borrowed pointee permissions stay distinct; only the accessed field
+/// is appended to the actual current physical target (including heap segments).
+pub(super) fn description_access(f:&TypedFunction,i:&Instruction,values:&[Payload],b:&mut Budget)->Check<Option<(Permission,bool)>>{
+    let(desc,index,write)=match i.kind{InstructionKind::ReadDesc{desc,index}=>(desc,index,false),InstructionKind::WriteDesc{desc,index,..}=>(desc,index,true),_=>return Ok(None)};
+    let ty=vt(f,desc)?;if !super::stored_owned::description(ty){return Ok(None);}
+    let Type::Desc(inner)=ty else{unreachable!()};let Type::Record{fields,..}=inner.as_ref()else{unreachable!()};
+    if fields.get(index as usize).is_none(){return Err(err("description access field is outside its complete actual record"));}
+    let payload=values.get(desc.0 as usize).ok_or_else(||err("description access has no actual SSA permission"))?;
+    let permission=if payload.store_description.sources.is_empty(){&payload.address}else{&payload.store_description};
+    permission_work(permission,b)?;let mut projected=permission.clone();
+    for source in &mut projected.sources{b.spend(1)?;if let Some(path)=&mut source.heap_element{path.push(PlaceProjection::Field(index));}else{source.inline.push(PlaceProjection::Field(index));}}
+    Ok(Some((projected,write)))
 }

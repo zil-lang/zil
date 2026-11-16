@@ -192,6 +192,12 @@ pub(super) fn observe(
         | InstructionKind::TakeTupleField { local, .. } => {
             record(rows, &dyn_closed::head(f, *local, state, b)?, true, b)?
         }
+        InstructionKind::ReadDesc{desc,..}|InstructionKind::WriteDesc{desc,..}=>{
+            if let Some((permission,write))=description_access(f,i,values,b)?{record(rows,&permission,write,b)?;}
+            else{let value=values.get(desc.0 as usize).ok_or_else(||bad("actual description access has no exact SSA permission"))?;
+                let permission=if value.store_description.sources.is_empty(){&value.address}else{&value.store_description};
+                record(rows,permission,matches!(i.kind,InstructionKind::WriteDesc{..}),b)?;}
+        },
         InstructionKind::OwnedStoreLen{store}|InstructionKind::OwnedStoreCapacity{store}|InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}|InstructionKind::OwnedStoreReserve{store,..}|InstructionKind::OwnedStorePush{store,..}|InstructionKind::OwnedStorePop{store}=>{
             let permission=&values.get(store.0 as usize).ok_or_else(||bad("actual Store access description is absent"))?.store_description;
             record(rows,permission,matches!(i.kind,InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrowMut{..}),b)?;
@@ -246,9 +252,9 @@ pub(super) fn observe(
             let actual = summaries
                 .get(definition.function.0 as usize)
                 .ok_or_else(|| bad("actual Context callable summary is absent"))?;
-            if actual.dyn_operations {
+            if !actual.dyn_accesses.is_empty() {
                 for (source, write) in &actual.dyn_accesses {
-                    let permission = dyn_captures::substitute(
+                    let permission = captured_owner::substitute_access(
                         module, f, i, source, definition, arguments, values, state, b,
                     )?;
                     record(rows, &permission, *write, b)?;
