@@ -723,7 +723,7 @@ fn operations(
                         // own original occurrence also anchors any later
                         // call-directed shortening; a result binding cannot
                         // supply that input provenance retroactively.
-                        s::ExprKind::String(_)
+                        s::ExprKind::Literal(s::Literal::String(_))
                         | s::ExprKind::MetaEval(_)
                         | s::ExprKind::Unary {
                             op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
@@ -1120,7 +1120,7 @@ fn main(){let text=feedback("xyz",true);let other=feedback("uvw",false)}"#,
             if !matches!(
                 located.node,
                 body_nodes::Node::Expression(s::Expr {
-                    kind: s::ExprKind::String(_),
+                    kind: s::ExprKind::Literal(s::Literal::String(_)),
                     ..
                 })
             ) {
