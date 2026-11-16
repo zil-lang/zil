@@ -418,6 +418,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     || owned_capture(t, b)?
                     || semantic_owned_capture(module, d, t, b)?
                     || ordinary_capture(module, t, b)?
+                    || super::forward::nested_capture(module, d, t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
@@ -745,9 +746,10 @@ pub(super) fn types(
         && let Some(definition) = f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-        && b.returned_borrowed_environments.contains(&definition.id)
         && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
-        && b.returned_borrowed_environments.contains(child)
+        && (b.returned_borrowed_environments.contains(&definition.id)
+            && b.returned_borrowed_environments.contains(child)
+            || super::forward::nested_entry_capture(module, f, index, b)?)
     {
         if mutable && definition.kind == zil_ir::CallableKind::Fn {
             return Err(bad(
@@ -767,9 +769,10 @@ pub(super) fn types(
         && let Some(definition) = f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-        && b.returned_borrowed_environments.contains(&definition.id)
         && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
-        && b.returned_borrowed_environments.contains(child)
+        && (b.returned_borrowed_environments.contains(&definition.id)
+            && b.returned_borrowed_environments.contains(child)
+            || super::forward::nested_entry_capture(module, f, index, b)?)
     {
         if definition.kind != zil_ir::CallableKind::FnOnce
             || i.result.and_then(|value| f.values.get(value.0 as usize))

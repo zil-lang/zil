@@ -58,8 +58,22 @@ fn replacement_through_capture_keeps_real_fnmut_authority() {
         f.parameters = vec![LocalId(1)];
         f.environment = Some(ClosureId(0));
         f.blocks[0].instructions[0].kind = InstructionKind::ReadCapture { index: 0 };
+        let life = StorageLifeContract {
+            fixed_binder_count: 1,
+            invocation_binder_count: 0,
+            bindings: vec![StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Capture(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Fixed(0),
+            }],
+            static_bindings: vec![],
+            classes: vec![],
+        };
+        f.storage_life = Some(life.clone());
         module.closures.push(ClosureDefinition {
-            storage_life: None,
+            storage_life: Some(life),
             id: ClosureId(0),
             function: FunctionId(0),
             captures: vec![address],
@@ -75,11 +89,17 @@ fn replacement_through_capture_keeps_real_fnmut_authority() {
         let program = Program::new(&module, &graphs, &mut b).unwrap();
         let result = infer(&module, &graphs, &program, &mut b);
         if kind == CallableKind::Fn {
+            // The shared entry is rejected before its reservation can expose
+            // the exclusive captured address. It never gains replacement
+            // authority merely because the address itself is in a capture.
+            let errors = result.unwrap_err();
             assert!(
-                result
-                    .unwrap_err()
-                    .iter()
-                    .any(|d| d.message.contains("shared Fn entry cannot replace"))
+                errors.iter().any(|d| d.code == "E-ANALYZE-IR"
+                    && d.category == zil_base::ResultCategory::SafeReject
+                    && d.message.contains(
+                        "shared environment cannot expose a mutable captured capability"
+                    )),
+                "{errors:?}"
             );
         } else {
             let effects = result.unwrap();

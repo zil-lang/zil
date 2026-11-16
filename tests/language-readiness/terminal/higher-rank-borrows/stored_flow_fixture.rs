@@ -1252,7 +1252,15 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
     let d = &mut m.closures[0];
     d.parameters[1] = mutable.clone();
     d.parameters.push(mutable.clone());
+    let life = d.storage_life.as_mut().unwrap();
+    life.invocation_binder_count = 3;
+    life.bindings.push(row(
+        StorageBase::Parameter(2),
+        vec![],
+        StorageBinder::Invocation(2),
+    ));
     let entry = &mut m.functions[0];
+    entry.storage_life = d.storage_life.clone();
     entry.locals[1].ty = mutable.clone();
     entry.locals.push(LocalDecl {
         id: LocalId(2),

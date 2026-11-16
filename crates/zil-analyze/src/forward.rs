@@ -153,6 +153,8 @@ pub(super) fn envelope(
         if def.id != id
             || body.environment != Some(id)
             || body.foreign.is_some()
+            || body.call_kind != CallKind::Direct
+            || body.result_mode != PassingMode::Infer
             || def.kind == CallableKind::FunctionPointer
             || body.return_type != def.result
             || body.parameters.len() != def.parameters.len()
@@ -233,6 +235,67 @@ pub(super) fn envelope(
     budget.lookup(budget.parameter_returns.len(), "parameter return inventory")?;
     budget.parameter_returns.insert(f.id);
     Ok(())
+}
+
+// The Parameter-return envelope independently reviews every actual owning
+// child, even without a caller edge. A known empty class domain is geometry
+// only; the ordinary resource and position-sensitive window passes still
+// prove captures, moves, cleanup and each use of the borrowed child frame.
+pub(super) fn nested_capture(
+    module: &TypedModule,
+    parent: &ClosureDefinition,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Closure(child) = ty else {
+        return Ok(false);
+    };
+    budget.lookup(budget.forward_closures.len(), "reviewed parent environment")?;
+    budget.lookup(budget.forward_closures.len(), "reviewed child environment")?;
+    if !budget.forward_closures.contains(&parent.id) || !budget.forward_closures.contains(child) {
+        return Ok(false);
+    }
+    budget.lookup(module.closures.len(), "reviewed actual parent")?;
+    budget.lookup(module.closures.len(), "reviewed actual child")?;
+    let actual = module
+        .closures
+        .get(child.0 as usize)
+        .ok_or_else(|| bad("reviewed nested child environment absent"))?;
+    if !module
+        .closures
+        .get(parent.id.0 as usize)
+        .is_some_and(|actual| std::ptr::eq(actual, parent))
+        || actual.id != *child
+    {
+        return Err(bad(
+            "reviewed nested capture changes actual environment identity",
+        ));
+    }
+    if parent.storage_life.is_none() || actual.storage_life.is_none() {
+        return Ok(false);
+    }
+    Ok(
+        crate::tasks::input_scope::known_zero(module, &Type::Closure(parent.id), budget)?
+            && crate::tasks::input_scope::known_zero(module, ty, budget)?,
+    )
+}
+
+pub(super) fn nested_entry_capture(
+    module: &TypedModule,
+    function: &TypedFunction,
+    index: u32,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Some(parent) = function
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+    else {
+        return Ok(false);
+    };
+    let Some(ty) = parent.captures.get(index as usize) else {
+        return Ok(false);
+    };
+    nested_capture(module, parent, ty, budget)
 }
 
 const LIVE: u8 = 1;

@@ -53,7 +53,12 @@ pub(super) fn validate_plain_nominal_zero(
 ) -> CompileResult<()> {
     nominal_zero::validate_type(module, ty, limits, b)
 }
-pub(super) fn nominal_instance_index(module: &TypedModule, ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<usize> {
+pub(super) fn nominal_instance_index(
+    module: &TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<usize> {
     nominal_zero::exact_index(module, ty, limits, b)
 }
 pub(super) mod option_address;
@@ -4947,7 +4952,8 @@ fn transfer(
             out = task_address::borrow_capture(*index, state, b)?;
         }
         InstructionKind::BorrowCapture { index, .. }
-            if f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+            if (f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                || super::forward::nested_entry_capture(module, f, *index, b)?)
                 && f.environment.and_then(|id|module.closures.get(id.0 as usize))
                     .and_then(|definition|definition.captures.get(*index as usize))
                     .is_some_and(|ty|matches!(ty, Type::Closure(_))) =>
@@ -5704,7 +5710,9 @@ fn separate(
             None,
             "simultaneously live access overlaps an actual stored target/parent loan",
         );
-        diagnostic.notes.push(format!("actual conflicting targets: access={left:?}; held={right:?}"));
+        diagnostic.notes.push(format!(
+            "actual conflicting targets: access={left:?}; held={right:?}"
+        ));
         return Err(vec![diagnostic]);
     }
     if may_alias(left, right) {
@@ -7157,9 +7165,10 @@ fn windows(
             })();
             checked.map_err(|mut errors| {
                 for error in &mut errors {
-                    error
-                        .notes
-                        .push(format!("actual stored access in {} block {bi} instruction {position}: {:?}", f.name, i.kind));
+                    error.notes.push(format!(
+                        "actual stored access in {} block {bi} instruction {position}: {:?}",
+                        f.name, i.kind
+                    ));
                 }
                 errors
             })?;
@@ -8934,8 +8943,10 @@ fn actual_instructions(
                     address_result(f, i, *mutable, &d.captures[*index as usize], b)?;
                 }
                 InstructionKind::BorrowCapture { index, mutable }
-                    if f.environment
+                    if (f
+                        .environment
                         .is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                        || super::forward::nested_entry_capture(module, f, *index, b)?)
                         && f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|d| d.captures.get(*index as usize))
