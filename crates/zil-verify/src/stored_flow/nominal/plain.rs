@@ -96,8 +96,12 @@ fn zero(module: &TypedModule, ty: &Type, limits: &Limits, b: &mut Budget, active
         Type::ErrorUnion { error, result } => { zero(module, error, limits, b, active)?; zero(module, result, limits, b, active)?; }
         Type::Address { .. } | Type::Desc(_) | Type::Slice { .. } => return Err(err("plain nominal lacks an actual outer borrowing occurrence")),
         _ => {
-            let (count, pending) = crate::dynamic_witness::intrinsic_domain(module, ty, b)?;
-            if count != 0 || pending { return Err(err("plain nominal has a nonzero or unproved opaque persistent domain")); }
+            let (count, _pending_sources) = crate::dynamic_witness::intrinsic_domain(module, ty, b)?;
+            if count != 0 { return Err(err("plain nominal has a nonzero opaque persistent domain")); }
+            // The complete inventory above independently proves cardinality,
+            // including a real Some closure relation and exact entry/captures.
+            // Pending construction/access/cleanup sources are separate actual
+            // CFG obligations; this nominal metadata proof discharges none.
         }
     }
     Ok(())
@@ -115,4 +119,30 @@ fn sealed_task_enum(declaration:&LifeNominalDeclaration,instance:&LifeNominalIns
     let Type::Enum{name,variants:actual}=&instance.ty else{return Err(err("plain sealed Task enum has another physical kind"));};
     if name!=&format!("@std.task:v1:{word}")||actual.len()!=variants.len()||actual.iter().zip(variants).any(|((name,fields),expected)|name.as_str()!=*expected||!fields.is_empty()){return Err(err("plain sealed Task enum changes its exact complete variants"));}
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    // Metadata-only proofs deliberately retain pending actual sources. These
+    // cases are not executable Source/owner/loan certificates.
+    #[test]
+    fn opaque_zero_cardinality_is_separate_from_pending_actual_sources_raw_wire(){
+        let limits=Limits::default();
+        for count in [0,1]{
+            let(mut module,plan)=crate::tests::baseline();
+            let relation=StorageLifeContract{fixed_binder_count:count,invocation_binder_count:0,bindings:(0..count).map(|index|StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(index),path:vec![]},binder:StorageBinder::Fixed(index)}).collect(),classes:vec![],static_bindings:vec![]};
+            module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=Some(relation.clone());
+            module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:(0..count).map(|_|Type::Address{mutable:false,inner:Box::new(Type::I32)}).collect(),parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(relation),lending_captures:vec![]});
+            for wire in [false,true]{
+                let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+                let(candidate,_)=if wire{zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap()}else{(module.clone(),plan.clone())};
+                let mut b=Budget::new(&limits);let ty=Type::Closure(ClosureId(0));
+                assert_eq!(crate::dynamic_witness::intrinsic_domain(&candidate,&ty,&mut b).unwrap(),(count,true));
+                assert_eq!(zero(&candidate,&ty,&limits,&mut b,&mut vec![]).is_ok(),count==0);
+                let mut unknown=candidate.clone();unknown.closures[0].storage_life=None;unknown.functions[0].storage_life=None;
+                assert!(zero(&unknown,&ty,&limits,&mut Budget::new(&limits),&mut vec![]).is_err());
+            }
+        }
+    }
 }

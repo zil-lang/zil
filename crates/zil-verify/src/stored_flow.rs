@@ -1648,10 +1648,13 @@ fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
     {
         return Ok(false);
     }
-    let (classes, pending) = crate::dynamic_witness::intrinsic_domain(module, inner, b)?;
-    if classes != 0 || pending {
+    let (classes, _pending_sources) = crate::dynamic_witness::intrinsic_domain(module, inner, b)?;
+    if classes != 0 {
         return Ok(false);
     }
+    // This selects the ordinary pointee lane only. A complete Known0 domain
+    // may still owe a real closure creation, owner transfer or cleanup proof;
+    // the head's source, active loan and actual CFG remain independently due.
     crate::dynamic_witness::structural_actual(module, inner, DynStructuralBound::Value, b)?;
     Ok(true)
 }
