@@ -288,6 +288,7 @@ fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
     assert_eq!(restart.disk_cache, DiskCacheStatus::Hydrated);
     let stats = session.function_types.last_stats();
     assert_eq!(stats.reused_functions, 303);
+    assert_eq!(stats.restored_reused_functions, 303);
     assert_eq!(stats.executed_functions, 3);
     epochs(&session, &restart, 102);
     compare(&session, &restart, &path, &options);
@@ -339,7 +340,7 @@ fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
             .function_type_work
             .as_ref()
             .unwrap()
-            .reused_functions
+            .restored_reused_functions
             > 0
     );
     compare(&rejected, &error, &path, &options);

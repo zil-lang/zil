@@ -1247,6 +1247,7 @@ mod tests {
             "tiny and extern still execute"
         );
         assert_eq!(cache.last_stats().reused_functions, 3);
+        assert_eq!(cache.last_stats().restored_reused_functions, 3);
         assert!(session.checkpoint_for(&restored.program).is_some());
         let context = session.current.as_ref().unwrap();
         let expected = cold_push.current.as_ref().unwrap();

@@ -466,7 +466,7 @@ impl CompilationSession {
                 && report
                     .function_type_work
                     .as_deref()
-                    .is_some_and(|work| work.reused_functions > 0)
+                    .is_some_and(|work| work.restored_reused_functions > 0)
                 && matches!(report.phase, Phase::Types | Phase::Analyze)
                 && errors.iter().all(|e| {
                     matches!(
@@ -475,7 +475,6 @@ impl CompilationSession {
                     )
                 });
             if retry {
-                self.clear();
                 report.restart_attempt(
                     CompileReport::new(root),
                     "rejected_function_work_product",
@@ -484,7 +483,11 @@ impl CompilationSession {
                 report.disk_cache = DiskCacheStatus::Rebuilt;
                 let mut fresh_options = options.clone();
                 fresh_options.semantic_cache = None;
-                if let Err(errors) = self.project_pipeline(
+                // Reject a disk candidate in a separate ordinary session. A
+                // genuine source error must not destroy the successful epochs
+                // needed by the next edit in this session.
+                let mut fresh = Self::with_capacity(self.capacity);
+                if let Err(errors) = fresh.project_pipeline(
                     project,
                     &fresh_options,
                     &mut report,
@@ -494,6 +497,8 @@ impl CompilationSession {
                 ) {
                     self.function_types = function_checkpoint;
                     report.fail(errors);
+                } else {
+                    *self = fresh;
                 }
             } else {
                 self.function_types = function_checkpoint;

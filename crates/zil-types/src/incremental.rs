@@ -236,6 +236,9 @@ pub struct FunctionStats {
     pub producer_version_reuses: usize,
     pub inventory_functions_visited: usize,
     pub reused_functions: usize,
+    /// Actual hits on decoded disk candidates, distinct from values generated
+    /// by this process. This selects defensive fallback, never cache authority.
+    pub restored_reused_functions: usize,
     pub cfg_same_span_reuses: usize,
     pub cfg_relocated_functions: usize,
     pub executed_functions: usize,
@@ -272,9 +275,10 @@ impl FunctionStats {
             self.inventory_functions_visited,
         );
         format!(
-            "{{{},\"reused_functions\":{},\"cfg_same_span_reuses\":{},\"cfg_relocated_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
+            "{{{},\"reused_functions\":{},\"restored_reused_functions\":{},\"cfg_same_span_reuses\":{},\"cfg_relocated_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
             timings,
             self.reused_functions,
+            self.restored_reused_functions,
             self.cfg_same_span_reuses,
             self.cfg_relocated_functions,
             self.executed_functions,
@@ -374,6 +378,7 @@ fn elapsed_cost(start: Option<Instant>) -> u64 {
 }
 
 struct Entry {
+    restored: bool,
     // Retain a real bound CFG. Same-span requests share its immutable vectors;
     // source-relative transport is produced lazily and never used as authority.
     function: Arc<TypedFunction>,
@@ -859,6 +864,7 @@ fn decode(
             .insert(
                 key,
                 Arc::new(Entry {
+                    restored: true,
                     result_fingerprint: scalar_result_fingerprint(&function, function.span)?,
                     origin: function.span,
                     function: Arc::new(function),
@@ -1047,6 +1053,7 @@ impl Reuse<'_> {
         }
         self.next.insert(*key, entry.clone());
         self.stats.reused_functions += 1;
+        self.stats.restored_reused_functions += usize::from(entry.restored);
         self.reused_ids.insert(typed.id);
         Ok(Some(typed))
     }
@@ -1099,6 +1106,7 @@ impl Reuse<'_> {
         self.next.insert(
             *key,
             Arc::new(Entry {
+                restored: false,
                 result_fingerprint,
                 origin: source.span,
                 function: Arc::new(function.clone()),

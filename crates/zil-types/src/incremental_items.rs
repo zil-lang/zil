@@ -253,6 +253,7 @@ fn decode_items(
         entries.insert(
             key,
             Arc::new(Entry {
+                restored: true,
                 result_fingerprint: scalar_result_fingerprint(&function, function.span)?,
                 origin: function.span,
                 function: Arc::new(function),

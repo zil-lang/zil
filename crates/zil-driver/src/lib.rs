@@ -826,6 +826,7 @@ fn add_function_work(
         reused_functions,
         executed_functions,
         cfg_same_span_reuses,
+        restored_reused_functions,
         cfg_relocated_functions,
         body_key_executions,
         body_key_reuses,
@@ -946,6 +947,8 @@ mod report_attempt_tests {
         let mut report = CompileReport::new(&source);
         let mut first = zil_types::FunctionStats {
             executed_functions: 3,
+            reused_functions: 2,
+            restored_reused_functions: 2,
             body_key_executions: 4,
             ..Default::default()
         };
@@ -973,6 +976,8 @@ mod report_attempt_tests {
         );
         let mut final_work = zil_types::FunctionStats {
             executed_functions: 5,
+            reused_functions: 1,
+            restored_reused_functions: 1,
             body_key_executions: 6,
             ..Default::default()
         };
@@ -991,6 +996,7 @@ mod report_attempt_tests {
         report.finish_attempts();
         let work = report.function_type_work.as_deref().unwrap();
         assert_eq!(work.executed_functions, 8);
+        assert_eq!(work.restored_reused_functions, 3);
         assert_eq!(work.body_key_executions, 10);
         assert_eq!(work.graph.executed, 10);
         assert_eq!(
