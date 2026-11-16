@@ -205,6 +205,192 @@ class ClosedProjectTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             quality.object_abi(bytes(data), {'zil.fn.2'}, set(), model, {name})
 
+    def bounded_layout(self, class_cost=128, leaf_cost=2, extra_caller=False):
+        first, leaf = 'zil.class.'+'a'*64, 'zil.class.'+'b'*64
+
+        def padded(prefix, value, count):
+            for index in range(count):
+                prefix += f' %pad{index} = add i32 {value}, 0\n'
+                value = f'%pad{index}'
+            return prefix+f' ret i32 {value}\n'
+
+        leaf_body = padded('entry:\n', '%x', leaf_cost-2)
+        first_body = padded(f'entry:\n %value = call i32 @{leaf}(i32 %x)\n', '%value', class_cost-3)
+        llvm = ('declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
+                f'define i32 @main() {{\nentry:\n %a = call i32 @{first}(i32 1)\n'
+                ' %s = call i32 @zil.fn.15(i32 %a)\n %out = call i32 @putchar(i32 %s)\n ret i32 0\n}\n')
+        for index in range(1, 16):
+            body = first_body if index == 1 else 'entry:\n ret i32 %x\n'
+            if index == 2:
+                body = leaf_body
+            if index == 3 and extra_caller:
+                body = f'entry:\n %a = call i32 @{first}(i32 %x)\n ret i32 %a\n'
+            llvm += f'define i32 @zil.fn.{index}(i32 %x) {{\n'+body+'}\n'
+        llvm += f'define i32 @{first}(i32 %x) {{\n'+first_body+'}\n'
+        llvm += f'define i32 @{leaf}(i32 %x) {{\n'+leaf_body+'}\n'
+        llvm = llvm.encode()
+        model = quality.scalar_model(llvm)
+        items = [('declare', 'getchar'), ('declare', 'putchar'), ('define', 'main')]
+        items += [('define', f'zil.fn.{index}') for index in range(1, 16)]
+        items += [('define', first), ('define', leaf)]
+        units = [dict(owner=index, definitions=[index+2], imports=[], prelude=[], declarations=[])
+                 for index in range(16)]
+        units[1]['definitions'].append(18)
+        units[2]['definitions'].append(19)
+        units[0]['prelude'] = [1]
+        units[0]['declarations'] = [17]
+        if class_cost <= 128:
+            units[0]['imports'] = [18]
+            units[0]['declarations'].append(19)
+        else:
+            units[0]['declarations'].append(18)
+        if leaf_cost <= 128:
+            units[1]['imports'] = [19]
+        else:
+            units[1]['declarations'] = [19]
+        if extra_caller:
+            if class_cost <= 128:
+                units[3]['imports'] = [18]
+                units[3]['declarations'] = [19]
+            else:
+                units[3]['declarations'] = [18]
+        return units, items, model, llvm
+
+    def test_bounded_policy_is_explicit_distinct_and_candidate_only(self):
+        args = self.args()
+        args.complete_imports = True
+        args.bounded_class_imports = True
+        quality.policy(args)
+        self.assertEqual(quality.schema(args), quality.BOUNDED_SCHEMA)
+        self.assertEqual(quality.policy_identity(args), 'closed+off+bounded-classes-128-v1')
+        self.assertEqual(quality.runtime_decision([self.runtime_case()], args)['schema'], quality.BOUNDED_SCHEMA)
+        for arm in ('baseline', 'candidate'):
+            command = matrix.zil_command(args, arm, Path('/src/main.zil'), Path('/work')/arm)
+            self.assertEqual('--bounded-class-imports' in command, arm == 'candidate')
+            self.assertEqual('--incremental-o2' in command, arm == 'candidate')
+        args.complete_imports = False
+        with self.assertRaises(ValueError):
+            quality.policy(args)
+        args.complete_imports = True
+        args.bounded_class_imports = 1
+        with self.assertRaises(ValueError):
+            quality.policy(args)
+        args.bounded_class_imports = False
+        self.assertEqual(quality.schema(args), quality.IMPORT_SCHEMA)
+        self.assertEqual(quality.policy_identity(args), 'closed+off+complete-imports')
+
+    def test_bounded_layout_one_layer_exact_cost_and_original_complete_policy(self):
+        units, items, model, _ = self.bounded_layout()
+        first, leaf = items[18][1], items[19][1]
+        self.assertEqual(model['function_costs']['zil.fn.1'], 128)
+        self.assertEqual(model['function_costs'][first], 128)
+        self.assertEqual(model['function_costs'][leaf], 2)
+        expected, cross, imported = quality.layout_roles(units, items, model, True, True)
+        self.assertTrue(imported)
+        self.assertEqual(expected[1], {'zil.fn.1', first})
+        self.assertEqual(cross, {leaf, 'zil.fn.15'})
+        # Complete still requires the entire transitive closure, including the
+        # ordinary source callee. Bounded must reject exactly that layout.
+        with self.assertRaises(ValueError):
+            quality.layout_roles(units, items, model, True)
+        complete = copy.deepcopy(units)
+        complete[0]['imports'] = [17, 18, 19]
+        complete[0]['declarations'] = []
+        self.assertEqual(quality.layout_roles(complete, items, model, True)[1], set())
+        with self.assertRaises(ValueError):
+            quality.layout_roles(complete, items, model, True, True)
+        large, items, model, _ = self.bounded_layout(class_cost=129)
+        self.assertEqual(model['function_costs'][first], 129)
+        self.assertEqual(large[0]['imports'], [])
+        self.assertIn(18, large[0]['declarations'])
+        self.assertIn(first, quality.layout_roles(large, items, model, True, True)[1])
+
+    def test_bounded_layout_refuses_wrong_closure_cost_roles_and_copy_budget(self):
+        units, items, model, _ = self.bounded_layout()
+        for change in ('missing', 'recursive', 'source', 'prelude', 'declaration', 'extra_role', 'cost'):
+            bad, current = copy.deepcopy(units), copy.deepcopy(model)
+            if change == 'missing': bad[0]['imports'] = []
+            if change == 'recursive': bad[0]['imports'] = [18, 19]
+            if change == 'source': bad[0]['imports'] = [17, 18]
+            if change == 'prelude': bad[0]['prelude'] = []
+            if change == 'declaration': bad[0]['declarations'] = [17]
+            if change == 'extra_role': bad[0]['prelude'] = [0, 1]
+            if change == 'cost': current['function_costs'][items[18][1]] = 129
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                quality.layout_roles(bad, items, current, True, True)
+        over, items, model, _ = self.bounded_layout(extra_caller=True)
+        with self.assertRaisesRegex(ValueError, 'source-only total copy cost'):
+            quality.layout_roles(over, items, model, True, True)
+        # Empty imports must still validate all current physical declaration
+        # roles; no has_imports shortcut may admit an incomplete bounded plan.
+        empty, items, model, _ = self.bounded_layout(class_cost=129, leaf_cost=129)
+        self.assertFalse(quality.layout_roles(empty, items, model, True, True)[2])
+        empty[0]['declarations'] = [17]
+        with self.assertRaises(ValueError):
+            quality.layout_roles(empty, items, model, True, True)
+
+    def test_bounded_inventory_and_producer_require_exact_report_scope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            args = self.args(out)
+            args.complete_imports = args.bounded_class_imports = True
+            units, _, _, llvm = self.bounded_layout()
+            cg = dict(class_import_requested=quality.BOUNDED_POLICY, class_import_policy=quality.BOUNDED_POLICY,
+                      class_import_fallback=None, fallback=None, partition_layout_key='b'*64)
+            report = {'native_codegen': cg}
+            inv = dict(compiler_summary=copy.deepcopy(cg), policy_identity=quality.policy_identity(args),
+                       partition_layout_key='b'*64, current_layout_matches=['b'*64],
+                       partition_layouts=[self.archived_layout(out, units, 'b'*64)])
+            quality.current_inventory_layout(args, report, inv, llvm)
+            for field, value in (('class_import_requested', None), ('class_import_policy', 'complete'),
+                                 ('class_import_fallback', 'noeligibleclasses'), ('fallback', 'partition refused')):
+                bad = copy.deepcopy(report)
+                bad['native_codegen'][field] = value
+                with self.subTest(field=field), self.assertRaises(ValueError):
+                    quality.current_inventory_layout(args, bad, inv, llvm)
+            for field in ('class_import_requested', 'class_import_policy', 'class_import_fallback', 'fallback'):
+                bad = copy.deepcopy(report)
+                del bad['native_codegen'][field]
+                with self.subTest(missing=field), self.assertRaises(ValueError):
+                    quality.current_inventory_layout(args, bad, inv, llvm)
+            bad = copy.deepcopy(inv)
+            bad['policy_identity'] = 'closed+off+complete-imports'
+            with self.assertRaises(ValueError):
+                quality.current_inventory_layout(args, report, bad, llvm)
+            bad = copy.deepcopy(inv)
+            bad['compiler_summary']['class_import_policy'] = 'complete'
+            with self.assertRaises(ValueError):
+                quality.current_inventory_layout(args, report, bad, llvm)
+            # The baseline arm keeps its original layout/report obligations.
+            baseline = dict(policy_identity='closed+off', compiler_summary={'partition_layout_key': 'b'*64},
+                            partition_layouts=[self.archived_layout(out, units, 'b'*64)], current_layout_matches=['b'*64])
+            # Bounded roles differ from Complete even on a baseline read; use
+            # its real Complete layout rather than relaxing either policy.
+            complete = copy.deepcopy(units)
+            complete[0].update(imports=[17, 18, 19], declarations=[])
+            baseline['partition_layouts'] = [self.archived_layout(out, complete, 'b'*64)]
+            quality.current_inventory_layout(args, {'native_codegen': baseline['compiler_summary']}, baseline,
+                                             llvm, candidate=False)
+            receipt = {'backend': 'llvm-api', 'pipeline': 'default<O2>', 'triple': 'x86_64-unknown-linux-gnu',
+                       'llvm_version': '23.1.4', 'verify_before_after': True, 'input_kind': 'builder',
+                       'object_bytes': 9, 'cache': {'state': 'miss', 'action_key': 'a'*64, 'corrupt': False}}
+            archived = dict(receipt=receipt, object_sha256='c'*64, policy=quality.policy_identity(args),
+                            class_import_scope=copy.deepcopy(cg))
+            item = dict(action_key='a'*64, object={'sha256': 'c'*64, 'bytes': 9})
+            item['producer_native_receipt'] = matrix.matched.blob(out, json.dumps(archived).encode())
+            quality.producer_receipt(args, item)
+            for scope in (None, dict(cg, class_import_requested='complete'),
+                          dict(cg, class_import_policy='complete', class_import_fallback='bounded plan refused')):
+                bad = dict(archived, class_import_scope=scope)
+                item['producer_native_receipt'] = matrix.matched.blob(out, json.dumps(bad).encode())
+                with self.subTest(scope=scope), self.assertRaises(ValueError):
+                    quality.producer_receipt(args, item)
+            # A Complete producer cannot be relabeled by retaining its object.
+            bad = dict(archived, policy='closed+off+complete-imports')
+            item['producer_native_receipt'] = matrix.matched.blob(out, json.dumps(bad).encode())
+            with self.assertRaises(ValueError):
+                quality.producer_receipt(args, item)
+
     def test_scalar_scope_refuses_globals_callbacks_and_unknown_foreign(self):
         source = ('declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
                   'define i32 @main() {\n %x = call i32 @getchar()\n ret i32 %x\n}\n')

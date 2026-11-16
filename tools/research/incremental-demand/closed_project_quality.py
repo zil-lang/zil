@@ -19,6 +19,11 @@ closed-import-project-runtime-v1 profile validates complete transitive layout
 imports against the current diagnostic call graph. Imports grant optimization
 visibility, not canonical ownership or new exported definitions. Existing
 closed-only results and negatives retain their original schema and policy.
+
+bounded_class_imports explicitly selects bounded-classes-128-v1 instead: only
+one layer of current class bodies costing at most 128 is imported. Current
+body references, canonical cross-unit bindings and the original source-only
+total copy budget remain mandatory. A rejected strategy is not this profile.
 """
 import copy
 import json
@@ -32,6 +37,9 @@ import elf_instruction_quality as late
 
 SCHEMA = 'closed-project-runtime-v1'
 IMPORT_SCHEMA = 'closed-import-project-runtime-v1'
+BOUNDED_SCHEMA = 'closed-bounded-class-project-runtime-v1'
+BOUNDED_POLICY = 'bounded-classes-128-v1'
+MAX_CLASS_IMPORT_COST = 128
 INPUTS = (b'', *(bytes([i]) for i in range(256)))
 RUNTIME_GATES = {'candidate_over_main_max_per_case': 1.10,
                  'rust_over_candidate_min_per_case': 0.90,
@@ -49,18 +57,35 @@ def require(value, message):
 def policy(args):
     require(args.candidate_policy == 'closed' and args.function_merging == 'off', 'formal quality requires closed+off')
     require(type(getattr(args, 'complete_imports', False)) is bool, 'complete_imports must be an explicit boolean')
+    require(type(getattr(args, 'bounded_class_imports', False)) is bool, 'bounded_class_imports must be an explicit boolean')
+    require(not getattr(args, 'bounded_class_imports', False) or getattr(args, 'complete_imports', False),
+            'bounded class imports require explicit incremental O2 via complete_imports')
 
 
 def schema(args):
+    if getattr(args, 'bounded_class_imports', False):
+        return BOUNDED_SCHEMA
     return IMPORT_SCHEMA if getattr(args, 'complete_imports', False) else SCHEMA
 
 
 def policy_identity(args):
+    if getattr(args, 'bounded_class_imports', False):
+        return 'closed+off+'+BOUNDED_POLICY
     return 'closed+off+complete-imports' if getattr(args, 'complete_imports', False) else 'closed+off'
 
 
-def layout_roles(units, items, model, complete_imports):
-    """Bind canonical ownership and, when present, the entire current closure."""
+def bounded_report_policy(args, summary):
+    """A requested bounded run must actually complete that exact strategy."""
+    if getattr(args, 'bounded_class_imports', False):
+        require(summary.get('class_import_requested') == BOUNDED_POLICY
+                and summary.get('class_import_policy') == BOUNDED_POLICY
+                and 'class_import_fallback' in summary and summary['class_import_fallback'] is None
+                and 'fallback' in summary and summary['fallback'] is None,
+                'bounded profile requires exact requested/effective bounded policy without fallback')
+
+
+def layout_roles(units, items, model, complete_imports, bounded_class_imports=False):
+    """Bind canonical ownership and the selected current import closure."""
     require(len(units) == 16 and len({u['owner'] for u in units}) == 16
             and all(0 <= u['owner'] < 16 for u in units), 'sixteen unique physical layout owners')
     definitions = {i for i, (kind, _) in enumerate(items) if kind == 'define'}
@@ -71,12 +96,40 @@ def layout_roles(units, items, model, complete_imports):
         require(all(len(g) == len(set(g)) and all(type(i) is int and 0 <= i < len(items) for i in g) for g in groups), 'duplicate/out-of-range layout indices')
         require(not set(u['imports']) & set(u['definitions']) and set(u['imports']) <= definitions,
                 'imports must be nonowned current definitions')
-        require(complete_imports or not u['imports'], 'nonempty imports require explicit complete_imports')
+        require(complete_imports or bounded_class_imports or not u['imports'], 'nonempty imports require explicit import policy')
     expected = [{items[i][1] for i in u['definitions']} for u in units]
     owners = {name: index for index, names in enumerate(expected) for name in names}
     imported = [{items[i][1] for i in u['imports']} for u in units]
     has_imports = any(imported)
-    if has_imports:
+    if bounded_class_imports:
+        costs = model.get('function_costs', {})
+        require(set(costs) == set(model['definitions'])
+                and all(type(cost) is int and cost > 0 for cost in costs.values()),
+                'bounded imports require actual complete current function costs')
+        by_name = {name: i for i, (_, name) in enumerate(items)}
+        require(len(by_name) == len(items) and set(owners) == set(model['definitions']),
+                'bounded layout must bind every current canonical definition')
+        copied_cost = 0
+        for index, unit in enumerate(units):
+            direct = {ref for name in expected[index] for ref in model['calls'].get(name, set())}
+            required = {name for name in direct if name in owners and owners[name] != index
+                        and name in model['classes'] and costs[name] <= MAX_CLASS_IMPORT_COST}
+            require(imported[index] == required,
+                    'bounded imports must equal one current direct layer of nonowned class bodies costing at most 128')
+            copied_cost += sum(costs[name] for name in imported[index])
+            # scalar_model refuses all addresses/globals/indirect calls, so its
+            # direct calls are the complete body-reference set, including the
+            # callees of imported bodies without recursively importing them.
+            references = {ref for name in expected[index] | imported[index]
+                          for ref in model['calls'].get(name, set())}
+            prelude = {by_name[n] for n in references if n in by_name and items[by_name[n]][0] == 'declare'}
+            declarations = {by_name[n] for n in references
+                            if n in owners and owners[n] != index and n not in imported[index]}
+            require(set(unit['prelude']) == prelude and set(unit['declarations']) == declarations,
+                    'current bounded body references must exactly match prelude/declarations')
+        source_cost = sum(cost for name, cost in costs.items() if re.fullmatch(r'zil\.fn\.\d+', name))
+        require(copied_cost <= source_cost, 'bounded imports exceed original source-only total copy cost')
+    elif has_imports:
         by_name = {name: i for i, (_, name) in enumerate(items)}
         for index, unit in enumerate(units):
             pending = [ref for name in expected[index] for ref in model['calls'].get(name, set())]
@@ -98,6 +151,10 @@ def layout_roles(units, items, model, complete_imports):
     cross = {ref for caller, refs in model['calls'].items() for ref in refs
              if caller in owners and ref in owners and owners[caller] != owners[ref]
              and ref not in imported[owners[caller]]}
+    if bounded_class_imports:
+        cross = {ref for index in range(len(units)) for name in expected[index] | imported[index]
+                 for ref in model['calls'].get(name, set())
+                 if ref in owners and owners[ref] != index and ref not in imported[index]}
     return expected, cross, has_imports
 
 
@@ -121,9 +178,15 @@ def layout_frame(data, key):
     return matched.layout_units(data)
 
 
-def current_inventory_layout(args, report, inv, llvm, model=None):
+def current_inventory_layout(args, report, inv, llvm, model=None, candidate=True):
     """Rebind archived actual layout bytes to THIS report, never a metadata hint."""
     model = scalar_model(llvm) if model is None else model
+    bounded = candidate and getattr(args, 'bounded_class_imports', False)
+    if bounded:
+        bounded_report_policy(args, report.get('native_codegen') or {})
+        bounded_report_policy(args, inv.get('compiler_summary') or {})
+        require(inv.get('policy_identity') == policy_identity(args) and model['classes'],
+                'bounded inventory requires its exact policy identity and current eligible classes')
     key = report_layout_key(report, model)
     layouts = inv.get('partition_layouts', [])
     matches = inv.get('current_layout_matches', [])
@@ -149,7 +212,7 @@ def current_inventory_layout(args, report, inv, llvm, model=None):
         require(len(matches) == 1 and matches[0] in (actual_key, layout['sha256']),
                 'current layout matches differ from actual reported layout')
     items = [(m[1].decode(), m[2].decode()) for m in re.finditer(rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', llvm)]
-    layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+    layout_roles(units, items, model, getattr(args, 'complete_imports', False), bounded)
     return layout, units
 
 
@@ -172,6 +235,7 @@ def hit_preflight(receipt):
 def producer_receipt(args, item):
     archived = json.loads(matched.recheck_archived(args.out, item['producer_native_receipt']))
     require(archived.get('object_sha256') == item['object']['sha256'] and archived.get('policy') == policy_identity(args), 'producer archive object/policy identity')
+    bounded_report_policy(args, archived.get('class_import_scope') or {})
     value = archived['receipt']
     require(value.get('backend') == 'llvm-api' and value.get('pipeline') == 'default<O2>'
             and value.get('triple') == 'x86_64-unknown-linux-gnu'
@@ -192,7 +256,7 @@ def scalar_model(llvm):
             'globals/address/callback/exception LLVM outside scalar ABI scope')
     headers = list(re.finditer(r'(?m)^(declare|define) (.+?) @([A-Za-z0-9_.]+)\(([^\n]*)\)([^\n]*)$', text))
     require(headers and sum(line.startswith(('declare ', 'define ')) for line in text.splitlines()) == len(headers), 'unknown scalar function envelope')
-    signatures, calls, definitions, bodies = {}, {}, set(), {}
+    signatures, calls, definitions, bodies, function_costs = {}, {}, set(), {}, {}
     classes = set()
     intrinsics = {'llvm.trap': ('void', ''),
                   **{f'llvm.{op}.with.overflow.i32': ('{ i32, i1 }', 'i32, i32') for op in ('sadd', 'ssub', 'smul')}}
@@ -217,6 +281,14 @@ def scalar_model(llvm):
             require(end >= 0, 'incomplete scalar definition')
             body = text[h.end():end]
             bodies[name] = (result, params, suffix, body)
+            lines = [line.strip() for line in body.splitlines() if line.strip()]
+            require(lines and not any(line.startswith((';', 'define ', 'declare ', '}')) for line in lines),
+                    'unknown scalar body envelope for exact function cost')
+            # model.rs renders every block label and instruction on one line;
+            # Function::cost sums instructions + 1 per block. LLVM also permits
+            # an implicit entry block (used by the older text-only fixtures).
+            implicit_entry = re.fullmatch(r'[A-Za-z0-9_.]+:', lines[0]) is None
+            function_costs[name] = len(lines)+int(implicit_entry)
             refs = re.findall(r'@([A-Za-z0-9_.]+)', body)
             direct = re.findall(r'\bcall [^\n@]*@([A-Za-z0-9_.]+)\(', body)
             require(refs == direct and len(re.findall(r'\bcall\b', body)) == len(direct), 'address-taken or indirect scalar call refused')
@@ -277,7 +349,7 @@ def scalar_model(llvm):
                 ready.append(parent)
     require(visited == len(classes), 'class implementations must form an acyclic pure call graph')
     return {'definitions': definitions, 'calls': calls, 'foreign': {'getchar', 'putchar'},
-            'classes': classes, 'class_sources': class_sources}
+            'classes': classes, 'class_sources': class_sources, 'function_costs': function_costs}
 
 
 def elf_table(data, executable=False):
@@ -378,13 +450,16 @@ def executable_abi(args, row):
     inv = row['inventory']
     llvm = matched.recheck_archived(args.out, row['llvm'])
     model = scalar_model(llvm)
-    layout, units = current_inventory_layout(args, row['resident']['report'], inv, llvm, model)
+    candidate = row.get('arm', 'candidate') == 'candidate'
+    bounded = candidate and getattr(args, 'bounded_class_imports', False)
+    layout, units = current_inventory_layout(args, row['resident']['report'], inv, llvm, model,
+                                             candidate=candidate)
     image = elf_table(matched.recheck_archived(args.out, row['executable']), executable=True)
     funcs = defined_functions(image)
     require(all(n in funcs and funcs[n]['bind'] == 1 and funcs[n]['visibility'] == 0 and funcs[n]['size'] > 0 for n in ('main', '_start'))
             and image['header'][4] == funcs['_start']['address'], 'actual ELF C main/start entry binding')
     items = [(m[1].decode(), m[2].decode()) for m in re.finditer(rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', llvm)]
-    expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+    expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False), bounded)
     private = import_names(units, items)
     seen, imports, owners = {}, set(), {}
     require(len(inv['objects']) == 16, 'actual ABI requires sixteen physical CGUs')
@@ -396,7 +471,7 @@ def executable_abi(args, row):
         require(set(physical) == set(obj['defined_functions']) and not (set(physical) & seen.keys()), 'actual unique CGU function ownership')
         for name in physical:
             if name.startswith('zil.import.'):
-                require(getattr(args, 'complete_imports', False) and name in private[obj['unit_index']]
+                require((getattr(args, 'complete_imports', False) or bounded) and name in private[obj['unit_index']]
                         and physical[name]['bind'] == 0 and physical[name]['visibility'] == 0,
                         'ELF private import clone needs exact current layout owner/name and LOCAL/default binding')
         for name, original in physical.items():
@@ -406,7 +481,7 @@ def executable_abi(args, row):
             owners[name] = obj['unit_index']
         imports.update(receipt['undefined'])
     require({n for n in funcs if n == 'main' or n.startswith('zil.')} == set(seen), 'final ELF generated definitions differ from CGU union')
-    if not has_imports:
+    if bounded or not has_imports:
         require(cross <= imports, 'required cross-unit calls lack physical object imports')
     cross |= imports & model['definitions']
     actual_private = set(seen) & set.union(*private)
@@ -478,9 +553,10 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
     candidate = str(cache.parent.name) == 'candidate'
     if not candidate:
         result = matched.zil_inventory(args, report, cache, llvm, executable_sha256, request_directory)
-        current_inventory_layout(args, report, result, llvm, model)
+        current_inventory_layout(args, report, result, llvm, model, candidate=False)
         return result
     cg = report.get('native_codegen') or {}
+    bounded_report_policy(args, cg)
     require(cg.get('backend') == 'llvm-api' and cg.get('requested_units') == cg.get('actual_units') == 16
             and cg.get('jobs') == 1 and cg.get('fallback') is None,
             'actual closed backend/CGU16/jobs1 contract')
@@ -539,6 +615,9 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         if access.get('state') == 'miss':
             require(receipt.get('verify_before_after') is True, 'fresh closed object needs actual before/after LLVM Verify')
             archived = {'receipt': receipt, 'object_sha256': item['object']['sha256'], 'policy': policy_identity(args)}
+            if getattr(args, 'bounded_class_imports', False):
+                archived['class_import_scope'] = {key: cg[key] for key in
+                    ('class_import_requested', 'class_import_policy', 'class_import_fallback', 'fallback')}
             producers[producer_key] = matched.blob(args.out, json.dumps(archived, sort_keys=True).encode(), '.producer.json')
         else:
             require(access.get('state') == 'hit' and producer_key in producers, 'closed cache hit needs same-arm full-O2 verified producer')
@@ -566,14 +645,16 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         indices = [i for u in units for group in ('prelude', 'declarations', 'imports', 'definitions') for i in u[group]]
         owned = [i for u in units for i in u['definitions']]
         if (not items or any(i >= len(items) for i in indices) or sorted(owned) != sorted(definitions)
-                or (not getattr(args, 'complete_imports', False) and any(u['imports'] for u in units))):
+                or (not (getattr(args, 'complete_imports', False) or getattr(args, 'bounded_class_imports', False))
+                    and any(u['imports'] for u in units))):
             continue
         try:
-            expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+            expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False),
+                                                       getattr(args, 'bounded_class_imports', False))
         except ValueError:
             # A persistent cache retains prior request layouts. A valid envelope
             # can describe an older call graph; it is not current provenance.
-            # Only complete current closures matching physical objects survive
+            # Only the selected current closure matching physical objects survives
             # below, and at least one unique current layout remains mandatory.
             continue
         private = import_names(units, items)
@@ -590,7 +671,7 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         for item, names, clones in zip(objects, expected, private):
             item['scalar_abi'] = object_abi(matched.recheck_archived(args.out, item['object']), names, cross & names, model, clones)
         undefined = {n for o in objects for n in o['scalar_abi']['undefined']}
-        if not has_imports:
+        if getattr(args, 'bounded_class_imports', False) or not has_imports:
             require(cross <= undefined, 'required cross-unit calls lack physical object imports')
         cross |= undefined & model['definitions']
         physical = {n: info for o in objects for n, info in o['scalar_abi']['functions'].items()}
@@ -599,7 +680,9 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         layouts.append({'units': units, 'key': path.stem, 'payload_sha256': matched.rc.sha(data[72:]),
                         'removed_functions': sorted(removed),
                         'required_cross_unit_exports': sorted(cross),
-                        'complete_imports': getattr(args, 'complete_imports', False),
+                        'complete_imports': getattr(args, 'complete_imports', False) and not getattr(args, 'bounded_class_imports', False),
+                        'bounded_class_imports': getattr(args, 'bounded_class_imports', False),
+                        'policy_identity': policy_identity(args),
                         'actual_import_count': sum(len(u['imports']) for u in units),
                         'private_import_functions': sorted(set.union(*actual) & set.union(*private)),
                         **matched.preserve(args.out, path, '.layout')})
@@ -666,7 +749,8 @@ def quality(rows, args, oracle, allow_main_limit=False):
                         and inv['current_layout_matches'], 'physical sixteen-unit quality required')
                 llvm = matched.recheck_archived(args.out, row['llvm'])
                 model = scalar_model(llvm)
-                layout, _ = current_inventory_layout(args, row['resident']['report'], inv, llvm, model)
+                layout, _ = current_inventory_layout(args, row['resident']['report'], inv, llvm, model,
+                                                      candidate=row['arm'] == 'candidate')
                 exports[row['arm']] = sorted({n for o in inv['objects'] for n in o['defined_functions']}
                                              - set(inv.get('private_import_functions', [])))
                 row['scalar_abi'] = executable_abi(args, row)
