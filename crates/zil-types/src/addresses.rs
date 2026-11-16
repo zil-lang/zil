@@ -188,6 +188,62 @@ impl Builder<'_, '_> {
         }
         self.expr(e, expected)
     }
+    /// A local annotation/ascription may request a shared view of an existing
+    /// exclusive input. Evaluate the original read before emitting its child
+    /// window, so that read's semantic receipt retains its exclusive sigma.
+    pub(super) fn scoped_address_domain(&mut self, span: Span) -> R<bool> {
+        if !self.closures.semantic_emission.has_original_context() {
+            return Ok(false);
+        }
+        self.closures.snapshot(
+            self.closures
+                .semantic_emission
+                .frames
+                .len()
+                .saturating_add(1)
+                .ilog2() as usize
+                + 1,
+            span,
+        )?;
+        Ok(self
+            .closures
+            .semantic_emission
+            .frames
+            .contains_key(&self.function.id))
+    }
+    pub(super) fn shared_input_view(
+        &mut self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+    ) -> R<Option<(ValueId, Type)>> {
+        let Some(
+            wanted @ Type::Address {
+                mutable: false,
+                inner,
+            },
+        ) = expected
+        else {
+            return Ok(None);
+        };
+        let mut root = expression;
+        while let CoreExprKind::Group(value) = &root.kind {
+            self.closures.snapshot(1, root.span)?;
+            root = value;
+        }
+        let CoreExprKind::Name(name) = &root.kind else {
+            return Ok(None);
+        };
+        let Some(local) = self.lookup(name) else {
+            return Ok(None);
+        };
+        let actual = &self.function.locals[local.0 as usize].ty;
+        if !matches!(actual, Type::Address { mutable: true, inner: child } if child == inner) {
+            return Ok(None);
+        }
+        // argument_address emits a real ReborrowAddress; unlike transfer_name
+        // this observes the input and never emits TakeLocal/TakeCapture.
+        Ok(Some(self.argument_expr(expression, wanted)?))
+    }
     fn transfer_name(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         if let CoreExprKind::Name(name) = &e.kind
             && let Some(local) = self.lookup(name)
@@ -643,7 +699,13 @@ impl Builder<'_, '_> {
                 "borrowing a captured resource head requires an explicit environment-head protocol",
             ));
         }
+        let address_slot =
+            matches!(decl.ty, Type::Address { .. }) && self.scoped_address_domain(span)?;
         if !decl.ty.is_copy_value()
+            // This borrows the address *slot*, without reading or copying
+            // its occupant. The outer slot loan and complete pointee domain
+            // are separate, and an exclusive occupant remains affine.
+            && !address_slot
             && !stored::shared_value(&decl.ty)
             && !pure_array
             && !matches!(decl.ty, Type::Closure(_) | Type::OwnedDyn { .. })
@@ -657,7 +719,7 @@ impl Builder<'_, '_> {
         {
             return Err(unsupported(
                 span,
-                "address targets must be finite Copy values or actual shared user-resource heads; descriptors and nested addresses are not head positions",
+                "address targets require a complete value/slot domain or actual shared user-resource head; descriptors are not head positions",
             ));
         }
         if mutable && !decl.mutable {
@@ -700,6 +762,9 @@ impl Builder<'_, '_> {
             } => {
                 let result = self.expr(operand, None)?;
                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
+                    && !(matches!(&result.1, Type::Address { inner, .. }
+                        if matches!(inner.as_ref(), Type::Address { .. }))
+                        && self.scoped_address_domain(e.span)?)
                     && !stored::shared_address(&result.1)
                     && !result.1.is_shared_resource_head_address()
                     && !result.1.is_package_address()

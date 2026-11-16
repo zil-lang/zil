@@ -81,6 +81,101 @@ fn choose(
     insert(mapping, binder, image, limits, left)?;
     Ok(binder)
 }
+
+/// Early physical header proposals can split one declared lifetime into
+/// several invocation entries. Rebuild that directory only after every P/R
+/// row and every incoming claim has been checked against the original domain.
+/// These images are materializer canonical original classes, not caller
+/// instantiations. Fixed child coordinates remain distinct even when their
+/// outside images coincide.
+fn canonical_invocations(
+    header: &mut StorageLifeContract,
+    embedding: &mut Vec<SemanticHeaderBinding>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    if header.invocation_binder_count <= 1 {
+        return Ok(());
+    }
+    let mut canonical: Vec<SemanticHeaderBinding> = Vec::new();
+    let mut remap = std::collections::BTreeMap::new();
+    let mut count = 0u32;
+    pay(
+        left,
+        embedding
+            .len()
+            .saturating_add(header.invocation_binder_count as usize),
+    )?;
+    for row in embedding
+        .iter()
+        .filter(|row| matches!(row.header, StorageBinder::Fixed(_)))
+    {
+        crate::dyn_metadata::semantic_operand_snapshot(&row.actual, limits, left, 1)?;
+        canonical.push(row.clone());
+    }
+    for old in 0..header.invocation_binder_count {
+        pay(left, embedding.len().saturating_add(canonical.len()))?;
+        let mut rows = embedding
+            .iter()
+            .filter(|row| row.header == StorageBinder::Invocation(old));
+        let row = rows
+            .next()
+            .ok_or_else(|| bad("original invocation header has no complete source image"))?;
+        if rows.next().is_some() {
+            return Err(bad(
+                "original invocation header repeats its complete source image",
+            ));
+        }
+        let mut selected = None;
+        for candidate in &canonical {
+            let StorageBinder::Invocation(ordinal) = candidate.header else {
+                continue;
+            };
+            crate::dyn_metadata::semantic_operand_snapshot(&candidate.actual, limits, left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&row.actual, limits, left, 1)?;
+            if candidate.actual == row.actual {
+                selected = Some(ordinal);
+                break;
+            }
+        }
+        let ordinal = if let Some(ordinal) = selected {
+            ordinal
+        } else {
+            let ordinal = count;
+            count = count
+                .checked_add(1)
+                .ok_or_else(|| bad("canonical invocation header overflows"))?;
+            crate::dyn_metadata::semantic_operand_snapshot(&row.actual, limits, left, 1)?;
+            canonical.push(SemanticHeaderBinding {
+                header: StorageBinder::Invocation(ordinal),
+                actual: row.actual.clone(),
+            });
+            ordinal
+        };
+        pay(left, remap.len().saturating_add(1).ilog2() as usize + 1)?;
+        remap.insert(old, ordinal);
+    }
+    pay(
+        left,
+        header.bindings.len().saturating_add(header.classes.len()),
+    )?;
+    for binder in header
+        .bindings
+        .iter_mut()
+        .map(|row| &mut row.binder)
+        .chain(header.classes.iter_mut().map(|row| &mut row.binder))
+    {
+        if let StorageBinder::Invocation(old) = binder {
+            pay(left, remap.len().saturating_add(1).ilog2() as usize + 1)?;
+            *old = *remap
+                .get(old)
+                .ok_or_else(|| bad("invocation header row leaves its original full directory"))?;
+        }
+    }
+    header.invocation_binder_count = count;
+    *embedding = canonical;
+    Ok(())
+}
 pub(super) fn populate(
     program: &mut SemanticModule,
     module: &mut TypedModule,
@@ -348,6 +443,7 @@ pub(super) fn populate(
                 ));
             }
         }
+        canonical_invocations(&mut proposed, &mut embedding, limits, left)?;
         changes.push((instance.id, id, proposed, embedding));
     }
     drop(view);

@@ -126,7 +126,13 @@ impl Builder<'_, '_> {
                     "dereference requires an address",
                 ));
             };
-            if !inner.is_copy_value() {
+            // Shared address observations copy the pointer, with its complete
+            // scoped child domain reconstructed by the original/world passes.
+            // The physical Type tag supplies no zero-domain or lifetime fact.
+            // An exclusive child is still affine and cannot be read this way.
+            let scoped_shared = matches!(inner.as_ref(), Type::Address { mutable: false, .. })
+                && self.scoped_address_domain(e.span)?;
+            if !inner.is_copy_value() && !scoped_shared {
                 return Err(unsupported(
                     e.span,
                     "dereference requires a finite Copy pointee",
